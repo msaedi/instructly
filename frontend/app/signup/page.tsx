@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { API_URL, API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
 
 export default function SignUp() {
   const router = useRouter();
@@ -59,7 +60,7 @@ export default function SignUp() {
     }
   
     try {
-      const response = await fetch("http://localhost:8000/auth/register", {
+      const response = await fetch(`${API_URL}${API_ENDPOINTS.REGISTER}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -72,7 +73,7 @@ export default function SignUp() {
       
       if (response.ok) {
         // Registration successful - now log them in automatically
-        const loginResponse = await fetch("http://localhost:8000/auth/login", {
+        const loginResponse = await fetch(`${API_URL}${API_ENDPOINTS.LOGIN}`, {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({
@@ -80,17 +81,21 @@ export default function SignUp() {
             password: formData.password
           })
         });
-  
+    
         if (loginResponse.ok) {
           const data = await loginResponse.json();
           localStorage.setItem('access_token', data.access_token);
+          
           // Fetch user data to get their role
-          const userResponse = await fetch("http://localhost:8000/auth/me", {
+          // Note: We can't use fetchWithAuth here because it reads from localStorage
+          // but we just set the token and need to use it immediately
+          const userResponse = await fetch(`${API_URL}${API_ENDPOINTS.ME}`, {
             headers: {
-            "Authorization": `Bearer ${data.access_token}`
+              "Authorization": `Bearer ${data.access_token}`
             }
-        });
-        if (userResponse.ok) {
+          });
+          
+          if (userResponse.ok) {
             const userData = await userResponse.json();
             
             // Redirect based on role

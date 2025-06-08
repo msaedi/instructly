@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter , useSearchParams } from "next/navigation";
+import { API_URL, API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
 
 export default function Login() {
   const router = useRouter();
@@ -52,7 +53,7 @@ export default function Login() {
       params.append('username', formData.email); // OAuth2 expects 'username'
       params.append('password', formData.password);
   
-      const response = await fetch("http://localhost:8000/auth/login", {
+      const response = await fetch(`${API_URL}${API_ENDPOINTS.LOGIN}`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: params
@@ -63,11 +64,7 @@ export default function Login() {
         // Store token in localStorage
         localStorage.setItem('access_token', data.access_token);
         // Fetch user data to get their role
-        const userResponse = await fetch("http://localhost:8000/auth/me", {
-            headers: {
-            "Authorization": `Bearer ${data.access_token}`
-            }
-        });
+        const userResponse = await fetchWithAuth(API_ENDPOINTS.ME);
         if (userResponse.ok) {
             const userData = await userResponse.json();
             

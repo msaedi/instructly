@@ -1,3 +1,5 @@
+import { API_URL, API_ENDPOINTS } from '@/lib/api';
+
 const instructors = [
     {
       fullName: "Sarah Chen",
@@ -47,7 +49,7 @@ const instructors = [
     for (const instructor of instructors) {
       try {
         // Create account
-        const registerResponse = await fetch("http://localhost:8000/auth/register", {
+        const registerResponse = await fetch(`${API_URL}${API_ENDPOINTS.REGISTER}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -57,15 +59,15 @@ const instructors = [
             role: "instructor"
           })
         });
-  
+      
         if (!registerResponse.ok) {
           throw new Error(`Failed to create account for ${instructor.email}`);
         }
-  
+      
         console.log(`✅ Created account for ${instructor.fullName}`);
-  
+      
         // Get auth token for the new instructor
-        const loginResponse = await fetch("http://localhost:8000/auth/login", {
+        const loginResponse = await fetch(`${API_URL}${API_ENDPOINTS.LOGIN}`, {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({
@@ -73,32 +75,34 @@ const instructors = [
             password: "testpass123"
           })
         });
-  
+      
         if (!loginResponse.ok) {
           throw new Error(`Failed to login as ${instructor.email}`);
         }
-  
+      
         const { access_token } = await loginResponse.json();
+        
         // Check if user already exists
-        const checkResponse = await fetch("http://localhost:8000/auth/me", {
-            headers: {
+        const checkResponse = await fetch(`${API_URL}${API_ENDPOINTS.ME}`, {
+          headers: {
             "Authorization": `Bearer ${access_token}`
-            }
+          }
         });
         
         if (checkResponse.ok) {
-            console.log(`ℹ️  ${instructor.fullName} already exists, skipping...`);
-            continue;
+          console.log(`ℹ️  ${instructor.fullName} already exists, skipping...`);
+          continue;
         }
+        
         // Transform categories into services with the same hourly rate
         const services = instructor.categories.map(skill => ({
           skill: skill,
           hourly_rate: instructor.hourlyRate,
           description: `${skill} lessons and training`
         }));
-  
+      
         // Create instructor profile with new schema
-        const profileResponse = await fetch("http://localhost:8000/instructors/profile", {
+        const profileResponse = await fetch(`${API_URL}${API_ENDPOINTS.INSTRUCTOR_PROFILE}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -111,16 +115,16 @@ const instructors = [
             services: services  // Array of services with individual pricing
           })
         });
-  
+      
         if (!profileResponse.ok) {
           const errorDetail = await profileResponse.text();
           console.error(`Response status: ${profileResponse.status}`);
           console.error(`Error detail: ${errorDetail}`);
           throw new Error(`Failed to create profile for ${instructor.email}`);
         }
-  
+      
         console.log(`✅ Created profile for ${instructor.fullName}`);
-  
+      
       } catch (error) {
         console.error(`❌ Error for ${instructor.email}:`, error.message);
       }

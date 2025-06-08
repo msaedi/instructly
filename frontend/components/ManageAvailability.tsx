@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { Calendar, Clock, Trash2, Plus } from "lucide-react";
+import { fetchWithAuth } from '@/lib/api';
 
 interface TimeSlot {
   id?: number;
@@ -47,15 +48,7 @@ export default function ManageAvailability({ isOpen, onClose }: AvailabilityMana
   const fetchTimeSlots = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("access_token");
-      const response = await fetch(
-        `http://localhost:8000/instructors/availability?date=${selectedDate}`,
-        {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await fetchWithAuth(`/instructors/availability?date=${selectedDate}`);
 
       if (!response.ok) throw new Error("Failed to fetch time slots");
 
@@ -84,11 +77,10 @@ export default function ManageAvailability({ isOpen, onClose }: AvailabilityMana
       const startDateTime = new Date(`${selectedDate}T${newSlotStart}:00`);
       const endDateTime = new Date(`${selectedDate}T${newSlotEnd}:00`);
       
-      const response = await fetch("http://localhost:8000/instructors/availability", {
+      const response = await fetchWithAuth('/instructors/availability', {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({
           start_time: startDateTime.toISOString(),
@@ -111,12 +103,8 @@ export default function ManageAvailability({ isOpen, onClose }: AvailabilityMana
 
   const deleteTimeSlot = async (slotId: number) => {
     try {
-      const token = localStorage.getItem("access_token");
-      const response = await fetch(`http://localhost:8000/instructors/availability/${slotId}`, {
+      const response = await fetchWithAuth(`/instructors/availability/${slotId}`, {
         method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
       });
 
       if (!response.ok) throw new Error("Failed to delete time slot");
@@ -129,12 +117,10 @@ export default function ManageAvailability({ isOpen, onClose }: AvailabilityMana
 
   const toggleAvailability = async (slotId: number, currentStatus: boolean) => {
     try {
-      const token = localStorage.getItem("access_token");
-      const response = await fetch(`http://localhost:8000/instructors/availability/${slotId}`, {
+      const response = await fetchWithAuth(`/instructors/availability/${slotId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({
           is_available: !currentStatus,

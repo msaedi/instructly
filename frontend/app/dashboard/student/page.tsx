@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Calendar, Search, LogOut } from "lucide-react";
+import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 
 interface UserData {
   id: number;
@@ -27,11 +28,7 @@ export default function StudentDashboard() {
       }
 
       try {
-        const response = await fetch("http://localhost:8000/auth/me", {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
+        const response = await fetchWithAuth(API_ENDPOINTS.ME);
 
         if (!response.ok) {
           throw new Error("Failed to fetch user data");

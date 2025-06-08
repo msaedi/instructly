@@ -84,6 +84,11 @@ async def create_instructor_profile(
     
     db.commit()
     db.refresh(db_profile)
+    db_profile = db.query(InstructorProfile)\
+        .options(joinedload(InstructorProfile.user))\
+        .options(joinedload(InstructorProfile.services))\
+        .filter(InstructorProfile.id == db_profile.id)\
+        .first()
     return db_profile
 
 @router.get("/profile", response_model=InstructorProfileResponse)
@@ -97,9 +102,11 @@ async def get_my_profile(
             detail="Only instructors can access profiles"
         )
     
-    profile = db.query(InstructorProfile).filter(
-        InstructorProfile.user_id == current_user.id
-    ).first()
+    profile = db.query(InstructorProfile)\
+        .options(joinedload(InstructorProfile.user))\
+        .options(joinedload(InstructorProfile.services))\
+        .filter(InstructorProfile.user_id == current_user.id)\
+        .first()
     
     if not profile:
         raise HTTPException(
@@ -151,6 +158,11 @@ async def update_profile(
     
     db.commit()
     db.refresh(db_profile)
+    db_profile = db.query(InstructorProfile)\
+        .options(joinedload(InstructorProfile.user))\
+        .options(joinedload(InstructorProfile.services))\
+        .filter(InstructorProfile.id == db_profile.id)\
+        .first()
     return db_profile
 
 @router.delete("/profile", status_code=status.HTTP_204_NO_CONTENT)
@@ -372,9 +384,11 @@ async def get_instructor_profile(
     instructor_id: int,
     db: Session = Depends(get_db)
 ):
-    profile = db.query(InstructorProfile).filter(
-        InstructorProfile.id == instructor_id
-    ).first()
+    profile = db.query(InstructorProfile)\
+        .options(joinedload(InstructorProfile.user))\
+        .options(joinedload(InstructorProfile.services))\
+        .filter(InstructorProfile.id == instructor_id)\
+        .first()
     
     if not profile:
         raise HTTPException(

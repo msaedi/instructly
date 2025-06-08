@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, MessageCircle, Calendar } from "lucide-react";
+import { fetchAPI } from '@/lib/api';
 
 interface Instructor {
   id: number;
@@ -34,7 +35,7 @@ export default function InstructorProfilePage({ params }: { params: Promise<{ id
   useEffect(() => {
     const fetchInstructor = async () => {
       try {
-        const response = await fetch(`http://localhost:8000/instructors/${id}`);
+        const response = await fetchAPI(`/instructors/${id}`);
         if (!response.ok) {
           if (response.status === 404) {
             throw new Error("Instructor not found");

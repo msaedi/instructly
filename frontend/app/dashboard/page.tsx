@@ -3,6 +3,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -17,11 +18,7 @@ export default function Dashboard() {
       }
 
       try {
-        const response = await fetch("http://localhost:8000/auth/me", {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-          },
-        });
+        const response = await fetchWithAuth(API_ENDPOINTS.ME);
 
         if (!response.ok) {
           router.push("/login");

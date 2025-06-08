@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
+import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 
 interface DeleteProfileModalProps {
   isOpen: boolean;
@@ -22,12 +23,8 @@ export default function DeleteProfileModal({ isOpen, onClose, onSuccess }: Delet
     setError("");
 
     try {
-      const token = localStorage.getItem("access_token");
-      const response = await fetch("http://localhost:8000/instructors/profile", {
+      const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
         method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
       });
 
       if (!response.ok) {

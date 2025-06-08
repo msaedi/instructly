@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import Link from "next/link";
+import { fetchAPI, API_ENDPOINTS } from '@/lib/api';
 
 interface Instructor {
     id: number;
@@ -36,7 +37,7 @@ export default function InstructorsPage() {
   useEffect(() => {
     const fetchInstructors = async () => {
       try {
-        const response = await fetch("http://localhost:8000/instructors");
+        const response = await fetchAPI(API_ENDPOINTS.INSTRUCTORS);
         if (!response.ok) {
           throw new Error("Failed to fetch instructors");
         }

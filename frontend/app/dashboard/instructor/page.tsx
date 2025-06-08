@@ -7,6 +7,7 @@ import { Edit, Calendar, ExternalLink, LogOut, Trash2 } from "lucide-react";
 import EditProfileModal from "@/components/EditProfileModal";
 import ManageAvailability from "@/components/ManageAvailability";
 import DeleteProfileModal from "@/components/DeleteProfileModal";
+import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 
 interface InstructorProfile {
   id: number;
@@ -44,11 +45,7 @@ export default function InstructorDashboard() {
     }
   
     try {
-      const response = await fetch("http://localhost:8000/instructors/profile", {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
   
       if (response.status === 404) {
         setError("No instructor profile found. Please complete your profile setup.");
@@ -61,8 +58,16 @@ export default function InstructorDashboard() {
       }
   
       const data = await response.json();
+      
+      // Make sure we have the expected data structure
+      if (!data.user || !data.services) {
+        console.error("Invalid profile data structure:", data);
+        throw new Error("Invalid profile data received");
+      }
+      
       setProfile(data);
     } catch (err) {
+      console.error("Error fetching profile:", err);
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setIsLoading(false);
@@ -159,7 +164,7 @@ export default function InstructorDashboard() {
         {/* Welcome Section */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Welcome back, {profile.user.full_name}!
+            Welcome back, {profile?.user?.full_name || profile?.user?.email || 'Instructor'}!
           </h1>
           <p className="text-gray-600">Manage your instructor profile and bookings</p>
         </div>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronLeft, ChevronRight, X, AlertCircle } from "lucide-react";
+import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 
 interface Service {
   skill: string;
@@ -58,11 +59,7 @@ export default function BecomeInstructorPage() {
       }
 
       try {
-        const response = await fetch("http://localhost:8000/auth/me", {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
+        const response = await fetchWithAuth(API_ENDPOINTS.ME);
         
         if (!response.ok) throw new Error("Failed to fetch user data");
         
@@ -152,13 +149,11 @@ export default function BecomeInstructorPage() {
       }
   
       try {
-        const token = localStorage.getItem("access_token");
         
-        const response = await fetch("http://localhost:8000/instructors/profile", {
+        const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
           },
           body: JSON.stringify({
             services: formData.services,

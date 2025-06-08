@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
+import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 
 interface Service {
   id?: number;
@@ -56,12 +57,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess }: EditPro
 
   const fetchProfile = async () => {
     try {
-      const token = localStorage.getItem("access_token");
-      const response = await fetch("http://localhost:8000/instructors/profile", {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-      });
+      const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
 
       if (!response.ok) throw new Error("Failed to fetch profile");
 
@@ -89,7 +85,6 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess }: EditPro
     setError("");
 
     try {
-      const token = localStorage.getItem("access_token");
       
       // Ensure areas_of_service is not empty
       if (profileData.areas_of_service.length === 0) {
@@ -98,11 +93,10 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess }: EditPro
         return;
       }
 
-      const response = await fetch("http://localhost:8000/instructors/profile", {
+      const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify(profileData),
       });
