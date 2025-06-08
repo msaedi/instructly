@@ -13,6 +13,7 @@ class Service(Base):
     
     # Relationships
     instructor_profile = relationship("InstructorProfile", back_populates="services")
+    bookings = relationship("Booking", back_populates="service")
 
     # Constraints
     __table_args__ = (

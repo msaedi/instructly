@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import auth, instructors
+from .routes import auth, instructors, bookings
 
 app = FastAPI(
     title="Instructly API",
@@ -23,6 +23,7 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router)
 app.include_router(instructors.router)
+app.include_router(bookings.router)
 
 @app.get("/")
 def read_root():

@@ -16,5 +16,6 @@ class Settings(BaseSettings):
     class Config:
         env_file = str(env_path)  # Use the correct path
         case_sensitive = True
+        extra = "ignore"
 
 settings = Settings()
