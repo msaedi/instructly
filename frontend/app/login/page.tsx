@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter , useSearchParams } from "next/navigation";
 import { API_URL, API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
 
-export default function Login() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect') || '/'; 
@@ -163,6 +163,24 @@ export default function Login() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+export default function Login() {
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <Link href="/" className="flex justify-center">
+          <h1 className="text-3xl font-bold text-indigo-600">Instructly</h1>
+        </Link>
+        <h2 className="mt-6 text-center text-2xl font-bold text-gray-900">
+          Sign in to your account
+        </h2>
+      </div>
+
+      <Suspense fallback={<div>Loading...</div>}>
+        <LoginForm />
+      </Suspense>
     </div>
   );
 }
