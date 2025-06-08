@@ -159,7 +159,7 @@ export default function InstructorsPage() {
             </div>
 
             <button
-              onClick={() => router.push(`/instructors/${instructor.id}`)}
+              onClick={() => router.push(`/instructors/${instructor.user_id}`)}
               className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors"
             >
               View Profile

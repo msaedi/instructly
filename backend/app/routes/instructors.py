@@ -387,7 +387,7 @@ async def get_instructor_profile(
     profile = db.query(InstructorProfile)\
         .options(joinedload(InstructorProfile.user))\
         .options(joinedload(InstructorProfile.services))\
-        .filter(InstructorProfile.id == instructor_id)\
+        .filter(InstructorProfile.user_id == instructor_id)\
         .first()
     
     if not profile:

@@ -237,7 +237,7 @@ export default function InstructorDashboard() {
         {/* Action Buttons */}
         <div className="flex flex-wrap gap-4">
           <button
-            onClick={() => router.push(`/instructors/${profile.id}`)}
+            onClick={() => router.push(`/instructors/${profile.user_id}`)}
             className="flex items-center px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
           >
             <ExternalLink className="h-5 w-5 mr-2" />

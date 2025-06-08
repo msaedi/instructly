@@ -22,3 +22,5 @@ class User(Base):
     
     # Relationship to InstructorProfile
     instructor_profile = relationship("InstructorProfile", back_populates="user", uselist=False)
+    bookings_as_student = relationship("Booking", foreign_keys="Booking.student_id", back_populates="student")
+    bookings_as_instructor = relationship("Booking", foreign_keys="Booking.instructor_id", back_populates="instructor")
