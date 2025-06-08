@@ -1,0 +1,47 @@
+node_modules/
+.env
+.env.local
+__pycache__/
+*.pyc
+.next/
+.DS_Store
+*.db
+.vscode/
+.idea/
+
+# Additional Python files
+*.pyo
+*.pyd
+*$py.class
+*.so
+.Python
+venv/
+env/
+
+# Additional Next.js/React
+out/
+build/
+dist/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+.nyc_output
+*.lcov
+
+# OS files
+Thumbs.db
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Production environment variables
+.env.production
+.env.*.local
