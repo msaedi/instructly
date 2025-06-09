@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import datetime, timedelta
 
+from .instructors import get_current_active_user
 from ..database import get_db
 from ..auth import get_current_user
 from ..models.user import User
@@ -21,7 +22,7 @@ router = APIRouter(prefix="/bookings", tags=["bookings"])
 @router.post("/create", response_model=BookingResponse)
 def create_booking(
     booking: BookingCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """Create a new booking as a student"""
@@ -85,7 +86,7 @@ def create_booking(
 def get_my_bookings(
     role: Optional[str] = Query(None, description="Filter by role: 'student' or 'instructor'"),
     status: Optional[BookingStatus] = Query(None, description="Filter by status"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """Get all bookings for the current user (as student or instructor)"""
@@ -125,7 +126,7 @@ def get_my_bookings(
 @router.get("/{booking_id}", response_model=BookingResponse)
 def get_booking(
     booking_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """Get a specific booking"""
@@ -149,7 +150,7 @@ def get_booking(
 def cancel_booking(
     booking_id: int,
     cancel_data: BookingCancel,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     """Cancel a booking"""

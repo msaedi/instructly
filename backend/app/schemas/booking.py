@@ -57,7 +57,7 @@ class BookingResponse(BaseModel):
     cancelled_at: Optional[datetime] = None
     cancellation_reason: Optional[str] = None
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
     
     # Include related data
     time_slot: TimeSlotResponse

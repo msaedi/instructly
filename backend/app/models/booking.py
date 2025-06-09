@@ -39,7 +39,7 @@ class Booking(Base):
     cancelled_at = Column(DateTime(timezone=True), nullable=True)
     cancellation_reason = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
     student = relationship("User", foreign_keys=[student_id])
