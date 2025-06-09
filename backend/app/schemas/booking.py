@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from datetime import datetime
 from typing import Optional, List
 from enum import Enum
@@ -10,11 +10,26 @@ class BookingStatus(str, Enum):
     COMPLETED = "completed"
 
 # Request schemas
-class BookingCreate(BaseModel):
+class BookingCreateOld(BaseModel):
+    """Legacy schema for old booking flow"""
     instructor_id: int
     timeslot_id: int
     service_id: int
-    requested_duration: Optional[int] = Field(None, description="Requested duration if different from service default")
+    requested_duration: Optional[int] = None
+
+
+class BookingCreate(BaseModel):
+    instructor_id: int
+    service_id: int
+    start_time: datetime
+    duration_minutes: int
+    
+    @validator('duration_minutes')
+    def validate_duration(cls, v):
+        allowed_durations = [30, 45, 60, 90, 120]
+        if v not in allowed_durations:
+            raise ValueError(f'Duration must be one of {allowed_durations}')
+        return v
 
 class BookingCancel(BaseModel):
     cancellation_reason: Optional[str] = Field(None, max_length=500)
@@ -50,7 +65,7 @@ class BookingResponse(BaseModel):
     id: int
     student_id: int
     instructor_id: int
-    timeslot_id: int
+    timeslot_id: Optional[int] = None
     service_id: int
     status: BookingStatus
     total_price: float
@@ -69,6 +84,11 @@ class BookingResponse(BaseModel):
     adjusted_duration: Optional[int] = None
     adjustment_reason: Optional[str] = None
     actual_duration: Optional[int] = Field(None, description="Effective duration considering adjustments")
+
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    duration_minutes: Optional[int] = None
+    adjusted_total_price: Optional[float] = None
     
     class Config:
         from_attributes = True

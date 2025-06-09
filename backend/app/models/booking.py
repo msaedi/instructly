@@ -41,16 +41,31 @@ class Booking(Base):
     instructor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     timeslot_id = Column(Integer, ForeignKey("time_slots.id"), nullable=False)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=True)
+
+    # Booking details
     status = Column(Enum(BookingStatus), nullable=False, default=BookingStatus.PENDING)
     total_price = Column(Float, nullable=False)
+
+    # Cancellation fields
     cancellation_deadline = Column(DateTime(timezone=True), nullable=True)
     cancelled_at = Column(DateTime(timezone=True), nullable=True)
     cancellation_reason = Column(String, nullable=True)
+
+    # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Adjustment tracking
     original_duration = Column(Integer, nullable=True)  # in minutes
     adjusted_duration = Column(Integer, nullable=True)  # if modified after booking
     adjustment_reason = Column(String, nullable=True)
+    adjusted_total_price = Column(Float, nullable=True)
+
+    # Direct time storage - replacing timeslot_id
+    start_time = Column(DateTime(timezone=True), nullable=True)  # nullable for migration
+    end_time = Column(DateTime(timezone=True), nullable=True)    # nullable for migration
+    duration_minutes = Column(Integer, nullable=True)            # nullable for migration
+    
 
     # Relationships
     student = relationship("User", foreign_keys=[student_id])
