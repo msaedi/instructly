@@ -17,6 +17,7 @@ class TimeSlotUpdate(BaseModel):
 class TimeSlotResponse(TimeSlotBase):
     id: int
     instructor_id: int
+    is_booked: bool = False
     
     class Config:
         from_attributes = True

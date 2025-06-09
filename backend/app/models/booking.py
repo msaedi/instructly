@@ -25,6 +25,14 @@ class TimeSlot(Base):
     instructor = relationship("User", foreign_keys=[instructor_id])
     booking = relationship("Booking", back_populates="time_slot", uselist=False)
 
+    @property
+    def is_booked(self):
+        return getattr(self, '_is_booked', False)
+    
+    @is_booked.setter
+    def is_booked(self, value):
+        self._is_booked = value
+
 class Booking(Base):
     __tablename__ = "bookings"
 

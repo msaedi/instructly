@@ -244,6 +244,15 @@ async def get_availability(
         query = query.filter(TimeSlot.start_time >= datetime.now())
     
     slots = query.order_by(TimeSlot.start_time).all()
+    
+    # Check which slots have bookings
+    for slot in slots:
+        booking = db.query(Booking).filter(
+            Booking.timeslot_id == slot.id,
+            Booking.status != BookingStatus.CANCELLED
+        ).first()
+        slot.is_booked = booking is not None
+    
     return slots
 
 @router.post("/availability", response_model=TimeSlotResponse, status_code=status.HTTP_201_CREATED)

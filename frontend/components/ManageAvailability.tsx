@@ -10,6 +10,7 @@ interface TimeSlot {
   start_time: string;
   end_time: string;
   is_available: boolean;
+  is_booked?: boolean;
 }
 
 interface AvailabilityManagerProps {
@@ -126,12 +127,18 @@ export default function ManageAvailability({ isOpen, onClose }: AvailabilityMana
           is_available: !currentStatus,
         }),
       });
-
-      if (!response.ok) throw new Error("Failed to update availability");
-
+  
+      if (!response.ok) {
+        if (response.status === 400) {
+          const error = await response.json();
+          throw new Error(error.detail || "Cannot change availability of booked time slots");
+        }
+        throw new Error("Failed to update availability");
+      }
+  
       await fetchTimeSlots();
-    } catch (err) {
-      setError("Failed to update availability");
+    } catch (err: any) {
+      setError(err.message || "Failed to update availability");
     }
   };
 
@@ -267,23 +274,35 @@ export default function ManageAvailability({ isOpen, onClose }: AvailabilityMana
                         })}
                       </span>
                       <span className={`ml-4 px-2 py-1 rounded text-sm ${
-                        slot.is_available
+                        slot.is_booked
+                          ? 'bg-red-100 text-red-800'
+                          : slot.is_available
                           ? 'bg-green-100 text-green-800'
                           : 'bg-gray-100 text-gray-800'
                       }`}>
-                        {slot.is_available ? 'Available' : 'Booked'}
+                        {slot.is_booked ? 'Booked' : (slot.is_available ? 'Available' : 'Unavailable')}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => slot.id && toggleAvailability(slot.id, slot.is_available)}
-                        className="text-sm text-indigo-600 hover:text-indigo-700"
+                        onClick={() => slot.id && !slot.is_booked && toggleAvailability(slot.id, slot.is_available)}
+                        className={`text-sm ${
+                          slot.is_booked 
+                            ? 'text-gray-400 cursor-not-allowed' 
+                            : 'text-indigo-600 hover:text-indigo-700 cursor-pointer'
+                        }`}
+                        disabled={slot.is_booked}
                       >
-                        {slot.is_available ? 'Mark Unavailable' : 'Mark Available'}
+                        {slot.is_booked ? 'Booked' : (slot.is_available ? 'Mark Unavailable' : 'Mark Available')}
                       </button>
                       <button
-                        onClick={() => slot.id && deleteTimeSlot(slot.id)}
-                        className="text-red-600 hover:text-red-700"
+                        onClick={() => slot.id && !slot.is_booked && deleteTimeSlot(slot.id)}
+                        className={`${
+                          slot.is_booked 
+                            ? 'text-gray-300 cursor-not-allowed' 
+                            : 'text-red-600 hover:text-red-700'
+                        }`}
+                        disabled={slot.is_booked}
                       >
                         <Trash2 size={18} />
                       </button>
