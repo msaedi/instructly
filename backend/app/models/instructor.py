@@ -13,6 +13,9 @@ class InstructorProfile(Base):
     years_experience = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    default_session_duration = Column(Integer, nullable=False, default=60)  # in minutes
+    buffer_time = Column(Integer, nullable=False, default=0)  # in minutes
+    minimum_advance_hours = Column(Integer, nullable=False, default=2)  # hours
 
     # Relationship to User
     user = relationship("User", back_populates="instructor_profile")

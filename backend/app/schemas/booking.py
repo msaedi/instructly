@@ -14,6 +14,7 @@ class BookingCreate(BaseModel):
     instructor_id: int
     timeslot_id: int
     service_id: int
+    requested_duration: Optional[int] = Field(None, description="Requested duration if different from service default")
 
 class BookingCancel(BaseModel):
     cancellation_reason: Optional[str] = Field(None, max_length=500)
@@ -63,9 +64,18 @@ class BookingResponse(BaseModel):
     time_slot: TimeSlotResponse
     service: ServiceResponse
     instructor: InstructorSummary
+
+    original_duration: Optional[int] = None
+    adjusted_duration: Optional[int] = None
+    adjustment_reason: Optional[str] = None
+    actual_duration: Optional[int] = Field(None, description="Effective duration considering adjustments")
     
     class Config:
         from_attributes = True
+
+class BookingAdjustment(BaseModel):
+    adjusted_duration: int = Field(ge=30, le=240)
+    adjustment_reason: str = Field(min_length=1, max_length=500)
 
 class BookingListResponse(BaseModel):
     bookings: List[BookingResponse]

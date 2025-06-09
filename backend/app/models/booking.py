@@ -48,9 +48,17 @@ class Booking(Base):
     cancellation_reason = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    original_duration = Column(Integer, nullable=True)  # in minutes
+    adjusted_duration = Column(Integer, nullable=True)  # if modified after booking
+    adjustment_reason = Column(String, nullable=True)
 
     # Relationships
     student = relationship("User", foreign_keys=[student_id])
     instructor = relationship("User", foreign_keys=[instructor_id])
     time_slot = relationship("TimeSlot", back_populates="booking")
     service = relationship("Service", back_populates="bookings")
+
+    @property
+    def actual_duration(self):
+        """Get the actual duration (adjusted if modified, original otherwise)"""
+        return self.adjusted_duration or self.original_duration
