@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Edit, Calendar, ExternalLink, LogOut, Trash2 } from "lucide-react";
 import EditProfileModal from "@/components/EditProfileModal";
-import ManageAvailability from "@/components/ManageAvailability";
 import DeleteProfileModal from "@/components/DeleteProfileModal";
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
+
 
 interface InstructorProfile {
   id: number;
@@ -33,7 +33,6 @@ export default function InstructorDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
 
@@ -184,7 +183,22 @@ export default function InstructorDashboard() {
             <p className="text-3xl font-bold text-indigo-600">$0</p>
           </div>
         </div>
-
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <Link
+            href="/dashboard/instructor/availability"
+            className="block p-6 bg-white rounded-lg shadow hover:shadow-lg transition-shadow"
+          >
+            <div className="flex items-center gap-4">
+              <Calendar className="w-8 h-8 text-indigo-600" />
+              <div>
+                <h3 className="text-lg font-semibold">Manage Availability</h3>
+                <p className="text-gray-600">Set your weekly schedule and available hours</p>
+              </div>
+            </div>
+          </Link>
+          {/* Add more quick action cards here later */}
+        </div>
         {/* Profile Section */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
           <div className="flex justify-between items-start mb-6">
@@ -244,13 +258,6 @@ export default function InstructorDashboard() {
             View Public Profile
           </button>
           <button
-            onClick={() => setShowAvailabilityModal(true)}
-            className="flex items-center px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
-          >
-            <Calendar className="h-5 w-5 mr-2" />
-            Manage Availability
-          </button>
-          <button
             onClick={() => setShowDeleteModal(true)}
             className="flex items-center px-6 py-3 bg-red-50 border border-red-300 text-red-700 rounded-md hover:bg-red-100"
             >
@@ -265,13 +272,6 @@ export default function InstructorDashboard() {
           isOpen={showEditModal}
           onClose={() => setShowEditModal(false)}
           onSuccess={handleProfileUpdate}
-        />
-      )}
-
-      {showAvailabilityModal && (
-        <ManageAvailability
-          isOpen={showAvailabilityModal}
-          onClose={() => setShowAvailabilityModal(false)}
         />
       )}
       {showDeleteModal && (

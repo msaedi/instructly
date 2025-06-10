@@ -99,3 +99,42 @@ class AvailabilityPreset(str, Enum):
 class ApplyPresetRequest(BaseModel):
     preset: AvailabilityPreset
     clear_existing: bool = True
+
+# For week-specific operations
+class DateTimeSlot(BaseModel):
+    date: date
+    start_time: time  # Using time type instead of str
+    end_time: time
+    is_available: bool = True
+    
+    @validator('end_time')
+    def validate_time_order(cls, v, values):
+        if 'start_time' in values and v <= values['start_time']:
+            raise ValueError('End time must be after start time')
+        return v
+
+class WeekSpecificScheduleCreate(BaseModel):
+    """Create schedule for specific dates (not recurring)"""
+    schedule: List[DateTimeSlot]
+    clear_existing: bool = True
+
+class CopyWeekRequest(BaseModel):
+    from_week_start: date
+    to_week_start: date
+    
+    @validator('to_week_start')
+    def validate_different_weeks(cls, v, values):
+        if 'from_week_start' in values and v == values['from_week_start']:
+            raise ValueError('Cannot copy to the same week')
+        return v
+
+class ApplyToDateRangeRequest(BaseModel):
+    from_week_start: date
+    start_date: date
+    end_date: date
+    
+    @validator('end_date')
+    def validate_date_range(cls, v, values):
+        if 'start_date' in values and v < values['start_date']:
+            raise ValueError('End date must be after start date')
+        return v

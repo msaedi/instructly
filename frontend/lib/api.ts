@@ -29,7 +29,20 @@ export const API_ENDPOINTS = {
   // Instructors
   INSTRUCTORS: '/instructors',
   INSTRUCTOR_PROFILE: '/instructors/profile',
-  INSTRUCTOR_AVAILABILITY: '/instructors/availability',
+
+  // Availability Management
+  INSTRUCTOR_AVAILABILITY_WEEKLY: '/instructors/availability-windows/weekly',
+  INSTRUCTOR_AVAILABILITY_PRESET: '/instructors/availability-windows/preset',
+  INSTRUCTOR_AVAILABILITY_SPECIFIC: '/instructors/availability-windows/specific-date',
+  INSTRUCTOR_BLACKOUT_DATES: '/instructors/availability-windows/blackout-dates',
+
+  // Week-specific availability
+  INSTRUCTOR_AVAILABILITY_WEEK: '/instructors/availability-windows/week',
+  INSTRUCTOR_AVAILABILITY_COPY_WEEK: '/instructors/availability-windows/copy-week',
+  INSTRUCTOR_AVAILABILITY_APPLY_RANGE: '/instructors/availability-windows/apply-to-date-range',
+
+  // For students to check availability
+  CHECK_AVAILABILITY: '/api/availability/slots',
   
   // Add more as needed
 } as const;
