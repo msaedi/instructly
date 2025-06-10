@@ -30,3 +30,7 @@ app.include_router(availability_windows.router)
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the Instructly API!"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
