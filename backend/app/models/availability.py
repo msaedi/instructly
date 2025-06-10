@@ -32,6 +32,7 @@ class AvailabilityWindow(Base):
     # Flags
     is_recurring = Column(Boolean, default=True, nullable=False)
     is_available = Column(Boolean, default=True, nullable=False)
+    is_cleared = Column(Boolean, default=False, nullable=False)
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -1,7 +1,13 @@
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .routes import auth, instructors, bookings, availability, availability_windows
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 app = FastAPI(
     title="Instructly API",
     description="Backend API for Instructly - A platform for managing and delivering educational content",

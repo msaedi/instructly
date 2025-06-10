@@ -117,6 +117,7 @@ class WeekSpecificScheduleCreate(BaseModel):
     """Create schedule for specific dates (not recurring)"""
     schedule: List[DateTimeSlot]
     clear_existing: bool = True
+    week_start: Optional[date] = None 
 
 class CopyWeekRequest(BaseModel):
     from_week_start: date

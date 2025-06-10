@@ -147,6 +147,9 @@ export default function AvailabilityPage() {
       
       if (!response.ok) throw new Error('Failed to fetch availability');
       const data = await response.json();
+
+      console.log('Fetched week data:', data);
+      console.log('Data keys:', Object.keys(data));
       
       // Clean up duplicate slots by merging overlapping time ranges
       const cleanedData: WeekSchedule = {};
@@ -304,22 +307,22 @@ export default function AvailabilityPage() {
         throw new Error(`Invalid preset: ${preset}`);
       }
       
-      // Apply to current week
+      // Start with an empty schedule for ALL days
       const newSchedule: WeekSchedule = {};
       const weekDates = getWeekDates();
       
+      // First, clear all days
+      weekDates.forEach(dateInfo => {
+        newSchedule[dateInfo.fullDate] = [];
+      });
+      
+      // Then apply the preset
       weekDates.forEach(dateInfo => {
         const daySlots = presetData[dateInfo.dayOfWeek];
         if (daySlots && daySlots.length > 0) {
           newSchedule[dateInfo.fullDate] = [...daySlots];
-        } else {
-          // Empty day - add unavailable marker
-          newSchedule[dateInfo.fullDate] = [{
-            start_time: '00:00:00',
-            end_time: '00:01:00',
-            is_available: false
-          }];
         }
+        // Empty days remain as empty arrays
       });
       
       setWeekSchedule(newSchedule);
@@ -340,42 +343,49 @@ export default function AvailabilityPage() {
     try {
       // Convert schedule to API format
       const scheduleData: any[] = [];
-        const weekDates = getWeekDates();
-
-        // If schedule is empty (cleared week), we still need to tell backend which week
-        if (Object.keys(weekSchedule).length === 0) {
-          // Create unavailable markers for ALL days of the week
-          weekDates.forEach(dateInfo => {
+      const weekDates = getWeekDates();
+      
+      // IMPORTANT: Send ALL days, even empty ones
+      weekDates.forEach(dateInfo => {
+        const daySlots = weekSchedule[dateInfo.fullDate] || [];
+        
+        if (daySlots.length > 0) {
+          // Day has slots
+          daySlots.forEach(slot => {
             scheduleData.push({
               date: dateInfo.fullDate,
-              start_time: "00:00",
-              end_time: "00:01",
-              is_available: false
+              start_time: slot.start_time,
+              end_time: slot.end_time,
+              is_available: slot.is_available
             });
           });
         } else {
-          // Normal schedule building
-          Object.entries(weekSchedule).forEach(([date, slots]) => {
-            slots.forEach(slot => {
-              scheduleData.push({
-                date: date,
-                start_time: slot.start_time.substring(0, 5),
-                end_time: slot.end_time.substring(0, 5),
-                is_available: slot.is_available
-              });
-            });
+          // Day is empty - send a cleared marker
+          scheduleData.push({
+            date: dateInfo.fullDate,
+            start_time: "00:00:00",
+            end_time: "00:01:00",
+            is_available: false
           });
         }
-
+      });
+  
+      console.log('Saving schedule:', {
+        scheduleLength: scheduleData.length,
+        isEmpty: Object.keys(weekSchedule).length === 0,
+        scheduleData
+      });
+  
       const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           schedule: scheduleData,
-          clear_existing: true 
+          clear_existing: true,
+          week_start: formatDateForAPI(currentWeekStart)
         })
       });
-
+  
       if (!response.ok) throw new Error('Failed to save schedule');
       
       setSavedWeekSchedule(weekSchedule);
@@ -398,7 +408,9 @@ export default function AvailabilityPage() {
       const previousWeek = new Date(currentWeekStart);
       previousWeek.setDate(previousWeek.getDate() - 7);
       
-      // Fetch the previous week's schedule
+      console.log('Current week start:', currentWeekStart);
+      console.log('Previous week start:', previousWeek);
+      
       const response = await fetchWithAuth(
         `${API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK}?start_date=${formatDateForAPI(previousWeek)}`
       );
@@ -406,27 +418,34 @@ export default function AvailabilityPage() {
       if (!response.ok) throw new Error('Failed to fetch previous week');
       const previousWeekData = await response.json();
       
-      // Copy to current week dates
+      console.log('Previous week data:', previousWeekData);
+      
+      // Start with ALL days having empty arrays
       const copiedSchedule: WeekSchedule = {};
       const weekDates = getWeekDates();
       
+      // First, initialize all days with empty arrays
+      weekDates.forEach(dateInfo => {
+        copiedSchedule[dateInfo.fullDate] = [];
+      });
+      
+      // Then copy actual data where it exists
       weekDates.forEach((dateInfo, index) => {
         const prevDate = new Date(previousWeek);
         prevDate.setDate(prevDate.getDate() + index);
         const prevDateStr = formatDateForAPI(prevDate);
         
+        console.log(`Mapping ${prevDateStr} to ${dateInfo.fullDate}`);
+        
         if (previousWeekData[prevDateStr] && previousWeekData[prevDateStr].length > 0) {
           // Copy the actual slots
           copiedSchedule[dateInfo.fullDate] = previousWeekData[prevDateStr];
-        } else {
-          // IMPORTANT: For empty days, create an unavailable marker
-          copiedSchedule[dateInfo.fullDate] = [{
-            start_time: "00:00:00",
-            end_time: "00:01:00",
-            is_available: false
-          }];
+          console.log(`Copied slots from ${prevDateStr} to ${dateInfo.fullDate}`);
         }
+        // Days without data remain as empty arrays
       });
+      
+      console.log('Final copied schedule:', copiedSchedule);
       
       setWeekSchedule(copiedSchedule);
       setHasUnsavedChanges(true);
