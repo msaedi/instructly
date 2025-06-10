@@ -44,4 +44,4 @@ Thumbs.db
 
 # Production environment variables
 .env.production
-.env.*.local
+.env.*.local!.vercel/project.json
