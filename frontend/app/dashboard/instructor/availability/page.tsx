@@ -359,14 +359,6 @@ export default function AvailabilityPage() {
               is_available: slot.is_available
             });
           });
-        } else {
-          // Day is empty - send a cleared marker
-          scheduleData.push({
-            date: dateInfo.fullDate,
-            start_time: "00:00:00",
-            end_time: "00:01:00",
-            is_available: false
-          });
         }
       });
   
