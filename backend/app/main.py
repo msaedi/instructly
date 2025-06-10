@@ -1,7 +1,7 @@
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import auth, instructors, bookings, availability, availability_windows
+from .routes import auth, instructors, availability_windows
 
 # Configure logging
 logging.basicConfig(
@@ -29,8 +29,6 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router)
 app.include_router(instructors.router)
-app.include_router(bookings.router)
-app.include_router(availability.router, prefix="/api", tags=["availability"])
 app.include_router(availability_windows.router)
 
 @app.get("/")

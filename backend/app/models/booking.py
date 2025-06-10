@@ -10,37 +10,18 @@ class BookingStatus(str, enum.Enum):
     CANCELLED = "cancelled"
     COMPLETED = "completed"
 
-class TimeSlot(Base):
-    __tablename__ = "time_slots"
-
-    id = Column(Integer, primary_key=True, index=True)
-    instructor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    start_time = Column(DateTime(timezone=True), nullable=False)
-    end_time = Column(DateTime(timezone=True), nullable=False)
-    is_available = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    # Relationships
-    instructor = relationship("User", foreign_keys=[instructor_id])
-    booking = relationship("Booking", back_populates="time_slot", uselist=False)
-
-    @property
-    def is_booked(self):
-        return getattr(self, '_is_booked', False)
-    
-    @is_booked.setter
-    def is_booked(self, value):
-        self._is_booked = value
-
 class Booking(Base):
     __tablename__ = "bookings"
 
     id = Column(Integer, primary_key=True, index=True)
     student_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     instructor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    timeslot_id = Column(Integer, ForeignKey("time_slots.id"), nullable=False)
-    service_id = Column(Integer, ForeignKey("services.id"), nullable=True)
+    service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
+
+    # Direct time storage - primary booking info
+    start_time = Column(DateTime(timezone=True), nullable=False)
+    end_time = Column(DateTime(timezone=True), nullable=False)
+    duration_minutes = Column(Integer, nullable=False)
 
     # Booking details
     status = Column(Enum(BookingStatus), nullable=False, default=BookingStatus.PENDING)
@@ -55,25 +36,7 @@ class Booking(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    # Adjustment tracking
-    original_duration = Column(Integer, nullable=True)  # in minutes
-    adjusted_duration = Column(Integer, nullable=True)  # if modified after booking
-    adjustment_reason = Column(String, nullable=True)
-    adjusted_total_price = Column(Float, nullable=True)
-
-    # Direct time storage - replacing timeslot_id
-    start_time = Column(DateTime(timezone=True), nullable=True)  # nullable for migration
-    end_time = Column(DateTime(timezone=True), nullable=True)    # nullable for migration
-    duration_minutes = Column(Integer, nullable=True)            # nullable for migration
-    
-
-    # Relationships
-    student = relationship("User", foreign_keys=[student_id])
-    instructor = relationship("User", foreign_keys=[instructor_id])
-    time_slot = relationship("TimeSlot", back_populates="booking")
+    # Relationships - use back_populates instead of backref
+    student = relationship("User", foreign_keys=[student_id], back_populates="bookings_as_student")
+    instructor = relationship("User", foreign_keys=[instructor_id], back_populates="bookings_as_instructor")
     service = relationship("Service", back_populates="bookings")
-
-    @property
-    def actual_duration(self):
-        """Get the actual duration (adjusted if modified, original otherwise)"""
-        return self.adjusted_duration or self.original_duration

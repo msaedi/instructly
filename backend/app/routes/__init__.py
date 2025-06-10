@@ -1,1 +1,1 @@
-from . import auth, instructors, bookings, availability, availability_windows
+from . import auth, instructors, availability_windows
