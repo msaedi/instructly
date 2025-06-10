@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Enum, Boolean, DateTime, Foreign
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from ..database import Base
+from .availability import AvailabilityWindow, BlackoutDate
 import enum
 
 class UserRole(str, enum.Enum):
@@ -24,3 +25,5 @@ class User(Base):
     instructor_profile = relationship("InstructorProfile", back_populates="user", uselist=False)
     bookings_as_student = relationship("Booking", foreign_keys="Booking.student_id", back_populates="student")
     bookings_as_instructor = relationship("Booking", foreign_keys="Booking.instructor_id", back_populates="instructor")
+    availability_windows = relationship("AvailabilityWindow", back_populates="instructor", cascade="all, delete-orphan")
+    blackout_dates = relationship("BlackoutDate", back_populates="instructor", cascade="all, delete-orphan")
