@@ -1,7 +1,7 @@
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import auth, instructors, availability_windows
+from .routes import auth, instructors, availability_windows, password_reset
 from .core.constants import ALLOWED_ORIGINS
 
 # Configure logging
@@ -33,6 +33,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(instructors.router)
 app.include_router(availability_windows.router)
+app.include_router(password_reset.router)
 
 @app.on_event("startup")
 async def startup_event():

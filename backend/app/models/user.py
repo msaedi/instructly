@@ -24,11 +24,10 @@ class User(Base):
     # Relationships
     instructor_profile = relationship("InstructorProfile", back_populates="user", uselist=False)
     
-    # Booking relationships (only define once!)
-    bookings_as_student = relationship("Booking", foreign_keys="Booking.student_id", back_populates="student")
-    bookings_as_instructor = relationship("Booking", foreign_keys="Booking.instructor_id", back_populates="instructor")
-    
     # Availability relationships
     recurring_availability = relationship("RecurringAvailability", back_populates="instructor", cascade="all, delete-orphan")
     specific_date_availability = relationship("SpecificDateAvailability", back_populates="instructor", cascade="all, delete-orphan")
     blackout_dates = relationship("BlackoutDate", back_populates="instructor", cascade="all, delete-orphan")
+
+    # Password reset relationships
+    password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
