@@ -1,6 +1,8 @@
 // app/dashboard/instructor/availability/page.tsx
 "use client";
 
+import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { fetchWithAuth, API_ENDPOINTS } from "@/lib/api";
@@ -521,6 +523,10 @@ export default function AvailabilityPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+      <Link href="/dashboard/instructor" className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4">
+        <ArrowLeft className="w-4 h-4 mr-2" />
+        Back to Dashboard
+      </Link>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Manage Your Availability</h1>
         <p className="text-gray-600">Set your schedule week by week for maximum flexibility</p>
