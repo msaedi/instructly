@@ -103,6 +103,18 @@ class InstructorProfileBase(BaseModel):
         le=50,
         description="Years of teaching experience"
     )
+    min_advance_booking_hours: int = Field(
+        default=2, 
+        ge=0, 
+        le=168, 
+        description="Minimum hours in advance for bookings"
+    )
+    buffer_time_minutes: int = Field(
+        default=0, 
+        ge=0, 
+        le=60, 
+        description="Buffer time between bookings"
+    )
     
     @validator('areas_of_service')
     def validate_areas(cls, v):

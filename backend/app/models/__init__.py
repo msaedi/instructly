@@ -17,6 +17,7 @@ from .instructor import InstructorProfile
 from .service import Service
 from .password_reset import PasswordResetToken
 from .availability import InstructorAvailability, AvailabilitySlot, BlackoutDate
+from .booking import Booking, BookingStatus
 
 __all__ = [
     # User models
@@ -30,5 +31,8 @@ __all__ = [
     "AvailabilitySlot", 
     "BlackoutDate",
     # Authentication models
-    "PasswordResetToken"
+    "PasswordResetToken",
+    # Booking models
+    "Booking",
+    "BookingStatus"
 ]

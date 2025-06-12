@@ -54,6 +54,14 @@ from .password_reset import (
     PasswordResetResponse
 )
 
+from .booking import (
+    BookingCreate, BookingUpdate, BookingCancel,
+    BookingResponse, BookingListResponse,
+    AvailabilityCheckRequest, AvailabilityCheckResponse,
+    BookingStatsResponse, UpcomingBookingResponse,
+    BookingStatus
+)
+
 __all__ = [
     # User schemas
     "UserCreate", 
@@ -98,5 +106,17 @@ __all__ = [
     # Password reset schemas
     "PasswordResetRequest",
     "PasswordResetConfirm",
-    "PasswordResetResponse"
+    "PasswordResetResponse",
+
+    # Booking schemas
+    "BookingCreate",
+    "BookingUpdate",
+    "BookingCancel",
+    "BookingResponse",
+    "BookingListResponse",
+    "AvailabilityCheckRequest",
+    "AvailabilityCheckResponse",
+    "BookingStatsResponse",
+    "UpcomingBookingResponse",
+    "BookingStatus"
 ]

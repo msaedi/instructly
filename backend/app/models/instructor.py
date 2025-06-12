@@ -10,7 +10,7 @@ Classes:
 """
 
 import logging
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, CheckConstraint
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, CheckConstraint, Boolean
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from ..database import Base
@@ -57,6 +57,9 @@ class InstructorProfile(Base):
     years_experience = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    min_advance_booking_hours = Column(Integer, nullable=False, default=2)
+    buffer_time_minutes = Column(Integer, nullable=False, default=0)
     
     # REMOVED: Old booking system columns
     # default_session_duration = Column(Integer, nullable=False, default=60)

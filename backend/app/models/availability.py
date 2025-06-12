@@ -97,6 +97,7 @@ class AvailabilitySlot(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     availability_id = Column(Integer, ForeignKey("instructor_availability.id", ondelete="CASCADE"), nullable=False)
+    booking_id = Column(Integer, ForeignKey("bookings.id"), nullable=True, index=True)
     start_time = Column(Time, nullable=False)
     end_time = Column(Time, nullable=False)
     

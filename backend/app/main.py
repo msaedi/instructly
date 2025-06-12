@@ -1,7 +1,7 @@
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import auth, instructors, availability_windows, password_reset
+from .routes import auth, instructors, availability_windows, password_reset, bookings
 from .core.constants import (
     ALLOWED_ORIGINS, 
     BRAND_NAME, 
@@ -40,6 +40,7 @@ app.include_router(auth.router)
 app.include_router(instructors.router)
 app.include_router(availability_windows.router)
 app.include_router(password_reset.router)
+app.include_router(bookings.router)
 
 @app.on_event("startup")
 async def startup_event():
