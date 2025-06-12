@@ -1,17 +1,23 @@
-"""Application-wide constants"""
+"""
+Application-wide constants for InstaInstru platform.
 
-# Time constraints
+This module contains all constant values used throughout the application,
+organized by category for easy maintenance and updates.
+"""
+
+# Service duration constraints (still needed for service-level overrides)
 MIN_SESSION_DURATION = 30  # minutes
-MAX_SESSION_DURATION = 240  # minutes
-DEFAULT_SESSION_DURATION = 60  # minutes
+MAX_SESSION_DURATION = 240  # minutes (4 hours)
 
-MIN_BUFFER_TIME = 0  # minutes
-MAX_BUFFER_TIME = 120  # minutes
-DEFAULT_BUFFER_TIME = 0  # minutes
-
-MIN_ADVANCE_BOOKING = 0  # hours
-MAX_ADVANCE_BOOKING = 168  # hours (1 week)
-DEFAULT_ADVANCE_BOOKING = 2  # hours
+# The following constants are DEPRECATED and will be removed
+# They were part of the old booking system
+# DEFAULT_SESSION_DURATION = 60  # DEPRECATED - moved to service level
+# MIN_BUFFER_TIME = 0  # DEPRECATED - will be in booking v2
+# MAX_BUFFER_TIME = 120  # DEPRECATED - will be in booking v2
+# DEFAULT_BUFFER_TIME = 0  # DEPRECATED - will be in booking v2
+# MIN_ADVANCE_BOOKING = 0  # DEPRECATED - will be in booking v2
+# MAX_ADVANCE_BOOKING = 168  # DEPRECATED - will be in booking v2
+# DEFAULT_ADVANCE_BOOKING = 2  # DEPRECATED - will be in booking v2
 
 # Text constraints
 MIN_BIO_LENGTH = 10
@@ -22,14 +28,20 @@ MAX_REASON_LENGTH = 255
 DEFAULT_QUERY_LIMIT = 100
 MAX_QUERY_LIMIT = 1000
 
+# Availability constraints
+MAX_FUTURE_DAYS = 365  # Maximum days in the future for availability (1 year)
+MAX_SLOTS_PER_DAY = 10  # Maximum time slots per day
+
 # Day of week mapping
 DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
 # Frontend URLs
 ALLOWED_ORIGINS = [
     "http://localhost:3000",
-    "https://instructly-ten.vercel.app",
-    "https://*.vercel.app",
+    "https://instructly-ten.vercel.app",  # Legacy URL
+    "https://instainstru.com",  # Future production URL
+    "https://www.instainstru.com",  # Future production URL with www
+    "https://*.vercel.app",  # All Vercel preview deployments
 ]
 
 # Error messages
@@ -38,3 +50,19 @@ ERROR_INSTRUCTOR_NOT_FOUND = "Instructor profile not found"
 ERROR_USER_NOT_FOUND = "User not found"
 ERROR_INVALID_TIME_RANGE = "End time must be after start time"
 ERROR_OVERLAPPING_SLOT = "Time slot overlaps with existing slot"
+ERROR_PAST_DATE = "Cannot create availability for past dates"
+ERROR_TOO_FAR_FUTURE = f"Cannot create availability more than {MAX_FUTURE_DAYS} days in the future"
+ERROR_TOO_MANY_SLOTS = f"Cannot create more than {MAX_SLOTS_PER_DAY} time slots per day"
+
+# Success messages
+SUCCESS_AVAILABILITY_SAVED = "Availability saved successfully"
+SUCCESS_AVAILABILITY_DELETED = "Availability deleted successfully"
+SUCCESS_PROFILE_UPDATED = "Profile updated successfully"
+
+# Email settings
+EMAIL_RESET_EXPIRY_HOURS = 1
+EMAIL_FROM_NAME = "InstaInstru"
+
+# Rate limiting (for future implementation)
+MAX_REQUESTS_PER_MINUTE = 60
+MAX_REQUESTS_PER_HOUR = 1000

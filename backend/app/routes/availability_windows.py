@@ -1,32 +1,55 @@
-# app/routes/availability_windows.py
+"""
+Availability management routes for InstaInstru.
+
+This module provides API endpoints for instructors to manage their availability.
+The system uses a week-based UI where instructors can set their available time
+slots for specific dates, copy schedules between weeks, and apply patterns to
+date ranges.
+
+Key Features:
+    - Week-based availability viewing and editing
+    - Copy availability from one week to another
+    - Apply patterns to date ranges
+    - Blackout date management for vacations
+    
+The availability system has been refactored to remove recurring patterns and
+now uses only date-specific availability for better flexibility and clarity.
+
+Router Endpoints:
+    GET /week - Get availability for a specific week
+    POST /week - Save availability for specific dates in a week
+    POST /copy-week - Copy availability between weeks
+    POST /apply-to-date-range - Apply a pattern to a date range
+    POST /specific-date - Add availability for a single date
+    GET / - Get all availability with optional date filtering
+    PATCH /{window_id} - Update a specific time slot
+    DELETE /{window_id} - Delete a specific time slot
+    GET /blackout-dates - Get instructor's blackout dates
+    POST /blackout-dates - Add a blackout date
+    DELETE /blackout-dates/{id} - Remove a blackout date
+"""
 
 import logging
-from datetime import timedelta, date
+from datetime import timedelta, date, time
+from typing import List, Optional, Dict
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_
 from sqlalchemy.orm import Session, joinedload
-from typing import List, Optional, Dict
-from datetime import date, time
 
 from ..database import get_db
 from ..models.user import User
 from ..models.instructor import InstructorProfile 
 from ..models.availability import (
-    RecurringAvailability, 
-    SpecificDateAvailability, 
-    DateTimeSlot as DateTimeSlotModel,
+    InstructorAvailability,
+    AvailabilitySlot as AvailabilitySlotModel,
     BlackoutDate, 
 )
 from ..schemas.availability_window import (
     SpecificDateAvailabilityCreate,
     AvailabilityWindowResponse,
     AvailabilityWindowUpdate,
-    WeeklyScheduleCreate,
-    WeeklyScheduleResponse,
     BlackoutDateCreate,
     BlackoutDateResponse,
-    ApplyPresetRequest,
-    AvailabilityPreset,
     WeekSpecificScheduleCreate,
     CopyWeekRequest,
     ApplyToDateRangeRequest
@@ -70,23 +93,40 @@ async def get_week_availability(
     db: Session = Depends(get_db)
 ):
     """
-    Get availability for a specific week, combining specific dates and recurring schedule.
+    Get availability for a specific week.
     
-    This endpoint returns a week view of availability, showing time slots for each day.
-    It combines recurring weekly patterns with date-specific overrides.
+    This endpoint returns a week view of availability, showing time slots for each day
+    based on the instructor's saved availability. The response is organized as a
+    dictionary mapping ISO date strings to lists of time slots.
     
     Args:
         start_date: The Monday of the week to retrieve
-        current_user: The authenticated user
+        current_user: The authenticated user (must be an instructor)
         db: Database session
         
     Returns:
-        Dict[str, List]: Dictionary mapping date strings to lists of time slots
+        Dict[str, List[Dict]]: Dictionary mapping date strings to time slot lists.
+        Example:
+            {
+                "2024-06-10": [
+                    {"start_time": "09:00:00", "end_time": "12:00:00", "is_available": true},
+                    {"start_time": "14:00:00", "end_time": "17:00:00", "is_available": true}
+                ],
+                "2024-06-11": []  # No availability this day
+            }
         
     Raises:
-        HTTPException: If instructor profile not found
+        HTTPException: 404 if instructor profile not found
+        
+    Note:
+        Days marked as "cleared" will not appear in the response.
+        Days without any entry will also not appear in the response.
     """
     logger.info(f"Getting week availability for instructor {current_user.id} starting {start_date}")
+    
+    # Validate that start_date is a Monday
+    if start_date.weekday() != 0:
+        logger.warning(f"Start date {start_date} is not a Monday (weekday={start_date.weekday()})")
     
     # Ensure we have instructor profile
     instructor_profile = db.query(InstructorProfile).filter(
@@ -104,72 +144,38 @@ async def get_week_availability(
     
     logger.debug(f"Week dates: {[d.isoformat() for d in week_dates]}")
     
-    # Get specific date availability for this week
-    specific_dates = db.query(SpecificDateAvailability).filter(
+    # Get instructor availability for this week
+    instructor_availability = db.query(InstructorAvailability).filter(
         and_(
-            SpecificDateAvailability.instructor_id == current_user.id,
-            SpecificDateAvailability.date.in_(week_dates)
+            InstructorAvailability.instructor_id == current_user.id,
+            InstructorAvailability.date.in_(week_dates)
         )
-    ).options(joinedload(SpecificDateAvailability.time_slots)).all()
+    ).options(joinedload(InstructorAvailability.time_slots)).all()
     
-    logger.debug(f"Found {len(specific_dates)} specific date entries for the week")
+    logger.debug(f"Found {len(instructor_availability)} instructor availability entries for the week")
     
-    # Create a map of date to specific availability
-    specific_date_map = {sd.date: sd for sd in specific_dates}
-    
-    # Get recurring availability
-    recurring_availability = db.query(RecurringAvailability).filter(
-        RecurringAvailability.instructor_id == current_user.id
-    ).all()
-    
-    logger.debug(f"Found {len(recurring_availability)} recurring availability entries")
-    
-    # Create a map of day_of_week to recurring slots
-    recurring_map = {}
-    for ra in recurring_availability:
-        if ra.day_of_week not in recurring_map:
-            recurring_map[ra.day_of_week] = []
-        recurring_map[ra.day_of_week].append(ra)
-    
-    # Build response combining both
+    # Build response
     week_schedule = {}
     
-    for i, date_obj in enumerate(week_dates):
-        date_str = date_obj.isoformat()
-        day_name = DAYS_OF_WEEK[i]
+    for availability_entry in instructor_availability:
+        date_str = availability_entry.date.isoformat()
         
-        # Check for specific date override
-        if date_obj in specific_date_map:
-            specific_entry = specific_date_map[date_obj]
+        # Skip cleared days
+        if availability_entry.is_cleared:
+            logger.debug(f"Day {date_str} is explicitly cleared")
+            continue
             
-            # Check if day is explicitly cleared
-            if specific_entry.is_cleared:
-                logger.debug(f"Day {date_str} is explicitly cleared")
-                continue
-            
-            # Use specific date time slots
-            if specific_entry.time_slots:
-                week_schedule[date_str] = [
-                    {
-                        "start_time": time_to_string(slot.start_time),
-                        "end_time": time_to_string(slot.end_time),
-                        "is_available": True
-                    }
-                    for slot in specific_entry.time_slots
-                ]
-                logger.debug(f"Using {len(specific_entry.time_slots)} specific slots for {date_str}")
-        else:
-            # Fall back to recurring schedule
-            if day_name in recurring_map:
-                week_schedule[date_str] = [
-                    {
-                        "start_time": time_to_string(ra.start_time),
-                        "end_time": time_to_string(ra.end_time),
-                        "is_available": True
-                    }
-                    for ra in recurring_map[day_name]
-                ]
-                logger.debug(f"Using {len(recurring_map[day_name])} recurring slots for {date_str}")
+        # Add time slots
+        if availability_entry.time_slots:
+            week_schedule[date_str] = [
+                {
+                    "start_time": time_to_string(slot.start_time),
+                    "end_time": time_to_string(slot.end_time),
+                    "is_available": True
+                }
+                for slot in availability_entry.time_slots
+            ]
+            logger.debug(f"Added {len(availability_entry.time_slots)} slots for {date_str}")
     
     logger.info(f"Returning week schedule with {len(week_schedule)} days having availability")
     return week_schedule
@@ -184,19 +190,42 @@ async def save_week_availability(
     Save availability for specific dates in a week.
     
     This endpoint allows instructors to set their availability for specific dates,
-    overriding any recurring patterns. Days without slots will be marked as cleared
-    if clear_existing is True.
+    completely replacing any existing availability for those dates. The operation
+    is atomic - either all changes succeed or all are rolled back.
+    
+    Behavior:
+        - If clear_existing=True: Deletes ALL existing entries for the week first
+        - Days with time slots: Creates availability entries with those slots
+        - Days without slots + clear_existing=True: Creates "cleared" entries
+        - Days without slots + clear_existing=False: Leaves unchanged
     
     Args:
-        week_data: The week schedule data to save
+        week_data: The week schedule data containing:
+            - schedule: List of date/time slot entries
+            - clear_existing: Whether to clear all existing entries first
+            - week_start: Optional Monday date (inferred if not provided)
         current_user: The authenticated instructor
         db: Database session
         
     Returns:
-        Dict[str, List]: The updated week availability
+        Dict[str, List]: The updated week availability (same format as GET /week)
         
     Raises:
-        HTTPException: If instructor profile not found or database error
+        HTTPException: 
+            - 404 if instructor profile not found
+            - 400 if database operation fails
+            
+    Example Request:
+        {
+            "clear_existing": true,
+            "schedule": [
+                {
+                    "date": "2024-06-10",
+                    "start_time": "09:00:00",
+                    "end_time": "12:00:00"
+                }
+            ]
+        }
     """
     logger.info(f"Saving week availability for instructor {current_user.id}")
     logger.debug(f"Schedule has {len(week_data.schedule)} entries, clear_existing={week_data.clear_existing}")
@@ -228,11 +257,11 @@ async def save_week_availability(
     week_dates = [monday + timedelta(days=i) for i in range(7)]
     
     if week_data.clear_existing:
-        # Delete existing specific date entries for this week
-        deleted_count = db.query(SpecificDateAvailability).filter(
+        # Delete existing entries for this week
+        deleted_count = db.query(InstructorAvailability).filter(
             and_(
-                SpecificDateAvailability.instructor_id == current_user.id,
-                SpecificDateAvailability.date.in_(week_dates)
+                InstructorAvailability.instructor_id == current_user.id,
+                InstructorAvailability.date.in_(week_dates)
             )
         ).delete(synchronize_session=False)
         logger.info(f"Deleted {deleted_count} existing entries for the week")
@@ -251,36 +280,39 @@ async def save_week_availability(
     for week_date in week_dates:
         if week_date in schedule_by_date:
             # Day has time slots
-            specific_date = SpecificDateAvailability(
+            availability_entry = InstructorAvailability(
                 instructor_id=current_user.id,
                 date=week_date,
                 is_cleared=False
             )
-            db.add(specific_date)
+            db.add(availability_entry)
             db.flush()  # Get the ID
             dates_created += 1
             
             # Add time slots
             for slot in schedule_by_date[week_date]:
-                time_slot = DateTimeSlotModel(
-                    date_override_id=specific_date.id,
+                time_slot = AvailabilitySlotModel(
+                    availability_id=availability_entry.id,  # Changed from date_override_id
                     start_time=slot.start_time,
                     end_time=slot.end_time
                 )
                 db.add(time_slot)
                 slots_created += 1
+                logger.debug(f"Added time slot {slot.start_time}-{slot.end_time} for {week_date}")
         else:
             # Day has no slots - check if we should mark it as cleared
             if week_data.clear_existing:
-                # Mark as cleared to override recurring schedule
+                # Mark as cleared
                 logger.debug(f"Creating cleared entry for {week_date}")
-                specific_date = SpecificDateAvailability(
+                availability_entry = InstructorAvailability(
                     instructor_id=current_user.id,
                     date=week_date,
                     is_cleared=True
                 )
-                db.add(specific_date)
+                db.add(availability_entry)
                 dates_created += 1
+            else:
+                logger.debug(f"Skipping {week_date} - no slots and clear_existing=False")
     
     try:
         db.commit()
@@ -304,11 +336,20 @@ async def copy_week_availability(
     """
     Copy availability from one week to another.
     
-    This endpoint copies all availability patterns from a source week to a target week,
-    including both time slots and cleared days.
+    This endpoint provides a quick way to duplicate an entire week's availability
+    pattern to another week. It's particularly useful for instructors with
+    consistent schedules who want to set up multiple weeks at once.
+    
+    The copy operation:
+        1. Deletes ALL existing entries in the target week
+        2. Copies all time slots from source week to target week
+        3. Preserves "cleared" days (days explicitly marked unavailable)
+        4. Creates cleared entries for days with no availability in source
     
     Args:
-        copy_data: Source and target week information
+        copy_data: Contains:
+            - from_week_start: Monday of the source week
+            - to_week_start: Monday of the target week
         current_user: The authenticated instructor
         db: Database session
         
@@ -316,18 +357,31 @@ async def copy_week_availability(
         Dict[str, List]: The updated target week availability
         
     Raises:
-        HTTPException: If database error occurs
+        HTTPException: 400 if database operation fails
+        
+    Example:
+        Copy this week to next week:
+        {
+            "from_week_start": "2024-06-10",
+            "to_week_start": "2024-06-17"
+        }
     """
     logger.info(f"Copying week availability for instructor {current_user.id} from {copy_data.from_week_start} to {copy_data.to_week_start}")
+    
+    # Validate dates are Mondays
+    if copy_data.from_week_start.weekday() != 0:
+        logger.warning(f"Source week start {copy_data.from_week_start} is not a Monday")
+    if copy_data.to_week_start.weekday() != 0:
+        logger.warning(f"Target week start {copy_data.to_week_start} is not a Monday")
     
     # Calculate target week dates
     target_week_dates = [copy_data.to_week_start + timedelta(days=i) for i in range(7)]
     
     # Delete ALL existing entries for the target week
-    deleted_count = db.query(SpecificDateAvailability).filter(
+    deleted_count = db.query(InstructorAvailability).filter(
         and_(
-            SpecificDateAvailability.instructor_id == current_user.id,
-            SpecificDateAvailability.date.in_(target_week_dates)
+            InstructorAvailability.instructor_id == current_user.id,
+            InstructorAvailability.date.in_(target_week_dates)
         )
     ).delete(synchronize_session=False)
     
@@ -351,18 +405,18 @@ async def copy_week_availability(
         
         if source_date_str in source_week and source_week[source_date_str]:
             # Copy time slots
-            specific_date = SpecificDateAvailability(
+            availability_entry = InstructorAvailability(
                 instructor_id=current_user.id,
                 date=target_date,
                 is_cleared=False
             )
-            db.add(specific_date)
+            db.add(availability_entry)
             db.flush()
             dates_created += 1
             
             for slot in source_week[source_date_str]:
-                time_slot = DateTimeSlotModel(
-                    date_override_id=specific_date.id,
+                time_slot = AvailabilitySlotModel(
+                    availability_id=availability_entry.id,  # Changed from date_override_id
                     start_time=string_to_time(slot['start_time']),
                     end_time=string_to_time(slot['end_time'])
                 )
@@ -370,12 +424,12 @@ async def copy_week_availability(
                 slots_created += 1
         else:
             # Source day has no slots - mark target as cleared
-            specific_date = SpecificDateAvailability(
+            availability_entry = InstructorAvailability(
                 instructor_id=current_user.id,
                 date=target_date,
                 is_cleared=True
             )
-            db.add(specific_date)
+            db.add(availability_entry)
             dates_created += 1
     
     try:
@@ -436,12 +490,12 @@ async def apply_to_date_range(
     
     logger.debug(f"Created pattern with availability for days: {list(week_pattern.keys())}")
     
-    # Clear existing specific date availability in the date range
-    deleted_count = db.query(SpecificDateAvailability).filter(
+    # Clear existing availability in the date range
+    deleted_count = db.query(InstructorAvailability).filter(
         and_(
-            SpecificDateAvailability.instructor_id == current_user.id,
-            SpecificDateAvailability.date >= apply_data.start_date,
-            SpecificDateAvailability.date <= apply_data.end_date
+            InstructorAvailability.instructor_id == current_user.id,
+            InstructorAvailability.date >= apply_data.start_date,
+            InstructorAvailability.date <= apply_data.end_date
         )
     ).delete(synchronize_session=False)
     
@@ -457,18 +511,18 @@ async def apply_to_date_range(
         
         if day_name in week_pattern and week_pattern[day_name]:
             # Day has time slots
-            specific_date = SpecificDateAvailability(
+            availability_entry = InstructorAvailability(
                 instructor_id=current_user.id,
                 date=current_date,
                 is_cleared=False
             )
-            db.add(specific_date)
+            db.add(availability_entry)
             db.flush()
             
             # Add time slots
             for slot in week_pattern[day_name]:
-                time_slot = DateTimeSlotModel(
-                    date_override_id=specific_date.id,
+                time_slot = AvailabilitySlotModel(
+                    availability_id=availability_entry.id,  # Changed from date_override_id
                     start_time=string_to_time(slot['start_time']),
                     end_time=string_to_time(slot['end_time'])
                 )
@@ -476,12 +530,12 @@ async def apply_to_date_range(
                 slots_created += 1
         else:
             # Day has no pattern - create cleared entry
-            specific_date = SpecificDateAvailability(
+            availability_entry = InstructorAvailability(
                 instructor_id=current_user.id,
                 date=current_date,
                 is_cleared=True
             )
-            db.add(specific_date)
+            db.add(availability_entry)
         
         dates_created += 1
         current_date += timedelta(days=1)
@@ -501,215 +555,7 @@ async def apply_to_date_range(
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/weekly", response_model=WeeklyScheduleResponse)
-def get_weekly_schedule(
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Get instructor's weekly recurring availability.
-    
-    This endpoint returns the instructor's default weekly schedule pattern
-    that applies when no specific date overrides exist.
-    
-    Args:
-        current_user: The authenticated instructor
-        db: Database session
-        
-    Returns:
-        WeeklyScheduleResponse: Organized by day of week
-    """
-    instructor = verify_instructor(current_user)
-    logger.info(f"Getting weekly recurring schedule for instructor {instructor.id}")
-    
-    # Get all recurring availability
-    recurring_slots = db.query(RecurringAvailability).filter(
-        RecurringAvailability.instructor_id == current_user.id
-    ).all()
-    
-    logger.debug(f"Found {len(recurring_slots)} recurring availability slots")
-    
-    # Organize by day of week
-    schedule = WeeklyScheduleResponse()
-    
-    for slot in recurring_slots:
-        # Convert day_of_week to the attribute name on the response object
-        day_name = slot.day_of_week  # This is already a string like 'monday'
-        
-        # Create availability window response format
-        window_data = {
-            "id": slot.id,
-            "instructor_id": slot.instructor_id,
-            "start_time": time_to_string(slot.start_time),
-            "end_time": time_to_string(slot.end_time),
-            "is_available": True,
-            "is_recurring": True,
-            "day_of_week": day_name
-        }
-        
-        # Add to the appropriate day list
-        getattr(schedule, day_name).append(window_data)
-    
-    return schedule
-
-@router.post("/weekly", response_model=WeeklyScheduleResponse)
-def set_weekly_schedule(
-    schedule_data: WeeklyScheduleCreate,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Set instructor's weekly recurring availability.
-    
-    This endpoint sets the default weekly pattern. If clear_existing is True,
-    it replaces all existing recurring availability.
-    
-    Args:
-        schedule_data: The weekly schedule to set
-        current_user: The authenticated instructor
-        db: Database session
-        
-    Returns:
-        WeeklyScheduleResponse: The updated weekly schedule
-        
-    Raises:
-        HTTPException: If database error occurs
-    """
-    instructor = verify_instructor(current_user)
-    logger.info(f"Setting weekly schedule for instructor {instructor.id} with {len(schedule_data.schedule)} slots")
-    
-    # Clear existing recurring availability if requested
-    if schedule_data.clear_existing:
-        deleted_count = db.query(RecurringAvailability).filter(
-            RecurringAvailability.instructor_id == current_user.id
-        ).delete()
-        logger.info(f"Cleared {deleted_count} existing recurring slots")
-    
-    # Create new recurring availability entries
-    for window_data in schedule_data.schedule:
-        # Ensure we're using lowercase day values
-        day_value = window_data.day_of_week
-        if hasattr(day_value, 'value'):
-            day_value = day_value.value
-        else:
-            day_value = str(day_value).lower()
-        
-        logger.debug(f"Creating recurring slot for {day_value}: {window_data.start_time} - {window_data.end_time}")
-        
-        recurring_slot = RecurringAvailability(
-            instructor_id=current_user.id,
-            day_of_week=day_value,
-            start_time=window_data.start_time,
-            end_time=window_data.end_time
-        )
-        db.add(recurring_slot)
-    
-    try:
-        db.commit()
-        logger.info(f"Successfully set weekly schedule with {len(schedule_data.schedule)} slots")
-        # Return the updated schedule
-        return get_weekly_schedule(current_user, db)
-    except Exception as e:
-        logger.error(f"Error setting weekly schedule: {str(e)}")
-        db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
-
-@router.post("/preset", response_model=WeeklyScheduleResponse)
-def apply_preset_schedule(
-    preset_data: ApplyPresetRequest,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Apply a preset schedule template.
-    
-    Available presets:
-    - weekday_9_to_5: Monday-Friday 9:00-17:00
-    - mornings_only: All days 8:00-12:00
-    - evenings_only: All days 17:00-21:00
-    - weekends_only: Saturday-Sunday 9:00-17:00
-    
-    Args:
-        preset_data: The preset to apply
-        current_user: The authenticated instructor
-        db: Database session
-        
-    Returns:
-        WeeklyScheduleResponse: The updated weekly schedule
-        
-    Raises:
-        HTTPException: If invalid preset or database error
-    """
-    instructor = verify_instructor(current_user)
-    logger.info(f"Applying preset {preset_data.preset} for instructor {instructor.id}")
-    
-    # Clear existing if requested
-    if preset_data.clear_existing:
-        deleted_count = db.query(RecurringAvailability).filter(
-            RecurringAvailability.instructor_id == current_user.id
-        ).delete()
-        logger.info(f"Cleared {deleted_count} existing recurring slots")
-    
-    # Define preset schedules with day strings
-    presets = {
-        AvailabilityPreset.WEEKDAY_9_TO_5: [
-            ('monday', time(9, 0), time(17, 0)),
-            ('tuesday', time(9, 0), time(17, 0)),
-            ('wednesday', time(9, 0), time(17, 0)),
-            ('thursday', time(9, 0), time(17, 0)),
-            ('friday', time(9, 0), time(17, 0)),
-        ],
-        AvailabilityPreset.MORNINGS_ONLY: [
-            ('monday', time(8, 0), time(12, 0)),
-            ('tuesday', time(8, 0), time(12, 0)),
-            ('wednesday', time(8, 0), time(12, 0)),
-            ('thursday', time(8, 0), time(12, 0)),
-            ('friday', time(8, 0), time(12, 0)),
-            ('saturday', time(8, 0), time(12, 0)),
-            ('sunday', time(8, 0), time(12, 0)),
-        ],
-        AvailabilityPreset.EVENINGS_ONLY: [
-            ('monday', time(17, 0), time(21, 0)),
-            ('tuesday', time(17, 0), time(21, 0)),
-            ('wednesday', time(17, 0), time(21, 0)),
-            ('thursday', time(17, 0), time(21, 0)),
-            ('friday', time(17, 0), time(21, 0)),
-            ('saturday', time(17, 0), time(21, 0)),
-            ('sunday', time(17, 0), time(21, 0)),
-        ],
-        AvailabilityPreset.WEEKENDS_ONLY: [
-            ('saturday', time(9, 0), time(17, 0)),
-            ('sunday', time(9, 0), time(17, 0)),
-        ],
-    }
-    
-    # Apply the selected preset
-    preset_schedule = presets.get(preset_data.preset)
-    if not preset_schedule:
-        logger.error(f"Invalid preset requested: {preset_data.preset}")
-        raise HTTPException(status_code=400, detail="Invalid preset")
-    
-    slots_created = 0
-    for day_str, start, end in preset_schedule:
-        logger.debug(f"Creating preset slot for {day_str}: {start} - {end}")
-        
-        recurring_slot = RecurringAvailability(
-            instructor_id=current_user.id,
-            day_of_week=day_str,
-            start_time=start,
-            end_time=end
-        )
-        db.add(recurring_slot)
-        slots_created += 1
-    
-    try:
-        db.commit()
-        logger.info(f"Successfully applied preset {preset_data.preset} with {slots_created} slots")
-        return get_weekly_schedule(current_user, db)
-    except Exception as e:
-        logger.error(f"Error applying preset schedule: {str(e)}")
-        db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+# NOTE: All recurring availability endpoints have been removed since we're dropping that table
 
 @router.post("/specific-date", response_model=AvailabilityWindowResponse)
 def add_specific_date_availability(
@@ -720,8 +566,7 @@ def add_specific_date_availability(
     """
     Add availability for a specific date (one-time).
     
-    This creates a date-specific override that takes precedence over
-    recurring availability for that date.
+    This creates a date-specific availability entry.
     
     Args:
         availability_data: The specific date and time slot
@@ -737,44 +582,44 @@ def add_specific_date_availability(
     instructor = verify_instructor(current_user)
     logger.info(f"Adding specific date availability for instructor {instructor.id} on {availability_data.specific_date}")
     
-    # Check if there's already a specific date entry for this date
-    existing = db.query(SpecificDateAvailability).filter(
-        SpecificDateAvailability.instructor_id == current_user.id,
-        SpecificDateAvailability.date == availability_data.specific_date
+    # Check if there's already an entry for this date
+    existing = db.query(InstructorAvailability).filter(
+        InstructorAvailability.instructor_id == current_user.id,
+        InstructorAvailability.date == availability_data.specific_date
     ).first()
     
     if existing and not existing.is_cleared:
         # Check if this exact time slot already exists
-        existing_slot = db.query(DateTimeSlotModel).filter(
-            DateTimeSlotModel.date_override_id == existing.id,
-            DateTimeSlotModel.start_time == availability_data.start_time,
-            DateTimeSlotModel.end_time == availability_data.end_time
+        existing_slot = db.query(AvailabilitySlotModel).filter(
+            AvailabilitySlotModel.availability_id == existing.id,
+            AvailabilitySlotModel.start_time == availability_data.start_time,
+            AvailabilitySlotModel.end_time == availability_data.end_time
         ).first()
         
         if existing_slot:
             logger.warning(f"Time slot already exists for {availability_data.specific_date}")
             raise HTTPException(status_code=400, detail=ERROR_OVERLAPPING_SLOT)
     
-    # Create or get the specific date entry
+    # Create or get the availability entry
     if not existing:
-        specific_date = SpecificDateAvailability(
+        availability_entry = InstructorAvailability(
             instructor_id=current_user.id,
             date=availability_data.specific_date,
             is_cleared=False
         )
-        db.add(specific_date)
+        db.add(availability_entry)
         db.flush()
-        logger.debug(f"Created new specific date entry for {availability_data.specific_date}")
+        logger.debug(f"Created new availability entry for {availability_data.specific_date}")
     else:
-        specific_date = existing
+        availability_entry = existing
         # If it was cleared, unclear it
-        if specific_date.is_cleared:
-            specific_date.is_cleared = False
+        if availability_entry.is_cleared:
+            availability_entry.is_cleared = False
             logger.debug(f"Uncleared previously cleared date {availability_data.specific_date}")
     
     # Add the time slot
-    time_slot = DateTimeSlotModel(
-        date_override_id=specific_date.id,
+    time_slot = AvailabilitySlotModel(
+        availability_id=availability_entry.id,  # Changed from date_override_id
         start_time=availability_data.start_time,
         end_time=availability_data.end_time
     )
@@ -782,14 +627,14 @@ def add_specific_date_availability(
     
     try:
         db.commit()
-        db.refresh(specific_date)
+        db.refresh(availability_entry)
         logger.info(f"Successfully added specific date availability for {availability_data.specific_date}")
         
         # Return in the expected format
         return {
-            "id": specific_date.id,
-            "instructor_id": specific_date.instructor_id,
-            "specific_date": specific_date.date,
+            "id": availability_entry.id,
+            "instructor_id": availability_entry.instructor_id,
+            "specific_date": availability_entry.date,
             "start_time": time_to_string(availability_data.start_time),
             "end_time": time_to_string(availability_data.end_time),
             "is_available": availability_data.is_available,
@@ -809,10 +654,10 @@ def get_all_availability(
     db: Session = Depends(get_db)
 ):
     """
-    Get all availability windows (both recurring and specific dates).
+    Get all availability windows.
     
-    This endpoint returns a flat list of all availability slots, combining
-    recurring patterns and specific date overrides. Optionally filter by date range.
+    This endpoint returns a flat list of all availability slots.
+    Optionally filter by date range.
     
     Args:
         start_date: Optional start date for filtering
@@ -831,53 +676,32 @@ def get_all_availability(
     
     result = []
     
-    # Get recurring availability
-    recurring_slots = db.query(RecurringAvailability).filter(
-        RecurringAvailability.instructor_id == current_user.id
-    ).all()
-    
-    logger.debug(f"Found {len(recurring_slots)} recurring slots")
-    
-    # Add recurring slots to result
-    for slot in recurring_slots:
-        result.append({
-            "id": slot.id,
-            "instructor_id": slot.instructor_id,
-            "day_of_week": slot.day_of_week,
-            "start_time": time_to_string(slot.start_time),
-            "end_time": time_to_string(slot.end_time),
-            "is_available": True,
-            "is_recurring": True,
-            "specific_date": None,
-            "is_cleared": False
-        })
-    
-    # Get specific date availability
-    query = db.query(SpecificDateAvailability).filter(
-        SpecificDateAvailability.instructor_id == current_user.id
-    ).options(joinedload(SpecificDateAvailability.time_slots))
+    # Get instructor availability
+    query = db.query(InstructorAvailability).filter(
+        InstructorAvailability.instructor_id == current_user.id
+    ).options(joinedload(InstructorAvailability.time_slots))
     
     if start_date and end_date:
         query = query.filter(
-            SpecificDateAvailability.date >= start_date,
-            SpecificDateAvailability.date <= end_date
+            InstructorAvailability.date >= start_date,
+            InstructorAvailability.date <= end_date
         )
     
-    specific_dates = query.all()
-    logger.debug(f"Found {len(specific_dates)} specific date entries")
+    availability_entries = query.all()
+    logger.debug(f"Found {len(availability_entries)} availability entries")
     
-    # Add specific date slots to result
-    for specific in specific_dates:
-        if specific.is_cleared:
+    # Add slots to result
+    for entry in availability_entries:
+        if entry.is_cleared:
             # Skip cleared days in this list view
             continue
         else:
             # Add each time slot
-            for slot in specific.time_slots:
+            for slot in entry.time_slots:
                 result.append({
                     "id": slot.id,
-                    "instructor_id": specific.instructor_id,
-                    "specific_date": specific.date,
+                    "instructor_id": entry.instructor_id,
+                    "specific_date": entry.date,
                     "start_time": time_to_string(slot.start_time),
                     "end_time": time_to_string(slot.end_time),
                     "is_available": True,
@@ -897,10 +721,10 @@ def update_availability_window(
     db: Session = Depends(get_db)
 ):
     """
-    Update an availability window (either recurring or specific date time slot).
+    Update an availability time slot.
     
     Args:
-        window_id: The ID of the window to update
+        window_id: The ID of the slot to update
         update_data: The fields to update
         current_user: The authenticated instructor
         db: Database session
@@ -914,46 +738,12 @@ def update_availability_window(
     instructor = verify_instructor(current_user)
     logger.info(f"Updating availability window {window_id} for instructor {instructor.id}")
     
-    # First, try to find in recurring availability
-    recurring_slot = db.query(RecurringAvailability).filter(
-        RecurringAvailability.id == window_id,
-        RecurringAvailability.instructor_id == current_user.id
-    ).first()
+    # Find the time slot
+    time_slot = db.query(AvailabilitySlotModel).filter(
+        AvailabilitySlotModel.id == window_id
+    ).options(joinedload(AvailabilitySlotModel.availability)).first()
     
-    if recurring_slot:
-        # Update recurring slot
-        if update_data.start_time is not None:
-            recurring_slot.start_time = update_data.start_time
-        if update_data.end_time is not None:
-            recurring_slot.end_time = update_data.end_time
-        
-        try:
-            db.commit()
-            db.refresh(recurring_slot)
-            logger.info(f"Successfully updated recurring slot {window_id}")
-            
-            return {
-                "id": recurring_slot.id,
-                "instructor_id": recurring_slot.instructor_id,
-                "day_of_week": recurring_slot.day_of_week,
-                "start_time": time_to_string(recurring_slot.start_time),
-                "end_time": time_to_string(recurring_slot.end_time),
-                "is_available": True,
-                "is_recurring": True,
-                "specific_date": None,
-                "is_cleared": False
-            }
-        except Exception as e:
-            logger.error(f"Error updating recurring slot: {str(e)}")
-            db.rollback()
-            raise HTTPException(status_code=400, detail=str(e))
-    
-    # If not found in recurring, try time slots
-    time_slot = db.query(DateTimeSlotModel).filter(
-        DateTimeSlotModel.id == window_id
-    ).options(joinedload(DateTimeSlotModel.date_override)).first()
-    
-    if time_slot and time_slot.date_override.instructor_id == current_user.id:
+    if time_slot and time_slot.availability.instructor_id == current_user.id:
         # Update time slot
         if update_data.start_time is not None:
             time_slot.start_time = update_data.start_time
@@ -967,8 +757,8 @@ def update_availability_window(
             
             return {
                 "id": time_slot.id,
-                "instructor_id": time_slot.date_override.instructor_id,
-                "specific_date": time_slot.date_override.date,
+                "instructor_id": time_slot.availability.instructor_id,
+                "specific_date": time_slot.availability.date,
                 "start_time": time_to_string(time_slot.start_time),
                 "end_time": time_to_string(time_slot.end_time),
                 "is_available": update_data.is_available if update_data.is_available is not None else True,
@@ -991,10 +781,10 @@ def delete_availability_window(
     db: Session = Depends(get_db)
 ):
     """
-    Delete an availability window (either recurring or specific date time slot).
+    Delete an availability time slot.
     
     Args:
-        window_id: The ID of the window to delete
+        window_id: The ID of the slot to delete
         current_user: The authenticated instructor
         db: Database session
         
@@ -1007,46 +797,29 @@ def delete_availability_window(
     instructor = verify_instructor(current_user)
     logger.info(f"Deleting availability window {window_id} for instructor {instructor.id}")
     
-    # First, try to find in recurring availability
-    recurring_slot = db.query(RecurringAvailability).filter(
-        RecurringAvailability.id == window_id,
-        RecurringAvailability.instructor_id == current_user.id
-    ).first()
+    # Find the time slot
+    time_slot = db.query(AvailabilitySlotModel).filter(
+        AvailabilitySlotModel.id == window_id
+    ).options(joinedload(AvailabilitySlotModel.availability)).first()
     
-    if recurring_slot:
-        db.delete(recurring_slot)
-        try:
-            db.commit()
-            logger.info(f"Successfully deleted recurring slot {window_id}")
-            return {"message": "Recurring availability window deleted"}
-        except Exception as e:
-            logger.error(f"Error deleting recurring slot: {str(e)}")
-            db.rollback()
-            raise HTTPException(status_code=400, detail=str(e))
-    
-    # If not found in recurring, try time slots
-    time_slot = db.query(DateTimeSlotModel).filter(
-        DateTimeSlotModel.id == window_id
-    ).options(joinedload(DateTimeSlotModel.date_override)).first()
-    
-    if time_slot and time_slot.date_override.instructor_id == current_user.id:
+    if time_slot and time_slot.availability.instructor_id == current_user.id:
         # Delete the time slot
         db.delete(time_slot)
         
         # Check if this was the last time slot for this date
-        remaining_slots = db.query(DateTimeSlotModel).filter(
-            DateTimeSlotModel.date_override_id == time_slot.date_override_id
+        remaining_slots = db.query(AvailabilitySlotModel).filter(
+            AvailabilitySlotModel.availability_id == time_slot.availability_id
         ).count()
         
-        # If no more time slots remain, delete the specific date entry too
+        # If no more time slots remain, delete the availability entry too
         if remaining_slots == 0:
-            logger.debug(f"Deleting specific date entry as no slots remain")
-            db.delete(time_slot.date_override)
+            logger.debug(f"Deleting availability entry as no slots remain")
+            db.delete(time_slot.availability)
         
         try:
             db.commit()
             logger.info(f"Successfully deleted time slot {window_id}")
-            return {"message": "Specific date time slot deleted"}
+            return {"message": "Availability time slot deleted"}
         except Exception as e:
             logger.error(f"Error deleting time slot: {str(e)}")
             db.rollback()
@@ -1055,7 +828,7 @@ def delete_availability_window(
     logger.error(f"Availability window {window_id} not found for instructor {instructor.id}")
     raise HTTPException(status_code=404, detail="Availability window not found")
 
-# Blackout dates endpoints
+# Blackout dates endpoints remain unchanged
 @router.get("/blackout-dates", response_model=List[BlackoutDateResponse])
 def get_blackout_dates(
     current_user: User = Depends(get_current_active_user),

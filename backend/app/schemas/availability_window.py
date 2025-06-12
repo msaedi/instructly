@@ -1,11 +1,21 @@
-# Create this file: app/schemas/availability_window.py
+"""
+Availability window schemas for InstaInstru platform.
 
-from pydantic import BaseModel, Field, validator
+This module contains schemas specifically for the availability windows API endpoints.
+It handles the week-based availability management interface.
+
+Note: References to RecurringAvailability have been removed as part of the
+refactoring to use only date-specific availability.
+"""
+
 from datetime import date, time
 from typing import Optional, List
 from enum import Enum
+from pydantic import BaseModel, Field, validator
+
 
 class DayOfWeekEnum(str, Enum):
+    """Enumeration for days of the week."""
     MONDAY = "monday"
     TUESDAY = "tuesday"
     WEDNESDAY = "wednesday"
@@ -14,128 +24,190 @@ class DayOfWeekEnum(str, Enum):
     SATURDAY = "saturday"
     SUNDAY = "sunday"
 
+
 # Base schemas
 class AvailabilityWindowBase(BaseModel):
+    """Base schema for availability windows."""
     start_time: time
     end_time: time
     is_available: bool = True
     
     @validator('end_time')
     def validate_time_order(cls, v, values):
+        """Ensure end time is after start time."""
         if 'start_time' in values and v <= values['start_time']:
             raise ValueError('End time must be after start time')
         return v
 
-class RecurringAvailabilityCreate(AvailabilityWindowBase):
-    day_of_week: DayOfWeekEnum
-    
+
+# REMOVED: RecurringAvailabilityCreate - no longer needed
+
+
 class SpecificDateAvailabilityCreate(AvailabilityWindowBase):
+    """Schema for creating availability on a specific date."""
     specific_date: date
     
     @validator('specific_date')
     def validate_future_date(cls, v):
+        """Prevent setting availability for past dates."""
         if v < date.today():
             raise ValueError('Cannot set availability for past dates')
         return v
 
+
 class AvailabilityWindowUpdate(BaseModel):
+    """Schema for updating an availability window."""
     start_time: Optional[time] = None
     end_time: Optional[time] = None
     is_available: Optional[bool] = None
+    
+    @validator('end_time')
+    def validate_time_order(cls, v, values):
+        """Ensure end time is after start time if both provided."""
+        if v and 'start_time' in values and values['start_time'] and v <= values['start_time']:
+            raise ValueError('End time must be after start time')
+        return v
+
 
 class AvailabilityWindowResponse(AvailabilityWindowBase):
+    """Response schema for availability windows."""
     id: int
     instructor_id: int
-    day_of_week: Optional[DayOfWeekEnum] = None
+    day_of_week: Optional[DayOfWeekEnum] = None  # Always None now
     specific_date: Optional[date] = None
-    is_recurring: bool
+    is_recurring: bool  # Always False now
+    is_cleared: bool = False
     
     class Config:
         from_attributes = True
 
-# Bulk operations
-class WeeklyScheduleCreate(BaseModel):
-    """Create a full week schedule at once"""
-    schedule: List[RecurringAvailabilityCreate]
-    clear_existing: bool = Field(default=True, description="Clear existing recurring availability before creating new")
 
-class WeeklyScheduleResponse(BaseModel):
-    """Response for weekly schedule"""
-    monday: List[AvailabilityWindowResponse] = []
-    tuesday: List[AvailabilityWindowResponse] = []
-    wednesday: List[AvailabilityWindowResponse] = []
-    thursday: List[AvailabilityWindowResponse] = []
-    friday: List[AvailabilityWindowResponse] = []
-    saturday: List[AvailabilityWindowResponse] = []
-    sunday: List[AvailabilityWindowResponse] = []
+# REMOVED: WeeklyScheduleCreate - no longer needed
+# REMOVED: WeeklyScheduleResponse - no longer needed
+
 
 # Blackout dates
 class BlackoutDateCreate(BaseModel):
+    """Schema for creating a blackout date."""
     date: date
     reason: Optional[str] = Field(None, max_length=255)
     
     @validator('date')
     def validate_future_date(cls, v):
+        """Prevent creating blackout dates in the past."""
         if v < date.today():
             raise ValueError('Cannot create blackout date in the past')
         return v
 
+
 class BlackoutDateResponse(BaseModel):
+    """Response schema for blackout dates."""
     id: int
     instructor_id: int
     date: date
     reason: Optional[str] = None
+    created_at: str
     
     class Config:
         from_attributes = True
 
-# Quick presets
-class AvailabilityPreset(str, Enum):
-    WEEKDAY_9_TO_5 = "weekday_9_to_5"
-    MORNINGS_ONLY = "mornings_only"
-    EVENINGS_ONLY = "evenings_only"
-    WEEKENDS_ONLY = "weekends_only"
-    
-class ApplyPresetRequest(BaseModel):
-    preset: AvailabilityPreset
-    clear_existing: bool = True
 
-# For week-specific operations
+# REMOVED: AvailabilityPreset - no longer needed
+# REMOVED: ApplyPresetRequest - no longer needed
+
+
+# Week-specific operations
 class DateTimeSlot(BaseModel):
+    """Schema for a time slot on a specific date."""
     date: date
-    start_time: time  # Using time type instead of str
+    start_time: time
     end_time: time
     is_available: bool = True
     
     @validator('end_time')
     def validate_time_order(cls, v, values):
+        """Ensure end time is after start time."""
         if 'start_time' in values and v <= values['start_time']:
             raise ValueError('End time must be after start time')
         return v
+    
+    @validator('date')
+    def validate_not_past(cls, v):
+        """Prevent creating slots for past dates."""
+        if v < date.today():
+            raise ValueError('Cannot create availability for past dates')
+        return v
+
 
 class WeekSpecificScheduleCreate(BaseModel):
-    """Create schedule for specific dates (not recurring)"""
+    """Schema for creating schedule for specific dates."""
     schedule: List[DateTimeSlot]
-    clear_existing: bool = True
-    week_start: Optional[date] = None 
+    clear_existing: bool = Field(
+        default=True,
+        description="Whether to clear existing entries for the week before saving"
+    )
+    week_start: Optional[date] = Field(
+        None,
+        description="Optional Monday date. If not provided, inferred from schedule dates"
+    )
+    
+    @validator('week_start')
+    def validate_monday(cls, v):
+        """Ensure week start is a Monday if provided."""
+        if v and v.weekday() != 0:
+            raise ValueError('Week start must be a Monday')
+        return v
+
 
 class CopyWeekRequest(BaseModel):
+    """Schema for copying availability between weeks."""
     from_week_start: date
     to_week_start: date
     
+    @validator('from_week_start', 'to_week_start')
+    def validate_mondays(cls, v):
+        """Ensure both dates are Mondays."""
+        if v.weekday() != 0:
+            raise ValueError(f'{v} is not a Monday (weekday={v.weekday()})')
+        return v
+    
     @validator('to_week_start')
     def validate_different_weeks(cls, v, values):
+        """Ensure we're not copying to the same week."""
         if 'from_week_start' in values and v == values['from_week_start']:
             raise ValueError('Cannot copy to the same week')
         return v
 
+
 class ApplyToDateRangeRequest(BaseModel):
+    """Schema for applying a week pattern to a date range."""
     from_week_start: date
     start_date: date
     end_date: date
     
+    @validator('from_week_start')
+    def validate_monday(cls, v):
+        """Ensure source week starts on Monday."""
+        if v.weekday() != 0:
+            raise ValueError('Source week must start on a Monday')
+        return v
+    
     @validator('end_date')
     def validate_date_range(cls, v, values):
-        if 'start_date' in values and v < values['start_date']:
-            raise ValueError('End date must be after start date')
+        """Validate the date range."""
+        if 'start_date' in values:
+            if v < values['start_date']:
+                raise ValueError('End date must be after start date')
+            # Enforce 1-year maximum range
+            from datetime import timedelta
+            max_end = values['start_date'] + timedelta(days=365)
+            if v > max_end:
+                raise ValueError('Date range cannot exceed 1 year (365 days)')
+        return v
+    
+    @validator('start_date')
+    def validate_future_date(cls, v):
+        """Ensure we're not applying to past dates."""
+        if v < date.today():
+            raise ValueError('Cannot apply schedule to past dates')
         return v

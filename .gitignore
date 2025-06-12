@@ -45,3 +45,10 @@ Thumbs.db
 # Production environment variables
 .env.production
 .env.*.local!.vercel/project.json
+
+# Audit outputs
+database_audit.txt
+codebase_audit.txt
+codebase_audit.json
+scripts/*.txt
+scripts/*.json
