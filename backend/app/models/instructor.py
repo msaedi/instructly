@@ -53,7 +53,7 @@ class InstructorProfile(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False, index=True)
     bio = Column(String, nullable=True)
-    areas_of_service = Column(String, nullable=True)  # Kept as String, not ARRAY
+    areas_of_service = Column(String, nullable=True)  # Comma-separated list of NYC areas
     years_experience = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
