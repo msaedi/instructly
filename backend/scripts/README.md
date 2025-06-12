@@ -25,13 +25,23 @@ python scripts/reset_and_seed_database.py
 **Features:**
 - Cleans up test data while preserving important accounts
 - Creates 10 diverse test instructors with realistic profiles
-- Generates availability patterns for testing
+- Creates 5 test students with different interests
+- Generates realistic availability patterns for instructors
+- Creates sample bookings between students and instructors
+- Includes various booking statuses (confirmed, completed, cancelled)
 - All test accounts use password: `TestPassword123!`
+
+**Test Data Created:**
+- 10 instructors with varied services (Yoga, Piano, Languages, etc.)
+- 5 students with matching interests
+- 2-5 bookings per student (mix of upcoming and past)
+- Properly linked availability slots and booking records
 
 **Use this when:**
 - Starting fresh development
-- Testing new features
+- Testing the booking system
 - Demonstrating the platform
+- Needing realistic test data for development
 
 ## find_text_occurrences.py
 Searches the entire codebase for specific text patterns (case-insensitive).

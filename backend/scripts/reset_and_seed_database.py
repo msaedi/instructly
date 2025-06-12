@@ -6,6 +6,8 @@ This script provides a consistent way to reset the database to a known state
 with test data. It preserves specified users while removing all others and
 creates a set of diverse instructor profiles with varied availability patterns.
 
+Updated to include test students and sample bookings.
+
 Usage:
     python scripts/reset_and_seed_database.py
 """
@@ -15,6 +17,7 @@ import os
 from datetime import datetime, date, time, timedelta
 import random
 from pathlib import Path
+from decimal import Decimal
 
 # Add the parent directory to the path so we can import app modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -26,6 +29,7 @@ from app.models.user import User, UserRole
 from app.models.instructor import InstructorProfile
 from app.models.service import Service
 from app.models.availability import InstructorAvailability, AvailabilitySlot, BlackoutDate
+from app.models.booking import Booking, BookingStatus
 from app.models.password_reset import PasswordResetToken
 from app.core.config import settings
 from app.auth import get_password_hash
@@ -60,7 +64,41 @@ NYC_AREAS = [
     "Queens - Long Island City",
 ]
 
-# Instructor templates
+# Test Students
+STUDENT_TEMPLATES = [
+    {
+        "name": "John Smith",
+        "email": "john.smith@example.com",
+        "interests": ["Yoga", "Spanish", "Cooking"],
+        "preferred_areas": ["Manhattan - Upper East Side", "Manhattan - Midtown"]
+    },
+    {
+        "name": "Emma Johnson",
+        "email": "emma.johnson@example.com",
+        "interests": ["Piano", "Photography", "French"],
+        "preferred_areas": ["Brooklyn - Park Slope", "Manhattan - Greenwich Village"]
+    },
+    {
+        "name": "Alex Davis",
+        "email": "alex.davis@example.com",
+        "interests": ["Personal Training", "Web Development", "Financial Planning"],
+        "preferred_areas": ["Manhattan - Chelsea", "Manhattan - Financial District"]
+    },
+    {
+        "name": "Sophia Martinez",
+        "email": "sophia.martinez@example.com",
+        "interests": ["Makeup Artistry", "Baking", "Meditation"],
+        "preferred_areas": ["Brooklyn - Williamsburg", "Queens - Astoria"]
+    },
+    {
+        "name": "William Brown",
+        "email": "william.brown@example.com",
+        "interests": ["Python Programming", "Day Trading", "HIIT"],
+        "preferred_areas": ["Queens - Long Island City", "Manhattan - Midtown"]
+    }
+]
+
+# Instructor templates (keeping your existing ones)
 INSTRUCTOR_TEMPLATES = [
     {
         "name": "Sarah Chen",
@@ -216,13 +254,21 @@ def cleanup_database(session: Session):
     if users_to_delete_ids:
         # Delete in order to respect foreign key constraints
         
-        # 1. First get all instructor availability IDs for users to delete
+        # 1. Delete bookings first (new!)
+        booking_count = session.query(Booking).filter(
+            or_(
+                Booking.student_id.in_(users_to_delete_ids),
+                Booking.instructor_id.in_(users_to_delete_ids)
+            )
+        ).delete(synchronize_session=False)
+        
+        # 2. First get all instructor availability IDs for users to delete
         availability_ids = session.query(InstructorAvailability.id).filter(
             InstructorAvailability.instructor_id.in_(users_to_delete_ids)
         ).all()
         availability_ids = [a[0] for a in availability_ids]
         
-        # 2. Delete availability slots
+        # 3. Delete availability slots
         if availability_ids:
             slot_count = session.query(AvailabilitySlot).filter(
                 AvailabilitySlot.availability_id.in_(availability_ids)
@@ -230,23 +276,23 @@ def cleanup_database(session: Session):
         else:
             slot_count = 0
         
-        # 3. Delete instructor availability
+        # 4. Delete instructor availability
         avail_count = session.query(InstructorAvailability).filter(
             InstructorAvailability.instructor_id.in_(users_to_delete_ids)
         ).delete(synchronize_session=False)
         
-        # 4. Delete blackout dates
+        # 5. Delete blackout dates
         blackout_count = session.query(BlackoutDate).filter(
             BlackoutDate.instructor_id.in_(users_to_delete_ids)
         ).delete(synchronize_session=False)
         
-        # 5. Get instructor profile IDs for users to delete
+        # 6. Get instructor profile IDs for users to delete
         profile_ids = session.query(InstructorProfile.id).filter(
             InstructorProfile.user_id.in_(users_to_delete_ids)
         ).all()
         profile_ids = [p[0] for p in profile_ids]
         
-        # 6. Delete services
+        # 7. Delete services
         if profile_ids:
             service_count = session.query(Service).filter(
                 Service.instructor_profile_id.in_(profile_ids)
@@ -254,17 +300,17 @@ def cleanup_database(session: Session):
         else:
             service_count = 0
         
-        # 7. Delete instructor profiles
+        # 8. Delete instructor profiles
         profile_count = session.query(InstructorProfile).filter(
             InstructorProfile.user_id.in_(users_to_delete_ids)
         ).delete(synchronize_session=False)
         
-        # 8. Delete password reset tokens
+        # 9. Delete password reset tokens
         token_count = session.query(PasswordResetToken).filter(
             PasswordResetToken.user_id.in_(users_to_delete_ids)
         ).delete(synchronize_session=False)
         
-        # 9. Finally, delete the users
+        # 10. Finally, delete the users
         user_count = session.query(User).filter(
             User.id.in_(users_to_delete_ids)
         ).delete(synchronize_session=False)
@@ -278,6 +324,7 @@ def cleanup_database(session: Session):
         logger.info(f"  - Deleted {avail_count} availability entries")
         logger.info(f"  - Deleted {slot_count} availability slots")
         logger.info(f"  - Deleted {blackout_count} blackout dates")
+        logger.info(f"  - Deleted {booking_count} bookings")
         logger.info(f"  - Deleted {token_count} password reset tokens")
     else:
         logger.info("No users to delete")
@@ -440,6 +487,36 @@ def create_availability_pattern(session: Session, instructor_id: int, pattern: s
     
     session.commit()
 
+def create_dummy_students(session: Session):
+    """Create dummy student accounts."""
+    logger.info("Creating dummy students...")
+    
+    created_count = 0
+    
+    for template in STUDENT_TEMPLATES:
+        # Check if user already exists
+        existing = session.query(User).filter(User.email == template["email"]).first()
+        if existing:
+            logger.info(f"User {template['email']} already exists, skipping...")
+            continue
+        
+        # Create user
+        user = User(
+            email=template["email"],
+            full_name=template["name"],
+            hashed_password=get_password_hash(TEST_PASSWORD),
+            role=UserRole.STUDENT,
+            is_active=True
+        )
+        session.add(user)
+        session.flush()
+        
+        created_count += 1
+        logger.info(f"Created student: {template['name']} ({template['email']})")
+    
+    session.commit()
+    logger.info(f"Created {created_count} dummy students")
+
 def create_dummy_instructors(session: Session):
     """Create dummy instructor accounts with profiles and availability."""
     logger.info("Creating dummy instructors...")
@@ -469,7 +546,9 @@ def create_dummy_instructors(session: Session):
             user_id=user.id,
             bio=template["bio"],
             years_experience=template["years_experience"],
-            areas_of_service=", ".join(template["areas"])  # Back to comma-separated string after migration
+            areas_of_service=", ".join(template["areas"]),  # Comma-separated string
+            min_advance_booking_hours=random.choice([1, 2, 4, 24]),  # Random advance booking time
+            buffer_time_minutes=random.choice([0, 15, 30])  # Random buffer time
         )
         session.add(profile)
         session.flush()
@@ -493,6 +572,148 @@ def create_dummy_instructors(session: Session):
     
     session.commit()
     logger.info(f"Created {created_count} dummy instructors")
+
+def create_sample_bookings(session: Session):
+    """Create sample bookings between students and instructors."""
+    logger.info("Creating sample bookings...")
+    
+    # Get all students and instructors
+    students = session.query(User).filter(User.role == UserRole.STUDENT).all()
+    instructors = session.query(User).filter(User.role == UserRole.INSTRUCTOR).all()
+    
+    if not students or not instructors:
+        logger.warning("No students or instructors found, skipping bookings")
+        return
+    
+    booking_count = 0
+    today = date.today()
+    
+    # Create bookings for each student
+    for student in students:
+        # Get student's preferred services based on interests
+        student_template = next((s for s in STUDENT_TEMPLATES if s["email"] == student.email), None)
+        if not student_template:
+            continue
+            
+        interests = student_template["interests"]
+        
+        # Try to book 2-5 sessions per student
+        num_bookings = random.randint(2, 5)
+        
+        for _ in range(num_bookings):
+            # Pick a random interest
+            interest = random.choice(interests)
+            
+            # Find instructors who offer this service
+            matching_services = session.query(Service).filter(
+                Service.skill == interest
+            ).all()
+            
+            if not matching_services:
+                continue
+            
+            # Pick a random service
+            service = random.choice(matching_services)
+            instructor_id = service.instructor_profile.user_id
+            
+            # Find available slots for this instructor
+            # Look for slots in the next 30 days
+            future_date = today + timedelta(days=random.randint(3, 30))
+            
+            availability = session.query(InstructorAvailability).filter(
+                InstructorAvailability.instructor_id == instructor_id,
+                InstructorAvailability.date >= future_date,
+                InstructorAvailability.date <= future_date + timedelta(days=7)
+            ).first()
+            
+            if not availability:
+                continue
+            
+            # Get available slots
+            available_slots = session.query(AvailabilitySlot).filter(
+                AvailabilitySlot.availability_id == availability.id,
+                AvailabilitySlot.booking_id.is_(None)  # Not booked
+            ).all()
+            
+            if not available_slots:
+                continue
+            
+            # Pick a random slot
+            slot = random.choice(available_slots)
+            
+            # Calculate booking details
+            duration_minutes = service.duration or 60
+            hours = duration_minutes / 60
+            total_price = float(service.hourly_rate) * hours
+            
+            # Determine booking status
+            if availability.date < today:
+                # Past booking
+                status = random.choice([BookingStatus.COMPLETED, BookingStatus.CANCELLED, BookingStatus.NO_SHOW])
+                if status == BookingStatus.CANCELLED:
+                    cancelled_at = availability.date - timedelta(days=random.randint(1, 3))
+                    cancelled_by = random.choice([student.id, instructor_id])
+                else:
+                    cancelled_at = None
+                    cancelled_by = None
+                
+                if status == BookingStatus.COMPLETED:
+                    completed_at = datetime.combine(availability.date, slot.end_time)
+                else:
+                    completed_at = None
+            else:
+                # Future booking
+                status = BookingStatus.CONFIRMED
+                cancelled_at = None
+                cancelled_by = None
+                completed_at = None
+            
+            # Create booking
+            booking = Booking(
+                student_id=student.id,
+                instructor_id=instructor_id,
+                service_id=service.id,
+                availability_slot_id=slot.id,
+                booking_date=availability.date,
+                start_time=slot.start_time,
+                end_time=slot.end_time,
+                service_name=service.skill,
+                hourly_rate=service.hourly_rate,
+                total_price=Decimal(str(total_price)),
+                duration_minutes=duration_minutes,
+                status=status,
+                service_area=service.instructor_profile.areas_of_service.split(',')[0].strip(),
+                meeting_location=f"Instructor's studio in {service.instructor_profile.areas_of_service.split(',')[0].strip()}",
+                student_note=random.choice([
+                    "Looking forward to the lesson!",
+                    "First time trying this, excited!",
+                    "Continuing from last session",
+                    "Please focus on fundamentals",
+                    None
+                ]),
+                instructor_note=None if status != BookingStatus.COMPLETED else random.choice([
+                    "Great progress today!",
+                    "Keep practicing the exercises we covered",
+                    "See you next week!",
+                    None
+                ]),
+                completed_at=completed_at,
+                cancelled_at=cancelled_at,
+                cancelled_by_id=cancelled_by,
+                cancellation_reason="Schedule conflict" if cancelled_by else None
+            )
+            
+            session.add(booking)
+            session.flush()
+            
+            # Update slot to mark as booked
+            slot.booking_id = booking.id
+            
+            booking_count += 1
+            logger.info(f"Created booking: {student.full_name} -> {service.skill} on {availability.date}")
+    
+    session.commit()
+    logger.info(f"Created {booking_count} sample bookings")
     
 def main():
     """Main function to reset and seed the database."""
@@ -509,21 +730,37 @@ def main():
         # Step 2: Create dummy instructors
         create_dummy_instructors(session)
         
-        # Step 3: Summary
+        # Step 3: Create dummy students
+        create_dummy_students(session)
+        
+        # Step 4: Create sample bookings
+        create_sample_bookings(session)
+        
+        # Step 5: Summary
         total_users = session.query(User).count()
         total_instructors = session.query(User).filter(User.role == UserRole.INSTRUCTOR).count()
         total_students = session.query(User).filter(User.role == UserRole.STUDENT).count()
+        total_bookings = session.query(Booking).count()
+        upcoming_bookings = session.query(Booking).filter(
+            Booking.booking_date >= date.today(),
+            Booking.status == BookingStatus.CONFIRMED
+        ).count()
         
         logger.info("\n" + "="*50)
         logger.info("Database reset complete!")
         logger.info(f"Total users: {total_users}")
-        logger.info(f"Instructors: {total_instructors}")
-        logger.info(f"Students: {total_students}")
-        logger.info(f"Preserved users: {len(excluded_ids)}")
+        logger.info(f"  - Instructors: {total_instructors}")
+        logger.info(f"  - Students: {total_students}")
+        logger.info(f"  - Preserved users: {len(excluded_ids)}")
+        logger.info(f"Total bookings: {total_bookings}")
+        logger.info(f"  - Upcoming: {upcoming_bookings}")
         logger.info("="*50)
         
         logger.info("\nTest credentials for dummy accounts:")
         logger.info(f"Password for all test accounts: {TEST_PASSWORD}")
+        logger.info("\nSample student logins:")
+        for template in STUDENT_TEMPLATES[:3]:
+            logger.info(f"  - {template['email']}")
         logger.info("\nSample instructor logins:")
         for template in INSTRUCTOR_TEMPLATES[:3]:
             logger.info(f"  - {template['email']}")
