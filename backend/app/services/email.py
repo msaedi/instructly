@@ -4,6 +4,7 @@ import logging
 import resend
 from typing import Optional
 from ..core.config import settings
+from ..core.constants import BRAND_NAME, SUPPORT_EMAIL, NOREPLY_EMAIL
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,7 @@ class EmailService:
         """Initialize Resend with API key"""
         api_key = settings.resend_api_key
         resend.api_key = api_key
-        self.from_email = settings.from_email or "noreply@instructly.com"
+        self.from_email = settings.from_email or NOREPLY_EMAIL
         
     async def send_password_reset_email(
         self, 
@@ -34,7 +35,7 @@ class EmailService:
             bool: True if email sent successfully, False otherwise
         """
         try:
-            subject = "Reset Your Instructly Password"
+            subject = f"Reset Your {BRAND_NAME} Password"
             
             # HTML email content
             html_content = f"""
@@ -47,7 +48,7 @@ class EmailService:
             </head>
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <div style="background-color: #4F46E5; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                    <h1 style="color: white; margin: 0;">Instructly</h1>
+                    <h1 style="color: white; margin: 0;">{BRAND_NAME}</h1>
                 </div>
                 
                 <div style="background-color: #f8f9fa; padding: 40px; border-radius: 0 0 10px 10px;">
@@ -73,7 +74,7 @@ class EmailService:
                     <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
                     
                     <p style="color: #666; font-size: 12px; text-align: center;">
-                        This email was sent by Instructly. If you have any questions, please contact our support team.
+                        This email was sent by {BRAND_NAME}. If you have any questions, please contact our support team at <a href="mailto:{SUPPORT_EMAIL}">{SUPPORT_EMAIL}</a>.
                     </p>
                 </div>
             </body>
@@ -82,7 +83,7 @@ class EmailService:
             
             # Plain text fallback
             text_content = f"""
-            Reset Your Instructly Password
+            Reset Your {BRAND_NAME} Password
             
             Hi {user_name or 'there'},
             
@@ -94,7 +95,8 @@ class EmailService:
             
             If you didn't request this password reset, please ignore this email. Your password won't be changed.
             
-            - The Instructly Team
+            - The {BRAND_NAME} Team
+            Questions? Contact us at {SUPPORT_EMAIL}
             """
             
             # Send email using Resend
@@ -129,7 +131,7 @@ class EmailService:
             bool: True if email sent successfully, False otherwise
         """
         try:
-            subject = "Your Instructly Password Has Been Reset"
+            subject = f"Your {BRAND_NAME} Password Has Been Reset"
             
             html_content = f"""
             <!DOCTYPE html>
@@ -140,7 +142,7 @@ class EmailService:
             </head>
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <div style="background-color: #4F46E5; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                    <h1 style="color: white; margin: 0;">Instructly</h1>
+                    <h1 style="color: white; margin: 0;">{BRAND_NAME}</h1>
                 </div>
                 
                 <div style="background-color: #f8f9fa; padding: 40px; border-radius: 0 0 10px 10px;">
@@ -158,7 +160,7 @@ class EmailService:
                     
                     <p>If you didn't make this change, please contact our support team immediately.</p>
                     
-                    <p>Best regards,<br>The Instructly Team</p>
+                    <p>Best regards,<br>The {BRAND_NAME} Team</p>
                 </div>
             </body>
             </html>

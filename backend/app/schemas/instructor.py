@@ -205,7 +205,17 @@ class InstructorProfileResponse(InstructorProfileBase):
     
     class Config:
         from_attributes = True
-        
+    
+    @validator('areas_of_service', pre=True)
+    def convert_areas_to_list(cls, v):
+        """Convert comma-separated string to list if needed."""
+        if isinstance(v, str):
+            # Split by comma and clean up each area
+            areas = [area.strip() for area in v.split(',') if area.strip()]
+            # Apply the same formatting as the base validator
+            return [area.title() for area in areas]
+        return v
+    
     @validator('services')
     def sort_services(cls, v):
         """Sort services by skill name for consistent display."""

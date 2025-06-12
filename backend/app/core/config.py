@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     # Email settings
     resend_api_key: str = ""
-    from_email: str = "noreply@instructly.com"
+    from_email: str = "noreply@instainstru.com"
     
     # Frontend URL - will use production URL if not set
     frontend_url: str = "https://instructly-ten.vercel.app"

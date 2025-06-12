@@ -1,5 +1,7 @@
 "use client";
 
+import { BRAND } from '@/app/config/brand'
+
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -41,7 +43,7 @@ export default function Home() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <Link href="/" className="text-2xl font-bold text-indigo-600">
-                Instructly
+                {BRAND.name}
               </Link>
               <Link href="/instructors" className="ml-8 text-gray-600 hover:text-gray-900">
                 Browse Instructors
@@ -137,7 +139,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Why Instructly Section */}
+      {/* Why {BRAND.name} Section */}
       <section className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-3 gap-8">

@@ -1,3 +1,4 @@
+import { BRAND } from '@/app/config/brand'
 "use client";
 
 import { useState, useEffect } from "react";

@@ -1,5 +1,7 @@
 "use client";
 
+import { BRAND } from '@/app/config/brand'
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react"; 
@@ -109,7 +111,7 @@ export default function InstructorDashboard() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
               <Link href="/" className="text-2xl font-bold text-indigo-600">
-                Instructly
+                {BRAND.name}
               </Link>
               <button
                 onClick={handleLogout}
@@ -146,7 +148,7 @@ export default function InstructorDashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <Link href="/" className="text-2xl font-bold text-indigo-600">
-              Instructly
+              {BRAND.name}
             </Link>
             <button
               onClick={handleLogout}

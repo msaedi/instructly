@@ -59,9 +59,17 @@ SUCCESS_AVAILABILITY_SAVED = "Availability saved successfully"
 SUCCESS_AVAILABILITY_DELETED = "Availability deleted successfully"
 SUCCESS_PROFILE_UPDATED = "Profile updated successfully"
 
-# Email settings
-EMAIL_RESET_EXPIRY_HOURS = 1
-EMAIL_FROM_NAME = "InstaInstru"
+# Brand Configuration
+BRAND_NAME = "iNSTAiSTRU"
+BRAND_TAGLINE = "Book Expert Instructors Instantly"
+BRAND_DOMAIN = "instainstru.com"
+SUPPORT_EMAIL = "support@instainstru.com"
+NOREPLY_EMAIL = "noreply@auth.instainstru.com"
+
+# API Documentation
+API_TITLE = f"{BRAND_NAME} API"
+API_DESCRIPTION = f"Backend API for {BRAND_NAME} - A platform connecting students with instructors"
+API_VERSION = "1.0.0"
 
 # Rate limiting (for future implementation)
 MAX_REQUESTS_PER_MINUTE = 60

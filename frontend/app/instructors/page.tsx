@@ -1,5 +1,7 @@
 "use client";
 
+import { BRAND } from '@/app/config/brand'
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
@@ -91,7 +93,7 @@ export default function InstructorsPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <Link href="/" className="text-2xl font-bold text-indigo-600">
-            Instructly
+            {BRAND.name}
           </Link>
           <Link href="/" className="text-gray-600 hover:text-gray-900">
             Back to Home

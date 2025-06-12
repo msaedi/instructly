@@ -1,5 +1,7 @@
-// app/forgot-password/page.tsx
 "use client";
+
+import { BRAND } from '@/app/config/brand'
+// app/forgot-password/page.tsx
 
 import { useState } from "react";
 import Link from "next/link";
@@ -46,7 +48,7 @@ export default function ForgotPasswordPage() {
       <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <Link href="/" className="flex justify-center mb-6">
-            <h1 className="text-3xl font-bold text-indigo-600">Instructly</h1>
+            <h1 className="text-3xl font-bold text-indigo-600">{BRAND.name}</h1>
           </Link>
           
           <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
@@ -83,7 +85,7 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <Link href="/" className="flex justify-center mb-6">
-          <h1 className="text-3xl font-bold text-indigo-600">Instructly</h1>
+          <h1 className="text-3xl font-bold text-indigo-600">{BRAND.name}</h1>
         </Link>
         
         <h2 className="text-center text-3xl font-extrabold text-gray-900">

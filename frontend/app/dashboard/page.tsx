@@ -1,3 +1,4 @@
+import { BRAND } from '@/app/config/brand'
 // app/dashboard/page.tsx
 "use client";
 

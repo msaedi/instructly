@@ -1,3 +1,4 @@
+import { BRAND } from '@/app/config/brand'
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -13,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Instructly - Find Your Perfect Instructor in NYC",
+  title: BRAND.seo.defaultTitle,
   description: "Book trusted instructors for any skill - from yoga to music to languages. Learn from verified NYC experts.",
 };
 
