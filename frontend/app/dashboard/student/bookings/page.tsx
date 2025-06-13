@@ -11,6 +11,7 @@ import { bookingsApi } from '@/lib/api/bookings';
 import { Booking } from '@/types/booking';
 import { BookingCard } from '@/components/BookingCard';
 import { CancelBookingModal } from '@/components/CancelBookingModal';
+import BookingDetailsModal from '@/components/BookingDetailsModal';
 
 export default function MyBookingsPage() {
   const router = useRouter();
@@ -21,6 +22,7 @@ export default function MyBookingsPage() {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   useEffect(() => {
     fetchBookings();
@@ -203,8 +205,8 @@ export default function MyBookingsPage() {
                     console.log('Complete booking:', booking.id);
                   }}
                   onViewDetails={() => {
-                    // TODO: Implement view details
-                    console.log('View details:', booking.id);
+                    setSelectedBooking(booking);
+                    setShowDetailsModal(true);
                   }}
                 />
               ))}
@@ -224,6 +226,15 @@ export default function MyBookingsPage() {
             setCancelError(null); // Clear error when closing
         }}
         onConfirm={handleCancelBooking}
+        />
+        {/* Booking Details Modal */}
+        <BookingDetailsModal
+          booking={selectedBooking}
+          isOpen={showDetailsModal}
+          onClose={() => {
+            setShowDetailsModal(false);
+            setSelectedBooking(null);
+          }}
         />
     </div>
   );
