@@ -1,3 +1,4 @@
+// frontend/app/dashboard/student/page.tsx
 "use client";
 
 import { BRAND } from '@/app/config/brand'

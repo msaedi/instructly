@@ -1,3 +1,4 @@
+// frontend/app/dashboard/student/bookings/page.tsx
 "use client";
 
 import { BRAND } from '@/app/config/brand';
@@ -8,6 +9,7 @@ import { ArrowLeft } from "lucide-react";
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { bookingsApi } from '@/lib/api/bookings';
 import { Booking } from '@/types/booking';
+import { BookingCard } from '@/components/BookingCard';
 
 export default function MyBookingsPage() {
   const router = useRouter();
@@ -84,6 +86,12 @@ export default function MyBookingsPage() {
               }`}
             >
               Upcoming
+              <span className="ml-2 text-xs">
+                ({bookings.filter(b => {
+                  const bookingDateTime = new Date(`${b.booking_date}T${b.end_time}`);
+                  return bookingDateTime >= new Date() && b.status === 'CONFIRMED';
+                }).length})
+              </span>
             </button>
             <button
               onClick={() => setActiveTab('past')}
@@ -94,6 +102,12 @@ export default function MyBookingsPage() {
               }`}
             >
               Past
+              <span className="ml-2 text-xs">
+                ({bookings.filter(b => {
+                  const bookingDateTime = new Date(`${b.booking_date}T${b.end_time}`);
+                  return (bookingDateTime < new Date() && b.status === 'CONFIRMED') || b.status === 'COMPLETED';
+                }).length})
+              </span>
             </button>
             <button
               onClick={() => setActiveTab('cancelled')}
@@ -104,6 +118,9 @@ export default function MyBookingsPage() {
               }`}
             >
               Cancelled
+              <span className="ml-2 text-xs">
+                ({bookings.filter(b => b.status === 'CANCELLED').length})
+              </span>
             </button>
           </nav>
         </div>
@@ -144,17 +161,23 @@ export default function MyBookingsPage() {
           ) : (
             <div className="space-y-4">
               {filteredBookings.map((booking) => (
-                <div key={booking.id} className="bg-white border rounded-lg p-4 shadow-sm">
-                  <h3 className="font-semibold">{booking.service_name}</h3>
-                  <p className="text-gray-600">Booking ID: {booking.id}</p>
-                  <p className="text-gray-600">
-                    Date: {new Date(booking.booking_date).toLocaleDateString()}
-                  </p>
-                  <p className="text-gray-600">
-                    Time: {booking.start_time.slice(0, 5)} - {booking.end_time.slice(0, 5)}
-                  </p>
-                  <p className="text-gray-600">Status: {booking.status}</p>
-                </div>
+                <BookingCard
+                  key={booking.id}
+                  booking={booking}
+                  variant={activeTab === 'past' ? 'past' : 'upcoming'}
+                  onCancel={() => {
+                    // TODO: Implement cancel modal
+                    console.log('Cancel booking:', booking.id);
+                  }}
+                  onComplete={() => {
+                    // TODO: Implement complete functionality
+                    console.log('Complete booking:', booking.id);
+                  }}
+                  onViewDetails={() => {
+                    // TODO: Implement view details
+                    console.log('View details:', booking.id);
+                  }}
+                />
               ))}
             </div>
           )}
