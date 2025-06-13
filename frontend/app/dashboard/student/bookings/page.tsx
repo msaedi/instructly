@@ -10,6 +10,7 @@ import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { bookingsApi } from '@/lib/api/bookings';
 import { Booking } from '@/types/booking';
 import { BookingCard } from '@/components/BookingCard';
+import { CancelBookingModal } from '@/components/CancelBookingModal';
 
 export default function MyBookingsPage() {
   const router = useRouter();
@@ -17,6 +18,9 @@ export default function MyBookingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past' | 'cancelled'>('upcoming');
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchBookings();
@@ -39,6 +43,34 @@ export default function MyBookingsPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleCancelBooking = async (reason: string) => {
+    if (!selectedBooking) return;
+    
+    setCancelError(null); // Clear any previous errors
+  
+    try {
+      await bookingsApi.cancelBooking(selectedBooking.id, {
+        cancellation_reason: reason
+      });
+  
+      // Refresh bookings after successful cancellation
+      await fetchBookings();
+      setShowCancelModal(false);
+      setSelectedBooking(null);
+    } catch (err) {
+      // Set error message to display in modal
+      const errorMessage = err instanceof Error ? err.message : 'Failed to cancel booking. Please try again.';
+      setCancelError(errorMessage);
+      
+      // Don't close the modal on error so user can see the message and retry
+    }
+  };
+
+  const openCancelModal = (booking: Booking) => {
+    setSelectedBooking(booking);
+    setShowCancelModal(true);
   };
 
   // Filter bookings based on active tab
@@ -165,10 +197,7 @@ export default function MyBookingsPage() {
                   key={booking.id}
                   booking={booking}
                   variant={activeTab === 'past' ? 'past' : 'upcoming'}
-                  onCancel={() => {
-                    // TODO: Implement cancel modal
-                    console.log('Cancel booking:', booking.id);
-                  }}
+                  onCancel={() => openCancelModal(booking)}
                   onComplete={() => {
                     // TODO: Implement complete functionality
                     console.log('Complete booking:', booking.id);
@@ -183,6 +212,19 @@ export default function MyBookingsPage() {
           )}
         </div>
       </div>
+
+      {/* Cancel Modal */}
+      <CancelBookingModal
+        booking={selectedBooking}
+        isOpen={showCancelModal}
+        error={cancelError}
+        onClose={() => {
+            setShowCancelModal(false);
+            setSelectedBooking(null);
+            setCancelError(null); // Clear error when closing
+        }}
+        onConfirm={handleCancelBooking}
+        />
     </div>
   );
 }

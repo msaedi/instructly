@@ -92,12 +92,32 @@ export const bookingsApi = {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        reason: data.cancellation_reason  // Map cancellation_reason to reason
+      }),
     });
+    
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Failed to cancel booking');
+      let errorDetail = 'Failed to cancel booking';
+      try {
+        const error = await response.json();
+        
+        if (error.detail) {
+          if (typeof error.detail === 'string') {
+            errorDetail = error.detail;
+          } else if (Array.isArray(error.detail)) {
+            errorDetail = error.detail.map((e: any) => 
+              `${e.loc?.join(' > ') || 'Field'}: ${e.msg}`
+            ).join(', ');
+          }
+        }
+      } catch (e) {
+        // Silently handle JSON parse errors
+      }
+      
+      throw new Error(errorDetail);
     }
+    
     return response.json();
   },
 
