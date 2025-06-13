@@ -1,0 +1,154 @@
+// frontend/types/booking.ts
+
+// Booking status enum
+export type BookingStatus = 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
+
+// Main booking interface matching backend schema
+export interface Booking {
+  id: number;
+  student_id: number;
+  instructor_id: number;
+  service_id: number;
+  availability_slot_id: number;
+  booking_date: string; // ISO date string (YYYY-MM-DD)
+  start_time: string;   // Time string (HH:MM:SS)
+  end_time: string;     // Time string (HH:MM:SS)
+  status: BookingStatus;
+  total_price: number;
+  service_name: string; // Snapshot of service name at booking time
+  notes?: string;
+  cancellation_reason?: string;
+  cancelled_by?: 'STUDENT' | 'INSTRUCTOR';
+  cancelled_at?: string; // ISO datetime string
+  created_at: string;   // ISO datetime string
+  updated_at: string;   // ISO datetime string
+  
+  // Relations (populated in detailed views)
+  student?: User;
+  instructor?: User;
+  service?: Service;
+  availability_slot?: AvailabilitySlot;
+}
+
+// User type for relations
+export interface User {
+  id: number;
+  email: string;
+  full_name: string;
+  role: 'STUDENT' | 'INSTRUCTOR';
+  created_at: string;
+}
+
+// Service offered by instructor
+export interface Service {
+  id: number;
+  instructor_profile_id: number;
+  name: string;
+  description: string;
+  hourly_rate: number;
+  typical_duration?: number; // in minutes
+  created_at: string;
+  updated_at: string;
+}
+
+// Instructor profile extension
+export interface InstructorProfile {
+  id: number;
+  user_id: number;
+  bio: string;
+  experience_years: number;
+  areas_of_service: string[]; // NYC neighborhoods
+  min_advance_booking_hours: number;
+  buffer_time_minutes: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Relations
+  user?: User;
+  services?: Service[];
+}
+
+// Availability slot
+export interface AvailabilitySlot {
+  id: number;
+  availability_id: number;
+  start_time: string; // HH:MM:SS
+  end_time: string;   // HH:MM:SS
+  booking_id?: number; // If booked, references the booking
+  created_at: string;
+  updated_at: string;
+  
+  // Computed/joined fields
+  is_available?: boolean;
+  date?: string; // From parent availability
+}
+
+// Instructor availability (date level)
+export interface InstructorAvailability {
+  id: number;
+  instructor_id: number;
+  date: string; // YYYY-MM-DD
+  created_at: string;
+  updated_at: string;
+  
+  // Relations
+  slots?: AvailabilitySlot[];
+}
+
+// Blackout date
+export interface BlackoutDate {
+  id: number;
+  instructor_id: number;
+  date: string; // YYYY-MM-DD
+  reason?: string;
+  created_at: string;
+}
+
+// API Response wrappers
+export interface PaginatedResponse<T> {
+  bookings: T[];  // Changed from 'items' to match backend
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface BookingListResponse extends PaginatedResponse<Booking> {}
+
+export interface AvailabilityResponse {
+  instructor_id: number;
+  start_date: string;
+  end_date: string;
+  availabilities: InstructorAvailability[];
+  blackout_dates: BlackoutDate[];
+}
+
+// Form/UI specific types
+export interface BookingFormData {
+  instructor_id: number;
+  service_id: number;
+  availability_slot_id: number;
+  notes?: string;
+}
+
+export interface TimeSlot {
+  id: number;
+  start_time: string;
+  end_time: string;
+  is_available: boolean;
+  date: string;
+}
+
+// Booking creation response
+export interface BookingCreateResponse {
+  booking: Booking;
+  message: string;
+}
+
+// Availability check response
+export interface AvailabilityCheckResponse {
+  available: boolean;
+  slot: AvailabilitySlot;
+  service: Service;
+  total_price: number;
+  duration_minutes: number;
+}

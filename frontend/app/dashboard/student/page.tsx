@@ -8,6 +8,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Calendar, Search, LogOut } from "lucide-react";
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
+// Import the new booking API
+import { bookingsApi } from '@/lib/api/bookings';
+import { Booking } from '@/types/booking';
 
 interface UserData {
   id: number;
@@ -20,6 +23,9 @@ export default function StudentDashboard() {
   const router = useRouter();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Add state for bookings
+  const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([]);
+  const [bookingsLoading, setBookingsLoading] = useState(true);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -43,6 +49,8 @@ export default function StudentDashboard() {
         }
         
         setUserData(data);
+        // Once we have user data, fetch bookings
+        fetchBookings();
       } catch (err) {
         console.error("Error fetching user data:", err);
         router.push("/login");
@@ -53,6 +61,25 @@ export default function StudentDashboard() {
 
     fetchUserData();
   }, [router]);
+
+  // Fetch bookings for the student
+  const fetchBookings = async () => {
+    try {
+      const myBookings = await bookingsApi.getMyBookings({ 
+        upcoming: true,
+        per_page: 10 
+      });
+      
+      // If we have bookings, store them
+      if (myBookings.bookings && Array.isArray(myBookings.bookings)) {
+        setUpcomingBookings(myBookings.bookings);
+      }
+    } catch (error) {
+      console.error('Error fetching bookings:', error);
+    } finally {
+      setBookingsLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem("access_token");
@@ -129,15 +156,63 @@ export default function StudentDashboard() {
         {/* Upcoming Sessions */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h2 className="text-xl font-bold text-gray-900 mb-4">Upcoming Sessions</h2>
-          <p className="text-gray-500 text-center py-8">No upcoming sessions booked yet</p>
-          <div className="text-center">
-            <Link
-              href="/instructors"
-              className="inline-block px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-            >
-              Find an Instructor
-            </Link>
-          </div>
+          
+          {bookingsLoading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500 mx-auto"></div>
+              <p className="text-gray-500 mt-2">Loading bookings...</p>
+            </div>
+          ) : upcomingBookings.length > 0 ? (
+            <div className="space-y-4">
+              {upcomingBookings.slice(0, 3).map((booking) => (
+                <div key={booking.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="font-semibold text-gray-900">{booking.service_name}</h4>
+                      <p className="text-sm text-gray-600">
+                        with {booking.instructor?.full_name || 'Instructor'}
+                      </p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        {new Date(booking.booking_date).toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })} at {booking.start_time.slice(0, 5)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-gray-900">${booking.total_price}</p>
+                      <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                        {booking.status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              
+              {upcomingBookings.length > 3 && (
+                <Link
+                  href="/dashboard/student/bookings"
+                  className="block text-center text-indigo-600 hover:text-indigo-700 font-medium"
+                >
+                  View all {upcomingBookings.length} bookings →
+                </Link>
+              )}
+            </div>
+          ) : (
+            <>
+              <p className="text-gray-500 text-center py-8">No upcoming sessions booked yet</p>
+              <div className="text-center">
+                <Link
+                  href="/instructors"
+                  className="inline-block px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                >
+                  Find an Instructor
+                </Link>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
