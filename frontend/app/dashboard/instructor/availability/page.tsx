@@ -433,13 +433,17 @@ export default function AvailabilityPage() {
         const slotDate = new Date(dateInfo.fullDate);
         slotDate.setHours(0, 0, 0, 0);
         
-        // Skip past dates
-        if (slotDate < today) {
+        // Skip past dates (but handle today specially)
+        if (dateInfo.fullDate === today.toISOString().split('T')[0]) {
+          // For today, include all slots (backend will handle filtering past hours)
+          console.log(`Processing today: ${dateInfo.fullDate}`);
+        } else if (slotDate < today) {
           console.log(`Skipping past date: ${dateInfo.fullDate}`);
           return;
         }
         
         const daySlots = weekSchedule[dateInfo.fullDate] || [];
+        console.log(`Processing ${dateInfo.fullDate}: ${daySlots.length} slots`);
         
         if (daySlots.length > 0) {
           daySlots.forEach(slot => {
@@ -452,7 +456,7 @@ export default function AvailabilityPage() {
           });
         }
       });
-
+      console.log('Schedule data being sent:', scheduleData);
       console.log('Saving schedule:', {
         currentWeekStart: formatDateForAPI(currentWeekStart),
         today: today.toISOString().split('T')[0],
