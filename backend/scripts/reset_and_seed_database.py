@@ -43,6 +43,7 @@ logger = logging.getLogger(__name__)
 EXCLUDE_FROM_CLEANUP = [
     "mehdisaedi@hotmail.com",  # Keep this user
     # Add more emails here as needed
+    "mehdi@saedi.ca",
 ]
 
 # Test password for all dummy accounts
@@ -254,7 +255,13 @@ def cleanup_database(session: Session):
     if users_to_delete_ids:
         # Delete in order to respect foreign key constraints
         
-        # 1. Delete bookings first (new!)
+        # 1. First clear booking_id references in availability_slots
+        slot_update_count = session.query(AvailabilitySlot).filter(
+            AvailabilitySlot.booking_id.isnot(None)
+        ).update({"booking_id": None}, synchronize_session=False)
+        logger.info(f"Cleared {slot_update_count} booking references from availability slots")
+        
+        # 2. Now we can safely delete bookings
         booking_count = session.query(Booking).filter(
             or_(
                 Booking.student_id.in_(users_to_delete_ids),
@@ -262,13 +269,13 @@ def cleanup_database(session: Session):
             )
         ).delete(synchronize_session=False)
         
-        # 2. First get all instructor availability IDs for users to delete
+        # 3. Get all instructor availability IDs for users to delete
         availability_ids = session.query(InstructorAvailability.id).filter(
             InstructorAvailability.instructor_id.in_(users_to_delete_ids)
         ).all()
         availability_ids = [a[0] for a in availability_ids]
         
-        # 3. Delete availability slots
+        # 4. Delete availability slots
         if availability_ids:
             slot_count = session.query(AvailabilitySlot).filter(
                 AvailabilitySlot.availability_id.in_(availability_ids)
@@ -276,23 +283,23 @@ def cleanup_database(session: Session):
         else:
             slot_count = 0
         
-        # 4. Delete instructor availability
+        # 5. Delete instructor availability
         avail_count = session.query(InstructorAvailability).filter(
             InstructorAvailability.instructor_id.in_(users_to_delete_ids)
         ).delete(synchronize_session=False)
         
-        # 5. Delete blackout dates
+        # 6. Delete blackout dates
         blackout_count = session.query(BlackoutDate).filter(
             BlackoutDate.instructor_id.in_(users_to_delete_ids)
         ).delete(synchronize_session=False)
         
-        # 6. Get instructor profile IDs for users to delete
+        # 7. Get instructor profile IDs for users to delete
         profile_ids = session.query(InstructorProfile.id).filter(
             InstructorProfile.user_id.in_(users_to_delete_ids)
         ).all()
         profile_ids = [p[0] for p in profile_ids]
         
-        # 7. Delete services
+        # 8. Delete services
         if profile_ids:
             service_count = session.query(Service).filter(
                 Service.instructor_profile_id.in_(profile_ids)
@@ -300,17 +307,17 @@ def cleanup_database(session: Session):
         else:
             service_count = 0
         
-        # 8. Delete instructor profiles
+        # 9. Delete instructor profiles
         profile_count = session.query(InstructorProfile).filter(
             InstructorProfile.user_id.in_(users_to_delete_ids)
         ).delete(synchronize_session=False)
         
-        # 9. Delete password reset tokens
+        # 10. Delete password reset tokens
         token_count = session.query(PasswordResetToken).filter(
             PasswordResetToken.user_id.in_(users_to_delete_ids)
         ).delete(synchronize_session=False)
         
-        # 10. Finally, delete the users
+        # 11. Finally, delete the users
         user_count = session.query(User).filter(
             User.id.in_(users_to_delete_ids)
         ).delete(synchronize_session=False)
@@ -597,123 +604,166 @@ def create_sample_bookings(session: Session):
             
         interests = student_template["interests"]
         
-        # Try to book 2-5 sessions per student
-        num_bookings = random.randint(2, 5)
+        # Create a mix of past, upcoming, and cancelled bookings
+        # Past completed bookings
+        for i in range(2):
+            past_date = today - timedelta(days=random.randint(7, 30))
+            booking = create_booking_for_date(session, student, interests, past_date, "past")
+            if booking:
+                booking_count += 1
         
-        for _ in range(num_bookings):
-            # Pick a random interest
-            interest = random.choice(interests)
-            
-            # Find instructors who offer this service
-            matching_services = session.query(Service).filter(
-                Service.skill == interest
-            ).all()
-            
-            if not matching_services:
-                continue
-            
-            # Pick a random service
-            service = random.choice(matching_services)
-            instructor_id = service.instructor_profile.user_id
-            
-            # Find available slots for this instructor
-            # Look for slots in the next 30 days
-            future_date = today + timedelta(days=random.randint(3, 30))
-            
-            availability = session.query(InstructorAvailability).filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                InstructorAvailability.date >= future_date,
-                InstructorAvailability.date <= future_date + timedelta(days=7)
-            ).first()
-            
-            if not availability:
-                continue
-            
-            # Get available slots
-            available_slots = session.query(AvailabilitySlot).filter(
-                AvailabilitySlot.availability_id == availability.id,
-                AvailabilitySlot.booking_id.is_(None)  # Not booked
-            ).all()
-            
-            if not available_slots:
-                continue
-            
-            # Pick a random slot
-            slot = random.choice(available_slots)
-            
-            # Calculate booking details
-            duration_minutes = service.duration or 60
-            hours = duration_minutes / 60
-            total_price = float(service.hourly_rate) * hours
-            
-            # Determine booking status
-            if availability.date < today:
-                # Past booking
-                status = random.choice([BookingStatus.COMPLETED, BookingStatus.CANCELLED, BookingStatus.NO_SHOW])
-                if status == BookingStatus.CANCELLED:
-                    cancelled_at = availability.date - timedelta(days=random.randint(1, 3))
-                    cancelled_by = random.choice([student.id, instructor_id])
-                else:
-                    cancelled_at = None
-                    cancelled_by = None
-                
-                if status == BookingStatus.COMPLETED:
-                    completed_at = datetime.combine(availability.date, slot.end_time)
-                else:
-                    completed_at = None
-            else:
-                # Future booking
-                status = BookingStatus.CONFIRMED
-                cancelled_at = None
-                cancelled_by = None
-                completed_at = None
-            
-            # Create booking
-            booking = Booking(
-                student_id=student.id,
-                instructor_id=instructor_id,
-                service_id=service.id,
-                availability_slot_id=slot.id,
-                booking_date=availability.date,
-                start_time=slot.start_time,
-                end_time=slot.end_time,
-                service_name=service.skill,
-                hourly_rate=service.hourly_rate,
-                total_price=Decimal(str(total_price)),
-                duration_minutes=duration_minutes,
-                status=status,
-                service_area=service.instructor_profile.areas_of_service.split(',')[0].strip(),
-                meeting_location=f"Instructor's studio in {service.instructor_profile.areas_of_service.split(',')[0].strip()}",
-                student_note=random.choice([
-                    "Looking forward to the lesson!",
-                    "First time trying this, excited!",
-                    "Continuing from last session",
-                    "Please focus on fundamentals",
-                    None
-                ]),
-                instructor_note=None if status != BookingStatus.COMPLETED else random.choice([
-                    "Great progress today!",
-                    "Keep practicing the exercises we covered",
-                    "See you next week!",
-                    None
-                ]),
-                completed_at=completed_at,
-                cancelled_at=cancelled_at,
-                cancelled_by_id=cancelled_by,
-                cancellation_reason="Schedule conflict" if cancelled_by else None
-            )
-            
-            session.add(booking)
-            session.flush()
-            
-            # Update slot to mark as booked
-            slot.booking_id = booking.id
-            
-            booking_count += 1
-            logger.info(f"Created booking: {student.full_name} -> {service.skill} on {availability.date}")
+        # Upcoming bookings
+        for i in range(3):
+            future_date = today + timedelta(days=random.randint(1, 14))
+            booking = create_booking_for_date(session, student, interests, future_date, "future")
+            if booking:
+                booking_count += 1
+        
+        # Cancelled bookings (mix of past and future)
+        for i in range(1):
+            cancel_date = today + timedelta(days=random.randint(-10, 10))
+            booking = create_booking_for_date(session, student, interests, cancel_date, "cancelled")
+            if booking:
+                booking_count += 1
     
     session.commit()
     logger.info(f"Created {booking_count} sample bookings")
+
+def create_booking_for_date(session, student, interests, target_date, booking_type):
+    """Helper function to create a booking for a specific date."""
+    # Pick a random interest
+    interest = random.choice(interests)
+    
+    # Find instructors who offer this service
+    matching_services = session.query(Service).filter(
+        Service.skill == interest
+    ).all()
+    
+    if not matching_services:
+        return None
+    
+    # Pick a random service
+    service = random.choice(matching_services)
+    instructor_id = service.instructor_profile.user_id
+    
+    # First, ensure availability exists for this date
+    availability = session.query(InstructorAvailability).filter(
+        InstructorAvailability.instructor_id == instructor_id,
+        InstructorAvailability.date == target_date
+    ).first()
+    
+    # If no availability exists, create it
+    if not availability:
+        availability = InstructorAvailability(
+            instructor_id=instructor_id,
+            date=target_date,
+            is_cleared=False
+        )
+        session.add(availability)
+        session.flush()
+        
+        # Add some time slots
+        time_slots = [
+            (time(9, 0), time(10, 0)),
+            (time(10, 30), time(11, 30)),
+            (time(14, 0), time(15, 0)),
+            (time(16, 0), time(17, 0)),
+            (time(18, 0), time(19, 0))
+        ]
+        
+        for start_time, end_time in random.sample(time_slots, random.randint(2, 4)):
+            slot = AvailabilitySlot(
+                availability_id=availability.id,
+                start_time=start_time,
+                end_time=end_time
+            )
+            session.add(slot)
+        session.flush()
+    
+    # Get available slots
+    available_slots = session.query(AvailabilitySlot).filter(
+        AvailabilitySlot.availability_id == availability.id,
+        AvailabilitySlot.booking_id.is_(None)  # Not booked
+    ).all()
+    
+    if not available_slots:
+        return None
+    
+    # Pick a random slot
+    slot = random.choice(available_slots)
+    
+    # Calculate booking details
+    duration_minutes = service.duration or 60
+    hours = duration_minutes / 60
+    total_price = float(service.hourly_rate) * hours
+    
+    # Determine booking status based on type
+    today = date.today()
+    
+    if booking_type == "past":
+        status = BookingStatus.COMPLETED
+        completed_at = datetime.combine(target_date, slot.end_time)
+        cancelled_at = None
+        cancelled_by = None
+        cancellation_reason = None
+    elif booking_type == "cancelled":
+        status = BookingStatus.CANCELLED
+        completed_at = None
+        cancelled_at = datetime.now() - timedelta(days=random.randint(1, 5))
+        cancelled_by = random.choice([student.id, instructor_id])
+        cancellation_reason = random.choice([
+            "Schedule conflict",
+            "Feeling unwell",
+            "Emergency came up",
+            "Need to reschedule"
+        ])
+    else:  # future
+        status = BookingStatus.CONFIRMED
+        completed_at = None
+        cancelled_at = None
+        cancelled_by = None
+        cancellation_reason = None
+    
+    # Create booking
+    booking = Booking(
+        student_id=student.id,
+        instructor_id=instructor_id,
+        service_id=service.id,
+        availability_slot_id=slot.id,
+        booking_date=target_date,
+        start_time=slot.start_time,
+        end_time=slot.end_time,
+        service_name=service.skill,
+        hourly_rate=service.hourly_rate,
+        total_price=Decimal(str(total_price)),
+        duration_minutes=duration_minutes,
+        status=status,
+        service_area=service.instructor_profile.areas_of_service.split(',')[0].strip(),
+        meeting_location=f"Instructor's studio in {service.instructor_profile.areas_of_service.split(',')[0].strip()}",
+        student_note=random.choice([
+            "Looking forward to the lesson!",
+            "First time trying this, excited!",
+            "Continuing from last session",
+            "Please focus on fundamentals",
+            "Need help with specific techniques",
+            None
+        ]),
+        instructor_note="Great progress today!" if status == BookingStatus.COMPLETED else None,
+        completed_at=completed_at,
+        cancelled_at=cancelled_at,
+        cancelled_by_id=cancelled_by,
+        cancellation_reason=cancellation_reason
+    )
+    
+    session.add(booking)
+    session.flush()
+    
+    # Update slot to mark as booked
+    slot.booking_id = booking.id
+    
+    logger.info(f"Created {booking_type} booking: {student.full_name} -> {service.skill} on {target_date} ({status})")
+    
+    return booking
     
 def main():
     """Main function to reset and seed the database."""
