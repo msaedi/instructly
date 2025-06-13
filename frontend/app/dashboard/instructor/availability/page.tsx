@@ -17,6 +17,14 @@ interface TimeSlot {
   is_available: boolean;
 }
 
+interface BookedSlot {
+  date: string;
+  start_time: string;
+  end_time: string;
+  student_name?: string;
+  service_name?: string;
+}
+
 interface WeekSchedule {
   [date: string]: TimeSlot[];
 }
@@ -43,6 +51,7 @@ export default function AvailabilityPage() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [applyUntilDate, setApplyUntilDate] = useState<string>('');
   const [applyUntilOption, setApplyUntilOption] = useState<'date' | 'end-of-year' | 'indefinitely'>('end-of-year');
+  const [bookedSlots, setBookedSlots] = useState<BookedSlot[]>([]);
   const router = useRouter();
 
   // Define presets once at the component level
@@ -85,6 +94,37 @@ export default function AvailabilityPage() {
     }
   };
 
+  const fetchBookedSlots = async () => {
+    try {
+      const response = await fetchWithAuth(
+        `${API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK}/booked-slots?start_date=${formatDateForAPI(currentWeekStart)}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Booked slots data:', data);
+        setBookedSlots(data.booked_slots || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch booked slots:', error);
+    }
+  };
+
+  useEffect(() => {
+    setWeekSchedule({});
+    setHasUnsavedChanges(false);
+    fetchWeekSchedule();
+    fetchBookedSlots(); // Add this
+  }, [currentWeekStart]);
+
+  const isSlotBooked = (date: string, hour: number): boolean => {
+    return bookedSlots.some(slot => {
+      if (slot.date !== date) return false;
+      const slotStartHour = parseInt(slot.start_time.split(':')[0]);
+      const slotEndHour = parseInt(slot.end_time.split(':')[0]);
+      return hour >= slotStartHour && hour < slotEndHour;
+    });
+  };
+
   // Initialize current week to start on Monday
   useEffect(() => {
     const today = new Date();
@@ -109,6 +149,10 @@ export default function AvailabilityPage() {
 
   // Fetch schedule when week changes
   useEffect(() => {
+    // Clear the schedule when week changes to prevent old data from persisting
+    setWeekSchedule({});
+    setHasUnsavedChanges(false);
+    // Fetch the new week's data
     fetchWeekSchedule();
   }, [currentWeekStart]);
 
@@ -130,6 +174,22 @@ export default function AvailabilityPage() {
       });
     }
     return dates;
+  };
+
+  const isTimeSlotInPast = (dateStr: string, hour: number): boolean => {
+    // Parse the date string as local time, not UTC
+    const [year, month, day] = dateStr.split('-').map(num => parseInt(num));
+    const slotDateTime = new Date(year, month - 1, day, hour, 0, 0, 0);
+    const now = new Date();
+    return slotDateTime < now;
+  };
+
+  const isDateInPast = (dateStr: string): boolean => {
+    const date = new Date(dateStr);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    date.setHours(0, 0, 0, 0);
+    return date < today;
   };
 
   // Format date for API (YYYY-MM-DD)
@@ -220,6 +280,24 @@ export default function AvailabilityPage() {
 
   // Toggle time slot for a specific date
   const toggleTimeSlot = (date: string, hour: number) => {
+    // Check if time slot is in the past
+    if (isTimeSlotInPast(date, hour)) {
+      setMessage({ 
+        type: 'error', 
+        text: 'Cannot modify availability for past time slots.' 
+      });
+      return;
+    }
+
+    // Check if slot is booked
+    if (isSlotBooked(date, hour)) {
+      setMessage({ 
+        type: 'error', 
+        text: 'Cannot modify time slots that have existing bookings. Please cancel the booking first.' 
+      });
+      return;
+    }
+    
     const daySlots = weekSchedule[date] || [];
     const isCurrentlyAvailable = isHourInTimeRange(date, hour);
     
@@ -347,13 +425,23 @@ export default function AvailabilityPage() {
       // Convert schedule to API format
       const scheduleData: any[] = [];
       const weekDates = getWeekDates();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
       
-      // IMPORTANT: Send ALL days, even empty ones
+      // Filter to only include current week's future dates
       weekDates.forEach(dateInfo => {
+        const slotDate = new Date(dateInfo.fullDate);
+        slotDate.setHours(0, 0, 0, 0);
+        
+        // Skip past dates
+        if (slotDate < today) {
+          console.log(`Skipping past date: ${dateInfo.fullDate}`);
+          return;
+        }
+        
         const daySlots = weekSchedule[dateInfo.fullDate] || [];
         
         if (daySlots.length > 0) {
-          // Day has slots
           daySlots.forEach(slot => {
             scheduleData.push({
               date: dateInfo.fullDate,
@@ -364,13 +452,14 @@ export default function AvailabilityPage() {
           });
         }
       });
-  
+
       console.log('Saving schedule:', {
+        currentWeekStart: formatDateForAPI(currentWeekStart),
+        today: today.toISOString().split('T')[0],
         scheduleLength: scheduleData.length,
-        isEmpty: Object.keys(weekSchedule).length === 0,
         scheduleData
       });
-  
+
       const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -380,17 +469,62 @@ export default function AvailabilityPage() {
           week_start: formatDateForAPI(currentWeekStart)
         })
       });
-  
-      if (!response.ok) throw new Error('Failed to save schedule');
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Save schedule error:', errorData);
+        
+        // Handle specific error types
+        if (response.status === 400) {
+          // This is our new structured error from the backend
+          setMessage({ 
+            type: 'error', 
+            text: errorData.detail || 'Cannot save availability. Please check for existing bookings.'
+          });
+          return;
+        }
+        
+        if (response.status === 422) {
+          // Validation error
+          let errorMessage = 'Validation error: ';
+          if (Array.isArray(errorData.detail)) {
+            errorMessage += errorData.detail.map((e: any) => e.msg).join(', ');
+          } else {
+            errorMessage += errorData.detail || 'Invalid data provided';
+          }
+          setMessage({ type: 'error', text: errorMessage });
+          return;
+        }
+        
+        if (response.status === 500) {
+          // Server error - check if it's the foreign key issue
+          if (errorData.detail?.includes('foreign key constraint')) {
+            setMessage({ 
+              type: 'error', 
+              text: 'Cannot modify availability because you have existing bookings in this week. Please cancel the bookings first or contact support.'
+            });
+            return;
+          }
+        }
+        
+        // Generic error
+        throw new Error(errorData.detail || 'Failed to save schedule');
+      }
       
       setSavedWeekSchedule(weekSchedule);
       setHasUnsavedChanges(false);
-      setMessage({ type: 'success', text: 'Schedule saved for this week.' });
+      setMessage({ type: 'success', text: 'Schedule saved successfully!' });
       
       // Refresh to get the saved data
       await fetchWeekSchedule();
     } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to save schedule. Please try again.' });
+      console.error('Save error:', error);
+      if (!message || message.type !== 'error') {
+        setMessage({ 
+          type: 'error', 
+          text: error instanceof Error ? error.message : 'Failed to save schedule. Please try again.' 
+        });
+      }
     } finally {
       setIsSaving(false);
     }
@@ -669,25 +803,45 @@ export default function AvailabilityPage() {
               </tr>
             </thead>
             <tbody>
-              {HOURS.map(hour => (
+            {HOURS.map(hour => (
                 <tr key={hour} className="border-t">
                   <td className="p-2 text-sm text-gray-600 w-24">
                     {hour % 12 || 12}:00 {hour < 12 ? 'AM' : 'PM'}
                   </td>
-                  {weekDates.map((dateInfo) => (
-                    <td key={`${dateInfo.fullDate}-${hour}`} className="p-1 w-32">
-                      <button
-                        onClick={() => toggleTimeSlot(dateInfo.fullDate, hour)}
-                        className={`w-full h-10 rounded transition-colors ${
-                          isHourInTimeRange(dateInfo.fullDate, hour)
-                            ? 'bg-green-500 hover:bg-green-600 text-white'
-                            : 'bg-gray-200 hover:bg-gray-300'
-                        }`}
-                      >
-                        {isHourInTimeRange(dateInfo.fullDate, hour) ? '✓' : ''}
-                      </button>
-                    </td>
-                  ))}
+                  {weekDates.map((dateInfo) => {
+                    const isPastSlot = isTimeSlotInPast(dateInfo.fullDate, hour);
+                    const isAvailable = isHourInTimeRange(dateInfo.fullDate, hour);
+                    const isBooked = isSlotBooked(dateInfo.fullDate, hour);
+                    
+                    return (
+                      <td key={`${dateInfo.fullDate}-${hour}`} className="p-1 w-32">
+                        <button
+                          onClick={() => !isPastSlot && !isBooked && toggleTimeSlot(dateInfo.fullDate, hour)}
+                          disabled={isPastSlot || isBooked}
+                          className={`w-full h-10 rounded transition-colors ${
+                            isBooked
+                              ? 'bg-red-400 text-white cursor-not-allowed' 
+                              : isPastSlot
+                                ? isAvailable
+                                  ? 'bg-green-300 text-white cursor-not-allowed'
+                                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : isAvailable
+                                  ? 'bg-green-500 hover:bg-green-600 text-white cursor-pointer'
+                                  : 'bg-gray-200 hover:bg-gray-300 cursor-pointer'
+                          }`}
+                          title={
+                            isBooked 
+                              ? 'This slot has a booking - cannot modify' 
+                              : isPastSlot 
+                                ? 'Past time slot - view only' 
+                                : ''
+                          }
+                        >
+                          {isBooked ? '📅' : isAvailable ? '✓' : ''}
+                        </button>
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>
@@ -696,27 +850,56 @@ export default function AvailabilityPage() {
 
         {/* Mobile List View */}
         <div className="md:hidden space-y-4">
-          {weekDates.map((dateInfo, index) => (
-            <div key={index} className="border rounded-lg p-4">
-              <h3 className="font-semibold capitalize mb-1">{dateInfo.dayOfWeek}</h3>
-              <p className="text-sm text-gray-600 mb-3">{dateInfo.dateStr}</p>
-              <div className="grid grid-cols-3 gap-2">
-                {HOURS.map(hour => (
-                  <button
-                    key={`${dateInfo.fullDate}-${hour}`}
-                    onClick={() => toggleTimeSlot(dateInfo.fullDate, hour)}
-                    className={`p-2 rounded text-sm ${
-                      isHourInTimeRange(dateInfo.fullDate, hour)
-                        ? 'bg-green-500 text-white'
-                        : 'bg-gray-200'
-                    }`}
-                  >
-                    {hour % 12 || 12}:00
-                  </button>
-                ))}
+          {weekDates.map((dateInfo, index) => {
+            const isPastDate = isDateInPast(dateInfo.fullDate);
+            
+            return (
+              <div key={index} className={`border rounded-lg p-4 ${isPastDate ? 'bg-gray-50' : ''}`}>
+                <h3 className="font-semibold capitalize mb-1">{dateInfo.dayOfWeek}</h3>
+                <p className="text-sm text-gray-600 mb-3">
+                  {dateInfo.dateStr}
+                  {isPastDate && <span className="text-gray-500 ml-2">(Past date)</span>}
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  {HOURS.map(hour => {
+                    const isPastSlot = isTimeSlotInPast(dateInfo.fullDate, hour);
+                    const isAvailable = isHourInTimeRange(dateInfo.fullDate, hour);
+                    const isBooked = isSlotBooked(dateInfo.fullDate, hour);
+                    
+                    return (
+                      <button
+                        key={`${dateInfo.fullDate}-${hour}`}
+                        onClick={() => !isPastSlot && !isBooked && toggleTimeSlot(dateInfo.fullDate, hour)}
+                        disabled={isPastSlot || isBooked}
+                        className={`p-2 rounded text-sm ${
+                          isBooked
+                            ? 'bg-red-400 text-white cursor-not-allowed'
+                            : isPastSlot
+                              ? isAvailable
+                                ? 'bg-green-300 text-white cursor-not-allowed'
+                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                              : isAvailable
+                                ? 'bg-green-500 text-white hover:bg-green-600'
+                                : 'bg-gray-200 hover:bg-gray-300'
+                        }`}
+                        title={
+                          isBooked 
+                            ? 'This slot has a booking' 
+                            : isPastSlot 
+                              ? 'Past time slot' 
+                              : ''
+                        }
+                      >
+                        {hour % 12 || 12}:00
+                        {isBooked && <span className="ml-1 text-xs">📅</span>}
+                        {!isBooked && isAvailable && <span className="ml-1 text-xs">✓</span>}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

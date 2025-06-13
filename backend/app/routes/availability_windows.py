@@ -35,10 +35,13 @@ from typing import List, Optional, Dict
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.exc import IntegrityError
 
 from ..database import get_db
 from ..models.user import User
 from ..models.instructor import InstructorProfile 
+from ..models.booking import Booking
+from ..models.service import Service
 from ..models.availability import (
     InstructorAvailability,
     AvailabilitySlot as AvailabilitySlotModel,
@@ -256,30 +259,67 @@ async def save_week_availability(
     # Calculate all week dates
     week_dates = [monday + timedelta(days=i) for i in range(7)]
     
-    if week_data.clear_existing:
-        # Delete existing entries for this week
-        deleted_count = db.query(InstructorAvailability).filter(
-            and_(
-                InstructorAvailability.instructor_id == current_user.id,
-                InstructorAvailability.date.in_(week_dates)
-            )
-        ).delete(synchronize_session=False)
-        logger.info(f"Deleted {deleted_count} existing entries for the week")
+    # Import Booking model if not already imported
+    from app.models.booking import Booking
     
-    # Group schedule by date
+    # Group schedule by date first
     schedule_by_date = {}
     for slot in week_data.schedule:
+        # Skip past dates with a warning
+        if slot.date < date.today():
+            logger.warning(f"Skipping past date: {slot.date}")
+            continue
+            
         if slot.date not in schedule_by_date:
             schedule_by_date[slot.date] = []
         schedule_by_date[slot.date].append(slot)
     
-    # Process each day of the week
+    # Process each day of the week individually
     dates_created = 0
     slots_created = 0
+    dates_with_bookings = []
     
     for week_date in week_dates:
+        # Skip past dates
+        if week_date < date.today():
+            logger.debug(f"Skipping past date: {week_date}")
+            continue
+        
+        # Check if this specific date has bookings
+        date_has_bookings = False
+        if week_data.clear_existing:
+            existing_bookings_for_date = (
+                db.query(Booking)
+                .join(AvailabilitySlotModel, Booking.availability_slot_id == AvailabilitySlotModel.id)
+                .join(InstructorAvailability, AvailabilitySlotModel.availability_id == InstructorAvailability.id)
+                .filter(
+                    InstructorAvailability.instructor_id == current_user.id,
+                    InstructorAvailability.date == week_date,
+                    Booking.status.in_(['CONFIRMED', 'COMPLETED'])
+                )
+                .count()
+            )
+            date_has_bookings = existing_bookings_for_date > 0
+            
+            if date_has_bookings:
+                dates_with_bookings.append(week_date.strftime("%Y-%m-%d"))
+                logger.warning(f"Date {week_date} has {existing_bookings_for_date} bookings - skipping")
+                continue  # Skip this date entirely
+        
+        # Process the date based on whether we have new slots for it
         if week_date in schedule_by_date:
-            # Day has time slots
+            # We have new slots for this date
+            if week_data.clear_existing and not date_has_bookings:
+                # Delete existing availability for this date only
+                deleted = db.query(InstructorAvailability).filter(
+                    and_(
+                        InstructorAvailability.instructor_id == current_user.id,
+                        InstructorAvailability.date == week_date
+                    )
+                ).delete(synchronize_session=False)
+                logger.debug(f"Deleted {deleted} existing entries for {week_date}")
+            
+            # Add new availability
             availability_entry = InstructorAvailability(
                 instructor_id=current_user.id,
                 date=week_date,
@@ -292,7 +332,7 @@ async def save_week_availability(
             # Add time slots
             for slot in schedule_by_date[week_date]:
                 time_slot = AvailabilitySlotModel(
-                    availability_id=availability_entry.id,  # Changed from date_override_id
+                    availability_id=availability_entry.id,
                     start_time=slot.start_time,
                     end_time=slot.end_time
                 )
@@ -300,28 +340,78 @@ async def save_week_availability(
                 slots_created += 1
                 logger.debug(f"Added time slot {slot.start_time}-{slot.end_time} for {week_date}")
         else:
-            # Day has no slots - check if we should mark it as cleared
-            if week_data.clear_existing:
-                # Mark as cleared
-                logger.debug(f"Creating cleared entry for {week_date}")
-                availability_entry = InstructorAvailability(
-                    instructor_id=current_user.id,
-                    date=week_date,
-                    is_cleared=True
+            # No new slots for this date
+            if week_data.clear_existing and not date_has_bookings:
+                # First, check if ANY slots for this date have bookings
+                slots_with_bookings = (
+                    db.query(AvailabilitySlotModel)
+                    .join(InstructorAvailability)
+                    .filter(
+                        InstructorAvailability.instructor_id == current_user.id,
+                        InstructorAvailability.date == week_date,
+                        AvailabilitySlotModel.booking_id.isnot(None)
+                    )
+                    .count()
                 )
-                db.add(availability_entry)
-                dates_created += 1
-            else:
-                logger.debug(f"Skipping {week_date} - no slots and clear_existing=False")
+                
+                if slots_with_bookings > 0:
+                    # Can't delete - has bookings
+                    dates_with_bookings.append(week_date.strftime("%Y-%m-%d"))
+                    logger.warning(f"Date {week_date} has slots with bookings - cannot clear")
+                    continue
+                
+                # Safe to delete - no bookings
+                deleted = db.query(InstructorAvailability).filter(
+                    and_(
+                        InstructorAvailability.instructor_id == current_user.id,
+                        InstructorAvailability.date == week_date
+                    )
+                ).delete(synchronize_session=False)
+                
+                # Create a cleared entry
+                if deleted > 0:
+                    logger.debug(f"Creating cleared entry for {week_date}")
+                    availability_entry = InstructorAvailability(
+                        instructor_id=current_user.id,
+                        date=week_date,
+                        is_cleared=True
+                    )
+                    db.add(availability_entry)
+                    dates_created += 1
+    
+    # If we skipped any dates due to bookings, include that in the response
+    if dates_with_bookings:
+        logger.info(f"Skipped {len(dates_with_bookings)} dates with bookings: {dates_with_bookings}")
     
     try:
         db.commit()
         logger.info(f"Successfully saved week availability: {dates_created} dates, {slots_created} slots")
-        return await get_week_availability(
+        
+        # Add a note about skipped dates in the response if any
+        result = await get_week_availability(
             start_date=monday,
             current_user=current_user,
             db=db
         )
+        
+        # Optionally add metadata about skipped dates
+        if dates_with_bookings:
+            result["_metadata"] = {
+                "skipped_dates_with_bookings": dates_with_bookings,
+                "message": f"Changes saved successfully. {len(dates_with_bookings)} date(s) with existing bookings were not modified."
+            }
+            
+        return result
+        
+    except IntegrityError as e:
+        logger.error(f"Database integrity error: {str(e)}")
+        db.rollback()
+        if "foreign key constraint" in str(e).lower():
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot modify availability due to existing bookings. Please cancel bookings first."
+            )
+        raise HTTPException(status_code=400, detail="Database error occurred")
     except Exception as e:
         logger.error(f"Error saving week availability: {str(e)}")
         db.rollback()
@@ -827,6 +917,50 @@ def delete_availability_window(
     
     logger.error(f"Availability window {window_id} not found for instructor {instructor.id}")
     raise HTTPException(status_code=404, detail="Availability window not found")
+
+# Get all booked slots for a week
+@router.get("/week/booked-slots")
+async def get_week_booked_slots(
+    start_date: date = Query(..., description="Start date (Monday) of the week"),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get all booked slots for a week."""
+    week_dates = [start_date + timedelta(days=i) for i in range(7)]
+    
+    booked_slots = (
+        db.query(
+            Booking.booking_date.label("date"),
+            AvailabilitySlotModel.start_time,
+            AvailabilitySlotModel.end_time,
+            User.full_name.label("student_name"),
+            Service.skill.label("service_name")
+        )
+        .join(AvailabilitySlotModel, Booking.availability_slot_id == AvailabilitySlotModel.id)
+        .join(InstructorAvailability, AvailabilitySlotModel.availability_id == InstructorAvailability.id)
+        .join(User, Booking.student_id == User.id)
+        .join(Service, Booking.service_id == Service.id)
+        .filter(
+            InstructorAvailability.instructor_id == current_user.id,
+            Booking.booking_date.in_(week_dates),
+            Booking.status.in_(['CONFIRMED', 'COMPLETED'])
+        )
+        .all()
+    )
+    
+    return {
+        "booked_slots": [
+            {
+                "date": slot.date.isoformat(),
+                "start_time": str(slot.start_time),
+                "end_time": str(slot.end_time),
+                "student_name": slot.student_name,
+                "service_name": slot.service_name
+            }
+            for slot in booked_slots
+        ]
+    }
+
 
 # Blackout dates endpoints remain unchanged
 @router.get("/blackout-dates", response_model=List[BlackoutDateResponse])
