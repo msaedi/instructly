@@ -57,6 +57,49 @@ async def get_current_active_user(
     return user
 
 
+@router.get("/{booking_id}/preview")
+async def get_booking_preview(
+    booking_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get preview information for a booking.
+    
+    This endpoint provides quick preview data for the calendar view,
+    including basic booking details without sensitive information.
+    Only the instructor or student involved can view the preview.
+    """
+    booking = db.query(Booking).filter(
+        Booking.id == booking_id,
+        or_(
+            Booking.student_id == current_user.id,
+            Booking.instructor_id == current_user.id
+        )
+    ).first()
+    
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    # Return preview data
+    return {
+        "booking_id": booking.id,
+        "student_name": booking.student.full_name,
+        "instructor_name": booking.instructor.full_name,
+        "service_name": booking.service_name,
+        "booking_date": booking.booking_date.isoformat(),
+        "start_time": str(booking.start_time),
+        "end_time": str(booking.end_time),
+        "duration_minutes": booking.duration_minutes,
+        "location_type": booking.location_type or "neutral",
+        "location_type_display": booking.location_type_display if booking.location_type else "Neutral Location",
+        "meeting_location": booking.meeting_location,
+        "service_area": booking.service_area,
+        "status": booking.status,
+        "student_note": booking.student_note,
+        "total_price": float(booking.total_price)
+    }
+
 @router.post("/", response_model=BookingResponse, status_code=status.HTTP_201_CREATED)
 async def create_booking(
     booking_data: BookingCreate,

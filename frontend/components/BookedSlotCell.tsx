@@ -5,7 +5,7 @@ interface BookedSlotCellProps {
   slot: BookedSlotPreview;
   isFirstSlot: boolean;
   isMobile?: boolean;
-  onClick: () => void;
+  onClick: (e: React.MouseEvent) => void; 
 }
 
 const BookedSlotCell: React.FC<BookedSlotCellProps> = ({ 

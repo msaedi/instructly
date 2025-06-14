@@ -10,6 +10,7 @@ import { fetchWithAuth, API_ENDPOINTS, validateWeekChanges } from "@/lib/api";
 import { Calendar, Clock, Copy, Save, ChevronLeft, ChevronRight, AlertCircle, Trash2, CalendarDays } from "lucide-react";
 import { SlotOperation, BulkUpdateRequest, BulkUpdateResponse, OperationResult, ExistingSlot, WeekValidationResponse } from '@/types/availability';
 import { BookedSlotPreview } from '@/types/booking';
+import BookingQuickPreview from '@/components/BookingQuickPreview';
 import BookedSlotCell from '@/components/BookedSlotCell';
 
 
@@ -56,6 +57,8 @@ export default function AvailabilityPage() {
   const [pendingOperations, setPendingOperations] = useState<SlotOperation[]>([]);
   const [isValidating, setIsValidating] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
+  const [showBookingPreview, setShowBookingPreview] = useState(false);
+  const [previewPosition, setPreviewPosition] = useState<{ top: number; left: number } | null>(null);
   const router = useRouter();
 
   // Define presets once at the component level
@@ -112,6 +115,10 @@ export default function AvailabilityPage() {
       console.error('Failed to fetch booked slots:', error);
     }
   };
+
+  useEffect(() => {
+    console.log('Preview state changed:', { showBookingPreview, selectedBookingId });
+  }, [showBookingPreview, selectedBookingId]);
 
   useEffect(() => {
     setWeekSchedule({});
@@ -182,11 +189,28 @@ export default function AvailabilityPage() {
     }) || null;
   };
 
-  const handleBookedSlotClick = (bookingId: number) => {
-    setSelectedBookingId(bookingId);
-    // For now, just log - we'll implement the preview modal in Phase 2
+  const handleBookedSlotClick = (bookingId: number, event?: React.MouseEvent) => {
     console.log('Clicked booking:', bookingId);
-    // TODO: Show booking preview modal
+    setSelectedBookingId(bookingId);
+    
+    // For desktop, calculate popover position
+    if (event && !isMobile()) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      const position = {
+        top: rect.bottom + scrollTop + 5,
+        left: rect.left + (rect.width / 2)
+      };
+      console.log('Setting position:', position);
+      setPreviewPosition(position);
+    }
+    console.log('Setting showBookingPreview to true');
+    setShowBookingPreview(true);
+  };
+  
+  // Add this helper function to detect mobile
+  const isMobile = () => {
+    return window.innerWidth < 768; // md breakpoint
   };
 
   // Get week dates
@@ -1261,8 +1285,7 @@ const mergeAdjacentSlots = (slots: TimeSlot[], dateStr: string): TimeSlot[] => {
                           <BookedSlotCell
                             slot={booking}
                             isFirstSlot={isFirstSlot}
-                            onClick={() => handleBookedSlotClick(booking.booking_id)}
-                          />
+                            onClick={(e) => handleBookedSlotClick(booking.booking_id, e)}                          />
                         ) : (
                           <button
                             onClick={() => !isPastSlot && !isBooked && toggleTimeSlot(dateInfo.fullDate, hour)}
@@ -1316,8 +1339,7 @@ const mergeAdjacentSlots = (slots: TimeSlot[], dateStr: string): TimeSlot[] => {
                         slot={booking}
                         isFirstSlot={isFirstSlot}
                         isMobile={true}
-                        onClick={() => handleBookedSlotClick(booking.booking_id)}
-                      />
+                        onClick={(e) => handleBookedSlotClick(booking.booking_id, e)}                      />
                     ) : (
                       <button
                         key={`${dateInfo.fullDate}-${hour}`}
@@ -1564,6 +1586,24 @@ const mergeAdjacentSlots = (slots: TimeSlot[], dateStr: string): TimeSlot[] => {
               </div>
             </div>
           </div>
+        )}
+        {/* Booking Preview Modal */}
+        {showBookingPreview && selectedBookingId && (
+          <BookingQuickPreview
+            bookingId={selectedBookingId}
+            onClose={() => {
+              setShowBookingPreview(false);
+              setSelectedBookingId(null);
+              setPreviewPosition(null);
+            }}
+            onViewFullDetails={() => {
+              // TODO: Navigate to full booking details
+              console.log('Navigate to booking details:', selectedBookingId);
+              setShowBookingPreview(false);
+            }}
+            position={previewPosition || undefined}
+            isMobile={isMobile()}
+          />
         )}
     </div>
   );

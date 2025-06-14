@@ -180,6 +180,24 @@ export interface BookingCreate {
   location_type?: LocationType;
 }
 
+export interface BookingPreview {
+  booking_id: number;
+  student_name: string;
+  instructor_name: string;
+  service_name: string;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  location_type: LocationType;
+  location_type_display: string;
+  meeting_location?: string;
+  service_area?: string;
+  status: string;
+  student_note?: string;
+  total_price: number;
+}
+
 // Add location type display helper
 export const getLocationTypeDisplay = (locationType: LocationType): string => {
   switch (locationType) {

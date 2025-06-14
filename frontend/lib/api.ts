@@ -1,4 +1,5 @@
 import { WeekSchedule, WeekValidationResponse } from '@/types/availability';
+import { BookingPreview } from '@/types/booking';
 
 // frontend/lib/api.ts
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -48,6 +49,9 @@ export const API_ENDPOINTS = {
 
   // For students to check availability
   CHECK_AVAILABILITY: '/api/availability/slots',
+
+  // Bookings
+  BOOKINGS: '/bookings',
   
   // Add more as needed
 } as const;
@@ -73,5 +77,15 @@ export async function validateWeekChanges(
     throw new Error(error.detail || 'Failed to validate changes');
   }
 
+  return response.json();
+}
+
+export async function fetchBookingPreview(bookingId: number): Promise<BookingPreview> {
+  const response = await fetchWithAuth(`${API_ENDPOINTS.BOOKINGS}/${bookingId}/preview`);
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch booking preview');
+  }
+  
   return response.json();
 }
