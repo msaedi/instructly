@@ -9,7 +9,7 @@ from datetime import date, time, datetime
 from decimal import Decimal
 from typing import Optional, List
 from pydantic import BaseModel, Field, validator, root_validator
-
+from ..schemas.base import StandardizedModel, Money
 from ..models.booking import BookingStatus
 
 
@@ -59,7 +59,7 @@ class BookingCancel(BaseModel):
         return v
 
 
-class BookingBase(BaseModel):
+class BookingBase(StandardizedModel):
     """Base booking information."""
     id: int
     student_id: int
@@ -72,8 +72,8 @@ class BookingBase(BaseModel):
     start_time: time
     end_time: time
     service_name: str
-    hourly_rate: Decimal
-    total_price: Decimal
+    hourly_rate: Money  # Changed from Decimal
+    total_price: Money  # Changed from Decimal
     duration_minutes: int
     status: BookingStatus
     
@@ -99,7 +99,7 @@ class BookingBase(BaseModel):
         from_attributes = True
 
 
-class StudentInfo(BaseModel):
+class StudentInfo(StandardizedModel):
     """Basic student information for booking display."""
     id: int
     full_name: str
@@ -109,7 +109,7 @@ class StudentInfo(BaseModel):
         from_attributes = True
 
 
-class InstructorInfo(BaseModel):
+class InstructorInfo(StandardizedModel):
     """Basic instructor information for booking display."""
     id: int
     full_name: str
@@ -119,7 +119,7 @@ class InstructorInfo(BaseModel):
         from_attributes = True
 
 
-class ServiceInfo(BaseModel):
+class ServiceInfo(StandardizedModel):
     """Basic service information for booking display."""
     id: int
     skill: str
@@ -151,7 +151,7 @@ class BookingResponse(BookingBase):
         return self.booking_date > dt_date.today() and self.status == BookingStatus.CONFIRMED
 
 
-class BookingListResponse(BaseModel):
+class BookingListResponse(StandardizedModel): 
     """Response for booking list endpoints."""
     bookings: List[BookingResponse]
     total: int
@@ -178,18 +178,18 @@ class AvailabilityCheckResponse(BaseModel):
     slot_info: Optional[dict] = None
 
 
-class BookingStatsResponse(BaseModel):
+class BookingStatsResponse(StandardizedModel):
     """Booking statistics for instructors."""
     total_bookings: int
     upcoming_bookings: int
     completed_bookings: int
     cancelled_bookings: int
-    total_earnings: Decimal
-    this_month_earnings: Decimal
+    total_earnings: Money  # Changed from Decimal
+    this_month_earnings: Money  # Changed from Decimal
     average_rating: Optional[float] = None  # For future use
 
 
-class UpcomingBookingResponse(BaseModel):
+class UpcomingBookingResponse(StandardizedModel):
     """Simplified response for upcoming bookings widget."""
     id: int
     booking_date: date

@@ -13,6 +13,7 @@ import logging
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field, validator
+from .base import StandardizedModel, Money
 
 from ..models.user import UserRole
 from ..core.constants import (
@@ -23,7 +24,7 @@ from ..core.constants import (
 logger = logging.getLogger(__name__)
 
 
-class ServiceBase(BaseModel):
+class ServiceBase(StandardizedModel):
     """
     Base schema for instructor services.
     
@@ -34,7 +35,7 @@ class ServiceBase(BaseModel):
         duration_override: Optional custom duration for this service
     """
     skill: str = Field(..., min_length=1, max_length=100)
-    hourly_rate: float = Field(..., gt=0, le=1000, description="Hourly rate in USD")
+    hourly_rate: Money = Field(..., gt=0, le=1000, description="Hourly rate in USD")  # Changed from float
     description: Optional[str] = Field(None, max_length=500)
     duration_override: Optional[int] = Field(
         None, 
@@ -67,7 +68,7 @@ class ServiceResponse(ServiceBase):
         from_attributes = True
 
 
-class UserBasic(BaseModel):
+class UserBasic(StandardizedModel):
     """Basic user information for embedding in responses."""
     full_name: str
     email: str
@@ -76,7 +77,7 @@ class UserBasic(BaseModel):
         from_attributes = True
 
 
-class InstructorProfileBase(BaseModel):
+class InstructorProfileBase(StandardizedModel):
     """
     Base schema for instructor profiles.
     

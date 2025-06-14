@@ -13,10 +13,12 @@ from datetime import date, time
 from typing import Optional, List, Literal, Dict, Any
 from enum import Enum
 from pydantic import BaseModel, Field, validator
+from .base import StandardizedModel
 
 # Type aliases for annotations
 DateType = datetime.date
 TimeType = datetime.time
+DateTimeType = datetime.datetime
 
 # Type definitions
 WeekSchedule = Dict[str, List['TimeSlot']]  # Maps date strings to lists of time slots
@@ -83,7 +85,7 @@ class AvailabilityWindowUpdate(BaseModel):
         return v
 
 
-class AvailabilityWindowResponse(AvailabilityWindowBase):
+class AvailabilityWindowResponse(StandardizedModel):
     """Response schema for availability windows."""
     id: int
     instructor_id: int
@@ -91,6 +93,9 @@ class AvailabilityWindowResponse(AvailabilityWindowBase):
     specific_date: Optional[DateType] = None
     is_recurring: bool  # Always False now
     is_cleared: bool = False
+    start_time: TimeType  # Add these from base
+    end_time: TimeType
+    is_available: bool = True
     
     class Config:
         from_attributes = True
@@ -114,13 +119,13 @@ class BlackoutDateCreate(BaseModel):
         return v
 
 
-class BlackoutDateResponse(BaseModel):
+class BlackoutDateResponse(StandardizedModel):  # Changed from BaseModel
     """Response schema for blackout dates."""
     id: int
     instructor_id: int
     date: DateType
     reason: Optional[str] = None
-    created_at: str
+    created_at: DateTimeType  # Changed from str to datetime
     
     class Config:
         from_attributes = True

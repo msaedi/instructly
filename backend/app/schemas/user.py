@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from enum import Enum
+from .base import StandardizedModel
 
 class UserRole(str, Enum):
     STUDENT = "student"
@@ -19,11 +20,15 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
-class UserResponse(UserBase):
+class UserResponse(StandardizedModel):  # Changed from UserBase
     id: int
+    email: EmailStr
+    full_name: Optional[str] = None
+    role: UserRole
+    is_active: Optional[bool] = True
 
     class Config:
-        from_attributes = True  # Updated from orm_mode for newer Pydantic versions
+        from_attributes = True
 
 class Token(BaseModel):
     access_token: str
