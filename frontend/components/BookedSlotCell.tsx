@@ -22,16 +22,16 @@ const BookedSlotCell: React.FC<BookedSlotCellProps> = ({
         className="w-full h-full p-1 rounded bg-red-100 border border-red-300 
                    hover:bg-red-200 active:bg-red-300 transition-colors cursor-pointer
                    flex flex-col justify-center items-center text-xs"
-        aria-label={`Booking with ${slot.student_first_name} ${slot.student_last_initial} for ${slot.service_name}`}
+        aria-label={`Booking with ${slot.student_first_name} ${slot.student_last_initial}`}
       >
         {isFirstSlot ? (
           <>
-            <span className="text-base">📅</span>
-            <span className="font-medium text-[10px]">
-              {slot.student_first_name[0]}{slot.student_last_initial[0]}
+            <span className="font-semibold text-[11px] text-red-800">
+              {slot.student_first_name} {slot.student_last_initial}
             </span>
-            <span className="text-[9px] text-gray-700">
-              {slot.service_name.substring(0, 5)}
+            <span className="text-[10px] text-gray-600 flex items-center gap-0.5">
+              {getLocationTypeIcon(slot.location_type)}
+              <span>{slot.service_area_short}</span>
             </span>
           </>
         ) : (
@@ -53,17 +53,9 @@ const BookedSlotCell: React.FC<BookedSlotCellProps> = ({
     >
       {isFirstSlot ? (
         <div className="w-full space-y-1">
-          {/* Main info - always visible */}
-          <div className="font-semibold flex items-center justify-center gap-1 text-red-800">
-            <span className="text-sm">📅</span>
-            <span>
-              {slot.student_first_name} {slot.student_last_initial}
-            </span>
-          </div>
-          
-          {/* Service name */}
-          <div className="text-gray-700 text-center">
-            {slot.service_name}
+          {/* Main info - student name only */}
+          <div className="font-semibold text-red-800">
+            {slot.student_first_name} {slot.student_last_initial}
           </div>
           
           {/* Location info - show icon + area */}
@@ -78,11 +70,6 @@ const BookedSlotCell: React.FC<BookedSlotCellProps> = ({
               {Math.floor(slot.duration_minutes / 60)}h {slot.duration_minutes % 60 > 0 ? `${slot.duration_minutes % 60}m` : ''}
             </div>
           )}
-          
-          {/* Hover hint */}
-          <div className="text-[10px] text-gray-500 text-center opacity-0 group-hover:opacity-100 transition-opacity">
-            Click for details →
-          </div>
         </div>
       ) : (
         <div className="text-gray-600 text-xs">

@@ -9,6 +9,8 @@ import { useRouter } from "next/navigation";
 import { fetchWithAuth, API_ENDPOINTS, validateWeekChanges } from "@/lib/api";
 import { Calendar, Clock, Copy, Save, ChevronLeft, ChevronRight, AlertCircle, Trash2, CalendarDays } from "lucide-react";
 import { SlotOperation, BulkUpdateRequest, BulkUpdateResponse, OperationResult, ExistingSlot, WeekValidationResponse } from '@/types/availability';
+import { BookedSlotPreview } from '@/types/booking';
+import BookedSlotCell from '@/components/BookedSlotCell';
 
 
 type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
@@ -19,13 +21,7 @@ interface TimeSlot {
   is_available: boolean;
 }
 
-interface BookedSlot {
-  date: string;
-  start_time: string;
-  end_time: string;
-  student_name?: string;
-  service_name?: string;
-}
+type BookedSlot = BookedSlotPreview;
 
 interface WeekSchedule {
   [date: string]: TimeSlot[];
@@ -59,6 +55,7 @@ export default function AvailabilityPage() {
   const [validationResults, setValidationResults] = useState<WeekValidationResponse | null>(null);
   const [pendingOperations, setPendingOperations] = useState<SlotOperation[]>([]);
   const [isValidating, setIsValidating] = useState(false);
+  const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
   const router = useRouter();
 
   // Define presets once at the component level
@@ -164,6 +161,33 @@ export default function AvailabilityPage() {
     // Fetch the new week's data
     fetchWeekSchedule();
   }, [currentWeekStart]);
+
+  // Helper to check if this is the first hour of a multi-hour booking
+  const isFirstHourOfBooking = (date: string, hour: number): BookedSlotPreview | null => {
+    const booking = bookedSlots.find(slot => {
+      if (slot.date !== date) return false;
+      const slotStartHour = parseInt(slot.start_time.split(':')[0]);
+      return slotStartHour === hour;
+    });
+    return booking || null;
+  };
+
+  // Helper to find the booking for a given slot
+  const getBookingForSlot = (date: string, hour: number): BookedSlotPreview | null => {
+    return bookedSlots.find(slot => {
+      if (slot.date !== date) return false;
+      const slotStartHour = parseInt(slot.start_time.split(':')[0]);
+      const slotEndHour = parseInt(slot.end_time.split(':')[0]);
+      return hour >= slotStartHour && hour < slotEndHour;
+    }) || null;
+  };
+
+  const handleBookedSlotClick = (bookingId: number) => {
+    setSelectedBookingId(bookingId);
+    // For now, just log - we'll implement the preview modal in Phase 2
+    console.log('Clicked booking:', bookingId);
+    // TODO: Show booking preview modal
+  };
 
   // Get week dates
   const getWeekDates = (): DateInfo[] => {
@@ -1227,34 +1251,36 @@ const mergeAdjacentSlots = (slots: TimeSlot[], dateStr: string): TimeSlot[] => {
                   {weekDates.map((dateInfo) => {
                     const isPastSlot = isTimeSlotInPast(dateInfo.fullDate, hour);
                     const isAvailable = isHourInTimeRange(dateInfo.fullDate, hour);
-                    const isBooked = isSlotBooked(dateInfo.fullDate, hour);
+                    const booking = getBookingForSlot(dateInfo.fullDate, hour);
+                    const isBooked = !!booking;
+                    const isFirstSlot = !!(booking && parseInt(booking.start_time.split(':')[0]) === hour);
                     
                     return (
                       <td key={`${dateInfo.fullDate}-${hour}`} className="p-1 w-32">
-                        <button
-                          onClick={() => !isPastSlot && !isBooked && toggleTimeSlot(dateInfo.fullDate, hour)}
-                          disabled={isPastSlot || isBooked}
-                          className={`w-full h-10 rounded transition-colors ${
-                            isBooked
-                              ? 'bg-red-400 text-white cursor-not-allowed' 
-                              : isPastSlot
+                        {isBooked && booking ? (
+                          <BookedSlotCell
+                            slot={booking}
+                            isFirstSlot={isFirstSlot}
+                            onClick={() => handleBookedSlotClick(booking.booking_id)}
+                          />
+                        ) : (
+                          <button
+                            onClick={() => !isPastSlot && !isBooked && toggleTimeSlot(dateInfo.fullDate, hour)}
+                            disabled={isPastSlot}
+                            className={`w-full h-10 rounded transition-colors ${
+                              isPastSlot
                                 ? isAvailable
                                   ? 'bg-green-300 text-white cursor-not-allowed'
                                   : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                 : isAvailable
                                   ? 'bg-green-500 hover:bg-green-600 text-white cursor-pointer'
                                   : 'bg-gray-200 hover:bg-gray-300 cursor-pointer'
-                          }`}
-                          title={
-                            isBooked 
-                              ? 'This slot has a booking - cannot modify' 
-                              : isPastSlot 
-                                ? 'Past time slot - view only' 
-                                : ''
-                          }
-                        >
-                          {isBooked ? '📅' : isAvailable ? '✓' : ''}
-                        </button>
+                            }`}
+                            title={isPastSlot ? 'Past time slot - view only' : ''}
+                          >
+                            {isAvailable ? '✓' : ''}
+                          </button>
+                        )}
                       </td>
                     );
                   })}
@@ -1277,37 +1303,38 @@ const mergeAdjacentSlots = (slots: TimeSlot[], dateStr: string): TimeSlot[] => {
                   {isPastDate && <span className="text-gray-500 ml-2">(Past date)</span>}
                 </p>
                 <div className="grid grid-cols-3 gap-2">
-                  {HOURS.map(hour => {
+                {HOURS.map(hour => {
                     const isPastSlot = isTimeSlotInPast(dateInfo.fullDate, hour);
                     const isAvailable = isHourInTimeRange(dateInfo.fullDate, hour);
-                    const isBooked = isSlotBooked(dateInfo.fullDate, hour);
+                    const booking = getBookingForSlot(dateInfo.fullDate, hour);
+                    const isBooked = !!booking;
+                    const isFirstSlot = !!(booking && parseInt(booking.start_time.split(':')[0]) === hour);
                     
-                    return (
+                    return isBooked && booking ? (
+                      <BookedSlotCell
+                        key={`${dateInfo.fullDate}-${hour}`}
+                        slot={booking}
+                        isFirstSlot={isFirstSlot}
+                        isMobile={true}
+                        onClick={() => handleBookedSlotClick(booking.booking_id)}
+                      />
+                    ) : (
                       <button
                         key={`${dateInfo.fullDate}-${hour}`}
                         onClick={() => !isPastSlot && !isBooked && toggleTimeSlot(dateInfo.fullDate, hour)}
-                        disabled={isPastSlot || isBooked}
+                        disabled={isPastSlot}
                         className={`p-2 rounded text-sm ${
-                          isBooked
-                            ? 'bg-red-400 text-white cursor-not-allowed'
-                            : isPastSlot
-                              ? isAvailable
-                                ? 'bg-green-300 text-white cursor-not-allowed'
-                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                              : isAvailable
-                                ? 'bg-green-500 text-white hover:bg-green-600'
-                                : 'bg-gray-200 hover:bg-gray-300'
+                          isPastSlot
+                            ? isAvailable
+                              ? 'bg-green-300 text-white cursor-not-allowed'
+                              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : isAvailable
+                              ? 'bg-green-500 text-white hover:bg-green-600'
+                              : 'bg-gray-200 hover:bg-gray-300'
                         }`}
-                        title={
-                          isBooked 
-                            ? 'This slot has a booking' 
-                            : isPastSlot 
-                              ? 'Past time slot' 
-                              : ''
-                        }
+                        title={isPastSlot ? 'Past time slot' : ''}
                       >
                         {hour % 12 || 12}:00
-                        {isBooked && <span className="ml-1 text-xs">📅</span>}
                         {!isBooked && isAvailable && <span className="ml-1 text-xs">✓</span>}
                       </button>
                     );
