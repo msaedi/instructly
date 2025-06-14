@@ -18,6 +18,16 @@ from pydantic import BaseModel, Field, validator
 DateType = datetime.date
 TimeType = datetime.time
 
+# Type definitions
+WeekSchedule = Dict[str, List['TimeSlot']]  # Maps date strings to lists of time slots
+
+class TimeSlot(BaseModel):
+    """Time slot for availability"""
+    start_time: TimeType
+    end_time: TimeType
+    is_available: bool = True
+
+
 class DayOfWeekEnum(str, Enum):
     """Enumeration for days of the week."""
     MONDAY = "monday"
@@ -256,3 +266,37 @@ class BulkUpdateResponse(BaseModel):
     failed: int
     skipped: int
     results: List[OperationResult]
+
+# Validation schemas
+class ValidationSlotDetail(BaseModel):
+    """Details about a slot operation in validation"""
+    operation_index: int
+    action: str
+    date: Optional[DateType] = None
+    start_time: Optional[TimeType] = None
+    end_time: Optional[TimeType] = None
+    slot_id: Optional[int] = None
+    reason: Optional[str] = None
+    conflicts_with: Optional[List[Dict[str, Any]]] = None
+
+class ValidationSummary(BaseModel):
+    """Summary of validation results"""
+    total_operations: int
+    valid_operations: int
+    invalid_operations: int
+    operations_by_type: Dict[str, int]  # e.g., {"add": 3, "remove": 2}
+    has_conflicts: bool
+    estimated_changes: Dict[str, int]  # e.g., {"slots_added": 3, "slots_removed": 2}
+
+class WeekValidationResponse(BaseModel):
+    """Response for week schedule validation"""
+    valid: bool
+    summary: ValidationSummary
+    details: List[ValidationSlotDetail]
+    warnings: List[str] = []  # e.g., ["3 operations affect booked dates"]
+    
+class ValidateWeekRequest(BaseModel):
+    """Request to validate week changes"""
+    current_week: WeekSchedule  # What's currently shown in UI
+    saved_week: WeekSchedule    # What's saved in database
+    week_start: DateType

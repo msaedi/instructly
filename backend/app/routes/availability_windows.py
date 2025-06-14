@@ -59,7 +59,12 @@ from ..schemas.availability_window import (
     SlotOperation,
     BulkUpdateRequest,
     BulkUpdateResponse,
-    OperationResult
+    OperationResult,
+    ValidationSlotDetail,
+    ValidationSummary,
+    WeekValidationResponse,
+    ValidateWeekRequest,
+    WeekSchedule,
 )
 from ..utils.time_helpers import time_to_string, string_to_time
 from .instructors import get_current_active_user
@@ -1524,6 +1529,221 @@ async def get_week_booked_slots(
         ]
     }
 
+@router.post("/week/validate-changes", response_model=WeekValidationResponse)
+async def validate_week_changes(
+    validation_data: ValidateWeekRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Validate planned changes to week availability without applying them.
+    
+    This endpoint allows the frontend to preview what would happen if changes
+    were saved, including identifying any conflicts with existing bookings.
+    
+    Args:
+        validation_data: Current and saved week states
+        current_user: The authenticated instructor
+        db: Database session
+        
+    Returns:
+        WeekValidationResponse: Detailed validation results
+    """
+    instructor = verify_instructor(current_user)
+    logger.info(f"Validating week changes for instructor {instructor.id} starting {validation_data.week_start}")
+    
+    # First, fetch actual current state from database to ensure accuracy
+    monday = validation_data.week_start
+    end_date = monday + timedelta(days=6)
+    
+    # Get existing slots with IDs
+    existing_slots = db.query(
+        AvailabilitySlotModel.id,
+        InstructorAvailability.date,
+        AvailabilitySlotModel.start_time,
+        AvailabilitySlotModel.end_time
+    ).join(
+        InstructorAvailability,
+        AvailabilitySlotModel.availability_id == InstructorAvailability.id
+    ).filter(
+        InstructorAvailability.instructor_id == current_user.id,
+        InstructorAvailability.date >= monday,
+        InstructorAvailability.date <= end_date
+    ).all()
+    
+    # Create lookup for existing slots
+    existing_by_date = {}
+    for slot in existing_slots:
+        date_str = slot.date.isoformat()
+        if date_str not in existing_by_date:
+            existing_by_date[date_str] = []
+        existing_by_date[date_str].append({
+            'id': slot.id,
+            'start_time': slot.start_time.strftime('%H:%M:%S'),
+            'end_time': slot.end_time.strftime('%H:%M:%S')
+        })
+    
+    # Generate operations by comparing states
+    operations = []
+    operation_index = 0
+    
+    # Process each day
+    for day_offset in range(7):
+        check_date = monday + timedelta(days=day_offset)
+        date_str = check_date.isoformat()
+        
+        current_slots = validation_data.current_week.get(date_str, [])
+        saved_slots = validation_data.saved_week.get(date_str, [])
+        existing_db_slots = existing_by_date.get(date_str, [])
+        
+        # Find slots to remove
+        for saved_slot in saved_slots:
+            still_exists = any(
+                s.start_time == saved_slot.start_time and 
+                s.end_time == saved_slot.end_time 
+                for s in current_slots
+            )
+            
+            if not still_exists:
+                # Find the DB slot ID
+                db_slot = next(
+                    (s for s in existing_db_slots 
+                     if s['start_time'] == saved_slot.start_time and 
+                        s['end_time'] == saved_slot.end_time),
+                    None
+                )
+                
+                if db_slot:
+                    operations.append(SlotOperation(
+                        action="remove",
+                        slot_id=db_slot['id']
+                    ))
+                    operation_index += 1
+        
+        # Find slots to add
+        for current_slot in current_slots:
+            is_new = not any(
+                s.start_time == current_slot.start_time and 
+                s.end_time == current_slot.end_time 
+                for s in saved_slots
+            )
+            
+            if is_new:
+                operations.append(SlotOperation(
+                    action="add",
+                    date=check_date,
+                    start_time=current_slot.start_time,
+                    end_time=current_slot.end_time
+                ))
+                operation_index += 1
+    
+    # Now validate each operation
+    validation_details = []
+    operations_by_type = {"add": 0, "remove": 0, "update": 0}
+    valid_count = 0
+    invalid_count = 0
+    warnings = []
+    
+    for idx, operation in enumerate(operations):
+        operations_by_type[operation.action] += 1
+        
+        # Validate based on operation type
+        if operation.action == "add":
+            # Check for conflicts with existing bookings
+            conflicts = _check_booking_conflicts(
+                instructor_id=current_user.id,
+                check_date=operation.date,
+                start_time=operation.start_time,
+                end_time=operation.end_time,
+                db=db
+            )
+            
+            if conflicts:
+                validation_details.append(ValidationSlotDetail(
+                    operation_index=idx,
+                    action="add",
+                    date=operation.date,
+                    start_time=operation.start_time,
+                    end_time=operation.end_time,
+                    reason=f"Conflicts with {len(conflicts)} existing bookings",
+                    conflicts_with=conflicts
+                ))
+                invalid_count += 1
+            else:
+                validation_details.append(ValidationSlotDetail(
+                    operation_index=idx,
+                    action="add",
+                    date=operation.date,
+                    start_time=operation.start_time,
+                    end_time=operation.end_time,
+                    reason="Valid - no conflicts"
+                ))
+                valid_count += 1
+                
+        elif operation.action == "remove":
+            # Check if slot has bookings
+            booking_count = (
+                db.query(Booking)
+                .filter(
+                    Booking.availability_slot_id == operation.slot_id,
+                    Booking.status.in_(['CONFIRMED', 'COMPLETED'])
+                )
+                .count()
+            )
+            
+            if booking_count > 0:
+                validation_details.append(ValidationSlotDetail(
+                    operation_index=idx,
+                    action="remove",
+                    slot_id=operation.slot_id,
+                    reason=f"Cannot remove - has {booking_count} active bookings"
+                ))
+                invalid_count += 1
+                warnings.append(f"Slot {operation.slot_id} has active bookings")
+            else:
+                validation_details.append(ValidationSlotDetail(
+                    operation_index=idx,
+                    action="remove",
+                    slot_id=operation.slot_id,
+                    reason="Valid - no bookings"
+                ))
+                valid_count += 1
+    
+    # Calculate summary
+    estimated_changes = {
+        "slots_added": sum(1 for d in validation_details if d.action == "add" and "Valid" in d.reason),
+        "slots_removed": sum(1 for d in validation_details if d.action == "remove" and "Valid" in d.reason),
+        "conflicts": invalid_count
+    }
+    
+    summary = ValidationSummary(
+        total_operations=len(operations),
+        valid_operations=valid_count,
+        invalid_operations=invalid_count,
+        operations_by_type=operations_by_type,
+        has_conflicts=invalid_count > 0,
+        estimated_changes=estimated_changes
+    )
+    
+    # Add helpful warnings
+    if invalid_count > 0:
+        warnings.append(f"{invalid_count} operations will fail due to conflicts")
+    
+    booked_dates_affected = set()
+    for detail in validation_details:
+        if detail.conflicts_with or "bookings" in (detail.reason or ""):
+            if detail.date:
+                booked_dates_affected.add(detail.date.strftime("%A"))
+    
+    if booked_dates_affected:
+        warnings.append(f"Operations affect days with bookings: {', '.join(sorted(booked_dates_affected))}")
+    
+    return WeekValidationResponse(
+        valid=invalid_count == 0,
+        summary=summary,
+        details=validation_details,
+        warnings=warnings
+    )
 
 # Blackout dates endpoints remain unchanged
 @router.get("/blackout-dates", response_model=List[BlackoutDateResponse])
