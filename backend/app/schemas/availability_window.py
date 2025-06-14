@@ -8,11 +8,15 @@ Note: References to RecurringAvailability have been removed as part of the
 refactoring to use only date-specific availability.
 """
 
+import datetime
 from datetime import date, time
-from typing import Optional, List
+from typing import Optional, List, Literal, Dict, Any
 from enum import Enum
 from pydantic import BaseModel, Field, validator
 
+# Type aliases for annotations
+DateType = datetime.date
+TimeType = datetime.time
 
 class DayOfWeekEnum(str, Enum):
     """Enumeration for days of the week."""
@@ -28,8 +32,8 @@ class DayOfWeekEnum(str, Enum):
 # Base schemas
 class AvailabilityWindowBase(BaseModel):
     """Base schema for availability windows."""
-    start_time: time
-    end_time: time
+    start_time: TimeType
+    end_time: TimeType
     is_available: bool = True
     
     @validator('end_time')
@@ -45,7 +49,7 @@ class AvailabilityWindowBase(BaseModel):
 
 class SpecificDateAvailabilityCreate(AvailabilityWindowBase):
     """Schema for creating availability on a specific date."""
-    specific_date: date
+    specific_date: DateType
     
     @validator('specific_date')
     def validate_future_date(cls, v):
@@ -57,9 +61,9 @@ class SpecificDateAvailabilityCreate(AvailabilityWindowBase):
 
 class AvailabilityWindowUpdate(BaseModel):
     """Schema for updating an availability window."""
-    start_time: Optional[time] = None
-    end_time: Optional[time] = None
-    is_available: Optional[bool] = None
+    start_time: Optional[TimeType] = None
+    end_time: Optional[TimeType] = None
+    is_available: Optional[TimeType] = None
     
     @validator('end_time')
     def validate_time_order(cls, v, values):
@@ -74,7 +78,7 @@ class AvailabilityWindowResponse(AvailabilityWindowBase):
     id: int
     instructor_id: int
     day_of_week: Optional[DayOfWeekEnum] = None  # Always None now
-    specific_date: Optional[date] = None
+    specific_date: Optional[DateType] = None
     is_recurring: bool  # Always False now
     is_cleared: bool = False
     
@@ -89,7 +93,7 @@ class AvailabilityWindowResponse(AvailabilityWindowBase):
 # Blackout dates
 class BlackoutDateCreate(BaseModel):
     """Schema for creating a blackout date."""
-    date: date
+    date: DateType
     reason: Optional[str] = Field(None, max_length=255)
     
     @validator('date')
@@ -104,7 +108,7 @@ class BlackoutDateResponse(BaseModel):
     """Response schema for blackout dates."""
     id: int
     instructor_id: int
-    date: date
+    date: DateType
     reason: Optional[str] = None
     created_at: str
     
@@ -112,16 +116,12 @@ class BlackoutDateResponse(BaseModel):
         from_attributes = True
 
 
-# REMOVED: AvailabilityPreset - no longer needed
-# REMOVED: ApplyPresetRequest - no longer needed
-
-
 # Week-specific operations
 class DateTimeSlot(BaseModel):
     """Schema for a time slot on a specific date."""
-    date: date
-    start_time: time
-    end_time: time
+    date: DateType
+    start_time: TimeType
+    end_time: TimeType
     is_available: bool = True
     
     @validator('end_time')
@@ -146,7 +146,7 @@ class WeekSpecificScheduleCreate(BaseModel):
         default=True,
         description="Whether to clear existing entries for the week before saving"
     )
-    week_start: Optional[date] = Field(
+    week_start: Optional[DateType] = Field(
         None,
         description="Optional Monday date. If not provided, inferred from schedule dates"
     )
@@ -161,8 +161,8 @@ class WeekSpecificScheduleCreate(BaseModel):
 
 class CopyWeekRequest(BaseModel):
     """Schema for copying availability between weeks."""
-    from_week_start: date
-    to_week_start: date
+    from_week_start: DateType
+    to_week_start: DateType
     
     @validator('from_week_start', 'to_week_start')
     def validate_mondays(cls, v):
@@ -181,9 +181,9 @@ class CopyWeekRequest(BaseModel):
 
 class ApplyToDateRangeRequest(BaseModel):
     """Schema for applying a week pattern to a date range."""
-    from_week_start: date
-    start_date: date
-    end_date: date
+    from_week_start: DateType
+    start_date: DateType
+    end_date: DateType
     
     @validator('from_week_start')
     def validate_monday(cls, v):
@@ -211,3 +211,48 @@ class ApplyToDateRangeRequest(BaseModel):
         if v < date.today():
             raise ValueError('Cannot apply schedule to past dates')
         return v
+    
+# Bulk update schemas
+class SlotOperation(BaseModel):
+    """Schema for a single slot operation in bulk update."""
+    action: Literal["add", "remove", "update"]
+    # For add/update:
+    date: Optional[DateType] = None
+    start_time: Optional[TimeType] = None
+    end_time: Optional[TimeType] = None
+    # For remove/update:
+    slot_id: Optional[int] = None
+    
+    @validator('end_time')
+    def validate_time_order(cls, v, values):
+        """Ensure end time is after start time for add/update."""
+        if v and 'start_time' in values and values['start_time'] and v <= values['start_time']:
+            raise ValueError('End time must be after start time')
+        return v
+    
+    @validator('date')
+    def validate_required_for_add(cls, v, values):
+        """Ensure required fields for add action."""
+        if values.get('action') == 'add' and not v:
+            raise ValueError('Date is required for add action')
+        return v
+
+class BulkUpdateRequest(BaseModel):
+    """Request schema for bulk availability update."""
+    operations: List[SlotOperation]
+    validate_only: bool = Field(False, description="If true, only validate without making changes")
+
+class OperationResult(BaseModel):
+    """Result of a single operation in bulk update."""
+    operation_index: int
+    action: str
+    status: Literal["success", "failed", "skipped"]
+    reason: Optional[str] = None
+    slot_id: Optional[int] = None  # For successful adds
+    
+class BulkUpdateResponse(BaseModel):
+    """Response schema for bulk availability update."""
+    successful: int
+    failed: int
+    skipped: int
+    results: List[OperationResult]

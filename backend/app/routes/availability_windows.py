@@ -30,8 +30,8 @@ Router Endpoints:
 """
 
 import logging
-from datetime import timedelta, date, time
-from typing import List, Optional, Dict
+from datetime import timedelta, date, datetime, time
+from typing import List, Optional, Dict, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_
 from sqlalchemy.orm import Session, joinedload
@@ -55,7 +55,11 @@ from ..schemas.availability_window import (
     BlackoutDateResponse,
     WeekSpecificScheduleCreate,
     CopyWeekRequest,
-    ApplyToDateRangeRequest
+    ApplyToDateRangeRequest,
+    SlotOperation,
+    BulkUpdateRequest,
+    BulkUpdateResponse,
+    OperationResult
 )
 from ..utils.time_helpers import time_to_string, string_to_time
 from .instructors import get_current_active_user
@@ -365,6 +369,10 @@ async def save_week_availability(
                     slots_created += 1
                     logger.debug(f"Added time slot {slot.start_time}-{slot.end_time} for {week_date}")
                     
+            # If bookings exist, skip any merging to prevent data loss
+            if booked_time_ranges:
+                logger.info(f"Skipping slot merging for {week_date} due to existing bookings")
+
         else:
             # No new slots for this date
             if week_data.clear_existing:
@@ -574,7 +582,8 @@ async def apply_to_date_range(
     Apply a week's pattern to a date range.
     
     This endpoint takes a source week's availability pattern and applies it
-    repeatedly to all weeks within the specified date range.
+    repeatedly to all weeks within the specified date range, while preserving
+    any existing bookings.
     
     Args:
         apply_data: Source week and date range information
@@ -609,27 +618,51 @@ async def apply_to_date_range(
     
     logger.debug(f"Created pattern with availability for days: {list(week_pattern.keys())}")
     
-    # Clear existing availability in the date range
-    deleted_count = db.query(InstructorAvailability).filter(
-        and_(
+    # First, check which dates in the range have bookings
+    dates_with_bookings = (
+        db.query(Booking.booking_date)
+        .join(AvailabilitySlotModel, Booking.availability_slot_id == AvailabilitySlotModel.id)
+        .join(InstructorAvailability, AvailabilitySlotModel.availability_id == InstructorAvailability.id)
+        .filter(
             InstructorAvailability.instructor_id == current_user.id,
-            InstructorAvailability.date >= apply_data.start_date,
-            InstructorAvailability.date <= apply_data.end_date
+            Booking.booking_date >= apply_data.start_date,
+            Booking.booking_date <= apply_data.end_date,
+            Booking.status.in_(['CONFIRMED', 'COMPLETED'])
         )
-    ).delete(synchronize_session=False)
+        .distinct()
+        .all()
+    )
     
-    logger.info(f"Deleted {deleted_count} existing entries in date range")
+    booked_dates = set(row[0] for row in dates_with_bookings)
+    logger.info(f"Found {len(booked_dates)} dates with bookings in the range")
     
     # Apply pattern to date range
     current_date = apply_data.start_date
     dates_created = 0
+    dates_skipped = 0
     slots_created = 0
     
     while current_date <= apply_data.end_date:
         day_name = DAYS_OF_WEEK[current_date.weekday()]
         
+        # Skip dates that have bookings
+        if current_date in booked_dates:
+            logger.warning(f"Skipping {current_date} due to existing bookings")
+            dates_skipped += 1
+            current_date += timedelta(days=1)
+            continue
+        
+        # Delete existing availability for this date (safe since no bookings)
+        deleted = db.query(InstructorAvailability).filter(
+            InstructorAvailability.instructor_id == current_user.id,
+            InstructorAvailability.date == current_date
+        ).delete(synchronize_session=False)
+        
+        if deleted > 0:
+            logger.debug(f"Deleted {deleted} existing entries for {current_date}")
+        
         if day_name in week_pattern and week_pattern[day_name]:
-            # Day has time slots
+            # Day has time slots in the pattern
             availability_entry = InstructorAvailability(
                 instructor_id=current_user.id,
                 date=current_date,
@@ -641,7 +674,7 @@ async def apply_to_date_range(
             # Add time slots
             for slot in week_pattern[day_name]:
                 time_slot = AvailabilitySlotModel(
-                    availability_id=availability_entry.id,  # Changed from date_override_id
+                    availability_id=availability_entry.id,
                     start_time=string_to_time(slot['start_time']),
                     end_time=string_to_time(slot['end_time'])
                 )
@@ -662,11 +695,17 @@ async def apply_to_date_range(
     try:
         db.commit()
         logger.info(f"Successfully applied pattern to {dates_created} days with {slots_created} total slots")
+        
+        message = f"Successfully applied schedule to {dates_created} days"
+        if dates_skipped > 0:
+            message += f" ({dates_skipped} days with bookings were preserved)"
+            
         return {
-            "message": f"Successfully applied schedule to {dates_created} days",
+            "message": message,
             "start_date": apply_data.start_date.isoformat(),
             "end_date": apply_data.end_date.isoformat(),
             "dates_created": dates_created,
+            "dates_skipped": dates_skipped,
             "slots_created": slots_created
         }
     except Exception as e:
@@ -831,6 +870,501 @@ def get_all_availability(
     
     logger.info(f"Returning {len(result)} total availability slots")
     return result
+
+# Helper functions for bulk update
+def _check_booking_conflicts(
+    instructor_id: int,
+    check_date: date,
+    start_time: time,
+    end_time: time,
+    db: Session,
+    exclude_slot_id: Optional[int] = None
+) -> List[Dict]:
+    """Check if a time range conflicts with existing bookings."""
+    query = (
+        db.query(Booking)
+        .join(AvailabilitySlotModel, Booking.availability_slot_id == AvailabilitySlotModel.id)
+        .join(InstructorAvailability, AvailabilitySlotModel.availability_id == InstructorAvailability.id)
+        .filter(
+            InstructorAvailability.instructor_id == instructor_id,
+            Booking.booking_date == check_date,
+            Booking.status.in_(['CONFIRMED', 'COMPLETED'])
+        )
+    )
+    
+    if exclude_slot_id:
+        query = query.filter(AvailabilitySlotModel.id != exclude_slot_id)
+    
+    bookings = query.all()
+    conflicts = []
+    
+    for booking in bookings:
+        slot = booking.availability_slot
+        # Check if time ranges overlap
+        if (start_time < slot.end_time and end_time > slot.start_time):
+            conflicts.append({
+                'booking_id': booking.id,
+                'start_time': str(slot.start_time),
+                'end_time': str(slot.end_time)
+            })
+    
+    return conflicts
+
+def _merge_overlapping_slots(availability_id: int, db: Session):
+    """Merge overlapping or adjacent slots for an availability entry."""
+    slots = (
+        db.query(AvailabilitySlotModel)
+        .filter(AvailabilitySlotModel.availability_id == availability_id)
+        .order_by(AvailabilitySlotModel.start_time)
+        .all()
+    )
+    
+    if len(slots) <= 1:
+        return
+    
+    logger.debug(f"Merging slots for availability_id {availability_id}: {len(slots)} slots found")
+    
+    # Simple merge of adjacent/overlapping slots
+    merged = []
+    current = slots[0]
+    
+    for next_slot in slots[1:]:
+        # Check if slots overlap or are adjacent
+        if current.end_time >= next_slot.start_time:
+            logger.debug(f"Merging slots: {current.start_time}-{current.end_time} with "
+                       f"{next_slot.start_time}-{next_slot.end_time}")
+            # Merge by extending end time
+            if next_slot.end_time > current.end_time:
+                current.end_time = next_slot.end_time
+            # Delete the merged slot
+            db.delete(next_slot)
+        else:
+            # Slots are not adjacent
+            merged.append(current)
+            current = next_slot
+    
+    merged.append(current)
+    logger.info(f"Merge complete: {len(slots)} slots -> {len(merged)} slots")
+
+async def _process_add_slot(
+    instructor_id: int,
+    slot_date: date,
+    start_time: time,
+    end_time: time,
+    db: Session,
+    validate_only: bool = False,
+    operation_index: int = 0
+) -> OperationResult:
+    """Add a new availability slot with smart merging."""
+    # Check for past dates
+    if slot_date < date.today():
+        return OperationResult(
+            operation_index=operation_index,
+            action="add",
+            status="failed",
+            reason="Cannot add availability for past dates"
+        )
+    
+    # Check if it's today and the time has passed
+    if slot_date == date.today():
+        now = datetime.now().time()
+        if end_time <= now:
+            return OperationResult(
+                operation_index=operation_index,
+                action="add",
+                status="failed",
+                reason="Cannot add availability for past time slots"
+            )
+    
+    # Check for booking conflicts
+    conflicts = _check_booking_conflicts(
+        instructor_id, slot_date, start_time, end_time, db
+    )
+    if conflicts:
+        return OperationResult(
+            operation_index=operation_index,
+            action="add",
+            status="failed",
+            reason=f"Conflicts with {len(conflicts)} existing bookings"
+        )
+    
+    if validate_only:
+        return OperationResult(
+            operation_index=operation_index,
+            action="add",
+            status="success",
+            reason="Validation passed - slot can be added"
+        )
+    
+    # Get or create availability entry
+    availability = db.query(InstructorAvailability).filter(
+        InstructorAvailability.instructor_id == instructor_id,
+        InstructorAvailability.date == slot_date
+    ).first()
+    
+    if not availability:
+        availability = InstructorAvailability(
+            instructor_id=instructor_id,
+            date=slot_date,
+            is_cleared=False
+        )
+        db.add(availability)
+        db.flush()
+    else:
+        # Ensure it's not cleared
+        availability.is_cleared = False
+    
+    # Add slot
+    new_slot = AvailabilitySlotModel(
+        availability_id=availability.id,
+        start_time=start_time,
+        end_time=end_time
+    )
+    db.add(new_slot)
+    db.flush()
+    
+    # Check if ANY bookings exist for this date
+    has_bookings = (
+        db.query(Booking)
+        .join(AvailabilitySlotModel, Booking.availability_slot_id == AvailabilitySlotModel.id)
+        .filter(
+            AvailabilitySlotModel.availability_id == availability.id,
+            Booking.status.in_(['CONFIRMED', 'COMPLETED'])
+        )
+        .count() > 0
+    )
+    
+    if has_bookings:
+        # DO NOT MERGE AT ALL when bookings exist
+        logger.info(f"Bookings exist for date {slot_date}, skipping merge entirely")
+    else:
+        # No bookings, safe to merge
+        _merge_overlapping_slots(availability.id, db)
+    
+    return OperationResult(
+        operation_index=operation_index,
+        action="add",
+        status="success",
+        slot_id=new_slot.id
+    )
+
+async def _process_remove_slot(
+    instructor_id: int,
+    slot_id: int,
+    db: Session,
+    validate_only: bool = False,
+    operation_index: int = 0
+) -> OperationResult:
+    """Remove an availability slot if not booked."""
+    # Find the slot
+    slot = (
+        db.query(AvailabilitySlotModel)
+        .join(InstructorAvailability)
+        .filter(
+            AvailabilitySlotModel.id == slot_id,
+            InstructorAvailability.instructor_id == instructor_id
+        )
+        .first()
+    )
+    
+    if not slot:
+        return OperationResult(
+            operation_index=operation_index,
+            action="remove",
+            status="failed",
+            reason="Slot not found or not owned by instructor"
+        )
+    
+    # Check if slot has bookings
+    booking_count = (
+        db.query(Booking)
+        .filter(
+            Booking.availability_slot_id == slot_id,
+            Booking.status.in_(['CONFIRMED', 'COMPLETED'])
+        )
+        .count()
+    )
+    
+    if booking_count > 0:
+        return OperationResult(
+            operation_index=operation_index,
+            action="remove",
+            status="failed",
+            reason=f"Cannot remove slot with {booking_count} active bookings"
+        )
+    
+    if validate_only:
+        return OperationResult(
+            operation_index=operation_index,
+            action="remove",
+            status="success",
+            reason="Validation passed - slot can be removed"
+        )
+    
+    # Remove the slot
+    availability_id = slot.availability_id
+    db.delete(slot)
+    
+    # Check if this was the last slot for the date
+    remaining_slots = (
+        db.query(AvailabilitySlotModel)
+        .filter(AvailabilitySlotModel.availability_id == availability_id)
+        .count()
+    )
+    
+    if remaining_slots == 0:
+        # Remove the availability entry or mark as cleared
+        availability = db.query(InstructorAvailability).filter(
+            InstructorAvailability.id == availability_id
+        ).first()
+        if availability:
+            availability.is_cleared = True
+    
+    return OperationResult(
+        operation_index=operation_index,
+        action="remove",
+        status="success"
+    )
+
+async def _process_update_slot(
+    instructor_id: int,
+    slot_id: int,
+    start_time: Optional[datetime.time],
+    end_time: Optional[datetime.time],
+    db: Session,
+    validate_only: bool = False,
+    operation_index: int = 0
+) -> OperationResult:
+    """Update an existing slot's times."""
+    # Find the slot
+    slot = (
+        db.query(AvailabilitySlotModel)
+        .join(InstructorAvailability)
+        .filter(
+            AvailabilitySlotModel.id == slot_id,
+            InstructorAvailability.instructor_id == instructor_id
+        )
+        .first()
+    )
+    
+    if not slot:
+        return OperationResult(
+            operation_index=operation_index,
+            action="update",
+            status="failed",
+            reason="Slot not found or not owned by instructor"
+        )
+    
+    # Determine new times
+    new_start = start_time if start_time else slot.start_time
+    new_end = end_time if end_time else slot.end_time
+    
+    # Validate time order
+    if new_end <= new_start:
+        return OperationResult(
+            operation_index=operation_index,
+            action="update",
+            status="failed",
+            reason="End time must be after start time"
+        )
+    
+    # Check if the new time range conflicts with bookings
+    availability = slot.availability
+    conflicts = _check_booking_conflicts(
+        instructor_id,
+        availability.date,
+        new_start,
+        new_end,
+        db,
+        exclude_slot_id=slot_id
+    )
+    
+    if conflicts:
+        return OperationResult(
+            operation_index=operation_index,
+            action="update",
+            status="failed",
+            reason=f"New time range conflicts with {len(conflicts)} bookings"
+        )
+    
+    if validate_only:
+        return OperationResult(
+            operation_index=operation_index,
+            action="update",
+            status="success",
+            reason="Validation passed - slot can be updated"
+        )
+    
+    # Update the slot
+    slot.start_time = new_start
+    slot.end_time = new_end
+    
+    # Merge overlapping slots
+    _merge_overlapping_slots(slot.availability_id, db)
+    
+    return OperationResult(
+        operation_index=operation_index,
+        action="update",
+        status="success",
+        slot_id=slot_id
+    )
+
+@router.patch("/bulk-update", response_model=BulkUpdateResponse)
+async def bulk_update_availability(
+    update_data: BulkUpdateRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Bulk update availability slots.
+    
+    This endpoint allows multiple operations in a single transaction:
+    - Add new slots (with automatic overlap merging)
+    - Remove specific slots (only if not booked)
+    - Update existing slots (respecting bookings)
+    
+    The validate_only flag allows checking what would happen without
+    actually making changes.
+    
+    Example request:
+        {
+            "operations": [
+                {
+                    "action": "add",
+                    "date": "2025-06-20",
+                    "start_time": "09:00:00",
+                    "end_time": "10:00:00"
+                },
+                {
+                    "action": "remove",
+                    "slot_id": 123
+                },
+                {
+                    "action": "update",
+                    "slot_id": 124,
+                    "end_time": "18:00:00"
+                }
+            ],
+            "validate_only": false
+        }
+    """
+    instructor = verify_instructor(current_user)
+    logger.info(f"Bulk update for instructor {instructor.id}: {len(update_data.operations)} operations")
+    
+    results = []
+    successful = 0
+    failed = 0
+    skipped = 0
+    
+    # Process each operation
+    for idx, operation in enumerate(update_data.operations):
+        try:
+            if operation.action == "add":
+                if not operation.date or not operation.start_time or not operation.end_time:
+                    result = OperationResult(
+                        operation_index=idx,
+                        action="add",
+                        status="failed",
+                        reason="Missing required fields for add operation"
+                    )
+                else:
+                    result = await _process_add_slot(
+                        instructor_id=current_user.id,
+                        slot_date=operation.date,
+                        start_time=operation.start_time,
+                        end_time=operation.end_time,
+                        db=db,
+                        validate_only=update_data.validate_only,
+                        operation_index=idx
+                    )
+                    
+            elif operation.action == "remove":
+                if not operation.slot_id:
+                    result = OperationResult(
+                        operation_index=idx,
+                        action="remove",
+                        status="failed",
+                        reason="Missing slot_id for remove operation"
+                    )
+                else:
+                    result = await _process_remove_slot(
+                        instructor_id=current_user.id,
+                        slot_id=operation.slot_id,
+                        db=db,
+                        validate_only=update_data.validate_only,
+                        operation_index=idx
+                    )
+                    
+            elif operation.action == "update":
+                if not operation.slot_id:
+                    result = OperationResult(
+                        operation_index=idx,
+                        action="update",
+                        status="failed",
+                        reason="Missing slot_id for update operation"
+                    )
+                else:
+                    result = await _process_update_slot(
+                        instructor_id=current_user.id,
+                        slot_id=operation.slot_id,
+                        start_time=operation.start_time,
+                        end_time=operation.end_time,
+                        db=db,
+                        validate_only=update_data.validate_only,
+                        operation_index=idx
+                    )
+            else:
+                result = OperationResult(
+                    operation_index=idx,
+                    action=operation.action,
+                    status="failed",
+                    reason=f"Unknown action: {operation.action}"
+                )
+            
+            # Update counters
+            if result.status == "success":
+                successful += 1
+            elif result.status == "failed":
+                failed += 1
+            else:
+                skipped += 1
+                
+            results.append(result)
+            
+        except Exception as e:
+            logger.error(f"Error processing operation {idx}: {str(e)}")
+            result = OperationResult(
+                operation_index=idx,
+                action=operation.action,
+                status="failed",
+                reason=str(e)
+            )
+            results.append(result)
+            failed += 1
+    
+    # Commit or rollback
+    try:
+        if not update_data.validate_only and successful > 0:
+            db.commit()
+            logger.info(f"Bulk update committed: {successful} successful operations")
+        else:
+            db.rollback()
+            if update_data.validate_only:
+                logger.info("Validation mode - no changes made")
+            else:
+                logger.info("No successful operations - rolling back")
+                
+    except Exception as e:
+        logger.error(f"Error committing bulk update: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    
+    return BulkUpdateResponse(
+        successful=successful,
+        failed=failed,
+        skipped=skipped,
+        results=results
+    )
 
 @router.patch("/{window_id}", response_model=AvailabilityWindowResponse)
 def update_availability_window(
@@ -1116,3 +1650,4 @@ def delete_blackout_date(
         logger.error(f"Error deleting blackout date: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
+    
