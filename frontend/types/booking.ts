@@ -2,6 +2,7 @@
 
 // Booking status enum
 export type BookingStatus = 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
+export type LocationType = 'student_home' | 'instructor_location' | 'neutral';
 
 // Main booking interface matching backend schema
 export interface Booking {
@@ -152,3 +153,57 @@ export interface AvailabilityCheckResponse {
   total_price: number;
   duration_minutes: number;
 }
+
+export interface BookedSlotPreview {
+  booking_id: number;
+  date: string;
+  start_time: string;
+  end_time: string;
+  student_first_name: string;
+  student_last_initial: string;
+  service_name: string;
+  service_area_short: string;
+  duration_minutes: number;
+  location_type: LocationType;
+}
+
+export interface BookedSlotsResponse {
+  booked_slots: BookedSlotPreview[];
+}
+
+// Update the BookingCreate interface:
+export interface BookingCreate {
+  availability_slot_id: number;
+  service_id: number;
+  student_note?: string;
+  meeting_location?: string;
+  location_type?: LocationType;
+}
+
+// Add location type display helper
+export const getLocationTypeDisplay = (locationType: LocationType): string => {
+  switch (locationType) {
+    case 'student_home':
+      return "Student's Home";
+    case 'instructor_location':
+      return "Instructor's Location";
+    case 'neutral':
+      return "Neutral Location";
+    default:
+      return "Location TBD";
+  }
+};
+
+// Add location type icon helper
+export const getLocationTypeIcon = (locationType: LocationType): string => {
+  switch (locationType) {
+    case 'student_home':
+      return "🏠";
+    case 'instructor_location':
+      return "🏫";
+    case 'neutral':
+      return "📍";
+    default:
+      return "📍";
+  }
+};

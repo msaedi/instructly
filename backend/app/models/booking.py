@@ -7,6 +7,7 @@ booking, so bookings are immediately confirmed upon creation.
 """
 
 import logging
+from typing import Literal
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
@@ -34,6 +35,16 @@ class BookingStatus(str, Enum):
     CANCELLED = "CANCELLED"    # Booking was cancelled
     NO_SHOW = "NO_SHOW"       # Student didn't show up
 
+
+class LocationType(str, Enum):
+    """
+    Enum for booking location types.
+    
+    Helps instructors quickly understand where they need to go.
+    """
+    STUDENT_HOME = "student_home"
+    INSTRUCTOR_LOCATION = "instructor_location"
+    NEUTRAL = "neutral"
 
 class Booking(Base):
     """
@@ -101,6 +112,7 @@ class Booking(Base):
     
     # Location details
     service_area = Column(String, nullable=True)
+    location_type = Column(String(50), nullable=True, default=LocationType.NEUTRAL)
     meeting_location = Column(Text, nullable=True)
     
     # Communication
@@ -135,6 +147,10 @@ class Booking(Base):
         CheckConstraint(
             "status IN ('PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW')",
             name='ck_bookings_status'
+        ),
+        CheckConstraint(
+            "location_type IN ('student_home', 'instructor_location', 'neutral')",
+            name='ck_bookings_location_type'
         ),
         CheckConstraint('duration_minutes > 0', name='check_duration_positive'),
         CheckConstraint('total_price >= 0', name='check_price_non_negative'),
@@ -181,3 +197,15 @@ class Booking(Base):
         """Check if booking is in the future."""
         from datetime import date
         return self.booking_date > date.today() and self.status == BookingStatus.CONFIRMED
+    
+    @property
+    def location_type_display(self) -> str:
+        """Get display-friendly location type."""
+        if self.location_type == LocationType.STUDENT_HOME:
+            return "Student's Home"
+        elif self.location_type == LocationType.INSTRUCTOR_LOCATION:
+            return "Instructor's Location"
+        else:
+            return "Neutral Location"
+            
+    

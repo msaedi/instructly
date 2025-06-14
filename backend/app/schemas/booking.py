@@ -7,7 +7,7 @@ including instant booking creation, booking management, and status updates.
 
 from datetime import date, time, datetime
 from decimal import Decimal
-from typing import Optional, List
+from typing import Optional, List, Literal
 from pydantic import BaseModel, Field, validator, root_validator
 from ..schemas.base import StandardizedModel, Money
 from ..models.booking import BookingStatus
@@ -24,12 +24,23 @@ class BookingCreate(BaseModel):
     service_id: int = Field(..., description="ID of the service being booked")
     student_note: Optional[str] = Field(None, max_length=1000, description="Optional note from student")
     meeting_location: Optional[str] = Field(None, description="Specific meeting location if applicable")
+    location_type: Optional[Literal["student_home", "instructor_location", "neutral"]] = Field(
+        "neutral", 
+        description="Type of meeting location"
+    )
     
     @validator('student_note')
     def clean_note(cls, v):
         """Clean up the student note."""
         return v.strip() if v else v
 
+    @validator('location_type')
+    def validate_location_type(cls, v):
+        """Ensure location type is valid."""
+        valid_types = ["student_home", "instructor_location", "neutral"]
+        if v and v not in valid_types:
+            raise ValueError(f"location_type must be one of {valid_types}")
+        return v or "neutral"
 
 class BookingUpdate(BaseModel):
     """
@@ -80,6 +91,7 @@ class BookingBase(StandardizedModel):
     # Location
     service_area: Optional[str]
     meeting_location: Optional[str]
+    location_type: Optional[str]
     
     # Notes
     student_note: Optional[str]

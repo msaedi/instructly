@@ -6,7 +6,7 @@ This script provides a consistent way to reset the database to a known state
 with test data. It preserves specified users while removing all others and
 creates a set of diverse instructor profiles with varied availability patterns.
 
-Updated to include test students and sample bookings.
+Updated to include test students and sample bookings with location_type field.
 
 Usage:
     python scripts/reset_and_seed_database.py
@@ -693,7 +693,7 @@ def create_booking_for_date(session, student, interests, target_date, booking_ty
     slot = random.choice(available_slots)
     
     # Calculate booking details
-    duration_minutes = service.duration or 60
+    duration_minutes = service.duration_override or 60
     hours = duration_minutes / 60
     total_price = float(service.hourly_rate) * hours
     
@@ -724,6 +724,26 @@ def create_booking_for_date(session, student, interests, target_date, booking_ty
         cancelled_by = None
         cancellation_reason = None
     
+    # Determine location type and meeting location
+    location_types = ["student_home", "instructor_location", "neutral"]
+    location_type = random.choice(location_types)
+    
+    area = service.instructor_profile.areas_of_service.split(',')[0].strip()
+    
+    if location_type == "student_home":
+        meeting_location = f"Student's home in {area}"
+    elif location_type == "instructor_location":
+        meeting_location = f"Instructor's studio in {area}"
+    else:  # neutral
+        neutral_locations = [
+            f"Starbucks at {area}",
+            f"Public Library in {area}",
+            f"{area} Community Center",
+            f"Central Park near {area}",
+            f"Bryant Park (near {area})"
+        ]
+        meeting_location = random.choice(neutral_locations)
+    
     # Create booking
     booking = Booking(
         student_id=student.id,
@@ -738,8 +758,9 @@ def create_booking_for_date(session, student, interests, target_date, booking_ty
         total_price=Decimal(str(total_price)),
         duration_minutes=duration_minutes,
         status=status,
-        service_area=service.instructor_profile.areas_of_service.split(',')[0].strip(),
-        meeting_location=f"Instructor's studio in {service.instructor_profile.areas_of_service.split(',')[0].strip()}",
+        service_area=area,
+        meeting_location=meeting_location,
+        location_type=location_type,  # NEW FIELD
         student_note=random.choice([
             "Looking forward to the lesson!",
             "First time trying this, excited!",
@@ -761,7 +782,7 @@ def create_booking_for_date(session, student, interests, target_date, booking_ty
     # Update slot to mark as booked
     slot.booking_id = booking.id
     
-    logger.info(f"Created {booking_type} booking: {student.full_name} -> {service.skill} on {target_date} ({status})")
+    logger.info(f"Created {booking_type} booking: {student.full_name} -> {service.skill} on {target_date} ({status}) at {location_type}")
     
     return booking
     

@@ -1493,16 +1493,31 @@ async def get_week_booked_slots(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get all booked slots for a week."""
+    """
+    Get all booked slots for a week with enhanced preview information.
+    
+    Returns booking details formatted for calendar preview display, including:
+    - Student name (first + last initial for privacy)
+    - Service information
+    - Location type and area
+    - Booking ID for navigation
+    
+    This endpoint is optimized to avoid N+1 queries by using proper joins.
+    """
     week_dates = [start_date + timedelta(days=i) for i in range(7)]
     
     booked_slots = (
         db.query(
+            Booking.id.label("booking_id"),
             Booking.booking_date.label("date"),
             AvailabilitySlotModel.start_time,
             AvailabilitySlotModel.end_time,
             User.full_name.label("student_name"),
-            Service.skill.label("service_name")
+            Service.skill.label("service_name"),
+            Booking.duration_minutes,
+            Booking.service_area,
+            Booking.location_type,
+            Booking.meeting_location
         )
         .join(AvailabilitySlotModel, Booking.availability_slot_id == AvailabilitySlotModel.id)
         .join(InstructorAvailability, AvailabilitySlotModel.availability_id == InstructorAvailability.id)
@@ -1513,20 +1528,57 @@ async def get_week_booked_slots(
             Booking.booking_date.in_(week_dates),
             Booking.status.in_(['CONFIRMED', 'COMPLETED'])
         )
+        .order_by(Booking.booking_date, AvailabilitySlotModel.start_time)
         .all()
     )
     
+    # Process the results to format names and extract area info
+    formatted_slots = []
+    for slot in booked_slots:
+        # Parse student name for privacy (First + Last Initial)
+        name_parts = slot.student_name.split() if slot.student_name else []
+        student_first_name = name_parts[0] if name_parts else "Unknown"
+        student_last_initial = name_parts[-1][0].upper() + "." if len(name_parts) > 1 else ""
+        
+        # Extract short area (first area if multiple)
+        service_area_short = "NYC"  # Default
+        if slot.service_area:
+            areas = [area.strip() for area in slot.service_area.split(',')]
+            if areas:
+                # Common abbreviations for NYC areas
+                area_abbreviations = {
+                    "Upper West Side": "UWS",
+                    "Upper East Side": "UES",
+                    "Lower East Side": "LES",
+                    "Financial District": "FiDi",
+                    "Tribeca": "TriBeCa",
+                    "Greenwich Village": "Village",
+                    "East Village": "E Village",
+                    "West Village": "W Village",
+                    "Midtown": "Midtown",
+                    "Chelsea": "Chelsea",
+                    "Brooklyn": "BK",
+                    "Queens": "Queens",
+                    "Bronx": "Bronx",
+                    "Staten Island": "SI"
+                }
+                service_area_short = area_abbreviations.get(areas[0], areas[0][:10].strip())
+        
+        formatted_slots.append({
+            "booking_id": slot.booking_id,
+            "date": slot.date.isoformat(),
+            "start_time": str(slot.start_time),
+            "end_time": str(slot.end_time),
+            "student_first_name": student_first_name,
+            "student_last_initial": student_last_initial,
+            "service_name": slot.service_name,
+            "service_area_short": service_area_short,
+            "duration_minutes": slot.duration_minutes,
+            "location_type": slot.location_type or "neutral"
+        })
+    
     return {
-        "booked_slots": [
-            {
-                "date": slot.date.isoformat(),
-                "start_time": str(slot.start_time),
-                "end_time": str(slot.end_time),
-                "student_name": slot.student_name,
-                "service_name": slot.service_name
-            }
-            for slot in booked_slots
-        ]
+        "booked_slots": formatted_slots
     }
 
 @router.post("/week/validate-changes", response_model=WeekValidationResponse)
