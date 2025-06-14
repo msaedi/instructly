@@ -1,3 +1,5 @@
+import { WeekSchedule, WeekValidationResponse } from '@/types/availability';
+
 // frontend/lib/api.ts
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -40,9 +42,36 @@ export const API_ENDPOINTS = {
   INSTRUCTOR_AVAILABILITY_WEEK: '/instructors/availability-windows/week',
   INSTRUCTOR_AVAILABILITY_COPY_WEEK: '/instructors/availability-windows/copy-week',
   INSTRUCTOR_AVAILABILITY_APPLY_RANGE: '/instructors/availability-windows/apply-to-date-range',
+  INSTRUCTOR_AVAILABILITY_BULK_UPDATE: '/instructors/availability-windows/bulk-update',
+  INSTRUCTOR_AVAILABILITY: '/instructors/availability-windows/',
+  INSTRUCTOR_AVAILABILITY_VALIDATE: '/instructors/availability-windows/week/validate-changes',
 
   // For students to check availability
   CHECK_AVAILABILITY: '/api/availability/slots',
   
   // Add more as needed
 } as const;
+
+// Availability validation
+export async function validateWeekChanges(
+  currentWeek: WeekSchedule,
+  savedWeek: WeekSchedule,
+  weekStart: Date
+): Promise<WeekValidationResponse> {
+  const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_VALIDATE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      current_week: currentWeek,
+      saved_week: savedWeek,
+      week_start: weekStart.toISOString().split('T')[0]
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Failed to validate changes');
+  }
+
+  return response.json();
+}
