@@ -1,11 +1,32 @@
+// frontend/components/BookedSlotCell.tsx
 import React from 'react';
 import { BookedSlotPreview, getLocationTypeIcon } from '@/types/booking';
 
+/**
+ * BookedSlotCell Component
+ * 
+ * Displays a booked time slot in the availability calendar grid.
+ * Shows different information based on whether it's the first hour of a multi-hour booking.
+ * 
+ * Features:
+ * - Privacy-preserved student names (First + Last Initial)
+ * - Location type icons
+ * - Service area abbreviations
+ * - Duration indicators for multi-hour bookings
+ * - Responsive design (mobile vs desktop)
+ * - Accessibility support with ARIA labels
+ * 
+ * @component
+ */
 interface BookedSlotCellProps {
+  /** The booking slot data to display */
   slot: BookedSlotPreview;
+  /** Whether this is the first hour of a multi-hour booking */
   isFirstSlot: boolean;
+  /** Whether to render in mobile mode (simplified view) */
   isMobile?: boolean;
-  onClick: (e: React.MouseEvent) => void; 
+  /** Click handler for viewing booking details */
+  onClick: (e: React.MouseEvent) => void;
 }
 
 const BookedSlotCell: React.FC<BookedSlotCellProps> = ({ 
@@ -14,7 +35,19 @@ const BookedSlotCell: React.FC<BookedSlotCellProps> = ({
   isMobile = false,
   onClick 
 }) => {
-  // For mobile, show less detail
+  /**
+   * Format duration for display
+   * @param minutes - Total duration in minutes
+   * @returns Formatted duration string (e.g., "2h 30m")
+   */
+  const formatDuration = (minutes: number): string => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (mins === 0) return `${hours}h`;
+    return `${hours}h ${mins}m`;
+  };
+
+  // Mobile view - simplified display
   if (isMobile) {
     return (
       <button
@@ -41,7 +74,7 @@ const BookedSlotCell: React.FC<BookedSlotCellProps> = ({
     );
   }
 
-  // Desktop view - more detailed
+  // Desktop view - more detailed information
   return (
     <button
       onClick={onClick}
@@ -53,12 +86,12 @@ const BookedSlotCell: React.FC<BookedSlotCellProps> = ({
     >
       {isFirstSlot ? (
         <div className="w-full space-y-1">
-          {/* Main info - student name only */}
+          {/* Student name with privacy preservation */}
           <div className="font-semibold text-red-800">
             {slot.student_first_name} {slot.student_last_initial}
           </div>
           
-          {/* Location info - show icon + area */}
+          {/* Location info with icon and area */}
           <div className="text-gray-600 text-center flex items-center justify-center gap-1">
             <span>{getLocationTypeIcon(slot.location_type)}</span>
             <span>{slot.service_area_short}</span>
@@ -67,7 +100,7 @@ const BookedSlotCell: React.FC<BookedSlotCellProps> = ({
           {/* Duration badge for multi-hour bookings */}
           {slot.duration_minutes > 60 && (
             <div className="text-[10px] text-gray-500 text-center">
-              {Math.floor(slot.duration_minutes / 60)}h {slot.duration_minutes % 60 > 0 ? `${slot.duration_minutes % 60}m` : ''}
+              {formatDuration(slot.duration_minutes)}
             </div>
           )}
         </div>

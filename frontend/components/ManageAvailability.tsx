@@ -1,10 +1,17 @@
-// components/ManageAvailability.tsx
+// frontend/components/ManageAvailability.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import { Calendar, Clock, Trash2, Plus } from "lucide-react";
 import { fetchWithAuth } from '@/lib/api';
+import { logger } from '@/lib/logger';
 
+/**
+ * TimeSlot interface for availability management
+ * 
+ * Note: This component appears to be from an older version of the availability system.
+ * The current system uses a week-based UI at /dashboard/instructor/availability
+ */
 interface TimeSlot {
   id?: number;
   start_time: string;
@@ -13,12 +20,40 @@ interface TimeSlot {
   is_booked?: boolean;
 }
 
+/**
+ * ManageAvailability Component
+ * 
+ * DEPRECATED: This component appears to be from an older date-based availability system.
+ * The current implementation uses a week-based calendar grid at:
+ * /dashboard/instructor/availability
+ * 
+ * Features of this legacy component:
+ * - Date-specific time slot management
+ * - Add/remove individual time slots
+ * - Toggle availability status
+ * - Prevents modification of booked slots
+ * 
+ * @deprecated Use the week-based availability management instead
+ * @component
+ * @example
+ * ```tsx
+ * <ManageAvailability
+ *   isOpen={showModal}
+ *   onClose={() => setShowModal(false)}
+ * />
+ * ```
+ */
 interface AvailabilityManagerProps {
+  /** Whether the modal is open */
   isOpen: boolean;
+  /** Callback when modal should close */
   onClose: () => void;
 }
 
-export default function ManageAvailability({ isOpen, onClose }: AvailabilityManagerProps) {
+export default function ManageAvailability({ 
+  isOpen, 
+  onClose 
+}: AvailabilityManagerProps) {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(false);
@@ -26,7 +61,9 @@ export default function ManageAvailability({ isOpen, onClose }: AvailabilityMana
   const [newSlotStart, setNewSlotStart] = useState("09:00");
   const [newSlotEnd, setNewSlotEnd] = useState("10:00");
 
-  // Generate time options for dropdowns
+  /**
+   * Generate time options for dropdowns (6 AM to 10 PM in 30-minute intervals)
+   */
   const generateTimeOptions = () => {
     const options = [];
     for (let hour = 6; hour <= 22; hour++) {
@@ -42,28 +79,48 @@ export default function ManageAvailability({ isOpen, onClose }: AvailabilityMana
 
   useEffect(() => {
     if (isOpen && selectedDate) {
+      logger.debug('Manage availability modal opened', { selectedDate });
       fetchTimeSlots();
     }
   }, [isOpen, selectedDate]);
 
+  /**
+   * Fetch time slots for the selected date
+   */
   const fetchTimeSlots = async () => {
     setLoading(true);
+    logger.info('Fetching time slots', { date: selectedDate });
+    
     try {
       const response = await fetchWithAuth(`/instructors/availability?date=${selectedDate}`);
 
-      if (!response.ok) throw new Error("Failed to fetch time slots");
+      if (!response.ok) {
+        throw new Error("Failed to fetch time slots");
+      }
 
       const data = await response.json();
+      logger.debug('Time slots loaded', { 
+        date: selectedDate, 
+        slotsCount: data.length 
+      });
       setTimeSlots(data);
     } catch (err) {
+      logger.error('Failed to load availability', err, { date: selectedDate });
       setError("Failed to load availability");
     } finally {
       setLoading(false);
     }
   };
 
+  /**
+   * Add a new time slot for the selected date
+   */
   const addTimeSlot = async () => {
     if (newSlotStart >= newSlotEnd) {
+      logger.warn('Invalid time slot attempt', { 
+        start: newSlotStart, 
+        end: newSlotEnd 
+      });
       setError("End time must be after start time");
       return;
     }
@@ -71,9 +128,13 @@ export default function ManageAvailability({ isOpen, onClose }: AvailabilityMana
     setLoading(true);
     setError("");
 
+    logger.info('Adding new time slot', {
+      date: selectedDate,
+      start: newSlotStart,
+      end: newSlotEnd
+    });
+
     try {
-      const token = localStorage.getItem("access_token");
-      
       // Create date strings with timezone offset
       const startDateTime = new Date(`${selectedDate}T${newSlotStart}:00`);
       const endDateTime = new Date(`${selectedDate}T${newSlotEnd}:00`);
@@ -94,29 +155,49 @@ export default function ManageAvailability({ isOpen, onClose }: AvailabilityMana
         throw new Error(errorData.detail || "Failed to add time slot");
       }
 
+      logger.info('Time slot added successfully');
       await fetchTimeSlots();
     } catch (err: any) {
+      logger.error('Failed to add time slot', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
+  /**
+   * Delete a time slot
+   */
   const deleteTimeSlot = async (slotId: number) => {
+    logger.info('Deleting time slot', { slotId });
+    
     try {
       const response = await fetchWithAuth(`/instructors/availability/${slotId}`, {
         method: "DELETE",
       });
 
-      if (!response.ok) throw new Error("Failed to delete time slot");
+      if (!response.ok) {
+        throw new Error("Failed to delete time slot");
+      }
 
+      logger.info('Time slot deleted successfully', { slotId });
       await fetchTimeSlots();
     } catch (err) {
+      logger.error('Failed to delete time slot', err, { slotId });
       setError("Failed to delete time slot");
     }
   };
 
+  /**
+   * Toggle availability status of a time slot
+   */
   const toggleAvailability = async (slotId: number, currentStatus: boolean) => {
+    logger.info('Toggling time slot availability', { 
+      slotId, 
+      currentStatus,
+      newStatus: !currentStatus 
+    });
+    
     try {
       const response = await fetchWithAuth(`/instructors/availability/${slotId}`, {
         method: "PATCH",
@@ -136,13 +217,17 @@ export default function ManageAvailability({ isOpen, onClose }: AvailabilityMana
         throw new Error("Failed to update availability");
       }
   
+      logger.info('Availability toggled successfully', { slotId });
       await fetchTimeSlots();
     } catch (err: any) {
+      logger.error('Failed to update availability', err, { slotId });
       setError(err.message || "Failed to update availability");
     }
   };
 
-  // Generate next 30 days for date selection
+  /**
+   * Generate next 30 days for date selection
+   */
   const generateDateOptions = () => {
     const dates = [];
     const today = new Date();
@@ -159,31 +244,44 @@ export default function ManageAvailability({ isOpen, onClose }: AvailabilityMana
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+        {/* Header */}
         <div className="flex justify-between items-center p-6 border-b">
           <h2 className="text-2xl font-bold flex items-center">
             <Calendar className="mr-2" size={24} />
             Manage Availability
           </h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+          <button 
+            onClick={() => {
+              logger.debug('Manage availability modal closed');
+              onClose();
+            }} 
+            className="text-gray-500 hover:text-gray-700 transition-colors"
+            aria-label="Close modal"
+          >
             ✕
           </button>
         </div>
 
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+          {/* Error message */}
           {error && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded" role="alert">
               {error}
             </div>
           )}
 
           {/* Date Selection */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="date-select" className="block text-sm font-medium text-gray-700 mb-2">
               Select Date
             </label>
             <select
+              id="date-select"
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+              onChange={(e) => {
+                logger.debug('Date changed', { newDate: e.target.value });
+                setSelectedDate(e.target.value);
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               {generateDateOptions().map((date) => (
@@ -204,8 +302,11 @@ export default function ManageAvailability({ isOpen, onClose }: AvailabilityMana
             <h3 className="text-lg font-semibold mb-3">Add New Time Slot</h3>
             <div className="flex items-end gap-4">
               <div className="flex-1">
-                <label className="block text-sm text-gray-600 mb-1">Start Time</label>
+                <label htmlFor="slot-start" className="block text-sm text-gray-600 mb-1">
+                  Start Time
+                </label>
                 <select
+                  id="slot-start"
                   value={newSlotStart}
                   onChange={(e) => setNewSlotStart(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -216,8 +317,11 @@ export default function ManageAvailability({ isOpen, onClose }: AvailabilityMana
                 </select>
               </div>
               <div className="flex-1">
-                <label className="block text-sm text-gray-600 mb-1">End Time</label>
+                <label htmlFor="slot-end" className="block text-sm text-gray-600 mb-1">
+                  End Time
+                </label>
                 <select
+                  id="slot-end"
                   value={newSlotEnd}
                   onChange={(e) => setNewSlotEnd(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -230,7 +334,7 @@ export default function ManageAvailability({ isOpen, onClose }: AvailabilityMana
               <button
                 onClick={addTimeSlot}
                 disabled={loading}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center transition-colors"
               >
                 <Plus size={16} className="mr-1" />
                 Add Slot
@@ -240,13 +344,17 @@ export default function ManageAvailability({ isOpen, onClose }: AvailabilityMana
 
           {/* Time Slots List */}
           <div>
-            <h3 className="text-lg font-semibold mb-3">Time Slots for {new Date(selectedDate + 'T00:00:00').toLocaleDateString()}</h3>
+            <h3 className="text-lg font-semibold mb-3">
+              Time Slots for {new Date(selectedDate + 'T00:00:00').toLocaleDateString()}
+            </h3>
             {loading ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
               </div>
             ) : timeSlots.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No time slots for this date. Add some above!</p>
+              <p className="text-gray-500 text-center py-8">
+                No time slots for this date. Add some above!
+              </p>
             ) : (
               <div className="space-y-2">
                 {timeSlots.map((slot) => (
@@ -289,9 +397,10 @@ export default function ManageAvailability({ isOpen, onClose }: AvailabilityMana
                         className={`text-sm ${
                           slot.is_booked 
                             ? 'text-gray-400 cursor-not-allowed' 
-                            : 'text-indigo-600 hover:text-indigo-700 cursor-pointer'
+                            : 'text-indigo-600 hover:text-indigo-700 cursor-pointer transition-colors'
                         }`}
                         disabled={slot.is_booked}
+                        aria-label={slot.is_available ? 'Mark as unavailable' : 'Mark as available'}
                       >
                         {slot.is_booked ? 'Booked' : (slot.is_available ? 'Mark Unavailable' : 'Mark Available')}
                       </button>
@@ -300,9 +409,10 @@ export default function ManageAvailability({ isOpen, onClose }: AvailabilityMana
                         className={`${
                           slot.is_booked 
                             ? 'text-gray-300 cursor-not-allowed' 
-                            : 'text-red-600 hover:text-red-700'
+                            : 'text-red-600 hover:text-red-700 transition-colors'
                         }`}
                         disabled={slot.is_booked}
+                        aria-label="Delete time slot"
                       >
                         <Trash2 size={18} />
                       </button>
@@ -314,14 +424,18 @@ export default function ManageAvailability({ isOpen, onClose }: AvailabilityMana
           </div>
         </div>
 
+        {/* Footer */}
         <div className="p-6 border-t bg-gray-50">
           <div className="flex justify-between items-center">
             <p className="text-sm text-gray-600">
               💡 Tip: Add your regular weekly availability, then mark specific slots as unavailable when needed.
             </p>
             <button
-              onClick={onClose}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+              onClick={() => {
+                logger.debug('Manage availability modal closed from footer');
+                onClose();
+              }}
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
             >
               Close
             </button>

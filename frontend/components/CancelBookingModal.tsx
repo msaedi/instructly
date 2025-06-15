@@ -1,54 +1,120 @@
 // frontend/components/CancelBookingModal.tsx
 import React, { useState } from 'react';
 import { Booking } from '@/types/booking';
+import { logger } from '@/lib/logger';
 
+/**
+ * CancelBookingModal Component
+ * 
+ * Modal dialog for booking cancellation with reason requirement.
+ * Handles validation, loading states, and error display.
+ * 
+ * Features:
+ * - Required cancellation reason
+ * - Loading state during cancellation
+ * - Error handling and display
+ * - Warning about cancellation policy
+ * - Accessible form controls
+ * 
+ * @component
+ * @example
+ * ```tsx
+ * <CancelBookingModal
+ *   booking={bookingToCancel}
+ *   isOpen={showCancelModal}
+ *   onClose={() => setShowCancelModal(false)}
+ *   onConfirm={handleCancelBooking}
+ * />
+ * ```
+ */
 interface CancelBookingModalProps {
-    booking: Booking | null;
-    isOpen: boolean;
-    error?: string | null;
-    onClose: () => void;
-    onConfirm: (reason: string) => Promise<void>;
+  /** The booking to cancel (null if none selected) */
+  booking: Booking | null;
+  /** Whether the modal is open */
+  isOpen: boolean;
+  /** External error message from parent component */
+  error?: string | null;
+  /** Callback when modal should close */
+  onClose: () => void;
+  /** Callback when cancellation is confirmed */
+  onConfirm: (reason: string) => Promise<void>;
 }
 
 export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
   booking,
   isOpen,
-  error: externalError,  // Rename to avoid conflict
+  error: externalError,
   onClose,
   onConfirm
 }) => {
   const [reason, setReason] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [validationError, setValidationError] = useState('');  // Renamed for clarity
+  const [validationError, setValidationError] = useState('');
 
+  // Don't render if not open or no booking
   if (!isOpen || !booking) return null;
 
+  logger.debug('Cancel booking modal opened', { bookingId: booking.id });
+
+  /**
+   * Handle form submission
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validate reason
     if (!reason.trim()) {
       setValidationError('Please provide a reason for cancellation');
+      logger.warn('Cancellation attempted without reason', { bookingId: booking.id });
       return;
     }
 
     setIsLoading(true);
     setValidationError('');
 
+    logger.info('Booking cancellation initiated', { 
+      bookingId: booking.id,
+      reasonLength: reason.length 
+    });
+
     try {
       await onConfirm(reason);
-      setReason('');
+      setReason(''); // Clear on success
+      logger.info('Booking cancellation successful', { bookingId: booking.id });
       // onClose is handled by parent on success
     } catch (err) {
+      logger.error('Booking cancellation failed', err, { bookingId: booking.id });
       // Error is now handled by parent component
       setIsLoading(false);
     }
   };
 
+  /**
+   * Handle modal close
+   */
   const handleClose = () => {
     if (!isLoading) {
+      logger.debug('Cancel booking modal closed');
       setReason('');
       setValidationError('');
       onClose();
+    }
+  };
+
+  /**
+   * Format date for display
+   */
+  const formatDate = (dateStr: string): string => {
+    try {
+      return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch (error) {
+      logger.error('Failed to format date in cancel modal', error, { dateStr });
+      return dateStr;
     }
   };
 
@@ -64,15 +130,11 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
         
         <div className="mb-4">
           <p className="text-sm text-gray-600 mb-2">
-            Are you sure you want to cancel your {booking.service_name} lesson on{' '}
-            {new Date(booking.booking_date + 'T00:00:00').toLocaleDateString('en-US', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric'
-            })}?
+            Are you sure you want to cancel your <strong>{booking.service_name}</strong> lesson on{' '}
+            {formatDate(booking.booking_date)}?
           </p>
           
+          {/* Cancellation policy warning */}
           <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
             <p className="text-sm text-yellow-800">
               <strong>Note:</strong> Cancellations may be subject to the instructor's cancellation policy.
@@ -82,7 +144,10 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
 
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
-            <label htmlFor="reason" className="block text-sm font-medium text-gray-700 mb-2">
+            <label 
+              htmlFor="reason" 
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
               Cancellation reason (required)
             </label>
             <textarea
@@ -96,9 +161,13 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
                 setValidationError(''); // Clear validation error when typing
               }}
               disabled={isLoading}
+              aria-describedby={displayError ? "error-message" : undefined}
+              aria-invalid={!!displayError}
             />
             {displayError && (
-              <p className="mt-1 text-sm text-red-600">{displayError}</p>
+              <p id="error-message" className="mt-1 text-sm text-red-600">
+                {displayError}
+              </p>
             )}
           </div>
 
