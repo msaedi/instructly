@@ -1550,8 +1550,6 @@ const mergeAdjacentSlots = (slots: TimeSlot[], dateStr: string): TimeSlot[] => {
             onViewFullDetails={() => {
               router.push(`/dashboard/instructor/bookings/${selectedBookingId}`);
             }}
-            position={previewPosition || undefined}
-            isMobile={isMobile()}
           />
         )}
     </div>
