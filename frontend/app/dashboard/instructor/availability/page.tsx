@@ -13,6 +13,7 @@ import { BookedSlotPreview } from '@/types/booking';
 import BookingQuickPreview from '@/components/BookingQuickPreview';
 import BookedSlotCell from '@/components/BookedSlotCell';
 import TimeSlotButton from '@/components/TimeSlotButton';
+import WeekCalendarGrid from '@/components/WeekCalendarGrid';
 
 
 type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
@@ -37,7 +38,6 @@ interface DateInfo {
 }
 
 const DAYS: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-const HOURS = Array.from({ length: 13 }, (_, i) => i + 8); // 8 AM to 8 PM
 
 export default function AvailabilityPage() {
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(new Date());
@@ -1102,6 +1102,69 @@ const mergeAdjacentSlots = (slots: TimeSlot[], dateStr: string): TimeSlot[] => {
     }
   };
 
+  // Cell renderer for the calendar grid
+  const renderCell = (date: string, hour: number) => {
+    const isPastSlot = isTimeSlotInPast(date, hour);
+    const isAvailable = isHourInTimeRange(date, hour);
+    const booking = getBookingForSlot(date, hour);
+    const isBooked = !!booking;
+    const isFirstSlot = !!(booking && parseInt(booking.start_time.split(':')[0]) === hour);
+    
+    if (isBooked && booking) {
+      return (
+        <BookedSlotCell
+          slot={booking}
+          isFirstSlot={isFirstSlot}
+          onClick={(e) => handleBookedSlotClick(booking.booking_id, e)}
+        />
+      );
+    }
+    
+    return (
+      <TimeSlotButton
+        hour={hour}
+        isAvailable={isAvailable}
+        isBooked={isBooked}
+        isPast={isPastSlot}
+        onClick={() => toggleTimeSlot(date, hour)}
+      />
+    );
+  };
+
+  // Mobile cell renderer
+  const renderMobileCell = (date: string, hour: number) => {
+    const isPastSlot = isTimeSlotInPast(date, hour);
+    const isAvailable = isHourInTimeRange(date, hour);
+    const booking = getBookingForSlot(date, hour);
+    const isBooked = !!booking;
+    const isFirstSlot = !!(booking && parseInt(booking.start_time.split(':')[0]) === hour);
+    
+    if (isBooked && booking) {
+      return (
+        <BookedSlotCell
+          key={`${date}-${hour}`}
+          slot={booking}
+          isFirstSlot={isFirstSlot}
+          isMobile={true}
+          onClick={(e) => handleBookedSlotClick(booking.booking_id, e)}
+        />
+      );
+    }
+    
+    return (
+      <TimeSlotButton
+        key={`${date}-${hour}`}
+        hour={hour}
+        isAvailable={isAvailable}
+        isBooked={isBooked}
+        isPast={isPastSlot}
+        onClick={() => toggleTimeSlot(date, hour)}
+        isMobile={true}
+      />
+    );
+  };
+
+  // Get the week dates
   const weekDates = getWeekDates();
   const currentWeekDisplay = weekDates[0].date.toLocaleDateString('en-US', { 
     month: 'long', 
@@ -1247,110 +1310,14 @@ const mergeAdjacentSlots = (slots: TimeSlot[], dateStr: string): TimeSlot[] => {
       </div>
 
       {/* Weekly Calendar Grid */}
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold">Week Schedule</h3>
-          <p className="text-sm text-gray-600">Click time slots to toggle availability</p>
-        </div>
-
-        {/* Desktop Grid */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full table-fixed">
-            <thead>
-              <tr>
-                <th className="text-left p-2 text-gray-600 w-24">Time</th>
-                {weekDates.map((dateInfo, index) => (
-                  <th key={index} className="text-center p-2 text-gray-600 w-32">
-                    <div className="font-semibold capitalize">{dateInfo.dayOfWeek}</div>
-                    <div className="text-sm font-normal">{dateInfo.dateStr}</div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-            {HOURS.map(hour => (
-                <tr key={hour} className="border-t">
-                  <td className="p-2 text-sm text-gray-600 w-24">
-                    {hour % 12 || 12}:00 {hour < 12 ? 'AM' : 'PM'}
-                  </td>
-                  {weekDates.map((dateInfo) => {
-                    const isPastSlot = isTimeSlotInPast(dateInfo.fullDate, hour);
-                    const isAvailable = isHourInTimeRange(dateInfo.fullDate, hour);
-                    const booking = getBookingForSlot(dateInfo.fullDate, hour);
-                    const isBooked = !!booking;
-                    const isFirstSlot = !!(booking && parseInt(booking.start_time.split(':')[0]) === hour);
-                    
-                    return (
-                      <td key={`${dateInfo.fullDate}-${hour}`} className="p-1 w-32">
-                        {isBooked && booking ? (
-                          <BookedSlotCell
-                            slot={booking}
-                            isFirstSlot={isFirstSlot}
-                            onClick={(e) => handleBookedSlotClick(booking.booking_id, e)}
-                          />
-                        ) : (
-                          <TimeSlotButton
-                            hour={hour}
-                            isAvailable={isAvailable}
-                            isBooked={isBooked}
-                            isPast={isPastSlot}
-                            onClick={() => toggleTimeSlot(dateInfo.fullDate, hour)}
-                          />
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile List View */}
-        <div className="md:hidden space-y-4">
-          {weekDates.map((dateInfo, index) => {
-            const isPastDate = isDateInPast(dateInfo.fullDate);
-            
-            return (
-              <div key={index} className={`border rounded-lg p-4 ${isPastDate ? 'bg-gray-50' : ''}`}>
-                <h3 className="font-semibold capitalize mb-1">{dateInfo.dayOfWeek}</h3>
-                <p className="text-sm text-gray-600 mb-3">
-                  {dateInfo.dateStr}
-                  {isPastDate && <span className="text-gray-500 ml-2">(Past date)</span>}
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                {HOURS.map(hour => {
-                    const isPastSlot = isTimeSlotInPast(dateInfo.fullDate, hour);
-                    const isAvailable = isHourInTimeRange(dateInfo.fullDate, hour);
-                    const booking = getBookingForSlot(dateInfo.fullDate, hour);
-                    const isBooked = !!booking;
-                    const isFirstSlot = !!(booking && parseInt(booking.start_time.split(':')[0]) === hour);
-                    
-                    return isBooked && booking ? (
-                      <BookedSlotCell
-                        key={`${dateInfo.fullDate}-${hour}`}
-                        slot={booking}
-                        isFirstSlot={isFirstSlot}
-                        isMobile={true}
-                        onClick={(e) => handleBookedSlotClick(booking.booking_id, e)}                      />
-                    ) : (
-                      <TimeSlotButton
-                        key={`${dateInfo.fullDate}-${hour}`}
-                        hour={hour}
-                        isAvailable={isAvailable}
-                        isBooked={isBooked}
-                        isPast={isPastSlot}
-                        onClick={() => toggleTimeSlot(dateInfo.fullDate, hour)}
-                        isMobile={true}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      <WeekCalendarGrid
+        weekDates={weekDates}
+        startHour={8}
+        endHour={20}
+        renderCell={renderCell}
+        renderMobileCell={renderMobileCell}
+        currentWeekDisplay={currentWeekDisplay}
+      />
 
       {/* Instructions */}
       <div className="mt-8 p-4 bg-blue-50 rounded-lg">
