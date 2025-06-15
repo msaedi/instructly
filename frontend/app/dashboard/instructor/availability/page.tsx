@@ -1597,9 +1597,7 @@ const mergeAdjacentSlots = (slots: TimeSlot[], dateStr: string): TimeSlot[] => {
               setPreviewPosition(null);
             }}
             onViewFullDetails={() => {
-              // TODO: Navigate to full booking details
-              console.log('Navigate to booking details:', selectedBookingId);
-              setShowBookingPreview(false);
+              router.push(`/dashboard/instructor/bookings/${selectedBookingId}`);
             }}
             position={previewPosition || undefined}
             isMobile={isMobile()}

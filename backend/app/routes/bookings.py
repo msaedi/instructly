@@ -32,7 +32,8 @@ from ..schemas.booking import (
     AvailabilityCheckRequest,
     AvailabilityCheckResponse,
     BookingStatsResponse,
-    UpcomingBookingResponse
+    UpcomingBookingResponse,
+    BookingResponse
 )
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,6 @@ async def get_current_active_user(
             detail="User not found"
         )
     return user
-
 
 @router.get("/{booking_id}/preview")
 async def get_booking_preview(
@@ -99,6 +99,38 @@ async def get_booking_preview(
         "student_note": booking.student_note,
         "total_price": float(booking.total_price)
     }
+
+@router.get("/{booking_id}")
+async def get_booking_details(
+    booking_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get full booking details.
+    
+    This endpoint provides complete booking information including
+    all related data. Only accessible by the instructor or student
+    involved in the booking.
+    """
+    booking = db.query(Booking).filter(
+        Booking.id == booking_id,
+        or_(
+            Booking.student_id == current_user.id,
+            Booking.instructor_id == current_user.id
+        )
+    ).options(
+        joinedload(Booking.student),
+        joinedload(Booking.instructor),
+        joinedload(Booking.service)
+    ).first()
+    
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    # Return using the standardized response schema
+    return BookingResponse.from_orm(booking)
+
 
 @router.post("/", response_model=BookingResponse, status_code=status.HTTP_201_CREATED)
 async def create_booking(
