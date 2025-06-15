@@ -12,6 +12,7 @@ import { SlotOperation, BulkUpdateRequest, BulkUpdateResponse, OperationResult, 
 import { BookedSlotPreview } from '@/types/booking';
 import BookingQuickPreview from '@/components/BookingQuickPreview';
 import BookedSlotCell from '@/components/BookedSlotCell';
+import TimeSlotButton from '@/components/TimeSlotButton';
 
 
 type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
@@ -1285,24 +1286,16 @@ const mergeAdjacentSlots = (slots: TimeSlot[], dateStr: string): TimeSlot[] => {
                           <BookedSlotCell
                             slot={booking}
                             isFirstSlot={isFirstSlot}
-                            onClick={(e) => handleBookedSlotClick(booking.booking_id, e)}                          />
+                            onClick={(e) => handleBookedSlotClick(booking.booking_id, e)}
+                          />
                         ) : (
-                          <button
-                            onClick={() => !isPastSlot && !isBooked && toggleTimeSlot(dateInfo.fullDate, hour)}
-                            disabled={isPastSlot}
-                            className={`w-full h-10 rounded transition-colors ${
-                              isPastSlot
-                                ? isAvailable
-                                  ? 'bg-green-300 text-white cursor-not-allowed'
-                                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                : isAvailable
-                                  ? 'bg-green-500 hover:bg-green-600 text-white cursor-pointer'
-                                  : 'bg-gray-200 hover:bg-gray-300 cursor-pointer'
-                            }`}
-                            title={isPastSlot ? 'Past time slot - view only' : ''}
-                          >
-                            {isAvailable ? '✓' : ''}
-                          </button>
+                          <TimeSlotButton
+                            hour={hour}
+                            isAvailable={isAvailable}
+                            isBooked={isBooked}
+                            isPast={isPastSlot}
+                            onClick={() => toggleTimeSlot(dateInfo.fullDate, hour)}
+                          />
                         )}
                       </td>
                     );
@@ -1341,24 +1334,15 @@ const mergeAdjacentSlots = (slots: TimeSlot[], dateStr: string): TimeSlot[] => {
                         isMobile={true}
                         onClick={(e) => handleBookedSlotClick(booking.booking_id, e)}                      />
                     ) : (
-                      <button
+                      <TimeSlotButton
                         key={`${dateInfo.fullDate}-${hour}`}
-                        onClick={() => !isPastSlot && !isBooked && toggleTimeSlot(dateInfo.fullDate, hour)}
-                        disabled={isPastSlot}
-                        className={`p-2 rounded text-sm ${
-                          isPastSlot
-                            ? isAvailable
-                              ? 'bg-green-300 text-white cursor-not-allowed'
-                              : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : isAvailable
-                              ? 'bg-green-500 text-white hover:bg-green-600'
-                              : 'bg-gray-200 hover:bg-gray-300'
-                        }`}
-                        title={isPastSlot ? 'Past time slot' : ''}
-                      >
-                        {hour % 12 || 12}:00
-                        {!isBooked && isAvailable && <span className="ml-1 text-xs">✓</span>}
-                      </button>
+                        hour={hour}
+                        isAvailable={isAvailable}
+                        isBooked={isBooked}
+                        isPast={isPastSlot}
+                        onClick={() => toggleTimeSlot(dateInfo.fullDate, hour)}
+                        isMobile={true}
+                      />
                     );
                   })}
                 </div>
