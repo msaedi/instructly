@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { BookingPreview, getLocationTypeIcon } from '@/types/booking';
 import { fetchBookingPreview } from '@/lib/api';
 import Modal from '@/components/Modal';
+import { logger } from '@/lib/logger';
 
 interface BookingQuickPreviewProps {
   bookingId: number;
@@ -15,7 +16,7 @@ const BookingQuickPreview: React.FC<BookingQuickPreviewProps> = ({
   onClose,
   onViewFullDetails,
 }) => {
-    console.log('BookingQuickPreview rendering with:', { bookingId });
+  logger.debug('BookingQuickPreview rendering', { bookingId });
 
   const [booking, setBooking] = useState<BookingPreview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,10 +26,16 @@ const BookingQuickPreview: React.FC<BookingQuickPreviewProps> = ({
     // Fetch preview data
     fetchBookingPreview(bookingId)
       .then(data => {
+        logger.debug('Booking preview loaded', { 
+          bookingId,
+          studentName: data.student_name,
+          serviceName: data.service_name 
+        });
         setBooking(data);
         setLoading(false);
       })
       .catch(err => {
+        logger.error('Failed to load booking preview', err, { bookingId });
         setError('Failed to load booking details');
         setLoading(false);
       });

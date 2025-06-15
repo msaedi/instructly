@@ -11,20 +11,41 @@ export interface Booking {
   instructor_id: number;
   service_id: number;
   availability_slot_id: number;
+  
+  // Date and time fields
   booking_date: string; // ISO date string (YYYY-MM-DD)
   start_time: string;   // Time string (HH:MM:SS)
   end_time: string;     // Time string (HH:MM:SS)
+  
+  // Booking details
   status: BookingStatus;
-  total_price: number;
   service_name: string; // Snapshot of service name at booking time
-  notes?: string;
-  cancellation_reason?: string;
-  cancelled_by?: 'STUDENT' | 'INSTRUCTOR';
-  cancelled_at?: string; // ISO datetime string
+  hourly_rate: number;  
+  total_price: number;
+  duration_minutes: number;  
+  
+  // Location fields
+  service_area?: string; 
+  meeting_location?: string;  
+  location_type?: LocationType;  
+  
+  // Notes - REMOVE 'notes?' and use these instead
+  student_note?: string;  
+  instructor_note?: string;  
+  
+  // Timestamps
   created_at: string;   // ISO datetime string
   updated_at: string;   // ISO datetime string
+  confirmed_at?: string;  
+  completed_at?: string;  
+  cancelled_at?: string; // ISO datetime string
   
-  // Relations (populated in detailed views)
+  // Cancellation fields
+  cancelled_by?: 'STUDENT' | 'INSTRUCTOR';
+  cancelled_by_id?: number;  
+  cancellation_reason?: string;
+  
+  // Relations (populated in detailed views) - KEEP THESE!
   student?: User;
   instructor?: User;
   service?: Service;

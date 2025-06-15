@@ -1,4 +1,3 @@
-import { BRAND } from '@/app/config/brand'
 // app/dashboard/instructor/availability/page.tsx
 "use client";
 
@@ -14,7 +13,8 @@ import BookingQuickPreview from '@/components/BookingQuickPreview';
 import BookedSlotCell from '@/components/BookedSlotCell';
 import TimeSlotButton from '@/components/TimeSlotButton';
 import WeekCalendarGrid from '@/components/WeekCalendarGrid';
-
+import { logger } from '@/lib/logger';
+import { BRAND } from '@/app/config/brand'
 
 type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 
@@ -39,30 +39,53 @@ interface DateInfo {
 
 const DAYS: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
+/**
+ * AvailabilityPage Component
+ * 
+ * Manages instructor availability on a week-by-week basis.
+ * Features:
+ * - Week-based navigation and editing
+ * - Visual calendar grid with time slots
+ * - Booking protection (can't modify booked slots)
+ * - Preset schedules for quick setup
+ * - Copy from previous week functionality
+ * - Apply to future weeks with automatic saving
+ * - Real-time validation before saving
+ * - Mobile-responsive design
+ */
 export default function AvailabilityPage() {
+  // Core state
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(new Date());
   const [weekSchedule, setWeekSchedule] = useState<WeekSchedule>({});
   const [savedWeekSchedule, setSavedWeekSchedule] = useState<WeekSchedule>({});
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  
+  // Loading states
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
+  
+  // UI state
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
   const [showApplyModal, setShowApplyModal] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showValidationPreview, setShowValidationPreview] = useState(false);
+  const [showBookingPreview, setShowBookingPreview] = useState(false);
+  
+  // Modal state
   const [applyUntilDate, setApplyUntilDate] = useState<string>('');
   const [applyUntilOption, setApplyUntilOption] = useState<'date' | 'end-of-year' | 'indefinitely'>('end-of-year');
+  const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
+  
+  // Data state
   const [bookedSlots, setBookedSlots] = useState<BookedSlot[]>([]);
   const [existingSlots, setExistingSlots] = useState<ExistingSlot[]>([]);
-  const [showValidationPreview, setShowValidationPreview] = useState(false);
   const [validationResults, setValidationResults] = useState<WeekValidationResponse | null>(null);
   const [pendingOperations, setPendingOperations] = useState<SlotOperation[]>([]);
-  const [isValidating, setIsValidating] = useState(false);
-  const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
-  const [showBookingPreview, setShowBookingPreview] = useState(false);
-  const [previewPosition, setPreviewPosition] = useState<{ top: number; left: number } | null>(null);
+  
   const router = useRouter();
 
-  // Define presets once at the component level
+  // Define preset schedules
   const PRESET_SCHEDULES: { [key: string]: { [day: string]: TimeSlot[] } } = {
     'weekday_9_to_5': {
       monday: [{ start_time: '09:00:00', end_time: '17:00:00', is_available: true }],
@@ -102,43 +125,6 @@ export default function AvailabilityPage() {
     }
   };
 
-  const fetchBookedSlots = async () => {
-    try {
-      const response = await fetchWithAuth(
-        `${API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK}/booked-slots?start_date=${formatDateForAPI(currentWeekStart)}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Booked slots data:', data);
-        setBookedSlots(data.booked_slots || []);
-      }
-    } catch (error) {
-      console.error('Failed to fetch booked slots:', error);
-    }
-  };
-
-  useEffect(() => {
-    console.log('Preview state changed:', { showBookingPreview, selectedBookingId });
-  }, [showBookingPreview, selectedBookingId]);
-
-  useEffect(() => {
-    setWeekSchedule({});
-    setSavedWeekSchedule({});
-    setExistingSlots([]); 
-    setHasUnsavedChanges(false);
-    fetchWeekSchedule();
-    fetchBookedSlots();
-  }, [currentWeekStart]);
-
-  const isSlotBooked = (date: string, hour: number): boolean => {
-    return bookedSlots.some(slot => {
-      if (slot.date !== date) return false;
-      const slotStartHour = parseInt(slot.start_time.split(':')[0]);
-      const slotEndHour = parseInt(slot.end_time.split(':')[0]);
-      return hour >= slotStartHour && hour < slotEndHour;
-    });
-  };
-
   // Initialize current week to start on Monday
   useEffect(() => {
     const today = new Date();
@@ -161,60 +147,50 @@ export default function AvailabilityPage() {
     }
   }, [message]);
 
-  // Fetch schedule when week changes
+  // Fetch data when week changes
   useEffect(() => {
-    // Clear the schedule when week changes to prevent old data from persisting
     setWeekSchedule({});
+    setSavedWeekSchedule({});
+    setExistingSlots([]); 
     setHasUnsavedChanges(false);
-    // Fetch the new week's data
     fetchWeekSchedule();
+    fetchBookedSlots();
   }, [currentWeekStart]);
 
-  // Helper to check if this is the first hour of a multi-hour booking
-  const isFirstHourOfBooking = (date: string, hour: number): BookedSlotPreview | null => {
-    const booking = bookedSlots.find(slot => {
-      if (slot.date !== date) return false;
-      const slotStartHour = parseInt(slot.start_time.split(':')[0]);
-      return slotStartHour === hour;
-    });
-    return booking || null;
-  };
-
-  // Helper to find the booking for a given slot
-  const getBookingForSlot = (date: string, hour: number): BookedSlotPreview | null => {
-    return bookedSlots.find(slot => {
-      if (slot.date !== date) return false;
-      const slotStartHour = parseInt(slot.start_time.split(':')[0]);
-      const slotEndHour = parseInt(slot.end_time.split(':')[0]);
-      return hour >= slotStartHour && hour < slotEndHour;
-    }) || null;
-  };
-
-  const handleBookedSlotClick = (bookingId: number, event?: React.MouseEvent) => {
-    console.log('Clicked booking:', bookingId);
-    setSelectedBookingId(bookingId);
-    
-    // For desktop, calculate popover position
-    if (event && !isMobile()) {
-      const rect = event.currentTarget.getBoundingClientRect();
-      const scrollTop = window.scrollY || document.documentElement.scrollTop;
-      const position = {
-        top: rect.bottom + scrollTop + 5,
-        left: rect.left + (rect.width / 2)
-      };
-      console.log('Setting position:', position);
-      setPreviewPosition(position);
+  /**
+   * Fetch booked slots for the current week
+   */
+  const fetchBookedSlots = async () => {
+    try {
+      const response = await fetchWithAuth(
+        `${API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK}/booked-slots?start_date=${formatDateForAPI(currentWeekStart)}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        logger.debug('Fetched booked slots', { 
+          count: data.booked_slots?.length || 0,
+          weekStart: formatDateForAPI(currentWeekStart) 
+        });
+        setBookedSlots(data.booked_slots || []);
+      }
+    } catch (error) {
+      logger.error('Failed to fetch booked slots', error);
     }
-    console.log('Setting showBookingPreview to true');
-    setShowBookingPreview(true);
-  };
-  
-  // Add this helper function to detect mobile
-  const isMobile = () => {
-    return window.innerWidth < 768; // md breakpoint
   };
 
-  // Get week dates
+  /**
+   * Format date for API (YYYY-MM-DD)
+   */
+  const formatDateForAPI = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  /**
+   * Get week dates starting from Monday
+   */
   const getWeekDates = (): DateInfo[] => {
     const dates: DateInfo[] = [];
     for (let i = 0; i < 7; i++) {
@@ -234,14 +210,19 @@ export default function AvailabilityPage() {
     return dates;
   };
 
+  /**
+   * Check if a specific time slot is in the past
+   */
   const isTimeSlotInPast = (dateStr: string, hour: number): boolean => {
-    // Parse the date string as local time, not UTC
     const [year, month, day] = dateStr.split('-').map(num => parseInt(num));
     const slotDateTime = new Date(year, month - 1, day, hour, 0, 0, 0);
     const now = new Date();
     return slotDateTime < now;
   };
 
+  /**
+   * Check if a date is in the past
+   */
   const isDateInPast = (dateStr: string): boolean => {
     const date = new Date(dateStr);
     const today = new Date();
@@ -250,20 +231,62 @@ export default function AvailabilityPage() {
     return date < today;
   };
 
-  // Format date for API (YYYY-MM-DD)
-  const formatDateForAPI = (date: Date): string => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+  /**
+   * Check if a slot is booked
+   */
+  const isSlotBooked = (date: string, hour: number): boolean => {
+    return bookedSlots.some(slot => {
+      if (slot.date !== date) return false;
+      const slotStartHour = parseInt(slot.start_time.split(':')[0]);
+      const slotEndHour = parseInt(slot.end_time.split(':')[0]);
+      return hour >= slotStartHour && hour < slotEndHour;
+    });
   };
 
+  /**
+   * Check if a time slot is within an availability range
+   */
+  const isHourInTimeRange = (date: string, hour: number): boolean => {
+    const daySlots = weekSchedule[date] || [];
+    return daySlots.some(range => {
+      const startHour = parseInt(range.start_time.split(':')[0]);
+      const endHour = parseInt(range.end_time.split(':')[0]);
+      return hour >= startHour && hour < endHour && range.is_available;
+    });
+  };
+
+  /**
+   * Get booking for a specific slot
+   */
+  const getBookingForSlot = (date: string, hour: number): BookedSlotPreview | null => {
+    return bookedSlots.find(slot => {
+      if (slot.date !== date) return false;
+      const slotStartHour = parseInt(slot.start_time.split(':')[0]);
+      const slotEndHour = parseInt(slot.end_time.split(':')[0]);
+      return hour >= slotStartHour && hour < slotEndHour;
+    }) || null;
+  };
+
+  /**
+   * Handle click on a booked slot
+   */
+  const handleBookedSlotClick = (bookingId: number, event?: React.MouseEvent) => {
+    logger.debug('Booking slot clicked', { bookingId });
+    setSelectedBookingId(bookingId);
+    setShowBookingPreview(true);
+  };
+
+  /**
+   * Fetch week schedule from API
+   */
   const fetchWeekSchedule = async () => {
     setIsLoading(true);
+    logger.time('fetchWeekSchedule');
+
     try {
       const mondayDate = formatDateForAPI(currentWeekStart);
       const endDate = formatDateForAPI(new Date(currentWeekStart.getTime() + 6 * 24 * 60 * 60 * 1000));
-      console.log('Fetching detailed slots:', mondayDate, 'to', endDate);
+      logger.debug('Fetching week schedule', { mondayDate, endDate });
       
       // First get the detailed slots with IDs
       const detailedResponse = await fetchWithAuth(
@@ -272,7 +295,7 @@ export default function AvailabilityPage() {
       
       if (detailedResponse.ok) {
         const detailedData = await detailedResponse.json();
-        console.log('Detailed slots data:', detailedData);
+        logger.debug('Fetched detailed slots', { count: detailedData.length });
   
         const slots: ExistingSlot[] = detailedData.map((slot: any) => ({
           id: slot.id,
@@ -281,21 +304,24 @@ export default function AvailabilityPage() {
           end_time: slot.end_time
         }));
         setExistingSlots(slots);
-        console.log('Mapped existing slots:', slots);
       } else {
-        // Log error details
         const errorData = await detailedResponse.text();
-        console.error('Failed to fetch detailed slots:', detailedResponse.status, errorData);
+        logger.error('Failed to fetch detailed slots', new Error(errorData), {
+          status: detailedResponse.status,
+          endpoint: 'INSTRUCTOR_AVAILABILITY'
+        });
       }
       
-      // Fetch booked slots BEFORE getting the week view
+      // Fetch booked slots
       const bookedResponse = await fetchWithAuth(
         `${API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK}/booked-slots?start_date=${mondayDate}`
       );
       
       if (bookedResponse.ok) {
         const bookedData = await bookedResponse.json();
-        console.log('Booked slots data:', bookedData);
+        logger.debug('Fetched booked slots', { 
+          count: bookedData.booked_slots?.length || 0 
+        });
         setBookedSlots(bookedData.booked_slots || []);
       }
       
@@ -307,34 +333,39 @@ export default function AvailabilityPage() {
       if (!response.ok) throw new Error('Failed to fetch availability');
       const data = await response.json();
   
-      console.log('Fetched week data:', data);
-      console.log('Existing slots after fetch:', existingSlots);
-      console.log('Data keys:', Object.keys(data));
+      logger.debug('Fetched week data', { 
+        dates: Object.keys(data),
+        totalSlots: Object.values(data).flat().length 
+      });
       
-      // DO NOT MERGE SLOTS - keep them as they come from the backend
-      // The backend already handles merging appropriately
+      // Use slots as provided by backend (already merged appropriately)
       const cleanedData: WeekSchedule = {};
       Object.entries(data).forEach(([date, slots]) => {
         if (Array.isArray(slots) && slots.length > 0) {
-          // Simply use the slots as provided by the backend
           cleanedData[date] = slots as TimeSlot[];
         }
       });
   
-      console.log('=== FETCH COMPLETE ===');
-      console.log('Setting both states to:', JSON.stringify(cleanedData, null, 2));
+      logger.info('Week schedule loaded successfully', {
+        weekStart: mondayDate,
+        daysWithAvailability: Object.keys(cleanedData).length
+      });
       
       setWeekSchedule(cleanedData);
       setSavedWeekSchedule(cleanedData);
       setHasUnsavedChanges(false);
     } catch (error) {
+      logger.error('Failed to load availability', error);
       setMessage({ type: 'error', text: 'Failed to load availability. Please try again.' });
     } finally {
+      logger.timeEnd('fetchWeekSchedule');
       setIsLoading(false);
     }
   };
 
-  // Navigate weeks
+  /**
+   * Navigate between weeks
+   */
   const navigateWeek = (direction: 'prev' | 'next') => {
     if (hasUnsavedChanges) {
       if (!confirm('You have unsaved changes. Are you sure you want to leave without saving?')) {
@@ -346,17 +377,9 @@ export default function AvailabilityPage() {
     setCurrentWeekStart(newDate);
   };
 
-  // Check if a time slot is within an availability range for a specific date
-  const isHourInTimeRange = (date: string, hour: number): boolean => {
-    const daySlots = weekSchedule[date] || [];
-    return daySlots.some(range => {
-      const startHour = parseInt(range.start_time.split(':')[0]);
-      const endHour = parseInt(range.end_time.split(':')[0]);
-      return hour >= startHour && hour < endHour && range.is_available;
-    });
-  };
-
-  // Toggle time slot for a specific date
+  /**
+   * Toggle time slot availability
+   */
   const toggleTimeSlot = (date: string, hour: number) => {
     // Check if time slot is in the past
     if (isTimeSlotInPast(date, hour)) {
@@ -445,9 +468,7 @@ export default function AvailabilityPage() {
             }
           }
           
-          // Only merge if:
-          // 1. Slots are adjacent (no gap)
-          // 2. There's no booking between them
+          // Only merge if slots are adjacent and no booking between
           if (lastSlot.end_time === slot.start_time && 
               lastSlot.is_available === slot.is_available && 
               !hasBookingBetween) {
@@ -485,7 +506,9 @@ export default function AvailabilityPage() {
     setHasUnsavedChanges(true);
   };
 
-  // Clear week confirmation
+  /**
+   * Clear week (preserving booked slots)
+   */
   const confirmClearWeek = () => {
     // Get all booked dates and times
     const bookedDateTimes = new Set<string>();
@@ -549,7 +572,9 @@ export default function AvailabilityPage() {
     setShowClearConfirm(false);
   };
 
-  // Apply preset to current week only
+  /**
+   * Apply preset schedule to current week
+   */
   const applyPresetToWeek = (preset: string) => {
     try {
       const presetData = PRESET_SCHEDULES[preset];
@@ -582,68 +607,90 @@ export default function AvailabilityPage() {
       setMessage({ type: 'success', text: `${presetName} schedule applied. Don't forget to save!` });
       
     } catch (error) {
-      console.error('Preset error:', error);
+      logger.error('Failed to apply preset', error);
       setMessage({ type: 'error', text: `Failed to apply preset: ${error instanceof Error ? error.message : 'Unknown error'}` });
     }
   };
 
-  // Save schedule for this week
+  /**
+   * Save week schedule with validation
+   */
   const saveWeekSchedule = async (skipValidation = false) => {
+    logger.time('saveWeekSchedule');
     setIsSaving(true);
-      // If not skipping validation, validate first
-      if (!skipValidation && hasUnsavedChanges) {
-        setIsValidating(true);
-        console.log('Starting validation...');
-        try {
-          const validation = await validateWeekChanges(
-            weekSchedule,
-            savedWeekSchedule,
-            currentWeekStart
-          );
-          
-          setValidationResults(validation);
-          console.log('Validation results:', validation);
-          setIsValidating(false);
-          
-          // If there are conflicts, show preview modal
-          if (!validation.valid) {
-            setShowValidationPreview(true);
-            setIsSaving(false);
-            return;
-          }
-          
-          // If valid but has warnings, optionally show them
-          if (validation.warnings.length > 0) {
-            setMessage({
-              type: 'info',
-              text: `Note: ${validation.warnings.join('. ')}`
-            });
-          }
-        } catch (error) {
-          setIsValidating(false);
+
+    // Move mondayDate declaration to the top level of the function
+    const mondayDate = formatDateForAPI(currentWeekStart);
+    
+    // If not skipping validation, validate first
+    if (!skipValidation && hasUnsavedChanges) {
+      setIsValidating(true);
+      logger.debug('Starting validation for week changes');
+      try {
+        const validation = await validateWeekChanges(
+          weekSchedule,
+          savedWeekSchedule,
+          currentWeekStart
+        );
+        
+        setValidationResults(validation);
+        logger.debug('Validation completed', {
+          valid: validation.valid,
+          warningCount: validation.warnings.length,
+          operations: validation.summary.total_operations
+        });
+        setIsValidating(false);
+        
+        // If there are conflicts, show preview modal
+        if (!validation.valid) {
+          setShowValidationPreview(true);
           setIsSaving(false);
-          setMessage({
-            type: 'error',
-            text: 'Failed to validate changes. Saving anyway...'
-          });
-          // Continue with save even if validation fails
+          return;
         }
+        
+        // If valid but has warnings, optionally show them
+        if (validation.warnings.length > 0) {
+          logger.warn('Validation warnings', { warnings: validation.warnings });
+          setMessage({
+            type: 'info',
+            text: `Note: ${validation.warnings.join('. ')}`
+          });
+        }
+      } catch (error) {
+        setIsValidating(false);
+        setIsSaving(false);
+        logger.error('Validation failed', error);
+        setMessage({
+          type: 'error',
+          text: 'Failed to validate changes. Saving anyway...'
+        });
+        // Continue with save even if validation fails
       }
+    }
+    
     try {
       let operations: SlotOperation[];
       
       if (skipValidation && pendingOperations.length > 0) {
         // Use stored operations from validation
         operations = pendingOperations;
+        logger.debug('Using pending operations from validation', { count: operations.length });
       } else {
-        console.log('=== SAVE OPERATION START ===');
-        console.log('Current weekSchedule:', JSON.stringify(weekSchedule, null, 2));
-        console.log('Current savedWeekSchedule:', JSON.stringify(savedWeekSchedule, null, 2));
+        logger.group('Generating save operations', () => {
+          logger.debug('Current week state', { 
+            dates: Object.keys(weekSchedule),
+            totalSlots: Object.values(weekSchedule).flat().length 
+          });
+          logger.debug('Saved week state', { 
+            dates: Object.keys(savedWeekSchedule),
+            totalSlots: Object.values(savedWeekSchedule).flat().length 
+          });
+        });
+        
         // First, fetch current existing slots to ensure we have the latest IDs
-        const mondayDate = formatDateForAPI(currentWeekStart);
         const endDate = formatDateForAPI(new Date(currentWeekStart.getTime() + 6 * 24 * 60 * 60 * 1000));
 
-        console.log('Fetching slots with date range:', mondayDate, 'to', endDate);
+        logger.debug('Fetching current slot IDs', { mondayDate, endDate });
 
         const detailedResponse = await fetchWithAuth(
           `${API_ENDPOINTS.INSTRUCTOR_AVAILABILITY}?start_date=${mondayDate}&end_date=${endDate}`
@@ -658,13 +705,14 @@ export default function AvailabilityPage() {
             start_time: slot.start_time,
             end_time: slot.end_time
           }));
-          console.log('Fetched existing slots:', JSON.stringify(currentExistingSlots, null, 2));
+          logger.debug('Fetched existing slots for ID mapping', { count: currentExistingSlots.length });
         } else {
-          // Log the error details
           const errorData = await detailedResponse.text();
-          console.error('Failed to fetch existing slots:', detailedResponse.status, errorData);
-          // Don't fail the entire operation, just continue without slot IDs
-          console.warn('Continuing without existing slot IDs - remove operations may not work');
+          logger.error('Failed to fetch existing slots', new Error(errorData), {
+            status: detailedResponse.status,
+            endpoint: 'INSTRUCTOR_AVAILABILITY'
+          });
+          logger.warn('Continuing without existing slot IDs - remove operations may not work');
         }
         
         // Generate operations by comparing current state with saved state
@@ -679,11 +727,15 @@ export default function AvailabilityPage() {
           const currentSlots = weekSchedule[dateStr] || [];
           const savedSlots = savedWeekSchedule[dateStr] || [];
 
-          console.log(`Comparing ${dateStr}: current=${currentSlots.length}, saved=${savedSlots.length}`);
+          logger.debug('Comparing date', { 
+            date: dateStr, 
+            currentSlots: currentSlots.length, 
+            savedSlots: savedSlots.length 
+          });
           
           // Skip past dates (but include today)
           if (dateInfo.fullDate !== today.toISOString().split('T')[0] && new Date(dateStr) < today) {
-            console.log(`Skipping past date: ${dateStr}`);
+            logger.debug('Skipping past date', { date: dateStr });
             return;
           }
           
@@ -696,13 +748,6 @@ export default function AvailabilityPage() {
             
             if (!stillExists) {
               // Find the slot ID using the freshly fetched data
-              console.log('Looking for slot to remove:', dateStr, savedSlot);
-              console.log('Available existing slots:', currentExistingSlots);
-              
-              // Debug: Show all slots for this date
-              const slotsForDate = currentExistingSlots.filter(s => s.date === dateStr);
-              console.log('All slots for this date:', slotsForDate);
-              
               const existingSlot = currentExistingSlots.find(s => 
                 s.date === dateStr &&
                 s.start_time === savedSlot.start_time &&
@@ -710,15 +755,22 @@ export default function AvailabilityPage() {
               );
               
               if (existingSlot) {
-                console.log('Found slot to remove:', existingSlot);
+                logger.debug('Marking slot for removal', { 
+                  date: dateStr, 
+                  slotId: existingSlot.id,
+                  time: `${savedSlot.start_time} - ${savedSlot.end_time}`
+                });
                 operations.push({
                   action: 'remove',
                   slot_id: existingSlot.id
                 });
               } else {
-                console.log('Could not find slot ID for removal');
+                logger.debug('Could not find exact slot ID for removal', { 
+                  date: dateStr,
+                  time: `${savedSlot.start_time} - ${savedSlot.end_time}`
+                });
                 
-                // Instead of exact match, find overlapping slots
+                // Find overlapping slots
                 const overlappingSlots = currentExistingSlots.filter(s => {
                   if (s.date !== dateStr) return false;
                   
@@ -731,7 +783,7 @@ export default function AvailabilityPage() {
                   return slotStart < savedEnd && slotEnd > savedStart;
                 });
                 
-                console.log('Overlapping slots found:', overlappingSlots);
+                logger.debug('Overlapping slots found', { count: overlappingSlots.length });
                 
                 // Remove all overlapping slots
                 overlappingSlots.forEach(slot => {
@@ -752,6 +804,10 @@ export default function AvailabilityPage() {
             );
             
             if (!existsInSaved) {
+              logger.debug('Marking slot for addition', { 
+                date: dateStr,
+                time: `${currentSlot.start_time} - ${currentSlot.end_time}`
+              });
               operations.push({
                 action: 'add',
                 date: dateStr,
@@ -762,7 +818,11 @@ export default function AvailabilityPage() {
           });
         });
         
-        console.log('Generated operations:', JSON.stringify(operations, null, 2));
+        logger.info('Generated operations summary', { 
+          total: operations.length,
+          adds: operations.filter(op => op.action === 'add').length,
+          removes: operations.filter(op => op.action === 'remove').length
+        });
         
         if (operations.length === 0) {
           setMessage({ type: 'info', text: 'No changes to save.' });
@@ -774,65 +834,13 @@ export default function AvailabilityPage() {
         setPendingOperations(operations);
       }
       
-      // If not skipping validation, do the validation first
-      if (!skipValidation) {
-        const validationRequest: BulkUpdateRequest = {
-          operations,
-          validate_only: true
-        };
-        
-        const validationResponse = await fetchWithAuth(
-          API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_BULK_UPDATE,
-          {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(validationRequest)
-          }
-        );
-        
-        if (!validationResponse.ok) {
-          const error = await validationResponse.json();
-          console.error('Validation error details:', error);
-          
-          // Handle Pydantic validation errors properly
-          if (error.detail && Array.isArray(error.detail)) {
-            // Pydantic validation errors come as an array
-            const errorMessages = error.detail.map((err: any) => 
-              `${err.loc?.join(' > ')}: ${err.msg}`
-            ).join(', ');
-            throw new Error(errorMessages);
-          } else if (error.detail) {
-            throw new Error(error.detail);
-          } else {
-            throw new Error('Validation failed');
-          }
-        }
-        
-        const validationResult: BulkUpdateResponse = await validationResponse.json();
-        
-        // Check if any operations would fail
-        if (validationResult.failed > 0) {
-          const failedOps = validationResult.results.filter(r => r.status === 'failed');
-          const reasons = failedOps.map(op => op.reason).filter(Boolean).join(', ');
-          
-          setMessage({
-            type: 'error',
-            text: `Cannot save changes: ${reasons}`
-          });
-          return;
-        }
-        
-        // Optional: Show preview modal (uncomment if you want to use it)
-        // setValidationResults(validationResult);
-        // setShowValidationPreview(true);
-        // return;
-      }
-      
       // Apply the changes
       const applyRequest: BulkUpdateRequest = {
         operations,
         validate_only: false
       };
+      
+      logger.debug('Sending bulk update request', { operationCount: operations.length });
       
       const response = await fetchWithAuth(
         API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_BULK_UPDATE,
@@ -844,7 +852,10 @@ export default function AvailabilityPage() {
       
       if (!response.ok) {
         const error = await response.json();
-        console.error('Apply error details:', error);
+        logger.error('Bulk update failed', error, {
+          status: response.status,
+          endpoint: 'INSTRUCTOR_AVAILABILITY_BULK_UPDATE'
+        });
         
         // Handle Pydantic validation errors properly
         if (error.detail && Array.isArray(error.detail)) {
@@ -861,6 +872,13 @@ export default function AvailabilityPage() {
       
       const result: BulkUpdateResponse = await response.json();
       
+      logger.info('Save operation completed', {
+        successful: result.successful,
+        failed: result.failed,
+        skipped: result.skipped,
+        weekStart: mondayDate
+      });
+      
       // Show detailed results
       if (result.successful === operations.length) {
         setMessage({ 
@@ -870,7 +888,6 @@ export default function AvailabilityPage() {
             : `Successfully saved all ${result.successful} changes!` 
         });
       } else if (result.successful > 0) {
-        // Some succeeded, some failed - use 'info' instead of 'warning'
         const changeText = result.successful === 1 ? 'change' : 'changes';
         const failedText = result.failed === 1 ? 'failed' : 'failed';
         const skippedText = result.skipped === 1 ? 'skipped' : 'skipped';
@@ -880,7 +897,6 @@ export default function AvailabilityPage() {
           text: `Saved ${result.successful} ${changeText}. ${result.failed} ${failedText}, ${result.skipped} ${skippedText}.` 
         });
       } else {
-        // All failed
         const operationText = result.failed === 1 ? 'operation' : 'operations';
         setMessage({ 
           type: 'error', 
@@ -893,165 +909,192 @@ export default function AvailabilityPage() {
       setHasUnsavedChanges(false);
       
     } catch (error) {
-      console.error('Save error:', error);
+      logger.error('Save operation failed', error, {
+        weekStart: mondayDate
+      });
       setMessage({ 
         type: 'error', 
         text: error instanceof Error ? error.message : 'Failed to save schedule. Please try again.' 
       });
     } finally {
+      logger.timeEnd('saveWeekSchedule');
       setIsSaving(false);
       setPendingOperations([]); // Clear pending operations
     }
   };
 
+  /**
+   * Copy schedule from previous week
+   */
+  const copyFromPreviousWeek = async () => {
+    logger.time('copyFromPreviousWeek');
+    setIsSaving(true);
+    try {
+      const previousWeek = new Date(currentWeekStart);
+      previousWeek.setDate(previousWeek.getDate() - 7);
+      
+      logger.debug('Copying from previous week', {
+        currentWeek: formatDateForAPI(currentWeekStart),
+        previousWeek: formatDateForAPI(previousWeek)
+      });
+      
+      const response = await fetchWithAuth(
+        `${API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK}?start_date=${formatDateForAPI(previousWeek)}`
+      );
+      
+      if (!response.ok) throw new Error('Failed to fetch previous week');
+      const previousWeekData = await response.json();
+      
+      logger.debug('Previous week data fetched', {
+        dates: Object.keys(previousWeekData),
+        totalSlots: Object.values(previousWeekData).flat().length
+      });
+      
+      // Get current week's booked slots to avoid modifying them
+      await fetchBookedSlots();
+      
+      // Start with the CURRENT week's schedule to preserve booked slots
+      const copiedSchedule: WeekSchedule = {};
+      const weekDates = getWeekDates();
 
-// Copy from previous week
-const copyFromPreviousWeek = async () => {
-  setIsSaving(true);
-  try {
-    const previousWeek = new Date(currentWeekStart);
-    previousWeek.setDate(previousWeek.getDate() - 7);
-    
-    console.log('Current week start:', currentWeekStart);
-    console.log('Previous week start:', previousWeek);
-    
-    const response = await fetchWithAuth(
-      `${API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK}?start_date=${formatDateForAPI(previousWeek)}`
-    );
-    
-    if (!response.ok) throw new Error('Failed to fetch previous week');
-    const previousWeekData = await response.json();
-    
-    console.log('Previous week data:', previousWeekData);
-    
-    // Get current week's booked slots to avoid modifying them
-    await fetchBookedSlots(); // Ensure we have the latest booked slots
-    
-    // Start with the CURRENT week's schedule to preserve booked slots
-    const copiedSchedule: WeekSchedule = {};
-    const weekDates = getWeekDates();
-    
-    weekDates.forEach((dateInfo, index) => {
-      const currentDateStr = dateInfo.fullDate;
-      const prevDate = new Date(previousWeek);
-      prevDate.setDate(prevDate.getDate() + index);
-      const prevDateStr = formatDateForAPI(prevDate);
+      let preservedBookings = 0;
+      let copiedSlots = 0;
       
-      console.log(`Mapping ${prevDateStr} to ${currentDateStr}`);
-      
-      // Check if this date has any bookings
-      const hasBookingsOnDate = bookedSlots.some(slot => slot.date === currentDateStr);
-      
-      if (hasBookingsOnDate) {
-        // This date has bookings - preserve existing slots that contain bookings
-        const existingSlots = weekSchedule[currentDateStr] || [];
-        const preservedSlots: TimeSlot[] = [];
+      weekDates.forEach((dateInfo, index) => {
+        const currentDateStr = dateInfo.fullDate;
+        const prevDate = new Date(previousWeek);
+        prevDate.setDate(prevDate.getDate() + index);
+        const prevDateStr = formatDateForAPI(prevDate);
         
-        // Check each existing slot to see if it contains bookings
-        existingSlots.forEach(slot => {
-          const slotStartHour = parseInt(slot.start_time.split(':')[0]);
-          const slotEndHour = parseInt(slot.end_time.split(':')[0]);
-          
-          // Check if any hour in this slot is booked
-          let hasBookingInSlot = false;
-          for (let hour = slotStartHour; hour < slotEndHour; hour++) {
-            if (isSlotBooked(currentDateStr, hour)) {
-              hasBookingInSlot = true;
-              break;
-            }
-          }
-          
-          if (hasBookingInSlot) {
-            // Preserve this slot as it contains bookings
-            preservedSlots.push(slot);
-          }
+        logger.debug('Processing date mapping', { 
+          from: prevDateStr, 
+          to: currentDateStr 
         });
         
-        // Now add slots from previous week that don't conflict with bookings
-        if (previousWeekData[prevDateStr] && previousWeekData[prevDateStr].length > 0) {
-          previousWeekData[prevDateStr].forEach((prevSlot: TimeSlot) => {
-            const prevStartHour = parseInt(prevSlot.start_time.split(':')[0]);
-            const prevEndHour = parseInt(prevSlot.end_time.split(':')[0]);
+        // Check if this date has any bookings
+        const hasBookingsOnDate = bookedSlots.some(slot => slot.date === currentDateStr);
+        
+        if (hasBookingsOnDate) {
+          // This date has bookings - preserve existing slots that contain bookings
+          const existingSlots = weekSchedule[currentDateStr] || [];
+          const preservedSlots: TimeSlot[] = [];
+          
+          // Check each existing slot to see if it contains bookings
+          existingSlots.forEach(slot => {
+            const slotStartHour = parseInt(slot.start_time.split(':')[0]);
+            const slotEndHour = parseInt(slot.end_time.split(':')[0]);
             
-            // Check if this time range would conflict with any bookings
-            let conflictsWithBooking = false;
-            for (let hour = prevStartHour; hour < prevEndHour; hour++) {
+            // Check if any hour in this slot is booked
+            let hasBookingInSlot = false;
+            for (let hour = slotStartHour; hour < slotEndHour; hour++) {
               if (isSlotBooked(currentDateStr, hour)) {
-                conflictsWithBooking = true;
+                hasBookingInSlot = true;
                 break;
               }
             }
             
-            if (!conflictsWithBooking) {
-              // Safe to add this slot from previous week
-              preservedSlots.push(prevSlot);
+            if (hasBookingInSlot) {
+              preservedSlots.push(slot);
+              preservedBookings++;
             }
           });
-        }
-        
-        // Sort and merge adjacent slots (but respect booking boundaries)
-        copiedSchedule[currentDateStr] = mergeAdjacentSlots(preservedSlots, currentDateStr);
-        
-      } else {
-        // No bookings on this date - safe to copy directly from previous week
-        if (previousWeekData[prevDateStr] && previousWeekData[prevDateStr].length > 0) {
-          copiedSchedule[currentDateStr] = previousWeekData[prevDateStr];
+          
+          // Now add slots from previous week that don't conflict with bookings
+          if (previousWeekData[prevDateStr] && previousWeekData[prevDateStr].length > 0) {
+            previousWeekData[prevDateStr].forEach((prevSlot: TimeSlot) => {
+              const prevStartHour = parseInt(prevSlot.start_time.split(':')[0]);
+              const prevEndHour = parseInt(prevSlot.end_time.split(':')[0]);
+              
+              // Check if this time range would conflict with any bookings
+              let conflictsWithBooking = false;
+              for (let hour = prevStartHour; hour < prevEndHour; hour++) {
+                if (isSlotBooked(currentDateStr, hour)) {
+                  conflictsWithBooking = true;
+                  break;
+                }
+              }
+              
+              if (!conflictsWithBooking) {
+                preservedSlots.push(prevSlot);
+                copiedSlots++;
+              }
+            });
+          }
+          
+          // Sort and merge adjacent slots (but respect booking boundaries)
+          copiedSchedule[currentDateStr] = mergeAdjacentSlots(preservedSlots, currentDateStr);
+          
         } else {
-          copiedSchedule[currentDateStr] = [];
+          // No bookings on this date - safe to copy directly from previous week
+          if (previousWeekData[prevDateStr] && previousWeekData[prevDateStr].length > 0) {
+            copiedSchedule[currentDateStr] = previousWeekData[prevDateStr];
+            copiedSlots += previousWeekData[prevDateStr].length;
+          } else {
+            copiedSchedule[currentDateStr] = [];
+          }
+        }
+      });
+      
+      logger.info('Copy from previous week completed', {
+        preservedBookings,
+        copiedSlots,
+        totalDates: weekDates.length
+      });
+      
+      setWeekSchedule(copiedSchedule);
+      setHasUnsavedChanges(true);
+      setMessage({ type: 'success', text: 'Copied schedule from previous week. Booked time slots were preserved. Remember to save!' });
+    } catch (error) {
+      logger.error('Failed to copy from previous week', error);
+      setMessage({ type: 'error', text: 'Failed to copy from previous week.' });
+    } finally {
+      logger.timeEnd('copyFromPreviousWeek');
+      setIsSaving(false);
+    }
+  };
+
+  /**
+   * Helper function to merge adjacent slots while respecting booking boundaries
+   */
+  const mergeAdjacentSlots = (slots: TimeSlot[], dateStr: string): TimeSlot[] => {
+    if (slots.length === 0) return [];
+    
+    // Sort by start time
+    const sorted = [...slots].sort((a, b) => a.start_time.localeCompare(b.start_time));
+    
+    const merged: TimeSlot[] = [];
+    let current = { ...sorted[0] };
+    
+    for (let i = 1; i < sorted.length; i++) {
+      const next = sorted[i];
+      const currentEndHour = parseInt(current.end_time.split(':')[0]);
+      const nextStartHour = parseInt(next.start_time.split(':')[0]);
+      
+      // Check if there's a booking between current and next
+      let hasBookingBetween = false;
+      for (let hour = currentEndHour; hour < nextStartHour; hour++) {
+        if (isSlotBooked(dateStr, hour)) {
+          hasBookingBetween = true;
+          break;
         }
       }
-    });
-    
-    console.log('Final copied schedule:', copiedSchedule);
-    
-    setWeekSchedule(copiedSchedule);
-    setHasUnsavedChanges(true);
-    setMessage({ type: 'success', text: 'Copied schedule from previous week. Booked time slots were preserved. Remember to save!' });
-  } catch (error) {
-    setMessage({ type: 'error', text: 'Failed to copy from previous week.' });
-  } finally {
-    setIsSaving(false);
-  }
-};
-
-// Helper function to merge adjacent slots while respecting booking boundaries
-const mergeAdjacentSlots = (slots: TimeSlot[], dateStr: string): TimeSlot[] => {
-  if (slots.length === 0) return [];
-  
-  // Sort by start time
-  const sorted = [...slots].sort((a, b) => a.start_time.localeCompare(b.start_time));
-  
-  const merged: TimeSlot[] = [];
-  let current = { ...sorted[0] };
-  
-  for (let i = 1; i < sorted.length; i++) {
-    const next = sorted[i];
-    const currentEndHour = parseInt(current.end_time.split(':')[0]);
-    const nextStartHour = parseInt(next.start_time.split(':')[0]);
-    
-    // Check if there's a booking between current and next
-    let hasBookingBetween = false;
-    for (let hour = currentEndHour; hour < nextStartHour; hour++) {
-      if (isSlotBooked(dateStr, hour)) {
-        hasBookingBetween = true;
-        break;
+      
+      // Can merge if adjacent and no booking between
+      if (current.end_time === next.start_time && !hasBookingBetween) {
+        current.end_time = next.end_time;
+      } else {
+        merged.push(current);
+        current = { ...next };
       }
     }
     
-    // Can merge if adjacent and no booking between
-    if (current.end_time === next.start_time && !hasBookingBetween) {
-      current.end_time = next.end_time;
-    } else {
-      merged.push(current);
-      current = { ...next };
-    }
-  }
-  
-  merged.push(current);
-  return merged;
-};
+    merged.push(current);
+    return merged;
+  };
 
-  // Apply to future weeks
+  /**
+   * Apply schedule to future weeks
+   */
   const handleApplyToFutureWeeks = async () => {
     setShowApplyModal(true);
   };
@@ -1102,7 +1145,9 @@ const mergeAdjacentSlots = (slots: TimeSlot[], dateStr: string): TimeSlot[] => {
     }
   };
 
-  // Cell renderer for the calendar grid
+  /**
+   * Cell renderer for desktop calendar grid
+   */
   const renderCell = (date: string, hour: number) => {
     const isPastSlot = isTimeSlotInPast(date, hour);
     const isAvailable = isHourInTimeRange(date, hour);
@@ -1131,7 +1176,9 @@ const mergeAdjacentSlots = (slots: TimeSlot[], dateStr: string): TimeSlot[] => {
     );
   };
 
-  // Mobile cell renderer
+  /**
+   * Cell renderer for mobile calendar grid
+   */
   const renderMobileCell = (date: string, hour: number) => {
     const isPastSlot = isTimeSlotInPast(date, hour);
     const isAvailable = isHourInTimeRange(date, hour);
@@ -1176,6 +1223,7 @@ const mergeAdjacentSlots = (slots: TimeSlot[], dateStr: string): TimeSlot[] => {
     year: 'numeric'
   });
 
+  // Loading state
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -1431,127 +1479,128 @@ const mergeAdjacentSlots = (slots: TimeSlot[], dateStr: string): TimeSlot[] => {
           </div>
         </div>
       )}
+
       {/* Validation Preview Modal */}
-        {showValidationPreview && validationResults && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-              <h3 className="text-lg font-semibold mb-4">
-                {validationResults.valid ? 'Review Changes' : 'Conflicts Detected'}
-              </h3>
-              
-              {/* Summary */}
-              <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="font-medium">Total Operations:</span> {validationResults.summary.total_operations}
-                  </div>
-                  <div>
-                    <span className="font-medium">Valid:</span> 
-                    <span className="text-green-600 ml-2">{validationResults.summary.valid_operations}</span>
-                  </div>
-                  <div>
-                    <span className="font-medium">Conflicts:</span> 
-                    <span className="text-red-600 ml-2">{validationResults.summary.invalid_operations}</span>
-                  </div>
-                  <div>
-                    <span className="font-medium">Changes:</span> 
-                    <span className="ml-2">
-                      +{validationResults.summary.estimated_changes.slots_added} / 
-                      -{validationResults.summary.estimated_changes.slots_removed}
-                    </span>
-                  </div>
+      {showValidationPreview && validationResults && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold mb-4">
+              {validationResults.valid ? 'Review Changes' : 'Conflicts Detected'}
+            </h3>
+            
+            {/* Summary */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="font-medium">Total Operations:</span> {validationResults.summary.total_operations}
+                </div>
+                <div>
+                  <span className="font-medium">Valid:</span> 
+                  <span className="text-green-600 ml-2">{validationResults.summary.valid_operations}</span>
+                </div>
+                <div>
+                  <span className="font-medium">Conflicts:</span> 
+                  <span className="text-red-600 ml-2">{validationResults.summary.invalid_operations}</span>
+                </div>
+                <div>
+                  <span className="font-medium">Changes:</span> 
+                  <span className="ml-2">
+                    +{validationResults.summary.estimated_changes.slots_added} / 
+                    -{validationResults.summary.estimated_changes.slots_removed}
+                  </span>
                 </div>
               </div>
+            </div>
 
-              {/* Warnings */}
-              {validationResults.warnings.length > 0 && (
-                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
-                  <p className="font-medium text-yellow-800 mb-1">Warnings:</p>
-                  <ul className="list-disc list-inside text-sm text-yellow-700">
-                    {validationResults.warnings.map((warning, idx) => (
-                      <li key={idx}>{warning}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+            {/* Warnings */}
+            {validationResults.warnings.length > 0 && (
+              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                <p className="font-medium text-yellow-800 mb-1">Warnings:</p>
+                <ul className="list-disc list-inside text-sm text-yellow-700">
+                  {validationResults.warnings.map((warning, idx) => (
+                    <li key={idx}>{warning}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
-              {/* Conflict Details */}
-              {validationResults.summary.invalid_operations > 0 && (
-                <div className="mb-4">
-                  <h4 className="font-medium mb-2 text-red-600">Conflicts:</h4>
-                  <div className="space-y-2">
-                    {validationResults.details
-                      .filter(d => d.reason && !d.reason.includes('Valid'))
-                      .map((detail, idx) => (
-                        <div key={idx} className="p-3 bg-red-50 border border-red-200 rounded text-sm">
-                          <div className="font-medium">
-                            {detail.action === 'add' ? '+ Add' : detail.action === 'remove' ? '- Remove' : '↻ Update'} 
-                            {detail.date && ` on ${new Date(detail.date).toLocaleDateString()}`}
-                            {detail.start_time && detail.end_time && ` ${detail.start_time} - ${detail.end_time}`}
-                          </div>
-                          <div className="text-red-600 mt-1">{detail.reason}</div>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Valid Operations */}
+            {/* Conflict Details */}
+            {validationResults.summary.invalid_operations > 0 && (
               <div className="mb-4">
-                <h4 className="font-medium mb-2 text-green-600">Valid Operations:</h4>
-                <div className="space-y-1 max-h-40 overflow-y-auto">
+                <h4 className="font-medium mb-2 text-red-600">Conflicts:</h4>
+                <div className="space-y-2">
                   {validationResults.details
-                    .filter(d => d.reason && d.reason.includes('Valid'))
+                    .filter(d => d.reason && !d.reason.includes('Valid'))
                     .map((detail, idx) => (
-                      <div key={idx} className="p-2 bg-green-50 rounded text-sm">
-                        {detail.action === 'add' ? '+ Add' : detail.action === 'remove' ? '- Remove' : '↻ Update'}
-                        {detail.date && ` on ${new Date(detail.date).toLocaleDateString()}`}
-                        {detail.start_time && detail.end_time && ` ${detail.start_time} - ${detail.end_time}`}
+                      <div key={idx} className="p-3 bg-red-50 border border-red-200 rounded text-sm">
+                        <div className="font-medium">
+                          {detail.action === 'add' ? '+ Add' : detail.action === 'remove' ? '- Remove' : '↻ Update'} 
+                          {detail.date && ` on ${new Date(detail.date).toLocaleDateString()}`}
+                          {detail.start_time && detail.end_time && ` ${detail.start_time} - ${detail.end_time}`}
+                        </div>
+                        <div className="text-red-600 mt-1">{detail.reason}</div>
                       </div>
                     ))}
                 </div>
               </div>
+            )}
 
-              {/* Actions */}
-              <div className="flex gap-3 justify-end mt-6">
+            {/* Valid Operations */}
+            <div className="mb-4">
+              <h4 className="font-medium mb-2 text-green-600">Valid Operations:</h4>
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {validationResults.details
+                  .filter(d => d.reason && d.reason.includes('Valid'))
+                  .map((detail, idx) => (
+                    <div key={idx} className="p-2 bg-green-50 rounded text-sm">
+                      {detail.action === 'add' ? '+ Add' : detail.action === 'remove' ? '- Remove' : '↻ Update'}
+                      {detail.date && ` on ${new Date(detail.date).toLocaleDateString()}`}
+                      {detail.start_time && detail.end_time && ` ${detail.start_time} - ${detail.end_time}`}
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 justify-end mt-6">
+              <button
+                onClick={() => {
+                  setShowValidationPreview(false);
+                  setValidationResults(null);
+                }}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              >
+                Cancel
+              </button>
+              {validationResults.valid && (
                 <button
                   onClick={() => {
                     setShowValidationPreview(false);
-                    setValidationResults(null);
+                    saveWeekSchedule(true); // Skip validation since we already did it
                   }}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                 >
-                  Cancel
+                  Confirm Save
                 </button>
-                {validationResults.valid && (
-                  <button
-                    onClick={() => {
-                      setShowValidationPreview(false);
-                      saveWeekSchedule(true); // Skip validation since we already did it
-                    }}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                  >
-                    Confirm Save
-                  </button>
-                )}
-              </div>
+              )}
             </div>
           </div>
-        )}
-        {/* Booking Preview Modal */}
-        {showBookingPreview && selectedBookingId && (
-          <BookingQuickPreview
-            bookingId={selectedBookingId}
-            onClose={() => {
-              setShowBookingPreview(false);
-              setSelectedBookingId(null);
-              setPreviewPosition(null);
-            }}
-            onViewFullDetails={() => {
-              router.push(`/dashboard/instructor/bookings/${selectedBookingId}`);
-            }}
-          />
-        )}
+        </div>
+      )}
+
+      {/* Booking Preview Modal */}
+      {showBookingPreview && selectedBookingId && (
+        <BookingQuickPreview
+          bookingId={selectedBookingId}
+          onClose={() => {
+            setShowBookingPreview(false);
+            setSelectedBookingId(null);
+          }}
+          onViewFullDetails={() => {
+            router.push(`/dashboard/instructor/bookings/${selectedBookingId}`);
+          }}
+        />
+      )}
     </div>
   );
 }
