@@ -1,26 +1,401 @@
+/* frontend/app/globals.css */
 @import "tailwindcss";
 
+/* 
+ * Root CSS Custom Properties
+ * Define global design tokens for consistent theming
+ */
 :root {
+  /* Color Variables */
   --background: #ffffff;
   --foreground: #171717;
+  --background-secondary: #f9fafb;
+  --foreground-secondary: #6b7280;
+  
+  /* Brand Colors */
+  --color-primary: #4f46e5; /* Indigo 600 */
+  --color-primary-hover: #4338ca; /* Indigo 700 */
+  --color-primary-light: #e0e7ff; /* Indigo 100 */
+  
+  /* Semantic Colors */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+  
+  /* Spacing Scale */
+  --spacing-xs: 0.5rem;
+  --spacing-sm: 1rem;
+  --spacing-md: 1.5rem;
+  --spacing-lg: 2rem;
+  --spacing-xl: 3rem;
+  --spacing-2xl: 4rem;
+  
+  /* Border Radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 1rem;
+  --radius-full: 9999px;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  
+  /* Transitions */
+  --transition-fast: 150ms ease-in-out;
+  --transition-base: 300ms ease-in-out;
+  --transition-slow: 500ms ease-in-out;
+  
+  /* Z-index Scale */
+  --z-dropdown: 10;
+  --z-modal: 50;
+  --z-tooltip: 60;
+  --z-notification: 70;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/* Remove @theme directive - not widely supported yet */
+/* Font variables are already available via CSS custom properties */
 
+/* Dark Mode Support */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #111827; /* Gray 900 */
+    --foreground: #f3f4f6; /* Gray 100 */
+    --background-secondary: #1f2937; /* Gray 800 */
+    --foreground-secondary: #9ca3af; /* Gray 400 */
+    
+    /* Adjusted brand colors for dark mode */
+    --color-primary: #6366f1; /* Indigo 500 */
+    --color-primary-hover: #7c3aed; /* Purple 600 */
+    --color-primary-light: #312e81; /* Indigo 900 */
+    
+    /* Adjusted semantic colors for dark mode */
+    --color-success: #059669;
+    --color-warning: #d97706;
+    --color-error: #dc2626;
+    --color-info: #2563eb;
+    
+    /* Adjusted shadows for dark mode */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+  }
+  
+  /* Force dark backgrounds on common elements */
+  body {
+    background-color: #111827 !important; /* Gray 900 */
+    color: #f3f4f6 !important; /* Gray 100 */
+  }
+  
+  /* Ensure all white backgrounds become dark */
+  .bg-white {
+    background-color: #1f2937 !important; /* Gray 800 */
+  }
+  
+  .bg-gray-50 {
+    background-color: #111827 !important; /* Gray 900 */
+  }
+  
+  /* Fix text colors */
+  .text-gray-900 {
+    color: #f3f4f6 !important; /* Gray 100 */
+  }
+  
+  .text-gray-600 {
+    color: #9ca3af !important; /* Gray 400 */
+  }
+  
+  /* Fix borders */
+  .border-gray-100,
+  .border-gray-200,
+  .border-gray-300 {
+    border-color: #374151 !important; /* Gray 700 */
+  }
+  
+  /* Availability Grid Dark Mode Fixes */
+  /* Available slots (green) */
+  .bg-green-500 {
+    background-color: #059669 !important; /* Emerald 600 - darker green */
+  }
+  
+  /* Unavailable slots (gray/white) */
+  .bg-gray-200,
+  .bg-gray-100 {
+    background-color: #374151 !important; /* Gray 700 */
+  }
+  
+  /* Booked slots */
+  .bg-red-100 {
+    background-color: #991b1b !important; /* Red 800 - lighter than 900 */
+    color: #fee2e2 !important; /* Red 100 - much lighter text */
+  }
+  
+  /* Ensure all text in booked slots is visible */
+  .bg-red-100 * {
+    color: #fee2e2 !important; /* Red 100 */
+  }
+  
+  .bg-orange-100 {
+    background-color: #92400e !important; /* Amber 800 - lighter than 900 */
+    color: #fef3c7 !important; /* Amber 100 - much lighter text */
+  }
+  
+  .bg-orange-100 * {
+    color: #fef3c7 !important; /* Amber 100 */
+  }
+  
+  /* How it works section */
+  .bg-blue-50 {
+    background-color: #1e3a8a !important; /* Blue 900 */
+    color: #e0e7ff !important; /* Indigo 100 - better contrast */
+  }
+  
+  /* Ensure all text in blue boxes is visible */
+  .bg-blue-50 * {
+    color: #e0e7ff !important; /* Indigo 100 */
+  }
+  
+  /* Text in light backgrounds needs to be light in dark mode */
+  .text-green-700 {
+    color: #34d399 !important; /* Emerald 400 */
+  }
+  
+  .text-gray-700 {
+    color: #d1d5db !important; /* Gray 300 */
+  }
+  
+  .text-gray-500 {
+    color: #9ca3af !important; /* Gray 400 */
+  }
+  
+  .text-gray-400 {
+    color: #d1d5db !important; /* Gray 300 */
+  }
+  
+  /* Calendar grid header */
+  .text-gray-600 {
+    color: #9ca3af !important; /* Gray 400 */
   }
 }
 
+/* Base Styles */
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Form Input Styles - Fix dark mode visibility */
+input,
+textarea,
+select {
+  background-color: var(--background);
+  color: var(--foreground);
+  border-color: var(--foreground-secondary);
+}
+
+/* Dark mode specific input styles */
+@media (prefers-color-scheme: dark) {
+  input,
+  textarea,
+  select {
+    background-color: #1f2937; /* Gray 800 */
+    color: #f3f4f6; /* Gray 100 */
+    border-color: #374151; /* Gray 700 */
+  }
+  
+  input::placeholder,
+  textarea::placeholder {
+    color: #9ca3af; /* Gray 400 */
+  }
+  
+  /* Focus styles for dark mode */
+  input:focus,
+  textarea:focus,
+  select:focus {
+    border-color: var(--color-primary);
+    background-color: #111827; /* Gray 900 */
+  }
+}
+
+/* Selection Styles */
+::selection {
+  background-color: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+/* Focus Styles for Accessibility */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Remove default focus for mouse users */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Scrollbar Styles (Webkit browsers) */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--foreground-secondary);
+  border-radius: var(--radius-md);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground);
+}
+
+/* Skip to Main Content Link (Accessibility) */
+.skip-to-main {
+  position: absolute;
+  left: -999px;
+  width: 1px;
+  height: 1px;
+  top: auto;
+  z-index: -999;
+}
+
+.skip-to-main:focus,
+.skip-to-main:active {
+  left: 0;
+  top: 0;
+  width: auto;
+  height: auto;
+  padding: var(--spacing-sm);
+  background: var(--background);
+  color: var(--foreground);
+  text-decoration: underline;
+  z-index: 999;
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Print Styles */
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
+  
+  /* Hide navigation and non-essential elements */
+  nav,
+  .no-print,
+  button,
+  .modal {
+    display: none !important;
+  }
+  
+  /* Ensure links are visible */
+  a {
+    color: black;
+    text-decoration: underline;
+  }
+  
+  /* Show link URLs */
+  a[href^="http"]:after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+  }
+  
+  /* Page break utilities */
+  .page-break-before {
+    page-break-before: always;
+  }
+  
+  .page-break-after {
+    page-break-after: always;
+  }
+  
+  .avoid-break {
+    page-break-inside: avoid;
+  }
+}
+
+/* Utility Classes */
+
+/* Visually Hidden (Screen Reader Only) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Container with Consistent Padding */
+.container-padding {
+  padding-left: var(--spacing-md);
+  padding-right: var(--spacing-md);
+}
+
+@media (min-width: 640px) {
+  .container-padding {
+    padding-left: var(--spacing-lg);
+    padding-right: var(--spacing-lg);
+  }
+}
+
+/* Smooth Scroll Behavior */
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* Loading Spinner Animation */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Fade In Animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn var(--transition-base) ease-out;
 }
