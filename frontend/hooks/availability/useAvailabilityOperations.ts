@@ -18,7 +18,8 @@ import {
   WeekValidationResponse,
   BulkUpdateRequest,
   BulkUpdateResponse,
-  WeekDateInfo
+  WeekDateInfo,
+  TimeSlot
 } from '@/types/availability';
 import { BookedSlotPreview } from '@/types/booking';
 import { fetchWithAuth, API_ENDPOINTS, validateWeekChanges } from '@/lib/api';
@@ -144,6 +145,8 @@ export function useAvailabilityOperations(deps: {
   onSaveSuccess?: () => void | Promise<void>;
   /** Callback after save error */
   onSaveError?: (error: Error) => void;
+  /** Callback to update schedule locally */
+  onScheduleUpdate?: (schedule: WeekSchedule) => void;
 }): UseAvailabilityOperationsReturn {
   const {
     weekSchedule,
@@ -153,7 +156,8 @@ export function useAvailabilityOperations(deps: {
     bookedSlots,
     weekDates,
     onSaveSuccess,
-    onSaveError
+    onSaveError,
+    onScheduleUpdate
   } = deps;
   
   // State
@@ -388,31 +392,119 @@ export function useAvailabilityOperations(deps: {
       const previousWeek = new Date(currentWeekStart);
       previousWeek.setDate(previousWeek.getDate() - 7);
       
+      logger.info('Fetching previous week schedule', {
+        previousWeek: formatDateForAPI(previousWeek)
+      });
+      
+      // Instead of calling the copy endpoint (which auto-saves),
+      // we'll fetch the previous week's schedule and apply it locally
       const response = await fetchWithAuth(
-        `${API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_COPY_WEEK}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            from_week_start: formatDateForAPI(previousWeek),
-            to_week_start: formatDateForAPI(currentWeekStart)
-          })
-        }
+        `${API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK}?start_date=${formatDateForAPI(previousWeek)}`
       );
       
       if (!response.ok) {
-        throw new Error('Failed to copy from previous week');
+        throw new Error('Failed to fetch previous week schedule');
       }
       
-      const result = await response.json();
+      const previousWeekData = await response.json();
       
-      logger.info('Copy from previous week completed', result);
+      // Get current week's booked slots to preserve them
+      const bookedHours = new Set<string>();
+      bookedSlots.forEach(slot => {
+        const startHour = parseInt(slot.start_time.split(':')[0]);
+        const endHour = parseInt(slot.end_time.split(':')[0]);
+        for (let hour = startHour; hour < endHour; hour++) {
+          bookedHours.add(`${slot.date}-${hour}`);
+        }
+      });
+      
+      // Build new schedule preserving bookings
+      const copiedSchedule: WeekSchedule = {};
+      let copiedSlots = 0;
+      let preservedBookings = 0;
+      
+      weekDates.forEach((dateInfo, index) => {
+        const currentDateStr = dateInfo.fullDate;
+        const prevDate = new Date(previousWeek);
+        prevDate.setDate(prevDate.getDate() + index);
+        const prevDateStr = formatDateForAPI(prevDate);
+        
+        // Check if this date has any bookings
+        const hasBookingsOnDate = bookedSlots.some(slot => slot.date === currentDateStr);
+        
+        if (hasBookingsOnDate) {
+          // Preserve existing slots with bookings, add non-conflicting slots from previous week
+          const existingSlots = weekSchedule[currentDateStr] || [];
+          const preservedSlots: TimeSlot[] = [];
+          
+          // Keep slots that contain bookings
+          existingSlots.forEach(slot => {
+            const slotStartHour = parseInt(slot.start_time.split(':')[0]);
+            const slotEndHour = parseInt(slot.end_time.split(':')[0]);
+            
+            let hasBookingInSlot = false;
+            for (let hour = slotStartHour; hour < slotEndHour; hour++) {
+              if (bookedHours.has(`${currentDateStr}-${hour}`)) {
+                hasBookingInSlot = true;
+                break;
+              }
+            }
+            
+            if (hasBookingInSlot) {
+              preservedSlots.push(slot);
+              preservedBookings++;
+            }
+          });
+          
+          // Add non-conflicting slots from previous week
+          if (previousWeekData[prevDateStr]) {
+            previousWeekData[prevDateStr].forEach((prevSlot: TimeSlot) => {
+              const prevStartHour = parseInt(prevSlot.start_time.split(':')[0]);
+              const prevEndHour = parseInt(prevSlot.end_time.split(':')[0]);
+              
+              let conflictsWithBooking = false;
+              for (let hour = prevStartHour; hour < prevEndHour; hour++) {
+                if (bookedHours.has(`${currentDateStr}-${hour}`)) {
+                  conflictsWithBooking = true;
+                  break;
+                }
+              }
+              
+              if (!conflictsWithBooking) {
+                preservedSlots.push(prevSlot);
+                copiedSlots++;
+              }
+            });
+          }
+          
+          copiedSchedule[currentDateStr] = preservedSlots;
+        } else {
+          // No bookings - safe to copy directly
+          if (previousWeekData[prevDateStr]) {
+            copiedSchedule[currentDateStr] = previousWeekData[prevDateStr];
+            copiedSlots += previousWeekData[prevDateStr].length;
+          } else {
+            copiedSchedule[currentDateStr] = [];
+          }
+        }
+      });
+      
+      logger.info('Copy from previous week completed (local)', {
+        preservedBookings,
+        copiedSlots,
+        totalDates: weekDates.length
+      });
+      
+      // Update local state - this will trigger hasUnsavedChanges
+      if (onScheduleUpdate) {
+        onScheduleUpdate(copiedSchedule);
+      }
       
       return {
         success: true,
         message: 'Copied schedule from previous week. Remember to save!',
-        copiedSlots: result.slots_copied,
-        preservedBookings: result.bookings_preserved
+        copiedSlots,
+        preservedBookings
       };
       
     } catch (error) {
@@ -425,7 +517,7 @@ export function useAvailabilityOperations(deps: {
     } finally {
       logger.timeEnd('copyFromPreviousWeek');
     }
-  }, [currentWeekStart]);
+  }, [currentWeekStart, weekSchedule, bookedSlots, weekDates, onScheduleUpdate]);
   
   /**
    * Apply schedule to future weeks
