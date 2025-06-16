@@ -5,7 +5,7 @@
  * 
  * This module contains all TypeScript interfaces and types related to
  * instructor availability management, including bulk operations,
- * validation, and week-based scheduling.
+ * validation, week-based scheduling, and UI state management.
  * 
  * @module availability
  */
@@ -17,6 +17,12 @@
  * - 'update': Modify an existing slot
  */
 export type SlotAction = 'add' | 'remove' | 'update';
+
+/**
+ * Days of the week type
+ * Used for consistent day naming across the availability system
+ */
+export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 
 /**
  * Represents a single operation on an availability slot
@@ -321,4 +327,180 @@ export interface ValidateWeekRequest {
   
   /** Start date of the week (ISO format: YYYY-MM-DD) */
   week_start: string;
+}
+
+// ===== NEW TYPES FOR WORK STREAM #3 =====
+
+/**
+ * Extended date information for week calendar display
+ * Provides all necessary date formats for UI rendering
+ * 
+ * @interface WeekDateInfo
+ * @example
+ * ```ts
+ * const dateInfo: WeekDateInfo = {
+ *   date: new Date('2025-06-15'),
+ *   dateStr: 'Jun 15',
+ *   dayOfWeek: 'monday',
+ *   fullDate: '2025-06-15'
+ * };
+ * ```
+ */
+export interface WeekDateInfo {
+  /** JavaScript Date object */
+  date: Date;
+  
+  /** Formatted date string for display (e.g., "Jun 15") */
+  dateStr: string;
+  
+  /** Day of the week */
+  dayOfWeek: DayOfWeek;
+  
+  /** Full date in ISO format (YYYY-MM-DD) */
+  fullDate: string;
+}
+
+/**
+ * Preset schedule template
+ * Maps days of the week to their default time slots
+ * 
+ * @interface PresetSchedule
+ * @example
+ * ```ts
+ * const weekdaySchedule: PresetSchedule = {
+ *   monday: [{ start_time: '09:00:00', end_time: '17:00:00', is_available: true }],
+ *   tuesday: [{ start_time: '09:00:00', end_time: '17:00:00', is_available: true }],
+ *   // ... other days
+ * };
+ * ```
+ */
+export interface PresetSchedule {
+  [key: string]: TimeSlot[];
+}
+
+/**
+ * UI message for user feedback
+ * Used for success, error, and informational messages
+ * 
+ * @interface AvailabilityMessage
+ */
+export interface AvailabilityMessage {
+  /** Message severity/type */
+  type: 'success' | 'error' | 'info';
+  
+  /** Message text to display */
+  text: string;
+}
+
+/**
+ * Options for applying schedule to future weeks
+ * Determines the end date for bulk schedule application
+ * 
+ * @interface ApplyToFutureOptions
+ */
+export interface ApplyToFutureOptions {
+  /** The selected option type */
+  option: 'date' | 'end-of-year' | 'indefinitely';
+  
+  /** Specific end date if 'date' option is selected */
+  untilDate?: string;
+}
+
+/**
+ * Difference between two schedules
+ * Used for generating operations during save
+ * 
+ * @interface ScheduleDiff
+ */
+export interface ScheduleDiff {
+  /** Slots to be added */
+  toAdd: Array<{
+    date: string;
+    slot: TimeSlot;
+  }>;
+  
+  /** Slots to be removed */
+  toRemove: Array<{
+    date: string;
+    slot: TimeSlot;
+    slotId?: number;
+  }>;
+}
+
+/**
+ * Options for operation generation
+ * Controls how operations are generated from schedule differences
+ * 
+ * @interface OperationGeneratorOptions
+ */
+export interface OperationGeneratorOptions {
+  /** Skip operations for dates in the past */
+  skipPastDates?: boolean;
+  
+  /** Include today's date in operations */
+  includeToday?: boolean;
+  
+  /** Preserve slots with bookings */
+  preserveBookedSlots?: boolean;
+}
+
+/**
+ * Constants for availability system
+ * Centralized configuration values
+ */
+export const AVAILABILITY_CONSTANTS = {
+  /** Default start hour for calendar grid */
+  DEFAULT_START_HOUR: 8,
+  
+  /** Default end hour for calendar grid */
+  DEFAULT_END_HOUR: 20,
+  
+  /** Ordered days of the week */
+  DAYS_OF_WEEK: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const,
+  
+  /** Maximum weeks to apply schedule in future */
+  MAX_FUTURE_WEEKS: 52,
+  
+  /** Auto-hide message timeout in milliseconds */
+  MESSAGE_TIMEOUT: 5000,
+} as const;
+
+/**
+ * Type guard to check if a string is a valid day of week
+ * 
+ * @param day - String to check
+ * @returns boolean indicating if day is valid
+ */
+export function isDayOfWeek(day: string): day is DayOfWeek {
+  return AVAILABILITY_CONSTANTS.DAYS_OF_WEEK.includes(day as DayOfWeek);
+}
+
+/**
+ * Type guard to check if an operation is valid
+ * 
+ * @param operation - Operation to validate
+ * @returns boolean indicating if operation has required fields
+ */
+export function isValidOperation(operation: SlotOperation): boolean {
+  if (operation.action === 'add') {
+    return !!(operation.date && operation.start_time && operation.end_time);
+  }
+  if (operation.action === 'remove') {
+    return !!operation.slot_id;
+  }
+  return false;
+}
+
+/**
+ * Helper to create an empty week schedule
+ * 
+ * @param weekDates - Array of dates for the week
+ * @returns Empty WeekSchedule object
+ */
+export function createEmptyWeekSchedule(weekDates: WeekDateInfo[]): WeekSchedule {
+  const schedule: WeekSchedule = {};
+  weekDates.forEach(dateInfo => {
+    schedule[dateInfo.fullDate] = [];
+  });
+  return schedule;
 }
