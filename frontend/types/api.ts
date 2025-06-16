@@ -1,0 +1,328 @@
+// frontend/types/api.ts
+
+/**
+ * API Type Definitions
+ * 
+ * This module contains TypeScript interfaces and types specific to
+ * API communication patterns, including response wrappers, request
+ * states, and standardized API structures.
+ * 
+ * @module api
+ */
+
+/**
+ * Generic API response wrapper
+ * 
+ * Provides a consistent structure for all API responses
+ * 
+ * @interface APIResponse
+ * @template T - The type of data in the response
+ */
+export interface APIResponse<T> {
+    /** The response data */
+    data: T;
+    
+    /** Whether the request was successful */
+    success: boolean;
+    
+    /** Optional message (for errors or info) */
+    message?: string;
+    
+    /** Response metadata */
+    meta?: ResponseMeta;
+    
+    /** Validation errors if any */
+    errors?: ValidationErrorMap;
+    
+    /** Response timestamp */
+    timestamp?: string;
+  }
+  
+  /**
+   * Response metadata
+   * 
+   * @interface ResponseMeta
+   */
+  export interface ResponseMeta {
+    /** Request ID for tracking */
+    request_id?: string;
+    
+    /** Response time in milliseconds */
+    response_time?: number;
+    
+    /** API version */
+    version?: string;
+    
+    /** Rate limit information */
+    rate_limit?: RateLimitInfo;
+  }
+  
+  /**
+   * Rate limit information
+   * 
+   * @interface RateLimitInfo
+   */
+  export interface RateLimitInfo {
+    /** Maximum requests allowed */
+    limit: number;
+    
+    /** Remaining requests */
+    remaining: number;
+    
+    /** Reset timestamp */
+    reset_at: string;
+  }
+  
+  /**
+   * Map of validation errors by field
+   */
+  export type ValidationErrorMap = Record<string, string[]>;
+  
+  /**
+   * Request status for tracking async operations
+   */
+  export enum RequestStatus {
+    /** Initial state */
+    IDLE = 'idle',
+    
+    /** Request in progress */
+    LOADING = 'loading',
+    
+    /** Request succeeded */
+    SUCCESS = 'success',
+    
+    /** Request failed */
+    ERROR = 'error'
+  }
+  
+  /**
+   * Request state for React components
+   * 
+   * @interface RequestState
+   * @template T - The type of data being requested
+   */
+  export interface RequestState<T> {
+    /** Current request status */
+    status: RequestStatus;
+    
+    /** The data (if successful) */
+    data: T | null;
+    
+    /** Error information (if failed) */
+    error: string | null;
+    
+    /** Whether this is the first load */
+    isInitialLoad: boolean;
+    
+    /** Timestamp of last successful fetch */
+    lastFetchTime?: number;
+  }
+  
+  /**
+   * API configuration options
+   * 
+   * @interface APIConfig
+   */
+  export interface APIConfig {
+    /** Base URL for API */
+    baseURL: string;
+    
+    /** Default timeout in milliseconds */
+    timeout?: number;
+    
+    /** Default headers */
+    headers?: Record<string, string>;
+    
+    /** Whether to include credentials */
+    withCredentials?: boolean;
+    
+    /** Retry configuration */
+    retry?: RetryConfig;
+  }
+  
+  /**
+   * Retry configuration for failed requests
+   * 
+   * @interface RetryConfig
+   */
+  export interface RetryConfig {
+    /** Maximum number of retries */
+    maxRetries: number;
+    
+    /** Initial delay in milliseconds */
+    initialDelay: number;
+    
+    /** Maximum delay in milliseconds */
+    maxDelay: number;
+    
+    /** Backoff multiplier */
+    backoffMultiplier: number;
+    
+    /** Which status codes to retry */
+    retryableStatuses?: number[];
+  }
+  
+  /**
+   * File upload progress information
+   * 
+   * @interface UploadProgress
+   */
+  export interface UploadProgress {
+    /** Bytes uploaded */
+    loaded: number;
+    
+    /** Total bytes to upload */
+    total: number;
+    
+    /** Progress percentage (0-100) */
+    percentage: number;
+    
+    /** Estimated time remaining in seconds */
+    estimatedTimeRemaining?: number;
+    
+    /** Upload speed in bytes per second */
+    speed?: number;
+  }
+  
+  /**
+   * Batch operation request
+   * 
+   * @interface BatchRequest
+   * @template T - The type of operations
+   */
+  export interface BatchRequest<T> {
+    /** Array of operations to perform */
+    operations: T[];
+    
+    /** Whether to stop on first error */
+    stopOnError?: boolean;
+    
+    /** Whether to validate only (dry run) */
+    validateOnly?: boolean;
+  }
+  
+  /**
+   * Batch operation response
+   * 
+   * @interface BatchResponse
+   * @template T - The type of results
+   */
+  export interface BatchResponse<T> {
+    /** Results for each operation */
+    results: BatchResult<T>[];
+    
+    /** Summary statistics */
+    summary: {
+      total: number;
+      successful: number;
+      failed: number;
+      skipped: number;
+    };
+  }
+  
+  /**
+   * Individual batch operation result
+   * 
+   * @interface BatchResult
+   * @template T - The type of result data
+   */
+  export interface BatchResult<T> {
+    /** Operation index */
+    index: number;
+    
+    /** Operation status */
+    status: 'success' | 'error' | 'skipped';
+    
+    /** Result data (if successful) */
+    data?: T;
+    
+    /** Error information (if failed) */
+    error?: string;
+    
+    /** Additional details */
+    details?: Record<string, any>;
+  }
+  
+  /**
+   * Webhook event payload
+   * 
+   * @interface WebhookEvent
+   */
+  export interface WebhookEvent {
+    /** Event ID */
+    id: string;
+    
+    /** Event type */
+    type: string;
+    
+    /** Event timestamp */
+    timestamp: string;
+    
+    /** Event data */
+    data: Record<string, any>;
+    
+    /** Webhook signature for verification */
+    signature?: string;
+  }
+  
+  /**
+   * Type guard to check if a value is a successful API response
+   * 
+   * @param response - Response to check
+   * @returns boolean indicating if response is successful
+   */
+  export function isSuccessResponse<T>(response: APIResponse<T>): response is APIResponse<T> & { data: T } {
+    return response.success === true && response.data !== null && response.data !== undefined;
+  }
+  
+  /**
+   * Type guard to check if request is in loading state
+   * 
+   * @param state - Request state to check
+   * @returns boolean indicating if loading
+   */
+  export function isLoading<T>(state: RequestState<T>): boolean {
+    return state.status === RequestStatus.LOADING;
+  }
+  
+  /**
+   * Type guard to check if request has error
+   * 
+   * @param state - Request state to check
+   * @returns boolean indicating if error
+   */
+  export function hasError<T>(state: RequestState<T>): boolean {
+    return state.status === RequestStatus.ERROR && state.error !== null;
+  }
+  
+  /**
+   * Create initial request state
+   * 
+   * @returns Initial RequestState
+   */
+  export function createInitialRequestState<T>(): RequestState<T> {
+    return {
+      status: RequestStatus.IDLE,
+      data: null,
+      error: null,
+      isInitialLoad: true
+    };
+  }
+  
+  /**
+   * Helper to handle API errors consistently
+   * 
+   * @param error - Error from API call
+   * @returns Standardized error message
+   */
+  export function handleAPIError(error: any): string {
+    if (error.response?.data?.detail) {
+      return typeof error.response.data.detail === 'string' 
+        ? error.response.data.detail 
+        : 'Validation error occurred';
+    }
+    
+    if (error.message) return error.message;
+    
+    return 'An unexpected error occurred. Please try again.';
+  }
