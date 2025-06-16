@@ -11,30 +11,7 @@ import EditProfileModal from "@/components/EditProfileModal";
 import DeleteProfileModal from "@/components/DeleteProfileModal";
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
-
-/**
- * InstructorProfile interface
- * 
- * Represents the complete instructor profile data structure
- * including user information, services, and experience details
- */
-interface InstructorProfile {
-  id: number;
-  user_id: number;
-  bio: string;
-  areas_of_service: string[];
-  years_experience: number;
-  user: {
-    full_name: string;
-    email: string;
-  };
-  services: {
-    id: number;
-    skill: string;
-    hourly_rate: number;
-    description: string | null;
-  }[];
-}
+import { InstructorProfile, getInstructorDisplayName } from '@/types/instructor';
 
 /**
  * InstructorDashboard Component
@@ -93,7 +70,7 @@ export default function InstructorDashboard() {
         throw new Error("Failed to fetch profile");
       }
   
-      const data = await response.json();
+      const data: InstructorProfile = await response.json();
       
       // Validate data structure
       if (!data.user || !data.services) {
@@ -208,6 +185,9 @@ export default function InstructorDashboard() {
 
   if (!profile) return null;
 
+  // Use the helper function for display name
+  const displayName = getInstructorDisplayName(profile);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navbar */}
@@ -242,7 +222,7 @@ export default function InstructorDashboard() {
         {/* Welcome Section */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Welcome back, {profile?.user?.full_name || profile?.user?.email || 'Instructor'}!
+            Welcome back, {displayName}!
           </h1>
           <p className="text-gray-600">Manage your instructor profile and bookings</p>
         </div>
