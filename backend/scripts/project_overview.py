@@ -18,7 +18,7 @@ import ast
 import subprocess
 import re
 from datetime import datetime
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Set
 import argparse
 
 # ANSI color codes for terminal output
@@ -31,6 +31,42 @@ class Colors:
     FAIL = '\033[91m'
     ENDC = '\033[0m'
     BOLD = '\033[1m'
+
+# Directories to exclude from analysis
+EXCLUDE_DIRS: Set[str] = {
+    'venv', 'env', '.venv', '__pycache__', 'node_modules', 
+    '.git', '.next', 'dist', 'build', '.pytest_cache',
+    'htmlcov', '.coverage', 'site-packages', '.mypy_cache',
+    '.tox', 'eggs', '.eggs', '*.egg-info'
+}
+
+# File patterns to exclude
+EXCLUDE_PATTERNS: Set[str] = {
+    '*.pyc', '*.pyo', '*.pyd', '.DS_Store', '*.so', '*.dylib',
+    '*.dll', '*.class', '*.log', '*.sqlite', '*.sqlite3'
+}
+
+def should_exclude_path(path: Path) -> bool:
+    """Check if a path should be excluded from analysis"""
+    path_str = str(path)
+    
+    # Check if any part of the path contains excluded directories
+    for part in path.parts:
+        if part in EXCLUDE_DIRS:
+            return True
+    
+    # Check file patterns
+    for pattern in EXCLUDE_PATTERNS:
+        if path.match(pattern):
+            return True
+    
+    # Exclude paths containing these strings
+    exclude_contains = ['site-packages', 'venv/lib', 'node_modules', '__pycache__']
+    for exclude in exclude_contains:
+        if exclude in path_str:
+            return True
+    
+    return False
 
 def print_header(title, color=Colors.HEADER):
     """Print a formatted header with color"""
@@ -168,6 +204,9 @@ def analyze_frontend_structure(check_logging=False, check_types=False):
         
         # Recursively find all TS/TSX files
         all_files = list(dir_path.rglob('*.ts')) + list(dir_path.rglob('*.tsx'))
+        
+        # Filter out excluded paths
+        all_files = [f for f in all_files if not should_exclude_path(f)]
         
         for file_path in sorted(all_files):
             relative_path = file_path.relative_to(frontend_root)
@@ -357,8 +396,12 @@ def generate_task_summary():
         if not root_dir.exists():
             continue
             
-        for ext in ['*.py', '*.ts', '*.tsx']:
+        for ext in ['*.py', '*.ts', '*.tsx', '*.js', '*.jsx']:
             for file_path in root_dir.rglob(ext):
+                # Skip excluded paths
+                if should_exclude_path(file_path):
+                    continue
+                
                 try:
                     with open(file_path, 'r', encoding='utf-8') as f:
                         lines = f.readlines()
@@ -371,17 +414,31 @@ def generate_task_summary():
                 except:
                     pass
     
+    # Filter out items from virtual environments and dependencies
+    todos = [(f, l, c) for f, l, c in todos if 'site-packages' not in str(f) and 'venv' not in str(f)]
+    fixmes = [(f, l, c) for f, l, c in fixmes if 'site-packages' not in str(f) and 'venv' not in str(f)]
+    
     if todos:
         print(f"\n{Colors.WARNING}📝 TODOs ({len(todos)}):{Colors.ENDC}")
-        for file_path, line_no, content in todos[:10]:  # Show first 10
-            print(f"  • {file_path}:{line_no} - {content[:80]}")
-        if len(todos) > 10:
-            print(f"  ... and {len(todos) - 10} more")
+        for file_path, line_no, content in todos[:15]:  # Show first 15
+            # Clean up the content
+            content = content.strip()
+            if len(content) > 100:
+                content = content[:97] + "..."
+            print(f"  • {file_path}:{line_no} - {content}")
+        if len(todos) > 15:
+            print(f"  ... and {len(todos) - 15} more")
     
     if fixmes:
         print(f"\n{Colors.FAIL}🔧 FIXMEs ({len(fixmes)}):{Colors.ENDC}")
-        for file_path, line_no, content in fixmes:
-            print(f"  • {file_path}:{line_no} - {content[:80]}")
+        for file_path, line_no, content in fixmes[:15]:  # Show first 15
+            # Clean up the content
+            content = content.strip()
+            if len(content) > 100:
+                content = content[:97] + "..."
+            print(f"  • {file_path}:{line_no} - {content}")
+        if len(fixmes) > 15:
+            print(f"  ... and {len(fixmes) - 15} more")
 
 def generate_json_output(data: dict, filename: str = "project_overview.json"):
     """Generate JSON output for programmatic use"""
