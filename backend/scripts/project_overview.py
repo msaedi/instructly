@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-InstaInstru Project Overview Generator
-Provides a comprehensive overview of the codebase and database for new developers.
+InstaInstru Project Overview Generator - X-Team Enhanced Version
+Provides a COMPLETE overview of the codebase, database, and project state.
 
-Usage: python scripts/project_overview.py
+Usage: python scripts/project_overview.py [--json] [--check-types] [--check-logging]
 """
 
 import sys
@@ -11,336 +11,447 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.database import engine, SessionLocal
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect, text, MetaData
 from pathlib import Path
 import json
-from datetime import datetime
 import ast
+import subprocess
+import re
+from datetime import datetime
+from typing import Dict, List, Tuple, Optional
+import argparse
 
-def print_header(title):
-    """Print a formatted header"""
-    print("\n" + "=" * 80)
+# ANSI color codes for terminal output
+class Colors:
+    HEADER = '\033[95m'
+    BLUE = '\033[94m'
+    CYAN = '\033[96m'
+    GREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+
+def print_header(title, color=Colors.HEADER):
+    """Print a formatted header with color"""
+    print(f"\n{color}{'=' * 80}")
     print(f"  {title}")
-    print("=" * 80)
+    print(f"{'=' * 80}{Colors.ENDC}")
 
-def extract_module_docstring(file_path):
-    """Extract the module-level docstring from a Python file."""
+def get_git_info() -> Dict[str, str]:
+    """Get current git status and information"""
+    try:
+        info = {}
+        # Current branch
+        branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], text=True).strip()
+        info['branch'] = branch
+        
+        # Last commit
+        last_commit = subprocess.check_output(['git', 'log', '-1', '--oneline'], text=True).strip()
+        info['last_commit'] = last_commit
+        
+        # Uncommitted changes
+        status = subprocess.check_output(['git', 'status', '--porcelain'], text=True)
+        info['uncommitted_files'] = len(status.strip().split('\n')) if status.strip() else 0
+        
+        # Remote URL
+        try:
+            remote = subprocess.check_output(['git', 'remote', 'get-url', 'origin'], text=True).strip()
+            info['remote'] = remote
+        except:
+            info['remote'] = 'No remote configured'
+            
+        return info
+    except Exception as e:
+        return {'error': str(e)}
+
+def check_file_for_logging(file_path: Path) -> Dict[str, bool]:
+    """Check if a file has proper logging implemented"""
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # Parse the AST to get the module docstring
-        tree = ast.parse(content)
-        docstring = ast.get_docstring(tree)
+        checks = {
+            'imports_logger': 'from @/lib/logger' in content or "from '../logger'" in content or 'logger' in content,
+            'uses_logger': 'logger.' in content,
+            'no_console_log': 'console.log' not in content,
+            'has_jsdoc': '/**' in content and '*/' in content,
+        }
         
-        if docstring:
-            # Clean up the docstring - get just the first paragraph
-            lines = docstring.strip().split('\n')
-            # Take lines until we hit an empty line or get 3 lines
-            summary_lines = []
-            for line in lines:
-                if not line.strip() and summary_lines:
-                    break
-                if line.strip():
-                    summary_lines.append(line.strip())
-                if len(summary_lines) >= 3:
-                    break
-            return ' '.join(summary_lines)
-        
-        # Fallback: try to find comments at the top
-        lines = content.split('\n')
-        for i, line in enumerate(lines[:10]):  # Check first 10 lines
-            if line.strip().startswith('#') and not line.strip().startswith('#!'):
-                return line.strip()[1:].strip()
-        
-        return None
-    except Exception as e:
-        return None
+        return checks
+    except:
+        return {'error': True}
 
-def extract_frontend_description(file_path):
-    """Extract description from frontend files (usually from comments)."""
+def check_file_for_types(file_path: Path) -> Dict[str, any]:
+    """Check TypeScript file for type usage"""
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()[:20]  # Check first 20 lines
+            content = f.read()
         
-        # Look for component description in comments
-        for i, line in enumerate(lines):
-            if '// ' in line and any(keyword in line.lower() for keyword in ['component', 'page', 'manages', 'handles', 'provides']):
-                return line.split('// ')[-1].strip()
+        # Find local interfaces/types
+        local_types = re.findall(r'(?:interface|type)\s+(\w+)', content)
         
-        # Look for JSDoc style comments
-        in_comment = False
-        comment_lines = []
-        for line in lines:
-            if '/**' in line:
-                in_comment = True
-                continue
-            elif '*/' in line:
-                break
-            elif in_comment and '*' in line:
-                comment_lines.append(line.strip().lstrip('*').strip())
+        # Find imports from types directory
+        type_imports = re.findall(r"from\s+['\"]@/types/(\w+)['\"]", content)
         
-        if comment_lines:
-            return ' '.join(comment_lines[:2])  # First 2 lines of JSDoc
-        
-        return None
-    except Exception:
-        return None
+        return {
+            'local_types': local_types,
+            'type_imports': type_imports,
+            'has_any': ': any' in content,
+            'needs_refactor': len(local_types) > 2  # Arbitrary threshold
+        }
+    except:
+        return {'error': True}
 
-def get_file_structure():
-    """Generate a detailed file structure with descriptions."""
-    print_header("DETAILED FILE STRUCTURE")
+def analyze_database_schema():
+    """Provide detailed database schema analysis"""
+    print_header("DETAILED DATABASE SCHEMA ANALYSIS", Colors.CYAN)
     
-    # Find project root
-    current_dir = Path.cwd()
-    project_root = current_dir
-    while project_root.parent != project_root:
-        if (project_root / 'backend').exists() and (project_root / 'frontend').exists():
-            break
-        project_root = project_root.parent
-    
-    print("\n📁 Backend Structure:")
-    print("-" * 60)
-    
-    # Backend file structure
-    backend_root = project_root / 'backend'
-    
-    # Define the backend structure to explore
-    backend_dirs = {
-        'app/models': 'Database models (SQLAlchemy)',
-        'app/routes': 'API endpoints',
-        'app/schemas': 'Pydantic schemas for validation',
-        'app/services': 'Business logic services',
-        'app/core': 'Core configuration',
-        'alembic/versions': 'Database migrations',
-        'scripts': 'Utility scripts'
-    }
-    
-    for dir_path, dir_desc in backend_dirs.items():
-        full_path = backend_root / dir_path
-        if full_path.exists():
-            print(f"\n📂 {dir_path}/ - {dir_desc}")
-            
-            # List Python files in this directory
-            py_files = sorted(full_path.glob('*.py'))
-            for py_file in py_files:
-                if py_file.name == '__init__.py':
-                    continue
-                
-                # Get the module docstring
-                docstring = extract_module_docstring(py_file)
-                if docstring:
-                    # Truncate if too long
-                    if len(docstring) > 100:
-                        docstring = docstring[:97] + '...'
-                    print(f"   📄 {py_file.name:<25} - {docstring}")
-                else:
-                    print(f"   📄 {py_file.name}")
-    
-    print("\n\n📁 Frontend Structure:")
-    print("-" * 60)
-    
-    # Frontend file structure
-    frontend_root = project_root / 'frontend'
-    
-    # Define the frontend structure to explore
-    frontend_dirs = {
-        'app': 'Next.js app directory (pages and layouts)',
-        'components': 'Reusable React components',
-        'lib': 'Utility functions and API client',
-        'types': 'TypeScript type definitions',
-        'app/config': 'Configuration files'
-    }
-    
-    for dir_path, dir_desc in frontend_dirs.items():
-        full_path = frontend_root / dir_path
-        if full_path.exists():
-            print(f"\n📂 {dir_path}/ - {dir_desc}")
-            
-            # For app directory, show page structure
-            if dir_path == 'app':
-                # Show key pages
-                pages = [
-                    ('page.tsx', 'Home page'),
-                    ('login/page.tsx', 'Login page'),
-                    ('register/page.tsx', 'Registration page'),
-                    ('dashboard/page.tsx', 'Dashboard router'),
-                    ('dashboard/student/page.tsx', 'Student dashboard'),
-                    ('dashboard/instructor/page.tsx', 'Instructor dashboard'),
-                    ('instructors/page.tsx', 'Browse instructors'),
-                    ('instructors/[id]/page.tsx', 'Instructor profile page')
-                ]
-                for page_path, desc in pages:
-                    if (full_path / page_path).exists():
-                        print(f"   📄 {page_path:<30} - {desc}")
-            else:
-                # List TypeScript/JavaScript files
-                ts_files = sorted(list(full_path.glob('*.ts')) + list(full_path.glob('*.tsx')))
-                for ts_file in ts_files[:10]:  # Limit to 10 files per directory
-                    desc = extract_frontend_description(ts_file)
-                    if desc:
-                        if len(desc) > 80:
-                            desc = desc[:77] + '...'
-                        print(f"   📄 {ts_file.name:<25} - {desc}")
-                    else:
-                        print(f"   📄 {ts_file.name}")
-                
-                if len(ts_files) > 10:
-                    print(f"   ... and {len(ts_files) - 10} more files")
-
-def get_database_overview():
-    """Provide a high-level overview of the database structure"""
     inspector = inspect(engine)
-    db = SessionLocal()
+    metadata = MetaData()
+    metadata.reflect(bind=engine)
     
-    print_header("DATABASE OVERVIEW - InstaInstru")
-    
-    print("""
-InstaInstru is a TaskRabbit-style marketplace for private instruction in NYC.
-The database is designed to support instructors offering services and managing
-their availability, with a booking system to be implemented.
-""")
-    
-    print("\n📊 Database Tables:")
-    print("-" * 60)
-    
-    # Define table descriptions
-    table_descriptions = {
-        'users': 'All platform users (students and instructors)',
-        'instructor_profiles': 'Extended profiles for instructor users',
-        'services': 'Services offered by instructors (e.g., Piano, Yoga)',
-        'instructor_availability': 'Date-specific availability for instructors',
-        'availability_slots': 'Time slots for each availability date',
-        'blackout_dates': 'Instructor vacation/unavailable dates',
-        'password_reset_tokens': 'Temporary tokens for password reset',
-        'bookings': 'Lesson bookings between students and instructors'
-    }
-    
-    stats = {}
-    for table_name in inspector.get_table_names():
+    for table_name in sorted(inspector.get_table_names()):
         if table_name == 'alembic_version':
             continue
             
-        # Get row count
-        result = db.execute(text(f"SELECT COUNT(*) FROM {table_name}"))
-        count = result.scalar()
+        print(f"\n{Colors.BOLD}📊 Table: {table_name}{Colors.ENDC}")
+        table = metadata.tables[table_name]
         
-        desc = table_descriptions.get(table_name, "No description available")
-        print(f"\n• {table_name} ({count} rows)")
-        print(f"  {desc}")
+        # Columns
+        print("  Columns:")
+        for column in table.columns:
+            nullable = "NULL" if column.nullable else "NOT NULL"
+            pk = "🔑 PK" if column.primary_key else ""
+            fk = "🔗 FK" if column.foreign_keys else ""
+            print(f"    • {column.name:<25} {str(column.type):<20} {nullable:<10} {pk} {fk}")
         
-        stats[table_name] = count
-    
-    # Show key relationships
-    print("\n🔗 Key Relationships:")
-    print("-" * 60)
-    print("""
-• User → InstructorProfile (one-to-one)
-• InstructorProfile → Services (one-to-many)
-• User → InstructorAvailability (one-to-many)
-• InstructorAvailability → AvailabilitySlots (one-to-many)
-• Booking → User (many-to-one for both student and instructor)
-• Booking → Service (many-to-one)
-• Booking → AvailabilitySlot (one-to-one)
-""")
-    
-    # Current state summary
-    print("\n📈 Current Data Summary:")
-    print("-" * 60)
-    
-    # Get instructor count - using uppercase for enum
-    result = db.execute(text("SELECT COUNT(*) FROM users WHERE role = 'INSTRUCTOR'"))
-    instructor_count = result.scalar()
-    
-    # Get student count - using uppercase for enum
-    result = db.execute(text("SELECT COUNT(*) FROM users WHERE role = 'STUDENT'"))
-    student_count = result.scalar()
-    
-    print(f"• Total Users: {stats.get('users', 0)}")
-    print(f"  - Instructors: {instructor_count}")
-    print(f"  - Students: {student_count}")
-    print(f"• Services Offered: {stats.get('services', 0)}")
-    print(f"• Availability Entries: {stats.get('instructor_availability', 0)}")
-    print(f"• Bookings: {stats.get('bookings', 0)}")
-    
-    db.close()
-    return stats
+        # Foreign keys
+        if table.foreign_keys:
+            print("  Foreign Keys:")
+            for fk in table.foreign_keys:
+                print(f"    • {fk.parent.name} -> {fk.column.table.name}.{fk.column.name}")
+        
+        # Indexes
+        if table.indexes:
+            print("  Indexes:")
+            for idx in table.indexes:
+                cols = ", ".join([c.name for c in idx.columns])
+                unique = "UNIQUE" if idx.unique else ""
+                print(f"    • {idx.name}: ({cols}) {unique}")
 
-def get_codebase_overview():
-    """Provide an overview of the codebase structure"""
-    print_header("CODEBASE OVERVIEW")
+def analyze_frontend_structure(check_logging=False, check_types=False):
+    """Analyze frontend structure in detail"""
+    print_header("COMPLETE FRONTEND FILE ANALYSIS", Colors.GREEN)
     
-    print("""
-The project uses a modern web stack with separate backend and frontend:
-• Backend: FastAPI (Python) with PostgreSQL via Supabase
-• Frontend: Next.js 14 (TypeScript) with Tailwind CSS
-""")
+    frontend_root = Path.cwd().parent / 'frontend'
+    if not frontend_root.exists():
+        frontend_root = Path.cwd() / 'frontend'
     
-    # Find project root
-    current_dir = Path.cwd()
-    project_root = current_dir
-    while project_root.parent != project_root:
-        if (project_root / 'backend').exists() and (project_root / 'frontend').exists():
-            break
-        project_root = project_root.parent
-    
-    print("\n🔧 Backend Structure:")
-    print("-" * 60)
-    
-    backend_structure = {
-        'app/': 'Main application code',
-        'app/models/': 'SQLAlchemy database models',
-        'app/routes/': 'API endpoints (auth, instructors, availability, bookings)',
-        'app/schemas/': 'Pydantic schemas for validation',
-        'app/services/': 'Business logic (email service, etc.)',
-        'app/core/': 'Core configuration and constants',
-        'alembic/': 'Database migrations',
-        'scripts/': 'Utility scripts for development'
+    stats = {
+        'total_files': 0,
+        'has_logging': 0,
+        'needs_logging': 0,
+        'has_types': 0,
+        'needs_type_refactor': 0
     }
     
-    for path, desc in backend_structure.items():
-        print(f"• {path:<20} - {desc}")
+    # Define all directories to scan
+    scan_dirs = ['app', 'components', 'lib', 'types', 'public', 'styles']
     
-    print("\n💻 Frontend Structure:")
-    print("-" * 60)
+    for scan_dir in scan_dirs:
+        dir_path = frontend_root / scan_dir
+        if not dir_path.exists():
+            continue
+            
+        print(f"\n{Colors.BOLD}📁 {scan_dir}/{Colors.ENDC}")
+        
+        # Recursively find all TS/TSX files
+        all_files = list(dir_path.rglob('*.ts')) + list(dir_path.rglob('*.tsx'))
+        
+        for file_path in sorted(all_files):
+            relative_path = file_path.relative_to(frontend_root)
+            stats['total_files'] += 1
+            
+            file_info = f"  📄 {str(relative_path):<50}"
+            
+            # Check logging if requested
+            if check_logging and file_path.suffix in ['.ts', '.tsx']:
+                log_check = check_file_for_logging(file_path)
+                if log_check.get('uses_logger'):
+                    file_info += f" {Colors.GREEN}✓ Logging{Colors.ENDC}"
+                    stats['has_logging'] += 1
+                elif not log_check.get('error'):
+                    file_info += f" {Colors.WARNING}⚠ No logging{Colors.ENDC}"
+                    stats['needs_logging'] += 1
+            
+            # Check types if requested
+            if check_types and file_path.suffix in ['.ts', '.tsx']:
+                type_check = check_file_for_types(file_path)
+                if not type_check.get('error'):
+                    if type_check.get('needs_refactor'):
+                        file_info += f" {Colors.WARNING}🔧 Needs type refactor{Colors.ENDC}"
+                        stats['needs_type_refactor'] += 1
+                    elif type_check.get('type_imports'):
+                        file_info += f" {Colors.GREEN}✓ Uses central types{Colors.ENDC}"
+                        stats['has_types'] += 1
+            
+            # Get file size
+            size = file_path.stat().st_size
+            if size > 10000:  # Files over 10KB
+                file_info += f" {Colors.WARNING}({size//1024}KB){Colors.ENDC}"
+            
+            print(file_info)
     
-    frontend_structure = {
-        'app/': 'Next.js app directory (pages and layouts)',
-        'components/': 'Reusable React components',
-        'lib/': 'Utility functions and API client',
-        'types/': 'TypeScript type definitions',
-        'public/': 'Static assets',
-        'app/config/': 'Brand and configuration settings'
-    }
-    
-    for path, desc in frontend_structure.items():
-        print(f"• {path:<20} - {desc}")
+    # Print summary
+    print(f"\n{Colors.BOLD}📊 Frontend Analysis Summary:{Colors.ENDC}")
+    print(f"  Total TypeScript files: {stats['total_files']}")
+    if check_logging:
+        print(f"  Files with logging: {stats['has_logging']}")
+        print(f"  Files needing logging: {stats['needs_logging']}")
+    if check_types:
+        print(f"  Files using central types: {stats['has_types']}")
+        print(f"  Files needing type refactor: {stats['needs_type_refactor']}")
 
-def get_feature_status():
-    """Show current feature implementation status"""
-    print_header("FEATURE STATUS")
+def analyze_backend_structure():
+    """Analyze backend structure with API endpoint details"""
+    print_header("COMPLETE BACKEND ANALYSIS", Colors.BLUE)
     
+    backend_root = Path.cwd()
+    if 'backend' not in str(backend_root):
+        backend_root = backend_root / 'backend'
+    
+    # Analyze routes for API endpoints
+    print(f"\n{Colors.BOLD}🔌 API Endpoints:{Colors.ENDC}")
+    routes_dir = backend_root / 'app' / 'routes'
+    
+    if routes_dir.exists():
+        for route_file in sorted(routes_dir.glob('*.py')):
+            if route_file.name == '__init__.py':
+                continue
+                
+            print(f"\n  📄 {route_file.name}")
+            try:
+                with open(route_file, 'r') as f:
+                    content = f.read()
+                
+                # Extract route decorators
+                routes = re.findall(r'@router\.(get|post|put|patch|delete)\("([^"]+)"', content)
+                for method, path in routes:
+                    print(f"    • {method.upper():<7} {path}")
+            except:
+                print("    ⚠️  Could not parse routes")
+    
+    # Analyze models
+    print(f"\n{Colors.BOLD}📊 Database Models:{Colors.ENDC}")
+    models_dir = backend_root / 'app' / 'models'
+    
+    if models_dir.exists():
+        for model_file in sorted(models_dir.glob('*.py')):
+            if model_file.name == '__init__.py':
+                continue
+                
+            print(f"\n  📄 {model_file.name}")
+            try:
+                with open(model_file, 'r') as f:
+                    content = f.read()
+                
+                # Extract class definitions
+                classes = re.findall(r'class\s+(\w+)\([^)]*Base[^)]*\):', content)
+                for class_name in classes:
+                    print(f"    • Model: {class_name}")
+                    
+                    # Extract relationships
+                    relationships = re.findall(rf'{class_name}.*relationship\("(\w+)"', content)
+                    if relationships:
+                        print(f"      Relationships: {', '.join(set(relationships))}")
+            except:
+                print("    ⚠️  Could not parse models")
+
+def analyze_alembic_migrations():
+    """Analyze Alembic migration history"""
+    print_header("DATABASE MIGRATION HISTORY", Colors.CYAN)
+    
+    migrations_dir = Path.cwd() / 'alembic' / 'versions'
+    if not migrations_dir.exists():
+        migrations_dir = Path.cwd() / 'backend' / 'alembic' / 'versions'
+    
+    if migrations_dir.exists():
+        migrations = sorted(migrations_dir.glob('*.py'), key=lambda x: x.name)
+        
+        print(f"\nTotal migrations: {len(migrations)}")
+        print("\nMigration History:")
+        
+        for migration in migrations:
+            # Extract revision info from filename
+            parts = migration.stem.split('_')
+            if len(parts) > 1:
+                revision = parts[0]
+                description = ' '.join(parts[1:])
+                print(f"  • {revision}: {description}")
+                
+                # Try to extract the upgrade operations
+                try:
+                    with open(migration, 'r') as f:
+                        content = f.read()
+                    
+                    # Look for create_table operations
+                    tables_created = re.findall(r'create_table\([\'"](\w+)[\'"]', content)
+                    if tables_created:
+                        print(f"    Creates: {', '.join(tables_created)}")
+                    
+                    # Look for add_column operations
+                    columns_added = re.findall(r'add_column\([\'"](\w+)[\'"].*?[\'"](\w+)[\'"]', content)
+                    if columns_added:
+                        for table, column in columns_added:
+                            print(f"    Adds: {table}.{column}")
+                except:
+                    pass
+
+def generate_dependency_analysis():
+    """Analyze project dependencies"""
+    print_header("DEPENDENCY ANALYSIS", Colors.WARNING)
+    
+    # Backend dependencies
+    print(f"\n{Colors.BOLD}🐍 Backend Dependencies:{Colors.ENDC}")
+    req_file = Path.cwd() / 'requirements.txt'
+    if not req_file.exists():
+        req_file = Path.cwd() / 'backend' / 'requirements.txt'
+    
+    if req_file.exists():
+        with open(req_file, 'r') as f:
+            deps = f.readlines()
+        
+        core_deps = ['fastapi', 'sqlalchemy', 'pydantic', 'alembic', 'pytest']
+        for dep in deps:
+            dep = dep.strip()
+            if any(core in dep.lower() for core in core_deps):
+                print(f"  • {dep}")
+    
+    # Frontend dependencies
+    print(f"\n{Colors.BOLD}📦 Frontend Dependencies:{Colors.ENDC}")
+    package_file = Path.cwd() / 'package.json'
+    if not package_file.exists():
+        package_file = Path.cwd() / 'frontend' / 'package.json'
+    
+    if package_file.exists():
+        with open(package_file, 'r') as f:
+            package_data = json.load(f)
+        
+        print("  Core dependencies:")
+        core_deps = ['next', 'react', 'typescript', 'tailwindcss']
+        deps = package_data.get('dependencies', {})
+        for dep in core_deps:
+            if dep in deps:
+                print(f"    • {dep}: {deps[dep]}")
+
+def generate_task_summary():
+    """Generate a summary of TODOs and FIXMEs in the codebase"""
+    print_header("TASK SUMMARY (TODOs & FIXMEs)", Colors.WARNING)
+    
+    todos = []
+    fixmes = []
+    
+    # Search both backend and frontend
+    for root_dir in [Path.cwd() / 'backend', Path.cwd() / 'frontend']:
+        if not root_dir.exists():
+            continue
+            
+        for ext in ['*.py', '*.ts', '*.tsx']:
+            for file_path in root_dir.rglob(ext):
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        lines = f.readlines()
+                    
+                    for i, line in enumerate(lines):
+                        if 'TODO' in line:
+                            todos.append((file_path.relative_to(root_dir.parent), i+1, line.strip()))
+                        if 'FIXME' in line:
+                            fixmes.append((file_path.relative_to(root_dir.parent), i+1, line.strip()))
+                except:
+                    pass
+    
+    if todos:
+        print(f"\n{Colors.WARNING}📝 TODOs ({len(todos)}):{Colors.ENDC}")
+        for file_path, line_no, content in todos[:10]:  # Show first 10
+            print(f"  • {file_path}:{line_no} - {content[:80]}")
+        if len(todos) > 10:
+            print(f"  ... and {len(todos) - 10} more")
+    
+    if fixmes:
+        print(f"\n{Colors.FAIL}🔧 FIXMEs ({len(fixmes)}):{Colors.ENDC}")
+        for file_path, line_no, content in fixmes:
+            print(f"  • {file_path}:{line_no} - {content[:80]}")
+
+def generate_json_output(data: dict, filename: str = "project_overview.json"):
+    """Generate JSON output for programmatic use"""
+    output_path = Path.cwd() / filename
+    with open(output_path, 'w') as f:
+        json.dump(data, f, indent=2, default=str)
+    print(f"\n✅ JSON output saved to: {output_path}")
+
+def main():
+    """Generate complete project overview"""
+    parser = argparse.ArgumentParser(description='Generate InstaInstru project overview')
+    parser.add_argument('--json', action='store_true', help='Output JSON format')
+    parser.add_argument('--check-types', action='store_true', help='Check TypeScript type usage')
+    parser.add_argument('--check-logging', action='store_true', help='Check logging implementation')
+    args = parser.parse_args()
+    
+    print(f"\n{Colors.BOLD}🎯 " * 20)
+    print("    INSTAINSTRU PROJECT OVERVIEW - X-TEAM ENHANCED")
+    print("    Generated:", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    print("🎯 " * 20 + Colors.ENDC)
+    
+    overview_data = {}
+    
+    # Git information
+    print_header("GIT REPOSITORY STATUS")
+    git_info = get_git_info()
+    for key, value in git_info.items():
+        print(f"  • {key}: {value}")
+    overview_data['git'] = git_info
+    
+    # Database analysis
+    analyze_database_schema()
+    analyze_alembic_migrations()
+    
+    # Backend analysis
+    analyze_backend_structure()
+    
+    # Frontend analysis
+    analyze_frontend_structure(
+        check_logging=args.check_logging,
+        check_types=args.check_types
+    )
+    
+    # Dependencies
+    generate_dependency_analysis()
+    
+    # Tasks
+    generate_task_summary()
+    
+    # Feature status (from original)
+    print_header("FEATURE IMPLEMENTATION STATUS")
     features = {
         "✅ Completed": [
             "User authentication (JWT-based)",
             "Instructor profile management",
             "Service offering system",
             "Availability management (week-based UI)",
+            "Instant booking system",
             "Password reset via email",
-            "Role-based access control",
-            "Database audit and seeding scripts",
-            "Instant booking system (backend)",
-            "Booking management API"
+            "Production-ready logging (frontend)",
+            "Centralized TypeScript types"
         ],
         "🚧 In Progress": [
-            "Booking frontend UI",
-            "Search and filtering UI"
+            "Type refactoring across frontend",
+            "Email notifications"
         ],
         "❌ Not Started": [
             "Payment integration (Stripe)",
             "In-app messaging",
             "Reviews and ratings",
-            "Email notifications for bookings",
             "Mobile app"
         ]
     }
@@ -349,84 +460,83 @@ def get_feature_status():
         print(f"\n{status}:")
         for item in items:
             print(f"  • {item}")
+    
+    overview_data['features'] = features
+    
+    # Environment variables needed
+    print_header("REQUIRED ENVIRONMENT VARIABLES")
+    print("\nBackend (.env):")
+    print("  • DATABASE_URL - PostgreSQL connection string")
+    print("  • SECRET_KEY - JWT secret key")
+    print("  • RESEND_API_KEY - Email service API key")
+    print("  • SUPABASE_URL - Supabase project URL")
+    print("  • SUPABASE_ANON_KEY - Supabase anonymous key")
+    
+    print("\nFrontend (.env.local):")
+    print("  • NEXT_PUBLIC_API_URL - Backend API URL")
+    print("  • NEXT_PUBLIC_APP_URL - Frontend app URL")
+    print("  • NEXT_PUBLIC_ENABLE_LOGGING - Enable logging (true/false)")
+    
+    # Quick start (from original)
+    get_quick_start_guide()
+    
+    # Summary statistics
+    print_header("PROJECT STATISTICS", Colors.GREEN)
+    print("  • Backend API endpoints: ~40")
+    print("  • Database tables: 8")
+    print("  • Frontend pages: ~15")
+    print("  • React components: 11")
+    print("  • TypeScript type files: 6")
+    print("  • Test coverage: TBD")
+    
+    if args.json:
+        generate_json_output(overview_data)
+    
+    print(f"\n{Colors.BOLD}" + "=" * 80)
+    print("Overview generation complete! This is YOUR project - own it! 🚀")
+    print("=" * 80 + Colors.ENDC + "\n")
 
 def get_quick_start_guide():
-    """Provide quick start instructions for new developers"""
+    """Provide quick start instructions"""
     print_header("QUICK START GUIDE")
     
     print("""
 1. Backend Setup:
    cd backend
    python -m venv venv
-   source venv/bin/activate  # On Windows: venv\\Scripts\\activate
+   source venv/bin/activate  # Windows: venv\\Scripts\\activate
    pip install -r requirements.txt
-   # Copy .env.example to .env and update values
+   cp .env.example .env  # Update with your values
+   alembic upgrade head
+   python scripts/reset_and_seed_database.py
    uvicorn app.main:app --reload
 
 2. Frontend Setup:
    cd frontend
    npm install
-   # Copy .env.local.example to .env.local
+   cp .env.local.example .env.local
    npm run dev
 
-3. Database Setup:
-   # Run migrations
-   cd backend
-   alembic upgrade head
-   
-   # Seed test data
-   python scripts/reset_and_seed_database.py
-
-4. Access Points:
+3. Access Points:
    • Frontend: http://localhost:3000
    • Backend API: http://localhost:8000
    • API Docs: http://localhost:8000/docs
 
-5. Test Credentials:
-   • Students: john.smith@example.com, emma.johnson@example.com
+4. Test Credentials:
+   • Students: john.smith@example.com, emma.johnson@example.com  
    • Instructors: sarah.chen@example.com, michael.rodriguez@example.com
    • All passwords: TestPassword123!
-""")
 
-def main():
-    """Generate complete project overview"""
-    print("\n" + "🎯 " * 20)
-    print("    INSTAINSTRU PROJECT OVERVIEW    ")
-    print("    Generated:", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    print("🎯 " * 20)
-    
-    # Database overview
-    db_stats = get_database_overview()
-    
-    # Codebase overview
-    get_codebase_overview()
-    
-    # Detailed file structure
-    get_file_structure()
-    
-    # Feature status
-    get_feature_status()
-    
-    # Quick start guide
-    get_quick_start_guide()
-    
-    print_header("NEXT STEPS FOR NEW DEVELOPERS")
-    print("""
-1. Review the codebase structure and familiarize yourself with the architecture
-2. Run the application locally and test existing features
-3. Check the GitHub issues or project board for current tasks
-4. The highest priority is implementing the booking frontend UI
-5. Ask questions! The codebase is well-documented but complex
+5. Development Tools:
+   • API Documentation: http://localhost:8000/docs
+   • Database GUI: Use TablePlus/pgAdmin with DATABASE_URL
+   • Email testing: Check Resend dashboard
 """)
-    
-    print("\n" + "=" * 80)
-    print("Overview generation complete! Welcome to InstaInstru! 🎉")
-    print("=" * 80 + "\n")
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        print(f"Error generating overview: {e}")
+        print(f"{Colors.FAIL}Error generating overview: {e}{Colors.ENDC}")
         import traceback
         traceback.print_exc()

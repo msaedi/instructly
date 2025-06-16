@@ -10,16 +10,7 @@ import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { bookingsApi } from '@/lib/api/bookings';
 import { Booking } from '@/types/booking';
 import { logger } from '@/lib/logger';
-
-/**
- * User data interface for authenticated users
- */
-interface UserData {
-  id: number;
-  email: string;
-  full_name: string;
-  role: string;
-}
+import { UserData } from '@/types/user';
 
 /**
  * StudentDashboard Component
