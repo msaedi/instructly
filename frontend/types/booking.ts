@@ -246,3 +246,103 @@ export const getLocationTypeIcon = (locationType: LocationType): string => {
       return "📍";
   }
 };
+
+/**
+ * Request payload for creating a new booking
+ */
+export interface BookingCreateRequest {
+  /** ID of the instructor to book */
+  instructor_id: number;
+  /** ID of the service being booked */
+  service_id: number;
+  /** ID of the availability slot to book */
+  availability_slot_id: number;
+  /** Optional notes from the student */
+  notes?: string;
+}
+
+/**
+ * Filters for querying bookings
+ */
+export interface BookingFilters {
+  /** Filter by booking status */
+  status?: BookingStatus;
+  /** Filter for upcoming bookings only */
+  upcoming?: boolean;
+  /** Page number for pagination */
+  page?: number;
+  /** Number of items per page */
+  per_page?: number;
+}
+
+/**
+ * Request payload for checking slot availability
+ */
+export interface AvailabilityCheckRequest {
+  /** ID of the availability slot to check */
+  availability_slot_id: number;
+  /** ID of the service to check against */
+  service_id: number;
+}
+
+/**
+ * Request payload for cancelling a booking
+ */
+export interface CancelBookingRequest {
+  /** Reason for cancellation */
+  cancellation_reason: string;
+}
+
+/**
+ * Response for booking list queries
+ */
+export interface BookingListResponse {
+  /** Array of bookings */
+  bookings: Booking[];
+  /** Total number of bookings (for pagination) */
+  total: number;
+  /** Current page number */
+  page: number;
+  /** Items per page */
+  per_page: number;
+  /** Total number of pages */
+  pages: number;
+}
+
+/**
+ * Response for booking statistics
+ */
+export interface BookingStatsResponse {
+  /** Total number of bookings */
+  total_bookings: number;
+  /** Number of completed bookings */
+  completed_bookings: number;
+  /** Number of cancelled bookings */
+  cancelled_bookings?: number;
+  /** Number of no-show bookings */
+  no_show_bookings?: number;
+  /** Total revenue earned */
+  total_revenue?: number;
+  /** Average booking value */
+  average_booking_value?: number;
+}
+
+/**
+ * Response for availability slot queries
+ */
+export interface AvailabilitySlotResponse {
+  /** Slot ID */
+  id: number;
+  /** Date of the slot */
+  date: string;
+  /** Start time */
+  start_time: string;
+  /** End time */
+  end_time: string;
+  /** Whether the slot is available */
+  is_available: boolean;
+  /** Whether the slot is booked */
+  is_booked?: boolean;
+  /** Booking ID if booked */
+  booking_id?: number;
+}

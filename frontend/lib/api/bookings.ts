@@ -1,6 +1,12 @@
 // frontend/lib/api/bookings.ts
 import { fetchWithAuth } from '../api';
 import { logger } from '../logger';
+import { 
+  Booking, 
+  BookingListResponse, 
+  AvailabilityCheckResponse,
+  BookingPreview
+} from '@/types/booking';
 
 /**
  * Bookings API Client
@@ -59,6 +65,26 @@ export interface CancelBookingRequest {
 }
 
 /**
+ * Response for booking statistics
+ */
+export interface BookingStatsResponse {
+  /** Total number of bookings */
+  total_bookings: number;
+  /** Number of completed bookings */
+  completed_bookings: number;
+  /** Number of cancelled bookings */
+  cancelled_bookings: number;
+  /** Number of no-show bookings */
+  no_show_bookings: number;
+  /** Total earnings */
+  total_earnings: number;
+  /** This month's bookings */
+  monthly_bookings: number;
+  /** This week's bookings */
+  weekly_bookings: number;
+}
+
+/**
  * Main bookings API interface
  * 
  * Provides methods for all booking-related operations
@@ -79,7 +105,7 @@ export const bookingsApi = {
    * });
    * ```
    */
-  checkAvailability: async (data: AvailabilityCheckRequest) => {
+  checkAvailability: async (data: AvailabilityCheckRequest): Promise<AvailabilityCheckResponse> => {
     logger.info('Checking slot availability', {
       slotId: data.availability_slot_id,
       serviceId: data.service_id
@@ -127,7 +153,7 @@ export const bookingsApi = {
    * });
    * ```
    */
-  createBooking: async (data: BookingCreateRequest) => {
+  createBooking: async (data: BookingCreateRequest): Promise<Booking> => {
     logger.info('Creating booking', {
       instructorId: data.instructor_id,
       serviceId: data.service_id,
@@ -178,7 +204,7 @@ export const bookingsApi = {
    * });
    * ```
    */
-  getMyBookings: async (filters?: BookingFilters) => {
+  getMyBookings: async (filters?: BookingFilters): Promise<BookingListResponse> => {
     logger.debug('Fetching user bookings', { filters });
     
     const params = new URLSearchParams();
@@ -214,7 +240,7 @@ export const bookingsApi = {
    * const booking = await bookingsApi.getBooking(123);
    * ```
    */
-  getBooking: async (bookingId: number) => {
+  getBooking: async (bookingId: number): Promise<Booking> => {
     logger.debug('Fetching booking details', { bookingId });
     
     const response = await fetchWithAuth(`/bookings/${bookingId}`);
@@ -233,6 +259,36 @@ export const bookingsApi = {
   },
 
   /**
+   * Get booking preview (lightweight version)
+   * 
+   * @param bookingId - ID of the booking to preview
+   * @returns Promise with booking preview
+   * @throws Error if booking not found or fetch fails
+   * 
+   * @example
+   * ```ts
+   * const preview = await bookingsApi.getBookingPreview(123);
+   * ```
+   */
+  getBookingPreview: async (bookingId: number): Promise<BookingPreview> => {
+    logger.debug('Fetching booking preview', { bookingId });
+    
+    const response = await fetchWithAuth(`/bookings/${bookingId}/preview`);
+    if (!response.ok) {
+      const error = await response.json();
+      logger.error('Failed to fetch booking preview', undefined, { bookingId, error });
+      throw new Error(error.detail || 'Failed to fetch booking preview');
+    }
+    
+    const preview = await response.json();
+    logger.debug('Booking preview fetched successfully', { 
+      bookingId,
+      hasStudentInfo: !!preview.student_name 
+    });
+    return preview;
+  },
+
+  /**
    * Cancel a booking (student or instructor)
    * 
    * @param bookingId - ID of the booking to cancel
@@ -247,7 +303,7 @@ export const bookingsApi = {
    * });
    * ```
    */
-  cancelBooking: async (bookingId: number, data: CancelBookingRequest) => {
+  cancelBooking: async (bookingId: number, data: CancelBookingRequest): Promise<Booking> => {
     logger.info('Cancelling booking', { 
       bookingId,
       hasReason: !!data.cancellation_reason 
@@ -305,7 +361,7 @@ export const bookingsApi = {
    * const completedBooking = await bookingsApi.completeBooking(123);
    * ```
    */
-  completeBooking: async (bookingId: number) => {
+  completeBooking: async (bookingId: number): Promise<Booking> => {
     logger.info('Marking booking as complete', { bookingId });
     
     const response = await fetchWithAuth(`/bookings/${bookingId}/complete`, {
@@ -335,7 +391,7 @@ export const bookingsApi = {
    * const noShowBooking = await bookingsApi.markNoShow(123);
    * ```
    */
-  markNoShow: async (bookingId: number) => {
+  markNoShow: async (bookingId: number): Promise<Booking> => {
     logger.info('Marking booking as no-show', { bookingId });
     
     const response = await fetchWithAuth(`/bookings/${bookingId}/no-show`, {
@@ -365,7 +421,7 @@ export const bookingsApi = {
    * console.log(`Total bookings: ${stats.total_bookings}`);
    * ```
    */
-  getBookingStats: async () => {
+  getBookingStats: async (): Promise<BookingStatsResponse> => {
     logger.debug('Fetching booking statistics');
     
     const response = await fetchWithAuth('/bookings/stats');
@@ -395,7 +451,7 @@ export const bookingsApi = {
    * const upcomingBookings = await bookingsApi.getUpcomingBookings(10);
    * ```
    */
-  getUpcomingBookings: async (limit: number = 5) => {
+  getUpcomingBookings: async (limit: number = 5): Promise<Booking[]> => {
     logger.debug('Fetching upcoming bookings', { limit });
     
     const response = await fetchWithAuth(`/bookings/upcoming?limit=${limit}`);
