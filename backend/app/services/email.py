@@ -2,7 +2,7 @@
 
 import logging
 import resend
-from typing import Optional
+from typing import Optional, Dict, Any
 from ..core.config import settings
 from ..core.constants import BRAND_NAME, SUPPORT_EMAIL, NOREPLY_EMAIL
 
@@ -16,6 +16,61 @@ class EmailService:
         api_key = settings.resend_api_key
         resend.api_key = api_key
         self.from_email = settings.from_email or NOREPLY_EMAIL
+        
+    def send_email(
+        self,
+        to_email: str,
+        subject: str,
+        html_content: str,
+        text_content: Optional[str] = None,
+        from_email: Optional[str] = None,
+        from_name: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Send a generic email using Resend.
+        
+        Args:
+            to_email: Recipient email address
+            subject: Email subject
+            html_content: HTML content of the email
+            text_content: Optional plain text version
+            from_email: Optional sender email (defaults to settings)
+            from_name: Optional sender name
+            
+        Returns:
+            Dict containing the Resend API response
+            
+        Raises:
+            Exception: If email sending fails
+        """
+        try:
+            # Build the from field
+            if from_email:
+                sender = f"{from_name} <{from_email}>" if from_name else from_email
+            else:
+                sender = f"{BRAND_NAME} <{self.from_email}>"
+            
+            # Build email data
+            email_data = {
+                "from": sender,
+                "to": to_email,
+                "subject": subject,
+                "html": html_content
+            }
+            
+            # Add text content if provided
+            if text_content:
+                email_data["text"] = text_content
+            
+            # Send email
+            response = resend.Emails.send(email_data)
+            
+            logger.info(f"Email sent successfully to {to_email} - Subject: {subject}")
+            return response
+            
+        except Exception as e:
+            logger.error(f"Failed to send email to {to_email}: {str(e)}")
+            raise
         
     async def send_password_reset_email(
         self, 
@@ -99,16 +154,14 @@ class EmailService:
             Questions? Contact us at {SUPPORT_EMAIL}
             """
             
-            # Send email using Resend
-            response = resend.Emails.send({
-                "from": self.from_email,
-                "to": to_email,
-                "subject": subject,
-                "html": html_content,
-                "text": text_content
-            })
+            # Send email using the generic method
+            self.send_email(
+                to_email=to_email,
+                subject=subject,
+                html_content=html_content,
+                text_content=text_content
+            )
             
-            logger.info(f"Password reset email sent successfully to {to_email}")
             return True
             
         except Exception as e:
@@ -166,14 +219,12 @@ class EmailService:
             </html>
             """
             
-            response = resend.Emails.send({
-                "from": self.from_email,
-                "to": to_email,
-                "subject": subject,
-                "html": html_content
-            })
+            self.send_email(
+                to_email=to_email,
+                subject=subject,
+                html_content=html_content
+            )
             
-            logger.info(f"Password reset confirmation email sent to {to_email}")
             return True
             
         except Exception as e:

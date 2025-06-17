@@ -35,6 +35,7 @@ from ..schemas.booking import (
     UpcomingBookingResponse,
     BookingResponse
 )
+from ..services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ router = APIRouter(
     tags=["bookings"]
 )
 
+notification_service = NotificationService()
 
 async def get_current_active_user(
     current_user_email: str = Depends(get_current_user),
@@ -246,7 +248,16 @@ async def create_booking(
     
     logger.info(f"Booking {booking.id} created for student {current_user.id}")
     
-    # TODO: Send confirmation emails to both student and instructor
+    # UPDATED: Send confirmation emails
+    try:
+        # Initialize notification service with db session for loading additional data if needed
+        notification_service_with_db = NotificationService(db)
+        await notification_service_with_db.send_booking_confirmation(booking)
+        logger.info(f"Confirmation emails sent for booking {booking.id}")
+    except Exception as e:
+        # Log the error but don't fail the booking
+        logger.error(f"Failed to send confirmation emails for booking {booking.id}: {str(e)}")
+        # In production, you might want to queue this for retry
     
     return booking
 
@@ -530,7 +541,19 @@ async def cancel_booking(
     
     logger.info(f"Booking {booking_id} cancelled by user {current_user.id}")
     
-    # TODO: Send cancellation emails
+    # UPDATED: Send cancellation emails
+    try:
+        notification_service_with_db = NotificationService(db)
+        await notification_service_with_db.send_cancellation_notification(
+            booking=booking,
+            cancelled_by=current_user,
+            reason=cancel_data.reason
+        )
+        logger.info(f"Cancellation emails sent for booking {booking_id}")
+    except Exception as e:
+        # Log the error but don't fail the cancellation
+        logger.error(f"Failed to send cancellation emails for booking {booking_id}: {str(e)}")
+        # In production, you might want to queue this for retry
     
     return booking
 
@@ -648,3 +671,39 @@ async def check_availability(
             "instructor_id": slot.availability.instructor_id
         }
     )
+
+# ENDPOINT for sending reminder emails (can be called by a cron job)
+@router.post("/send-reminders", status_code=status.HTTP_200_OK)
+async def send_reminder_emails(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Send 24-hour reminder emails for tomorrow's bookings.
+    
+    This endpoint should be called by a scheduled job/cron.
+    In production, this would be restricted to admin users or internal services.
+    """
+    # For now, restrict to a specific admin email or role
+    # In production, use proper admin authentication
+    if current_user.email != "admin@instainstru.com":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can trigger reminder emails"
+        )
+    
+    try:
+        notification_service_with_db = NotificationService(db)
+        count = await notification_service_with_db.send_reminder_emails()
+        
+        return {
+            "status": "success",
+            "reminders_sent": count,
+            "message": f"Successfully sent {count} reminder emails"
+        }
+    except Exception as e:
+        logger.error(f"Failed to send reminder emails: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send reminder emails"
+        )
