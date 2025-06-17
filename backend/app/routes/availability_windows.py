@@ -365,14 +365,24 @@ async def save_week_availability(
                         break
                 
                 if not conflicts_with_booking:
-                    time_slot = AvailabilitySlotModel(
-                        availability_id=availability_entry.id,
-                        start_time=slot.start_time,
-                        end_time=slot.end_time
-                    )
-                    db.add(time_slot)
-                    slots_created += 1
-                    logger.debug(f"Added time slot {slot.start_time}-{slot.end_time} for {week_date}")
+                    # Additional check: Ensure this exact time slot doesn't already exist
+                    # (could happen if there's a booked slot we're trying to duplicate)
+                    existing_exact_slot = db.query(AvailabilitySlotModel).filter(
+                        AvailabilitySlotModel.availability_id == availability_entry.id,
+                        AvailabilitySlotModel.start_time == slot.start_time,
+                        AvailabilitySlotModel.end_time == slot.end_time
+                    ).first()
+                    if not existing_exact_slot:
+                        time_slot = AvailabilitySlotModel(
+                            availability_id=availability_entry.id,
+                            start_time=slot.start_time,
+                            end_time=slot.end_time
+                        )
+                        db.add(time_slot)
+                        slots_created += 1
+                        logger.debug(f"Added time slot {slot.start_time}-{slot.end_time} for {week_date}")
+                    else:
+                        logger.debug(f"Slot {slot.start_time}-{slot.end_time} already exists for {week_date}")
                     
             # If bookings exist, skip any merging to prevent data loss
             if booked_time_ranges:
@@ -466,17 +476,17 @@ async def copy_week_availability(
     db: Session = Depends(get_db)
 ):
     """
-    Copy availability from one week to another.
+    Copy availability from one week to another while preserving existing bookings.
     
     This endpoint provides a quick way to duplicate an entire week's availability
-    pattern to another week. It's particularly useful for instructors with
-    consistent schedules who want to set up multiple weeks at once.
+    pattern to another week, but PRESERVES any existing bookings in the target week.
     
     The copy operation:
-        1. Deletes ALL existing entries in the target week
-        2. Copies all time slots from source week to target week
-        3. Preserves "cleared" days (days explicitly marked unavailable)
-        4. Creates cleared entries for days with no availability in source
+        1. Identifies slots with bookings in the target week
+        2. Deletes only non-booked slots from target week
+        3. Copies non-conflicting slots from source week
+        4. Preserves all booked slots
+        5. Creates cleared entries for days with no availability
     
     Args:
         copy_data: Contains:
@@ -486,17 +496,10 @@ async def copy_week_availability(
         db: Database session
         
     Returns:
-        Dict[str, List]: The updated target week availability
+        Dict[str, List]: The updated target week availability with metadata
         
     Raises:
         HTTPException: 400 if database operation fails
-        
-    Example:
-        Copy this week to next week:
-        {
-            "from_week_start": "2024-06-10",
-            "to_week_start": "2024-06-17"
-        }
     """
     logger.info(f"Copying week availability for instructor {current_user.id} from {copy_data.from_week_start} to {copy_data.to_week_start}")
     
@@ -509,15 +512,89 @@ async def copy_week_availability(
     # Calculate target week dates
     target_week_dates = [copy_data.to_week_start + timedelta(days=i) for i in range(7)]
     
-    # Delete ALL existing entries for the target week
-    deleted_count = db.query(InstructorAvailability).filter(
-        and_(
-            InstructorAvailability.instructor_id == current_user.id,
-            InstructorAvailability.date.in_(target_week_dates)
+    # CRITICAL FIX: Check for existing bookings in target week BEFORE deleting anything
+    bookings_in_target_week = (
+        db.query(
+            Booking.booking_date,
+            AvailabilitySlotModel.id.label("slot_id"),
+            AvailabilitySlotModel.start_time,
+            AvailabilitySlotModel.end_time,
+            InstructorAvailability.id.label("availability_id")
         )
-    ).delete(synchronize_session=False)
+        .join(AvailabilitySlotModel, Booking.availability_slot_id == AvailabilitySlotModel.id)
+        .join(InstructorAvailability, AvailabilitySlotModel.availability_id == InstructorAvailability.id)
+        .filter(
+            InstructorAvailability.instructor_id == current_user.id,
+            Booking.booking_date.in_(target_week_dates),
+            Booking.status.in_(['CONFIRMED', 'COMPLETED'])
+        )
+        .all()
+    )
     
-    logger.debug(f"Deleted {deleted_count} existing entries in target week")
+    # Build sets of booked information
+    booked_slot_ids = set()
+    booked_availability_ids = set()
+    booked_time_ranges_by_date = {}
+    
+    for booking in bookings_in_target_week:
+        booked_slot_ids.add(booking.slot_id)
+        booked_availability_ids.add(booking.availability_id)
+        
+        date_str = booking.booking_date.isoformat()
+        if date_str not in booked_time_ranges_by_date:
+            booked_time_ranges_by_date[date_str] = []
+        booked_time_ranges_by_date[date_str].append({
+            'start_time': booking.start_time,
+            'end_time': booking.end_time
+        })
+    
+    logger.info(f"Found {len(bookings_in_target_week)} booked slots in target week")
+    
+    # Delete only non-booked slots from target week
+    if booked_slot_ids:
+        # Delete slots that are NOT booked
+        deleted_slots = db.query(AvailabilitySlotModel).filter(
+            AvailabilitySlotModel.availability_id.in_(
+                db.query(InstructorAvailability.id).filter(
+                    InstructorAvailability.instructor_id == current_user.id,
+                    InstructorAvailability.date.in_(target_week_dates)
+                )
+            ),
+            ~AvailabilitySlotModel.id.in_(booked_slot_ids)
+        ).delete(synchronize_session=False)
+        
+        # Delete availability entries that have NO slots (neither booked nor unbooked)
+        # First, find which availability entries still have slots
+        remaining_availability_ids = db.query(
+            AvailabilitySlotModel.availability_id
+        ).filter(
+            AvailabilitySlotModel.availability_id.in_(
+                db.query(InstructorAvailability.id).filter(
+                    InstructorAvailability.instructor_id == current_user.id,
+                    InstructorAvailability.date.in_(target_week_dates)
+                )
+            )
+        ).distinct().all()
+        
+        remaining_ids = [r[0] for r in remaining_availability_ids]
+        
+        # Delete availability entries that have no remaining slots
+        deleted_availabilities = db.query(InstructorAvailability).filter(
+            InstructorAvailability.instructor_id == current_user.id,
+            InstructorAvailability.date.in_(target_week_dates),
+            ~InstructorAvailability.id.in_(remaining_ids)
+        ).delete(synchronize_session=False)
+        
+        logger.debug(f"Deleted {deleted_slots} non-booked slots and {deleted_availabilities} empty availability entries")
+    else:
+        # No bookings - safe to delete all
+        deleted_count = db.query(InstructorAvailability).filter(
+            and_(
+                InstructorAvailability.instructor_id == current_user.id,
+                InstructorAvailability.date.in_(target_week_dates)
+            )
+        ).delete(synchronize_session=False)
+        logger.debug(f"Deleted {deleted_count} existing entries in target week (no bookings)")
     
     # Get source week availability
     source_week = await get_week_availability(
@@ -529,49 +606,115 @@ async def copy_week_availability(
     # Copy each day
     dates_created = 0
     slots_created = 0
+    slots_skipped_due_to_bookings = 0
+    dates_with_preserved_bookings = []
     
     for i in range(7):
         source_date = copy_data.from_week_start + timedelta(days=i)
         target_date = copy_data.to_week_start + timedelta(days=i)
         source_date_str = source_date.isoformat()
+        target_date_str = target_date.isoformat()
+        
+        # Check if target date has bookings
+        has_bookings = target_date_str in booked_time_ranges_by_date
         
         if source_date_str in source_week and source_week[source_date_str]:
-            # Copy time slots
-            availability_entry = InstructorAvailability(
-                instructor_id=current_user.id,
-                date=target_date,
-                is_cleared=False
-            )
-            db.add(availability_entry)
-            db.flush()
-            dates_created += 1
+            # Source has slots - copy them but respect bookings
             
-            for slot in source_week[source_date_str]:
-                time_slot = AvailabilitySlotModel(
-                    availability_id=availability_entry.id,  # Changed from date_override_id
-                    start_time=string_to_time(slot['start_time']),
-                    end_time=string_to_time(slot['end_time'])
+            # Check if we already have an availability entry with bookings
+            existing_availability = db.query(InstructorAvailability).filter(
+                InstructorAvailability.instructor_id == current_user.id,
+                InstructorAvailability.date == target_date
+            ).first()
+            
+            if existing_availability:
+                # Use existing entry
+                availability_entry = existing_availability
+                availability_entry.is_cleared = False
+            else:
+                # Create new entry
+                availability_entry = InstructorAvailability(
+                    instructor_id=current_user.id,
+                    date=target_date,
+                    is_cleared=False
                 )
-                db.add(time_slot)
-                slots_created += 1
+                db.add(availability_entry)
+                db.flush()
+                dates_created += 1
+            
+            # Copy slots that don't conflict with bookings
+            for slot in source_week[source_date_str]:
+                slot_start = string_to_time(slot['start_time'])
+                slot_end = string_to_time(slot['end_time'])
+                
+                # Check if this slot would conflict with any booked slots
+                conflicts = False
+                if has_bookings:
+                    for booked_range in booked_time_ranges_by_date[target_date_str]:
+                        if (slot_start < booked_range['end_time'] and 
+                            slot_end > booked_range['start_time']):
+                            conflicts = True
+                            slots_skipped_due_to_bookings += 1
+                            logger.debug(f"Skipping slot {slot['start_time']}-{slot['end_time']} on {target_date} due to booking conflict")
+                            break
+                
+                if not conflicts:
+                    # Check if this exact slot already exists (might be a booked slot)
+                    existing_slot = db.query(AvailabilitySlotModel).filter(
+                        AvailabilitySlotModel.availability_id == availability_entry.id,
+                        AvailabilitySlotModel.start_time == slot_start,
+                        AvailabilitySlotModel.end_time == slot_end
+                    ).first()
+                    
+                    if not existing_slot:
+                        time_slot = AvailabilitySlotModel(
+                            availability_id=availability_entry.id,
+                            start_time=slot_start,
+                            end_time=slot_end
+                        )
+                        db.add(time_slot)
+                        slots_created += 1
+            
+            if has_bookings:
+                dates_with_preserved_bookings.append(target_date_str)
+                
         else:
-            # Source day has no slots - mark target as cleared
-            availability_entry = InstructorAvailability(
-                instructor_id=current_user.id,
-                date=target_date,
-                is_cleared=True
-            )
-            db.add(availability_entry)
-            dates_created += 1
+            # Source day has no slots
+            if has_bookings:
+                # Target date has bookings - preserve them
+                logger.info(f"Preserving booked slots on {target_date} (source day was empty)")
+                dates_with_preserved_bookings.append(target_date_str)
+            else:
+                # No bookings - safe to mark as cleared
+                availability_entry = InstructorAvailability(
+                    instructor_id=current_user.id,
+                    date=target_date,
+                    is_cleared=True
+                )
+                db.add(availability_entry)
+                dates_created += 1
     
     try:
         db.commit()
-        logger.info(f"Successfully copied week: {dates_created} dates, {slots_created} slots")
-        return await get_week_availability(
+        logger.info(f"Successfully copied week: {dates_created} dates, {slots_created} slots, "
+                   f"{slots_skipped_due_to_bookings} slots skipped due to bookings")
+        
+        result = await get_week_availability(
             start_date=copy_data.to_week_start,
             current_user=current_user,
             db=db
         )
+        
+        # Add metadata about the operation
+        if dates_with_preserved_bookings or slots_skipped_due_to_bookings > 0:
+            result["_metadata"] = {
+                "dates_with_preserved_bookings": dates_with_preserved_bookings,
+                "slots_skipped": slots_skipped_due_to_bookings,
+                "message": f"Week copied successfully. {len(dates_with_preserved_bookings)} date(s) had bookings preserved."
+            }
+        
+        return result
+        
     except Exception as e:
         logger.error(f"Error copying week availability: {str(e)}")
         db.rollback()
@@ -584,11 +727,15 @@ async def apply_to_date_range(
     db: Session = Depends(get_db)
 ):
     """
-    Apply a week's pattern to a date range.
+    Apply a week's pattern to a date range while preserving all existing bookings.
     
     This endpoint takes a source week's availability pattern and applies it
     repeatedly to all weeks within the specified date range, while preserving
-    any existing bookings.
+    any existing bookings. It will:
+    
+    1. Never delete slots that have bookings
+    2. Only copy slots that don't conflict with existing bookings
+    3. Skip entire dates if they have bookings that would conflict
     
     Args:
         apply_data: Source week and date range information
@@ -596,7 +743,7 @@ async def apply_to_date_range(
         db: Database session
         
     Returns:
-        Dict: Summary of the operation including dates affected
+        Dict: Summary of the operation including dates affected and preserved
         
     Raises:
         HTTPException: If database error occurs
@@ -623,9 +770,15 @@ async def apply_to_date_range(
     
     logger.debug(f"Created pattern with availability for days: {list(week_pattern.keys())}")
     
-    # First, check which dates in the range have bookings
-    dates_with_bookings = (
-        db.query(Booking.booking_date)
+    # Get ALL bookings in the date range with their slot details
+    bookings_in_range = (
+        db.query(
+            Booking.booking_date,
+            AvailabilitySlotModel.id.label("slot_id"),
+            AvailabilitySlotModel.start_time,
+            AvailabilitySlotModel.end_time,
+            InstructorAvailability.id.label("availability_id")
+        )
         .join(AvailabilitySlotModel, Booking.availability_slot_id == AvailabilitySlotModel.id)
         .join(InstructorAvailability, AvailabilitySlotModel.availability_id == InstructorAvailability.id)
         .filter(
@@ -634,84 +787,163 @@ async def apply_to_date_range(
             Booking.booking_date <= apply_data.end_date,
             Booking.status.in_(['CONFIRMED', 'COMPLETED'])
         )
-        .distinct()
         .all()
     )
     
-    booked_dates = set(row[0] for row in dates_with_bookings)
-    logger.info(f"Found {len(booked_dates)} dates with bookings in the range")
+    # Build detailed booking information by date
+    bookings_by_date = {}
+    booked_slot_ids = set()
+    
+    for booking in bookings_in_range:
+        date_str = booking.booking_date.isoformat()
+        if date_str not in bookings_by_date:
+            bookings_by_date[date_str] = []
+        
+        bookings_by_date[date_str].append({
+            'slot_id': booking.slot_id,
+            'start_time': booking.start_time,
+            'end_time': booking.end_time
+        })
+        booked_slot_ids.add(booking.slot_id)
+    
+    logger.info(f"Found {len(bookings_in_range)} bookings across {len(bookings_by_date)} dates in the range")
     
     # Apply pattern to date range
     current_date = apply_data.start_date
     dates_created = 0
+    dates_modified = 0
     dates_skipped = 0
     slots_created = 0
+    slots_skipped = 0
     
     while current_date <= apply_data.end_date:
         day_name = DAYS_OF_WEEK[current_date.weekday()]
+        current_date_str = current_date.isoformat()
         
-        # Skip dates that have bookings
-        if current_date in booked_dates:
-            logger.warning(f"Skipping {current_date} due to existing bookings")
-            dates_skipped += 1
-            current_date += timedelta(days=1)
-            continue
-        
-        # Delete existing availability for this date (safe since no bookings)
-        deleted = db.query(InstructorAvailability).filter(
+        # Get existing availability for this date
+        existing_availability = db.query(InstructorAvailability).filter(
             InstructorAvailability.instructor_id == current_user.id,
             InstructorAvailability.date == current_date
-        ).delete(synchronize_session=False)
+        ).first()
         
-        if deleted > 0:
-            logger.debug(f"Deleted {deleted} existing entries for {current_date}")
+        # Check if date has bookings
+        date_has_bookings = current_date_str in bookings_by_date
         
         if day_name in week_pattern and week_pattern[day_name]:
-            # Day has time slots in the pattern
-            availability_entry = InstructorAvailability(
-                instructor_id=current_user.id,
-                date=current_date,
-                is_cleared=False
-            )
-            db.add(availability_entry)
-            db.flush()
+            # Pattern has slots for this day
             
-            # Add time slots
-            for slot in week_pattern[day_name]:
-                time_slot = AvailabilitySlotModel(
-                    availability_id=availability_entry.id,
-                    start_time=string_to_time(slot['start_time']),
-                    end_time=string_to_time(slot['end_time'])
+            if existing_availability:
+                # Update existing entry
+                availability_entry = existing_availability
+                availability_entry.is_cleared = False
+                
+                # Delete only non-booked slots
+                if date_has_bookings:
+                    booked_ids_for_date = [b['slot_id'] for b in bookings_by_date[current_date_str]]
+                    deleted = db.query(AvailabilitySlotModel).filter(
+                        AvailabilitySlotModel.availability_id == availability_entry.id,
+                        ~AvailabilitySlotModel.id.in_(booked_ids_for_date)
+                    ).delete(synchronize_session=False)
+                    logger.debug(f"Deleted {deleted} non-booked slots for {current_date}")
+                else:
+                    # No bookings - delete all slots
+                    deleted = db.query(AvailabilitySlotModel).filter(
+                        AvailabilitySlotModel.availability_id == availability_entry.id
+                    ).delete(synchronize_session=False)
+                    logger.debug(f"Deleted {deleted} slots for {current_date} (no bookings)")
+                
+                dates_modified += 1
+            else:
+                # Create new entry
+                availability_entry = InstructorAvailability(
+                    instructor_id=current_user.id,
+                    date=current_date,
+                    is_cleared=False
                 )
-                db.add(time_slot)
-                slots_created += 1
+                db.add(availability_entry)
+                db.flush()
+                dates_created += 1
+            
+            # Add slots from pattern that don't conflict with bookings
+            for pattern_slot in week_pattern[day_name]:
+                slot_start = string_to_time(pattern_slot['start_time'])
+                slot_end = string_to_time(pattern_slot['end_time'])
+                
+                # Check for conflicts with existing bookings
+                conflicts = False
+                if date_has_bookings:
+                    for booked_slot in bookings_by_date[current_date_str]:
+                        if (slot_start < booked_slot['end_time'] and 
+                            slot_end > booked_slot['start_time']):
+                            conflicts = True
+                            slots_skipped += 1
+                            logger.debug(f"Skipping pattern slot {pattern_slot['start_time']}-{pattern_slot['end_time']} "
+                                       f"on {current_date} due to booking conflict")
+                            break
+                
+                if not conflicts:
+                    # Check if slot already exists
+                    existing_slot = db.query(AvailabilitySlotModel).filter(
+                        AvailabilitySlotModel.availability_id == availability_entry.id,
+                        AvailabilitySlotModel.start_time == slot_start,
+                        AvailabilitySlotModel.end_time == slot_end
+                    ).first()
+                    
+                    if not existing_slot:
+                        time_slot = AvailabilitySlotModel(
+                            availability_id=availability_entry.id,
+                            start_time=slot_start,
+                            end_time=slot_end
+                        )
+                        db.add(time_slot)
+                        slots_created += 1
         else:
-            # Day has no pattern - create cleared entry
-            availability_entry = InstructorAvailability(
-                instructor_id=current_user.id,
-                date=current_date,
-                is_cleared=True
-            )
-            db.add(availability_entry)
+            # Pattern has no slots for this day
+            if date_has_bookings:
+                # Preserve existing availability with bookings
+                logger.info(f"Preserving {current_date} with existing bookings (pattern day is empty)")
+                dates_skipped += 1
+            elif existing_availability:
+                # Update to cleared if no bookings
+                if not existing_availability.is_cleared:
+                    # Delete all slots first
+                    db.query(AvailabilitySlotModel).filter(
+                        AvailabilitySlotModel.availability_id == existing_availability.id
+                    ).delete(synchronize_session=False)
+                    
+                    existing_availability.is_cleared = True
+                    dates_modified += 1
+            else:
+                # Create cleared entry
+                availability_entry = InstructorAvailability(
+                    instructor_id=current_user.id,
+                    date=current_date,
+                    is_cleared=True
+                )
+                db.add(availability_entry)
+                dates_created += 1
         
-        dates_created += 1
         current_date += timedelta(days=1)
     
     try:
         db.commit()
-        logger.info(f"Successfully applied pattern to {dates_created} days with {slots_created} total slots")
+        logger.info(f"Successfully applied pattern: {dates_created} dates created, "
+                   f"{dates_modified} dates modified, {slots_created} slots created")
         
-        message = f"Successfully applied schedule to {dates_created} days"
-        if dates_skipped > 0:
-            message += f" ({dates_skipped} days with bookings were preserved)"
+        message = f"Successfully applied schedule to {dates_created + dates_modified} days"
+        if dates_skipped > 0 or slots_skipped > 0:
+            message += f" ({dates_skipped} days preserved, {slots_skipped} slots skipped due to bookings)"
             
         return {
             "message": message,
             "start_date": apply_data.start_date.isoformat(),
             "end_date": apply_data.end_date.isoformat(),
             "dates_created": dates_created,
+            "dates_modified": dates_modified,
             "dates_skipped": dates_skipped,
-            "slots_created": slots_created
+            "slots_created": slots_created,
+            "slots_skipped": slots_skipped,
+            "total_bookings_preserved": len(bookings_in_range)
         }
     except Exception as e:
         logger.error(f"Error applying pattern to date range: {str(e)}")
