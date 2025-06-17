@@ -3,6 +3,7 @@ import { BRAND } from '@/app/config/brand'
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { logger } from '@/lib/logger';
 
 /**
  * Geist Sans Font Configuration
@@ -100,16 +101,25 @@ export const metadata: Metadata = {
  * - Antialiased text rendering
  * - Semantic HTML structure
  * - Dark mode support via CSS custom properties
+ * - Structured logging for layout initialization
  * 
  * @param {Object} props - Component props
  * @param {React.ReactNode} props.children - Child components to render
- * @returns {JSX.Element} The root HTML structure
+ * @returns {React.ReactElement} The root HTML structure
  */
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Log layout initialization in development
+  logger.debug('Root layout initialized', {
+    brand: BRAND.name,
+    environment: process.env.NODE_ENV,
+    appUrl: process.env.NEXT_PUBLIC_APP_URL,
+    loggingEnabled: process.env.NEXT_PUBLIC_ENABLE_LOGGING === 'true'
+  });
+
   return (
     <html lang="en" className="h-full">
       <head>

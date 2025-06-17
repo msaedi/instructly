@@ -5,16 +5,7 @@ import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
-
-/**
- * Service interface for instructor services
- */
-interface Service {
-  id?: number;
-  skill: string;
-  hourly_rate: number;
-  description: string;
-}
+import { InstructorService } from '@/types/instructor';
 
 /**
  * EditProfileModal Component
@@ -28,6 +19,7 @@ interface Service {
  * - Area of service selection (NYC neighborhoods)
  * - Real-time validation
  * - Loading and error states
+ * - Uses centralized type definitions
  * 
  * @component
  * @example
@@ -48,6 +40,20 @@ interface EditProfileModalProps {
   onSuccess: () => void;
 }
 
+/**
+ * Profile data structure for the form
+ */
+interface ProfileFormData {
+  /** Instructor bio/description */
+  bio: string;
+  /** NYC neighborhoods served */
+  areas_of_service: string[];
+  /** Years of teaching experience */
+  years_experience: number;
+  /** Services offered by the instructor */
+  services: InstructorService[];
+}
+
 export default function EditProfileModal({ 
   isOpen, 
   onClose, 
@@ -55,13 +61,13 @@ export default function EditProfileModal({
 }: EditProfileModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [profileData, setProfileData] = useState({
+  const [profileData, setProfileData] = useState<ProfileFormData>({
     bio: "",
     areas_of_service: [] as string[],
     years_experience: 0,
-    services: [] as Service[],
+    services: [] as InstructorService[],
   });
-  const [newService, setNewService] = useState<Service>({
+  const [newService, setNewService] = useState<Partial<InstructorService>>({
     skill: "",
     hourly_rate: 50,
     description: "",
@@ -177,7 +183,7 @@ export default function EditProfileModal({
    */
   const addService = () => {
     // Check if any field is empty
-    if (!newService.skill || newService.hourly_rate <= 0) {
+    if (!newService.skill || !newService.hourly_rate || newService.hourly_rate <= 0) {
       logger.warn('Attempted to add service with invalid data', newService);
       setError("Please select a skill and set a valid hourly rate");
       return;
@@ -194,7 +200,7 @@ export default function EditProfileModal({
     setError(""); // Clear any previous errors
     setProfileData({
       ...profileData,
-      services: [...profileData.services, { ...newService }],
+      services: [...profileData.services, newService as InstructorService],
     });
     
     // Reset the form
@@ -217,7 +223,7 @@ export default function EditProfileModal({
   /**
    * Update a specific field of a service
    */
-  const updateService = (index: number, field: keyof Service, value: string | number) => {
+  const updateService = (index: number, field: keyof InstructorService, value: string | number) => {
     logger.debug('Updating service', { index, field, value });
     
     const updatedServices = [...profileData.services];
@@ -353,7 +359,7 @@ export default function EditProfileModal({
                   </label>
                   <select
                     id="new-skill"
-                    value={newService.skill}
+                    value={newService.skill || ''}
                     onChange={(e) => setNewService({...newService, skill: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
@@ -372,7 +378,7 @@ export default function EditProfileModal({
                   <input
                     id="new-rate"
                     type="number"
-                    value={newService.hourly_rate}
+                    value={newService.hourly_rate || 0}
                     onChange={(e) => setNewService({...newService, hourly_rate: parseFloat(e.target.value) || 0})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     min="0"
@@ -386,7 +392,7 @@ export default function EditProfileModal({
                 </label>
                 <textarea
                   id="new-description"
-                  value={newService.description}
+                  value={newService.description || ''}
                   onChange={(e) => setNewService({...newService, description: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   rows={2}
@@ -427,7 +433,7 @@ export default function EditProfileModal({
                 </div>
                 <textarea
                   placeholder="Description (optional)"
-                  value={service.description}
+                  value={service.description || ''}
                   onChange={(e) => updateService(index, 'description', e.target.value)}
                   className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   rows={2}

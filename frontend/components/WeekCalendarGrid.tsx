@@ -1,5 +1,6 @@
 // frontend/components/WeekCalendarGrid.tsx
 import React from 'react';
+import { logger } from '@/lib/logger';
 
 /**
  * TimeSlot interface for availability ranges
@@ -32,6 +33,7 @@ interface DateInfo {
  * - Custom cell renderers for flexibility
  * - Past date indication
  * - Week navigation support
+ * - Structured logging for debugging
  * 
  * @component
  * @example
@@ -103,6 +105,30 @@ const WeekCalendarGrid: React.FC<WeekCalendarGridProps> = ({
     return date < today;
   };
 
+  // Log component initialization
+  logger.debug('WeekCalendarGrid initialized', {
+    weekStartDate: weekDates[0]?.fullDate,
+    weekEndDate: weekDates[weekDates.length - 1]?.fullDate,
+    hourRange: { startHour, endHour },
+    totalHours: hours.length,
+    daysInWeek: weekDates.length,
+    hasNavigation: !!onNavigateWeek
+  });
+
+  /**
+   * Handle week navigation with logging
+   */
+  const handleNavigateWeek = (direction: 'prev' | 'next') => {
+    logger.info('Week navigation triggered', {
+      direction,
+      currentWeek: currentWeekDisplay || weekDates[0]?.fullDate
+    });
+    
+    if (onNavigateWeek) {
+      onNavigateWeek(direction);
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-lg p-6">
       {/* Header */}
@@ -117,12 +143,21 @@ const WeekCalendarGrid: React.FC<WeekCalendarGridProps> = ({
           <thead>
             <tr>
               <th className="text-left p-2 text-gray-600 w-24">Time</th>
-              {weekDates.map((dateInfo, index) => (
-                <th key={index} className="text-center p-2 text-gray-600 w-32">
-                  <div className="font-semibold capitalize">{dateInfo.dayOfWeek}</div>
-                  <div className="text-sm font-normal">{dateInfo.dateStr}</div>
-                </th>
-              ))}
+              {weekDates.map((dateInfo, index) => {
+                const isPast = isPastDate(dateInfo.fullDate);
+                logger.debug('Rendering day header', {
+                  day: dateInfo.dayOfWeek,
+                  date: dateInfo.fullDate,
+                  isPast
+                });
+                
+                return (
+                  <th key={index} className="text-center p-2 text-gray-600 w-32">
+                    <div className="font-semibold capitalize">{dateInfo.dayOfWeek}</div>
+                    <div className="text-sm font-normal">{dateInfo.dateStr}</div>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -146,6 +181,13 @@ const WeekCalendarGrid: React.FC<WeekCalendarGridProps> = ({
       <div className="md:hidden space-y-4">
         {weekDates.map((dateInfo, index) => {
           const isPast = isPastDate(dateInfo.fullDate);
+          
+          logger.debug('Rendering mobile day view', {
+            day: dateInfo.dayOfWeek,
+            date: dateInfo.fullDate,
+            isPast,
+            index
+          });
           
           return (
             <div 

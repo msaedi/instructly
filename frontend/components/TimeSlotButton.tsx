@@ -1,5 +1,6 @@
 // frontend/components/TimeSlotButton.tsx
 import React from 'react';
+import { logger } from '@/lib/logger';
 
 /**
  * TimeSlotButton Component
@@ -13,6 +14,12 @@ import React from 'react';
  * - Booked: Red background, not clickable
  * - Past + Available: Light green background, not clickable
  * - Past + Unavailable: Light gray background, not clickable
+ * 
+ * Features:
+ * - Dynamic visual states based on slot status
+ * - Accessibility support with ARIA labels
+ * - Mobile-responsive design
+ * - Structured logging for debugging
  * 
  * @component
  */
@@ -95,9 +102,38 @@ const TimeSlotButton: React.FC<TimeSlotButtonProps> = ({
     return `${displayHour}:00`;
   };
 
+  /**
+   * Handle click events with logging
+   */
+  const handleClick = () => {
+    logger.debug('Time slot button clicked', {
+      hour,
+      isAvailable,
+      isBooked,
+      isPast,
+      disabled,
+      isMobile,
+      action: isAvailable ? 'make_unavailable' : 'make_available'
+    });
+    
+    onClick();
+  };
+
+  // Log render in development for debugging
+  logger.debug('TimeSlotButton rendered', {
+    hour,
+    state: {
+      isAvailable,
+      isBooked,
+      isPast,
+      disabled
+    },
+    isMobile
+  });
+
   return (
     <button
-      onClick={onClick}
+      onClick={handleClick}
       disabled={disabled || isPast || isBooked}
       className={getButtonClass()}
       title={getTitle()}

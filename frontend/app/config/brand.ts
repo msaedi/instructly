@@ -18,7 +18,94 @@
  * ```
  */
 
-export const BRAND = {
+/**
+ * URL configuration type
+ */
+export interface BrandUrls {
+  production: string;
+  staging: string;
+  api: {
+    production: string;
+    staging: string;
+  };
+}
+
+/**
+ * Email configuration type
+ */
+export interface BrandEmails {
+  support: string;
+  noreply: string;
+  hello: string;
+}
+
+/**
+ * Social media configuration type
+ */
+export interface BrandSocial {
+  twitter: string;
+  instagram: string;
+  facebook: string;
+}
+
+/**
+ * Legal information type
+ */
+export interface BrandLegal {
+  companyName: string;
+  foundedYear: number;
+}
+
+/**
+ * SEO configuration type
+ */
+export interface BrandSeo {
+  defaultTitle: string;
+  titleTemplate: string;
+  defaultDescription: string;
+  keywords: string[];
+}
+
+/**
+ * Brand colors type
+ */
+export interface BrandColors {
+  primary: string;
+  primaryDark: string;
+  secondary: string;
+  success: string;
+  warning: string;
+  error: string;
+}
+
+/**
+ * Feature flags type
+ */
+export interface BrandFeatures {
+  messaging: boolean;
+  payments: boolean;
+  reviews: boolean;
+  mobileApp: boolean;
+}
+
+/**
+ * Complete brand configuration type
+ */
+export interface BrandConfig {
+  name: string;
+  tagline: string;
+  description: string;
+  domain: string;
+  url: BrandUrls;
+  email: BrandEmails;
+  social: BrandSocial;
+  legal: BrandLegal;
+  seo: BrandSeo;
+  colors: BrandColors;
+  features: BrandFeatures;
+}
+
+export const BRAND: BrandConfig = {
   // Core brand identity
   name: "iNSTAiNSTRU",
   tagline: "Book Expert Instructors Instantly",
@@ -83,14 +170,9 @@ export const BRAND = {
 } as const;
 
 /**
- * Type-safe brand configuration
- * 
- * Use this type when passing brand config around:
- * ```tsx
- * function EmailTemplate(brand: BrandConfig) { ... }
- * ```
+ * Email type for getEmailWithName function
  */
-export type BrandConfig = typeof BRAND;
+export type EmailType = keyof BrandEmails;
 
 /**
  * Helper function to get the appropriate API URL based on environment
@@ -140,9 +222,9 @@ export function getAppUrl(): string {
  * // Returns: "InstaInstru Support <support@instainstru.com>"
  * ```
  */
-export function getEmailWithName(type: keyof typeof BRAND.email): string {
+export function getEmailWithName(type: EmailType): string {
   const email = BRAND.email[type];
-  const nameMap = {
+  const nameMap: Record<EmailType, string> = {
     support: 'InstaInstru Support',
     noreply: 'InstaInstru',
     hello: 'InstaInstru Team'

@@ -5,20 +5,7 @@ import { useState, useEffect } from "react";
 import { Calendar, Clock, Trash2, Plus } from "lucide-react";
 import { fetchWithAuth } from '@/lib/api';
 import { logger } from '@/lib/logger';
-
-/**
- * TimeSlot interface for availability management
- * 
- * Note: This component appears to be from an older version of the availability system.
- * The current system uses a week-based UI at /dashboard/instructor/availability
- */
-interface TimeSlot {
-  id?: number;
-  start_time: string;
-  end_time: string;
-  is_available: boolean;
-  is_booked?: boolean;
-}
+import { TimeSlot } from '@/types/availability';
 
 /**
  * ManageAvailability Component
@@ -32,6 +19,7 @@ interface TimeSlot {
  * - Add/remove individual time slots
  * - Toggle availability status
  * - Prevents modification of booked slots
+ * - Uses centralized type definitions
  * 
  * @deprecated Use the week-based availability management instead
  * @component
@@ -50,12 +38,23 @@ interface AvailabilityManagerProps {
   onClose: () => void;
 }
 
+/**
+ * Extended TimeSlot interface for this component
+ * Adds optional fields specific to this legacy implementation
+ */
+interface ExtendedTimeSlot extends TimeSlot {
+  /** Unique identifier for the slot */
+  id?: number;
+  /** Whether the slot is booked */
+  is_booked?: boolean;
+}
+
 export default function ManageAvailability({ 
   isOpen, 
   onClose 
 }: AvailabilityManagerProps) {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
+  const [timeSlots, setTimeSlots] = useState<ExtendedTimeSlot[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [newSlotStart, setNewSlotStart] = useState("09:00");
