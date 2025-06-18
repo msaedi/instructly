@@ -4,7 +4,7 @@ import psycopg2
 
 load_dotenv()
 
-database_url = os.getenv("DATABASE_URL")
+database_url = os.getenv("database_url")
 print(f"Trying to connect to: {database_url[:50]}...")  # Print first 50 chars
 
 try:
