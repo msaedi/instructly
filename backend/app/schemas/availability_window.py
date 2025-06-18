@@ -97,10 +97,7 @@ class AvailabilityWindowResponse(StandardizedModel):
     end_time: TimeType
     is_available: bool = True
     
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 # REMOVED: WeeklyScheduleCreate - no longer needed
 # REMOVED: WeeklyScheduleResponse - no longer needed
 
@@ -127,10 +124,7 @@ class BlackoutDateResponse(StandardizedModel):  # Changed from BaseModel
     reason: Optional[str] = None
     created_at: DateTimeType  # Changed from str to datetime
     
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 # Week-specific operations
 class DateTimeSlot(BaseModel):
     """Schema for a time slot on a specific date."""
@@ -179,9 +173,18 @@ class CopyWeekRequest(BaseModel):
     from_week_start: DateType
     to_week_start: DateType
     
-    @validator('from_week_start', 'to_week_start')
-    def validate_mondays(cls, v):
-        """Ensure both dates are Mondays."""
+    @field_validator('from_week_start')
+    @classmethod
+    def validate_from_monday(cls, v):
+        """Ensure from_week_start is a Monday."""
+        if v.weekday() != 0:
+            raise ValueError(f'{v} is not a Monday (weekday={v.weekday()})')
+        return v
+
+    @field_validator('to_week_start')
+    @classmethod
+    def validate_to_monday(cls, v):
+        """Ensure to_week_start is a Monday."""
         if v.weekday() != 0:
             raise ValueError(f'{v} is not a Monday (weekday={v.weekday()})')
         return v

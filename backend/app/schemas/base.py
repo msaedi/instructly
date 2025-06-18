@@ -12,20 +12,9 @@ from pydantic_core import core_schema
 class StandardizedModel(BaseModel):
     """Base model with standardized JSON encoding"""
     
-    class Config:
-        # Ensure Decimal fields serialize as float
-        json_encoders = {
-            Decimal: float,
-            datetime: lambda v: v.isoformat(),
-            date: lambda v: v.isoformat(),
-            time: lambda v: v.strftime('%H:%M:%S'),
-        }
-        # Use enum values instead of names
-        use_enum_values = True
-        # Serialize by alias
-        populate_by_name = True
-
-
+    model_config = ConfigDict(use_enum_values=True, populate_by_name=True)
+    # TODO: Migrate json_encoders to field serializers
+# TODO: Remove __get_validators__ method, keep only __get_pydantic_core_schema__
 class Money(Decimal):
     """Money field that always serializes as float"""
     

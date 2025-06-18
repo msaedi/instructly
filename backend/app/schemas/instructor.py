@@ -64,19 +64,13 @@ class ServiceResponse(ServiceBase):
     id: int
     duration: int = Field(description="Effective duration in minutes")
     
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class UserBasic(StandardizedModel):
     """Basic user information for embedding in responses."""
     full_name: str
     email: str
 
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class InstructorProfileBase(StandardizedModel):
     """
     Base schema for instructor profiles.
@@ -216,9 +210,7 @@ class InstructorProfileResponse(InstructorProfileBase):
     user: UserBasic
     services: List[ServiceResponse]
     
-    class Config:
-        from_attributes = True
-    
+    model_config = ConfigDict(from_attributes=True)
     @field_validator('areas_of_service', mode="before")
     def convert_areas_to_list(cls, v):
         """Convert comma-separated string to list if needed."""

@@ -107,40 +107,28 @@ class BookingBase(StandardizedModel):
     cancelled_by_id: Optional[int]
     cancellation_reason: Optional[str]
     
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class StudentInfo(StandardizedModel):
     """Basic student information for booking display."""
     id: int
     full_name: str
     email: str
     
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class InstructorInfo(StandardizedModel):
     """Basic instructor information for booking display."""
     id: int
     full_name: str
     email: str
     
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class ServiceInfo(StandardizedModel):
     """Basic service information for booking display."""
     id: int
     skill: str
     description: Optional[str]
     
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class BookingResponse(BookingBase):
     """
     Complete booking response with related information.
@@ -212,5 +200,4 @@ class UpcomingBookingResponse(StandardizedModel):
     instructor_name: str
     meeting_location: Optional[str]
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

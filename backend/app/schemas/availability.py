@@ -37,10 +37,7 @@ class AvailabilitySlot(AvailabilitySlotBase):
     id: int
     availability_id: int  # Changed from date_override_id
     
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 class InstructorAvailabilityBase(BaseModel):
     """Base schema for instructor availability entries."""
     date: date
@@ -73,10 +70,7 @@ class InstructorAvailability(InstructorAvailabilityBase):
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
     
-    class Config:
-        from_attributes = True
-
-
+    model_config = ConfigDict(from_attributes=True)
 # Legacy schemas for backward compatibility during migration
 class DateTimeSlot(BaseModel):
     """
@@ -100,9 +94,18 @@ class CopyWeekRequest(BaseModel):
     from_week_start: date
     to_week_start: date
     
-    @validator('from_week_start', 'to_week_start')
-    def validate_monday(cls, v):
-        """Ensure dates are Mondays."""
+    @field_validator('from_week_start')
+    @classmethod
+    def validate_from_monday(cls, v):
+        """Ensure from_week_start is a Monday."""
+        if v.weekday() != 0:
+            raise ValueError('Week start dates must be Mondays')
+        return v
+
+    @field_validator('to_week_start')
+    @classmethod
+    def validate_to_monday(cls, v):
+        """Ensure to_week_start is a Monday."""
         if v.weekday() != 0:
             raise ValueError('Week start dates must be Mondays')
         return v
