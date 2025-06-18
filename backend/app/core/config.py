@@ -1,6 +1,7 @@
+# backend/app/core/config.py
 import logging
 from pydantic_settings import BaseSettings
-from pydantic import SecretStr
+from pydantic import SecretStr, ConfigDict
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -31,9 +32,11 @@ class Settings(BaseSettings):
     # Environment
     environment: str = "production"  # or "development"
 
-    class Config:
-        env_file = str(env_path)  # Use the correct path
-        case_sensitive = True
-        extra = "ignore"
+    # Use ConfigDict instead of Config class (Pydantic V2 style)
+    model_config = ConfigDict(
+        env_file=str(env_path),
+        case_sensitive=True,
+        extra="ignore"
+    )
 
 settings = Settings()
