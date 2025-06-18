@@ -10,7 +10,7 @@ import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { bookingsApi } from '@/lib/api/bookings';
 import { Booking } from '@/types/booking';
 import { BookingCard } from '@/components/BookingCard';
-import { CancelBookingModal } from '@/components/CancelBookingModal';
+import { CancelBookingModal } from '@/components/modals/CancelBookingModal';
 import BookingDetailsModal from '@/components/BookingDetailsModal';
 import { logger } from '@/lib/logger';
 

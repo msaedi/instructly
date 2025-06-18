@@ -17,7 +17,7 @@ def get_db() -> Generator[Session, None, None]:
     Yields:
         Database session that will be closed after use
     """
-    return original_get_db()
+    yield from original_get_db()
 
 
 async def get_async_db() -> AsyncGenerator[AsyncSession, None]:

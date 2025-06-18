@@ -22,7 +22,8 @@ export interface Booking {
   service_name: string; // Snapshot of service name at booking time
   hourly_rate: number;  
   total_price: number;
-  duration_minutes: number;  
+  duration_minutes: number;
+  
   
   // Location fields
   service_area?: string; 

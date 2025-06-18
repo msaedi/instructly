@@ -13,10 +13,12 @@ from sqlalchemy.orm import Session
 from .database import get_db
 from ...services.booking_service import BookingService
 from ...services.notification_service import NotificationService
-# Future imports
-# from ...services.availability_service import AvailabilityService
-# from ...services.instructor_service import InstructorService
-# from ...services.auth_service import AuthService
+from ...services.availability_service import AvailabilityService
+from ...services.conflict_checker import ConflictChecker
+from ...services.slot_manager import SlotManager
+from ...services.week_operation_service import WeekOperationService
+from ...services.bulk_operation_service import BulkOperationService
+from ...services.presentation_service import PresentationService
 
 
 def get_notification_service(
@@ -48,3 +50,104 @@ def get_booking_service(
     Returns:
         BookingService instance
     """
+    return BookingService(db, notification_service)
+
+
+def get_availability_service(
+    db: Session = Depends(get_db)
+) -> AvailabilityService:
+    """
+    Get availability service instance.
+    
+    Args:
+        db: Database session
+        
+    Returns:
+        AvailabilityService instance
+    """
+    return AvailabilityService(db)
+
+
+def get_conflict_checker(
+    db: Session = Depends(get_db)
+) -> ConflictChecker:
+    """
+    Get conflict checker service instance.
+    
+    Args:
+        db: Database session
+        
+    Returns:
+        ConflictChecker instance
+    """
+    return ConflictChecker(db)
+
+
+def get_slot_manager(
+    db: Session = Depends(get_db),
+    conflict_checker: ConflictChecker = Depends(get_conflict_checker)
+) -> SlotManager:
+    """
+    Get slot manager service instance.
+    
+    Args:
+        db: Database session
+        conflict_checker: Conflict checker service
+        
+    Returns:
+        SlotManager instance
+    """
+    return SlotManager(db, conflict_checker)
+
+
+def get_week_operation_service(
+    db: Session = Depends(get_db),
+    availability_service: AvailabilityService = Depends(get_availability_service),
+    conflict_checker: ConflictChecker = Depends(get_conflict_checker)
+) -> WeekOperationService:
+    """
+    Get week operation service instance.
+    
+    Args:
+        db: Database session
+        availability_service: Availability service
+        conflict_checker: Conflict checker service
+        
+    Returns:
+        WeekOperationService instance
+    """
+    return WeekOperationService(db, availability_service, conflict_checker)
+
+
+def get_bulk_operation_service(
+    db: Session = Depends(get_db),
+    slot_manager: SlotManager = Depends(get_slot_manager),
+    conflict_checker: ConflictChecker = Depends(get_conflict_checker)
+) -> BulkOperationService:
+    """
+    Get bulk operation service instance.
+    
+    Args:
+        db: Database session
+        slot_manager: Slot manager service
+        conflict_checker: Conflict checker service
+        
+    Returns:
+        BulkOperationService instance
+    """
+    return BulkOperationService(db, slot_manager, conflict_checker)
+
+
+def get_presentation_service(
+    db: Session = Depends(get_db)
+) -> PresentationService:
+    """
+    Get presentation service instance.
+    
+    Args:
+        db: Database session
+        
+    Returns:
+        PresentationService instance
+    """
+    return PresentationService(db)

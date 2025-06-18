@@ -104,107 +104,108 @@ export default function ValidationPreviewModal({
       title={valid ? 'Review Changes' : 'Conflicts Detected'}
       size="lg"
     >
-      <div className="space-y-6 max-h-[60vh] overflow-y-auto">
-        {/* Summary */}
-        <div className="p-4 bg-gray-50 rounded-lg">
-          <h4 className="font-medium text-gray-900 mb-3">Summary</h4>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="font-medium">Total Operations:</span>
-              <span className="ml-2">{summary.total_operations}</span>
-            </div>
-            <div>
-              <span className="font-medium">Valid:</span>
-              <span className="ml-2 text-green-600">{summary.valid_operations}</span>
-            </div>
-            <div>
-              <span className="font-medium">Conflicts:</span>
-              <span className="ml-2 text-red-600">{summary.invalid_operations}</span>
-            </div>
-            <div>
-              <span className="font-medium">Changes:</span>
-              <span className="ml-2">
-                +{summary.estimated_changes.slots_added} / 
-                -{summary.estimated_changes.slots_removed}
-              </span>
-            </div>
-          </div>
-        </div>
-        
-        {/* Warnings */}
-        {warnings.length > 0 && (
-          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="font-medium text-yellow-800 mb-1">Warnings:</p>
-                <ul className="list-disc list-inside text-sm text-yellow-700 space-y-1">
-                  {warnings.map((warning, idx) => (
-                    <li key={idx}>{warning}</li>
-                  ))}
-                </ul>
+      <div className="p-6">
+        <div className="space-y-6 max-h-[60vh] overflow-y-auto">
+          {/* Summary */}
+          <div className="p-4 bg-gray-50 rounded-lg">
+            <h4 className="font-medium text-gray-900 mb-3">Summary</h4>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="font-medium">Total Operations:</span>
+                <span className="ml-2">{summary.total_operations}</span>
+              </div>
+              <div>
+                <span className="font-medium">Valid:</span>
+                <span className="ml-2 text-green-600">{summary.valid_operations}</span>
+              </div>
+              <div>
+                <span className="font-medium">Conflicts:</span>
+                <span className="ml-2 text-red-600">{summary.invalid_operations}</span>
+              </div>
+              <div>
+                <span className="font-medium">Changes:</span>
+                <span className="ml-2">
+                  +{summary.estimated_changes.slots_added} / 
+                  -{summary.estimated_changes.slots_removed}
+                </span>
               </div>
             </div>
           </div>
-        )}
-        
-        {/* Conflict Details */}
-        {summary.invalid_operations > 0 && (
-          <div>
-            <h4 className="font-medium mb-2 text-red-600">Conflicts</h4>
-            <div className="space-y-2">
-              {details
-                .filter(d => d.reason && !d.reason.includes('Valid'))
-                .map((detail, idx) => (
-                  <div key={idx} className="p-3 bg-red-50 border border-red-200 rounded text-sm">
-                    <div className="flex items-start gap-2">
-                      {getStatusIcon(detail)}
-                      <div className="flex-1">
-                        <div className="font-medium">
-                          {formatAction(detail.action)}
-                          {detail.date && ` on ${new Date(detail.date).toLocaleDateString()}`}
-                          {detail.start_time && detail.end_time && 
-                            ` ${detail.start_time} - ${detail.end_time}`}
-                        </div>
-                        <div className="text-red-600 mt-1">{detail.reason}</div>
-                        {detail.conflicts_with && detail.conflicts_with.length > 0 && (
-                          <div className="text-xs text-gray-600 mt-1">
-                            Conflicts with booking(s): {detail.conflicts_with
-                              .map(c => `${c.start_time} - ${c.end_time}`)
-                              .join(', ')}
+          
+          {/* Warnings */}
+          {warnings.length > 0 && (
+            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium text-yellow-800 mb-1">Warnings:</p>
+                  <ul className="list-disc list-inside text-sm text-yellow-700 space-y-1">
+                    {warnings.map((warning, idx) => (
+                      <li key={idx}>{warning}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Conflict Details */}
+          {summary.invalid_operations > 0 && (
+            <div>
+              <h4 className="font-medium mb-2 text-red-600">Conflicts</h4>
+              <div className="space-y-2">
+                {details
+                  .filter(d => d.reason && !d.reason.includes('Valid'))
+                  .map((detail, idx) => (
+                    <div key={idx} className="p-3 bg-red-50 border border-red-200 rounded text-sm">
+                      <div className="flex items-start gap-2">
+                        {getStatusIcon(detail)}
+                        <div className="flex-1">
+                          <div className="font-medium">
+                            {formatAction(detail.action)}
+                            {detail.date && ` on ${new Date(detail.date).toLocaleDateString()}`}
+                            {detail.start_time && detail.end_time && 
+                              ` ${detail.start_time} - ${detail.end_time}`}
                           </div>
-                        )}
+                          <div className="text-red-600 mt-1">{detail.reason}</div>
+                          {detail.conflicts_with && detail.conflicts_with.length > 0 && (
+                            <div className="text-xs text-gray-600 mt-1">
+                              Conflicts with booking(s): {detail.conflicts_with
+                                .map(c => `${c.start_time} - ${c.end_time}`)
+                                .join(', ')}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+              </div>
             </div>
-          </div>
-        )}
-        
-        {/* Valid Operations */}
-        {summary.valid_operations > 0 && (
-          <div>
-            <h4 className="font-medium mb-2 text-green-600">Valid Operations</h4>
-            <div className="space-y-1 max-h-40 overflow-y-auto">
-              {details
-                .filter(d => d.reason && d.reason.includes('Valid'))
-                .map((detail, idx) => (
-                  <div key={idx} className="p-2 bg-green-50 rounded text-sm flex items-start gap-2">
-                    {getStatusIcon(detail)}
-                    <span>
-                      {formatAction(detail.action)}
-                      {detail.date && ` on ${new Date(detail.date).toLocaleDateString()}`}
-                      {detail.start_time && detail.end_time && 
-                        ` ${detail.start_time} - ${detail.end_time}`}
-                    </span>
-                  </div>
-                ))}
+          )}
+          
+          {/* Valid Operations */}
+          {summary.valid_operations > 0 && (
+            <div>
+              <h4 className="font-medium mb-2 text-green-600">Valid Operations</h4>
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {details
+                  .filter(d => d.reason && d.reason.includes('Valid'))
+                  .map((detail, idx) => (
+                    <div key={idx} className="p-2 bg-green-50 rounded text-sm flex items-start gap-2">
+                      {getStatusIcon(detail)}
+                      <span>
+                        {formatAction(detail.action)}
+                        {detail.date && ` on ${new Date(detail.date).toLocaleDateString()}`}
+                        {detail.start_time && detail.end_time && 
+                          ` ${detail.start_time} - ${detail.end_time}`}
+                      </span>
+                    </div>
+                  ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-      
       {/* Action Buttons */}
       <div className="flex gap-3 justify-end mt-6 pt-6 border-t">
         <button

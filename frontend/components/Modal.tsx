@@ -4,32 +4,12 @@ import { X } from 'lucide-react';
 import { logger } from '@/lib/logger';
 
 /**
- * Modal Component
+ * Modal Component with Enhanced Professional Design
  * 
- * A reusable modal component that provides consistent behavior across the application.
- * Handles accessibility features, keyboard navigation, and body scroll locking.
- * 
- * Features:
- * - Configurable sizes (sm, md, lg, xl, full)
- * - Optional close button
- * - Backdrop click to close
- * - Escape key to close
- * - Body scroll locking when open
- * - Smooth transitions
- * - ARIA attributes for accessibility
+ * A reusable modal component that provides consistent, beautiful styling across the application.
+ * Now includes built-in padding, better shadows, and professional visual design.
  * 
  * @component
- * @example
- * ```tsx
- * <Modal
- *   isOpen={showModal}
- *   onClose={() => setShowModal(false)}
- *   title="My Modal"
- *   size="md"
- * >
- *   <p>Modal content goes here</p>
- * </Modal>
- * ```
  */
 interface ModalProps {
   /** Whether the modal is currently open */
@@ -50,6 +30,10 @@ interface ModalProps {
   closeOnEscape?: boolean;
   /** Additional CSS classes to apply to the modal container */
   className?: string;
+  /** Whether to apply default content padding (can be disabled for custom layouts) */
+  noPadding?: boolean;
+  /** Optional footer content (will be styled appropriately) */
+  footer?: React.ReactNode;
 }
 
 const Modal: React.FC<ModalProps> = ({
@@ -61,7 +45,9 @@ const Modal: React.FC<ModalProps> = ({
   showCloseButton = true,
   closeOnBackdrop = true,
   closeOnEscape = true,
-  className = ''
+  className = '',
+  noPadding = false,
+  footer
 }) => {
   // Handle escape key press
   useEffect(() => {
@@ -99,8 +85,8 @@ const Modal: React.FC<ModalProps> = ({
 
   // Size presets for modal width
   const sizeClasses = {
-    sm: 'max-w-sm',
-    md: 'max-w-md',
+    sm: 'max-w-md',
+    md: 'max-w-lg',
     lg: 'max-w-2xl',
     xl: 'max-w-4xl',
     full: 'max-w-7xl'
@@ -118,26 +104,31 @@ const Modal: React.FC<ModalProps> = ({
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Enhanced Backdrop with better blur and opacity */}
       <div 
-        className="fixed inset-0 bg-black/20 z-40 transition-opacity"
+        className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 transition-all duration-200"
         onClick={handleBackdropClick}
         aria-hidden="true"
       />
       
-      {/* Modal Container */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none p-4">
+      {/* Modal Container with better positioning and animation */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none p-4 sm:p-6">
         <div 
-          className={`pointer-events-auto w-full ${sizeClasses[size]} bg-white rounded-lg shadow-xl ${className}`}
+          className={`
+            pointer-events-auto w-full ${sizeClasses[size]} 
+            bg-white rounded-xl shadow-2xl 
+            transform transition-all duration-200 ease-out
+            ${className}
+          `}
           role="dialog"
           aria-modal="true"
           aria-labelledby={title ? 'modal-title' : undefined}
         >
-          {/* Header - only render if title or close button needed */}
+          {/* Enhanced Header */}
           {(title || showCloseButton) && (
-            <div className="flex items-center justify-between p-4 border-b">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               {title && (
-                <h2 id="modal-title" className="text-lg font-semibold text-gray-900">
+                <h2 id="modal-title" className="text-xl font-semibold text-gray-900">
                   {title}
                 </h2>
               )}
@@ -147,19 +138,34 @@ const Modal: React.FC<ModalProps> = ({
                     logger.debug('Modal closed via close button');
                     onClose();
                   }}
-                  className="ml-auto p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                  className={`
+                    ${title ? 'ml-auto' : ''} 
+                    p-2 hover:bg-gray-100 rounded-lg transition-colors duration-150
+                    focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400
+                  `}
                   aria-label="Close modal"
                 >
-                  <X className="w-5 h-5 text-gray-500" />
+                  <X className="w-5 h-5 text-gray-400 hover:text-gray-600" />
                 </button>
               )}
             </div>
           )}
           
-          {/* Content with scroll handling */}
-          <div className="overflow-y-auto max-h-[calc(100vh-8rem)]">
+          {/* Enhanced Content Area */}
+          <div className={`
+            overflow-y-auto 
+            ${footer ? 'max-h-[calc(100vh-12rem)]' : 'max-h-[calc(100vh-8rem)]'}
+            ${noPadding ? '' : 'p-6'}
+          `}>
             {children}
           </div>
+          
+          {/* Optional Footer */}
+          {footer && (
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 rounded-b-xl">
+              {footer}
+            </div>
+          )}
         </div>
       </div>
     </>
