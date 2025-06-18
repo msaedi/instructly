@@ -12,7 +12,7 @@ These will be reimplemented differently in the new booking system.
 import logging
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from .base import StandardizedModel, Money
 
 from ..models.user import UserRole
@@ -44,7 +44,7 @@ class ServiceBase(StandardizedModel):
         description="Custom duration for this service in minutes (overrides default)"
     )
     
-    @validator('skill')
+    @field_validator('skill')
     def validate_skill(cls, v):
         """Ensure skill name is properly formatted."""
         return v.strip().title()
@@ -94,8 +94,8 @@ class InstructorProfileBase(StandardizedModel):
     )
     areas_of_service: List[str] = Field(
         ..., 
-        min_items=1,
-        max_items=10,
+        min_length=1,
+        max_length=10,
         description="NYC areas where instructor provides services"
     )
     years_experience: int = Field(
@@ -117,7 +117,7 @@ class InstructorProfileBase(StandardizedModel):
         description="Buffer time between bookings"
     )
     
-    @validator('areas_of_service')
+    @field_validator('areas_of_service')
     def validate_areas(cls, v):
         """Ensure areas are properly formatted and no duplicates."""
         # Remove duplicates and format properly
@@ -126,7 +126,7 @@ class InstructorProfileBase(StandardizedModel):
             raise ValueError("At least one area of service is required")
         return unique_areas
     
-    @validator('bio')
+    @field_validator('bio')
     def validate_bio(cls, v):
         """Ensure bio is not just whitespace."""
         if not v.strip():
@@ -142,12 +142,12 @@ class InstructorProfileCreate(InstructorProfileBase):
     """
     services: List[ServiceCreate] = Field(
         ..., 
-        min_items=1,
-        max_items=20,
+        min_length=1,
+        max_length=20,
         description="Services offered by the instructor"
     )
     
-    @validator('services')
+    @field_validator('services')
     def validate_unique_services(cls, v):
         """Ensure no duplicate service names."""
         skills = [service.skill.lower() for service in v]
@@ -169,8 +169,8 @@ class InstructorProfileUpdate(BaseModel):
     )
     areas_of_service: Optional[List[str]] = Field(
         None, 
-        min_items=1,
-        max_items=10
+        min_length=1,
+        max_length=10
     )
     years_experience: Optional[int] = Field(
         None, 
@@ -179,11 +179,11 @@ class InstructorProfileUpdate(BaseModel):
     )
     services: Optional[List[ServiceCreate]] = Field(
         None, 
-        min_items=1,
-        max_items=20
+        min_length=1,
+        max_length=20
     )
     
-    @validator('areas_of_service')
+    @field_validator('areas_of_service')
     def validate_areas(cls, v):
         """Ensure areas are properly formatted if provided."""
         if v is not None:
@@ -193,7 +193,7 @@ class InstructorProfileUpdate(BaseModel):
             return unique_areas
         return v
     
-    @validator('services')
+    @field_validator('services')
     def validate_unique_services(cls, v):
         """Ensure no duplicate service names if provided."""
         if v is not None:
@@ -219,7 +219,7 @@ class InstructorProfileResponse(InstructorProfileBase):
     class Config:
         from_attributes = True
     
-    @validator('areas_of_service', pre=True)
+    @field_validator('areas_of_service', mode="before")
     def convert_areas_to_list(cls, v):
         """Convert comma-separated string to list if needed."""
         if isinstance(v, str):
@@ -229,7 +229,7 @@ class InstructorProfileResponse(InstructorProfileBase):
             return [area.title() for area in areas]
         return v
     
-    @validator('services')
+    @field_validator('services')
     def sort_services(cls, v):
         """Sort services by skill name for consistent display."""
         return sorted(v, key=lambda s: s.skill)

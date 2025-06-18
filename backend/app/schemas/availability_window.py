@@ -12,7 +12,7 @@ import datetime
 from datetime import date, time
 from typing import Optional, List, Literal, Dict, Any
 from enum import Enum
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from .base import StandardizedModel
 
 # Type aliases for annotations
@@ -48,7 +48,7 @@ class AvailabilityWindowBase(BaseModel):
     end_time: TimeType
     is_available: bool = True
     
-    @validator('end_time')
+    @field_validator('end_time')
     def validate_time_order(cls, v, values):
         """Ensure end time is after start time."""
         if 'start_time' in values and v <= values['start_time']:
@@ -63,7 +63,7 @@ class SpecificDateAvailabilityCreate(AvailabilityWindowBase):
     """Schema for creating availability on a specific date."""
     specific_date: DateType
     
-    @validator('specific_date')
+    @field_validator('specific_date')
     def validate_future_date(cls, v):
         """Prevent setting availability for past dates."""
         if v < date.today():
@@ -77,7 +77,7 @@ class AvailabilityWindowUpdate(BaseModel):
     end_time: Optional[TimeType] = None
     is_available: Optional[TimeType] = None
     
-    @validator('end_time')
+    @field_validator('end_time')
     def validate_time_order(cls, v, values):
         """Ensure end time is after start time if both provided."""
         if v and 'start_time' in values and values['start_time'] and v <= values['start_time']:
@@ -111,7 +111,7 @@ class BlackoutDateCreate(BaseModel):
     date: DateType
     reason: Optional[str] = Field(None, max_length=255)
     
-    @validator('date')
+    @field_validator('date')
     def validate_future_date(cls, v):
         """Prevent creating blackout dates in the past."""
         if v < date.today():
@@ -139,14 +139,14 @@ class DateTimeSlot(BaseModel):
     end_time: TimeType
     is_available: bool = True
     
-    @validator('end_time')
+    @field_validator('end_time')
     def validate_time_order(cls, v, values):
         """Ensure end time is after start time."""
         if 'start_time' in values and v <= values['start_time']:
             raise ValueError('End time must be after start time')
         return v
     
-    @validator('date')
+    @field_validator('date')
     def validate_not_past(cls, v):
         """Prevent creating slots for past dates."""
         if v < date.today():
@@ -166,7 +166,7 @@ class WeekSpecificScheduleCreate(BaseModel):
         description="Optional Monday date. If not provided, inferred from schedule dates"
     )
     
-    @validator('week_start')
+    @field_validator('week_start')
     def validate_monday(cls, v):
         """Ensure week start is a Monday if provided."""
         if v and v.weekday() != 0:
@@ -186,7 +186,7 @@ class CopyWeekRequest(BaseModel):
             raise ValueError(f'{v} is not a Monday (weekday={v.weekday()})')
         return v
     
-    @validator('to_week_start')
+    @field_validator('to_week_start')
     def validate_different_weeks(cls, v, values):
         """Ensure we're not copying to the same week."""
         if 'from_week_start' in values and v == values['from_week_start']:
@@ -200,14 +200,14 @@ class ApplyToDateRangeRequest(BaseModel):
     start_date: DateType
     end_date: DateType
     
-    @validator('from_week_start')
+    @field_validator('from_week_start')
     def validate_monday(cls, v):
         """Ensure source week starts on Monday."""
         if v.weekday() != 0:
             raise ValueError('Source week must start on a Monday')
         return v
     
-    @validator('end_date')
+    @field_validator('end_date')
     def validate_date_range(cls, v, values):
         """Validate the date range."""
         if 'start_date' in values:
@@ -220,7 +220,7 @@ class ApplyToDateRangeRequest(BaseModel):
                 raise ValueError('Date range cannot exceed 1 year (365 days)')
         return v
     
-    @validator('start_date')
+    @field_validator('start_date')
     def validate_future_date(cls, v):
         """Ensure we're not applying to past dates."""
         if v < date.today():
@@ -238,14 +238,14 @@ class SlotOperation(BaseModel):
     # For remove/update:
     slot_id: Optional[int] = None
     
-    @validator('end_time')
+    @field_validator('end_time')
     def validate_time_order(cls, v, values):
         """Ensure end time is after start time for add/update."""
         if v and 'start_time' in values and values['start_time'] and v <= values['start_time']:
             raise ValueError('End time must be after start time')
         return v
     
-    @validator('date')
+    @field_validator('date')
     def validate_required_for_add(cls, v, values):
         """Ensure required fields for add action."""
         if values.get('action') == 'add' and not v:

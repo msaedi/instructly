@@ -1,6 +1,6 @@
 # backend/app/schemas/password_reset.py
 
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 from typing import Optional
 from datetime import datetime
 
@@ -13,7 +13,7 @@ class PasswordResetConfirm(BaseModel):
     token: str
     new_password: str = Field(..., min_length=8)
     
-    @validator('new_password')
+    @field_validator('new_password')
     def validate_password(cls, v):
         if not any(char.isdigit() for char in v):
             raise ValueError('Password must contain at least one digit')

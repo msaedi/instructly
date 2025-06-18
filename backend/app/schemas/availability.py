@@ -11,7 +11,7 @@ the table renaming refactoring.
 
 from datetime import date, time
 from typing import List, Optional
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class AvailabilitySlotBase(BaseModel):
@@ -19,7 +19,7 @@ class AvailabilitySlotBase(BaseModel):
     start_time: time
     end_time: time
     
-    @validator('end_time')
+    @field_validator('end_time')
     def validate_time_order(cls, v, values):
         """Ensure end time is after start time."""
         if 'start_time' in values and v <= values['start_time']:
@@ -51,7 +51,7 @@ class InstructorAvailabilityCreate(InstructorAvailabilityBase):
     """Schema for creating instructor availability."""
     time_slots: List[AvailabilitySlotCreate] = []
     
-    @validator('date')
+    @field_validator('date')
     def validate_not_past(cls, v):
         """Prevent creating availability for past dates."""
         if v < date.today():
@@ -107,7 +107,7 @@ class CopyWeekRequest(BaseModel):
             raise ValueError('Week start dates must be Mondays')
         return v
     
-    @validator('to_week_start')
+    @field_validator('to_week_start')
     def validate_different_weeks(cls, v, values):
         """Ensure we're not copying to the same week."""
         if 'from_week_start' in values and v == values['from_week_start']:
@@ -121,14 +121,14 @@ class ApplyToDateRangeRequest(BaseModel):
     start_date: date
     end_date: date
     
-    @validator('from_week_start')
+    @field_validator('from_week_start')
     def validate_monday(cls, v):
         """Ensure week start is a Monday."""
         if v.weekday() != 0:
             raise ValueError('Week start date must be a Monday')
         return v
     
-    @validator('end_date')
+    @field_validator('end_date')
     def validate_date_range(cls, v, values):
         """Ensure valid date range."""
         if 'start_date' in values and v < values['start_date']:
@@ -148,7 +148,7 @@ class AvailabilityQuery(BaseModel):
     service_id: int
     date: date
     
-    @validator('date')
+    @field_validator('date')
     def validate_future_date(cls, v):
         """Ensure querying for future dates only."""
         if v < date.today():

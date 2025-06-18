@@ -4,7 +4,7 @@ Base schemas with standardized field types for consistent API responses.
 from decimal import Decimal
 from datetime import datetime, date, time
 from typing import Any
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import core_schema
 

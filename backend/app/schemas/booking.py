@@ -8,7 +8,7 @@ including instant booking creation, booking management, and status updates.
 from datetime import date, time, datetime
 from decimal import Decimal
 from typing import Optional, List, Literal
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, root_validator, field_validator, ConfigDict
 from ..schemas.base import StandardizedModel, Money
 from ..models.booking import BookingStatus
 
@@ -29,12 +29,12 @@ class BookingCreate(BaseModel):
         description="Type of meeting location"
     )
     
-    @validator('student_note')
+    @field_validator('student_note')
     def clean_note(cls, v):
         """Clean up the student note."""
         return v.strip() if v else v
 
-    @validator('location_type')
+    @field_validator('location_type')
     def validate_location_type(cls, v):
         """Ensure location type is valid."""
         valid_types = ["student_home", "instructor_location", "neutral"]
@@ -51,7 +51,7 @@ class BookingUpdate(BaseModel):
     instructor_note: Optional[str] = Field(None, max_length=1000)
     meeting_location: Optional[str] = None
     
-    @validator('instructor_note')
+    @field_validator('instructor_note')
     def clean_note(cls, v):
         """Clean up the instructor note."""
         return v.strip() if v else v
@@ -61,7 +61,7 @@ class BookingCancel(BaseModel):
     """Schema for cancelling a booking."""
     reason: str = Field(..., min_length=1, max_length=500, description="Cancellation reason")
     
-    @validator('reason')
+    @field_validator('reason')
     def clean_reason(cls, v):
         """Ensure reason is not empty."""
         v = v.strip()
