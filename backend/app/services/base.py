@@ -12,7 +12,7 @@ Provides common functionality for all service classes including:
 
 import logging
 import time
-from typing import TypeVar, Generic, Optional, Callable, Any
+from typing import TypeVar, Generic, Optional, Callable, Any, TYPE_CHECKING
 from functools import wraps
 from contextlib import contextmanager
 
@@ -27,6 +27,10 @@ except ImportError:
     def get_cache():
         return None
     RedisCache = None
+
+# Use TYPE_CHECKING to avoid circular imports
+if TYPE_CHECKING:
+    from .cache_service import CacheService
 
 T = TypeVar('T')
 logger = logging.getLogger(__name__)
@@ -44,16 +48,16 @@ class BaseService:
     - Performance monitoring
     """
     
-    def __init__(self, db: Session, cache: Optional[RedisCache] = None):
+    def __init__(self, db: Session, cache: Optional['CacheService'] = None):
         """
         Initialize base service.
         
         Args:
             db: Database session
-            cache: Optional Redis cache instance
+            cache: Optional CacheService instance
         """
         self.db = db
-        self.cache = cache or get_cache()
+        self.cache = cache
         self.logger = logging.getLogger(self.__class__.__name__)
         self._metrics = {}
     
@@ -186,8 +190,8 @@ class BaseService:
             return
         
         try:
-            self.cache.delete_pattern(pattern)
-            self.logger.debug(f"Invalidated cache pattern: {pattern}")
+            count = self.cache.delete_pattern(pattern)
+            self.logger.debug(f"Invalidated {count} keys matching pattern: {pattern}")
         except Exception as e:
             self.logger.warning(f"Failed to invalidate pattern {pattern}: {str(e)}")
     

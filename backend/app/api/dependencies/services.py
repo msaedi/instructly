@@ -9,6 +9,7 @@ with their required dependencies properly injected.
 from typing import Generator
 from fastapi import Depends
 from sqlalchemy.orm import Session
+from functools import lru_cache
 
 from .database import get_db
 from ...services.booking_service import BookingService
@@ -19,6 +20,16 @@ from ...services.slot_manager import SlotManager
 from ...services.week_operation_service import WeekOperationService
 from ...services.bulk_operation_service import BulkOperationService
 from ...services.presentation_service import PresentationService
+from ...services.cache_service import CacheService, get_cache_service 
+
+
+# Service instance cache
+_service_instances = {}
+
+@lru_cache(maxsize=1)
+def get_cache_service_singleton() -> CacheService:
+    """Get singleton cache service instance."""
+    return get_cache_service()
 
 
 def get_notification_service(
@@ -53,19 +64,26 @@ def get_booking_service(
     return BookingService(db, notification_service)
 
 
+def get_cache_service_dep() -> CacheService:
+    """Get cache service instance for dependency injection."""
+    return get_cache_service_singleton()
+
+
 def get_availability_service(
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    cache_service: CacheService = Depends(get_cache_service_dep)
 ) -> AvailabilityService:
     """
-    Get availability service instance.
+    Get availability service instance with cache support.
     
     Args:
         db: Database session
+        cache_service: Cache service for performance optimization
         
     Returns:
-        AvailabilityService instance
+        AvailabilityService instance with caching enabled
     """
-    return AvailabilityService(db)
+    return AvailabilityService(db, cache_service)
 
 
 def get_conflict_checker(

@@ -89,7 +89,7 @@ class InstructorProfileBase(StandardizedModel):
     areas_of_service: List[str] = Field(
         ..., 
         min_length=1,
-        max_length=10,
+        max_length=20,
         description="NYC areas where instructor provides services"
     )
     years_experience: int = Field(

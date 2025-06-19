@@ -1,0 +1,24 @@
+# backend/docker-compose.yml
+version: '3.8'
+
+services:
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: instainstru_dragonfly
+    ports:
+      - "6379:6379"
+    volumes:
+      - dragonfly_data:/data
+    environment:
+      # DragonflyDB optimizations
+      - DRAGONFLY_ARGS=--maxmemory=512mb --hz=100
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  dragonfly_data:
+    driver: local

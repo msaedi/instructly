@@ -11,7 +11,7 @@ Core service handling instructor availability management including:
 
 import logging
 from datetime import date, timedelta, datetime, time
-from typing import List, Dict, Optional, Any, Tuple
+from typing import List, Dict, Optional, Any, Tuple, TYPE_CHECKING
 
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_
@@ -32,6 +32,10 @@ from ..core.exceptions import (
 )
 from ..utils.time_helpers import time_to_string, string_to_time
 
+# TYPE_CHECKING import to avoid circular dependencies
+if TYPE_CHECKING:
+    from .cache_service import CacheService
+
 logger = logging.getLogger(__name__)
 
 
@@ -43,11 +47,156 @@ class AvailabilityService(BaseService):
     clean interfaces for the route handlers.
     """
     
-    def __init__(self, db: Session):
-        """Initialize availability service."""
-        super().__init__(db)
+    def __init__(self, db: Session, cache_service: Optional['CacheService'] = None):
+        """Initialize availability service with optional cache."""
+        # Pass the cache service to BaseService
+        # The CacheService has a redis property that matches RedisCache interface
+        super().__init__(db, cache=cache_service)
         self.logger = logging.getLogger(__name__)
+        self.cache_service = cache_service
 
+        if cache_service:
+            self.logger.info("AvailabilityService initialized WITH cache service")
+        else:
+            self.logger.warning("AvailabilityService initialized WITHOUT cache service")
+
+
+    def get_availability_for_date(
+        self,
+        instructor_id: int,
+        target_date: date
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get availability for a specific date (optimized for single day).
+        
+        Args:
+            instructor_id: The instructor ID
+            target_date: The specific date
+            
+        Returns:
+            Availability data for the date or None
+        """
+        # Try cache first
+        cache_key = f"availability:day:{instructor_id}:{target_date.isoformat()}"
+        if self.cache_service:
+            cached = self.cache_service.get(cache_key)
+            if cached is not None:
+                return cached
+        
+        # Query only for specific date
+        entry = self.db.query(InstructorAvailability).filter(
+            InstructorAvailability.instructor_id == instructor_id,
+            InstructorAvailability.date == target_date
+        ).options(joinedload(InstructorAvailability.time_slots)).first()
+        
+        if not entry or entry.is_cleared:
+            return None
+        
+        result = {
+            "date": entry.date.isoformat(),
+            "slots": [
+                {
+                    "start_time": time_to_string(slot.start_time),
+                    "end_time": time_to_string(slot.end_time),
+                    "is_available": True
+                }
+                for slot in entry.time_slots
+            ]
+        }
+        
+        # Cache for 1 hour
+        if self.cache_service:
+            self.cache_service.set(cache_key, result, tier='warm')
+        
+        return result
+    
+    def get_availability_summary(
+        self,
+        instructor_id: int,
+        start_date: date,
+        end_date: date
+    ) -> Dict[str, int]:
+        """
+        Get summary of availability (slot counts) for date range.
+        
+        Useful for calendar views that just need to show if days have availability.
+        
+        Args:
+            instructor_id: The instructor ID
+            start_date: Start of range
+            end_date: End of range
+            
+        Returns:
+            Dict mapping date strings to slot counts
+        """
+        # Use raw SQL for optimal performance
+        query = """
+            SELECT 
+                ia.date,
+                COUNT(aslot.id) as slot_count
+            FROM instructor_availability ia
+            LEFT JOIN availability_slots aslot ON ia.id = aslot.availability_id
+            WHERE 
+                ia.instructor_id = :instructor_id
+                AND ia.date BETWEEN :start_date AND :end_date
+                AND ia.is_cleared = false
+            GROUP BY ia.date
+            ORDER BY ia.date
+        """
+        
+        result = self.db.execute(
+            query,
+            {
+                'instructor_id': instructor_id,
+                'start_date': start_date,
+                'end_date': end_date
+            }
+        )
+        
+        return {
+            row.date.isoformat(): row.slot_count
+            for row in result
+        }
+    
+    def prefetch_week_availability(
+        self,
+        instructor_id: int,
+        start_date: date
+    ) -> None:
+        """
+        Prefetch and cache a week's availability in one query.
+        
+        Optimized for initial calendar load.
+        """
+        week_dates = self._calculate_week_dates(start_date)
+        
+        # Single query with all data
+        entries = self.db.query(InstructorAvailability).filter(
+            InstructorAvailability.instructor_id == instructor_id,
+            InstructorAvailability.date.in_(week_dates)
+        ).options(
+            joinedload(InstructorAvailability.time_slots)
+        ).all()
+        
+        # Cache each day individually for granular access
+        for entry in entries:
+            if not entry.is_cleared and entry.time_slots:
+                day_data = {
+                    "date": entry.date.isoformat(),
+                    "slots": [
+                        {
+                            "start_time": time_to_string(slot.start_time),
+                            "end_time": time_to_string(slot.end_time),
+                            "is_available": True
+                        }
+                        for slot in entry.time_slots
+                    ]
+                }
+                
+                cache_key = f"availability:day:{instructor_id}:{entry.date.isoformat()}"
+                if self.cache_service:
+                    self.cache_service.set(cache_key, day_data, tier='hot')
+    
     def get_all_availability(
         self,
         instructor_id: int,
@@ -109,16 +258,30 @@ class AvailabilityService(BaseService):
             start_date=start_date
         )
         
+        # Try cache first if available
+        if self.cache_service:
+            cached_data = self.cache_service.get_week_availability(instructor_id, start_date)
+            if cached_data is not None:
+                self.logger.info(f"CACHE HIT for week availability: instructor={instructor_id}, start={start_date}")
+                return cached_data
+            else:
+                self.logger.info(f"CACHE MISS for week availability: instructor={instructor_id}, start={start_date}")
+        
         # Calculate week dates (Monday to Sunday)
         week_dates = self._calculate_week_dates(start_date)
         
         # Get instructor availability for this week
+        import time as time_module
+        start_time = time_module.time()
         availability_entries = self.db.query(InstructorAvailability).filter(
             and_(
                 InstructorAvailability.instructor_id == instructor_id,
                 InstructorAvailability.date.in_(week_dates)
             )
         ).options(joinedload(InstructorAvailability.time_slots)).all()
+        
+        query_time = (time_module.time() - start_time) * 1000
+        self.logger.info(f"Database query took {query_time:.2f}ms")
         
         self.logger.debug(f"Found {len(availability_entries)} availability entries for the week")
         
@@ -144,6 +307,11 @@ class AvailabilityService(BaseService):
                     for slot in entry.time_slots
                 ]
                 self.logger.debug(f"Added {len(entry.time_slots)} slots for {date_str}")
+        
+        # Cache the result if cache is available
+        if self.cache_service:
+            success = self.cache_service.cache_week_availability(instructor_id, start_date, week_schedule)
+            self.logger.info(f"Cached week availability: success={success}")
         
         return week_schedule
     

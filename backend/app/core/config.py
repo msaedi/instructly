@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     # Environment
     environment: str = "production"  # or "development"
 
+    # Cache settings
+    redis_url: str = "redis://localhost:6379"
+    cache_ttl: int = 3600  # 1 hour in seconds
+
     # Use ConfigDict instead of Config class (Pydantic V2 style)
     model_config = ConfigDict(
         env_file=str(env_path),

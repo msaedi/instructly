@@ -1,7 +1,11 @@
+# backend/app/main.py
 import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import auth, instructors, availability_windows, password_reset, bookings
+from fastapi.middleware.gzip import GZipMiddleware
+from .middleware.timing import TimingMiddleware
+from .routes import auth, instructors, availability_windows, password_reset, bookings, metrics
 from .core.constants import (
     ALLOWED_ORIGINS, 
     BRAND_NAME, 
@@ -18,13 +22,45 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifespan context manager for startup and shutdown events.
+    
+    This replaces the deprecated @app.on_event decorators.
+    """
+    # Startup
+    logger.info(f"{BRAND_NAME} API starting up...")
+    logger.info(f"Allowed origins: {ALLOWED_ORIGINS}")
+    logger.info("GZip compression enabled for responses > 500 bytes")
+    
+    # Here you can add any startup logic like:
+    # - Warming up caches
+    # - Checking database connections
+    # - Loading ML models
+    
+    yield
+    
+    # Shutdown
+    logger.info(f"{BRAND_NAME} API shutting down...")
+    # Here you can add cleanup logic like:
+    # - Closing database connections
+    # - Saving cache state
+    # - Cleanup temporary files
+
+
 app = FastAPI(
     title=API_TITLE,
     description=API_DESCRIPTION,
     version=API_VERSION,
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan  # Use the new lifespan handler
 )
+
+# Add timing middleware FIRST (before other middleware)
+app.add_middleware(TimingMiddleware)
 
 # CORS middleware configuration
 app.add_middleware(
@@ -35,23 +71,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add GZip compression middleware
+app.add_middleware(
+    GZipMiddleware,
+    minimum_size=500  # Compress responses larger than 500 bytes
+)
+
 # Include routers
 app.include_router(auth.router)
 app.include_router(instructors.router)
 app.include_router(availability_windows.router)
 app.include_router(password_reset.router)
 app.include_router(bookings.router)
+app.include_router(metrics.router)
 
-@app.on_event("startup")
-async def startup_event():
-    """Log application startup"""
-    logger.info(f"{BRAND_NAME} API starting up...")
-    logger.info(f"Allowed origins: {ALLOWED_ORIGINS}")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Log application shutdown"""
-    logger.info(f"{BRAND_NAME} API shutting down...")
 
 @app.get("/")
 def read_root():
@@ -61,6 +94,7 @@ def read_root():
         "version": API_VERSION,
         "docs": "/docs"
     }
+
 
 @app.get("/health")
 def health_check():

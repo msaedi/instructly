@@ -12,6 +12,7 @@ from ...models.user import User
 from .database import get_db
 
 
+
 async def get_current_user(
     current_user_email: str = Depends(auth_get_current_user),
     db: Session = Depends(get_db)

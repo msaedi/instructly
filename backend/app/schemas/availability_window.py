@@ -49,9 +49,9 @@ class AvailabilityWindowBase(BaseModel):
     is_available: bool = True
     
     @field_validator('end_time')
-    def validate_time_order(cls, v, values):
+    def validate_time_order(cls, v, info):
         """Ensure end time is after start time."""
-        if 'start_time' in values and v <= values['start_time']:
+        if info.data and 'start_time' in info.data and info.data['start_time'] and v <= info.data['start_time']:
             raise ValueError('End time must be after start time')
         return v
 
@@ -78,9 +78,9 @@ class AvailabilityWindowUpdate(BaseModel):
     is_available: Optional[TimeType] = None
     
     @field_validator('end_time')
-    def validate_time_order(cls, v, values):
+    def validate_time_order(cls, v, info):
         """Ensure end time is after start time if both provided."""
-        if v and 'start_time' in values and values['start_time'] and v <= values['start_time']:
+        if v and info.data and 'start_time' in info.data and info.data['start_time'] and v <= info.data['start_time']:
             raise ValueError('End time must be after start time')
         return v
 
@@ -134,9 +134,9 @@ class DateTimeSlot(BaseModel):
     is_available: bool = True
     
     @field_validator('end_time')
-    def validate_time_order(cls, v, values):
+    def validate_time_order(cls, v, info):
         """Ensure end time is after start time."""
-        if 'start_time' in values and v <= values['start_time']:
+        if info.data and 'start_time' in info.data and info.data['start_time'] and v <= info.data['start_time']:
             raise ValueError('End time must be after start time')
         return v
     
@@ -190,9 +190,9 @@ class CopyWeekRequest(BaseModel):
         return v
     
     @field_validator('to_week_start')
-    def validate_different_weeks(cls, v, values):
+    def validate_different_weeks(cls, v, info):
         """Ensure we're not copying to the same week."""
-        if 'from_week_start' in values and v == values['from_week_start']:
+        if info.data and 'from_week_start' in info.data and v == info.data['from_week_start']:
             raise ValueError('Cannot copy to the same week')
         return v
 
@@ -211,14 +211,14 @@ class ApplyToDateRangeRequest(BaseModel):
         return v
     
     @field_validator('end_date')
-    def validate_date_range(cls, v, values):
+    def validate_date_range(cls, v, info):
         """Validate the date range."""
-        if 'start_date' in values:
-            if v < values['start_date']:
+        if info.data and 'start_date' in info.data:
+            if v < info.data['start_date']:
                 raise ValueError('End date must be after start date')
             # Enforce 1-year maximum range
             from datetime import timedelta
-            max_end = values['start_date'] + timedelta(days=365)
+            max_end = info.data['start_date'] + timedelta(days=365)
             if v > max_end:
                 raise ValueError('Date range cannot exceed 1 year (365 days)')
         return v
@@ -242,17 +242,16 @@ class SlotOperation(BaseModel):
     slot_id: Optional[int] = None
     
     @field_validator('end_time')
-    def validate_time_order(cls, v, values):
+    def validate_time_order(cls, v, info):
         """Ensure end time is after start time for add/update."""
-        if v and 'start_time' in values and values['start_time'] and v <= values['start_time']:
+        if v and info.data and 'start_time' in info.data and info.data['start_time'] and v <= info.data['start_time']:
             raise ValueError('End time must be after start time')
         return v
     
     @field_validator('date')
-    def validate_required_for_add(cls, v, values):
-        """Ensure required fields for add action."""
-        if values.get('action') == 'add' and not v:
-            raise ValueError('Date is required for add action')
+    def validate_required_for_add(cls, v, info):
+        if info.data.get('action') == 'add' and not v:
+            raise ValueError('date is required for add operations')
         return v
 
 class BulkUpdateRequest(BaseModel):
