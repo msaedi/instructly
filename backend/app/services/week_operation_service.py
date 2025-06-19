@@ -25,6 +25,7 @@ from ..utils.time_helpers import time_to_string, string_to_time
 if TYPE_CHECKING:
     from .availability_service import AvailabilityService
     from .conflict_checker import ConflictChecker
+    from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +42,11 @@ class WeekOperationService(BaseService):
         self, 
         db: Session,
         availability_service: Optional["AvailabilityService"] = None,
-        conflict_checker: Optional["ConflictChecker"] = None
+        conflict_checker: Optional["ConflictChecker"] = None,
+        cache_service: Optional['CacheService'] = None
     ):
         """Initialize week operation service."""
-        super().__init__(db)
+        super().__init__(db, cache=cache_service)
         self.logger = logging.getLogger(__name__)
         
         # Lazy import to avoid circular dependencies
@@ -58,6 +60,7 @@ class WeekOperationService(BaseService):
             
         self.availability_service = availability_service
         self.conflict_checker = conflict_checker
+        self.cache_service = cache_service
     
     async def copy_week_availability(
         self,
@@ -330,6 +333,21 @@ class WeekOperationService(BaseService):
             f"{dates_modified} modified, {slots_created} slots"
         )
         
+        if self.cache_service and (dates_created > 0 or dates_modified > 0):
+            # Calculate all affected dates
+            affected_dates = []
+            current = start_date
+            while current <= end_date:
+                affected_dates.append(current)
+                current += timedelta(days=1)
+            
+            # Invalidate cache for all affected dates
+            self.cache_service.invalidate_instructor_availability(
+                instructor_id,
+                affected_dates
+            )
+            self.logger.info(f"Invalidated cache for {len(affected_dates)} dates after apply_pattern")
+
         return {
             "message": message,
             "start_date": start_date.isoformat(),

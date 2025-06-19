@@ -140,7 +140,8 @@ def get_week_operation_service(
 def get_bulk_operation_service(
     db: Session = Depends(get_db),
     slot_manager: SlotManager = Depends(get_slot_manager),
-    conflict_checker: ConflictChecker = Depends(get_conflict_checker)
+    conflict_checker: ConflictChecker = Depends(get_conflict_checker),
+    cache_service: CacheService = Depends(get_cache_service_dep)
 ) -> BulkOperationService:
     """
     Get bulk operation service instance.
@@ -153,7 +154,7 @@ def get_bulk_operation_service(
     Returns:
         BulkOperationService instance
     """
-    return BulkOperationService(db, slot_manager, conflict_checker)
+    return BulkOperationService(db, slot_manager, conflict_checker, cache_service)
 
 
 def get_presentation_service(

@@ -33,6 +33,7 @@ import logging
 from datetime import date, timedelta
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models.user import User, UserRole
@@ -132,7 +133,8 @@ async def get_week_availability(
 async def save_week_availability(
     week_data: WeekSpecificScheduleCreate,
     current_user: User = Depends(get_current_active_user),
-    availability_service: AvailabilityService = Depends(get_availability_service)
+    availability_service: AvailabilityService = Depends(get_availability_service),
+    db: Session = Depends(get_db)
 ):
     """
     Save availability for specific dates in a week.
@@ -148,6 +150,7 @@ async def save_week_availability(
             instructor_id=current_user.id,
             week_data=week_data
         )
+        
         return result
     except DomainException as e:
         raise e.to_http_exception()
@@ -160,7 +163,8 @@ async def save_week_availability(
 async def copy_week_availability(
     copy_data: CopyWeekRequest,
     current_user: User = Depends(get_current_active_user),
-    week_operation_service: WeekOperationService = Depends(get_week_operation_service)
+    week_operation_service: WeekOperationService = Depends(get_week_operation_service),
+    db: Session = Depends(get_db)
 ):
     """
     Copy availability from one week to another while preserving existing bookings.
@@ -177,6 +181,7 @@ async def copy_week_availability(
             from_week_start=copy_data.from_week_start,
             to_week_start=copy_data.to_week_start
         )
+        
         return result
     except DomainException as e:
         raise e.to_http_exception()
@@ -189,7 +194,8 @@ async def copy_week_availability(
 async def apply_to_date_range(
     apply_data: ApplyToDateRangeRequest,
     current_user: User = Depends(get_current_active_user),
-    week_operation_service: WeekOperationService = Depends(get_week_operation_service)
+    week_operation_service: WeekOperationService = Depends(get_week_operation_service),
+    db: Session = Depends(get_db)
 ):
     """
     Apply a week's pattern to a date range while preserving all existing bookings.
@@ -206,6 +212,7 @@ async def apply_to_date_range(
             start_date=apply_data.start_date,
             end_date=apply_data.end_date
         )
+        
         return result
     except DomainException as e:
         raise e.to_http_exception()
@@ -218,7 +225,8 @@ async def apply_to_date_range(
 def add_specific_date_availability(
     availability_data: SpecificDateAvailabilityCreate,
     current_user: User = Depends(get_current_active_user),
-    availability_service: AvailabilityService = Depends(get_availability_service)
+    availability_service: AvailabilityService = Depends(get_availability_service),
+    db: Session = Depends(get_db)
 ):
     """
     Add availability for a specific date (one-time).
@@ -232,6 +240,7 @@ def add_specific_date_availability(
             instructor_id=current_user.id,
             availability_data=availability_data
         )
+        
         return result
     except DomainException as e:
         raise e.to_http_exception()
@@ -292,7 +301,8 @@ def get_all_availability(
 async def bulk_update_availability(
     update_data: BulkUpdateRequest,
     current_user: User = Depends(get_current_active_user),
-    bulk_operation_service: BulkOperationService = Depends(get_bulk_operation_service)
+    bulk_operation_service: BulkOperationService = Depends(get_bulk_operation_service),
+    db: Session = Depends(get_db)
 ):
     """
     Bulk update availability slots.
@@ -309,6 +319,7 @@ async def bulk_update_availability(
             instructor_id=current_user.id,
             update_data=update_data
         )
+        
         return BulkUpdateResponse(**result)
     except DomainException as e:
         raise e.to_http_exception()
@@ -322,7 +333,8 @@ def update_availability_window(
     window_id: int,
     update_data: AvailabilityWindowUpdate,
     current_user: User = Depends(get_current_active_user),
-    slot_manager: SlotManager = Depends(get_slot_manager)
+    slot_manager: SlotManager = Depends(get_slot_manager),
+    db: Session = Depends(get_db)
 ):
     """
     Update an availability time slot.
@@ -367,7 +379,8 @@ def update_availability_window(
 def delete_availability_window(
     window_id: int,
     current_user: User = Depends(get_current_active_user),
-    slot_manager: SlotManager = Depends(get_slot_manager)
+    slot_manager: SlotManager = Depends(get_slot_manager),
+    db: Session = Depends(get_db)
 ):
     """
     Delete an availability time slot.
@@ -381,6 +394,7 @@ def delete_availability_window(
     
     try:
         slot_manager.delete_slot(slot_id=window_id, force=False)
+        
         return {"message": "Availability time slot deleted"}
     except DomainException as e:
         raise e.to_http_exception()
@@ -477,7 +491,8 @@ def get_blackout_dates(
 def add_blackout_date(
     blackout_data: BlackoutDateCreate,
     current_user: User = Depends(get_current_active_user),
-    availability_service: AvailabilityService = Depends(get_availability_service)
+    availability_service: AvailabilityService = Depends(get_availability_service),
+    db: Session = Depends(get_db)
 ):
     """
     Add a blackout date (vacation/unavailable).
@@ -488,10 +503,12 @@ def add_blackout_date(
     verify_instructor(current_user)
     
     try:
-        return availability_service.add_blackout_date(
+        result = availability_service.add_blackout_date(
             instructor_id=current_user.id,
             blackout_data=blackout_data
         )
+        
+        return result
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:
@@ -503,7 +520,8 @@ def add_blackout_date(
 def delete_blackout_date(
     blackout_id: int,
     current_user: User = Depends(get_current_active_user),
-    availability_service: AvailabilityService = Depends(get_availability_service)
+    availability_service: AvailabilityService = Depends(get_availability_service),
+    db: Session = Depends(get_db)
 ):
     """
     Delete a blackout date.
@@ -520,6 +538,7 @@ def delete_blackout_date(
             instructor_id=current_user.id,
             blackout_id=blackout_id
         )
+        
         return {"message": "Blackout date deleted"}
     except DomainException as e:
         raise e.to_http_exception()

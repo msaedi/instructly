@@ -11,7 +11,7 @@ Handles bulk availability operations including:
 
 import logging
 from datetime import date, time, datetime, timedelta
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, TYPE_CHECKING
 from contextlib import contextmanager
 
 from sqlalchemy.orm import Session
@@ -33,6 +33,9 @@ from .conflict_checker import ConflictChecker
 from ..core.exceptions import ValidationException
 from ..utils.time_helpers import string_to_time
 
+if TYPE_CHECKING:
+    from .cache_service import CacheService
+
 logger = logging.getLogger(__name__)
 
 
@@ -48,13 +51,15 @@ class BulkOperationService(BaseService):
         self,
         db: Session,
         slot_manager: Optional[SlotManager] = None,
-        conflict_checker: Optional[ConflictChecker] = None
+        conflict_checker: Optional[ConflictChecker] = None,
+        cache_service: Optional['CacheService'] = None
     ):
         """Initialize bulk operation service."""
-        super().__init__(db)
+        super().__init__(db, cache=cache_service)
         self.logger = logging.getLogger(__name__)
         self.slot_manager = slot_manager or SlotManager(db)
         self.conflict_checker = conflict_checker or ConflictChecker(db)
+        self.cache_service = cache_service
     
     async def process_bulk_update(
         self,
@@ -78,6 +83,10 @@ class BulkOperationService(BaseService):
             validate_only=update_data.validate_only
         )
         
+        self.logger.info(f"Bulk update operations: {len(update_data.operations)}")
+        for op in update_data.operations[:5]:  # Log first 5 operations
+            self.logger.info(f"  Operation: {op.action} - Date: {op.date} - Slot: {op.slot_id}")
+
         results = []
         successful = 0
         failed = 0
@@ -122,6 +131,39 @@ class BulkOperationService(BaseService):
             elif successful == 0:
                 self.db.rollback()
                 self.logger.info("No successful operations - rolling back")
+        
+        # CRITICAL FIX: Invalidate cache after successful operations
+        if successful > 0 and not update_data.validate_only:
+            # Get unique dates from operations
+            affected_dates = set()
+            
+            # For remove operations, we need to look up the dates from the slot IDs
+            for op in update_data.operations:
+                if op.action == 'remove' and op.slot_id:
+                    # Need to find what date this slot was for
+                    # This is tricky - we need to query the slot's date before it was deleted
+                    # For now, let's invalidate the entire week
+                    pass
+                elif op.date:
+                    # Handle both string and date objects
+                    if isinstance(op.date, str):
+                        affected_dates.add(date.fromisoformat(op.date))
+                    elif isinstance(op.date, date):
+                        affected_dates.add(op.date)
+            
+            # If we had remove operations but no dates, invalidate the entire week's cache
+            if successful > 0 and len(affected_dates) == 0:
+                # Get the current week's dates and invalidate all of them
+                # This is a broader invalidation but ensures consistency
+                if self.cache_service:
+                    self.cache_service.delete_pattern(f"*{instructor_id}*")
+                    self.logger.info(f"Invalidated all cache for instructor {instructor_id} due to remove operations")
+            elif affected_dates and self.cache_service:
+                self.cache_service.invalidate_instructor_availability(
+                    instructor_id, 
+                    list(affected_dates)
+                )
+                self.logger.info(f"Invalidated cache for instructor {instructor_id}, dates: {len(affected_dates)}")
         
         return {
             "successful": successful,

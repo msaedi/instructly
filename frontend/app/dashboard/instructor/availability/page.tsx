@@ -277,17 +277,33 @@ export default function AvailabilityPage(): React.ReactElement {
     });
   }, [weekDates, bookedSlots.length, setWeekSchedule, setMessage]);
   
-  /**
-   * Handle save operation
-   */
-  const handleSave = useCallback(async () => {
-    const result = await saveWeekSchedule();
-    if (result.success) {
-      setMessage({ type: 'success', text: result.message });
-    } else {
-      setMessage({ type: 'error', text: result.message });
-    }
-  }, [saveWeekSchedule, setMessage]);
+/**
+ * Handle save operation
+ */
+const handleSave = useCallback(async () => {
+  logger.info('Save operation started', { 
+    time: new Date().toISOString(),
+    weekStart: currentWeekStart.toISOString() 
+  });
+  
+  const result = await saveWeekSchedule();
+  
+  if (result.success) {
+    setMessage({ type: 'success', text: result.message });
+    
+    logger.debug('Refreshing schedule after save');
+    await refreshSchedule();
+    
+    logger.info('Save completed', {
+      hasUnsavedChanges,
+      weekScheduleKeys: Object.keys(weekSchedule),
+      savedWeekScheduleKeys: Object.keys(savedWeekSchedule)
+    });
+  } else {
+    logger.error('Save failed', null, { message: result.message });
+    setMessage({ type: 'error', text: result.message });
+  }
+}, [saveWeekSchedule, setMessage, refreshSchedule, weekSchedule, savedWeekSchedule, hasUnsavedChanges, currentWeekStart]);
   
   /**
    * Handle copy from previous week

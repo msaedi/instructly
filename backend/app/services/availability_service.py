@@ -344,9 +344,6 @@ class AvailabilityService(BaseService):
             schedule_count=len(week_data.schedule)
         )
         
-        # Ensure instructor profile exists
-        instructor_profile = self._get_instructor_profile(instructor_id)
-        
         # Determine week dates
         monday = self._determine_week_start(week_data)
         week_dates = self._calculate_week_dates(monday)
@@ -363,6 +360,17 @@ class AvailabilityService(BaseService):
                 clear_existing=week_data.clear_existing
             )
         
+        # Force SQLAlchemy to clear its cache
+        self.db.expire_all()
+
+        # Invalidate cache AFTER transaction commits
+        # This ensures the database has the new data before we clear the cache
+        self._invalidate_availability_caches(instructor_id, week_dates)
+        
+        # Add a small delay to ensure DB replication (if using read replicas)
+        import asyncio
+        await asyncio.sleep(0.1)  # 100ms delay
+
         # Get updated availability
         updated_availability = self.get_week_availability(instructor_id, monday)
         
@@ -372,9 +380,6 @@ class AvailabilityService(BaseService):
                 "skipped_dates_with_bookings": result['dates_with_bookings'],
                 "message": f"Changes saved successfully. {len(result['dates_with_bookings'])} date(s) with existing bookings were not modified."
             }
-        
-        # Invalidate caches
-        self._invalidate_availability_caches(instructor_id, week_dates)
         
         return updated_availability
     

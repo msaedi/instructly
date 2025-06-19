@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from .middleware.timing import TimingMiddleware
 from .routes import auth, instructors, availability_windows, password_reset, bookings, metrics
+from .middleware.monitoring import MonitoringMiddleware
 from .core.constants import (
     ALLOWED_ORIGINS, 
     BRAND_NAME, 
@@ -20,6 +21,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,7 +29,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """
     Lifespan context manager for startup and shutdown events.
-    
+
     This replaces the deprecated @app.on_event decorators.
     """
     # Startup
@@ -39,7 +41,7 @@ async def lifespan(app: FastAPI):
     # - Warming up caches
     # - Checking database connections
     # - Loading ML models
-    
+
     yield
     
     # Shutdown
@@ -61,6 +63,7 @@ app = FastAPI(
 
 # Add timing middleware FIRST (before other middleware)
 app.add_middleware(TimingMiddleware)
+app.add_middleware(MonitoringMiddleware)
 
 # CORS middleware configuration
 app.add_middleware(
@@ -104,3 +107,8 @@ def health_check():
         "service": f"{BRAND_NAME.lower()}-api",
         "version": API_VERSION
     }
+
+@app.get("/metrics/performance")
+def get_performance_metrics():
+    from .middleware.monitoring import monitor
+    return monitor.get_stats()
