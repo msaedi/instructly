@@ -123,13 +123,9 @@ async def test_availability_timing():
             if response.status_code == 200:
                 data = response.json()
                 monday_data = data.get(next_monday.isoformat(), [])
-                print(
-                    f"   After {delay}s delay: {len(monday_data)} slots (fetch took {fetch_duration:.3f}s)"
-                )
+                print(f"   After {delay}s delay: {len(monday_data)} slots (fetch took {fetch_duration:.3f}s)")
                 if len(monday_data) > 0:
-                    print(
-                        f"     First slot: {monday_data[0]['start_time']} - {monday_data[0]['end_time']}"
-                    )
+                    print(f"     First slot: {monday_data[0]['start_time']} - {monday_data[0]['end_time']}")
 
         # Step 5: Check cache statistics
         print("\n4. Checking cache statistics...")

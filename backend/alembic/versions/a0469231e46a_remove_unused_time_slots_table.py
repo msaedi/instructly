@@ -66,23 +66,13 @@ def downgrade():
 
     # Re-add columns to bookings
     op.add_column("bookings", sa.Column("timeslot_id", sa.Integer(), nullable=True))
-    op.add_column(
-        "bookings", sa.Column("original_duration", sa.Integer(), nullable=True)
-    )
-    op.add_column(
-        "bookings", sa.Column("adjusted_duration", sa.Integer(), nullable=True)
-    )
-    op.add_column(
-        "bookings", sa.Column("adjustment_reason", sa.String(), nullable=True)
-    )
-    op.add_column(
-        "bookings", sa.Column("adjusted_total_price", sa.Float(), nullable=True)
-    )
+    op.add_column("bookings", sa.Column("original_duration", sa.Integer(), nullable=True))
+    op.add_column("bookings", sa.Column("adjusted_duration", sa.Integer(), nullable=True))
+    op.add_column("bookings", sa.Column("adjustment_reason", sa.String(), nullable=True))
+    op.add_column("bookings", sa.Column("adjusted_total_price", sa.Float(), nullable=True))
 
     # Add back the foreign key
-    op.create_foreign_key(
-        "bookings_timeslot_id_fkey", "bookings", "time_slots", ["timeslot_id"], ["id"]
-    )
+    op.create_foreign_key("bookings_timeslot_id_fkey", "bookings", "time_slots", ["timeslot_id"], ["id"])
 
     # Make time fields nullable again
     op.alter_column("bookings", "start_time", nullable=True)

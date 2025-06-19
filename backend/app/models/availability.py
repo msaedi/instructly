@@ -17,18 +17,7 @@ Classes:
 
 import logging
 
-from sqlalchemy import (
-    Boolean,
-    Column,
-    Date,
-    DateTime,
-    ForeignKey,
-    Index,
-    Integer,
-    String,
-    Time,
-    UniqueConstraint,
-)
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Index, Integer, String, Time, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -63,9 +52,7 @@ class InstructorAvailability(Base):
     __tablename__ = "instructor_availability"
 
     id = Column(Integer, primary_key=True, index=True)
-    instructor_id = Column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
+    instructor_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     date = Column(Date, nullable=False)
     is_cleared = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -73,9 +60,7 @@ class InstructorAvailability(Base):
 
     # Relationships
     instructor = relationship("User", back_populates="availability")
-    time_slots = relationship(
-        "AvailabilitySlot", back_populates="availability", cascade="all, delete-orphan"
-    )
+    time_slots = relationship("AvailabilitySlot", back_populates="availability", cascade="all, delete-orphan")
 
     # Constraints
     __table_args__ = (
@@ -131,9 +116,7 @@ class AvailabilitySlot(Base):
     availability = relationship("InstructorAvailability", back_populates="time_slots")
 
     # Index for performance
-    __table_args__ = (
-        Index("idx_availability_slots_availability_id", "availability_id"),
-    )
+    __table_args__ = (Index("idx_availability_slots_availability_id", "availability_id"),)
 
     def __repr__(self):
         return f"<AvailabilitySlot {self.start_time}-{self.end_time}>"
@@ -145,9 +128,7 @@ class BlackoutDate(Base):
     __tablename__ = "blackout_dates"
 
     id = Column(Integer, primary_key=True, index=True)
-    instructor_id = Column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
+    instructor_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     date = Column(Date, nullable=False, index=True)
     reason = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -157,9 +138,7 @@ class BlackoutDate(Base):
 
     # Constraints
     __table_args__ = (
-        UniqueConstraint(
-            "instructor_id", "date", name="unique_instructor_blackout_date"
-        ),
+        UniqueConstraint("instructor_id", "date", name="unique_instructor_blackout_date"),
         Index("idx_blackout_dates_instructor_date", "instructor_id", "date"),
     )
 

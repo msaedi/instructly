@@ -43,9 +43,7 @@ def print_warning(msg: str):
     print(f"{Colors.YELLOW}⚠️  {msg}{Colors.ENDC}")
 
 
-def fix_config_classes(
-    file_path: Path, apply: bool = False
-) -> List[Tuple[int, str, str]]:
+def fix_config_classes(file_path: Path, apply: bool = False) -> List[Tuple[int, str, str]]:
     """Fix Config classes by converting to model_config = ConfigDict(...)"""
     changes = []
 
@@ -66,9 +64,7 @@ def fix_config_classes(
             # Find the Config class content
             config_content = []
             j = i + 1
-            while j < len(lines) and (
-                lines[j].strip() == "" or lines[j].startswith(indent_str + " ")
-            ):
+            while j < len(lines) and (lines[j].strip() == "" or lines[j].startswith(indent_str + " ")):
                 if lines[j].strip():
                     config_content.append(lines[j].strip())
                 j += 1
@@ -104,16 +100,12 @@ def fix_config_classes(
             )
 
             if has_json_encoders:
-                print_warning(
-                    f"{file_path.name}:{i+1} - json_encoders found, needs manual migration"
-                )
+                print_warning(f"{file_path.name}:{i+1} - json_encoders found, needs manual migration")
 
             # Replace the Config class with model_config
             new_lines.append(new_line)
             if has_json_encoders:
-                new_lines.append(
-                    f"{indent_str}# TODO: Migrate json_encoders to field serializers\n"
-                )
+                new_lines.append(f"{indent_str}# TODO: Migrate json_encoders to field serializers\n")
 
             # Skip the old Config class lines
             i = j
@@ -128,9 +120,7 @@ def fix_config_classes(
     return changes
 
 
-def fix_multi_field_validators(
-    file_path: Path, apply: bool = False
-) -> List[Tuple[int, str, str]]:
+def fix_multi_field_validators(file_path: Path, apply: bool = False) -> List[Tuple[int, str, str]]:
     """Split multi-field validators into separate field validators"""
     changes = []
 
@@ -176,9 +166,7 @@ def fix_multi_field_validators(
                 # We need to duplicate it for the second field
                 func_lines = []
                 j = i + 1
-                while j < len(lines) and (
-                    lines[j].strip() == "" or not lines[j].startswith(indent_str[:-4])
-                ):
+                while j < len(lines) and (lines[j].strip() == "" or not lines[j].startswith(indent_str[:-4])):
                     func_lines.append(lines[j])
                     j += 1
 
@@ -235,9 +223,7 @@ def fix_money_type(file_path: Path, apply: bool = False) -> List[Tuple[int, str,
     return changes
 
 
-def fix_base_json_encoders(
-    file_path: Path, apply: bool = False
-) -> List[Tuple[int, str, str]]:
+def fix_base_json_encoders(file_path: Path, apply: bool = False) -> List[Tuple[int, str, str]]:
     """Convert json_encoders in StandardizedModel to use field_serializer"""
     changes = []
 
@@ -274,15 +260,9 @@ def fix_base_json_encoders(
                 new_lines.append(f"{indent_str}    populate_by_name=True,\n")
                 new_lines.append(f"{indent_str}    json_encoders={{\n")
                 new_lines.append(f"{indent_str}        Decimal: float,\n")
-                new_lines.append(
-                    f"{indent_str}        datetime: lambda v: v.isoformat(),\n"
-                )
-                new_lines.append(
-                    f"{indent_str}        date: lambda v: v.isoformat(),\n"
-                )
-                new_lines.append(
-                    f"{indent_str}        time: lambda v: v.strftime('%H:%M:%S'),\n"
-                )
+                new_lines.append(f"{indent_str}        datetime: lambda v: v.isoformat(),\n")
+                new_lines.append(f"{indent_str}        date: lambda v: v.isoformat(),\n")
+                new_lines.append(f"{indent_str}        time: lambda v: v.strftime('%H:%M:%S'),\n")
                 new_lines.append(f"{indent_str}    }}\n")
                 new_lines.append(f"{indent_str})\n")
 
@@ -310,15 +290,9 @@ def fix_base_json_encoders(
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Apply Pydantic V2 Phase 2 manual fixes"
-    )
-    parser.add_argument(
-        "--apply", action="store_true", help="Apply the fixes (default is check only)"
-    )
-    parser.add_argument(
-        "--check", action="store_true", help="Check what would be changed"
-    )
+    parser = argparse.ArgumentParser(description="Apply Pydantic V2 Phase 2 manual fixes")
+    parser.add_argument("--apply", action="store_true", help="Apply the fixes (default is check only)")
+    parser.add_argument("--check", action="store_true", help="Check what would be changed")
     args = parser.parse_args()
 
     if not args.apply:
@@ -362,7 +336,7 @@ def main():
     if args.check:
         print_warning("Run with --apply to make these changes")
     else:
-        print_success("Changes applied! Review with git diff")
+        print_success("Changes applied! Review with git dif")
 
 
 if __name__ == "__main__":

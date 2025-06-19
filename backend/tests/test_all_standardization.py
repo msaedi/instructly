@@ -45,12 +45,8 @@ def test_all_endpoints():
         response = BookingResponse.model_validate(booking)
         json_data = json.loads(response.model_dump_json())
 
-        assert isinstance(
-            json_data["total_price"], (int, float)
-        ), "total_price should be number"
-        assert isinstance(
-            json_data["hourly_rate"], (int, float)
-        ), "hourly_rate should be number"
+        assert isinstance(json_data["total_price"], (int, float)), "total_price should be number"
+        assert isinstance(json_data["hourly_rate"], (int, float)), "hourly_rate should be number"
         print(f"   ✅ Money fields: {json_data['total_price']} (number)")
         print(f"   ✅ Date format: {json_data['booking_date']}")
         print(f"   ✅ Time format: {json_data['start_time']}")
@@ -72,9 +68,7 @@ def test_all_endpoints():
         )
         json_data = json.loads(response.model_dump_json())
 
-        assert isinstance(
-            json_data["hourly_rate"], (int, float)
-        ), "hourly_rate should be number"
+        assert isinstance(json_data["hourly_rate"], (int, float)), "hourly_rate should be number"
         print(f"   ✅ Hourly rate: {json_data['hourly_rate']} (number)")
 
     # Test 3: User Response
@@ -105,12 +99,8 @@ def test_all_endpoints():
     )
     json_data = json.loads(stats.model_dump_json())
 
-    assert isinstance(
-        json_data["total_earnings"], (int, float)
-    ), "earnings should be number"
-    assert isinstance(
-        json_data["this_month_earnings"], (int, float)
-    ), "earnings should be number"
+    assert isinstance(json_data["total_earnings"], (int, float)), "earnings should be number"
+    assert isinstance(json_data["this_month_earnings"], (int, float)), "earnings should be number"
     print(f"   ✅ Total earnings: ${json_data['total_earnings']} (number)")
     print(f"   ✅ This month: ${json_data['this_month_earnings']} (number)")
 

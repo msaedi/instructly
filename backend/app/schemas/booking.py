@@ -22,19 +22,13 @@ class BookingCreate(BaseModel):
     handles all the calculations and confirmations.
     """
 
-    availability_slot_id: int = Field(
-        ..., description="ID of the availability slot to book"
-    )
+    availability_slot_id: int = Field(..., description="ID of the availability slot to book")
     service_id: int = Field(..., description="ID of the service being booked")
-    student_note: Optional[str] = Field(
-        None, max_length=1000, description="Optional note from student"
+    student_note: Optional[str] = Field(None, max_length=1000, description="Optional note from student")
+    meeting_location: Optional[str] = Field(None, description="Specific meeting location if applicable")
+    location_type: Optional[Literal["student_home", "instructor_location", "neutral"]] = Field(
+        "neutral", description="Type of meeting location"
     )
-    meeting_location: Optional[str] = Field(
-        None, description="Specific meeting location if applicable"
-    )
-    location_type: Optional[
-        Literal["student_home", "instructor_location", "neutral"]
-    ] = Field("neutral", description="Type of meeting location")
 
     @field_validator("student_note")
     def clean_note(cls, v):
@@ -69,9 +63,7 @@ class BookingUpdate(BaseModel):
 class BookingCancel(BaseModel):
     """Schema for cancelling a booking."""
 
-    reason: str = Field(
-        ..., min_length=1, max_length=500, description="Cancellation reason"
-    )
+    reason: str = Field(..., min_length=1, max_length=500, description="Cancellation reason")
 
     @field_validator("reason")
     def clean_reason(cls, v):
@@ -174,10 +166,7 @@ class BookingResponse(BookingBase):
         """Check if booking is in the future."""
         from datetime import date as dt_date
 
-        return (
-            self.booking_date > dt_date.today()
-            and self.status == BookingStatus.CONFIRMED
-        )
+        return self.booking_date > dt_date.today() and self.status == BookingStatus.CONFIRMED
 
 
 class BookingListResponse(StandardizedModel):

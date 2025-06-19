@@ -39,9 +39,7 @@ class Settings(BaseSettings):
     cache_ttl: int = 3600  # 1 hour in seconds
 
     # Use ConfigDict instead of Config class (Pydantic V2 style)
-    model_config = ConfigDict(
-        env_file=str(env_path), case_sensitive=True, extra="ignore"
-    )
+    model_config = ConfigDict(env_file=str(env_path), case_sensitive=True, extra="ignore")
 
 
 settings = Settings()

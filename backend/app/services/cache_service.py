@@ -71,9 +71,7 @@ class CircuitBreaker:
             if self._state == CircuitState.OPEN:
                 # Check if we should try half-open
                 if self._last_failure_time:
-                    time_since_failure = (
-                        datetime.now() - self._last_failure_time
-                    ).total_seconds()
+                    time_since_failure = (datetime.now() - self._last_failure_time).total_seconds()
                     if time_since_failure >= self.recovery_timeout:
                         self._state = CircuitState.HALF_OPEN
             return self._state
@@ -125,9 +123,7 @@ class CircuitBreaker:
 
             if self._failure_count >= self.failure_threshold:
                 self._state = CircuitState.OPEN
-                logger.warning(
-                    f"Circuit breaker opened after {self._failure_count} failures"
-                )
+                logger.warning(f"Circuit breaker opened after {self._failure_count} failures")
 
 
 class CacheKeyBuilder:
@@ -140,7 +136,7 @@ class CacheKeyBuilder:
         "instructor": "inst",
         "service": "svc",
         "slot": "slot",
-        "conflict": "conf",
+        "conflict": "con",
         "week": "week",
         "stats": "stats",
     }
@@ -262,10 +258,7 @@ class CacheService(BaseService):
             elif not self.redis:
                 # In-memory fallback
                 if key in self._memory_cache:
-                    if (
-                        key not in self._memory_expiry
-                        or datetime.now() < self._memory_expiry[key]
-                    ):
+                    if key not in self._memory_expiry or datetime.now() < self._memory_expiry[key]:
                         self._stats["hits"] += 1
                         return self._memory_cache[key]
                     else:
@@ -358,11 +351,7 @@ class CacheService(BaseService):
                         count += 1
             else:
                 # In-memory pattern matching
-                keys_to_delete = [
-                    k
-                    for k in self._memory_cache.keys()
-                    if self._match_pattern(k, pattern)
-                ]
+                keys_to_delete = [k for k in self._memory_cache.keys() if self._match_pattern(k, pattern)]
                 for key in keys_to_delete:
                     self._memory_cache.pop(key, None)
                     self._memory_expiry.pop(key, None)
@@ -413,9 +402,7 @@ class CacheService(BaseService):
 
             if self.redis:
                 # Serialize all values
-                serialized_data = {
-                    k: json.dumps(v, default=str) for k, v in data.items()
-                }
+                serialized_data = {k: json.dumps(v, default=str) for k, v in data.items()}
 
                 # Use pipeline for atomic operation
                 pipe = self.redis.pipeline()
@@ -437,9 +424,7 @@ class CacheService(BaseService):
 
     # Domain-Specific Methods
 
-    def cache_week_availability(
-        self, instructor_id: int, week_start: date, availability_data: Dict[str, Any]
-    ) -> bool:
+    def cache_week_availability(self, instructor_id: int, week_start: date, availability_data: Dict[str, Any]) -> bool:
         """Cache week availability with smart TTL."""
         key = self.key_builder.build("availability", "week", instructor_id, week_start)
 
@@ -451,16 +436,12 @@ class CacheService(BaseService):
 
         return self.set(key, availability_data, tier=tier)
 
-    def get_week_availability(
-        self, instructor_id: int, week_start: date
-    ) -> Optional[Dict[str, Any]]:
+    def get_week_availability(self, instructor_id: int, week_start: date) -> Optional[Dict[str, Any]]:
         """Get cached week availability."""
         key = self.key_builder.build("availability", "week", instructor_id, week_start)
         return self.get(key)
 
-    def invalidate_instructor_availability(
-        self, instructor_id: int, dates: List[date] = None
-    ):
+    def invalidate_instructor_availability(self, instructor_id: int, dates: List[date] = None):
         """Invalidate all availability caches for an instructor."""
         patterns = [
             f"avail:*:{instructor_id}:*",
@@ -482,9 +463,7 @@ class CacheService(BaseService):
         for pattern in patterns:
             total_deleted += self.delete_pattern(pattern)
 
-        logger.info(
-            f"Invalidated {total_deleted} cache entries for instructor {instructor_id}"
-        )
+        logger.info(f"Invalidated {total_deleted} cache entries for instructor {instructor_id}")
 
     def cache_booking_conflicts(
         self,
@@ -522,9 +501,7 @@ class CacheService(BaseService):
             week_start = monday + timedelta(weeks=week_offset)
 
             # Get and cache availability
-            availability = availability_service.get_week_availability(
-                instructor_id, week_start
-            )
+            availability = availability_service.get_week_availability(instructor_id, week_start)
             if availability:
                 self.cache_week_availability(instructor_id, week_start, availability)
                 warmed += 1
@@ -569,9 +546,7 @@ class CacheService(BaseService):
                 return result
 
             # Add cache invalidation helper
-            wrapper.invalidate = lambda *args, **kwargs: self.delete(
-                key_func(*args, **kwargs)
-            )
+            wrapper.invalidate = lambda *args, **kwargs: self.delete(key_func(*args, **kwargs))
 
             return wrapper
 
@@ -582,9 +557,7 @@ class CacheService(BaseService):
     def get_stats(self) -> Dict[str, Any]:
         """Get cache performance statistics including circuit breaker state."""
         total_requests = self._stats["hits"] + self._stats["misses"]
-        hit_rate = (
-            (self._stats["hits"] / total_requests * 100) if total_requests > 0 else 0
-        )
+        hit_rate = (self._stats["hits"] / total_requests * 100) if total_requests > 0 else 0
 
         stats = {
             **self._stats,
@@ -642,9 +615,7 @@ def get_cache_service(db: Session = None) -> CacheService:
     if not hasattr(get_cache_service, "_instance"):
         # Create singleton instance
         try:
-            redis_client = redis.from_url(
-                settings.redis_url or "redis://localhost:6379", decode_responses=True
-            )
+            redis_client = redis.from_url(settings.redis_url or "redis://localhost:6379", decode_responses=True)
             redis_client.ping()
         except:
             redis_client = None

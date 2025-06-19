@@ -76,9 +76,7 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    instructor_profile = relationship(
-        "InstructorProfile", back_populates="user", uselist=False
-    )
+    instructor_profile = relationship("InstructorProfile", back_populates="user", uselist=False)
 
     # Availability relationships - UPDATED
     availability = relationship(
@@ -86,21 +84,15 @@ class User(Base):
         back_populates="instructor",
         cascade="all, delete-orphan",
     )
-    blackout_dates = relationship(
-        "BlackoutDate", back_populates="instructor", cascade="all, delete-orphan"
-    )
+    blackout_dates = relationship("BlackoutDate", back_populates="instructor", cascade="all, delete-orphan")
 
     # Password reset relationships
-    password_reset_tokens = relationship(
-        "PasswordResetToken", back_populates="user", cascade="all, delete-orphan"
-    )
+    password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
 
     def __init__(self, **kwargs):
         """Initialize a new user and log the creation."""
         super().__init__(**kwargs)
-        logger.info(
-            f"Creating new {kwargs.get('role', 'unknown')} user with email: {kwargs.get('email', 'unknown')}"
-        )
+        logger.info(f"Creating new {kwargs.get('role', 'unknown')} user with email: {kwargs.get('email', 'unknown')}")
 
     def __repr__(self):
         """String representation of the User object."""

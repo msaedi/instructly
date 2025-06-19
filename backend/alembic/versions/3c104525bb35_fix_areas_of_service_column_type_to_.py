@@ -56,9 +56,7 @@ def downgrade():
     # Add temporary array column
     op.add_column(
         "instructor_profiles",
-        sa.Column(
-            "areas_of_service_temp", postgresql.ARRAY(sa.String()), nullable=True
-        ),
+        sa.Column("areas_of_service_temp", postgresql.ARRAY(sa.String()), nullable=True),
     )
 
     # Convert strings back to arrays

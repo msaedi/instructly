@@ -8,11 +8,11 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import json
+import json  # noqa: E402
 
-from app.database import SessionLocal
-from app.models import *
-from app.schemas import *
+from app.database import SessionLocal  # noqa: E402
+from app.models import *  # noqa: E402
+from app.schemas import *  # noqa: E402
 
 
 def check_booking_responses():
@@ -24,7 +24,7 @@ def check_booking_responses():
     # Get a sample booking
     booking = db.query(Booking).first()
     if booking:
-        print(f"\nRaw database types:")
+        print("\nRaw database types:")
         print(f"  total_price: {type(booking.total_price)} = {booking.total_price}")
         print(f"  hourly_rate: {type(booking.hourly_rate)} = {booking.hourly_rate}")
         print(f"  booking_date: {type(booking.booking_date)} = {booking.booking_date}")
@@ -39,7 +39,7 @@ def check_booking_responses():
             "start_time": booking.start_time,
         }
 
-        print(f"\nDefault JSON serialization:")
+        print("\nDefault JSON serialization:")
         try:
             json_str = json.dumps(booking_dict, default=str)
             print(f"  {json_str}")

@@ -16,9 +16,9 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlalchemy import text
+from sqlalchemy import text  # noqa: E402
 
-from app.database import engine
+from app.database import engine  # noqa: E402
 
 
 def cleanup_duplicate_indexes():

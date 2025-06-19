@@ -1,3 +1,6 @@
 # frontend/.eslintignore
 scripts/
 *.js
+.next/
+out/
+node_modules/

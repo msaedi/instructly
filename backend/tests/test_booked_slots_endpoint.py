@@ -56,7 +56,7 @@ def test_endpoint():
         return
 
     data = response.json()
-    print(f"✅ Endpoint successful\n")
+    print("✅ Endpoint successful\n")
 
     # 3. Check the response structure
     print("3. Response structure:")

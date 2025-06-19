@@ -33,9 +33,7 @@ def upgrade():
         )
     )
     if not result.fetchone():
-        op.create_index(
-            "idx_bookings_date_status", "bookings", ["booking_date", "status"]
-        )
+        op.create_index("idx_bookings_date_status", "bookings", ["booking_date", "status"])
         print("Created index: idx_bookings_date_status")
     else:
         print("Index idx_bookings_date_status already exists, skipping")
@@ -51,9 +49,7 @@ def upgrade():
         )
     )
     if not result.fetchone():
-        op.create_index(
-            "idx_availability_slots_booking_id", "availability_slots", ["booking_id"]
-        )
+        op.create_index("idx_availability_slots_booking_id", "availability_slots", ["booking_id"])
         print("Created index: idx_availability_slots_booking_id")
     else:
         print("Index idx_availability_slots_booking_id already exists, skipping")
@@ -87,6 +83,4 @@ def downgrade():
         )
     )
     if result.fetchone():
-        op.drop_index(
-            "idx_availability_slots_booking_id", table_name="availability_slots"
-        )
+        op.drop_index("idx_availability_slots_booking_id", table_name="availability_slots")

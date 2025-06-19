@@ -8,11 +8,7 @@ from ..database import get_db
 from ..models.instructor import InstructorProfile
 from ..models.service import Service
 from ..models.user import User, UserRole
-from ..schemas.instructor import (
-    InstructorProfileCreate,
-    InstructorProfileResponse,
-    InstructorProfileUpdate,
-)
+from ..schemas.instructor import InstructorProfileCreate, InstructorProfileResponse, InstructorProfileUpdate
 
 
 async def get_current_active_user(
@@ -20,9 +16,7 @@ async def get_current_active_user(
 ) -> User:
     user = db.query(User).filter(User.email == current_user_email).first()
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return user
 
 
@@ -30,15 +24,9 @@ router = APIRouter(prefix="/instructors", tags=["instructors"])
 
 
 @router.get("/", response_model=List[InstructorProfileResponse])
-async def get_all_instructors(
-    skip: int = 0, limit: int = 100, db: Session = Depends(get_db)
-):
+async def get_all_instructors(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     instructors = (
-        db.query(InstructorProfile)
-        .options(joinedload(InstructorProfile.user))
-        .offset(skip)
-        .limit(limit)
-        .all()
+        db.query(InstructorProfile).options(joinedload(InstructorProfile.user)).offset(skip).limit(limit).all()
     )
     return instructors
 
@@ -54,16 +42,10 @@ async def create_instructor_profile(
     db: Session = Depends(get_db),
 ):
     # Check if profile already exists
-    existing_profile = (
-        db.query(InstructorProfile)
-        .filter(InstructorProfile.user_id == current_user.id)
-        .first()
-    )
+    existing_profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == current_user.id).first()
 
     if existing_profile:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Profile already exists"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Profile already exists")
 
     # Create the instructor profile (without services)
     profile_data = profile.model_dump(exclude={"services"})
@@ -74,9 +56,7 @@ async def create_instructor_profile(
 
     # Create services
     for service_data in profile.services:
-        db_service = Service(
-            instructor_profile_id=db_profile.id, **service_data.model_dump()
-        )
+        db_service = Service(instructor_profile_id=db_profile.id, **service_data.model_dump())
         db.add(db_service)
 
     # Update user role to instructor
@@ -95,9 +75,7 @@ async def create_instructor_profile(
 
 
 @router.get("/profile", response_model=InstructorProfileResponse)
-async def get_my_profile(
-    current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)
-):
+async def get_my_profile(current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
     if current_user.role != "instructor":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -113,9 +91,7 @@ async def get_my_profile(
     )
 
     if not profile:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
 
     return profile
 
@@ -132,16 +108,10 @@ async def update_profile(
             detail="Only instructors can update profiles",
         )
 
-    db_profile = (
-        db.query(InstructorProfile)
-        .filter(InstructorProfile.user_id == current_user.id)
-        .first()
-    )
+    db_profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == current_user.id).first()
 
     if not db_profile:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
 
     # Update basic profile fields
     update_data = profile_update.model_dump(exclude={"services"}, exclude_unset=True)
@@ -151,15 +121,11 @@ async def update_profile(
     # Handle services update if provided
     if profile_update.services is not None:
         # Delete existing services
-        db.query(Service).filter(
-            Service.instructor_profile_id == db_profile.id
-        ).delete()
+        db.query(Service).filter(Service.instructor_profile_id == db_profile.id).delete()
 
         # Create new services
         for service_data in profile_update.services:
-            db_service = Service(
-                instructor_profile_id=db_profile.id, **service_data.model_dump()
-            )
+            db_service = Service(instructor_profile_id=db_profile.id, **service_data.model_dump())
             db.add(db_service)
 
     db.commit()
@@ -189,16 +155,10 @@ async def delete_instructor_profile(
         )
 
     # Get the instructor profile
-    db_profile = (
-        db.query(InstructorProfile)
-        .filter(InstructorProfile.user_id == current_user.id)
-        .first()
-    )
+    db_profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == current_user.id).first()
 
     if not db_profile:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
 
     # Delete the profile (services will be cascade deleted due to relationship)
     db.delete(db_profile)
@@ -222,8 +182,6 @@ async def get_instructor_profile(instructor_id: int, db: Session = Depends(get_d
     )
 
     if not profile:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found")
 
     return profile

@@ -92,9 +92,7 @@ def main():
         project_root = project_root.parent
 
     # If we couldn't find it, try common patterns
-    if not (
-        (project_root / "backend").exists() and (project_root / "frontend").exists()
-    ):
+    if not ((project_root / "backend").exists() and (project_root / "frontend").exists()):
         # Maybe we're in backend/scripts
         if current_dir.name == "scripts" and current_dir.parent.name == "backend":
             project_root = current_dir.parent.parent
@@ -145,14 +143,10 @@ def main():
         print("-" * 40)
         for file_path in sorted(backend_files):
             print(f"📄 {file_path}")
-            for occ in files_with_occurrences[file_path][
-                :3
-            ]:  # Show first 3 occurrences
+            for occ in files_with_occurrences[file_path][:3]:  # Show first 3 occurrences
                 print(f"  Line {occ['line']}: {occ['content'][:80]}...")
             if len(files_with_occurrences[file_path]) > 3:
-                print(
-                    f"  ... and {len(files_with_occurrences[file_path]) - 3} more occurrences"
-                )
+                print(f"  ... and {len(files_with_occurrences[file_path]) - 3} more occurrences")
             print()
 
     if frontend_files:
@@ -163,9 +157,7 @@ def main():
             for occ in files_with_occurrences[file_path][:3]:
                 print(f"  Line {occ['line']}: {occ['content'][:80]}...")
             if len(files_with_occurrences[file_path]) > 3:
-                print(
-                    f"  ... and {len(files_with_occurrences[file_path]) - 3} more occurrences"
-                )
+                print(f"  ... and {len(files_with_occurrences[file_path]) - 3} more occurrences")
             print()
 
     if config_files:

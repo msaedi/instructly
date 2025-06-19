@@ -104,9 +104,7 @@ class BaseService:
 
         return wrapper
 
-    def with_cache(
-        self, key_prefix: str, ttl: int = 300, key_generator: Optional[Callable] = None
-    ) -> Callable:
+    def with_cache(self, key_prefix: str, ttl: int = 300, key_generator: Optional[Callable] = None) -> Callable:
         """
         Decorator for caching method results.
 
@@ -247,21 +245,15 @@ class BaseService:
 
         # Log slow operations
         if elapsed > 1.0:  # More than 1 second
-            self.logger.warning(
-                f"Slow operation detected: {operation} took {elapsed:.2f}s"
-            )
+            self.logger.warning(f"Slow operation detected: {operation} took {elapsed:.2f}s")
 
     def get_metrics(self) -> dict:
         """Get performance metrics for this service."""
         return {
             operation: {
                 "count": data["count"],
-                "avg_time": data["total_time"] / data["count"]
-                if data["count"] > 0
-                else 0,
-                "success_rate": data["success_count"] / data["count"]
-                if data["count"] > 0
-                else 0,
+                "avg_time": data["total_time"] / data["count"] if data["count"] > 0 else 0,
+                "success_rate": data["success_count"] / data["count"] if data["count"] > 0 else 0,
                 "total_time": data["total_time"],
             }
             for operation, data in self._metrics.items()
@@ -295,9 +287,7 @@ class BaseService:
             operation: Operation name
             **context: Additional context to log
         """
-        self.logger.info(
-            f"Operation: {operation}", extra={"operation": operation, **context}
-        )
+        self.logger.info(f"Operation: {operation}", extra={"operation": operation, **context})
 
 
 class BaseRepositoryService(BaseService, Generic[T]):
@@ -308,9 +298,7 @@ class BaseRepositoryService(BaseService, Generic[T]):
     a specific repository.
     """
 
-    def __init__(
-        self, db: Session, repository: Any, cache: Optional[RedisCache] = None
-    ):
+    def __init__(self, db: Session, repository: Any, cache: Optional[RedisCache] = None):
         """
         Initialize repository-based service.
 

@@ -24,14 +24,8 @@ def test_imports_after_config_fix():
 
         print(f"Total warnings: {len(w)}")
 
-        pydantic_warnings = [
-            warning
-            for warning in w
-            if "PydanticDeprecatedSince20" in str(warning.message)
-        ]
-        urllib_warnings = [
-            warning for warning in w if "urllib3" in str(warning.message)
-        ]
+        pydantic_warnings = [warning for warning in w if "PydanticDeprecatedSince20" in str(warning.message)]
+        urllib_warnings = [warning for warning in w if "urllib3" in str(warning.message)]
 
         print(f"Pydantic warnings: {len(pydantic_warnings)}")
         print(f"urllib3 warnings: {len(urllib_warnings)}")

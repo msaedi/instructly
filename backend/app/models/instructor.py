@@ -54,13 +54,9 @@ class InstructorProfile(Base):
     __tablename__ = "instructor_profiles"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(
-        Integer, ForeignKey("users.id"), unique=True, nullable=False, index=True
-    )
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False, index=True)
     bio = Column(String, nullable=True)
-    areas_of_service = Column(
-        String, nullable=True
-    )  # Comma-separated list of NYC areas
+    areas_of_service = Column(String, nullable=True)  # Comma-separated list of NYC areas
     years_experience = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -75,16 +71,10 @@ class InstructorProfile(Base):
 
     # Relationships
     user = relationship("User", back_populates="instructor_profile")
-    services = relationship(
-        "Service", back_populates="instructor_profile", cascade="all, delete-orphan"
-    )
+    services = relationship("Service", back_populates="instructor_profile", cascade="all, delete-orphan")
 
     # Table-level constraints
-    __table_args__ = (
-        CheckConstraint(
-            "years_experience >= 0", name="check_years_experience_non_negative"
-        ),
-    )
+    __table_args__ = (CheckConstraint("years_experience >= 0", name="check_years_experience_non_negative"),)
 
     def __init__(self, **kwargs):
         """Initialize instructor profile with logging."""
@@ -106,8 +96,6 @@ class InstructorProfile(Base):
         """Set areas of service from a list."""
         if areas_list:
             self.areas_of_service = ", ".join(areas_list)
-            logger.debug(
-                f"Updated areas of service for instructor {self.user_id}: {self.areas_of_service}"
-            )
+            logger.debug(f"Updated areas of service for instructor {self.user_id}: {self.areas_of_service}")
         else:
             self.areas_of_service = None

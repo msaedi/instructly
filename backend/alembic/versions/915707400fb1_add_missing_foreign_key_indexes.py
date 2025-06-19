@@ -26,7 +26,7 @@ def upgrade() -> None:
     def index_exists(index_name: str) -> bool:
         result = conn.execute(
             text(
-                f"""
+                """
             SELECT 1 FROM pg_indexes
             WHERE schemaname = 'public'
             AND indexname = '{index_name}'
@@ -37,9 +37,7 @@ def upgrade() -> None:
 
     # Only create indexes that are actually missing
     if not index_exists("idx_bookings_availability_slot_id"):
-        op.create_index(
-            "idx_bookings_availability_slot_id", "bookings", ["availability_slot_id"]
-        )
+        op.create_index("idx_bookings_availability_slot_id", "bookings", ["availability_slot_id"])
         print("Created index: idx_bookings_availability_slot_id")
 
     if not index_exists("idx_bookings_service_id"):
@@ -51,9 +49,7 @@ def upgrade() -> None:
         print("Created index: idx_bookings_cancelled_by_id")
 
     if not index_exists("idx_password_reset_tokens_user_id"):
-        op.create_index(
-            "idx_password_reset_tokens_user_id", "password_reset_tokens", ["user_id"]
-        )
+        op.create_index("idx_password_reset_tokens_user_id", "password_reset_tokens", ["user_id"])
         print("Created index: idx_password_reset_tokens_user_id")
 
     # This one might have different names, check both
@@ -83,6 +79,4 @@ def downgrade() -> None:
     )
     op.drop_index("idx_bookings_cancelled_by_id", table_name="bookings", if_exists=True)
     op.drop_index("idx_bookings_service_id", table_name="bookings", if_exists=True)
-    op.drop_index(
-        "idx_bookings_availability_slot_id", table_name="bookings", if_exists=True
-    )
+    op.drop_index("idx_bookings_availability_slot_id", table_name="bookings", if_exists=True)

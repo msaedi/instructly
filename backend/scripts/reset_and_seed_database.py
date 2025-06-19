@@ -21,24 +21,22 @@ from pathlib import Path
 # Add the parent directory to the path so we can import app modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import logging
+import logging  # noqa: E402
 
-from sqlalchemy import create_engine, or_
-from sqlalchemy.orm import Session
+from sqlalchemy import create_engine, or_  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
 
-from app.auth import get_password_hash
-from app.core.config import settings
-from app.models.availability import AvailabilitySlot, BlackoutDate, InstructorAvailability
-from app.models.booking import Booking, BookingStatus
-from app.models.instructor import InstructorProfile
-from app.models.password_reset import PasswordResetToken
-from app.models.service import Service
-from app.models.user import User, UserRole
+from app.auth import get_password_hash  # noqa: E402
+from app.core.config import settings  # noqa: E402
+from app.models.availability import AvailabilitySlot, BlackoutDate, InstructorAvailability  # noqa: E402
+from app.models.booking import Booking, BookingStatus  # noqa: E402
+from app.models.instructor import InstructorProfile  # noqa: E402
+from app.models.password_reset import PasswordResetToken  # noqa: E402
+from app.models.service import Service  # noqa: E402
+from app.models.user import User, UserRole  # noqa: E402
 
 # Set up logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # Configuration
@@ -345,14 +343,10 @@ def cleanup_database(session: Session):
     logger.info("Starting database cleanup...")
 
     # Get users to exclude
-    excluded_users = (
-        session.query(User).filter(User.email.in_(EXCLUDE_FROM_CLEANUP)).all()
-    )
+    excluded_users = session.query(User).filter(User.email.in_(EXCLUDE_FROM_CLEANUP)).all()
 
     excluded_ids = [user.id for user in excluded_users]
-    logger.info(
-        f"Preserving {len(excluded_ids)} users: {[u.email for u in excluded_users]}"
-    )
+    logger.info(f"Preserving {len(excluded_ids)} users: {[u.email for u in excluded_users]}")
 
     # First, delete related data for users we're going to remove
     users_to_delete = session.query(User).filter(~User.id.in_(excluded_ids)).all()
@@ -368,9 +362,7 @@ def cleanup_database(session: Session):
             .filter(AvailabilitySlot.booking_id.isnot(None))
             .update({"booking_id": None}, synchronize_session=False)
         )
-        logger.info(
-            f"Cleared {slot_update_count} booking references from availability slots"
-        )
+        logger.info(f"Cleared {slot_update_count} booking references from availability slots")
 
         # 2. Now we can safely delete bookings
         booking_count = (
@@ -418,9 +410,7 @@ def cleanup_database(session: Session):
 
         # 7. Get instructor profile IDs for users to delete
         profile_ids = (
-            session.query(InstructorProfile.id)
-            .filter(InstructorProfile.user_id.in_(users_to_delete_ids))
-            .all()
+            session.query(InstructorProfile.id).filter(InstructorProfile.user_id.in_(users_to_delete_ids)).all()
         )
         profile_ids = [p[0] for p in profile_ids]
 
@@ -449,15 +439,11 @@ def cleanup_database(session: Session):
         )
 
         # 11. Finally, delete the users
-        user_count = (
-            session.query(User)
-            .filter(User.id.in_(users_to_delete_ids))
-            .delete(synchronize_session=False)
-        )
+        user_count = session.query(User).filter(User.id.in_(users_to_delete_ids)).delete(synchronize_session=False)
 
         session.commit()
 
-        logger.info(f"Cleanup complete:")
+        logger.info("Cleanup complete:")
         logger.info(f"  - Deleted {user_count} users")
         logger.info(f"  - Deleted {profile_count} instructor profiles")
         logger.info(f"  - Deleted {service_count} services")
@@ -472,9 +458,7 @@ def cleanup_database(session: Session):
     return excluded_ids
 
 
-def create_availability_pattern(
-    session: Session, instructor_id: int, pattern: str, weeks_ahead: int = 12
-):
+def create_availability_pattern(session: Session, instructor_id: int, pattern: str, weeks_ahead: int = 12):
     """Create availability based on pattern type."""
     today = date.today()
     current_monday = today - timedelta(days=today.weekday())
@@ -550,9 +534,7 @@ def create_availability_pattern(
                     continue
 
                 # Create availability entry
-                availability = InstructorAvailability(
-                    instructor_id=instructor_id, date=current_date, is_cleared=False
-                )
+                availability = InstructorAvailability(instructor_id=instructor_id, date=current_date, is_cleared=False)
                 session.add(availability)
                 session.flush()
 
@@ -589,9 +571,7 @@ def create_availability_pattern(
                     for _ in range(num_slots):
                         duration = random.choice([1, 2, 3])
                         if start_hour + duration <= 20:
-                            slots.append(
-                                (time(start_hour, 0), time(start_hour + duration, 0))
-                            )
+                            slots.append((time(start_hour, 0), time(start_hour + duration, 0)))
                             start_hour += duration + random.randint(1, 2)
 
                 for start_time, end_time in slots:
@@ -616,9 +596,7 @@ def create_availability_pattern(
                 if random.random() < 0.05:
                     continue
 
-                availability = InstructorAvailability(
-                    instructor_id=instructor_id, date=current_date, is_cleared=False
-                )
+                availability = InstructorAvailability(instructor_id=instructor_id, date=current_date, is_cleared=False)
                 session.add(availability)
                 session.flush()
 
@@ -700,9 +678,7 @@ def create_dummy_instructors(session: Session):
             bio=template["bio"],
             years_experience=template["years_experience"],
             areas_of_service=", ".join(template["areas"]),  # Comma-separated string
-            min_advance_booking_hours=random.choice(
-                [1, 2, 4, 24]
-            ),  # Random advance booking time
+            min_advance_booking_hours=random.choice([1, 2, 4, 24]),  # Random advance booking time
             buffer_time_minutes=random.choice([0, 15, 30]),  # Random buffer time
         )
         session.add(profile)
@@ -747,9 +723,7 @@ def create_sample_bookings(session: Session):
     # Create bookings for each student
     for student in students:
         # Get student's preferred services based on interests
-        student_template = next(
-            (s for s in STUDENT_TEMPLATES if s["email"] == student.email), None
-        )
+        student_template = next((s for s in STUDENT_TEMPLATES if s["email"] == student.email), None)
         if not student_template:
             continue
 
@@ -759,27 +733,21 @@ def create_sample_bookings(session: Session):
         # Past completed bookings
         for i in range(2):
             past_date = today - timedelta(days=random.randint(7, 30))
-            booking = create_booking_for_date(
-                session, student, interests, past_date, "past"
-            )
+            booking = create_booking_for_date(session, student, interests, past_date, "past")
             if booking:
                 booking_count += 1
 
         # Upcoming bookings
         for i in range(3):
             future_date = today + timedelta(days=random.randint(1, 14))
-            booking = create_booking_for_date(
-                session, student, interests, future_date, "future"
-            )
+            booking = create_booking_for_date(session, student, interests, future_date, "future")
             if booking:
                 booking_count += 1
 
         # Cancelled bookings (mix of past and future)
         for i in range(1):
             cancel_date = today + timedelta(days=random.randint(-10, 10))
-            booking = create_booking_for_date(
-                session, student, interests, cancel_date, "cancelled"
-            )
+            booking = create_booking_for_date(session, student, interests, cancel_date, "cancelled")
             if booking:
                 booking_count += 1
 
@@ -814,9 +782,7 @@ def create_booking_for_date(session, student, interests, target_date, booking_ty
 
     # If no availability exists, create it
     if not availability:
-        availability = InstructorAvailability(
-            instructor_id=instructor_id, date=target_date, is_cleared=False
-        )
+        availability = InstructorAvailability(instructor_id=instructor_id, date=target_date, is_cleared=False)
         session.add(availability)
         session.flush()
 
@@ -935,9 +901,7 @@ def create_booking_for_date(session, student, interests, target_date, booking_ty
                 None,
             ]
         ),
-        instructor_note="Great progress today!"
-        if status == BookingStatus.COMPLETED
-        else None,
+        instructor_note="Great progress today!" if status == BookingStatus.COMPLETED else None,
         completed_at=completed_at,
         cancelled_at=cancelled_at,
         cancelled_by_id=cancelled_by,
@@ -980,12 +944,8 @@ def main():
 
         # Step 5: Summary
         total_users = session.query(User).count()
-        total_instructors = (
-            session.query(User).filter(User.role == UserRole.INSTRUCTOR).count()
-        )
-        total_students = (
-            session.query(User).filter(User.role == UserRole.STUDENT).count()
-        )
+        total_instructors = session.query(User).filter(User.role == UserRole.INSTRUCTOR).count()
+        total_students = session.query(User).filter(User.role == UserRole.STUDENT).count()
         total_bookings = session.query(Booking).count()
         upcoming_bookings = (
             session.query(Booking)

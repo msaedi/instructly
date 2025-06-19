@@ -41,9 +41,7 @@ def handle_domain_exception(exc: DomainException):
         raise exc.to_http_exception()
 
     # Default handling
-    raise HTTPException(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)
-    )
+    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
 
 
 @router.get("/{booking_id}/preview")
@@ -75,9 +73,7 @@ async def get_booking_preview(
             "end_time": str(booking.end_time),
             "duration_minutes": booking.duration_minutes,
             "location_type": booking.location_type or "neutral",
-            "location_type_display": booking.location_type_display
-            if booking.location_type
-            else "Neutral Location",
+            "location_type_display": booking.location_type_display if booking.location_type else "Neutral Location",
             "meeting_location": booking.meeting_location,
             "service_area": booking.service_area,
             "status": booking.status,
@@ -118,9 +114,7 @@ async def create_booking(
     Students can book any available slot. The booking is immediately confirmed.
     """
     try:
-        booking = await booking_service.create_booking(
-            student=current_user, booking_data=booking_data
-        )
+        booking = await booking_service.create_booking(student=current_user, booking_data=booking_data)
 
         return BookingResponse.from_orm(booking)
     except DomainException as e:
@@ -139,9 +133,7 @@ async def get_bookings(
     """Get bookings for the current user."""
     try:
         # Get bookings from service
-        bookings = booking_service.get_bookings_for_user(
-            user=current_user, status=status, upcoming_only=upcoming_only
-        )
+        bookings = booking_service.get_bookings_for_user(user=current_user, status=status, upcoming_only=upcoming_only)
 
         # Apply pagination
         total = len(bookings)
@@ -149,9 +141,7 @@ async def get_bookings(
         end = start + per_page
         paginated_bookings = bookings[start:end]
 
-        return BookingListResponse(
-            bookings=paginated_bookings, total=total, page=page, per_page=per_page
-        )
+        return BookingListResponse(bookings=paginated_bookings, total=total, page=page, per_page=per_page)
     except DomainException as e:
         handle_domain_exception(e)
 
@@ -215,9 +205,7 @@ async def update_booking(
 ):
     """Update booking details (instructor only)."""
     try:
-        booking = booking_service.update_booking(
-            booking_id=booking_id, user=current_user, update_data=update_data
-        )
+        booking = booking_service.update_booking(booking_id=booking_id, user=current_user, update_data=update_data)
 
         return BookingResponse.from_orm(booking)
     except DomainException as e:
@@ -250,9 +238,7 @@ async def complete_booking(
 ):
     """Mark a booking as completed (instructor only)."""
     try:
-        booking = booking_service.complete_booking(
-            booking_id=booking_id, instructor=current_user
-        )
+        booking = booking_service.complete_booking(booking_id=booking_id, instructor=current_user)
 
         return BookingResponse.from_orm(booking)
     except DomainException as e:

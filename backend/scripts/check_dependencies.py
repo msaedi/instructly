@@ -107,9 +107,7 @@ def find_circular_dependencies(dependencies: Dict[str, Set[str]]) -> List[List[s
         return []
 
 
-def visualize_dependencies(
-    dependencies: Dict[str, Set[str]], output_file: str = "service_dependencies.png"
-):
+def visualize_dependencies(dependencies: Dict[str, Set[str]], output_file: str = "service_dependencies.png"):
     """Create a visual graph of service dependencies."""
     G = nx.DiGraph()
 
@@ -145,9 +143,7 @@ def visualize_dependencies(
     nx.draw_networkx_nodes(G, pos, node_color=node_colors, node_size=2000)
 
     # Draw edges
-    nx.draw_networkx_edges(
-        G, pos, edge_color="gray", arrows=True, arrowsize=20, arrowstyle="->"
-    )
+    nx.draw_networkx_edges(G, pos, edge_color="gray", arrows=True, arrowsize=20, arrowstyle="->")
 
     # Draw labels
     nx.draw_networkx_labels(G, pos, font_size=8, font_weight="bold")
@@ -174,7 +170,7 @@ def visualize_dependencies(
         )
 
     plt.title("Service Layer Dependencies", fontsize=16, fontweight="bold")
-    plt.axis("off")
+    plt.axis("of")
     plt.tight_layout()
     plt.savefig(output_file, dpi=300, bbox_inches="tight")
     plt.close()
@@ -182,9 +178,7 @@ def visualize_dependencies(
     print(f"Dependency graph saved to {output_file}")
 
 
-def generate_dependency_report(
-    dependencies: Dict[str, Set[str]], cycles: List[List[str]]
-):
+def generate_dependency_report(dependencies: Dict[str, Set[str]], cycles: List[List[str]]):
     """Generate a detailed dependency report."""
     print("\n" + "=" * 60)
     print("SERVICE DEPENDENCY ANALYSIS REPORT")
@@ -216,9 +210,7 @@ def generate_dependency_report(
 
     print("\n3. Most Depended Upon Services:")
     print("-" * 40)
-    for service, dependents in sorted(
-        reverse_deps.items(), key=lambda x: len(x[1]), reverse=True
-    ):
+    for service, dependents in sorted(reverse_deps.items(), key=lambda x: len(x[1]), reverse=True):
         print(f"  {service}: used by {len(dependents)} services")
         for dependent in sorted(dependents):
             print(f"    ← {dependent}")

@@ -51,9 +51,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("updated_at", sa.DateTime(timezone=True), onupdate=sa.func.now()),
-        sa.Column(
-            "confirmed_at", sa.DateTime(timezone=True), server_default=sa.func.now()
-        ),
+        sa.Column("confirmed_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("cancelled_at", sa.DateTime(timezone=True), nullable=True),
         # Cancellation details
@@ -104,9 +102,7 @@ def upgrade() -> None:
     )
 
     # Add booking_id to availability_slots
-    op.add_column(
-        "availability_slots", sa.Column("booking_id", sa.Integer(), nullable=True)
-    )
+    op.add_column("availability_slots", sa.Column("booking_id", sa.Integer(), nullable=True))
     op.create_foreign_key(
         "fk_availability_slots_booking",
         "availability_slots",
@@ -114,9 +110,7 @@ def upgrade() -> None:
         ["booking_id"],
         ["id"],
     )
-    op.create_index(
-        "idx_availability_slots_booking_id", "availability_slots", ["booking_id"]
-    )
+    op.create_index("idx_availability_slots_booking_id", "availability_slots", ["booking_id"])
 
     # Add instructor settings
     op.add_column(
@@ -130,15 +124,11 @@ def upgrade() -> None:
     )
     op.add_column(
         "instructor_profiles",
-        sa.Column(
-            "buffer_time_minutes", sa.Integer(), nullable=False, server_default="0"
-        ),
+        sa.Column("buffer_time_minutes", sa.Integer(), nullable=False, server_default="0"),
     )
     op.add_column(
         "instructor_profiles",
-        sa.Column(
-            "auto_accept_bookings", sa.Boolean(), nullable=False, server_default="true"
-        ),
+        sa.Column("auto_accept_bookings", sa.Boolean(), nullable=False, server_default="true"),
     )
 
 
@@ -150,9 +140,7 @@ def downgrade() -> None:
 
     # Remove booking_id from availability_slots
     op.drop_index("idx_availability_slots_booking_id", "availability_slots")
-    op.drop_constraint(
-        "fk_availability_slots_booking", "availability_slots", type_="foreignkey"
-    )
+    op.drop_constraint("fk_availability_slots_booking", "availability_slots", type_="foreignkey")
     op.drop_column("availability_slots", "booking_id")
 
     # Drop constraint and indexes

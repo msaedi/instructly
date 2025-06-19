@@ -15,12 +15,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from ..core.constants import (
-    MAX_BIO_LENGTH,
-    MAX_SESSION_DURATION,
-    MIN_BIO_LENGTH,
-    MIN_SESSION_DURATION,
-)
+from ..core.constants import MAX_BIO_LENGTH, MAX_SESSION_DURATION, MIN_BIO_LENGTH, MIN_SESSION_DURATION
 from .base import Money, StandardizedModel
 
 logger = logging.getLogger(__name__)
@@ -38,9 +33,7 @@ class ServiceBase(StandardizedModel):
     """
 
     skill: str = Field(..., min_length=1, max_length=100)
-    hourly_rate: Money = Field(
-        ..., gt=0, le=1000, description="Hourly rate in USD"
-    )  # Changed from float
+    hourly_rate: Money = Field(..., gt=0, le=1000, description="Hourly rate in USD")  # Changed from float
     description: Optional[str] = Field(None, max_length=500)
     duration_override: Optional[int] = Field(
         None,
@@ -103,15 +96,9 @@ class InstructorProfileBase(StandardizedModel):
         max_length=20,
         description="NYC areas where instructor provides services",
     )
-    years_experience: int = Field(
-        ..., ge=0, le=50, description="Years of teaching experience"
-    )
-    min_advance_booking_hours: int = Field(
-        default=2, ge=0, le=168, description="Minimum hours in advance for bookings"
-    )
-    buffer_time_minutes: int = Field(
-        default=0, ge=0, le=60, description="Buffer time between bookings"
-    )
+    years_experience: int = Field(..., ge=0, le=50, description="Years of teaching experience")
+    min_advance_booking_hours: int = Field(default=2, ge=0, le=168, description="Minimum hours in advance for bookings")
+    buffer_time_minutes: int = Field(default=0, ge=0, le=60, description="Buffer time between bookings")
 
     @field_validator("areas_of_service")
     def validate_areas(cls, v):
@@ -160,9 +147,7 @@ class InstructorProfileUpdate(BaseModel):
     All fields are optional for partial updates.
     """
 
-    bio: Optional[str] = Field(
-        None, min_length=MIN_BIO_LENGTH, max_length=MAX_BIO_LENGTH
-    )
+    bio: Optional[str] = Field(None, min_length=MIN_BIO_LENGTH, max_length=MAX_BIO_LENGTH)
     areas_of_service: Optional[List[str]] = Field(None, min_length=1, max_length=10)
     years_experience: Optional[int] = Field(None, ge=0, le=50)
     services: Optional[List[ServiceCreate]] = Field(None, min_length=1, max_length=20)

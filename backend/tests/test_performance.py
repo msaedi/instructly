@@ -51,10 +51,8 @@ async def test_apply_pattern_performance():
         start_date = date(2026, 1, 5)  # January 2026
         end_date = date(2026, 2, 28)  # February 2026 (55 days)
 
-        print(f"Testing apply_pattern_to_date_range performance...")
-        print(
-            f"Date range: {start_date} to {end_date} ({(end_date - start_date).days + 1} days)"
-        )
+        print("Testing apply_pattern_to_date_range performance...")
+        print(f"Date range: {start_date} to {end_date} ({(end_date - start_date).days + 1} days)")
 
         # Clear any existing availability for the test dates to avoid conflicts
         print("\n🧹 Clearing test date ranges...")
@@ -112,17 +110,13 @@ async def test_apply_pattern_performance():
                 ]
             )
 
-        week_data = WeekSpecificScheduleCreate(
-            week_start=from_week_start, schedule=test_slots, clear_existing=True
-        )
+        week_data = WeekSpecificScheduleCreate(week_start=from_week_start, schedule=test_slots, clear_existing=True)
 
         # Save the test availability
         await availability_service.save_week_availability(instructor_id, week_data)
 
         # Verify source week has data
-        source_week = availability_service.get_week_availability(
-            instructor_id, from_week_start
-        )
+        source_week = availability_service.get_week_availability(instructor_id, from_week_start)
         print(f"✅ Source week has availability for {len(source_week)} days")
         total_slots = sum(len(slots) for slots in source_week.values())
         print(f"   Total slots in source week: {total_slots}")
@@ -141,26 +135,22 @@ async def test_apply_pattern_performance():
 
         elapsed = time.time() - start_time
 
-        print(f"\n📊 Results:")
+        print("\n📊 Results:")
         print(f"Time taken: {elapsed:.2f} seconds")
         print(f"Days created: {result.get('dates_created', 0)}")
         print(f"Days modified: {result.get('dates_modified', 0)}")
         print(f"Days skipped: {result.get('dates_skipped', 0)}")
         print(f"Slots created: {result.get('slots_created', 0)}")
         print(f"Slots skipped: {result.get('slots_skipped', 0)}")
-        print(
-            f"Performance: {((end_date - start_date).days + 1) / elapsed:.1f} days/second"
-        )
+        print(f"Performance: {((end_date - start_date).days + 1) / elapsed:.1f} days/second")
 
         # Expected slots calculation
         weekdays_in_range = sum(
-            1
-            for i in range((end_date - start_date).days + 1)
-            if (start_date + timedelta(days=i)).weekday() < 5
+            1 for i in range((end_date - start_date).days + 1) if (start_date + timedelta(days=i)).weekday() < 5
         )
         expected_slots = weekdays_in_range * 2  # 2 slots per weekday
 
-        print(f"\n📈 Analysis:")
+        print("\n📈 Analysis:")
         print(f"Expected weekdays: {weekdays_in_range}")
         print(f"Expected slots: {expected_slots}")
         print(f"Actual slots created: {result.get('slots_created', 0)}")

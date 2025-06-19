@@ -20,9 +20,7 @@ class PerformanceMonitor:
         self.slow_requests = deque(maxlen=50)
         self.hourly_stats = defaultdict(list)
 
-    def record_request(
-        self, endpoint: str, method: str, duration_ms: float, status_code: int
-    ):
+    def record_request(self, endpoint: str, method: str, duration_ms: float, status_code: int):
         """Record a request's performance."""
         self.response_times.append(duration_ms)
         self.endpoint_stats[f"{method} {endpoint}"].append(duration_ms)
@@ -56,9 +54,7 @@ class PerformanceMonitor:
                 "min_ms": min(times),
                 "max_ms": max(times),
                 "p50_ms": sorted(times)[len(times) // 2],
-                "p95_ms": sorted(times)[int(len(times) * 0.95)]
-                if len(times) > 20
-                else max(times),
+                "p95_ms": sorted(times)[int(len(times) * 0.95)] if len(times) > 20 else max(times),
                 "slow_requests": len([t for t in times if t > 500]),
             },
             "by_endpoint": {
@@ -109,9 +105,7 @@ class MonitoringMiddleware:
 
                 # Log slow requests
                 if duration_ms > 500:
-                    logger.warning(
-                        f"Slow request: {method} {path} " f"took {duration_ms:.2f}ms"
-                    )
+                    logger.warning(f"Slow request: {method} {path} " f"took {duration_ms:.2f}ms")
 
             await send(message)
 

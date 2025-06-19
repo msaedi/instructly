@@ -24,9 +24,7 @@ def upgrade():
         "recurring_availability",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("instructor_id", sa.Integer(), nullable=False),
-        sa.Column(
-            "day_of_week", sa.String(10), nullable=False
-        ),  # Just use String instead of Enum
+        sa.Column("day_of_week", sa.String(10), nullable=False),  # Just use String instead of Enum
         sa.Column("start_time", sa.Time(), nullable=False),
         sa.Column("end_time", sa.Time(), nullable=False),
         sa.Column(
@@ -38,9 +36,7 @@ def upgrade():
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["instructor_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "instructor_id", "day_of_week", "start_time", name="unique_recurring_slot"
-        ),
+        sa.UniqueConstraint("instructor_id", "day_of_week", "start_time", name="unique_recurring_slot"),
     )
     op.create_index(
         "idx_recurring_instructor_day",
@@ -65,9 +61,7 @@ def upgrade():
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("instructor_id", "date", name="unique_instructor_date"),
     )
-    op.create_index(
-        "idx_specific_date", "specific_date_availability", ["instructor_id", "date"]
-    )
+    op.create_index("idx_specific_date", "specific_date_availability", ["instructor_id", "date"])
 
     op.create_table(
         "date_time_slots",
@@ -75,9 +69,7 @@ def upgrade():
         sa.Column("date_override_id", sa.Integer(), nullable=False),
         sa.Column("start_time", sa.Time(), nullable=False),
         sa.Column("end_time", sa.Time(), nullable=False),
-        sa.ForeignKeyConstraint(
-            ["date_override_id"], ["specific_date_availability.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["date_override_id"], ["specific_date_availability.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
 
@@ -127,6 +119,4 @@ def upgrade():
 
 def downgrade():
     # This is a one-way migration - we don't support downgrade
-    raise NotImplementedError(
-        "This migration cannot be reversed. Restore from backup if needed."
-    )
+    raise NotImplementedError("This migration cannot be reversed. Restore from backup if needed.")

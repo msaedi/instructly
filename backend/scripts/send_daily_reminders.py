@@ -20,8 +20,8 @@ from pathlib import Path
 # Add the parent directory to the path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from app.database import SessionLocal
-from app.services.notification_service import NotificationService
+from app.database import SessionLocal  # noqa: E402
+from app.services.notification_service import NotificationService  # noqa: E402
 
 # Set up logging
 logging.basicConfig(

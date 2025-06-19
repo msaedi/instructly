@@ -86,11 +86,7 @@ if __name__ == "__main__":
     with engine.connect() as conn:
         # Add areas_of_service column
         try:
-            conn.execute(
-                text(
-                    "ALTER TABLE instructor_profiles ADD COLUMN areas_of_service TEXT[]"
-                )
-            )
+            conn.execute(text("ALTER TABLE instructor_profiles ADD COLUMN areas_of_service TEXT[]"))
             conn.commit()
             print("✅ Added areas_of_service column")
         except:
@@ -106,17 +102,9 @@ if __name__ == "__main__":
     # Drop old columns
     with engine.connect() as conn:
         try:
-            conn.execute(
-                text("ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS skills")
-            )
-            conn.execute(
-                text(
-                    "ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS hourly_rate"
-                )
-            )
-            conn.execute(
-                text("ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS location")
-            )
+            conn.execute(text("ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS skills"))
+            conn.execute(text("ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS hourly_rate"))
+            conn.execute(text("ALTER TABLE instructor_profiles DROP COLUMN IF EXISTS location"))
             conn.commit()
             print("✅ Dropped old columns")
         except Exception as e:

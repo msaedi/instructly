@@ -18,7 +18,6 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
-from ..core.constants import BRAND_NAME
 from ..models.booking import Booking
 from ..models.user import User
 from ..services.email import email_service
@@ -62,19 +61,13 @@ class NotificationService:
             student_success = await self._send_student_booking_confirmation(booking)
 
             # Send to instructor
-            instructor_success = await self._send_instructor_booking_notification(
-                booking
-            )
+            instructor_success = await self._send_instructor_booking_notification(booking)
 
             if student_success and instructor_success:
-                logger.info(
-                    f"All booking confirmation emails sent for booking {booking.id}"
-                )
+                logger.info(f"All booking confirmation emails sent for booking {booking.id}")
                 return True
             else:
-                logger.warning(
-                    f"Some booking confirmation emails failed for booking {booking.id}"
-                )
+                logger.warning(f"Some booking confirmation emails failed for booking {booking.id}")
                 return False
 
         except Exception as e:
@@ -104,23 +97,15 @@ class NotificationService:
             # Send appropriate emails
             if is_student_cancellation:
                 # Student cancelled - notify instructor
-                success = await self._send_instructor_cancellation_notification(
-                    booking, reason, "student"
-                )
+                success = await self._send_instructor_cancellation_notification(booking, reason, "student")
                 # Also send confirmation to student
-                student_success = await self._send_student_cancellation_confirmation(
-                    booking
-                )
+                student_success = await self._send_student_cancellation_confirmation(booking)
                 return success and student_success
             else:
                 # Instructor cancelled - notify student
-                success = await self._send_student_cancellation_notification(
-                    booking, reason, "instructor"
-                )
+                success = await self._send_student_cancellation_notification(booking, reason, "instructor")
                 # Also send confirmation to instructor
-                instructor_success = (
-                    await self._send_instructor_cancellation_confirmation(booking)
-                )
+                instructor_success = await self._send_instructor_cancellation_confirmation(booking)
                 return success and instructor_success
 
         except Exception as e:
@@ -145,9 +130,7 @@ class NotificationService:
             tomorrow = datetime.now().date() + timedelta(days=1)
 
             bookings = (
-                self.db.query(Booking)
-                .filter(Booking.booking_date == tomorrow, Booking.status == "CONFIRMED")
-                .all()
+                self.db.query(Booking).filter(Booking.booking_date == tomorrow, Booking.status == "CONFIRMED").all()
             )
 
             logger.info(f"Found {len(bookings)} bookings for tomorrow")
@@ -164,9 +147,7 @@ class NotificationService:
                         sent_count += 1
 
                 except Exception as e:
-                    logger.error(
-                        f"Error sending reminder for booking {booking.id}: {str(e)}"
-                    )
+                    logger.error(f"Error sending reminder for booking {booking.id}: {str(e)}")
 
             logger.info(f"Sent {sent_count} reminder emails")
             return sent_count
@@ -183,14 +164,12 @@ class NotificationService:
             subject = f"Booking Confirmed: {booking.service_name} with {booking.instructor.full_name}"
 
             # Format booking time
-            booking_datetime = datetime.combine(
-                booking.booking_date, booking.start_time
-            )
-            formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
+            booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+            booking_datetime.strftime("%A, %B %d, %Y")
             formatted_time = booking_datetime.strftime("%-I:%M %p")
 
             # Build email content
-            html_content = f"""
+            html_content = """
             <!DOCTYPE html>
             <html>
             <head>
@@ -239,7 +218,7 @@ class NotificationService:
                                 <td style="padding: 8px 0; color: #6B7280;">Location:</td>
                                 <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{booking.location_type_display}</td>
                             </tr>
-                            {f'''<tr>
+                            {'''<tr>
                                 <td style="padding: 8px 0; color: #6B7280;">Address:</td>
                                 <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{booking.meeting_location}</td>
                             </tr>''' if booking.meeting_location else ''}
@@ -309,19 +288,15 @@ class NotificationService:
     async def _send_instructor_booking_notification(self, booking: Booking) -> bool:
         """Send new booking notification to instructor."""
         try:
-            subject = (
-                f"New Booking: {booking.service_name} with {booking.student.full_name}"
-            )
+            subject = f"New Booking: {booking.service_name} with {booking.student.full_name}"
 
             # Format booking time
-            booking_datetime = datetime.combine(
-                booking.booking_date, booking.start_time
-            )
-            formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
+            booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+            booking_datetime.strftime("%A, %B %d, %Y")
             formatted_time = booking_datetime.strftime("%-I:%M %p")
 
             # Build email content
-            html_content = f"""
+            html_content = """
             <!DOCTYPE html>
             <html>
             <head>
@@ -369,7 +344,7 @@ class NotificationService:
                                 <td style="padding: 8px 0; color: #6B7280;">Location:</td>
                                 <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{booking.location_type_display}</td>
                             </tr>
-                            {f'''<tr>
+                            {'''<tr>
                                 <td style="padding: 8px 0; color: #6B7280;">Student Note:</td>
                                 <td style="padding: 8px 0; color: #1F2937; font-style: italic;">"{booking.student_note}"</td>
                             </tr>''' if booking.student_note else ''}
@@ -427,13 +402,11 @@ class NotificationService:
         try:
             subject = f"Booking Cancelled: {booking.service_name}"
 
-            booking_datetime = datetime.combine(
-                booking.booking_date, booking.start_time
-            )
-            formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
+            booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+            booking_datetime.strftime("%A, %B %d, %Y")
             formatted_time = booking_datetime.strftime("%-I:%M %p")
 
-            html_content = f"""
+            html_content = """
             <!DOCTYPE html>
             <html>
             <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -503,13 +476,11 @@ class NotificationService:
         try:
             subject = f"Booking Cancelled: {booking.service_name}"
 
-            booking_datetime = datetime.combine(
-                booking.booking_date, booking.start_time
-            )
-            formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
+            booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+            booking_datetime.strftime("%A, %B %d, %Y")
             formatted_time = booking_datetime.strftime("%-I:%M %p")
 
-            html_content = f"""
+            html_content = """
             <!DOCTYPE html>
             <html>
             <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -565,9 +536,7 @@ class NotificationService:
             return True
 
         except Exception as e:
-            logger.error(
-                f"Failed to send instructor cancellation notification: {str(e)}"
-            )
+            logger.error(f"Failed to send instructor cancellation notification: {str(e)}")
             return False
 
     async def _send_student_cancellation_confirmation(self, booking: Booking) -> bool:
@@ -575,7 +544,7 @@ class NotificationService:
         try:
             subject = f"Cancellation Confirmed: {booking.service_name}"
 
-            html_content = f"""
+            html_content = """
             <!DOCTYPE html>
             <html>
             <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -620,9 +589,7 @@ class NotificationService:
             logger.error(f"Failed to send cancellation confirmation: {str(e)}")
             return False
 
-    async def _send_instructor_cancellation_confirmation(
-        self, booking: Booking
-    ) -> bool:
+    async def _send_instructor_cancellation_confirmation(self, booking: Booking) -> bool:
         """Send cancellation confirmation to instructor after they cancel."""
         # Similar to student confirmation
         return await self._send_student_cancellation_confirmation(booking)
@@ -632,12 +599,10 @@ class NotificationService:
         try:
             subject = f"Reminder: {booking.service_name} Tomorrow"
 
-            booking_datetime = datetime.combine(
-                booking.booking_date, booking.start_time
-            )
+            booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
             formatted_time = booking_datetime.strftime("%-I:%M %p")
 
-            html_content = f"""
+            html_content = """
             <!DOCTYPE html>
             <html>
             <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -700,12 +665,10 @@ class NotificationService:
         try:
             subject = f"Reminder: {booking.service_name} Tomorrow"
 
-            booking_datetime = datetime.combine(
-                booking.booking_date, booking.start_time
-            )
+            booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
             formatted_time = booking_datetime.strftime("%-I:%M %p")
 
-            html_content = f"""
+            html_content = """
             <!DOCTYPE html>
             <html>
             <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">

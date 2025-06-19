@@ -22,7 +22,7 @@ def remove_debug_logging():
 
             # Remove the debug logging block
             content = re.sub(
-                r'\n\s*# ADD THIS DEBUG LOGGING\n\s*self\.logger\.info\(f"Bulk update operations:.*?\n\s*self\.logger\.info\(f"\s*Operation:.*?\)\n',
+                r'\n\s*# ADD THIS DEBUG LOGGING\n\s*self\.logger\.info\("Bulk update operations:.*?\n\s*self\.logger\.info\(f"\s*Operation:.*?\)\n',
                 "\n",
                 content,
                 flags=re.DOTALL,
@@ -30,7 +30,7 @@ def remove_debug_logging():
 
             with open(file_path, "w") as f:
                 f.write(content)
-            print(f"  ✓ Removed debug logging")
+            print("  ✓ Removed debug logging")
 
 
 def find_unused_imports():
@@ -48,9 +48,7 @@ def find_unused_imports():
             cache_service_uses = content.count("CacheService")
 
             if type_checking_block and cache_service_uses > 1:
-                print(
-                    f"  ✓ {file.name}: TYPE_CHECKING imports look correct ({cache_service_uses} uses)"
-                )
+                print(f"  ✓ {file.name}: TYPE_CHECKING imports look correct ({cache_service_uses} uses)")
 
 
 def check_frontend_logging():

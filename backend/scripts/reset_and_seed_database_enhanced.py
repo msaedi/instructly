@@ -21,22 +21,20 @@ from typing import List
 # Add the parent directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import create_engine, or_
-from sqlalchemy.orm import Session
+from sqlalchemy import create_engine, or_  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
 
-from app.auth import get_password_hash
-from app.core.config import settings
-from app.models.availability import AvailabilitySlot, BlackoutDate, InstructorAvailability
-from app.models.booking import Booking, BookingStatus
-from app.models.instructor import InstructorProfile
-from app.models.password_reset import PasswordResetToken
-from app.models.service import Service
-from app.models.user import User, UserRole
+from app.auth import get_password_hash  # noqa: E402
+from app.core.config import settings  # noqa: E402
+from app.models.availability import AvailabilitySlot, BlackoutDate, InstructorAvailability  # noqa: E402
+from app.models.booking import Booking, BookingStatus  # noqa: E402
+from app.models.instructor import InstructorProfile  # noqa: E402
+from app.models.password_reset import PasswordResetToken  # noqa: E402
+from app.models.service import Service  # noqa: E402
+from app.models.user import User, UserRole  # noqa: E402
 
 # Enhanced logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # Configuration
@@ -208,9 +206,7 @@ def cleanup_database(session: Session) -> List[int]:
     start_time = datetime.now()
 
     # Get users to exclude
-    excluded_users = (
-        session.query(User).filter(User.email.in_(EXCLUDE_FROM_CLEANUP)).all()
-    )
+    excluded_users = session.query(User).filter(User.email.in_(EXCLUDE_FROM_CLEANUP)).all()
 
     excluded_ids = [user.id for user in excluded_users]
     logger.info(f"Preserving {len(excluded_ids)} users")
@@ -220,9 +216,7 @@ def cleanup_database(session: Session) -> List[int]:
         session.query(User)
         .filter(
             ~User.id.in_(excluded_ids),
-            or_(
-                User.email.like("%@example.com"), User.email == PROFILING_USER["email"]
-            ),
+            or_(User.email.like("%@example.com"), User.email == PROFILING_USER["email"]),
         )
         .all()
     )
@@ -234,9 +228,9 @@ def cleanup_database(session: Session) -> List[int]:
         # Delete in correct order to respect foreign keys
 
         # 1. Clear slot booking references
-        session.query(AvailabilitySlot).filter(
-            AvailabilitySlot.booking_id.isnot(None)
-        ).update({"booking_id": None}, synchronize_session=False)
+        session.query(AvailabilitySlot).filter(AvailabilitySlot.booking_id.isnot(None)).update(
+            {"booking_id": None}, synchronize_session=False
+        )
 
         # 2. Delete bookings
         session.query(Booking).filter(
@@ -252,9 +246,9 @@ def cleanup_database(session: Session) -> List[int]:
             .filter(InstructorAvailability.instructor_id.in_(user_ids_to_delete))
             .subquery()
         )
-        session.query(AvailabilitySlot).filter(
-            AvailabilitySlot.availability_id.in_(subquery)
-        ).delete(synchronize_session=False)
+        session.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id.in_(subquery)).delete(
+            synchronize_session=False
+        )
 
         # 4. Delete availability
         session.query(InstructorAvailability).filter(
@@ -262,34 +256,30 @@ def cleanup_database(session: Session) -> List[int]:
         ).delete(synchronize_session=False)
 
         # 5. Delete blackout dates
-        session.query(BlackoutDate).filter(
-            BlackoutDate.instructor_id.in_(user_ids_to_delete)
-        ).delete(synchronize_session=False)
+        session.query(BlackoutDate).filter(BlackoutDate.instructor_id.in_(user_ids_to_delete)).delete(
+            synchronize_session=False
+        )
 
         # 6. Delete services
         profile_subquery = (
-            session.query(InstructorProfile.id)
-            .filter(InstructorProfile.user_id.in_(user_ids_to_delete))
-            .subquery()
+            session.query(InstructorProfile.id).filter(InstructorProfile.user_id.in_(user_ids_to_delete)).subquery()
         )
-        session.query(Service).filter(
-            Service.instructor_profile_id.in_(profile_subquery)
-        ).delete(synchronize_session=False)
-
-        # 7. Delete instructor profiles
-        session.query(InstructorProfile).filter(
-            InstructorProfile.user_id.in_(user_ids_to_delete)
-        ).delete(synchronize_session=False)
-
-        # 8. Delete password reset tokens
-        session.query(PasswordResetToken).filter(
-            PasswordResetToken.user_id.in_(user_ids_to_delete)
-        ).delete(synchronize_session=False)
-
-        # 9. Finally delete users
-        session.query(User).filter(User.id.in_(user_ids_to_delete)).delete(
+        session.query(Service).filter(Service.instructor_profile_id.in_(profile_subquery)).delete(
             synchronize_session=False
         )
+
+        # 7. Delete instructor profiles
+        session.query(InstructorProfile).filter(InstructorProfile.user_id.in_(user_ids_to_delete)).delete(
+            synchronize_session=False
+        )
+
+        # 8. Delete password reset tokens
+        session.query(PasswordResetToken).filter(PasswordResetToken.user_id.in_(user_ids_to_delete)).delete(
+            synchronize_session=False
+        )
+
+        # 9. Finally delete users
+        session.query(User).filter(User.id.in_(user_ids_to_delete)).delete(synchronize_session=False)
 
         session.commit()
 
@@ -385,9 +375,7 @@ def create_realistic_availability(session: Session, instructor_id: int):
                 continue
 
             # Create availability entry
-            availability = InstructorAvailability(
-                instructor_id=instructor_id, date=current_date, is_cleared=False
-            )
+            availability = InstructorAvailability(instructor_id=instructor_id, date=current_date, is_cleared=False)
             session.add(availability)
             session.flush()
 
@@ -490,9 +478,7 @@ def create_profiling_availability(session: Session, instructor_id: int):
             continue
 
         # Create availability entry
-        availability = InstructorAvailability(
-            instructor_id=instructor_id, date=current_date, is_cleared=False
-        )
+        availability = InstructorAvailability(instructor_id=instructor_id, date=current_date, is_cleared=False)
         session.add(availability)
         session.flush()
 
@@ -571,10 +557,7 @@ def create_sample_bookings(session: Session):
     for instructor in instructors:
         # Get instructor's services
         services = (
-            session.query(Service)
-            .join(InstructorProfile)
-            .filter(InstructorProfile.user_id == instructor.id)
-            .all()
+            session.query(Service).join(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).all()
         )
 
         if not services:
@@ -625,9 +608,7 @@ def create_sample_bookings(session: Session):
                 total_price=Decimal(str(service.hourly_rate * duration_minutes / 60)),
                 duration_minutes=duration_minutes,
                 status=BookingStatus.CONFIRMED,
-                location_type=random.choice(
-                    ["student_home", "instructor_location", "neutral"]
-                ),
+                location_type=random.choice(["student_home", "instructor_location", "neutral"]),
                 meeting_location=f"{random.choice(['Student home', 'Instructor studio', 'Local library'])}",
                 created_at=datetime.now(),
                 confirmed_at=datetime.now(),
@@ -652,12 +633,7 @@ def create_profiling_bookings(session: Session, instructor: User):
         logger.warning("No students found")
         return
 
-    service = (
-        session.query(Service)
-        .join(InstructorProfile)
-        .filter(InstructorProfile.user_id == instructor.id)
-        .first()
-    )
+    service = session.query(Service).join(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
 
     if not service:
         logger.warning("No service found for profiling instructor")
@@ -681,9 +657,7 @@ def create_profiling_bookings(session: Session, instructor: User):
     bookings_created = 0
 
     # Book 40% of available slots
-    slots_to_book = random.sample(
-        available_slots, min(len(available_slots), int(len(available_slots) * 0.4))
-    )
+    slots_to_book = random.sample(available_slots, min(len(available_slots), int(len(available_slots) * 0.4)))
 
     for slot in slots_to_book:
         student = random.choice(students)
@@ -744,19 +718,11 @@ def main():
 
         # Step 4: Summary
         total_users = session.query(User).count()
-        total_instructors = (
-            session.query(User).filter(User.role == UserRole.INSTRUCTOR).count()
-        )
-        total_students = (
-            session.query(User).filter(User.role == UserRole.STUDENT).count()
-        )
+        total_instructors = session.query(User).filter(User.role == UserRole.INSTRUCTOR).count()
+        total_students = session.query(User).filter(User.role == UserRole.STUDENT).count()
         total_bookings = session.query(Booking).count()
         total_slots = session.query(AvailabilitySlot).count()
-        booked_slots = (
-            session.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.booking_id.isnot(None))
-            .count()
-        )
+        booked_slots = session.query(AvailabilitySlot).filter(AvailabilitySlot.booking_id.isnot(None)).count()
 
         logger.info("\n" + "=" * 50)
         logger.info("Database reset complete!")

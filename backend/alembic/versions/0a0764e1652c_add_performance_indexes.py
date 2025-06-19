@@ -19,12 +19,8 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade():
     # Indexes for frequent lookups
     op.create_index("idx_users_email", "users", ["email"])
-    op.create_index(
-        "idx_instructor_profiles_user_id", "instructor_profiles", ["user_id"]
-    )
-    op.create_index(
-        "idx_services_instructor_profile_id", "services", ["instructor_profile_id"]
-    )
+    op.create_index("idx_instructor_profiles_user_id", "instructor_profiles", ["user_id"])
+    op.create_index("idx_services_instructor_profile_id", "services", ["instructor_profile_id"])
     op.create_index(
         "idx_recurring_availability_instructor_id",
         "recurring_availability",
@@ -40,17 +36,13 @@ def upgrade():
         "specific_date_availability",
         ["instructor_id", "date"],
     )
-    op.create_index(
-        "idx_date_time_slots_date_override_id", "date_time_slots", ["date_override_id"]
-    )
+    op.create_index("idx_date_time_slots_date_override_id", "date_time_slots", ["date_override_id"])
     op.create_index(
         "idx_blackout_dates_instructor_date",
         "blackout_dates",
         ["instructor_id", "date"],
     )
-    op.create_index(
-        "idx_bookings_instructor_date", "bookings", ["instructor_id", "start_time"]
-    )
+    op.create_index("idx_bookings_instructor_date", "bookings", ["instructor_id", "start_time"])
     op.create_index("idx_bookings_student_id", "bookings", ["student_id"])
 
 

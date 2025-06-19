@@ -27,7 +27,7 @@ def upgrade() -> None:
     def index_exists(index_name: str) -> bool:
         result = conn.execute(
             text(
-                f"""
+                """
             SELECT 1 FROM pg_indexes
             WHERE schemaname = 'public'
             AND indexname = '{index_name}'
@@ -74,9 +74,7 @@ def upgrade() -> None:
 
     # Index for student bookings
     if not index_exists("idx_bookings_student_date"):
-        op.create_index(
-            "idx_bookings_student_date", "bookings", ["student_id", "booking_date"]
-        )
+        op.create_index("idx_bookings_student_date", "bookings", ["student_id", "booking_date"])
         print("Created index: idx_bookings_student_date")
     else:
         print("Index idx_bookings_student_date already exists, skipping")
@@ -102,7 +100,7 @@ def downgrade() -> None:
     def drop_index_if_exists(index_name: str, table_name: str):
         result = conn.execute(
             text(
-                f"""
+                """
             SELECT 1 FROM pg_indexes
             WHERE schemaname = 'public'
             AND indexname = '{index_name}'

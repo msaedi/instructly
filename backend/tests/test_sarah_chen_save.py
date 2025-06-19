@@ -95,9 +95,7 @@ def test_sarah_chen():
     # Save
     import asyncio
 
-    result = asyncio.run(
-        availability_service.save_week_availability(sarah.id, new_schedule)
-    )
+    result = asyncio.run(availability_service.save_week_availability(sarah.id, new_schedule))
 
     # Check result
     monday_result = result.get(str(week_start), [])

@@ -58,9 +58,7 @@ class BulkOperationService(BaseService):
         self.conflict_checker = conflict_checker or ConflictChecker(db)
         self.cache_service = cache_service
 
-    async def process_bulk_update(
-        self, instructor_id: int, update_data: BulkUpdateRequest
-    ) -> Dict[str, Any]:
+    async def process_bulk_update(self, instructor_id: int, update_data: BulkUpdateRequest) -> Dict[str, Any]:
         """
         Process bulk update operations.
 
@@ -132,9 +130,7 @@ class BulkOperationService(BaseService):
             for op in update_data.operations:
                 if op.action == "remove" and op.slot_id:
                     # Query the slot's date before it was deleted
-                    slot = (
-                        self.db.query(AvailabilitySlot).filter_by(id=op.slot_id).first()
-                    )
+                    slot = self.db.query(AvailabilitySlot).filter_by(id=op.slot_id).first()
                     if slot and slot.availability:
                         affected_dates.add(slot.availability.date)
                 elif op.date:
@@ -150,16 +146,10 @@ class BulkOperationService(BaseService):
                 # This is a broader invalidation but ensures consistency
                 if self.cache_service:
                     self.cache_service.delete_pattern(f"*{instructor_id}*")
-                    self.logger.info(
-                        f"Invalidated all cache for instructor {instructor_id} due to remove operations"
-                    )
+                    self.logger.info(f"Invalidated all cache for instructor {instructor_id} due to remove operations")
             elif affected_dates and self.cache_service:
-                self.cache_service.invalidate_instructor_availability(
-                    instructor_id, list(affected_dates)
-                )
-                self.logger.info(
-                    f"Invalidated cache for instructor {instructor_id}, dates: {len(affected_dates)}"
-                )
+                self.cache_service.invalidate_instructor_availability(instructor_id, list(affected_dates))
+                self.logger.info(f"Invalidated cache for instructor {instructor_id}, dates: {len(affected_dates)}")
 
         return {
             "successful": successful,
@@ -168,9 +158,7 @@ class BulkOperationService(BaseService):
             "results": results,
         }
 
-    async def validate_week_changes(
-        self, instructor_id: int, validation_data: ValidateWeekRequest
-    ) -> Dict[str, Any]:
+    async def validate_week_changes(self, instructor_id: int, validation_data: ValidateWeekRequest) -> Dict[str, Any]:
         """
         Validate planned changes to week availability.
 
@@ -188,9 +176,7 @@ class BulkOperationService(BaseService):
         )
 
         # Get actual current state from database
-        existing_slots = self._get_existing_week_slots(
-            instructor_id, validation_data.week_start
-        )
+        existing_slots = self._get_existing_week_slots(instructor_id, validation_data.week_start)
 
         # Generate operations
         operations = self._generate_operations_from_states(
@@ -201,9 +187,7 @@ class BulkOperationService(BaseService):
         )
 
         # Validate each operation
-        validation_results = await self._validate_operations(
-            instructor_id=instructor_id, operations=operations
-        )
+        validation_results = await self._validate_operations(instructor_id=instructor_id, operations=operations)
 
         # Generate summary
         summary = self._generate_validation_summary(validation_results)
@@ -398,9 +382,7 @@ class BulkOperationService(BaseService):
 
         # Check if slot has bookings
         if slot.booking_id:
-            booking = (
-                self.db.query(Booking).filter(Booking.id == slot.booking_id).first()
-            )
+            booking = self.db.query(Booking).filter(Booking.id == slot.booking_id).first()
 
             if booking and booking.status in [
                 BookingStatus.CONFIRMED,
@@ -424,9 +406,7 @@ class BulkOperationService(BaseService):
         # Actually remove the slot
         try:
             self.slot_manager.delete_slot(operation.slot_id)
-            return OperationResult(
-                operation_index=operation_index, action="remove", status="success"
-            )
+            return OperationResult(operation_index=operation_index, action="remove", status="success")
         except Exception as e:
             return OperationResult(
                 operation_index=operation_index,
@@ -532,9 +512,7 @@ class BulkOperationService(BaseService):
                 reason=str(e),
             )
 
-    def _get_existing_week_slots(
-        self, instructor_id: int, week_start: date
-    ) -> Dict[str, List[Dict]]:
+    def _get_existing_week_slots(self, instructor_id: int, week_start: date) -> Dict[str, List[Dict]]:
         """Get existing slots for a week from database."""
         end_date = week_start + timedelta(days=6)
 
@@ -595,9 +573,7 @@ class BulkOperationService(BaseService):
             # Find slots to remove
             for saved_slot in saved_slots:
                 still_exists = any(
-                    s.start_time == saved_slot.start_time
-                    and s.end_time == saved_slot.end_time
-                    for s in current_slots
+                    s.start_time == saved_slot.start_time and s.end_time == saved_slot.end_time for s in current_slots
                 )
 
                 if not still_exists:
@@ -606,23 +582,18 @@ class BulkOperationService(BaseService):
                         (
                             s
                             for s in existing_db_slots
-                            if s["start_time"] == saved_slot.start_time
-                            and s["end_time"] == saved_slot.end_time
+                            if s["start_time"] == saved_slot.start_time and s["end_time"] == saved_slot.end_time
                         ),
                         None,
                     )
 
                     if db_slot:
-                        operations.append(
-                            SlotOperation(action="remove", slot_id=db_slot["id"])
-                        )
+                        operations.append(SlotOperation(action="remove", slot_id=db_slot["id"]))
 
             # Find slots to add
             for current_slot in current_slots:
                 is_new = not any(
-                    s.start_time == current_slot.start_time
-                    and s.end_time == current_slot.end_time
-                    for s in saved_slots
+                    s.start_time == current_slot.start_time and s.end_time == current_slot.end_time for s in saved_slots
                 )
 
                 if is_new:
@@ -657,9 +628,7 @@ class BulkOperationService(BaseService):
                 operation_index=idx,
                 action=operation.action,
                 reason=result.reason,
-                conflicts_with=result.conflicts
-                if hasattr(result, "conflicts")
-                else None,
+                conflicts_with=result.conflicts if hasattr(result, "conflicts") else None,
             )
 
             # Add operation-specific details
@@ -674,9 +643,7 @@ class BulkOperationService(BaseService):
 
         return validation_details
 
-    def _generate_validation_summary(
-        self, validation_results: List[ValidationSlotDetail]
-    ) -> ValidationSummary:
+    def _generate_validation_summary(self, validation_results: List[ValidationSlotDetail]) -> ValidationSummary:
         """Generate summary from validation results."""
         operations_by_type = {"add": 0, "remove": 0, "update": 0}
         valid_count = 0
@@ -691,16 +658,8 @@ class BulkOperationService(BaseService):
                 invalid_count += 1
 
         estimated_changes = {
-            "slots_added": sum(
-                1
-                for d in validation_results
-                if d.action == "add" and "Valid" in (d.reason or "")
-            ),
-            "slots_removed": sum(
-                1
-                for d in validation_results
-                if d.action == "remove" and "Valid" in (d.reason or "")
-            ),
+            "slots_added": sum(1 for d in validation_results if d.action == "add" and "Valid" in (d.reason or "")),
+            "slots_removed": sum(1 for d in validation_results if d.action == "remove" and "Valid" in (d.reason or "")),
             "conflicts": invalid_count,
         }
 
@@ -720,9 +679,7 @@ class BulkOperationService(BaseService):
         warnings = []
 
         if summary.invalid_operations > 0:
-            warnings.append(
-                f"{summary.invalid_operations} operations will fail due to conflicts"
-            )
+            warnings.append(f"{summary.invalid_operations} operations will fail due to conflicts")
 
         # Find dates with booking conflicts
         booked_dates = set()
@@ -732,9 +689,7 @@ class BulkOperationService(BaseService):
                     booked_dates.add(detail.date.strftime("%A"))
 
         if booked_dates:
-            warnings.append(
-                f"Operations affect days with bookings: {', '.join(sorted(booked_dates))}"
-            )
+            warnings.append(f"Operations affect days with bookings: {', '.join(sorted(booked_dates))}")
 
         return warnings
 

@@ -22,18 +22,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import (
-    CheckConstraint,
-    Column,
-    Date,
-    DateTime,
-    ForeignKey,
-    Integer,
-    Numeric,
-    String,
-    Text,
-    Time,
-)
+from sqlalchemy import CheckConstraint, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, Time
 from sqlalchemy.orm import backref, relationship
 from sqlalchemy.sql import func
 
@@ -150,14 +139,10 @@ class Booking(Base):
     student_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     instructor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
-    availability_slot_id = Column(
-        Integer, ForeignKey("availability_slots.id"), nullable=True
-    )
+    availability_slot_id = Column(Integer, ForeignKey("availability_slots.id"), nullable=True)
 
     # Booking snapshot data - preserved for historical accuracy
-    booking_date = Column(
-        Date, nullable=False, index=True
-    )  # Indexed for query performance
+    booking_date = Column(Date, nullable=False, index=True)  # Indexed for query performance
     start_time = Column(Time, nullable=False)
     end_time = Column(Time, nullable=False)
     service_name = Column(String, nullable=False)  # Snapshot of service name
@@ -166,9 +151,7 @@ class Booking(Base):
     duration_minutes = Column(Integer, nullable=False)
 
     # Status with check constraint
-    status = Column(
-        String(20), nullable=False, default=BookingStatus.CONFIRMED, index=True
-    )
+    status = Column(String(20), nullable=False, default=BookingStatus.CONFIRMED, index=True)
 
     # Location details
     service_area = Column(String, nullable=True)  # e.g., "Manhattan, Brooklyn"
@@ -182,9 +165,7 @@ class Booking(Base):
     # Timestamps - all timezone-aware
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    confirmed_at = Column(
-        DateTime(timezone=True), server_default=func.now()
-    )  # Instant booking
+    confirmed_at = Column(DateTime(timezone=True), server_default=func.now())  # Instant booking
     completed_at = Column(DateTime(timezone=True), nullable=True)
     cancelled_at = Column(DateTime(timezone=True), nullable=True)
 
@@ -193,12 +174,8 @@ class Booking(Base):
     cancellation_reason = Column(Text, nullable=True)
 
     # Relationships
-    student = relationship(
-        "User", foreign_keys=[student_id], backref="student_bookings"
-    )
-    instructor = relationship(
-        "User", foreign_keys=[instructor_id], backref="instructor_bookings"
-    )
+    student = relationship("User", foreign_keys=[student_id], backref="student_bookings")
+    instructor = relationship("User", foreign_keys=[instructor_id], backref="instructor_bookings")
     service = relationship("Service", backref="bookings")
     availability_slot = relationship(
         "AvailabilitySlot",
@@ -235,9 +212,7 @@ class Booking(Base):
         # Default to CONFIRMED for instant booking
         if not self.status:
             self.status = BookingStatus.CONFIRMED
-        logger.info(
-            f"Creating booking for student {self.student_id} with instructor {self.instructor_id}"
-        )
+        logger.info(f"Creating booking for student {self.student_id} with instructor {self.instructor_id}")
 
     def __repr__(self):
         """String representation for debugging."""
@@ -312,9 +287,7 @@ class Booking(Base):
         """
         from datetime import date
 
-        return (
-            self.booking_date > date.today() and self.status == BookingStatus.CONFIRMED
-        )
+        return self.booking_date > date.today() and self.status == BookingStatus.CONFIRMED
 
     @property
     def is_past(self) -> bool:
@@ -368,9 +341,7 @@ class Booking(Base):
             "student_id": self.student_id,
             "instructor_id": self.instructor_id,
             "service_id": self.service_id,
-            "booking_date": self.booking_date.isoformat()
-            if self.booking_date
-            else None,
+            "booking_date": self.booking_date.isoformat() if self.booking_date else None,
             "start_time": str(self.start_time) if self.start_time else None,
             "end_time": str(self.end_time) if self.end_time else None,
             "service_name": self.service_name,
@@ -386,15 +357,9 @@ class Booking(Base):
             "instructor_note": self.instructor_note,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-            "confirmed_at": self.confirmed_at.isoformat()
-            if self.confirmed_at
-            else None,
-            "completed_at": self.completed_at.isoformat()
-            if self.completed_at
-            else None,
-            "cancelled_at": self.cancelled_at.isoformat()
-            if self.cancelled_at
-            else None,
+            "confirmed_at": self.confirmed_at.isoformat() if self.confirmed_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "cancelled_at": self.cancelled_at.isoformat() if self.cancelled_at else None,
             "cancelled_by_id": self.cancelled_by_id,
             "cancellation_reason": self.cancellation_reason,
         }

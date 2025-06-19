@@ -20,11 +20,7 @@ from ..core.exceptions import ConflictException, NotFoundException
 from ..models.availability import AvailabilitySlot, BlackoutDate, InstructorAvailability
 from ..models.booking import Booking, BookingStatus
 from ..models.instructor import InstructorProfile
-from ..schemas.availability_window import (
-    BlackoutDateCreate,
-    SpecificDateAvailabilityCreate,
-    WeekSpecificScheduleCreate,
-)
+from ..schemas.availability_window import BlackoutDateCreate, SpecificDateAvailabilityCreate, WeekSpecificScheduleCreate
 from ..utils.time_helpers import time_to_string
 from .base import BaseService
 
@@ -56,9 +52,7 @@ class AvailabilityService(BaseService):
         else:
             self.logger.warning("AvailabilityService initialized WITHOUT cache service")
 
-    def get_availability_for_date(
-        self, instructor_id: int, target_date: date
-    ) -> Optional[Dict[str, Any]]:
+    def get_availability_for_date(self, instructor_id: int, target_date: date) -> Optional[Dict[str, Any]]:
         """
         Get availability for a specific date (optimized for single day).
 
@@ -108,9 +102,7 @@ class AvailabilityService(BaseService):
 
         return result
 
-    def get_availability_summary(
-        self, instructor_id: int, start_date: date, end_date: date
-    ) -> Dict[str, int]:
+    def get_availability_summary(self, instructor_id: int, start_date: date, end_date: date) -> Dict[str, int]:
         """
         Get summary of availability (slot counts) for date range.
 
@@ -219,9 +211,7 @@ class AvailabilityService(BaseService):
 
         return query.all()
 
-    def get_week_availability(
-        self, instructor_id: int, start_date: date
-    ) -> Dict[str, List[Dict[str, Any]]]:
+    def get_week_availability(self, instructor_id: int, start_date: date) -> Dict[str, List[Dict[str, Any]]]:
         """
         Get availability for a specific week.
 
@@ -243,24 +233,16 @@ class AvailabilityService(BaseService):
                 "2024-06-11": []
             }
         """
-        self.log_operation(
-            "get_week_availability", instructor_id=instructor_id, start_date=start_date
-        )
+        self.log_operation("get_week_availability", instructor_id=instructor_id, start_date=start_date)
 
         # Try cache first if available
         if self.cache_service:
-            cached_data = self.cache_service.get_week_availability(
-                instructor_id, start_date
-            )
+            cached_data = self.cache_service.get_week_availability(instructor_id, start_date)
             if cached_data is not None:
-                self.logger.info(
-                    f"CACHE HIT for week availability: instructor={instructor_id}, start={start_date}"
-                )
+                self.logger.info(f"CACHE HIT for week availability: instructor={instructor_id}, start={start_date}")
                 return cached_data
             else:
-                self.logger.info(
-                    f"CACHE MISS for week availability: instructor={instructor_id}, start={start_date}"
-                )
+                self.logger.info(f"CACHE MISS for week availability: instructor={instructor_id}, start={start_date}")
 
         # Calculate week dates (Monday to Sunday)
         week_dates = self._calculate_week_dates(start_date)
@@ -284,9 +266,7 @@ class AvailabilityService(BaseService):
         query_time = (time_module.time() - start_time) * 1000
         self.logger.info(f"Database query took {query_time:.2f}ms")
 
-        self.logger.debug(
-            f"Found {len(availability_entries)} availability entries for the week"
-        )
+        self.logger.debug(f"Found {len(availability_entries)} availability entries for the week")
 
         # Build response
         week_schedule = {}
@@ -313,16 +293,12 @@ class AvailabilityService(BaseService):
 
         # Cache the result if cache is available
         if self.cache_service:
-            success = self.cache_service.cache_week_availability(
-                instructor_id, start_date, week_schedule
-            )
+            success = self.cache_service.cache_week_availability(instructor_id, start_date, week_schedule)
             self.logger.info(f"Cached week availability: success={success}")
 
         return week_schedule
 
-    async def save_week_availability(
-        self, instructor_id: int, week_data: WeekSpecificScheduleCreate
-    ) -> Dict[str, Any]:
+    async def save_week_availability(self, instructor_id: int, week_data: WeekSpecificScheduleCreate) -> Dict[str, Any]:
         """
         Save availability for specific dates in a week.
 
@@ -442,9 +418,7 @@ class AvailabilityService(BaseService):
             self.db.commit()
 
             # Invalidate cache
-            self._invalidate_availability_caches(
-                instructor_id, [availability_data.specific_date]
-            )
+            self._invalidate_availability_caches(instructor_id, [availability_data.specific_date])
 
             return {
                 "id": availability_entry.id,
@@ -477,9 +451,7 @@ class AvailabilityService(BaseService):
             .all()
         )
 
-    def add_blackout_date(
-        self, instructor_id: int, blackout_data: BlackoutDateCreate
-    ) -> BlackoutDate:
+    def add_blackout_date(self, instructor_id: int, blackout_data: BlackoutDateCreate) -> BlackoutDate:
         """
         Add a blackout date for an instructor.
 
@@ -553,11 +525,7 @@ class AvailabilityService(BaseService):
 
     def _get_instructor_profile(self, instructor_id: int) -> InstructorProfile:
         """Get instructor profile or raise exception."""
-        profile = (
-            self.db.query(InstructorProfile)
-            .filter(InstructorProfile.user_id == instructor_id)
-            .first()
-        )
+        profile = self.db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).first()
 
         if not profile:
             raise NotFoundException("Instructor profile not found")
@@ -628,9 +596,7 @@ class AvailabilityService(BaseService):
             else:
                 # Process date without new slots
                 if clear_existing:
-                    result = await self._process_date_without_slots(
-                        instructor_id=instructor_id, target_date=week_date
-                    )
+                    result = await self._process_date_without_slots(instructor_id=instructor_id, target_date=week_date)
                     dates_created += result["dates_created"]
                     if result.get("has_bookings"):
                         dates_with_bookings.append(week_date.strftime("%Y-%m-%d"))
@@ -671,15 +637,11 @@ class AvailabilityService(BaseService):
         if existing:
             # Handle existing availability with potential bookings
             booked_slots = self._get_booked_slots(existing.id)
-            booked_time_ranges = [
-                (slot.start_time, slot.end_time) for slot in booked_slots
-            ]
+            booked_time_ranges = [(slot.start_time, slot.end_time) for slot in booked_slots]
 
             if booked_time_ranges:
                 has_bookings = True
-                self.logger.info(
-                    f"Found {len(booked_time_ranges)} booked slots for {target_date}"
-                )
+                self.logger.info(f"Found {len(booked_time_ranges)} booked slots for {target_date}")
 
             if clear_existing:
                 # Delete only non-booked slots
@@ -689,9 +651,7 @@ class AvailabilityService(BaseService):
             availability_entry.is_cleared = False
         else:
             # Create new availability entry
-            availability_entry = InstructorAvailability(
-                instructor_id=instructor_id, date=target_date, is_cleared=False
-            )
+            availability_entry = InstructorAvailability(instructor_id=instructor_id, date=target_date, is_cleared=False)
             self.db.add(availability_entry)
             self.db.flush()
             dates_created = 1
@@ -699,12 +659,8 @@ class AvailabilityService(BaseService):
 
         # Add new slots that don't conflict with bookings
         for slot in slots:
-            if not self._conflicts_with_bookings(
-                slot.start_time, slot.end_time, booked_time_ranges
-            ):
-                if not self._slot_exists(
-                    availability_entry.id, slot.start_time, slot.end_time
-                ):
+            if not self._conflicts_with_bookings(slot.start_time, slot.end_time, booked_time_ranges):
+                if not self._slot_exists(availability_entry.id, slot.start_time, slot.end_time):
                     time_slot = AvailabilitySlot(
                         availability_id=availability_entry.id,
                         start_time=slot.start_time,
@@ -719,9 +675,7 @@ class AvailabilityService(BaseService):
             "has_bookings": has_bookings,
         }
 
-    async def _process_date_without_slots(
-        self, instructor_id: int, target_date: date
-    ) -> Dict[str, Any]:
+    async def _process_date_without_slots(self, instructor_id: int, target_date: date) -> Dict[str, Any]:
         """Process a date that has no new slots (clearing)."""
         dates_created = 0
         has_bookings = False
@@ -731,9 +685,7 @@ class AvailabilityService(BaseService):
 
         if existing_bookings > 0:
             has_bookings = True
-            self.logger.warning(
-                f"Cannot clear {target_date} - has {existing_bookings} bookings"
-            )
+            self.logger.warning(f"Cannot clear {target_date} - has {existing_bookings} bookings")
         else:
             # Safe to delete
             deleted = (
@@ -767,15 +719,11 @@ class AvailabilityService(BaseService):
             .all()
         )
 
-    def _delete_non_booked_slots(
-        self, availability_id: int, booked_slots: List[AvailabilitySlot]
-    ) -> int:
+    def _delete_non_booked_slots(self, availability_id: int, booked_slots: List[AvailabilitySlot]) -> int:
         """Delete slots that don't have bookings."""
         booked_slot_ids = [slot.id for slot in booked_slots]
 
-        query = self.db.query(AvailabilitySlot).filter(
-            AvailabilitySlot.availability_id == availability_id
-        )
+        query = self.db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == availability_id)
 
         if booked_slot_ids:
             query = query.filter(~AvailabilitySlot.id.in_(booked_slot_ids))
@@ -791,9 +739,7 @@ class AvailabilityService(BaseService):
                 return True
         return False
 
-    def _slot_exists(
-        self, availability_id: int, start_time: time, end_time: time
-    ) -> bool:
+    def _slot_exists(self, availability_id: int, start_time: time, end_time: time) -> bool:
         """Check if an exact slot already exists."""
         return (
             self.db.query(AvailabilitySlot)
@@ -823,9 +769,7 @@ class AvailabilityService(BaseService):
             .count()
         )
 
-    def _check_duplicate_slot(
-        self, availability: InstructorAvailability, start_time: time, end_time: time
-    ) -> bool:
+    def _check_duplicate_slot(self, availability: InstructorAvailability, start_time: time, end_time: time) -> bool:
         """Check if a slot already exists."""
         return (
             self.db.query(AvailabilitySlot)
@@ -838,18 +782,14 @@ class AvailabilityService(BaseService):
             is not None
         )
 
-    def _invalidate_availability_caches(
-        self, instructor_id: int, dates: List[date]
-    ) -> None:
+    def _invalidate_availability_caches(self, instructor_id: int, dates: List[date]) -> None:
         """Invalidate caches for affected dates."""
         # Invalidate instructor-specific caches
         self.invalidate_cache(f"instructor_availability:{instructor_id}")
 
         # Invalidate date-specific caches
         for target_date in dates:
-            self.invalidate_cache(
-                f"instructor_availability:{instructor_id}:{target_date}"
-            )
+            self.invalidate_cache(f"instructor_availability:{instructor_id}:{target_date}")
 
         # Invalidate week caches
         weeks = set()

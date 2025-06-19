@@ -23,9 +23,7 @@ class CachedAvailabilityService(AvailabilityService):
         super().__init__(db)
         self.cache = cache_service or CacheService(db)
 
-    def get_week_availability(
-        self, instructor_id: int, start_date: date
-    ) -> Dict[str, List[Dict[str, Any]]]:
+    def get_week_availability(self, instructor_id: int, start_date: date) -> Dict[str, List[Dict[str, Any]]]:
         """
         Get availability for a specific week WITH CACHING.
 
@@ -34,15 +32,11 @@ class CachedAvailabilityService(AvailabilityService):
         # Try cache first
         cached_data = self.cache.get_week_availability(instructor_id, start_date)
         if cached_data is not None:
-            self.logger.debug(
-                f"Cache hit for week availability: {instructor_id}, {start_date}"
-            )
+            self.logger.debug(f"Cache hit for week availability: {instructor_id}, {start_date}")
             return cached_data
 
         # Cache miss - get from database
-        self.logger.debug(
-            f"Cache miss for week availability: {instructor_id}, {start_date}"
-        )
+        self.logger.debug(f"Cache miss for week availability: {instructor_id}, {start_date}")
         result = super().get_week_availability(instructor_id, start_date)
 
         # Cache the result
@@ -50,9 +44,7 @@ class CachedAvailabilityService(AvailabilityService):
 
         return result
 
-    async def save_week_availability(
-        self, instructor_id: int, week_data
-    ) -> Dict[str, Any]:
+    async def save_week_availability(self, instructor_id: int, week_data) -> Dict[str, Any]:
         """
         Save week availability and invalidate caches.
         """
@@ -73,19 +65,13 @@ class CachedAvailabilityService(AvailabilityService):
 
         return result
 
-    def add_specific_date_availability(
-        self, instructor_id: int, availability_data
-    ) -> Dict[str, Any]:
+    def add_specific_date_availability(self, instructor_id: int, availability_data) -> Dict[str, Any]:
         """
         Add specific date availability and invalidate caches.
         """
-        result = super().add_specific_date_availability(
-            instructor_id, availability_data
-        )
+        result = super().add_specific_date_availability(instructor_id, availability_data)
 
         # Invalidate caches for this date
-        self.cache.invalidate_instructor_availability(
-            instructor_id, [availability_data.specific_date]
-        )
+        self.cache.invalidate_instructor_availability(instructor_id, [availability_data.specific_date])
 
         return result

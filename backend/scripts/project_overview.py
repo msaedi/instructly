@@ -11,17 +11,17 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import argparse
-import json
-import re
-import subprocess
-from datetime import datetime
-from pathlib import Path
-from typing import Dict, Set
+import argparse  # noqa: E402
+import json  # noqa: E402
+import re  # noqa: E402
+import subprocess  # noqa: E402
+from datetime import datetime  # noqa: E402
+from pathlib import Path  # noqa: E402
+from typing import Dict, Set  # noqa: E402
 
-from sqlalchemy import MetaData, inspect
+from sqlalchemy import MetaData, inspect  # noqa: E402
 
-from app.database import engine
+from app.database import engine  # noqa: E402
 
 
 # ANSI color codes for terminal output
@@ -109,28 +109,20 @@ def get_git_info() -> Dict[str, str]:
     try:
         info = {}
         # Current branch
-        branch = subprocess.check_output(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True
-        ).strip()
+        branch = subprocess.check_output(["git", "rev-parse", "--abbrev-re", "HEAD"], text=True).strip()
         info["branch"] = branch
 
         # Last commit
-        last_commit = subprocess.check_output(
-            ["git", "log", "-1", "--oneline"], text=True
-        ).strip()
+        last_commit = subprocess.check_output(["git", "log", "-1", "--oneline"], text=True).strip()
         info["last_commit"] = last_commit
 
         # Uncommitted changes
         status = subprocess.check_output(["git", "status", "--porcelain"], text=True)
-        info["uncommitted_files"] = (
-            len(status.strip().split("\n")) if status.strip() else 0
-        )
+        info["uncommitted_files"] = len(status.strip().split("\n")) if status.strip() else 0
 
         # Remote URL
         try:
-            remote = subprocess.check_output(
-                ["git", "remote", "get-url", "origin"], text=True
-            ).strip()
+            remote = subprocess.check_output(["git", "remote", "get-url", "origin"], text=True).strip()
             info["remote"] = remote
         except:
             info["remote"] = "No remote configured"
@@ -147,9 +139,7 @@ def check_file_for_logging(file_path: Path) -> Dict[str, bool]:
             content = f.read()
 
         checks = {
-            "imports_logger": "from @/lib/logger" in content
-            or "from '../logger'" in content
-            or "logger" in content,
+            "imports_logger": "from @/lib/logger" in content or "from '../logger'" in content or "logger" in content,
             "uses_logger": "logger." in content,
             "no_console_log": "console.log" not in content,
             "has_jsdoc": "/**" in content and "*/" in content,
@@ -203,17 +193,13 @@ def analyze_database_schema():
             nullable = "NULL" if column.nullable else "NOT NULL"
             pk = "🔑 PK" if column.primary_key else ""
             fk = "🔗 FK" if column.foreign_keys else ""
-            print(
-                f"    • {column.name:<25} {str(column.type):<20} {nullable:<10} {pk} {fk}"
-            )
+            print(f"    • {column.name:<25} {str(column.type):<20} {nullable:<10} {pk} {fk}")
 
         # Foreign keys
         if table.foreign_keys:
             print("  Foreign Keys:")
             for fk in table.foreign_keys:
-                print(
-                    f"    • {fk.parent.name} -> {fk.column.table.name}.{fk.column.name}"
-                )
+                print(f"    • {fk.parent.name} -> {fk.column.table.name}.{fk.column.name}")
 
         # Indexes
         if table.indexes:
@@ -277,9 +263,7 @@ def analyze_frontend_structure(check_logging=False, check_types=False):
                 type_check = check_file_for_types(file_path)
                 if not type_check.get("error"):
                     if type_check.get("needs_refactor"):
-                        file_info += (
-                            f" {Colors.WARNING}🔧 Needs type refactor{Colors.ENDC}"
-                        )
+                        file_info += f" {Colors.WARNING}🔧 Needs type refactor{Colors.ENDC}"
                         stats["needs_type_refactor"] += 1
                     elif type_check.get("type_imports"):
                         file_info += f" {Colors.GREEN}✓ Uses central types{Colors.ENDC}"
@@ -326,9 +310,7 @@ def analyze_backend_structure():
                     content = f.read()
 
                 # Extract route decorators
-                routes = re.findall(
-                    r'@router\.(get|post|put|patch|delete)\("([^"]+)"', content
-                )
+                routes = re.findall(r'@router\.(get|post|put|patch|delete)\("([^"]+)"', content)
                 for method, path in routes:
                     print(f"    • {method.upper():<7} {path}")
             except:
@@ -354,9 +336,7 @@ def analyze_backend_structure():
                     print(f"    • Model: {class_name}")
 
                     # Extract relationships
-                    relationships = re.findall(
-                        rf'{class_name}.*relationship\("(\w+)"', content
-                    )
+                    relationships = re.findall(rf'{class_name}.*relationship\("(\w+)"', content)
                     if relationships:
                         print(f"      Relationships: {', '.join(set(relationships))}")
             except:
@@ -391,16 +371,12 @@ def analyze_alembic_migrations():
                         content = f.read()
 
                     # Look for create_table operations
-                    tables_created = re.findall(
-                        r'create_table\([\'"](\w+)[\'"]', content
-                    )
+                    tables_created = re.findall(r'create_table\([\'"](\w+)[\'"]', content)
                     if tables_created:
                         print(f"    Creates: {', '.join(tables_created)}")
 
                     # Look for add_column operations
-                    columns_added = re.findall(
-                        r'add_column\([\'"](\w+)[\'"].*?[\'"](\w+)[\'"]', content
-                    )
+                    columns_added = re.findall(r'add_column\([\'"](\w+)[\'"].*?[\'"](\w+)[\'"]', content)
                     if columns_added:
                         for table, column in columns_added:
                             print(f"    Adds: {table}.{column}")
@@ -489,16 +465,8 @@ def generate_task_summary():
                     pass
 
     # Filter out items from virtual environments and dependencies
-    todos = [
-        (f, l, c)
-        for f, l, c in todos
-        if "site-packages" not in str(f) and "venv" not in str(f)
-    ]
-    fixmes = [
-        (f, l, c)
-        for f, l, c in fixmes
-        if "site-packages" not in str(f) and "venv" not in str(f)
-    ]
+    todos = [(f, l, c) for f, l, c in todos if "site-packages" not in str(f) and "venv" not in str(f)]
+    fixmes = [(f, l, c) for f, l, c in fixmes if "site-packages" not in str(f) and "venv" not in str(f)]
 
     if todos:
         print(f"\n{Colors.WARNING}📝 TODOs ({len(todos)}):{Colors.ENDC}")
@@ -533,16 +501,10 @@ def generate_json_output(data: dict, filename: str = "project_overview.json"):
 
 def main():
     """Generate complete project overview"""
-    parser = argparse.ArgumentParser(
-        description="Generate InstaInstru project overview"
-    )
+    parser = argparse.ArgumentParser(description="Generate InstaInstru project overview")
     parser.add_argument("--json", action="store_true", help="Output JSON format")
-    parser.add_argument(
-        "--check-types", action="store_true", help="Check TypeScript type usage"
-    )
-    parser.add_argument(
-        "--check-logging", action="store_true", help="Check logging implementation"
-    )
+    parser.add_argument("--check-types", action="store_true", help="Check TypeScript type usage")
+    parser.add_argument("--check-logging", action="store_true", help="Check logging implementation")
     args = parser.parse_args()
 
     print(f"\n{Colors.BOLD}🎯 " * 20)
@@ -567,9 +529,7 @@ def main():
     analyze_backend_structure()
 
     # Frontend analysis
-    analyze_frontend_structure(
-        check_logging=args.check_logging, check_types=args.check_types
-    )
+    analyze_frontend_structure(check_logging=args.check_logging, check_types=args.check_types)
 
     # Dependencies
     generate_dependency_analysis()

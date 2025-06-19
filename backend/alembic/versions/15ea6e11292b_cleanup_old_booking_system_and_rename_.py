@@ -41,9 +41,7 @@ def upgrade():
     print("Updating foreign key constraints and column names...")
     with op.batch_alter_table("availability_slots") as batch_op:
         # Drop old foreign key constraint
-        batch_op.drop_constraint(
-            "date_time_slots_date_override_id_fkey", type_="foreignkey"
-        )
+        batch_op.drop_constraint("date_time_slots_date_override_id_fkey", type_="foreignkey")
 
         # Rename column
         batch_op.alter_column("date_override_id", new_column_name="availability_id")

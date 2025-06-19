@@ -12,11 +12,7 @@ from ..core.config import settings
 from ..database import get_db
 from ..models.password_reset import PasswordResetToken as PasswordResetTokenModel
 from ..models.user import User
-from ..schemas.password_reset import (
-    PasswordResetConfirm,
-    PasswordResetRequest,
-    PasswordResetResponse,
-)
+from ..schemas.password_reset import PasswordResetConfirm, PasswordResetRequest, PasswordResetResponse
 from ..services.email import email_service
 
 logger = logging.getLogger(__name__)
@@ -30,9 +26,7 @@ def generate_reset_token() -> str:
 
 
 @router.post("/request", response_model=PasswordResetResponse)
-async def request_password_reset(
-    request: PasswordResetRequest, db: Session = Depends(get_db)
-):
+async def request_password_reset(request: PasswordResetRequest, db: Session = Depends(get_db)):
     """
     Request a password reset email.
 
@@ -60,14 +54,10 @@ async def request_password_reset(
 
         # Generate new token
         token = generate_reset_token()
-        expires_at = datetime.now(timezone.utc) + timedelta(
-            hours=1
-        )  # Token expires in 1 hour
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=1)  # Token expires in 1 hour
 
         # Save token to database
-        reset_token = PasswordResetTokenModel(
-            user_id=user.id, token=token, expires_at=expires_at
-        )
+        reset_token = PasswordResetTokenModel(user_id=user.id, token=token, expires_at=expires_at)
         db.add(reset_token)
 
         try:
@@ -88,9 +78,7 @@ async def request_password_reset(
             db.rollback()
     else:
         # Log that email doesn't exist but don't reveal this to the user
-        logger.warning(
-            f"Password reset requested for non-existent email: {request.email}"
-        )
+        logger.warning(f"Password reset requested for non-existent email: {request.email}")
 
     # Always return success to prevent email enumeration
     return PasswordResetResponse(
@@ -99,9 +87,7 @@ async def request_password_reset(
 
 
 @router.post("/confirm", response_model=PasswordResetResponse)
-async def confirm_password_reset(
-    request: PasswordResetConfirm, db: Session = Depends(get_db)
-):
+async def confirm_password_reset(request: PasswordResetConfirm, db: Session = Depends(get_db)):
     """
     Confirm password reset with token and new password.
 
@@ -115,16 +101,10 @@ async def confirm_password_reset(
     Raises:
         HTTPException: If token is invalid, expired, or already used
     """
-    logger.info(
-        f"Password reset confirmation attempted with token: {request.token[:8]}..."
-    )
+    logger.info(f"Password reset confirmation attempted with token: {request.token[:8]}...")
 
     # Find the token
-    reset_token = (
-        db.query(PasswordResetTokenModel)
-        .filter(PasswordResetTokenModel.token == request.token)
-        .first()
-    )
+    reset_token = db.query(PasswordResetTokenModel).filter(PasswordResetTokenModel.token == request.token).first()
 
     if not reset_token:
         logger.warning(f"Invalid password reset token: {request.token[:8]}...")
@@ -135,9 +115,7 @@ async def confirm_password_reset(
 
     # Check if token is already used
     if reset_token.used:
-        logger.warning(
-            f"Attempted to reuse password reset token: {request.token[:8]}..."
-        )
+        logger.warning(f"Attempted to reuse password reset token: {request.token[:8]}...")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This reset link has already been used",
@@ -155,9 +133,7 @@ async def confirm_password_reset(
     user = db.query(User).filter(User.id == reset_token.user_id).first()
     if not user:
         logger.error(f"User not found for reset token: {reset_token.user_id}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid reset token"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid reset token")
 
     # Update password
     user.hashed_password = get_password_hash(request.new_password)
@@ -169,9 +145,7 @@ async def confirm_password_reset(
         db.commit()
 
         # Send confirmation email
-        await email_service.send_password_reset_confirmation(
-            to_email=user.email, user_name=user.full_name
-        )
+        await email_service.send_password_reset_confirmation(to_email=user.email, user_name=user.full_name)
 
         logger.info(f"Password successfully reset for user {user.id}")
 
@@ -203,17 +177,9 @@ async def verify_reset_token(token: str, db: Session = Depends(get_db)):
     Returns:
         dict: Validity status and user email (masked)
     """
-    reset_token = (
-        db.query(PasswordResetTokenModel)
-        .filter(PasswordResetTokenModel.token == token)
-        .first()
-    )
+    reset_token = db.query(PasswordResetTokenModel).filter(PasswordResetTokenModel.token == token).first()
 
-    if (
-        not reset_token
-        or reset_token.used
-        or datetime.now(timezone.utc) > reset_token.expires_at
-    ):
+    if not reset_token or reset_token.used or datetime.now(timezone.utc) > reset_token.expires_at:
         return {"valid": False}
 
     user = db.query(User).filter(User.id == reset_token.user_id).first()

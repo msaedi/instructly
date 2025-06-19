@@ -100,9 +100,7 @@ class ConflictChecker(BaseService):
 
         return conflicts
 
-    def check_slot_availability(
-        self, slot_id: int, instructor_id: Optional[int] = None
-    ) -> Dict[str, Any]:
+    def check_slot_availability(self, slot_id: int, instructor_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Check if a specific slot is available for booking.
 
@@ -133,9 +131,7 @@ class ConflictChecker(BaseService):
 
         # Check if already booked
         if slot.booking_id:
-            booking = (
-                self.db.query(Booking).filter(Booking.id == slot.booking_id).first()
-            )
+            booking = self.db.query(Booking).filter(Booking.id == slot.booking_id).first()
 
             return {
                 "available": False,
@@ -158,9 +154,7 @@ class ConflictChecker(BaseService):
             },
         }
 
-    def get_booked_slots_for_date(
-        self, instructor_id: int, target_date: date
-    ) -> List[Dict[str, Any]]:
+    def get_booked_slots_for_date(self, instructor_id: int, target_date: date) -> List[Dict[str, Any]]:
         """
         Get all booked slots for an instructor on a specific date.
 
@@ -207,9 +201,7 @@ class ConflictChecker(BaseService):
             for slot in booked_slots
         ]
 
-    def get_booked_slots_for_week(
-        self, instructor_id: int, week_start: date
-    ) -> Dict[str, List[Dict[str, Any]]]:
+    def get_booked_slots_for_week(self, instructor_id: int, week_start: date) -> Dict[str, List[Dict[str, Any]]]:
         """
         Get all booked slots for an instructor for a week.
 
@@ -330,25 +322,17 @@ class ConflictChecker(BaseService):
             Validation result with details
         """
         # Get instructor profile
-        profile = (
-            self.db.query(InstructorProfile)
-            .filter(InstructorProfile.user_id == instructor_id)
-            .first()
-        )
+        profile = self.db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).first()
 
         if not profile:
             return {"valid": False, "reason": "Instructor profile not found"}
 
         # Calculate booking datetime
         booking_datetime = datetime.combine(booking_date, booking_time)
-        min_booking_time = datetime.now() + timedelta(
-            hours=profile.min_advance_booking_hours
-        )
+        min_booking_time = datetime.now() + timedelta(hours=profile.min_advance_booking_hours)
 
         if booking_datetime < min_booking_time:
-            hours_until_booking = (
-                booking_datetime - datetime.now()
-            ).total_seconds() / 3600
+            hours_until_booking = (booking_datetime - datetime.now()).total_seconds() / 3600
             return {
                 "valid": False,
                 "reason": f"Bookings must be made at least {profile.min_advance_booking_hours} hours in advance",
@@ -464,9 +448,7 @@ class ConflictChecker(BaseService):
             errors.append("Cannot book for past time slots")
 
         # Check minimum advance booking
-        advance_check = self.check_minimum_advance_booking(
-            instructor_id, booking_date, start_time
-        )
+        advance_check = self.check_minimum_advance_booking(instructor_id, booking_date, start_time)
         if not advance_check["valid"]:
             errors.append(advance_check["reason"])
 
@@ -475,13 +457,9 @@ class ConflictChecker(BaseService):
             errors.append("Instructor is not available on this date")
 
         # Check for conflicts
-        conflicts = self.check_booking_conflicts(
-            instructor_id, booking_date, start_time, end_time
-        )
+        conflicts = self.check_booking_conflicts(instructor_id, booking_date, start_time, end_time)
         if conflicts:
-            errors.append(
-                f"Time slot conflicts with {len(conflicts)} existing bookings"
-            )
+            errors.append(f"Time slot conflicts with {len(conflicts)} existing bookings")
 
         # If service provided, validate service constraints
         if service_id:

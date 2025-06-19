@@ -13,25 +13,17 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "dd2f2efabf3b"
-down_revision: Union[str, None] = "4d311e06410f"
+down_revision: Union[str, None] = "4d311e06410"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade():
     # Add new columns
-    op.add_column(
-        "bookings", sa.Column("start_time", sa.DateTime(timezone=True), nullable=True)
-    )
-    op.add_column(
-        "bookings", sa.Column("end_time", sa.DateTime(timezone=True), nullable=True)
-    )
-    op.add_column(
-        "bookings", sa.Column("duration_minutes", sa.Integer(), nullable=True)
-    )
-    op.add_column(
-        "bookings", sa.Column("adjusted_total_price", sa.Float(), nullable=True)
-    )
+    op.add_column("bookings", sa.Column("start_time", sa.DateTime(timezone=True), nullable=True))
+    op.add_column("bookings", sa.Column("end_time", sa.DateTime(timezone=True), nullable=True))
+    op.add_column("bookings", sa.Column("duration_minutes", sa.Integer(), nullable=True))
+    op.add_column("bookings", sa.Column("adjusted_total_price", sa.Float(), nullable=True))
 
     # Migrate existing data from timeslot to direct time storage
     op.execute(

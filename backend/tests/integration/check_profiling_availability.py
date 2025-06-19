@@ -18,11 +18,7 @@ if user:
     print(f"Found profiling user: ID={user.id}")
 
     # Count availability
-    count = (
-        db.query(InstructorAvailability)
-        .filter(InstructorAvailability.instructor_id == user.id)
-        .count()
-    )
+    count = db.query(InstructorAvailability).filter(InstructorAvailability.instructor_id == user.id).count()
 
     print(f"Total availability entries: {count}")
 

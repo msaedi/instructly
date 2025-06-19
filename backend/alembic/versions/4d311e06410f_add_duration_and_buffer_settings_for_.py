@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "4d311e06410f"
+revision: str = "4d311e06410"
 down_revision: Union[str, None] = "435556c30c6b"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -35,26 +35,16 @@ def upgrade() -> None:
     )
     op.add_column(
         "instructor_profiles",
-        sa.Column(
-            "minimum_advance_hours", sa.Integer(), nullable=False, server_default="2"
-        ),
+        sa.Column("minimum_advance_hours", sa.Integer(), nullable=False, server_default="2"),
     )
 
     # Add duration override to services
-    op.add_column(
-        "services", sa.Column("duration_override", sa.Integer(), nullable=True)
-    )
+    op.add_column("services", sa.Column("duration_override", sa.Integer(), nullable=True))
 
     # Add adjustment fields to bookings
-    op.add_column(
-        "bookings", sa.Column("original_duration", sa.Integer(), nullable=True)
-    )
-    op.add_column(
-        "bookings", sa.Column("adjusted_duration", sa.Integer(), nullable=True)
-    )
-    op.add_column(
-        "bookings", sa.Column("adjustment_reason", sa.String(), nullable=True)
-    )
+    op.add_column("bookings", sa.Column("original_duration", sa.Integer(), nullable=True))
+    op.add_column("bookings", sa.Column("adjusted_duration", sa.Integer(), nullable=True))
+    op.add_column("bookings", sa.Column("adjustment_reason", sa.String(), nullable=True))
 
 
 def downgrade() -> None:

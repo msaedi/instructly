@@ -36,9 +36,7 @@ def register(user: UserCreate, db: Session = Depends(database.get_db)):
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
     if db_user:
         logger.warning(f"Registration failed - email already exists: {user.email}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
 
     hashed_password = get_password_hash(user.password)
     db_user = models.User(
@@ -52,9 +50,7 @@ def register(user: UserCreate, db: Session = Depends(database.get_db)):
         db.add(db_user)
         db.commit()
         db.refresh(db_user)
-        logger.info(
-            f"Successfully registered user: {user.email} with role: {user.role}"
-        )
+        logger.info(f"Successfully registered user: {user.email} with role: {user.role}")
         return db_user
     except Exception as e:
         logger.error(f"Error registering user {user.email}: {str(e)}")
@@ -95,9 +91,7 @@ async def login(
         )
 
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
-    access_token = create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
-    )
+    access_token = create_access_token(data={"sub": user.email}, expires_delta=access_token_expires)
 
     logger.info(f"Successful login for user: {user.email}")
     return {"access_token": access_token, "token_type": "bearer"}

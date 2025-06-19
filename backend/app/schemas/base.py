@@ -18,9 +18,7 @@ class Money(Decimal):
     """Money field that always serializes as float"""
 
     @classmethod
-    def __get_pydantic_core_schema__(
-        cls, source_type: Any, handler: Any
-    ) -> core_schema.CoreSchema:
+    def __get_pydantic_core_schema__(cls, source_type: Any, handler: Any) -> core_schema.CoreSchema:
         from pydantic_core import core_schema
 
         def validate_money(value: Any) -> Decimal:

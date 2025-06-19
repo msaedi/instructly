@@ -24,18 +24,12 @@ def upgrade() -> None:
 
     # Add new columns to bookings table for enhanced booking features
     op.add_column("bookings", sa.Column("service_id", sa.Integer(), nullable=True))
-    op.add_column(
-        "bookings", sa.Column("cancellation_deadline", sa.DateTime(), nullable=True)
-    )
+    op.add_column("bookings", sa.Column("cancellation_deadline", sa.DateTime(), nullable=True))
     op.add_column("bookings", sa.Column("cancelled_at", sa.DateTime(), nullable=True))
-    op.add_column(
-        "bookings", sa.Column("cancellation_reason", sa.String(), nullable=True)
-    )
+    op.add_column("bookings", sa.Column("cancellation_reason", sa.String(), nullable=True))
 
     # Add foreign key constraint for service_id
-    op.create_foreign_key(
-        "fk_bookings_service_id", "bookings", "services", ["service_id"], ["id"]
-    )
+    op.create_foreign_key("fk_bookings_service_id", "bookings", "services", ["service_id"], ["id"])
     # ### end Alembic commands ###
 
 

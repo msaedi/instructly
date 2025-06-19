@@ -92,9 +92,7 @@ async def get_cache_metrics(
 
 
 @router.get("/slow-queries")
-async def get_slow_queries(
-    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
-):
+async def get_slow_queries(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get recent slow queries."""
 
     if current_user.email not in ["admin@instainstru.com", "profiling@instainstru.com"]:

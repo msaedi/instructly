@@ -64,9 +64,7 @@ class PresentationService(BaseService):
         super().__init__(db)
         self.logger = logging.getLogger(__name__)
 
-    def format_student_name_for_privacy(
-        self, full_name: Optional[str]
-    ) -> Dict[str, str]:
+    def format_student_name_for_privacy(self, full_name: Optional[str]) -> Dict[str, str]:
         """
         Format student name for privacy (First name + Last initial).
 
@@ -183,11 +181,7 @@ class PresentationService(BaseService):
         for date_str, slots in booked_slots_by_date.items():
             for slot in slots:
                 # Get the full booking details
-                booking = (
-                    self.db.query(Booking)
-                    .filter(Booking.id == slot["booking_id"])
-                    .first()
-                )
+                booking = self.db.query(Booking).filter(Booking.id == slot["booking_id"]).first()
 
                 if booking:
                     formatted_slot = self.format_booked_slot_for_display(
@@ -220,15 +214,11 @@ class PresentationService(BaseService):
             return f"{hours} hour{'s' if hours != 1 else ''}"
 
         hour_text = f"{hours} hour{'s' if hours != 1 else ''}"
-        minute_text = (
-            f"{remaining_minutes} minute{'s' if remaining_minutes != 1 else ''}"
-        )
+        minute_text = f"{remaining_minutes} minute{'s' if remaining_minutes != 1 else ''}"
 
         return f"{hour_text} {minute_text}"
 
-    def format_time_for_display(
-        self, time_value: time, use_12_hour: bool = True
-    ) -> str:
+    def format_time_for_display(self, time_value: time, use_12_hour: bool = True) -> str:
         """
         Format time for user-friendly display.
 
@@ -265,9 +255,7 @@ class PresentationService(BaseService):
             # 24-hour format
             return time_value.strftime("%H:%M")
 
-    def format_price_for_display(
-        self, amount: float, include_currency: bool = True
-    ) -> str:
+    def format_price_for_display(self, amount: float, include_currency: bool = True) -> str:
         """
         Format price for display.
 

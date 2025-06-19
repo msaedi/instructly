@@ -34,17 +34,15 @@ def receive_connect(dbapi_connection, connection_record):
 
 @event.listens_for(engine, "checkout")
 def receive_checkout(dbapi_connection, connection_record, connection_proxy):
-    logger.debug(f"Connection checked out from pool")
+    logger.debug("Connection checked out from pool")
 
 
 @event.listens_for(engine, "checkin")
 def receive_checkin(dbapi_connection, connection_record):
-    logger.debug(f"Connection returned to pool")
+    logger.debug("Connection returned to pool")
 
 
-SessionLocal = sessionmaker(
-    autocommit=False, autoflush=False, bind=engine, expire_on_commit=False
-)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, expire_on_commit=False)
 
 Base = declarative_base()
 

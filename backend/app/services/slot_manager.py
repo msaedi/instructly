@@ -15,12 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
-from ..core.exceptions import (
-    BusinessRuleException,
-    ConflictException,
-    NotFoundException,
-    ValidationException,
-)
+from ..core.exceptions import BusinessRuleException, ConflictException, NotFoundException, ValidationException
 from ..models.availability import AvailabilitySlot, InstructorAvailability
 from ..models.booking import Booking, BookingStatus
 from .base import BaseService
@@ -70,9 +65,7 @@ class SlotManager(BaseService):
         """
         # Get availability entry
         availability = (
-            self.db.query(InstructorAvailability)
-            .filter(InstructorAvailability.id == availability_id)
-            .first()
+            self.db.query(InstructorAvailability).filter(InstructorAvailability.id == availability_id).first()
         )
 
         if not availability:
@@ -96,18 +89,14 @@ class SlotManager(BaseService):
                 end_time=end_time,
             )
             if conflicts:
-                raise ConflictException(
-                    f"Time slot conflicts with {len(conflicts)} existing bookings"
-                )
+                raise ConflictException(f"Time slot conflicts with {len(conflicts)} existing bookings")
 
         # Check for duplicate slot
         if self._slot_exists(availability_id, start_time, end_time):
             raise ConflictException("This exact time slot already exists")
 
         # Create the slot
-        new_slot = AvailabilitySlot(
-            availability_id=availability_id, start_time=start_time, end_time=end_time
-        )
+        new_slot = AvailabilitySlot(availability_id=availability_id, start_time=start_time, end_time=end_time)
 
         self.db.add(new_slot)
         self.db.flush()
@@ -119,10 +108,7 @@ class SlotManager(BaseService):
         self.db.commit()
         self.db.refresh(new_slot)
 
-        self.logger.info(
-            f"Created slot {new_slot.id} for availability {availability_id}: "
-            f"{start_time}-{end_time}"
-        )
+        self.logger.info(f"Created slot {new_slot.id} for availability {availability_id}: " f"{start_time}-{end_time}")
 
         return new_slot
 
@@ -151,11 +137,7 @@ class SlotManager(BaseService):
             ConflictException: If new times conflict
         """
         # Get the slot
-        slot = (
-            self.db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.id == slot_id)
-            .first()
-        )
+        slot = self.db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot_id).first()
 
         if not slot:
             raise NotFoundException("Slot not found")
@@ -184,9 +166,7 @@ class SlotManager(BaseService):
                 exclude_slot_id=slot_id,
             )
             if conflicts:
-                raise ConflictException(
-                    f"New time range conflicts with {len(conflicts)} bookings"
-                )
+                raise ConflictException(f"New time range conflicts with {len(conflicts)} bookings")
 
         # Update the slot
         slot.start_time = new_start
@@ -215,27 +195,19 @@ class SlotManager(BaseService):
             BusinessRuleException: If slot has booking and not forced
         """
         # Get the slot
-        slot = (
-            self.db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.id == slot_id)
-            .first()
-        )
+        slot = self.db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot_id).first()
 
         if not slot:
             raise NotFoundException("Slot not found")
 
         # Check if slot has booking
         if slot.booking_id and not force:
-            booking = (
-                self.db.query(Booking).filter(Booking.id == slot.booking_id).first()
-            )
+            booking = self.db.query(Booking).filter(Booking.id == slot.booking_id).first()
             if booking and booking.status in [
                 BookingStatus.CONFIRMED,
                 BookingStatus.COMPLETED,
             ]:
-                raise BusinessRuleException(
-                    f"Cannot delete slot with {booking.status} booking"
-                )
+                raise BusinessRuleException(f"Cannot delete slot with {booking.status} booking")
 
         availability_id = slot.availability_id
 
@@ -245,17 +217,13 @@ class SlotManager(BaseService):
 
         # Check if this was the last slot for the availability
         remaining_slots = (
-            self.db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.availability_id == availability_id)
-            .count()
+            self.db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == availability_id).count()
         )
 
         if remaining_slots == 0:
             # Mark availability as cleared or delete it
             availability = (
-                self.db.query(InstructorAvailability)
-                .filter(InstructorAvailability.id == availability_id)
-                .first()
+                self.db.query(InstructorAvailability).filter(InstructorAvailability.id == availability_id).first()
             )
             if availability:
                 availability.is_cleared = True
@@ -265,9 +233,7 @@ class SlotManager(BaseService):
         self.logger.info(f"Deleted slot {slot_id}")
         return True
 
-    def merge_overlapping_slots(
-        self, availability_id: int, preserve_booked: bool = True
-    ) -> int:
+    def merge_overlapping_slots(self, availability_id: int, preserve_booked: bool = True) -> int:
         """
         Merge overlapping or adjacent slots for an availability entry.
 
@@ -289,10 +255,7 @@ class SlotManager(BaseService):
         if len(slots) <= 1:
             return 0
 
-        self.logger.debug(
-            f"Merging slots for availability_id {availability_id}: "
-            f"{len(slots)} slots found"
-        )
+        self.logger.debug(f"Merging slots for availability_id {availability_id}: " f"{len(slots)} slots found")
 
         # Separate booked and non-booked slots
         if preserve_booked:
@@ -336,15 +299,12 @@ class SlotManager(BaseService):
         if merged_count > 0:
             self.db.commit()
             self.logger.info(
-                f"Merge complete: {len(slots)} slots -> "
-                f"{len(merged_slots)} slots ({merged_count} merged)"
+                f"Merge complete: {len(slots)} slots -> " f"{len(merged_slots)} slots ({merged_count} merged)"
             )
 
         return merged_count
 
-    def split_slot(
-        self, slot_id: int, split_time: time
-    ) -> Tuple[AvailabilitySlot, AvailabilitySlot]:
+    def split_slot(self, slot_id: int, split_time: time) -> Tuple[AvailabilitySlot, AvailabilitySlot]:
         """
         Split a slot into two at the specified time.
 
@@ -361,11 +321,7 @@ class SlotManager(BaseService):
             BusinessRuleException: If slot has booking
         """
         # Get the slot
-        slot = (
-            self.db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.id == slot_id)
-            .first()
-        )
+        slot = self.db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot_id).first()
 
         if not slot:
             raise NotFoundException("Slot not found")
@@ -376,9 +332,7 @@ class SlotManager(BaseService):
 
         # Validate split time
         if split_time <= slot.start_time or split_time >= slot.end_time:
-            raise ValidationException(
-                "Split time must be between slot start and end times"
-            )
+            raise ValidationException("Split time must be between slot start and end times")
 
         # Create second slot
         second_slot = AvailabilitySlot(
@@ -461,9 +415,7 @@ class SlotManager(BaseService):
 
         return gaps
 
-    def optimize_availability(
-        self, availability_id: int, target_duration_minutes: int = 60
-    ) -> List[Dict[str, Any]]:
+    def optimize_availability(self, availability_id: int, target_duration_minutes: int = 60) -> List[Dict[str, Any]]:
         """
         Suggest optimal slot arrangements for a given duration.
 
@@ -498,12 +450,8 @@ class SlotManager(BaseService):
                 num_divisions = slot_minutes // target_duration_minutes
 
                 for i in range(num_divisions):
-                    suggested_start = start_dt + timedelta(
-                        minutes=i * target_duration_minutes
-                    )
-                    suggested_end = suggested_start + timedelta(
-                        minutes=target_duration_minutes
-                    )
+                    suggested_start = start_dt + timedelta(minutes=i * target_duration_minutes)
+                    suggested_end = suggested_start + timedelta(minutes=target_duration_minutes)
 
                     suggestions.append(
                         {
@@ -518,9 +466,7 @@ class SlotManager(BaseService):
 
     # Private helper methods
 
-    def _slot_exists(
-        self, availability_id: int, start_time: time, end_time: time
-    ) -> bool:
+    def _slot_exists(self, availability_id: int, start_time: time, end_time: time) -> bool:
         """Check if an exact slot already exists."""
         return (
             self.db.query(AvailabilitySlot)
@@ -546,9 +492,7 @@ class SlotManager(BaseService):
             > 0
         )
 
-    def _slots_can_merge(
-        self, slot1: AvailabilitySlot, slot2: AvailabilitySlot, max_gap_minutes: int = 1
-    ) -> bool:
+    def _slots_can_merge(self, slot1: AvailabilitySlot, slot2: AvailabilitySlot, max_gap_minutes: int = 1) -> bool:
         """Check if two slots can be merged."""
         # Check if either has booking
         if slot1.booking_id or slot2.booking_id:
@@ -582,6 +526,5 @@ class SlotManager(BaseService):
         """
         if time_value.minute % 15 != 0 or time_value.second != 0:
             raise ValidationException(
-                f"Time {time_value} must align to 15-minute blocks "
-                f"(e.g., 9:00, 9:15, 9:30, 9:45)"
+                f"Time {time_value} must align to 15-minute blocks " "(e.g., 9:00, 9:15, 9:30, 9:45)"
             )

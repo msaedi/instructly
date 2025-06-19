@@ -12,9 +12,7 @@ from .middleware.timing import TimingMiddleware
 from .routes import auth, availability_windows, bookings, instructors, metrics, password_reset
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 
 logger = logging.getLogger(__name__)
@@ -70,9 +68,7 @@ app.add_middleware(
 )
 
 # Add GZip compression middleware
-app.add_middleware(
-    GZipMiddleware, minimum_size=500  # Compress responses larger than 500 bytes
-)
+app.add_middleware(GZipMiddleware, minimum_size=500)  # Compress responses larger than 500 bytes
 
 # Include routers
 app.include_router(auth.router)

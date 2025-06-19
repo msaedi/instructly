@@ -100,9 +100,7 @@ def upgrade():
         ),
         sa.ForeignKeyConstraint(["instructor_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint(
-            "instructor_id", "date", name="unique_instructor_blackout_date"
-        ),
+        sa.UniqueConstraint("instructor_id", "date", name="unique_instructor_blackout_date"),
     )
 
     op.create_index(
@@ -111,9 +109,7 @@ def upgrade():
         ["instructor_id"],
         unique=False,
     )
-    op.create_index(
-        op.f("ix_blackout_dates_date"), "blackout_dates", ["date"], unique=False
-    )
+    op.create_index(op.f("ix_blackout_dates_date"), "blackout_dates", ["date"], unique=False)
 
 
 def downgrade():
@@ -121,15 +117,9 @@ def downgrade():
     op.drop_index(op.f("ix_blackout_dates_instructor_id"), table_name="blackout_dates")
     op.drop_table("blackout_dates")
 
-    op.drop_index(
-        op.f("ix_availability_windows_specific_date"), table_name="availability_windows"
-    )
-    op.drop_index(
-        op.f("ix_availability_windows_day_of_week"), table_name="availability_windows"
-    )
-    op.drop_index(
-        op.f("ix_availability_windows_instructor_id"), table_name="availability_windows"
-    )
+    op.drop_index(op.f("ix_availability_windows_specific_date"), table_name="availability_windows")
+    op.drop_index(op.f("ix_availability_windows_day_of_week"), table_name="availability_windows")
+    op.drop_index(op.f("ix_availability_windows_instructor_id"), table_name="availability_windows")
     op.drop_table("availability_windows")
 
     op.execute("DROP TYPE day_of_week")

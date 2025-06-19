@@ -6,10 +6,10 @@ import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import logging
-from datetime import date, timedelta
+import logging  # noqa: E402
+from datetime import date, timedelta  # noqa: E402
 
-from app.database import SessionLocal
+from app.database import SessionLocal  # noqa: E402
 
 # Enable SQL logging
 logging.basicConfig()

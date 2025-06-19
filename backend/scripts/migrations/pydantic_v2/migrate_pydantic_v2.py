@@ -113,9 +113,7 @@ class SafePydanticMigrator:
         file_name = Path(file_path).name
 
         # Find single-field validators (safe to migrate)
-        single_validator_pattern = (
-            r'@validator\s*\(\s*[\'"](\w+)[\'"]\s*(?:,\s*pre\s*=\s*\w+\s*)?\)'
-        )
+        single_validator_pattern = r'@validator\s*\(\s*[\'"](\w+)[\'"]\s*(?:,\s*pre\s*=\s*\w+\s*)?\)'
         for i, line in enumerate(lines):
             if match := re.search(single_validator_pattern, line):
                 self.safe_validators.append(
@@ -129,9 +127,7 @@ class SafePydanticMigrator:
                 self.files_with_changes.add(file_path)
 
         # Find multi-field validators (need manual handling)
-        multi_validator_pattern = (
-            r'@validator\s*\([\'"](\w+)[\'"]\s*,\s*[\'"](\w+)[\'"]'
-        )
+        multi_validator_pattern = r'@validator\s*\([\'"](\w+)[\'"]\s*,\s*[\'"](\w+)[\'"]'
         for i, line in enumerate(lines):
             if match := re.search(multi_validator_pattern, line):
                 self.multi_field_validators.append(
@@ -149,31 +145,23 @@ class SafePydanticMigrator:
                 # Find what's in the Config class
                 config_content = []
                 j = i + 1
-                while j < len(lines) and (
-                    lines[j].startswith("    ") or lines[j].strip() == ""
-                ):
+                while j < len(lines) and (lines[j].startswith("    ") or lines[j].strip() == ""):
                     if lines[j].strip():
                         config_content.append(lines[j].strip())
                     j += 1
 
-                self.config_classes.append(
-                    {"file": file_name, "line": i + 1, "content": config_content}
-                )
+                self.config_classes.append({"file": file_name, "line": i + 1, "content": config_content})
                 self.files_with_changes.add(file_path)
 
         # Find json_encoders
         for i, line in enumerate(lines):
             if "json_encoders" in line:
-                self.json_encoders.append(
-                    {"file": file_name, "line": i + 1, "full_line": line.strip()}
-                )
+                self.json_encoders.append({"file": file_name, "line": i + 1, "full_line": line.strip()})
 
         # Find min_items/max_items
         for i, line in enumerate(lines):
             if "min_items" in line or "max_items" in line:
-                self.min_max_items.append(
-                    {"file": file_name, "line": i + 1, "full_line": line.strip()}
-                )
+                self.min_max_items.append({"file": file_name, "line": i + 1, "full_line": line.strip()})
                 self.files_with_changes.add(file_path)
 
     def apply_safe_changes(self, file_path: str):
@@ -209,9 +197,7 @@ class SafePydanticMigrator:
         # 4. Add ConfigDict import if we have Config classes
         if "class Config:" in content and "ConfigDict" not in content:
             # Add ConfigDict to pydantic imports
-            content = re.sub(
-                r"(from pydantic import [^;\n]+)", r"\1, ConfigDict", content
-            )
+            content = re.sub(r"(from pydantic import [^;\n]+)", r"\1, ConfigDict", content)
 
         if content != original_content:
             if self.apply_changes:
@@ -228,24 +214,18 @@ class SafePydanticMigrator:
         # Multi-field validators
         if self.multi_field_validators:
             manual_fixes.append("\n📝 MULTI-FIELD VALIDATORS (need manual splitting):")
-            manual_fixes.append(
-                "In Pydantic V2, each field needs its own @field_validator"
-            )
+            manual_fixes.append("In Pydantic V2, each field needs its own @field_validator")
             for item in self.multi_field_validators:
                 manual_fixes.append(f"\n  {item['file']}:{item['line']}")
                 manual_fixes.append(f"  Current: {item['full_line']}")
-                manual_fixes.append(
-                    f"  Fix: Split into separate @field_validator decorators:"
-                )
+                manual_fixes.append("  Fix: Split into separate @field_validator decorators:")
                 for field in item["fields"]:
                     manual_fixes.append(f"       @field_validator('{field}')")
 
         # Config classes
         if self.config_classes:
             manual_fixes.append("\n📝 CONFIG CLASSES (need manual conversion):")
-            manual_fixes.append(
-                "Convert class Config to model_config = ConfigDict(...)"
-            )
+            manual_fixes.append("Convert class Config to model_config = ConfigDict(...)")
             for item in self.config_classes:
                 manual_fixes.append(f"\n  {item['file']}:{item['line']}")
                 manual_fixes.append("  Current content:")
@@ -258,18 +238,14 @@ class SafePydanticMigrator:
                         config_dict_parts.append("from_attributes=True")
                     elif "allow_population_by_field_name = True" in line:
                         config_dict_parts.append("populate_by_name=True")
-                manual_fixes.append(
-                    f"    model_config = ConfigDict({', '.join(config_dict_parts)})"
-                )
+                manual_fixes.append(f"    model_config = ConfigDict({', '.join(config_dict_parts)})")
 
         # JSON encoders
         if self.json_encoders:
             manual_fixes.append("\n📝 JSON ENCODERS (need manual migration):")
             manual_fixes.append("Use @field_serializer or custom serialization")
             for item in self.json_encoders:
-                manual_fixes.append(
-                    f"  {item['file']}:{item['line']} - {item['full_line']}"
-                )
+                manual_fixes.append(f"  {item['file']}:{item['line']} - {item['full_line']}")
 
         return "\n".join(manual_fixes)
 

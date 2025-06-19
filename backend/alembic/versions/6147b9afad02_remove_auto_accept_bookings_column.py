@@ -27,7 +27,5 @@ def downgrade() -> None:
     # Re-add the column if we need to rollback
     op.add_column(
         "instructor_profiles",
-        sa.Column(
-            "auto_accept_bookings", sa.Boolean(), nullable=False, server_default="true"
-        ),
+        sa.Column("auto_accept_bookings", sa.Boolean(), nullable=False, server_default="true"),
     )

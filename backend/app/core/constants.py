@@ -59,9 +59,7 @@ ERROR_USER_NOT_FOUND = "User not found"
 ERROR_INVALID_TIME_RANGE = "End time must be after start time"
 ERROR_OVERLAPPING_SLOT = "Time slot overlaps with existing slot"
 ERROR_PAST_DATE = "Cannot create availability for past dates"
-ERROR_TOO_FAR_FUTURE = (
-    f"Cannot create availability more than {MAX_FUTURE_DAYS} days in the future"
-)
+ERROR_TOO_FAR_FUTURE = f"Cannot create availability more than {MAX_FUTURE_DAYS} days in the future"
 ERROR_TOO_MANY_SLOTS = f"Cannot create more than {MAX_SLOTS_PER_DAY} time slots per day"
 
 # Success messages
@@ -78,9 +76,7 @@ NOREPLY_EMAIL = "noreply@auth.instainstru.com"
 
 # API Documentation
 API_TITLE = f"{BRAND_NAME} API"
-API_DESCRIPTION = (
-    f"Backend API for {BRAND_NAME} - A platform connecting students with instructors"
-)
+API_DESCRIPTION = f"Backend API for {BRAND_NAME} - A platform connecting students with instructors"
 API_VERSION = "1.0.0"
 
 # Rate limiting (for future implementation)

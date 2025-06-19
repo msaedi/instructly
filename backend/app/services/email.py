@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 import resend
 
 from ..core.config import settings
-from ..core.constants import BRAND_NAME, NOREPLY_EMAIL, SUPPORT_EMAIL
+from ..core.constants import BRAND_NAME, NOREPLY_EMAIL
 
 logger = logging.getLogger(__name__)
 
@@ -75,9 +75,7 @@ class EmailService:
             logger.error(f"Failed to send email to {to_email}: {str(e)}")
             raise
 
-    async def send_password_reset_email(
-        self, to_email: str, reset_url: str, user_name: Optional[str] = None
-    ) -> bool:
+    async def send_password_reset_email(self, to_email: str, reset_url: str, user_name: Optional[str] = None) -> bool:
         """
         Send password reset email.
 
@@ -93,7 +91,7 @@ class EmailService:
             subject = f"Reset Your {BRAND_NAME} Password"
 
             # HTML email content
-            html_content = f"""
+            html_content = """
             <!DOCTYPE html>
             <html>
             <head>
@@ -137,7 +135,7 @@ class EmailService:
             """
 
             # Plain text fallback
-            text_content = f"""
+            text_content = """
             Reset Your {BRAND_NAME} Password
 
             Hi {user_name or 'there'},
@@ -168,9 +166,7 @@ class EmailService:
             logger.error(f"Failed to send password reset email to {to_email}: {str(e)}")
             return False
 
-    async def send_password_reset_confirmation(
-        self, to_email: str, user_name: Optional[str] = None
-    ) -> bool:
+    async def send_password_reset_confirmation(self, to_email: str, user_name: Optional[str] = None) -> bool:
         """
         Send confirmation email after successful password reset.
 
@@ -184,7 +180,7 @@ class EmailService:
         try:
             subject = f"Your {BRAND_NAME} Password Has Been Reset"
 
-            html_content = f"""
+            html_content = """
             <!DOCTYPE html>
             <html>
             <head>
@@ -217,9 +213,7 @@ class EmailService:
             </html>
             """
 
-            self.send_email(
-                to_email=to_email, subject=subject, html_content=html_content
-            )
+            self.send_email(to_email=to_email, subject=subject, html_content=html_content)
 
             return True
 

@@ -74,9 +74,7 @@ from ..services.week_operation_service import WeekOperationService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(
-    prefix="/instructors/availability-windows", tags=["availability-windows"]
-)
+router = APIRouter(prefix="/instructors/availability-windows", tags=["availability-windows"])
 
 
 def verify_instructor(current_user: User) -> User:
@@ -93,9 +91,7 @@ def verify_instructor(current_user: User) -> User:
         HTTPException: If user is not an instructor
     """
     if current_user.role != UserRole.INSTRUCTOR:
-        logger.warning(
-            f"Non-instructor user {current_user.email} attempted to access instructor-only endpoint"
-        )
+        logger.warning(f"Non-instructor user {current_user.email} attempted to access instructor-only endpoint")
         raise HTTPException(status_code=403, detail=ERROR_INSTRUCTOR_ONLY)
     return current_user
 
@@ -123,9 +119,7 @@ async def get_week_availability(
     verify_instructor(current_user)
 
     try:
-        return availability_service.get_week_availability(
-            instructor_id=current_user.id, start_date=start_date
-        )
+        return availability_service.get_week_availability(instructor_id=current_user.id, start_date=start_date)
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:
@@ -150,9 +144,7 @@ async def save_week_availability(
     verify_instructor(current_user)
 
     try:
-        result = await availability_service.save_week_availability(
-            instructor_id=current_user.id, week_data=week_data
-        )
+        result = await availability_service.save_week_availability(instructor_id=current_user.id, week_data=week_data)
 
         return result
     except DomainException as e:
@@ -364,9 +356,7 @@ def update_availability_window(
             "specific_date": updated_slot.availability.date,
             "start_time": updated_slot.start_time.isoformat(),
             "end_time": updated_slot.end_time.isoformat(),
-            "is_available": update_data.is_available
-            if update_data.is_available is not None
-            else True,
+            "is_available": update_data.is_available if update_data.is_available is not None else True,
             "is_recurring": False,
             "day_of_week": None,
             "is_cleared": False,
@@ -427,9 +417,7 @@ async def get_week_booked_slots(
         )
 
         # Format for frontend display using presentation service
-        formatted_slots = presentation_service.format_booked_slots_from_service_data(
-            booked_slots_by_date
-        )
+        formatted_slots = presentation_service.format_booked_slots_from_service_data(booked_slots_by_date)
 
         return {"booked_slots": formatted_slots}
 
@@ -504,9 +492,7 @@ def add_blackout_date(
     verify_instructor(current_user)
 
     try:
-        result = availability_service.add_blackout_date(
-            instructor_id=current_user.id, blackout_data=blackout_data
-        )
+        result = availability_service.add_blackout_date(instructor_id=current_user.id, blackout_data=blackout_data)
 
         return result
     except DomainException as e:
@@ -534,9 +520,7 @@ def delete_blackout_date(
     verify_instructor(current_user)
 
     try:
-        availability_service.delete_blackout_date(
-            instructor_id=current_user.id, blackout_id=blackout_id
-        )
+        availability_service.delete_blackout_date(instructor_id=current_user.id, blackout_id=blackout_id)
 
         return {"message": "Blackout date deleted"}
     except DomainException as e:

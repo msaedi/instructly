@@ -38,9 +38,7 @@ class Service(Base):
     __tablename__ = "services"
 
     id = Column(Integer, primary_key=True, index=True)
-    instructor_profile_id = Column(
-        Integer, ForeignKey("instructor_profiles.id", ondelete="CASCADE")
-    )
+    instructor_profile_id = Column(Integer, ForeignKey("instructor_profiles.id", ondelete="CASCADE"))
     skill = Column(String, nullable=False)
     hourly_rate = Column(Float, nullable=False)
     description = Column(String, nullable=True)
@@ -50,11 +48,7 @@ class Service(Base):
     instructor_profile = relationship("InstructorProfile", back_populates="services")
 
     # Constraints
-    __table_args__ = (
-        UniqueConstraint(
-            "instructor_profile_id", "skill", name="unique_instructor_skill"
-        ),
-    )
+    __table_args__ = (UniqueConstraint("instructor_profile_id", "skill", name="unique_instructor_skill"),)
 
     def __init__(self, **kwargs):
         """Initialize service with logging."""

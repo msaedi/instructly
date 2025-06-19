@@ -1,7 +1,8 @@
+# .flake8
 [flake8]
 max-line-length = 120
-extend-ignore = E203, W503, E501, W291, W293, E402, F401, E722, F541, F841
-exclude = 
+extend-ignore = E203, W503, E501, W291, W293, E402, F401, E722, F541, F841, E712, F403, F405
+exclude =
     .git,
     __pycache__,
     venv,
@@ -9,8 +10,14 @@ exclude =
     build,
     dist,
     migrations,
-    alembic
+    alembic,
+    .tox,
+    .eggs,
+    *.egg
 per-file-ignores =
     __init__.py:F401
     tests/*:E402
     scripts/*:E402
+    backend/alembic/env.py:E402
+    backend/scripts/*.py:E402,E501
+    backend/tests/*.py:E402,F401

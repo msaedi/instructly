@@ -77,7 +77,7 @@ def test_cache_performance():
         cache.get(f"perf_test:{i}")
     read_time = time.time() - start
 
-    print(f"\n📊 Cache Performance:")
+    print("\n📊 Cache Performance:")
     print(f"   100 writes: {write_time:.3f}s ({100/write_time:.0f} ops/sec)")
     print(f"   100 reads: {read_time:.3f}s ({100/read_time:.0f} ops/sec)")
 

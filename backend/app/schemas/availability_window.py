@@ -57,12 +57,7 @@ class AvailabilityWindowBase(BaseModel):
     @field_validator("end_time")
     def validate_time_order(cls, v, info):
         """Ensure end time is after start time."""
-        if (
-            info.data
-            and "start_time" in info.data
-            and info.data["start_time"]
-            and v <= info.data["start_time"]
-        ):
+        if info.data and "start_time" in info.data and info.data["start_time"] and v <= info.data["start_time"]:
             raise ValueError("End time must be after start time")
         return v
 
@@ -93,13 +88,7 @@ class AvailabilityWindowUpdate(BaseModel):
     @field_validator("end_time")
     def validate_time_order(cls, v, info):
         """Ensure end time is after start time if both provided."""
-        if (
-            v
-            and info.data
-            and "start_time" in info.data
-            and info.data["start_time"]
-            and v <= info.data["start_time"]
-        ):
+        if v and info.data and "start_time" in info.data and info.data["start_time"] and v <= info.data["start_time"]:
             raise ValueError("End time must be after start time")
         return v
 
@@ -163,12 +152,7 @@ class DateTimeSlot(BaseModel):
     @field_validator("end_time")
     def validate_time_order(cls, v, info):
         """Ensure end time is after start time."""
-        if (
-            info.data
-            and "start_time" in info.data
-            and info.data["start_time"]
-            and v <= info.data["start_time"]
-        ):
+        if info.data and "start_time" in info.data and info.data["start_time"] and v <= info.data["start_time"]:
             raise ValueError("End time must be after start time")
         return v
 
@@ -226,11 +210,7 @@ class CopyWeekRequest(BaseModel):
     @field_validator("to_week_start")
     def validate_different_weeks(cls, v, info):
         """Ensure we're not copying to the same week."""
-        if (
-            info.data
-            and "from_week_start" in info.data
-            and v == info.data["from_week_start"]
-        ):
+        if info.data and "from_week_start" in info.data and v == info.data["from_week_start"]:
             raise ValueError("Cannot copy to the same week")
         return v
 
@@ -286,13 +266,7 @@ class SlotOperation(BaseModel):
     @field_validator("end_time")
     def validate_time_order(cls, v, info):
         """Ensure end time is after start time for add/update."""
-        if (
-            v
-            and info.data
-            and "start_time" in info.data
-            and info.data["start_time"]
-            and v <= info.data["start_time"]
-        ):
+        if v and info.data and "start_time" in info.data and info.data["start_time"] and v <= info.data["start_time"]:
             raise ValueError("End time must be after start time")
         return v
 
@@ -307,9 +281,7 @@ class BulkUpdateRequest(BaseModel):
     """Request schema for bulk availability update."""
 
     operations: List[SlotOperation]
-    validate_only: bool = Field(
-        False, description="If true, only validate without making changes"
-    )
+    validate_only: bool = Field(False, description="If true, only validate without making changes")
 
 
 class OperationResult(BaseModel):

@@ -133,10 +133,7 @@ class PydanticMigrator:
                 )
 
             # 5. Add ConfigDict import if Config class exists
-            if (
-                re.search(r"class\s+Config\s*:", content)
-                and "ConfigDict" not in content
-            ):
+            if re.search(r"class\s+Config\s*:", content) and "ConfigDict" not in content:
                 # Add ConfigDict to imports
                 content = re.sub(
                     r"(from pydantic import [^;\n]+)",
@@ -184,9 +181,7 @@ class PydanticMigrator:
             file_name = file_path.name
 
             # 1. Multi-field validators
-            multi_validator_pattern = (
-                r'@validator\s*\([\'"](\w+)[\'"]\s*,\s*[\'"](\w+)[\'"]'
-            )
+            multi_validator_pattern = r'@validator\s*\([\'"](\w+)[\'"]\s*,\s*[\'"](\w+)[\'"]'
             for i, line in enumerate(lines):
                 if match := re.search(multi_validator_pattern, line):
                     manual_fixes.append(
@@ -224,9 +219,7 @@ class PydanticMigrator:
                             "type": "config_class",
                             "file": file_name,
                             "line": i + 1,
-                            "content": [
-                                line.strip() for line in config_lines if line.strip()
-                            ],
+                            "content": [line.strip() for line in config_lines if line.strip()],
                         }
                     )
 
@@ -300,21 +293,15 @@ class PydanticMigrator:
                             elif "use_enum_values = True" in line:
                                 config_dict_parts.append("use_enum_values=True")
                             elif "json_encoders" in line:
-                                f.write(
-                                    "#   # Note: json_encoders needs custom migration\n"
-                                )
+                                f.write("#   # Note: json_encoders needs custom migration\n")
 
                         if config_dict_parts:
-                            f.write(
-                                f"#   model_config = ConfigDict({', '.join(config_dict_parts)})\n"
-                            )
+                            f.write(f"#   model_config = ConfigDict({', '.join(config_dict_parts)})\n")
                         f.write("\n")
 
                     elif fix["type"] == "custom_type":
                         f.write(f"# Line {fix['line']}: {fix['code']}\n")
-                        f.write(
-                            "# The Money type needs to be updated for Pydantic V2\n"
-                        )
+                        f.write("# The Money type needs to be updated for Pydantic V2\n")
                         f.write("# See the migration guide for custom types\n\n")
 
         print_success(f"Manual fix guide saved to: {script_path}")
@@ -333,10 +320,7 @@ class PydanticMigrator:
             content = f.read()
 
         # Check if it needs fixing
-        if (
-            "__get_validators__" in content
-            and "__get_pydantic_core_schema__" in content
-        ):
+        if "__get_validators__" in content and "__get_pydantic_core_schema__" in content:
             print_warning("Money type has both V1 and V2 methods - needs cleanup")
 
             if self.apply_changes:
@@ -411,7 +395,7 @@ class PydanticMigrator:
         else:
             print_success("\nChanges applied successfully!")
             print_warning("Remember to:")
-            print("  1. Review all changes with git diff")
+            print("  1. Review all changes with git dif")
             print("  2. Run tests to ensure nothing broke")
             print("  3. Complete manual fixes as indicated")
 
@@ -419,9 +403,7 @@ class PydanticMigrator:
 def main():
     parser = argparse.ArgumentParser(description="Enhanced Pydantic V2 Migration")
     parser.add_argument("--apply", action="store_true", help="Apply changes")
-    parser.add_argument(
-        "--phase", type=int, default=1, help="Run specific phase (1 or 2)"
-    )
+    parser.add_argument("--phase", type=int, default=1, help="Run specific phase (1 or 2)")
     args = parser.parse_args()
 
     migrator = PydanticMigrator(apply_changes=args.apply)

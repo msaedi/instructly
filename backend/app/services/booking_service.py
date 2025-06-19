@@ -15,12 +15,7 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session, joinedload
 
-from ..core.exceptions import (
-    BusinessRuleException,
-    ConflictException,
-    NotFoundException,
-    ValidationException,
-)
+from ..core.exceptions import BusinessRuleException, ConflictException, NotFoundException, ValidationException
 from ..models.availability import AvailabilitySlot
 from ..models.booking import Booking, BookingStatus
 from ..models.instructor import InstructorProfile
@@ -47,9 +42,7 @@ class BookingService(BaseService):
     with other services like availability and notifications.
     """
 
-    def __init__(
-        self, db: Session, notification_service: Optional[NotificationService] = None
-    ):
+    def __init__(self, db: Session, notification_service: Optional[NotificationService] = None):
         """
         Initialize booking service.
 
@@ -60,9 +53,7 @@ class BookingService(BaseService):
         super().__init__(db)
         self.notification_service = notification_service or NotificationService(db)
 
-    async def create_booking(
-        self, student: User, booking_data: BookingCreate
-    ) -> Booking:
+    async def create_booking(self, student: User, booking_data: BookingCreate) -> Booking:
         """
         Create an instant booking.
 
@@ -96,18 +87,14 @@ class BookingService(BaseService):
 
         with self.transaction():
             # 1. Validate and load all required data
-            slot, service, instructor_profile = await self._validate_booking_data(
-                booking_data
-            )
+            slot, service, instructor_profile = await self._validate_booking_data(booking_data)
 
             # 2. Check slot availability
             if slot.booking_id:
                 raise ConflictException("This slot is already booked")
 
             # 3. Apply business rules
-            await self._apply_booking_rules(
-                slot, service, instructor_profile, booking_data
-            )
+            await self._apply_booking_rules(slot, service, instructor_profile, booking_data)
 
             # 4. Calculate pricing
             pricing = self._calculate_pricing(service, slot)
@@ -157,9 +144,7 @@ class BookingService(BaseService):
             logger.info(f"Booking {booking.id} created successfully")
             return booking
 
-    async def cancel_booking(
-        self, booking_id: int, user: User, reason: Optional[str] = None
-    ) -> Booking:
+    async def cancel_booking(self, booking_id: int, user: User, reason: Optional[str] = None) -> Booking:
         """
         Cancel a booking.
 
@@ -184,15 +169,11 @@ class BookingService(BaseService):
 
             # Validate user can cancel
             if user.id not in [booking.student_id, booking.instructor_id]:
-                raise ValidationException(
-                    "You don't have permission to cancel this booking"
-                )
+                raise ValidationException("You don't have permission to cancel this booking")
 
             # Check if cancellable
             if not booking.is_cancellable:
-                raise BusinessRuleException(
-                    f"Booking cannot be cancelled - current status: {booking.status}"
-                )
+                raise BusinessRuleException(f"Booking cannot be cancelled - current status: {booking.status}")
 
             # Apply cancellation rules
             await self._apply_cancellation_rules(booking, user)
@@ -203,9 +184,7 @@ class BookingService(BaseService):
             # Free up the availability slot
             if booking.availability_slot_id:
                 slot = (
-                    self.db.query(AvailabilitySlot)
-                    .filter(AvailabilitySlot.id == booking.availability_slot_id)
-                    .first()
+                    self.db.query(AvailabilitySlot).filter(AvailabilitySlot.id == booking.availability_slot_id).first()
                 )
                 if slot:
                     slot.booking_id = None
@@ -284,34 +263,23 @@ class BookingService(BaseService):
         Returns:
             Dictionary of statistics
         """
-        bookings = (
-            self.db.query(Booking).filter(Booking.instructor_id == instructor_id).all()
-        )
+        bookings = self.db.query(Booking).filter(Booking.instructor_id == instructor_id).all()
 
         # Calculate stats
         total_bookings = len(bookings)
         upcoming_bookings = sum(1 for b in bookings if b.is_upcoming)
-        completed_bookings = sum(
-            1 for b in bookings if b.status == BookingStatus.COMPLETED
-        )
-        cancelled_bookings = sum(
-            1 for b in bookings if b.status == BookingStatus.CANCELLED
-        )
+        completed_bookings = sum(1 for b in bookings if b.status == BookingStatus.COMPLETED)
+        cancelled_bookings = sum(1 for b in bookings if b.status == BookingStatus.CANCELLED)
 
         # Calculate earnings (only completed bookings)
-        total_earnings = sum(
-            float(b.total_price)
-            for b in bookings
-            if b.status == BookingStatus.COMPLETED
-        )
+        total_earnings = sum(float(b.total_price) for b in bookings if b.status == BookingStatus.COMPLETED)
 
         # This month's earnings
         first_day_of_month = date.today().replace(day=1)
         this_month_earnings = sum(
             float(b.total_price)
             for b in bookings
-            if b.status == BookingStatus.COMPLETED
-            and b.booking_date >= first_day_of_month
+            if b.status == BookingStatus.COMPLETED and b.booking_date >= first_day_of_month
         )
 
         return {
@@ -321,12 +289,8 @@ class BookingService(BaseService):
             "cancelled_bookings": cancelled_bookings,
             "total_earnings": total_earnings,
             "this_month_earnings": this_month_earnings,
-            "completion_rate": completed_bookings / total_bookings
-            if total_bookings > 0
-            else 0,
-            "cancellation_rate": cancelled_bookings / total_bookings
-            if total_bookings > 0
-            else 0,
+            "completion_rate": completed_bookings / total_bookings if total_bookings > 0 else 0,
+            "cancellation_rate": cancelled_bookings / total_bookings if total_bookings > 0 else 0,
         }
 
     # Private helper methods
@@ -373,14 +337,11 @@ class BookingService(BaseService):
         """Apply business rules for booking creation."""
         # Check minimum advance booking time
         booking_datetime = datetime.combine(slot.availability.date, slot.start_time)
-        min_booking_time = datetime.now() + timedelta(
-            hours=instructor_profile.min_advance_booking_hours
-        )
+        min_booking_time = datetime.now() + timedelta(hours=instructor_profile.min_advance_booking_hours)
 
         if booking_datetime < min_booking_time:
             raise BusinessRuleException(
-                f"Bookings must be made at least "
-                f"{instructor_profile.min_advance_booking_hours} hours in advance"
+                "Bookings must be made at least " f"{instructor_profile.min_advance_booking_hours} hours in advance"
             )
 
         # Additional business rules can be added here
@@ -397,9 +358,7 @@ class BookingService(BaseService):
 
         if datetime.now() > cancellation_deadline:
             # Log late cancellation but allow it
-            logger.warning(
-                f"Late cancellation for booking {booking.id} by user {user.id}"
-            )
+            logger.warning(f"Late cancellation for booking {booking.id} by user {user.id}")
 
         # Additional rules based on who's cancelling
         if user.id == booking.instructor_id:
@@ -409,9 +368,7 @@ class BookingService(BaseService):
             # Student cancellation
             logger.info(f"Student {user.id} cancelled booking {booking.id}")
 
-    def _calculate_pricing(
-        self, service: Service, slot: AvailabilitySlot
-    ) -> Dict[str, Any]:
+    def _calculate_pricing(self, service: Service, slot: AvailabilitySlot) -> Dict[str, Any]:
         """Calculate booking pricing."""
         # Calculate duration
         start = datetime.combine(date.today(), slot.start_time)
@@ -457,9 +414,7 @@ class BookingService(BaseService):
         self.invalidate_cache(f"bookings:date:{booking.booking_date}")
 
         # Invalidate instructor availability caches
-        self.invalidate_cache(
-            f"instructor_availability:{booking.instructor_id}:{booking.booking_date}"
-        )
+        self.invalidate_cache(f"instructor_availability:{booking.instructor_id}:{booking.booking_date}")
 
         # Invalidate stats caches
         self.invalidate_cache(f"instructor_stats:{booking.instructor_id}")
@@ -482,9 +437,7 @@ class BookingService(BaseService):
 
         return None
 
-    def update_booking(
-        self, booking_id: int, user: User, update_data: BookingUpdate
-    ) -> Booking:
+    def update_booking(self, booking_id: int, user: User, update_data: BookingUpdate) -> Booking:
         """
         Update booking details (instructor only).
 
@@ -550,9 +503,7 @@ class BookingService(BaseService):
             raise ValidationException("You can only complete your own bookings")
 
         if booking.status != BookingStatus.CONFIRMED:
-            raise BusinessRuleException(
-                f"Only confirmed bookings can be completed - current status: {booking.status}"
-            )
+            raise BusinessRuleException(f"Only confirmed bookings can be completed - current status: {booking.status}")
 
         # Mark as complete
         booking.complete()
@@ -603,9 +554,7 @@ class BookingService(BaseService):
 
         # Check minimum advance booking
         booking_datetime = datetime.combine(slot.availability.date, slot.start_time)
-        min_booking_time = datetime.now() + timedelta(
-            hours=service.instructor_profile.min_advance_booking_hours
-        )
+        min_booking_time = datetime.now() + timedelta(hours=service.instructor_profile.min_advance_booking_hours)
 
         if booking_datetime < min_booking_time:
             return {
@@ -651,8 +600,6 @@ class BookingService(BaseService):
                 await self.notification_service.send_reminder_emails()
                 sent_count += 1
             except Exception as e:
-                logger.error(
-                    f"Error sending reminder for booking {booking.id}: {str(e)}"
-                )
+                logger.error(f"Error sending reminder for booking {booking.id}: {str(e)}")
 
         return sent_count

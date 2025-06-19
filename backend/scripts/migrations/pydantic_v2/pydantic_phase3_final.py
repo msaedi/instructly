@@ -51,7 +51,7 @@ def fix_money_type(apply: bool = False):
         base_path = Path("schemas/base.py")
 
     if not base_path.exists():
-        print_warning(f"Could not find base.py in any expected location")
+        print_warning("Could not find base.py in any expected location")
         return False
 
     with open(base_path, "r") as f:
@@ -103,9 +103,7 @@ def fix_money_type(apply: bool = False):
             content = re.sub(r"# TODO: Remove __get_validators__.*\n", "", content)
 
             # Replace the entire Money class
-            content = re.sub(
-                money_class_pattern, new_money_implementation, content, flags=re.DOTALL
-            )
+            content = re.sub(money_class_pattern, new_money_implementation, content, flags=re.DOTALL)
 
             with open(base_path, "w") as f:
                 f.write(content)
@@ -128,7 +126,7 @@ def fix_json_encoders(apply: bool = False):
         base_path = Path("schemas/base.py")
 
     if not base_path.exists():
-        print_warning(f"Could not find base.py in any expected location")
+        print_warning("Could not find base.py in any expected location")
         return False
 
     with open(base_path, "r") as f:
@@ -155,14 +153,14 @@ def fix_json_encoders(apply: bool = False):
     )'''
 
             # Replace the StandardizedModel class
-            pattern = r"class StandardizedModel\(BaseModel\):.*?model_config = ConfigDict\([^)]*\).*?(?=\n(?:class|def|\Z))"
+            pattern = (
+                r"class StandardizedModel\(BaseModel\):.*?model_config = ConfigDict\([^)]*\).*?(?=\n(?:class|def|\Z))"
+            )
 
             content = re.sub(pattern, new_standardized_model, content, flags=re.DOTALL)
 
             # Remove TODO comment if present
-            content = re.sub(
-                r"    # TODO: Migrate json_encoders to field serializers\n", "", content
-            )
+            content = re.sub(r"    # TODO: Migrate json_encoders to field serializers\n", "", content)
 
             with open(base_path, "w") as f:
                 f.write(content)
@@ -204,9 +202,7 @@ def check_remaining_issues():
 def main():
     parser = argparse.ArgumentParser(description="Pydantic V2 Phase 3 - Final Cleanup")
     parser.add_argument("--apply", action="store_true", help="Apply the fixes")
-    parser.add_argument(
-        "--check", action="store_true", help="Check what would be changed"
-    )
+    parser.add_argument("--check", action="store_true", help="Check what would be changed")
     args = parser.parse_args()
 
     if not args.apply:

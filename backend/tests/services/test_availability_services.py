@@ -36,9 +36,7 @@ class TestAvailabilityService:
         mock_db.query().filter().options().all.return_value = []
 
         # Execute
-        result = service.get_week_availability(
-            instructor_id=1, start_date=date(2025, 6, 16)  # Monday
-        )
+        result = service.get_week_availability(instructor_id=1, start_date=date(2025, 6, 16))  # Monday
 
         # Assert
         assert result == {}
@@ -60,9 +58,7 @@ class TestAvailabilityService:
         mock_db.query().filter().options().all.return_value = [mock_availability]
 
         # Execute
-        result = service.get_week_availability(
-            instructor_id=1, start_date=date(2025, 6, 16)
-        )
+        result = service.get_week_availability(instructor_id=1, start_date=date(2025, 6, 16))
 
         # Assert
         assert "2025-06-16" in result
@@ -118,9 +114,7 @@ class TestSlotManager:
 
         mock_db.query().filter().first.return_value = mock_availability
         mock_conflict_checker.validate_time_range.return_value = {"valid": True}
-        mock_conflict_checker.check_booking_conflicts.return_value = [
-            {"booking_id": 1, "student_name": "John Doe"}
-        ]
+        mock_conflict_checker.check_booking_conflicts.return_value = [{"booking_id": 1, "student_name": "John Doe"}]
 
         # Execute & Assert
         with pytest.raises(ConflictException) as exc_info:
@@ -151,9 +145,7 @@ class TestWeekOperationService:
         """Create service instance."""
         mock_availability_service = MagicMock()
         mock_conflict_checker = MagicMock()
-        return WeekOperationService(
-            mock_db, mock_availability_service, mock_conflict_checker
-        )
+        return WeekOperationService(mock_db, mock_availability_service, mock_conflict_checker)
 
     def test_calculate_week_dates(self, service):
         """Test week date calculation."""
@@ -195,27 +187,21 @@ class TestConflictChecker:
 
     def test_validate_time_range_valid(self, service):
         """Test valid time range validation."""
-        result = service.validate_time_range(
-            start_time=time(9, 0), end_time=time(10, 0)
-        )
+        result = service.validate_time_range(start_time=time(9, 0), end_time=time(10, 0))
 
         assert result["valid"] is True
         assert result["duration_minutes"] == 60
 
     def test_validate_time_range_invalid_order(self, service):
         """Test invalid time range (end before start)."""
-        result = service.validate_time_range(
-            start_time=time(10, 0), end_time=time(9, 0)
-        )
+        result = service.validate_time_range(start_time=time(10, 0), end_time=time(9, 0))
 
         assert result["valid"] is False
         assert "End time must be after start time" in result["reason"]
 
     def test_validate_time_range_too_short(self, service):
         """Test time range that's too short."""
-        result = service.validate_time_range(
-            start_time=time(9, 0), end_time=time(9, 15), min_duration_minutes=30
-        )
+        result = service.validate_time_range(start_time=time(9, 0), end_time=time(9, 15), min_duration_minutes=30)
 
         assert result["valid"] is False
         assert "at least 30 minutes" in result["reason"]

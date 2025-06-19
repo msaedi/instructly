@@ -46,18 +46,12 @@ def test_booking_serialization():
 
         # Convert to dict using Pydantic's method
         booking_dict = (
-            booking_response.model_dump()
-            if hasattr(booking_response, "model_dump")
-            else booking_response.dict()
+            booking_response.model_dump() if hasattr(booking_response, "model_dump") else booking_response.dict()
         )
 
         print("\nPydantic serialization output:")
-        print(
-            f"  total_price type: {type(booking_dict['total_price'])} = {booking_dict['total_price']}"
-        )
-        print(
-            f"  hourly_rate type: {type(booking_dict['hourly_rate'])} = {booking_dict['hourly_rate']}"
-        )
+        print(f"  total_price type: {type(booking_dict['total_price'])} = {booking_dict['total_price']}")
+        print(f"  hourly_rate type: {type(booking_dict['hourly_rate'])} = {booking_dict['hourly_rate']}")
         print(f"  booking_date: {booking_dict['booking_date']}")
         print(f"  start_time: {booking_dict['start_time']}")
 
@@ -70,20 +64,12 @@ def test_booking_serialization():
         parsed = json.loads(json_str)
 
         print("\nJSON serialization result:")
-        print(
-            f"  total_price: {parsed['total_price']} (type in JSON: {type(parsed['total_price'])})"
-        )
-        print(
-            f"  hourly_rate: {parsed['hourly_rate']} (type in JSON: {type(parsed['hourly_rate'])})"
-        )
+        print(f"  total_price: {parsed['total_price']} (type in JSON: {type(parsed['total_price'])})")
+        print(f"  hourly_rate: {parsed['hourly_rate']} (type in JSON: {type(parsed['hourly_rate'])})")
 
         # Verify they're numbers, not strings
-        assert isinstance(
-            parsed["total_price"], (int, float)
-        ), "total_price should be a number!"
-        assert isinstance(
-            parsed["hourly_rate"], (int, float)
-        ), "hourly_rate should be a number!"
+        assert isinstance(parsed["total_price"], (int, float)), "total_price should be a number!"
+        assert isinstance(parsed["hourly_rate"], (int, float)), "hourly_rate should be a number!"
 
         print("\n✅ SUCCESS: Money fields are now serializing as numbers!")
 
@@ -115,13 +101,9 @@ def test_service_serialization():
         json_str = service_response.model_dump_json()
         parsed = json.loads(json_str)
 
-        print(
-            f"Service hourly_rate: {parsed['hourly_rate']} (type: {type(parsed['hourly_rate'])})"
-        )
+        print(f"Service hourly_rate: {parsed['hourly_rate']} (type: {type(parsed['hourly_rate'])})")
 
-        assert isinstance(
-            parsed["hourly_rate"], (int, float)
-        ), "hourly_rate should be a number!"
+        assert isinstance(parsed["hourly_rate"], (int, float)), "hourly_rate should be a number!"
         print("✅ SUCCESS: Service money fields are numbers!")
 
     db.close()

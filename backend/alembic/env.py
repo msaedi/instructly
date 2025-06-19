@@ -4,13 +4,13 @@ from pathlib import Path
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
-from logging.config import fileConfig
+from logging.config import fileConfig  # noqa: E402
 
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, pool  # noqa: E402
 
-from alembic import context
-from app.core.config import settings
-from app.database import Base
+from alembic import context  # noqa: E402
+from app.core.config import settings  # noqa: E402
+from app.database import Base  # noqa: E402
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
