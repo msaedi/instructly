@@ -82,10 +82,6 @@ class BulkOperationService(BaseService):
             operations_count=len(update_data.operations),
             validate_only=update_data.validate_only
         )
-        
-        self.logger.info(f"Bulk update operations: {len(update_data.operations)}")
-        for op in update_data.operations[:5]:  # Log first 5 operations
-            self.logger.info(f"  Operation: {op.action} - Date: {op.date} - Slot: {op.slot_id}")
 
         results = []
         successful = 0
@@ -140,10 +136,10 @@ class BulkOperationService(BaseService):
             # For remove operations, we need to look up the dates from the slot IDs
             for op in update_data.operations:
                 if op.action == 'remove' and op.slot_id:
-                    # Need to find what date this slot was for
-                    # This is tricky - we need to query the slot's date before it was deleted
-                    # For now, let's invalidate the entire week
-                    pass
+                    # Query the slot's date before it was deleted
+                    slot = self.db.query(AvailabilitySlot).filter_by(id=op.slot_id).first()
+                    if slot and slot.availability:
+                        affected_dates.add(slot.availability.date)
                 elif op.date:
                     # Handle both string and date objects
                     if isinstance(op.date, str):

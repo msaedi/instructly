@@ -102,10 +102,32 @@ class Logger {
       }
     }
   }
+  setLevel(level: LogLevel): void {
+    this.currentLevel = level;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('log-level', level);
+    }
+  }
+  
+  // Initialize from localStorage if available
+  constructor() {
+    if (typeof window !== 'undefined') {
+      const storedLevel = localStorage.getItem('log-level') as LogLevel;
+      if (storedLevel && this.logLevels[storedLevel] !== undefined) {
+        this.currentLevel = storedLevel;
+      }
+    }
+  }
 }
 
 // Export singleton instance
 export const logger = new Logger();
+
+// At the bottom, add this for debugging:
+if (typeof window !== 'undefined') {
+  (window as any).logger = logger;
+  (window as any).setLogLevel = (level: LogLevel) => logger.setLevel(level);
+}
 
 // Usage examples:
 // logger.debug('Clicked booking', { bookingId, userId });

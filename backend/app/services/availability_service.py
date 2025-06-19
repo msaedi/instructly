@@ -360,7 +360,7 @@ class AvailabilityService(BaseService):
                 clear_existing=week_data.clear_existing
             )
         
-        # Force SQLAlchemy to clear its cache
+        # Ensure SQLAlchemy session is fresh after transaction
         self.db.expire_all()
 
         # Invalidate cache AFTER transaction commits
@@ -368,9 +368,6 @@ class AvailabilityService(BaseService):
         self._invalidate_availability_caches(instructor_id, week_dates)
         
         # Add a small delay to ensure DB replication (if using read replicas)
-        import asyncio
-        await asyncio.sleep(0.1)  # 100ms delay
-
         # Get updated availability
         updated_availability = self.get_week_availability(instructor_id, monday)
         
