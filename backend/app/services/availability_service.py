@@ -10,7 +10,7 @@ Core service handling instructor availability management including:
 """
 
 import logging
-from datetime import date, timedelta, datetime, time
+from datetime import date, timedelta, time
 from typing import List, Dict, Optional, Any, Tuple, TYPE_CHECKING
 
 from sqlalchemy.orm import Session, joinedload

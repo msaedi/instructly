@@ -6,6 +6,22 @@ interface LogContext {
   [key: string]: any;
 }
 
+const getDefaultLogLevel = (): LogLevel => {
+  if (typeof window !== 'undefined') {
+    // Check localStorage first
+    const storedLevel = localStorage.getItem('log-level') as LogLevel;
+    if (storedLevel && ['debug', 'info', 'warn', 'error'].includes(storedLevel)) {
+      return storedLevel;
+    }
+  }
+  
+  // Default based on environment
+  if (process.env.NODE_ENV === 'production') {
+    return 'info';
+  }
+  return 'debug';
+};
+
 class Logger {
   private isDevelopment = process.env.NODE_ENV === 'development';
   private isEnabled = process.env.NEXT_PUBLIC_ENABLE_LOGGING === 'true';
@@ -17,7 +33,7 @@ class Logger {
     error: 3,
   };
   
-  private currentLevel: LogLevel = this.isDevelopment ? 'debug' : 'warn';
+  private currentLevel: LogLevel = getDefaultLogLevel(); 
   
   private shouldLog(level: LogLevel): boolean {
     if (!this.isEnabled && !this.isDevelopment) return false;

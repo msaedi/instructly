@@ -10,7 +10,7 @@ Handles week-based availability operations including:
 """
 
 import logging
-from datetime import date, timedelta, datetime, time
+from datetime import date, timedelta, time
 from typing import List, Dict, Optional, Callable, Any, TYPE_CHECKING
 
 from sqlalchemy.orm import Session, joinedload
@@ -519,7 +519,7 @@ class WeekOperationService(BaseService):
         for i in range(7):
             source_date = from_week_start + timedelta(days=i)
             target_date = to_week_start + timedelta(days=i)
-            source_date_str = source_date.isoformat()
+            source_date.isoformat()
             target_date_str = target_date.isoformat()
             
             # Check if target date has bookings

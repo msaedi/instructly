@@ -12,7 +12,7 @@ This service acts as the central hub for all communication with users.
 """
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 

@@ -11,7 +11,7 @@ Handles all booking conflict detection and validation including:
 
 import logging
 from datetime import date, time, datetime, timedelta
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any
 
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_

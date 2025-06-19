@@ -616,7 +616,18 @@ class CacheService(BaseService):
 
 # Dependency injection
 def get_cache_service(db: Session = None) -> CacheService:
-    """Get cache service instance for dependency injection."""
+    """
+    Get cache service instance for dependency injection.
+    
+    Creates a singleton instance of CacheService with Redis/DragonflyDB
+    connection if available, otherwise falls back to in-memory cache.
+    
+    Args:
+        db: Optional database session
+        
+    Returns:
+        CacheService: Singleton cache service instance
+    """
     if not hasattr(get_cache_service, '_instance'):
         # Create singleton instance
         try:
