@@ -3,17 +3,18 @@
 Database-related dependencies.
 """
 
-from typing import Generator, AsyncGenerator
-from sqlalchemy.orm import Session
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import AsyncGenerator, Generator
 
-from ...database import SessionLocal, get_db as original_get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
+
+from ...database import get_db as original_get_db
 
 
 def get_db() -> Generator[Session, None, None]:
     """
     Get database session dependency.
-    
+
     Yields:
         Database session that will be closed after use
     """
@@ -23,9 +24,9 @@ def get_db() -> Generator[Session, None, None]:
 async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
     """
     Get async database session dependency.
-    
+
     For future use when we migrate to async SQLAlchemy.
-    
+
     Yields:
         Async database session
     """

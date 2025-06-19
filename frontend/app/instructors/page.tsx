@@ -1,20 +1,20 @@
 // frontend/app/instructors/page.tsx
-"use client";
+'use client';
 
 /**
  * Browse Instructors Page
- * 
+ *
  * This page displays a searchable grid of all available instructors.
  * Users can search by instructor name or skills they teach.
  * Each instructor card shows their services, pricing, experience, and areas served.
- * 
+ *
  * @module instructors/page
  */
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { Search } from "lucide-react";
-import Link from "next/link";
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Search } from 'lucide-react';
+import Link from 'next/link';
 import { fetchAPI, API_ENDPOINTS } from '@/lib/api';
 import { BRAND } from '@/app/config/brand';
 import { logger } from '@/lib/logger';
@@ -26,7 +26,7 @@ import { getErrorMessage } from '@/types/common';
 
 /**
  * Main instructors browse page component
- * 
+ *
  * @component
  * @returns {JSX.Element} The instructors browse page
  */
@@ -34,7 +34,7 @@ export default function InstructorsPage() {
   // State management with proper typing
   const [instructors, setInstructors] = useState<InstructorProfile[]>([]);
   const [filteredInstructors, setFilteredInstructors] = useState<InstructorProfile[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [requestStatus, setRequestStatus] = useState<RequestStatus>(RequestStatus.IDLE);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -46,32 +46,32 @@ export default function InstructorsPage() {
     const fetchInstructors = async () => {
       logger.info('Fetching instructors list');
       setRequestStatus(RequestStatus.LOADING);
-      
+
       try {
         logger.time('fetchInstructors');
         const response = await fetchAPI(API_ENDPOINTS.INSTRUCTORS);
-        
+
         if (!response.ok) {
           throw new Error(`Failed to fetch instructors: ${response.status} ${response.statusText}`);
         }
-        
+
         const data: InstructorProfile[] = await response.json();
         logger.timeEnd('fetchInstructors');
-        
-        logger.info('Instructors fetched successfully', { 
+
+        logger.info('Instructors fetched successfully', {
           count: data.length,
-          hasServices: data.filter(i => i.services.length > 0).length
+          hasServices: data.filter((i) => i.services.length > 0).length,
         });
-        
+
         setInstructors(data);
         setFilteredInstructors(data);
         setRequestStatus(RequestStatus.SUCCESS);
       } catch (err) {
         const errorMessage = getErrorMessage(err);
-        logger.error('Failed to fetch instructors', err, { 
-          endpoint: API_ENDPOINTS.INSTRUCTORS 
+        logger.error('Failed to fetch instructors', err, {
+          endpoint: API_ENDPOINTS.INSTRUCTORS,
         });
-        
+
         setError(errorMessage);
         setRequestStatus(RequestStatus.ERROR);
       }
@@ -90,42 +90,42 @@ export default function InstructorsPage() {
     }
 
     logger.time('filterInstructors');
-    logger.debug('Filtering instructors', { 
-      query: searchQuery, 
-      totalInstructors: instructors.length 
+    logger.debug('Filtering instructors', {
+      query: searchQuery,
+      totalInstructors: instructors.length,
     });
-    
+
     const searchLower = searchQuery.toLowerCase().trim();
     const filtered = instructors.filter((instructor) => {
       // Search by name
       const nameMatch = instructor.user.full_name.toLowerCase().includes(searchLower);
-      
+
       // Search by skills
-      const skillMatch = instructor.services.some((service) => 
+      const skillMatch = instructor.services.some((service) =>
         service.skill.toLowerCase().includes(searchLower)
       );
-      
+
       // Search by areas (bonus search capability)
       const areaMatch = instructor.areas_of_service.some((area) =>
         area.toLowerCase().includes(searchLower)
       );
-      
+
       return nameMatch || skillMatch || areaMatch;
     });
-    
+
     logger.timeEnd('filterInstructors');
-    logger.debug('Filter results', { 
+    logger.debug('Filter results', {
       query: searchQuery,
       resultsCount: filtered.length,
-      filteredOut: instructors.length - filtered.length
+      filteredOut: instructors.length - filtered.length,
     });
-    
+
     setFilteredInstructors(filtered);
   }, [searchQuery, instructors]);
 
   /**
    * Handle instructor card click
-   * 
+   *
    * @param {number} userId - The user ID of the instructor
    */
   const handleViewProfile = (userId: number) => {
@@ -135,13 +135,13 @@ export default function InstructorsPage() {
 
   /**
    * Get the minimum hourly rate from an instructor's services
-   * 
+   *
    * @param {InstructorService[]} services - Array of services
    * @returns {number} Minimum hourly rate
    */
   const getMinimumRate = (services: InstructorService[]): number => {
     if (services.length === 0) return 0;
-    return Math.min(...services.map(s => s.hourly_rate));
+    return Math.min(...services.map((s) => s.hourly_rate));
   };
 
   // Loading state
@@ -162,8 +162,8 @@ export default function InstructorsPage() {
         <div className="text-red-500 text-center">
           <h2 className="text-2xl font-bold mb-2">Error</h2>
           <p>{error}</p>
-          <button 
-            onClick={() => window.location.reload()} 
+          <button
+            onClick={() => window.location.reload()}
             className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
             Try Again
@@ -173,10 +173,10 @@ export default function InstructorsPage() {
     );
   }
 
-  logger.debug('Rendering instructors page', { 
+  logger.debug('Rendering instructors page', {
     totalInstructors: instructors.length,
     displayedInstructors: filteredInstructors.length,
-    hasSearchQuery: !!searchQuery
+    hasSearchQuery: !!searchQuery,
   });
 
   return (
@@ -185,15 +185,15 @@ export default function InstructorsPage() {
       <nav className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <Link 
-              href="/" 
+            <Link
+              href="/"
               className="text-2xl font-bold text-indigo-600 dark:text-indigo-400"
               onClick={() => logger.info('Navigating to home from navbar')}
             >
               {BRAND.name}
             </Link>
-            <Link 
-              href="/" 
+            <Link
+              href="/"
               className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100"
               onClick={() => logger.info('Navigating to home from back link')}
             >
@@ -207,7 +207,7 @@ export default function InstructorsPage() {
         <h1 className="text-3xl font-bold text-center mb-8 dark:text-white">
           Find Your Perfect Instructor
         </h1>
-        
+
         {/* Search Bar */}
         <div className="max-w-2xl mx-auto mb-8">
           <div className="relative">
@@ -217,9 +217,9 @@ export default function InstructorsPage() {
               value={searchQuery}
               onChange={(e) => {
                 const newQuery = e.target.value;
-                logger.debug('Search query changed', { 
-                  oldQuery: searchQuery, 
-                  newQuery 
+                logger.debug('Search query changed', {
+                  oldQuery: searchQuery,
+                  newQuery,
                 });
                 setSearchQuery(newQuery);
               }}
@@ -233,7 +233,8 @@ export default function InstructorsPage() {
         {/* Results summary */}
         {searchQuery && (
           <p className="text-center text-gray-600 dark:text-gray-400 mb-4">
-            Found {filteredInstructors.length} instructor{filteredInstructors.length !== 1 ? 's' : ''} 
+            Found {filteredInstructors.length} instructor
+            {filteredInstructors.length !== 1 ? 's' : ''}
             {searchQuery && ` matching "${searchQuery}"`}
           </p>
         )}
@@ -253,7 +254,7 @@ export default function InstructorsPage() {
                   ? `${instructor.bio.substring(0, 100)}...`
                   : instructor.bio}
               </p>
-              
+
               {/* Services with individual pricing */}
               <div className="mb-4">
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
@@ -276,16 +277,14 @@ export default function InstructorsPage() {
               {/* Areas of Service */}
               <div className="mb-4">
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Areas: {instructor.areas_of_service.join(", ")}
+                  Areas: {instructor.areas_of_service.join(', ')}
                 </p>
               </div>
 
               {/* Experience and pricing summary */}
               <div className="flex justify-between items-center mb-4 text-sm text-gray-600 dark:text-gray-400">
                 <span>{instructor.years_experience} years exp.</span>
-                <span className="text-xs">
-                  From ${getMinimumRate(instructor.services)}/hr
-                </span>
+                <span className="text-xs">From ${getMinimumRate(instructor.services)}/hr</span>
               </div>
 
               <button
@@ -307,7 +306,7 @@ export default function InstructorsPage() {
               <button
                 onClick={() => {
                   logger.info('Clearing search query');
-                  setSearchQuery("");
+                  setSearchQuery('');
                 }}
                 className="mt-4 text-blue-500 hover:text-blue-600 underline"
               >

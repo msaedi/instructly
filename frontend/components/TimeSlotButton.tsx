@@ -4,23 +4,23 @@ import { logger } from '@/lib/logger';
 
 /**
  * TimeSlotButton Component
- * 
+ *
  * Displays a single time slot button in the availability calendar.
  * Visual state changes based on availability, booking status, and time (past/future).
- * 
+ *
  * Visual States:
  * - Available (future): Green background, clickable
  * - Unavailable (future): Gray background, clickable
  * - Booked: Red background, not clickable
  * - Past + Available: Light green background, not clickable
  * - Past + Unavailable: Light gray background, not clickable
- * 
+ *
  * Features:
  * - Dynamic visual states based on slot status
  * - Accessibility support with ARIA labels
  * - Mobile-responsive design
  * - Structured logging for debugging
- * 
+ *
  * @component
  */
 interface TimeSlotButtonProps {
@@ -47,28 +47,26 @@ const TimeSlotButton: React.FC<TimeSlotButtonProps> = ({
   isPast,
   onClick,
   disabled = false,
-  isMobile = false
+  isMobile = false,
 }) => {
   /**
    * Determine the CSS classes based on button state
    */
   const getButtonClass = (): string => {
-    const baseClass = isMobile 
-      ? 'p-2 rounded text-sm' 
-      : 'w-full h-10 rounded transition-colors';
-    
+    const baseClass = isMobile ? 'p-2 rounded text-sm' : 'w-full h-10 rounded transition-colors';
+
     // Booked slots - highest priority
     if (isBooked) {
       return `${baseClass} bg-red-400 text-white cursor-not-allowed`;
     }
-    
+
     // Past slots - read-only
     if (isPast) {
       return isAvailable
         ? `${baseClass} bg-green-300 text-white cursor-not-allowed`
         : `${baseClass} bg-gray-100 text-gray-400 cursor-not-allowed`;
     }
-    
+
     // Future slots - interactive
     return isAvailable
       ? `${baseClass} bg-green-500 hover:bg-green-600 text-white cursor-pointer`
@@ -80,14 +78,10 @@ const TimeSlotButton: React.FC<TimeSlotButtonProps> = ({
    */
   const getTitle = (): string => {
     if (isBooked) {
-      return isMobile 
-        ? 'This slot has a booking' 
-        : 'This slot has a booking - cannot modify';
+      return isMobile ? 'This slot has a booking' : 'This slot has a booking - cannot modify';
     }
     if (isPast) {
-      return isMobile 
-        ? 'Past time slot' 
-        : 'Past time slot - view only';
+      return isMobile ? 'Past time slot' : 'Past time slot - view only';
     }
     return '';
   };
@@ -113,9 +107,9 @@ const TimeSlotButton: React.FC<TimeSlotButtonProps> = ({
       isPast,
       disabled,
       isMobile,
-      action: isAvailable ? 'make_unavailable' : 'make_available'
+      action: isAvailable ? 'make_unavailable' : 'make_available',
     });
-    
+
     onClick();
   };
 
@@ -126,9 +120,9 @@ const TimeSlotButton: React.FC<TimeSlotButtonProps> = ({
       isAvailable,
       isBooked,
       isPast,
-      disabled
+      disabled,
     },
-    isMobile
+    isMobile,
   });
 
   return (
@@ -138,9 +132,7 @@ const TimeSlotButton: React.FC<TimeSlotButtonProps> = ({
       className={getButtonClass()}
       title={getTitle()}
       aria-label={`Time slot ${formatHour(hour)} - ${
-        isBooked ? 'booked' : 
-        isPast ? 'past' : 
-        isAvailable ? 'available' : 'unavailable'
+        isBooked ? 'booked' : isPast ? 'past' : isAvailable ? 'available' : 'unavailable'
       }`}
     >
       {isMobile ? (

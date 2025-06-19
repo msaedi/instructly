@@ -1,5 +1,5 @@
 // frontend/app/dashboard/instructor/bookings/[id]/page.tsx
-"use client";
+'use client';
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -11,51 +11,51 @@ import { logger } from '@/lib/logger';
 
 /**
  * BookingDetailsPage Component
- * 
+ *
  * Displays full booking details for instructors.
  * Features:
  * - Complete booking information display
  * - Action buttons for booking management
  * - Responsive design
  * - Loading and error states
- * 
+ *
  * Note: Action buttons are placeholders pending A-Team design decisions
  */
 export default function BookingDetailsPage() {
   const params = useParams();
   const router = useRouter();
   const bookingId = params.id as string;
-  
+
   const [booking, setBooking] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   useEffect(() => {
     if (bookingId) {
       fetchBookingDetails();
     }
   }, [bookingId]);
-  
+
   /**
    * Fetch booking details from API
    */
   const fetchBookingDetails = async () => {
     try {
       logger.debug('Fetching booking details', { bookingId });
-      
+
       const response = await fetchWithAuth(`${API_ENDPOINTS.BOOKINGS}/${bookingId}`);
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch booking details');
       }
-      
+
       const data = await response.json();
-      logger.debug('Booking details loaded', { 
-        bookingId, 
+      logger.debug('Booking details loaded', {
+        bookingId,
         status: data.status,
-        studentId: data.student_id 
+        studentId: data.student_id,
       });
-      
+
       setBooking(data);
     } catch (err) {
       const errorMessage = 'Failed to load booking details';
@@ -65,7 +65,7 @@ export default function BookingDetailsPage() {
       setLoading(false);
     }
   };
-  
+
   /**
    * Format time string to 12-hour format
    */
@@ -76,7 +76,7 @@ export default function BookingDetailsPage() {
     const displayHour = hour % 12 || 12;
     return `${displayHour}:${minutes} ${ampm}`;
   };
-  
+
   /**
    * Get status badge styling
    */
@@ -94,7 +94,7 @@ export default function BookingDetailsPage() {
         return 'bg-gray-100 text-gray-800';
     }
   };
-  
+
   // Loading state
   if (loading) {
     return (
@@ -103,15 +103,15 @@ export default function BookingDetailsPage() {
       </div>
     );
   }
-  
+
   // Error state
   if (error || !booking) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="text-center">
           <p className="text-red-600 mb-4">{error || 'Booking not found'}</p>
-          <Link 
-            href="/dashboard/instructor/availability" 
+          <Link
+            href="/dashboard/instructor/availability"
             className="inline-flex items-center text-blue-600 hover:text-blue-800"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -121,18 +121,18 @@ export default function BookingDetailsPage() {
       </div>
     );
   }
-  
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       {/* Back Navigation */}
-      <Link 
-        href="/dashboard/instructor/availability" 
+      <Link
+        href="/dashboard/instructor/availability"
         className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-6"
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
         Back to Schedule
       </Link>
-      
+
       <div className="bg-white rounded-lg shadow">
         {/* Header */}
         <div className="border-b px-6 py-4">
@@ -143,7 +143,11 @@ export default function BookingDetailsPage() {
                 Created on {new Date(booking.created_at).toLocaleDateString()}
               </p>
             </div>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusBadgeClass(booking.status)}`}>
+            <span
+              className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusBadgeClass(
+                booking.status
+              )}`}
+            >
               {booking.status}
             </span>
           </div>
@@ -153,27 +157,19 @@ export default function BookingDetailsPage() {
         <div className="p-6 space-y-6">
           {/* Service Info */}
           <div className="bg-blue-50 rounded-lg p-4">
-            <h2 className="font-semibold text-lg text-blue-900 mb-3">
-              {booking.service_name}
-            </h2>
+            <h2 className="font-semibold text-lg text-blue-900 mb-3">{booking.service_name}</h2>
             <div className="grid md:grid-cols-3 gap-4 text-sm">
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-blue-600" />
-                <span className="text-blue-700">
-                  Duration: {booking.duration_minutes} minutes
-                </span>
+                <span className="text-blue-700">Duration: {booking.duration_minutes} minutes</span>
               </div>
               <div className="flex items-center gap-2">
                 <DollarSign className="w-4 h-4 text-blue-600" />
-                <span className="text-blue-700">
-                  Rate: ${booking.hourly_rate}/hour
-                </span>
+                <span className="text-blue-700">Rate: ${booking.hourly_rate}/hour</span>
               </div>
               <div className="flex items-center gap-2">
                 <DollarSign className="w-4 h-4 text-blue-600" />
-                <span className="text-blue-700 font-semibold">
-                  Total: ${booking.total_price}
-                </span>
+                <span className="text-blue-700 font-semibold">Total: ${booking.total_price}</span>
               </div>
             </div>
           </div>
@@ -190,7 +186,7 @@ export default function BookingDetailsPage() {
                   weekday: 'long',
                   month: 'long',
                   day: 'numeric',
-                  year: 'numeric'
+                  year: 'numeric',
                 })}
               </p>
             </div>
@@ -217,9 +213,11 @@ export default function BookingDetailsPage() {
                   {booking.location_type ? getLocationTypeIcon(booking.location_type) : '📍'}
                 </span>
                 <span className="font-medium">
-                  {booking.location_type === 'student_home' ? "Student's Home" :
-                   booking.location_type === 'instructor_location' ? "Instructor's Location" :
-                   'Neutral Location'}
+                  {booking.location_type === 'student_home'
+                    ? "Student's Home"
+                    : booking.location_type === 'instructor_location'
+                      ? "Instructor's Location"
+                      : 'Neutral Location'}
                 </span>
               </div>
               {booking.meeting_location && (
@@ -242,7 +240,7 @@ export default function BookingDetailsPage() {
                 {booking.student?.full_name || `Student #${booking.student_id}`}
               </p>
               {booking.student?.email && (
-                <a 
+                <a
                   href={`mailto:${booking.student.email}`}
                   className="text-blue-600 hover:text-blue-800 text-sm"
                 >
@@ -263,7 +261,7 @@ export default function BookingDetailsPage() {
                   </div>
                 </div>
               )}
-              
+
               {booking.instructor_note && (
                 <div>
                   <h3 className="font-medium text-gray-900 mb-2">Instructor notes</h3>
@@ -295,7 +293,7 @@ export default function BookingDetailsPage() {
           {/* Action Buttons - Only show for confirmed bookings */}
           {booking.status === 'CONFIRMED' && (
             <div className="border-t pt-6 space-y-3">
-              <button 
+              <button
                 className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 onClick={() => {
                   logger.info('Mark as complete clicked', { bookingId: booking.id });
@@ -305,7 +303,7 @@ export default function BookingDetailsPage() {
                 Mark as Complete
               </button>
               <div className="grid grid-cols-2 gap-3">
-                <button 
+                <button
                   className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                   onClick={() => {
                     logger.info('Reschedule clicked', { bookingId: booking.id });
@@ -314,7 +312,7 @@ export default function BookingDetailsPage() {
                 >
                   Reschedule
                 </button>
-                <button 
+                <button
                   className="px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors"
                   onClick={() => {
                     logger.info('Cancel booking clicked', { bookingId: booking.id });
@@ -335,7 +333,10 @@ export default function BookingDetailsPage() {
             <div className="border-t pt-6">
               <div className="bg-green-50 rounded-lg p-4 text-center">
                 <p className="text-green-800">
-                  ✓ This booking was completed on {booking.completed_at ? new Date(booking.completed_at).toLocaleDateString() : 'N/A'}
+                  ✓ This booking was completed on{' '}
+                  {booking.completed_at
+                    ? new Date(booking.completed_at).toLocaleDateString()
+                    : 'N/A'}
                 </p>
               </div>
             </div>
@@ -344,9 +345,7 @@ export default function BookingDetailsPage() {
           {booking.status === 'NO_SHOW' && (
             <div className="border-t pt-6">
               <div className="bg-yellow-50 rounded-lg p-4 text-center">
-                <p className="text-yellow-800">
-                  ⚠️ Student did not show up for this booking
-                </p>
+                <p className="text-yellow-800">⚠️ Student did not show up for this booking</p>
               </div>
             </div>
           )}

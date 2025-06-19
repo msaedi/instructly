@@ -5,17 +5,17 @@ import { logger } from '@/lib/logger';
 
 /**
  * API Client for InstaInstru Platform
- * 
+ *
  * This module provides centralized API communication with proper authentication,
  * error handling, and logging. All API calls should go through these functions
  * to ensure consistent behavior across the application.
- * 
+ *
  * Features:
  * - Automatic token management from localStorage
  * - Structured logging for all API calls
  * - Type-safe endpoint constants
  * - Specialized functions for complex operations
- * 
+ *
  * @module api
  */
 
@@ -24,14 +24,14 @@ export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000
 
 /**
  * Helper function for authenticated requests
- * 
+ *
  * Automatically adds the Authorization header with the JWT token from localStorage.
  * Logs all requests and responses for debugging.
- * 
+ *
  * @param endpoint - API endpoint path (e.g., '/auth/me')
  * @param options - Standard fetch RequestInit options
  * @returns Promise<Response> - The fetch response
- * 
+ *
  * @example
  * ```ts
  * const response = await fetchWithAuth('/instructors/profile', {
@@ -44,29 +44,29 @@ export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000
 export const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {
   const token = localStorage.getItem('access_token');
   const method = options.method || 'GET';
-  
+
   // Log the API call
   logger.info(`API ${method} ${endpoint}`, {
     hasToken: !!token,
     hasBody: !!options.body,
   });
-  
+
   // Start timing the request
   const timerLabel = `API ${method} ${endpoint}`;
   logger.time(timerLabel);
-  
+
   try {
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
       headers: {
         ...options.headers,
-        'Authorization': token ? `Bearer ${token}` : '',
+        Authorization: token ? `Bearer ${token}` : '',
       },
     });
-    
+
     // Log response details
     logger.timeEnd(timerLabel);
-    
+
     if (response.ok) {
       logger.debug(`API ${method} ${endpoint} succeeded`, {
         status: response.status,
@@ -79,7 +79,7 @@ export const fetchWithAuth = async (endpoint: string, options: RequestInit = {})
         statusText: response.statusText,
         endpoint,
       });
-      
+
       // Try to get error details from response body
       try {
         const errorBody = await response.clone().json();
@@ -93,7 +93,7 @@ export const fetchWithAuth = async (endpoint: string, options: RequestInit = {})
         logger.debug('Could not parse error response as JSON');
       }
     }
-    
+
     return response;
   } catch (error) {
     logger.timeEnd(timerLabel);
@@ -107,14 +107,14 @@ export const fetchWithAuth = async (endpoint: string, options: RequestInit = {})
 
 /**
  * Helper function for unauthenticated requests
- * 
+ *
  * Used for public endpoints that don't require authentication.
  * Still provides consistent logging and error handling.
- * 
+ *
  * @param endpoint - API endpoint path
  * @param options - Standard fetch RequestInit options
  * @returns Promise<Response> - The fetch response
- * 
+ *
  * @example
  * ```ts
  * const response = await fetchAPI('/auth/login', {
@@ -126,19 +126,19 @@ export const fetchWithAuth = async (endpoint: string, options: RequestInit = {})
  */
 export const fetchAPI = async (endpoint: string, options: RequestInit = {}) => {
   const method = options.method || 'GET';
-  
+
   logger.info(`API ${method} ${endpoint} (unauthenticated)`, {
     hasBody: !!options.body,
   });
-  
+
   const timerLabel = `API ${method} ${endpoint}`;
   logger.time(timerLabel);
-  
+
   try {
     const response = await fetch(`${API_URL}${endpoint}`, options);
-    
+
     logger.timeEnd(timerLabel);
-    
+
     if (response.ok) {
       logger.debug(`API ${method} ${endpoint} succeeded`, {
         status: response.status,
@@ -149,7 +149,7 @@ export const fetchAPI = async (endpoint: string, options: RequestInit = {}) => {
         statusText: response.statusText,
       });
     }
-    
+
     return response;
   } catch (error) {
     logger.timeEnd(timerLabel);
@@ -163,7 +163,7 @@ export const fetchAPI = async (endpoint: string, options: RequestInit = {}) => {
 
 /**
  * Common API endpoints as constants
- * 
+ *
  * Centralized endpoint definitions to avoid typos and make refactoring easier.
  * Organized by feature area for better maintainability.
  */
@@ -172,7 +172,7 @@ export const API_ENDPOINTS = {
   LOGIN: '/auth/login',
   REGISTER: '/auth/register',
   ME: '/auth/me',
-  
+
   // Instructor endpoints
   INSTRUCTORS: '/instructors',
   INSTRUCTOR_PROFILE: '/instructors/profile',
@@ -196,22 +196,22 @@ export const API_ENDPOINTS = {
 
   // Booking endpoints
   BOOKINGS: '/bookings',
-  
+
   // Add more endpoints as needed
 } as const;
 
 /**
  * Validate week schedule changes before saving
- * 
+ *
  * Sends the current and saved week schedules to the backend for validation.
  * Returns detailed information about what changes will be made and any conflicts.
- * 
+ *
  * @param currentWeek - The current week schedule in the UI
  * @param savedWeek - The saved week schedule from the backend
  * @param weekStart - The start date of the week
  * @returns Promise<WeekValidationResponse> - Validation results with conflicts and changes
  * @throws Error if validation fails
- * 
+ *
  * @example
  * ```ts
  * try {
@@ -232,7 +232,7 @@ export async function validateWeekChanges(
   logger.info('Validating week schedule changes', {
     weekStart: weekStart.toISOString().split('T')[0],
   });
-  
+
   try {
     const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_VALIDATE, {
       method: 'POST',
@@ -240,8 +240,8 @@ export async function validateWeekChanges(
       body: JSON.stringify({
         current_week: currentWeek,
         saved_week: savedWeek,
-        week_start: weekStart.toISOString().split('T')[0]
-      })
+        week_start: weekStart.toISOString().split('T')[0],
+      }),
     });
 
     if (!response.ok) {
@@ -258,7 +258,7 @@ export async function validateWeekChanges(
       hasConflicts: validationResult.has_conflicts,
       changesCount: validationResult.changes?.length || 0,
     });
-    
+
     return validationResult;
   } catch (error) {
     logger.error('Week validation error', error);
@@ -268,15 +268,15 @@ export async function validateWeekChanges(
 
 /**
  * Fetch booking preview information
- * 
+ *
  * Retrieves a lightweight preview of a booking, typically used for
  * modal previews in the calendar view. Contains essential information
  * without full booking details.
- * 
+ *
  * @param bookingId - The ID of the booking to preview
  * @returns Promise<BookingPreview> - Preview information for the booking
  * @throws Error if the fetch fails
- * 
+ *
  * @example
  * ```ts
  * try {
@@ -289,10 +289,10 @@ export async function validateWeekChanges(
  */
 export async function fetchBookingPreview(bookingId: number): Promise<BookingPreview> {
   logger.info('Fetching booking preview', { bookingId });
-  
+
   try {
     const response = await fetchWithAuth(`${API_ENDPOINTS.BOOKINGS}/${bookingId}/preview`);
-    
+
     if (!response.ok) {
       logger.error('Failed to fetch booking preview', undefined, {
         bookingId,
@@ -300,13 +300,13 @@ export async function fetchBookingPreview(bookingId: number): Promise<BookingPre
       });
       throw new Error('Failed to fetch booking preview');
     }
-    
+
     const preview = await response.json();
     logger.debug('Booking preview fetched successfully', {
       bookingId,
       hasStudentInfo: !!preview.student_name,
     });
-    
+
     return preview;
   } catch (error) {
     logger.error('Booking preview fetch error', error, { bookingId });
@@ -316,7 +316,7 @@ export async function fetchBookingPreview(bookingId: number): Promise<BookingPre
 
 /**
  * Type guard to check if an error is a network error
- * 
+ *
  * @param error - The error to check
  * @returns boolean indicating if it's a network error
  */
@@ -326,7 +326,7 @@ export function isNetworkError(error: unknown): boolean {
 
 /**
  * Type guard to check if a response indicates authentication failure
- * 
+ *
  * @param response - The fetch response to check
  * @returns boolean indicating if it's an auth failure (401)
  */
@@ -336,7 +336,7 @@ export function isAuthError(response: Response): boolean {
 
 /**
  * Helper to extract error message from API response
- * 
+ *
  * @param response - The fetch response
  * @returns Promise<string> - The error message
  */

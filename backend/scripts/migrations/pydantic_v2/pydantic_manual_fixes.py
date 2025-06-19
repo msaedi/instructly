@@ -141,4 +141,3 @@
 # Line 29: Money type needs V2 migration
 # The Money type needs to be updated for Pydantic V2
 # See the migration guide for custom types
-

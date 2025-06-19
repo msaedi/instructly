@@ -5,10 +5,10 @@ import { logger } from '@/lib/logger';
 
 /**
  * Modal Component with Enhanced Professional Design
- * 
+ *
  * A reusable modal component that provides consistent, beautiful styling across the application.
  * Now includes built-in padding, better shadows, and professional visual design.
- * 
+ *
  * @component
  */
 interface ModalProps {
@@ -47,7 +47,7 @@ const Modal: React.FC<ModalProps> = ({
   closeOnEscape = true,
   className = '',
   noPadding = false,
-  footer
+  footer,
 }) => {
   // Handle escape key press
   useEffect(() => {
@@ -89,7 +89,7 @@ const Modal: React.FC<ModalProps> = ({
     md: 'max-w-lg',
     lg: 'max-w-2xl',
     xl: 'max-w-4xl',
-    full: 'max-w-7xl'
+    full: 'max-w-7xl',
   };
 
   /**
@@ -105,18 +105,18 @@ const Modal: React.FC<ModalProps> = ({
   return (
     <>
       {/* Enhanced Backdrop with better blur and opacity */}
-      <div 
+      <div
         className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 transition-all duration-200"
         onClick={handleBackdropClick}
         aria-hidden="true"
       />
-      
+
       {/* Modal Container with better positioning and animation */}
       <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none p-4 sm:p-6">
-        <div 
+        <div
           className={`
-            pointer-events-auto w-full ${sizeClasses[size]} 
-            bg-white rounded-xl shadow-2xl 
+            pointer-events-auto w-full ${sizeClasses[size]}
+            bg-white rounded-xl shadow-2xl
             transform transition-all duration-200 ease-out
             ${className}
           `}
@@ -139,7 +139,7 @@ const Modal: React.FC<ModalProps> = ({
                     onClose();
                   }}
                   className={`
-                    ${title ? 'ml-auto' : ''} 
+                    ${title ? 'ml-auto' : ''}
                     p-2 hover:bg-gray-100 rounded-lg transition-colors duration-150
                     focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400
                   `}
@@ -150,16 +150,18 @@ const Modal: React.FC<ModalProps> = ({
               )}
             </div>
           )}
-          
+
           {/* Enhanced Content Area */}
-          <div className={`
-            overflow-y-auto 
+          <div
+            className={`
+            overflow-y-auto
             ${footer ? 'max-h-[calc(100vh-12rem)]' : 'max-h-[calc(100vh-8rem)]'}
             ${noPadding ? '' : 'p-6'}
-          `}>
+          `}
+          >
             {children}
           </div>
-          
+
           {/* Optional Footer */}
           {footer && (
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 rounded-b-xl">

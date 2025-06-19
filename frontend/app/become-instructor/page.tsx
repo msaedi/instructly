@@ -1,20 +1,20 @@
 // frontend/app/become-instructor/page.tsx
-"use client";
+'use client';
 
 /**
  * Become Instructor Page
- * 
+ *
  * This page handles the instructor onboarding process for students who want
  * to become instructors. It's a multi-step form that collects services offered,
  * pricing, experience, bio, and areas served. The page checks if the user is
  * already an instructor and prevents duplicate profiles.
- * 
+ *
  * @module become-instructor/page
  */
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { Check, ChevronLeft, ChevronRight, X, AlertCircle } from "lucide-react";
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Check, ChevronLeft, ChevronRight, X, AlertCircle } from 'lucide-react';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { BRAND } from '@/app/config/brand';
 import { logger } from '@/lib/logger';
@@ -47,23 +47,49 @@ interface NewServiceForm {
 
 // Predefined options
 const SKILLS_OPTIONS = [
-  "Yoga", "Meditation", "Piano", "Music Theory", "Spanish", "ESL",
-  "Personal Training", "Nutrition", "Photography", "Photo Editing",
-  "Programming", "Web Development", "Data Science", "Language Tutoring",
-  "Art", "Drawing", "Painting", "Dance", "Fitness", "Cooking"
+  'Yoga',
+  'Meditation',
+  'Piano',
+  'Music Theory',
+  'Spanish',
+  'ESL',
+  'Personal Training',
+  'Nutrition',
+  'Photography',
+  'Photo Editing',
+  'Programming',
+  'Web Development',
+  'Data Science',
+  'Language Tutoring',
+  'Art',
+  'Drawing',
+  'Painting',
+  'Dance',
+  'Fitness',
+  'Cooking',
 ];
 
 const NYC_AREAS = [
-  "Manhattan", "Brooklyn", "Queens", "Bronx", "Staten Island",
-  "Upper East Side", "Upper West Side", "Midtown", "Downtown",
-  "Williamsburg", "Astoria", "Long Island City", "Park Slope"
+  'Manhattan',
+  'Brooklyn',
+  'Queens',
+  'Bronx',
+  'Staten Island',
+  'Upper East Side',
+  'Upper West Side',
+  'Midtown',
+  'Downtown',
+  'Williamsburg',
+  'Astoria',
+  'Long Island City',
+  'Park Slope',
 ];
 
 /**
  * Become Instructor Page Component
- * 
+ *
  * Multi-step form for instructor onboarding
- * 
+ *
  * @component
  * @returns {JSX.Element} The become instructor page
  */
@@ -73,13 +99,13 @@ export default function BecomeInstructorPage() {
   const [formData, setFormData] = useState<InstructorOnboardingData>({
     services: [],
     yearsExperience: 0,
-    bio: "",
+    bio: '',
     areasOfService: [],
   });
   const [newService, setNewService] = useState<NewServiceForm>({
-    skill: "",
+    skill: '',
     hourly_rate: 50,
-    description: ""
+    description: '',
   });
   const [userRole, setUserRole] = useState<string | null>(null);
   const [requestStatus, setRequestStatus] = useState<RequestStatus>(RequestStatus.IDLE);
@@ -87,9 +113,9 @@ export default function BecomeInstructorPage() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
 
-  logger.debug('BecomeInstructorPage initialized', { 
+  logger.debug('BecomeInstructorPage initialized', {
     currentStep,
-    servicesCount: formData.services.length 
+    servicesCount: formData.services.length,
   });
 
   /**
@@ -98,11 +124,11 @@ export default function BecomeInstructorPage() {
   useEffect(() => {
     const checkAuth = async () => {
       logger.info('Checking user authentication for instructor onboarding');
-      
-      const token = localStorage.getItem("access_token");
+
+      const token = localStorage.getItem('access_token');
       if (!token) {
         logger.warn('No access token found, redirecting to login');
-        router.push("/login?redirect=/become-instructor");
+        router.push('/login?redirect=/become-instructor');
         return;
       }
 
@@ -110,26 +136,26 @@ export default function BecomeInstructorPage() {
         logger.time('authCheck');
         const response = await fetchWithAuth(API_ENDPOINTS.ME);
         logger.timeEnd('authCheck');
-        
+
         if (!response.ok) {
-          logger.error('Failed to fetch user data', null, { 
-            status: response.status 
+          logger.error('Failed to fetch user data', null, {
+            status: response.status,
           });
-          throw new Error("Failed to fetch user data");
+          throw new Error('Failed to fetch user data');
         }
-        
+
         const userData: UserData = await response.json();
         logger.info('User data fetched for onboarding check', {
           userId: userData.id,
           role: userData.role,
-          isInstructor: isInstructorUser(userData)
+          isInstructor: isInstructorUser(userData),
         });
-        
+
         setUserRole(userData.role);
         setAuthCheckStatus(RequestStatus.SUCCESS);
       } catch (error) {
         logger.error('Error checking user authentication', error);
-        router.push("/login?redirect=/become-instructor");
+        router.push('/login?redirect=/become-instructor');
       }
     };
 
@@ -142,16 +168,16 @@ export default function BecomeInstructorPage() {
   const addService = () => {
     logger.debug('Attempting to add new service', newService);
     setErrors([]);
-    
+
     // Validate service
     if (!newService.skill || !newService.hourly_rate) {
-      const error = "Please select a skill and set an hourly rate";
+      const error = 'Please select a skill and set an hourly rate';
       logger.warn('Service validation failed', { error, newService });
       setErrors([error]);
       return;
     }
-    
-    if (formData.services.some(s => s.skill === newService.skill)) {
+
+    if (formData.services.some((s) => s.skill === newService.skill)) {
       const error = "You've already added this service";
       logger.warn('Duplicate service attempt', { skill: newService.skill });
       setErrors([error]);
@@ -159,7 +185,7 @@ export default function BecomeInstructorPage() {
     }
 
     if (newService.hourly_rate < 0 || newService.hourly_rate > 1000) {
-      const error = "Hourly rate must be between $0 and $1000";
+      const error = 'Hourly rate must be between $0 and $1000';
       logger.warn('Invalid hourly rate', { rate: newService.hourly_rate });
       setErrors([error]);
       return;
@@ -170,73 +196,73 @@ export default function BecomeInstructorPage() {
       id: Date.now(), // Temporary ID for UI
       skill: newService.skill,
       hourly_rate: newService.hourly_rate,
-      description: newService.description || null
+      description: newService.description || null,
     };
 
     logger.info('Service added successfully', {
       skill: serviceToAdd.skill,
-      rate: serviceToAdd.hourly_rate
+      rate: serviceToAdd.hourly_rate,
     });
 
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      services: [...prev.services, serviceToAdd]
+      services: [...prev.services, serviceToAdd],
     }));
-    
+
     // Reset form
     setNewService({
-      skill: "",
+      skill: '',
       hourly_rate: 50,
-      description: ""
+      description: '',
     });
   };
 
   /**
    * Remove a service from the list
-   * 
+   *
    * @param {number} index - Index of service to remove
    */
   const removeService = (index: number) => {
     const removedService = formData.services[index];
     logger.info('Removing service', {
       index,
-      skill: removedService?.skill
+      skill: removedService?.skill,
     });
-    
-    setFormData(prev => ({
+
+    setFormData((prev) => ({
       ...prev,
-      services: prev.services.filter((_, i) => i !== index)
+      services: prev.services.filter((_, i) => i !== index),
     }));
   };
 
   /**
    * Toggle area selection
-   * 
+   *
    * @param {string} area - Area to toggle
    */
   const toggleArea = (area: string) => {
     const isSelected = formData.areasOfService.includes(area);
     logger.debug('Toggling area selection', { area, isSelected });
-    
-    setFormData(prev => ({
+
+    setFormData((prev) => ({
       ...prev,
       areasOfService: isSelected
-        ? prev.areasOfService.filter(a => a !== area)
-        : [...prev.areasOfService, area]
+        ? prev.areasOfService.filter((a) => a !== area)
+        : [...prev.areasOfService, area],
     }));
   };
 
   /**
    * Update form data field
-   * 
+   *
    * @param {keyof InstructorOnboardingData} field - Field to update
    * @param {string | number} value - New value
    */
   const handleInputChange = (field: keyof InstructorOnboardingData, value: string | number) => {
     logger.debug('Form field updated', { field, value });
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
@@ -246,35 +272,35 @@ export default function BecomeInstructorPage() {
   const handleNext = async () => {
     logger.info('Next button clicked', { currentStep });
     setErrors([]);
-    
+
     if (currentStep < 2) {
       // Validate step 1
       if (formData.services.length === 0) {
-        const error = "Please add at least one service with pricing";
+        const error = 'Please add at least one service with pricing';
         logger.warn('Step 1 validation failed', { error });
         setErrors([error]);
         return;
       }
-      
+
       logger.info('Moving to step 2');
-      setCurrentStep(prev => prev + 1);
+      setCurrentStep((prev) => prev + 1);
     } else {
       // Validate step 2
       const validationErrors = [];
-      
+
       if (!formData.bio || formData.bio.trim().length < 10) {
-        validationErrors.push("Please provide a bio (at least 10 characters)");
+        validationErrors.push('Please provide a bio (at least 10 characters)');
       }
       if (formData.bio.trim().length > 1000) {
-        validationErrors.push("Bio must be less than 1000 characters");
+        validationErrors.push('Bio must be less than 1000 characters');
       }
       if (formData.areasOfService.length === 0) {
-        validationErrors.push("Please select at least one area of service");
+        validationErrors.push('Please select at least one area of service');
       }
       if (formData.yearsExperience < 0 || formData.yearsExperience > 50) {
-        validationErrors.push("Years of experience must be between 0 and 50");
+        validationErrors.push('Years of experience must be between 0 and 50');
       }
-      
+
       if (validationErrors.length > 0) {
         logger.warn('Step 2 validation failed', { errors: validationErrors });
         setErrors(validationErrors);
@@ -285,32 +311,32 @@ export default function BecomeInstructorPage() {
       logger.info('Submitting instructor profile', {
         servicesCount: formData.services.length,
         areasCount: formData.areasOfService.length,
-        bioLength: formData.bio.length
+        bioLength: formData.bio.length,
       });
 
       setRequestStatus(RequestStatus.LOADING);
 
       try {
         logger.time('profileCreation');
-        
+
         // Prepare data for API
         const profileData = {
           services: formData.services.map(({ skill, hourly_rate, description }) => ({
             skill,
             hourly_rate,
-            description: description || null
+            description: description || null,
           })),
           years_experience: formData.yearsExperience,
           bio: formData.bio.trim(),
-          areas_of_service: formData.areasOfService
+          areas_of_service: formData.areasOfService,
         };
-        
+
         const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
-          method: "POST",
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
           },
-          body: JSON.stringify(profileData)
+          body: JSON.stringify(profileData),
         });
 
         logger.timeEnd('profileCreation');
@@ -319,21 +345,20 @@ export default function BecomeInstructorPage() {
           const error = await response.json();
           logger.error('Failed to create instructor profile', null, {
             status: response.status,
-            error: error.detail
+            error: error.detail,
           });
-          throw new Error(error.detail || "Failed to create instructor profile");
+          throw new Error(error.detail || 'Failed to create instructor profile');
         }
 
         logger.info('Instructor profile created successfully');
         setRequestStatus(RequestStatus.SUCCESS);
         setShowSuccess(true);
-        
+
         // Redirect after showing success
         setTimeout(() => {
           logger.info('Redirecting to instructor dashboard');
-          router.push("/dashboard/instructor");
+          router.push('/dashboard/instructor');
         }, 2000);
-        
       } catch (error) {
         const errorMessage = getErrorMessage(error);
         logger.error('Error creating instructor profile', error, { errorMessage });
@@ -348,7 +373,7 @@ export default function BecomeInstructorPage() {
    */
   const handlePrevious = () => {
     logger.info('Previous button clicked', { currentStep });
-    setCurrentStep(prev => prev - 1);
+    setCurrentStep((prev) => prev - 1);
     setErrors([]);
   };
 
@@ -360,7 +385,7 @@ export default function BecomeInstructorPage() {
     logger.debug('Rendering auth check loading state');
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div 
+        <div
           className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"
           role="status"
           aria-label="Checking authentication"
@@ -381,7 +406,7 @@ export default function BecomeInstructorPage() {
           <button
             onClick={() => {
               logger.info('Navigating to instructor dashboard from already-instructor page');
-              router.push("/dashboard/instructor");
+              router.push('/dashboard/instructor');
             }}
             className="bg-indigo-500 text-white px-6 py-2 rounded-lg hover:bg-indigo-600 transition-colors"
           >
@@ -407,7 +432,7 @@ export default function BecomeInstructorPage() {
           <p className="text-gray-600 dark:text-gray-400 mb-4">
             You're now an instructor! Redirecting to your dashboard...
           </p>
-          <div 
+          <div
             className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"
             role="status"
             aria-label="Loading"
@@ -421,18 +446,22 @@ export default function BecomeInstructorPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <h1 className="text-3xl font-bold text-center mb-8 dark:text-white">
-        Become an Instructor
-      </h1>
-      
+      <h1 className="text-3xl font-bold text-center mb-8 dark:text-white">Become an Instructor</h1>
+
       {/* Progress Bar */}
-      <div className="mb-8" role="progressbar" aria-valuenow={currentStep} aria-valuemin={1} aria-valuemax={2}>
+      <div
+        className="mb-8"
+        role="progressbar"
+        aria-valuenow={currentStep}
+        aria-valuemin={1}
+        aria-valuemax={2}
+      >
         <div className="flex justify-between mb-2">
           <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
             Step {currentStep} of 2
           </span>
           <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-            {currentStep === 1 ? "Services & Experience" : "Profile Details"}
+            {currentStep === 1 ? 'Services & Experience' : 'Profile Details'}
           </span>
         </div>
         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
@@ -445,7 +474,10 @@ export default function BecomeInstructorPage() {
 
       {/* Error Display */}
       {errors.length > 0 && (
-        <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg" role="alert">
+        <div
+          className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg"
+          role="alert"
+        >
           <div className="flex">
             <AlertCircle className="h-5 w-5 text-red-400 mr-2 flex-shrink-0" aria-hidden="true" />
             <div>
@@ -469,33 +501,41 @@ export default function BecomeInstructorPage() {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Services & Pricing
             </label>
-            
+
             {/* Add Service Form */}
             <div className="border rounded-lg p-4 mb-4 bg-gray-50 dark:bg-gray-800 dark:border-gray-700">
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="skill" className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                    <label
+                      htmlFor="skill"
+                      className="block text-xs text-gray-600 dark:text-gray-400 mb-1"
+                    >
                       Select Skill
                     </label>
                     <select
                       id="skill"
                       value={newService.skill}
-                      onChange={(e) => setNewService({...newService, skill: e.target.value})}
+                      onChange={(e) => setNewService({ ...newService, skill: e.target.value })}
                       className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                       disabled={isLoading}
                     >
                       <option value="">Choose a skill...</option>
-                      {SKILLS_OPTIONS.filter(skill => 
-                        !formData.services.some(s => s.skill === skill)
-                      ).map(skill => (
-                        <option key={skill} value={skill}>{skill}</option>
+                      {SKILLS_OPTIONS.filter(
+                        (skill) => !formData.services.some((s) => s.skill === skill)
+                      ).map((skill) => (
+                        <option key={skill} value={skill}>
+                          {skill}
+                        </option>
                       ))}
                     </select>
                   </div>
-                  
+
                   <div>
-                    <label htmlFor="hourly_rate" className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                    <label
+                      htmlFor="hourly_rate"
+                      className="block text-xs text-gray-600 dark:text-gray-400 mb-1"
+                    >
                       Hourly Rate ($)
                     </label>
                     <input
@@ -504,15 +544,20 @@ export default function BecomeInstructorPage() {
                       min="0"
                       max="1000"
                       value={newService.hourly_rate}
-                      onChange={(e) => setNewService({...newService, hourly_rate: parseInt(e.target.value) || 0})}
+                      onChange={(e) =>
+                        setNewService({ ...newService, hourly_rate: parseInt(e.target.value) || 0 })
+                      }
                       className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                       disabled={isLoading}
                     />
                   </div>
                 </div>
-                
+
                 <div>
-                  <label htmlFor="description" className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                  <label
+                    htmlFor="description"
+                    className="block text-xs text-gray-600 dark:text-gray-400 mb-1"
+                  >
                     Description (optional)
                   </label>
                   <input
@@ -520,12 +565,12 @@ export default function BecomeInstructorPage() {
                     type="text"
                     placeholder="Brief description of this service..."
                     value={newService.description}
-                    onChange={(e) => setNewService({...newService, description: e.target.value})}
+                    onChange={(e) => setNewService({ ...newService, description: e.target.value })}
                     className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                     disabled={isLoading}
                   />
                 </div>
-                
+
                 <button
                   type="button"
                   onClick={addService}
@@ -544,8 +589,8 @@ export default function BecomeInstructorPage() {
                   Your Services:
                 </h3>
                 {formData.services.map((service, index) => (
-                  <div 
-                    key={index} 
+                  <div
+                    key={index}
                     className="flex justify-between items-center p-3 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded-lg"
                   >
                     <div>
@@ -575,7 +620,10 @@ export default function BecomeInstructorPage() {
           </div>
 
           <div>
-            <label htmlFor="yearsExperience" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label
+              htmlFor="yearsExperience"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+            >
               Years of Experience
             </label>
             <input
@@ -584,7 +632,7 @@ export default function BecomeInstructorPage() {
               min="0"
               max="50"
               value={formData.yearsExperience}
-              onChange={(e) => handleInputChange("yearsExperience", parseInt(e.target.value) || 0)}
+              onChange={(e) => handleInputChange('yearsExperience', parseInt(e.target.value) || 0)}
               className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               disabled={isLoading}
             />
@@ -596,13 +644,16 @@ export default function BecomeInstructorPage() {
       {currentStep === 2 && (
         <div className="space-y-6">
           <div>
-            <label htmlFor="bio" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label
+              htmlFor="bio"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+            >
               Bio
             </label>
             <textarea
               id="bio"
               value={formData.bio}
-              onChange={(e) => handleInputChange("bio", e.target.value)}
+              onChange={(e) => handleInputChange('bio', e.target.value)}
               rows={4}
               className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
               placeholder="Tell us about your teaching experience and approach..."
@@ -657,26 +708,37 @@ export default function BecomeInstructorPage() {
           onClick={handleNext}
           disabled={isLoading}
           className={`flex items-center gap-2 px-6 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-            currentStep === 1 ? "ml-auto" : ""
+            currentStep === 1 ? 'ml-auto' : ''
           }`}
         >
           {isLoading ? (
             <>
-              <svg 
-                className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" 
-                xmlns="http://www.w3.org/2000/svg" 
-                fill="none" 
+              <svg
+                className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
                 viewBox="0 0 24 24"
                 aria-hidden="true"
               >
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                ></circle>
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
               </svg>
               Submitting...
             </>
           ) : (
             <>
-              {currentStep === 2 ? "Submit" : "Next"}
+              {currentStep === 2 ? 'Submit' : 'Next'}
               {currentStep === 1 && <ChevronRight className="h-5 w-5" />}
             </>
           )}

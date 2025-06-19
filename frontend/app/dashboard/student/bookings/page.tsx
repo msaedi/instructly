@@ -1,11 +1,11 @@
 // frontend/app/dashboard/student/bookings/page.tsx
-"use client";
+'use client';
 
 import { BRAND } from '@/app/config/brand';
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { bookingsApi } from '@/lib/api/bookings';
 import { Booking } from '@/types/booking';
@@ -16,10 +16,10 @@ import { logger } from '@/lib/logger';
 
 /**
  * MyBookingsPage Component
- * 
+ *
  * Main booking management interface for students. Displays all bookings
  * organized into tabs (upcoming, past, cancelled) with actions for each.
- * 
+ *
  * Features:
  * - Tabbed interface for booking organization
  * - Real-time booking counts per tab
@@ -28,7 +28,7 @@ import { logger } from '@/lib/logger';
  * - Automatic sorting by date and status
  * - Loading and error states
  * - Empty state with CTA to browse instructors
- * 
+ *
  * @component
  * @example
  * ```tsx
@@ -60,20 +60,20 @@ export default function MyBookingsPage() {
     try {
       setIsLoading(true);
       setError(null);
-      
+
       logger.info('Fetching student bookings');
-      
+
       // Fetch all bookings (we'll filter them client-side for tabs)
       const response = await bookingsApi.getMyBookings({
-        per_page: 50 // Get more bookings to ensure we have past ones too
+        per_page: 50, // Get more bookings to ensure we have past ones too
       });
-      
+
       const bookingCount = response.bookings?.length || 0;
-      logger.info('Bookings fetched successfully', { 
+      logger.info('Bookings fetched successfully', {
         count: bookingCount,
-        hasBookings: bookingCount > 0
+        hasBookings: bookingCount > 0,
       });
-      
+
       setBookings(response.bookings || []);
     } catch (err) {
       const errorMessage = 'Failed to load bookings. Please try again.';
@@ -93,35 +93,36 @@ export default function MyBookingsPage() {
       logger.warn('Attempted to cancel booking without selection');
       return;
     }
-    
+
     setCancelError(null); // Clear any previous errors
-    
-    logger.info('Cancelling booking', { 
+
+    logger.info('Cancelling booking', {
       bookingId: selectedBooking.id,
-      hasReason: !!reason 
+      hasReason: !!reason,
     });
-  
+
     try {
       await bookingsApi.cancelBooking(selectedBooking.id, {
-        cancellation_reason: reason
+        cancellation_reason: reason,
       });
-      
-      logger.info('Booking cancelled successfully', { 
-        bookingId: selectedBooking.id 
+
+      logger.info('Booking cancelled successfully', {
+        bookingId: selectedBooking.id,
       });
-  
+
       // Refresh bookings after successful cancellation
       await fetchBookings();
       setShowCancelModal(false);
       setSelectedBooking(null);
     } catch (err) {
       // Set error message to display in modal
-      const errorMessage = err instanceof Error ? err.message : 'Failed to cancel booking. Please try again.';
-      logger.error('Failed to cancel booking', err, { 
-        bookingId: selectedBooking.id 
+      const errorMessage =
+        err instanceof Error ? err.message : 'Failed to cancel booking. Please try again.';
+      logger.error('Failed to cancel booking', err, {
+        bookingId: selectedBooking.id,
       });
       setCancelError(errorMessage);
-      
+
       // Don't close the modal on error so user can see the message and retry
     }
   };
@@ -131,9 +132,9 @@ export default function MyBookingsPage() {
    * @param booking - The booking to cancel
    */
   const openCancelModal = (booking: Booking) => {
-    logger.debug('Opening cancel modal', { 
+    logger.debug('Opening cancel modal', {
       bookingId: booking.id,
-      status: booking.status 
+      status: booking.status,
     });
     setSelectedBooking(booking);
     setShowCancelModal(true);
@@ -145,15 +146,18 @@ export default function MyBookingsPage() {
    * - Past: Past bookings (CONFIRMED or COMPLETED)
    * - Cancelled: Bookings with CANCELLED status
    */
-  const filteredBookings = bookings.filter(booking => {
+  const filteredBookings = bookings.filter((booking) => {
     const bookingDateTime = new Date(`${booking.booking_date}T${booking.end_time}`);
     const now = new Date();
-    
+
     switch (activeTab) {
       case 'upcoming':
         return bookingDateTime >= now && booking.status === 'CONFIRMED';
       case 'past':
-        return (bookingDateTime < now && booking.status === 'CONFIRMED') || booking.status === 'COMPLETED';
+        return (
+          (bookingDateTime < now && booking.status === 'CONFIRMED') ||
+          booking.status === 'COMPLETED'
+        );
       case 'cancelled':
         return booking.status === 'CANCELLED';
       default:
@@ -166,10 +170,10 @@ export default function MyBookingsPage() {
    * @param tab - The tab to count bookings for
    */
   const getTabCount = (tab: 'upcoming' | 'past' | 'cancelled'): number => {
-    return bookings.filter(b => {
+    return bookings.filter((b) => {
       const bookingDateTime = new Date(`${b.booking_date}T${b.end_time}`);
       const now = new Date();
-      
+
       switch (tab) {
         case 'upcoming':
           return bookingDateTime >= now && b.status === 'CONFIRMED';
@@ -188,10 +192,10 @@ export default function MyBookingsPage() {
    * @param tab - The tab to switch to
    */
   const handleTabChange = (tab: 'upcoming' | 'past' | 'cancelled') => {
-    logger.debug('Switching tab', { 
-      from: activeTab, 
+    logger.debug('Switching tab', {
+      from: activeTab,
       to: tab,
-      count: getTabCount(tab)
+      count: getTabCount(tab),
     });
     setActiveTab(tab);
   };
@@ -202,8 +206,8 @@ export default function MyBookingsPage() {
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center">
-            <Link 
-              href="/dashboard/student" 
+            <Link
+              href="/dashboard/student"
               className="mr-4"
               onClick={() => logger.debug('Navigating back to student dashboard')}
             >
@@ -231,9 +235,7 @@ export default function MyBookingsPage() {
               aria-controls="upcoming-panel"
             >
               Upcoming
-              <span className="ml-2 text-xs">
-                ({getTabCount('upcoming')})
-              </span>
+              <span className="ml-2 text-xs">({getTabCount('upcoming')})</span>
             </button>
             <button
               onClick={() => handleTabChange('past')}
@@ -247,9 +249,7 @@ export default function MyBookingsPage() {
               aria-controls="past-panel"
             >
               Past
-              <span className="ml-2 text-xs">
-                ({getTabCount('past')})
-              </span>
+              <span className="ml-2 text-xs">({getTabCount('past')})</span>
             </button>
             <button
               onClick={() => handleTabChange('cancelled')}
@@ -263,9 +263,7 @@ export default function MyBookingsPage() {
               aria-controls="cancelled-panel"
             >
               Cancelled
-              <span className="ml-2 text-xs">
-                ({getTabCount('cancelled')})
-              </span>
+              <span className="ml-2 text-xs">({getTabCount('cancelled')})</span>
             </button>
           </nav>
         </div>
@@ -317,13 +315,13 @@ export default function MyBookingsPage() {
                   onCancel={() => openCancelModal(booking)}
                   onComplete={() => {
                     // TODO: Implement complete functionality
-                    logger.info('Complete booking clicked', { 
-                      bookingId: booking.id 
+                    logger.info('Complete booking clicked', {
+                      bookingId: booking.id,
                     });
                   }}
                   onViewDetails={() => {
-                    logger.debug('Opening booking details modal', { 
-                      bookingId: booking.id 
+                    logger.debug('Opening booking details modal', {
+                      bookingId: booking.id,
                     });
                     setSelectedBooking(booking);
                     setShowDetailsModal(true);
@@ -348,7 +346,7 @@ export default function MyBookingsPage() {
         }}
         onConfirm={handleCancelBooking}
       />
-      
+
       {/* Booking Details Modal */}
       <BookingDetailsModal
         booking={selectedBooking}

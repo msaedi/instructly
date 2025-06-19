@@ -2,10 +2,10 @@
 
 /**
  * PresetButtons Component
- * 
+ *
  * Displays preset schedule buttons for quick availability setup.
  * Allows instructors to apply common schedule patterns with one click.
- * 
+ *
  * @component
  * @module components/availability
  */
@@ -31,18 +31,18 @@ interface PresetButtonsProps {
  * Icon mapping for preset types
  */
 const PRESET_ICONS: Record<string, React.ReactNode> = {
-  'weekday_9_to_5': <Clock className="w-4 h-4" />,
-  'mornings_only': <Sun className="w-4 h-4" />,
-  'evenings_only': <Moon className="w-4 h-4" />,
-  'weekends_only': <Calendar className="w-4 h-4" />
+  weekday_9_to_5: <Clock className="w-4 h-4" />,
+  mornings_only: <Sun className="w-4 h-4" />,
+  evenings_only: <Moon className="w-4 h-4" />,
+  weekends_only: <Calendar className="w-4 h-4" />,
 };
 
 /**
  * Preset schedule buttons for quick availability setup
- * 
+ *
  * @param {PresetButtonsProps} props - Component props
  * @returns Preset buttons component
- * 
+ *
  * @example
  * ```tsx
  * <PresetButtons
@@ -55,10 +55,10 @@ const PRESET_ICONS: Record<string, React.ReactNode> = {
 export default function PresetButtons({
   onPresetSelect,
   onClearWeek,
-  disabled = false
+  disabled = false,
 }: PresetButtonsProps): React.ReactElement {
   const presetKeys = getPresetKeys();
-  
+
   /**
    * Handle preset button click
    */
@@ -66,7 +66,7 @@ export default function PresetButtons({
     logger.info('Preset selected', { preset: presetKey });
     onPresetSelect(presetKey);
   };
-  
+
   /**
    * Handle clear week click
    */
@@ -74,7 +74,7 @@ export default function PresetButtons({
     logger.info('Clear week requested');
     onClearWeek();
   };
-  
+
   return (
     <div className="mb-8">
       <h3 className="text-lg font-semibold mb-4">Quick Presets</h3>
@@ -84,9 +84,9 @@ export default function PresetButtons({
             key={presetKey}
             onClick={() => handlePresetClick(presetKey)}
             disabled={disabled}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg 
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg
                      hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed
-                     transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 
+                     transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2
                      focus:ring-indigo-500"
             aria-label={`Apply ${getPresetDisplayName(presetKey)} schedule`}
           >
@@ -94,15 +94,15 @@ export default function PresetButtons({
             <span>{getPresetDisplayName(presetKey)}</span>
           </button>
         ))}
-        
+
         <div className="border-l border-gray-300 mx-2" aria-hidden="true" />
-        
+
         <button
           onClick={handleClearClick}
           disabled={disabled}
-          className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg 
+          className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg
                    hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed
-                   transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 
+                   transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2
                    focus:ring-red-500"
           aria-label="Clear all availability for this week"
         >

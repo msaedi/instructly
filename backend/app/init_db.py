@@ -1,5 +1,4 @@
-from app.database import engine, Base
-from app.models import User, InstructorProfile, Booking
+from app.database import Base, engine
 
 # Create all tables
 print("Creating database tables...")

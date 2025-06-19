@@ -5,10 +5,10 @@ import { logger } from '@/lib/logger';
 
 /**
  * BookingCard Component
- * 
+ *
  * Displays a booking card with key information and action buttons.
  * Used in student/instructor booking lists and dashboards.
- * 
+ *
  * Features:
  * - Status badge with color coding
  * - Formatted date and time display
@@ -16,7 +16,7 @@ import { logger } from '@/lib/logger';
  * - Notes and cancellation reason display
  * - Responsive design
  * - Hover effects
- * 
+ *
  * @component
  * @example
  * ```tsx
@@ -49,7 +49,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({
   onCancel,
   onComplete,
   onViewDetails,
-  className = ''
+  className = '',
 }) => {
   /**
    * Format date string for display
@@ -61,7 +61,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({
       return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
         weekday: 'short',
         month: 'long',
-        day: 'numeric'
+        day: 'numeric',
       });
     } catch (error) {
       logger.error('Failed to format date', error, { dateStr });
@@ -96,13 +96,19 @@ export const BookingCard: React.FC<BookingCardProps> = ({
       CONFIRMED: { bg: 'bg-green-100', text: 'text-green-800', label: 'Confirmed' },
       COMPLETED: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Completed' },
       CANCELLED: { bg: 'bg-red-100', text: 'text-red-800', label: 'Cancelled' },
-      NO_SHOW: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'No Show' }
+      NO_SHOW: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'No Show' },
     };
 
-    const config = statusConfig[status] || { bg: 'bg-gray-100', text: 'text-gray-800', label: status };
-    
+    const config = statusConfig[status] || {
+      bg: 'bg-gray-100',
+      text: 'text-gray-800',
+      label: status,
+    };
+
     return (
-      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${config.bg} ${config.text}`}>
+      <span
+        className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${config.bg} ${config.text}`}
+      >
         {config.label}
       </span>
     );
@@ -113,25 +119,25 @@ export const BookingCard: React.FC<BookingCardProps> = ({
   const canCancel = booking.status === 'CONFIRMED' && !isPastBooking;
   const canComplete = booking.status === 'CONFIRMED' && isPastBooking;
 
-  logger.debug('Rendering booking card', { 
-    bookingId: booking.id, 
+  logger.debug('Rendering booking card', {
+    bookingId: booking.id,
     status: booking.status,
     variant,
     canCancel,
-    canComplete 
+    canComplete,
   });
 
   return (
-    <div className={`
+    <div
+      className={`
       border rounded-lg p-4 bg-white hover:shadow-md transition-shadow duration-200
       ${className}
-    `}>
+    `}
+    >
       {/* Header with service name and status */}
       <div className="flex justify-between items-start mb-3">
         <div>
-          <h3 className="font-semibold text-lg text-gray-900">
-            {booking.service_name}
-          </h3>
+          <h3 className="font-semibold text-lg text-gray-900">{booking.service_name}</h3>
           <p className="text-sm text-gray-600">
             with {booking.instructor?.full_name || 'Instructor'}
           </p>
@@ -144,26 +150,38 @@ export const BookingCard: React.FC<BookingCardProps> = ({
         {/* Date */}
         <div className="flex items-center text-gray-600">
           <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+            />
           </svg>
           {formatDate(booking.booking_date)}
         </div>
-        
+
         {/* Time */}
         <div className="flex items-center text-gray-600">
           <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
           {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
         </div>
-        
+
         {/* Price */}
         <div className="flex items-center text-gray-600">
           <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
           </svg>
           ${booking.total_price}
         </div>

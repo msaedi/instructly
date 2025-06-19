@@ -1,8 +1,9 @@
 # backend/scripts/debug_availability_api.py
-import sys
 import os
-import requests
+import sys
 from datetime import date
+
+import requests
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -23,11 +24,15 @@ from app.database import get_db
 from app.models.availability import InstructorAvailability
 
 db = next(get_db())
-avail = db.query(InstructorAvailability).filter(
-    InstructorAvailability.instructor_id == 208,
-    InstructorAvailability.date >= date(2025, 6, 16),
-    InstructorAvailability.date <= date(2025, 6, 22)
-).all()
+avail = (
+    db.query(InstructorAvailability)
+    .filter(
+        InstructorAvailability.instructor_id == 208,
+        InstructorAvailability.date >= date(2025, 6, 16),
+        InstructorAvailability.date <= date(2025, 6, 22),
+    )
+    .all()
+)
 
 print(f"\nDirect DB query found {len(avail)} entries")
 for a in avail:

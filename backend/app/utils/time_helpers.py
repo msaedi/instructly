@@ -1,8 +1,10 @@
 from datetime import datetime, time
 
+
 def time_to_string(t: time) -> str:
     """Always return HH:MM:SS format"""
     return t.strftime("%H:%M:%S")
+
 
 def string_to_time(time_str: str) -> time:
     """Parse time string flexibly"""

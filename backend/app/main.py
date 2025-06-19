@@ -1,24 +1,19 @@
 # backend/app/main.py
 import logging
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from .middleware.timing import TimingMiddleware
-from .routes import auth, instructors, availability_windows, password_reset, bookings, metrics
+
+from .core.constants import ALLOWED_ORIGINS, API_DESCRIPTION, API_TITLE, API_VERSION, BRAND_NAME
 from .middleware.monitoring import MonitoringMiddleware
-from .core.constants import (
-    ALLOWED_ORIGINS, 
-    BRAND_NAME, 
-    API_TITLE, 
-    API_DESCRIPTION, 
-    API_VERSION
-)
+from .middleware.timing import TimingMiddleware
+from .routes import auth, availability_windows, bookings, instructors, metrics, password_reset
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 
@@ -36,14 +31,14 @@ async def lifespan(app: FastAPI):
     logger.info(f"{BRAND_NAME} API starting up...")
     logger.info(f"Allowed origins: {ALLOWED_ORIGINS}")
     logger.info("GZip compression enabled for responses > 500 bytes")
-    
+
     # Here you can add any startup logic like:
     # - Warming up caches
     # - Checking database connections
     # - Loading ML models
 
     yield
-    
+
     # Shutdown
     logger.info(f"{BRAND_NAME} API shutting down...")
     # Here you can add cleanup logic like:
@@ -58,7 +53,7 @@ app = FastAPI(
     version=API_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
-    lifespan=lifespan  # Use the new lifespan handler
+    lifespan=lifespan,  # Use the new lifespan handler
 )
 
 # Add timing middleware FIRST (before other middleware)
@@ -76,8 +71,7 @@ app.add_middleware(
 
 # Add GZip compression middleware
 app.add_middleware(
-    GZipMiddleware,
-    minimum_size=500  # Compress responses larger than 500 bytes
+    GZipMiddleware, minimum_size=500  # Compress responses larger than 500 bytes
 )
 
 # Include routers
@@ -95,7 +89,7 @@ def read_root():
     return {
         "message": f"Welcome to the {BRAND_NAME} API!",
         "version": API_VERSION,
-        "docs": "/docs"
+        "docs": "/docs",
     }
 
 
@@ -105,10 +99,12 @@ def health_check():
     return {
         "status": "healthy",
         "service": f"{BRAND_NAME.lower()}-api",
-        "version": API_VERSION
+        "version": API_VERSION,
     }
+
 
 @app.get("/metrics/performance")
 def get_performance_metrics():
     from .middleware.monitoring import monitor
+
     return monitor.get_stats()

@@ -1,20 +1,22 @@
 # backend/app/core/config.py
 import logging
-from pydantic_settings import BaseSettings
-from pydantic import SecretStr, ConfigDict
 from pathlib import Path
+
 from dotenv import load_dotenv
+from pydantic import ConfigDict, SecretStr
+from pydantic_settings import BaseSettings
 
 logger = logging.getLogger(__name__)
 
 # Load .env file
-env_path = Path(__file__).parent.parent.parent / '.env'  # Goes up to backend/.env
+env_path = Path(__file__).parent.parent.parent / ".env"  # Goes up to backend/.env
 
 logger.info(f"[CONFIG] Looking for .env at: {env_path}")
 logger.info(f"[CONFIG] .env exists: {env_path.exists()}")
 logger.info(f"[CONFIG] Absolute path: {env_path.absolute()}")
 
 load_dotenv(env_path)
+
 
 class Settings(BaseSettings):
     secret_key: SecretStr
@@ -25,10 +27,10 @@ class Settings(BaseSettings):
     # Email settings
     resend_api_key: str = ""
     from_email: str = "noreply@instainstru.com"
-    
+
     # Frontend URL - will use production URL if not set
     frontend_url: str = "https://instructly-ten.vercel.app"
-    
+
     # Environment
     environment: str = "production"  # or "development"
 
@@ -38,9 +40,8 @@ class Settings(BaseSettings):
 
     # Use ConfigDict instead of Config class (Pydantic V2 style)
     model_config = ConfigDict(
-        env_file=str(env_path),
-        case_sensitive=True,
-        extra="ignore"
+        env_file=str(env_path), case_sensitive=True, extra="ignore"
     )
+
 
 settings = Settings()

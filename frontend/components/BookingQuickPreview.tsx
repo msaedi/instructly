@@ -25,16 +25,16 @@ const BookingQuickPreview: React.FC<BookingQuickPreviewProps> = ({
   useEffect(() => {
     // Fetch preview data
     fetchBookingPreview(bookingId)
-      .then(data => {
-        logger.debug('Booking preview loaded', { 
+      .then((data) => {
+        logger.debug('Booking preview loaded', {
           bookingId,
           studentName: data.student_name,
-          serviceName: data.service_name 
+          serviceName: data.service_name,
         });
         setBooking(data);
         setLoading(false);
       })
-      .catch(err => {
+      .catch((err) => {
         logger.error('Failed to load booking preview', err, { bookingId });
         setError('Failed to load booking details');
         setLoading(false);
@@ -43,10 +43,10 @@ const BookingQuickPreview: React.FC<BookingQuickPreviewProps> = ({
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      month: 'short', 
-      day: 'numeric' 
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
     });
   };
 
@@ -59,13 +59,7 @@ const BookingQuickPreview: React.FC<BookingQuickPreviewProps> = ({
   };
 
   return (
-    <Modal
-      isOpen={true}
-      onClose={onClose}
-      title="Booking Details"
-      size="sm"
-      showCloseButton={true}
-    >
+    <Modal isOpen={true} onClose={onClose} title="Booking Details" size="sm" showCloseButton={true}>
       <div className="p-4">
         {loading ? (
           <div className="space-y-2">
@@ -75,70 +69,70 @@ const BookingQuickPreview: React.FC<BookingQuickPreviewProps> = ({
           </div>
         ) : error ? (
           <div className="text-red-500 text-sm">{error}</div>
-        ) : booking && (
-          <div className="space-y-3">
-            {/* Student name */}
-            <div>
-              <span className="text-sm text-gray-500">Student</span>
-              <p className="font-medium">{booking.student_name}</p>
-            </div>
-  
-            {/* Service and duration */}
-            <div>
-              <span className="text-sm text-gray-500">Service</span>
-              <p className="font-medium">
-                {booking.service_name} - {booking.duration_minutes} minutes
-              </p>
-            </div>
-  
-            {/* Date and time */}
-            <div>
-              <span className="text-sm text-gray-500">When</span>
-              <p className="font-medium">
-                {formatDate(booking.booking_date)}
-              </p>
-              <p className="text-sm text-gray-600">
-                {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
-              </p>
-            </div>
-  
-            {/* Location */}
-            <div>
-              <span className="text-sm text-gray-500">Location</span>
-              <p className="font-medium flex items-center gap-1">
-                <span>{getLocationTypeIcon(booking.location_type)}</span>
-                <span>{booking.location_type_display}</span>
-              </p>
-              {booking.meeting_location && (
-                <p className="text-sm text-gray-600 mt-1">{booking.meeting_location}</p>
-              )}
-            </div>
-  
-            {/* Student note if present */}
-            {booking.student_note && (
+        ) : (
+          booking && (
+            <div className="space-y-3">
+              {/* Student name */}
               <div>
-                <span className="text-sm text-gray-500">Note from student</span>
-                <p className="text-sm mt-1 italic text-gray-700">"{booking.student_note}"</p>
+                <span className="text-sm text-gray-500">Student</span>
+                <p className="font-medium">{booking.student_name}</p>
               </div>
-            )}
-  
-            {/* Price */}
-            <div className="pt-2 border-t">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-500">Total</span>
-                <span className="font-semibold text-lg">${booking.total_price.toFixed(2)}</span>
+
+              {/* Service and duration */}
+              <div>
+                <span className="text-sm text-gray-500">Service</span>
+                <p className="font-medium">
+                  {booking.service_name} - {booking.duration_minutes} minutes
+                </p>
               </div>
-            </div>
-  
-            {/* Action button */}
-            <button
-              onClick={onViewFullDetails}
-              className="w-full mt-4 bg-blue-600 text-white py-2 rounded-lg
+
+              {/* Date and time */}
+              <div>
+                <span className="text-sm text-gray-500">When</span>
+                <p className="font-medium">{formatDate(booking.booking_date)}</p>
+                <p className="text-sm text-gray-600">
+                  {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+                </p>
+              </div>
+
+              {/* Location */}
+              <div>
+                <span className="text-sm text-gray-500">Location</span>
+                <p className="font-medium flex items-center gap-1">
+                  <span>{getLocationTypeIcon(booking.location_type)}</span>
+                  <span>{booking.location_type_display}</span>
+                </p>
+                {booking.meeting_location && (
+                  <p className="text-sm text-gray-600 mt-1">{booking.meeting_location}</p>
+                )}
+              </div>
+
+              {/* Student note if present */}
+              {booking.student_note && (
+                <div>
+                  <span className="text-sm text-gray-500">Note from student</span>
+                  <p className="text-sm mt-1 italic text-gray-700">"{booking.student_note}"</p>
+                </div>
+              )}
+
+              {/* Price */}
+              <div className="pt-2 border-t">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-gray-500">Total</span>
+                  <span className="font-semibold text-lg">${booking.total_price.toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Action button */}
+              <button
+                onClick={onViewFullDetails}
+                className="w-full mt-4 bg-blue-600 text-white py-2 rounded-lg
                        hover:bg-blue-700 transition-colors font-medium"
-            >
-              View Full Details →
-            </button>
-          </div>
+              >
+                View Full Details →
+              </button>
+            </div>
+          )
         )}
       </div>
     </Modal>

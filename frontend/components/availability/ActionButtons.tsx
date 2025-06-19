@@ -2,10 +2,10 @@
 
 /**
  * ActionButtons Component
- * 
+ *
  * Primary action buttons for availability management including save,
  * copy from previous week, and apply to future weeks functionality.
- * 
+ *
  * @component
  * @module components/availability
  */
@@ -36,10 +36,10 @@ interface ActionButtonsProps {
 
 /**
  * Action buttons for availability management
- * 
+ *
  * @param {ActionButtonsProps} props - Component props
  * @returns Action buttons component
- * 
+ *
  * @example
  * ```tsx
  * <ActionButtons
@@ -58,7 +58,7 @@ export default function ActionButtons({
   isSaving = false,
   isValidating = false,
   hasUnsavedChanges = false,
-  disabled = false
+  disabled = false,
 }: ActionButtonsProps): React.ReactElement {
   /**
    * Handle button clicks with logging
@@ -67,10 +67,10 @@ export default function ActionButtons({
     logger.info(`Action button clicked: ${action}`);
     callback();
   };
-  
+
   const saveDisabled = disabled || isSaving || !hasUnsavedChanges || isValidating;
   const otherDisabled = disabled || isSaving;
-  
+
   return (
     <div className="mb-6 flex flex-wrap gap-3 justify-between">
       {/* Left side - Copy and Apply buttons */}
@@ -78,22 +78,22 @@ export default function ActionButtons({
         <button
           onClick={() => handleAction('copy-previous', onCopyPrevious)}
           disabled={otherDisabled}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg 
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg
                    hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed
-                   transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 
+                   transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2
                    focus:ring-blue-500"
           aria-label="Copy schedule from previous week"
         >
           <Copy className="w-4 h-4" />
           <span>Copy from Previous Week</span>
         </button>
-        
+
         <button
           onClick={() => handleAction('apply-future', onApplyFuture)}
           disabled={otherDisabled}
-          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg 
+          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg
                    hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed
-                   transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 
+                   transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2
                    focus:ring-purple-500"
           aria-label="Apply current schedule to future weeks"
         >
@@ -101,14 +101,14 @@ export default function ActionButtons({
           <span>Apply to Future Weeks</span>
         </button>
       </div>
-      
+
       {/* Right side - Save button */}
       <button
         onClick={() => handleAction('save', onSave)}
         disabled={saveDisabled}
-        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg 
+        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg
                  hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed
-                 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 
+                 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2
                  focus:ring-green-500"
         aria-label={isValidating ? 'Validating changes' : 'Save changes for this week'}
       >
@@ -117,9 +117,7 @@ export default function ActionButtons({
         ) : (
           <Save className="w-4 h-4" />
         )}
-        <span>
-          {isValidating ? 'Validating...' : isSaving ? 'Saving...' : 'Save This Week'}
-        </span>
+        <span>{isValidating ? 'Validating...' : isSaving ? 'Saving...' : 'Save This Week'}</span>
       </button>
     </div>
   );

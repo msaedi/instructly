@@ -5,83 +5,81 @@ This module exports all request/response schemas used in the API.
 Schemas are organized by functionality for better maintainability.
 """
 
-# User and authentication schemas
-from .user import UserCreate, UserLogin, UserResponse, Token, UserRole
-
-# Instructor profile schemas
-from .instructor import (
-    InstructorProfileBase, 
-    InstructorProfileCreate, 
-    InstructorProfileUpdate, 
-    InstructorProfileResponse,
-    ServiceBase,
-    ServiceCreate,
-    ServiceResponse
-)
-
 # Availability schemas
+from .availability import DateTimeSlot  # Legacy, kept for API compatibility
 from .availability import (
+    ApplyToDateRangeRequest,
+    AvailabilityQuery,
+    AvailabilitySlot,
     AvailabilitySlotBase,
     AvailabilitySlotCreate,
-    AvailabilitySlot,
+    CopyWeekRequest,
+    InstructorAvailability,
     InstructorAvailabilityBase,
     InstructorAvailabilityCreate,
     InstructorAvailabilityUpdate,
-    InstructorAvailability,
-    DateTimeSlot,  # Legacy, kept for API compatibility
     WeekScheduleCreate,
-    CopyWeekRequest,
-    ApplyToDateRangeRequest,
-    AvailabilityQuery
 )
 
 # Availability window schemas
 from .availability_window import (
     AvailabilityWindowBase,
-    AvailabilityWindowUpdate,
     AvailabilityWindowResponse,
-    SpecificDateAvailabilityCreate,
-    WeekSpecificScheduleCreate,
+    AvailabilityWindowUpdate,
     BlackoutDateCreate,
     BlackoutDateResponse,
-    DayOfWeekEnum
+    DayOfWeekEnum,
+    SpecificDateAvailabilityCreate,
+    WeekSpecificScheduleCreate,
+)
+from .booking import (
+    AvailabilityCheckRequest,
+    AvailabilityCheckResponse,
+    BookingCancel,
+    BookingCreate,
+    BookingListResponse,
+    BookingResponse,
+    BookingStatsResponse,
+    BookingStatus,
+    BookingUpdate,
+    UpcomingBookingResponse,
+)
+
+# Instructor profile schemas
+from .instructor import (
+    InstructorProfileBase,
+    InstructorProfileCreate,
+    InstructorProfileResponse,
+    InstructorProfileUpdate,
+    ServiceBase,
+    ServiceCreate,
+    ServiceResponse,
 )
 
 # Password reset schemas
-from .password_reset import (
-    PasswordResetRequest,
-    PasswordResetConfirm,
-    PasswordResetResponse
-)
+from .password_reset import PasswordResetConfirm, PasswordResetRequest, PasswordResetResponse
 
-from .booking import (
-    BookingCreate, BookingUpdate, BookingCancel,
-    BookingResponse, BookingListResponse,
-    AvailabilityCheckRequest, AvailabilityCheckResponse,
-    BookingStatsResponse, UpcomingBookingResponse,
-    BookingStatus
-)
+# User and authentication schemas
+from .user import Token, UserCreate, UserLogin, UserResponse, UserRole
 
 __all__ = [
     # User schemas
-    "UserCreate", 
-    "UserLogin", 
-    "UserResponse", 
-    "Token", 
+    "UserCreate",
+    "UserLogin",
+    "UserResponse",
+    "Token",
     "UserRole",
-    
     # Instructor schemas
-    "InstructorProfileBase", 
-    "InstructorProfileCreate", 
-    "InstructorProfileUpdate", 
+    "InstructorProfileBase",
+    "InstructorProfileCreate",
+    "InstructorProfileUpdate",
     "InstructorProfileResponse",
-    "ServiceBase", 
-    "ServiceCreate", 
+    "ServiceBase",
+    "ServiceCreate",
     "ServiceResponse",
-    
     # Availability schemas
     "AvailabilitySlotBase",
-    "AvailabilitySlotCreate", 
+    "AvailabilitySlotCreate",
     "AvailabilitySlot",
     "InstructorAvailabilityBase",
     "InstructorAvailabilityCreate",
@@ -92,7 +90,6 @@ __all__ = [
     "CopyWeekRequest",
     "ApplyToDateRangeRequest",
     "AvailabilityQuery",
-    
     # Availability window schemas
     "AvailabilityWindowBase",
     "AvailabilityWindowUpdate",
@@ -102,12 +99,10 @@ __all__ = [
     "BlackoutDateCreate",
     "BlackoutDateResponse",
     "DayOfWeekEnum",
-    
     # Password reset schemas
     "PasswordResetRequest",
     "PasswordResetConfirm",
     "PasswordResetResponse",
-
     # Booking schemas
     "BookingCreate",
     "BookingUpdate",
@@ -118,5 +113,5 @@ __all__ = [
     "AvailabilityCheckResponse",
     "BookingStatsResponse",
     "UpcomingBookingResponse",
-    "BookingStatus"
+    "BookingStatus",
 ]

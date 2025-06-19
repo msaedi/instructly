@@ -12,31 +12,33 @@ Usage:
     python scripts/reset_and_seed_database.py
 """
 
-import sys
-import os
-from datetime import datetime, date, time, timedelta
 import random
-from pathlib import Path
+import sys
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from pathlib import Path
 
 # Add the parent directory to the path so we can import app modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import create_engine, and_, or_
-from sqlalchemy.orm import Session
-from app.database import Base
-from app.models.user import User, UserRole
-from app.models.instructor import InstructorProfile
-from app.models.service import Service
-from app.models.availability import InstructorAvailability, AvailabilitySlot, BlackoutDate
-from app.models.booking import Booking, BookingStatus
-from app.models.password_reset import PasswordResetToken
-from app.core.config import settings
-from app.auth import get_password_hash
 import logging
 
+from sqlalchemy import create_engine, or_
+from sqlalchemy.orm import Session
+
+from app.auth import get_password_hash
+from app.core.config import settings
+from app.models.availability import AvailabilitySlot, BlackoutDate, InstructorAvailability
+from app.models.booking import Booking, BookingStatus
+from app.models.instructor import InstructorProfile
+from app.models.password_reset import PasswordResetToken
+from app.models.service import Service
+from app.models.user import User, UserRole
+
 # Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 # Configuration
@@ -52,7 +54,7 @@ TEST_PASSWORD = "TestPassword123!"
 # NYC areas for instructors
 NYC_AREAS = [
     "Manhattan - Upper East Side",
-    "Manhattan - Upper West Side", 
+    "Manhattan - Upper West Side",
     "Manhattan - Midtown",
     "Manhattan - Chelsea",
     "Manhattan - Greenwich Village",
@@ -71,32 +73,32 @@ STUDENT_TEMPLATES = [
         "name": "John Smith",
         "email": "john.smith@example.com",
         "interests": ["Yoga", "Spanish", "Cooking"],
-        "preferred_areas": ["Manhattan - Upper East Side", "Manhattan - Midtown"]
+        "preferred_areas": ["Manhattan - Upper East Side", "Manhattan - Midtown"],
     },
     {
         "name": "Emma Johnson",
         "email": "emma.johnson@example.com",
         "interests": ["Piano", "Photography", "French"],
-        "preferred_areas": ["Brooklyn - Park Slope", "Manhattan - Greenwich Village"]
+        "preferred_areas": ["Brooklyn - Park Slope", "Manhattan - Greenwich Village"],
     },
     {
         "name": "Alex Davis",
         "email": "alex.davis@example.com",
         "interests": ["Personal Training", "Web Development", "Financial Planning"],
-        "preferred_areas": ["Manhattan - Chelsea", "Manhattan - Financial District"]
+        "preferred_areas": ["Manhattan - Chelsea", "Manhattan - Financial District"],
     },
     {
         "name": "Sophia Martinez",
         "email": "sophia.martinez@example.com",
         "interests": ["Makeup Artistry", "Baking", "Meditation"],
-        "preferred_areas": ["Brooklyn - Williamsburg", "Queens - Astoria"]
+        "preferred_areas": ["Brooklyn - Williamsburg", "Queens - Astoria"],
     },
     {
         "name": "William Brown",
         "email": "william.brown@example.com",
         "interests": ["Python Programming", "Day Trading", "HIIT"],
-        "preferred_areas": ["Queens - Long Island City", "Manhattan - Midtown"]
-    }
+        "preferred_areas": ["Queens - Long Island City", "Manhattan - Midtown"],
+    },
 ]
 
 # Instructor templates (keeping your existing ones)
@@ -108,11 +110,23 @@ INSTRUCTOR_TEMPLATES = [
         "years_experience": 8,
         "areas": ["Manhattan - Upper East Side", "Manhattan - Midtown"],
         "services": [
-            {"skill": "Yoga", "rate": 85, "desc": "Vinyasa and Hatha yoga for all levels"},
-            {"skill": "Meditation", "rate": 65, "desc": "Guided meditation and mindfulness techniques"},
-            {"skill": "Breathwork", "rate": 70, "desc": "Pranayama and breathing exercises"}
+            {
+                "skill": "Yoga",
+                "rate": 85,
+                "desc": "Vinyasa and Hatha yoga for all levels",
+            },
+            {
+                "skill": "Meditation",
+                "rate": 65,
+                "desc": "Guided meditation and mindfulness techniques",
+            },
+            {
+                "skill": "Breathwork",
+                "rate": 70,
+                "desc": "Pranayama and breathing exercises",
+            },
         ],
-        "availability_pattern": "mornings"  # Primarily morning classes
+        "availability_pattern": "mornings",  # Primarily morning classes
     },
     {
         "name": "Michael Rodriguez",
@@ -121,11 +135,23 @@ INSTRUCTOR_TEMPLATES = [
         "years_experience": 12,
         "areas": ["Manhattan - Upper West Side", "Manhattan - Greenwich Village"],
         "services": [
-            {"skill": "Piano", "rate": 120, "desc": "Classical, jazz, and contemporary piano"},
-            {"skill": "Music Theory", "rate": 95, "desc": "Comprehensive music theory and composition"},
-            {"skill": "Sight Reading", "rate": 90, "desc": "Improve your sight reading skills"}
+            {
+                "skill": "Piano",
+                "rate": 120,
+                "desc": "Classical, jazz, and contemporary piano",
+            },
+            {
+                "skill": "Music Theory",
+                "rate": 95,
+                "desc": "Comprehensive music theory and composition",
+            },
+            {
+                "skill": "Sight Reading",
+                "rate": 90,
+                "desc": "Improve your sight reading skills",
+            },
         ],
-        "availability_pattern": "evenings"  # Evening lessons after work/school
+        "availability_pattern": "evenings",  # Evening lessons after work/school
     },
     {
         "name": "Emily Watson",
@@ -134,11 +160,15 @@ INSTRUCTOR_TEMPLATES = [
         "years_experience": 6,
         "areas": ["Brooklyn - Park Slope", "Brooklyn - Williamsburg"],
         "services": [
-            {"skill": "Spanish", "rate": 75, "desc": "Spanish for all levels - conversation to business"},
+            {
+                "skill": "Spanish",
+                "rate": 75,
+                "desc": "Spanish for all levels - conversation to business",
+            },
             {"skill": "ESL", "rate": 70, "desc": "English as a Second Language"},
-            {"skill": "French", "rate": 80, "desc": "French language and culture"}
+            {"skill": "French", "rate": 80, "desc": "French language and culture"},
         ],
-        "availability_pattern": "flexible"  # Various times throughout the week
+        "availability_pattern": "flexible",  # Various times throughout the week
     },
     {
         "name": "David Kim",
@@ -147,11 +177,23 @@ INSTRUCTOR_TEMPLATES = [
         "years_experience": 10,
         "areas": ["Manhattan - Chelsea", "Manhattan - SoHo"],
         "services": [
-            {"skill": "Personal Training", "rate": 100, "desc": "1-on-1 strength and conditioning"},
-            {"skill": "HIIT", "rate": 85, "desc": "High-intensity interval training sessions"},
-            {"skill": "Nutrition Coaching", "rate": 75, "desc": "Personalized nutrition planning"}
+            {
+                "skill": "Personal Training",
+                "rate": 100,
+                "desc": "1-on-1 strength and conditioning",
+            },
+            {
+                "skill": "HIIT",
+                "rate": 85,
+                "desc": "High-intensity interval training sessions",
+            },
+            {
+                "skill": "Nutrition Coaching",
+                "rate": 75,
+                "desc": "Personalized nutrition planning",
+            },
         ],
-        "availability_pattern": "early_bird"  # Early morning and lunch sessions
+        "availability_pattern": "early_bird",  # Early morning and lunch sessions
     },
     {
         "name": "Lisa Thompson",
@@ -160,11 +202,23 @@ INSTRUCTOR_TEMPLATES = [
         "years_experience": 15,
         "areas": ["Brooklyn - DUMBO", "Manhattan - SoHo"],
         "services": [
-            {"skill": "Photography", "rate": 110, "desc": "Digital and film photography techniques"},
-            {"skill": "Photo Editing", "rate": 85, "desc": "Lightroom and Photoshop mastery"},
-            {"skill": "Portrait Photography", "rate": 120, "desc": "Professional portrait techniques"}
+            {
+                "skill": "Photography",
+                "rate": 110,
+                "desc": "Digital and film photography techniques",
+            },
+            {
+                "skill": "Photo Editing",
+                "rate": 85,
+                "desc": "Lightroom and Photoshop mastery",
+            },
+            {
+                "skill": "Portrait Photography",
+                "rate": 120,
+                "desc": "Professional portrait techniques",
+            },
         ],
-        "availability_pattern": "weekends"  # Primarily weekends
+        "availability_pattern": "weekends",  # Primarily weekends
     },
     {
         "name": "James Park",
@@ -173,11 +227,23 @@ INSTRUCTOR_TEMPLATES = [
         "years_experience": 10,
         "areas": ["Queens - Long Island City", "Manhattan - Midtown"],
         "services": [
-            {"skill": "Web Development", "rate": 130, "desc": "HTML, CSS, JavaScript, React"},
-            {"skill": "Python Programming", "rate": 125, "desc": "Python for beginners to advanced"},
-            {"skill": "Data Science", "rate": 140, "desc": "Data analysis with Python and SQL"}
+            {
+                "skill": "Web Development",
+                "rate": 130,
+                "desc": "HTML, CSS, JavaScript, React",
+            },
+            {
+                "skill": "Python Programming",
+                "rate": 125,
+                "desc": "Python for beginners to advanced",
+            },
+            {
+                "skill": "Data Science",
+                "rate": 140,
+                "desc": "Data analysis with Python and SQL",
+            },
         ],
-        "availability_pattern": "evenings_weekends"  # After work and weekends
+        "availability_pattern": "evenings_weekends",  # After work and weekends
     },
     {
         "name": "Maria Garcia",
@@ -186,11 +252,19 @@ INSTRUCTOR_TEMPLATES = [
         "years_experience": 18,
         "areas": ["Queens - Astoria", "Manhattan - Upper West Side"],
         "services": [
-            {"skill": "Cooking", "rate": 95, "desc": "From basics to gourmet techniques"},
+            {
+                "skill": "Cooking",
+                "rate": 95,
+                "desc": "From basics to gourmet techniques",
+            },
             {"skill": "Baking", "rate": 90, "desc": "Breads, pastries, and desserts"},
-            {"skill": "Meal Prep", "rate": 80, "desc": "Efficient and healthy meal preparation"}
+            {
+                "skill": "Meal Prep",
+                "rate": 80,
+                "desc": "Efficient and healthy meal preparation",
+            },
         ],
-        "availability_pattern": "variable"  # Changes week to week
+        "availability_pattern": "variable",  # Changes week to week
     },
     {
         "name": "Robert Chang",
@@ -199,11 +273,23 @@ INSTRUCTOR_TEMPLATES = [
         "years_experience": 20,
         "areas": ["Manhattan - Financial District", "Manhattan - Midtown"],
         "services": [
-            {"skill": "Financial Planning", "rate": 150, "desc": "Personal finance and budgeting"},
-            {"skill": "Investment Strategy", "rate": 175, "desc": "Portfolio management and analysis"},
-            {"skill": "Day Trading", "rate": 200, "desc": "Technical analysis and trading strategies"}
+            {
+                "skill": "Financial Planning",
+                "rate": 150,
+                "desc": "Personal finance and budgeting",
+            },
+            {
+                "skill": "Investment Strategy",
+                "rate": 175,
+                "desc": "Portfolio management and analysis",
+            },
+            {
+                "skill": "Day Trading",
+                "rate": 200,
+                "desc": "Technical analysis and trading strategies",
+            },
         ],
-        "availability_pattern": "business_hours"  # Standard business hours
+        "availability_pattern": "business_hours",  # Standard business hours
     },
     {
         "name": "Amanda Foster",
@@ -212,11 +298,19 @@ INSTRUCTOR_TEMPLATES = [
         "years_experience": 9,
         "areas": ["Manhattan - Chelsea", "Brooklyn - Williamsburg"],
         "services": [
-            {"skill": "Makeup Artistry", "rate": 90, "desc": "From natural looks to glam"},
+            {
+                "skill": "Makeup Artistry",
+                "rate": 90,
+                "desc": "From natural looks to glam",
+            },
             {"skill": "Skincare", "rate": 85, "desc": "Personalized skincare routines"},
-            {"skill": "Special Effects", "rate": 110, "desc": "SFX makeup for film and events"}
+            {
+                "skill": "Special Effects",
+                "rate": 110,
+                "desc": "SFX makeup for film and events",
+            },
         ],
-        "availability_pattern": "afternoons"  # Afternoon appointments
+        "availability_pattern": "afternoons",  # Afternoon appointments
     },
     {
         "name": "Kevin Liu",
@@ -225,105 +319,144 @@ INSTRUCTOR_TEMPLATES = [
         "years_experience": 7,
         "areas": ["Manhattan - Chinatown", "Queens - Flushing"],
         "services": [
-            {"skill": "Mandarin Chinese", "rate": 85, "desc": "All levels - pinyin to business Chinese"},
-            {"skill": "Calligraphy", "rate": 70, "desc": "Traditional Chinese calligraphy"},
-            {"skill": "Chinese Culture", "rate": 65, "desc": "History, customs, and traditions"}
+            {
+                "skill": "Mandarin Chinese",
+                "rate": 85,
+                "desc": "All levels - pinyin to business Chinese",
+            },
+            {
+                "skill": "Calligraphy",
+                "rate": 70,
+                "desc": "Traditional Chinese calligraphy",
+            },
+            {
+                "skill": "Chinese Culture",
+                "rate": 65,
+                "desc": "History, customs, and traditions",
+            },
         ],
-        "availability_pattern": "mixed"  # Mix of different times
-    }
+        "availability_pattern": "mixed",  # Mix of different times
+    },
 ]
+
 
 def cleanup_database(session: Session):
     """Remove all users except those in the exclude list."""
     logger.info("Starting database cleanup...")
-    
+
     # Get users to exclude
-    excluded_users = session.query(User).filter(
-        User.email.in_(EXCLUDE_FROM_CLEANUP)
-    ).all()
-    
+    excluded_users = (
+        session.query(User).filter(User.email.in_(EXCLUDE_FROM_CLEANUP)).all()
+    )
+
     excluded_ids = [user.id for user in excluded_users]
-    logger.info(f"Preserving {len(excluded_ids)} users: {[u.email for u in excluded_users]}")
-    
+    logger.info(
+        f"Preserving {len(excluded_ids)} users: {[u.email for u in excluded_users]}"
+    )
+
     # First, delete related data for users we're going to remove
-    users_to_delete = session.query(User).filter(
-        ~User.id.in_(excluded_ids)
-    ).all()
-    
+    users_to_delete = session.query(User).filter(~User.id.in_(excluded_ids)).all()
+
     users_to_delete_ids = [user.id for user in users_to_delete]
-    
+
     if users_to_delete_ids:
         # Delete in order to respect foreign key constraints
-        
+
         # 1. First clear booking_id references in availability_slots
-        slot_update_count = session.query(AvailabilitySlot).filter(
-            AvailabilitySlot.booking_id.isnot(None)
-        ).update({"booking_id": None}, synchronize_session=False)
-        logger.info(f"Cleared {slot_update_count} booking references from availability slots")
-        
+        slot_update_count = (
+            session.query(AvailabilitySlot)
+            .filter(AvailabilitySlot.booking_id.isnot(None))
+            .update({"booking_id": None}, synchronize_session=False)
+        )
+        logger.info(
+            f"Cleared {slot_update_count} booking references from availability slots"
+        )
+
         # 2. Now we can safely delete bookings
-        booking_count = session.query(Booking).filter(
-            or_(
-                Booking.student_id.in_(users_to_delete_ids),
-                Booking.instructor_id.in_(users_to_delete_ids)
+        booking_count = (
+            session.query(Booking)
+            .filter(
+                or_(
+                    Booking.student_id.in_(users_to_delete_ids),
+                    Booking.instructor_id.in_(users_to_delete_ids),
+                )
             )
-        ).delete(synchronize_session=False)
-        
+            .delete(synchronize_session=False)
+        )
+
         # 3. Get all instructor availability IDs for users to delete
-        availability_ids = session.query(InstructorAvailability.id).filter(
-            InstructorAvailability.instructor_id.in_(users_to_delete_ids)
-        ).all()
+        availability_ids = (
+            session.query(InstructorAvailability.id)
+            .filter(InstructorAvailability.instructor_id.in_(users_to_delete_ids))
+            .all()
+        )
         availability_ids = [a[0] for a in availability_ids]
-        
+
         # 4. Delete availability slots
         if availability_ids:
-            slot_count = session.query(AvailabilitySlot).filter(
-                AvailabilitySlot.availability_id.in_(availability_ids)
-            ).delete(synchronize_session=False)
+            slot_count = (
+                session.query(AvailabilitySlot)
+                .filter(AvailabilitySlot.availability_id.in_(availability_ids))
+                .delete(synchronize_session=False)
+            )
         else:
             slot_count = 0
-        
+
         # 5. Delete instructor availability
-        avail_count = session.query(InstructorAvailability).filter(
-            InstructorAvailability.instructor_id.in_(users_to_delete_ids)
-        ).delete(synchronize_session=False)
-        
+        avail_count = (
+            session.query(InstructorAvailability)
+            .filter(InstructorAvailability.instructor_id.in_(users_to_delete_ids))
+            .delete(synchronize_session=False)
+        )
+
         # 6. Delete blackout dates
-        blackout_count = session.query(BlackoutDate).filter(
-            BlackoutDate.instructor_id.in_(users_to_delete_ids)
-        ).delete(synchronize_session=False)
-        
+        blackout_count = (
+            session.query(BlackoutDate)
+            .filter(BlackoutDate.instructor_id.in_(users_to_delete_ids))
+            .delete(synchronize_session=False)
+        )
+
         # 7. Get instructor profile IDs for users to delete
-        profile_ids = session.query(InstructorProfile.id).filter(
-            InstructorProfile.user_id.in_(users_to_delete_ids)
-        ).all()
+        profile_ids = (
+            session.query(InstructorProfile.id)
+            .filter(InstructorProfile.user_id.in_(users_to_delete_ids))
+            .all()
+        )
         profile_ids = [p[0] for p in profile_ids]
-        
+
         # 8. Delete services
         if profile_ids:
-            service_count = session.query(Service).filter(
-                Service.instructor_profile_id.in_(profile_ids)
-            ).delete(synchronize_session=False)
+            service_count = (
+                session.query(Service)
+                .filter(Service.instructor_profile_id.in_(profile_ids))
+                .delete(synchronize_session=False)
+            )
         else:
             service_count = 0
-        
+
         # 9. Delete instructor profiles
-        profile_count = session.query(InstructorProfile).filter(
-            InstructorProfile.user_id.in_(users_to_delete_ids)
-        ).delete(synchronize_session=False)
-        
+        profile_count = (
+            session.query(InstructorProfile)
+            .filter(InstructorProfile.user_id.in_(users_to_delete_ids))
+            .delete(synchronize_session=False)
+        )
+
         # 10. Delete password reset tokens
-        token_count = session.query(PasswordResetToken).filter(
-            PasswordResetToken.user_id.in_(users_to_delete_ids)
-        ).delete(synchronize_session=False)
-        
+        token_count = (
+            session.query(PasswordResetToken)
+            .filter(PasswordResetToken.user_id.in_(users_to_delete_ids))
+            .delete(synchronize_session=False)
+        )
+
         # 11. Finally, delete the users
-        user_count = session.query(User).filter(
-            User.id.in_(users_to_delete_ids)
-        ).delete(synchronize_session=False)
-        
+        user_count = (
+            session.query(User)
+            .filter(User.id.in_(users_to_delete_ids))
+            .delete(synchronize_session=False)
+        )
+
         session.commit()
-        
+
         logger.info(f"Cleanup complete:")
         logger.info(f"  - Deleted {user_count} users")
         logger.info(f"  - Deleted {profile_count} instructor profiles")
@@ -335,62 +468,60 @@ def cleanup_database(session: Session):
         logger.info(f"  - Deleted {token_count} password reset tokens")
     else:
         logger.info("No users to delete")
-    
+
     return excluded_ids
 
-def create_availability_pattern(session: Session, instructor_id: int, pattern: str, weeks_ahead: int = 12):
+
+def create_availability_pattern(
+    session: Session, instructor_id: int, pattern: str, weeks_ahead: int = 12
+):
     """Create availability based on pattern type."""
     today = date.today()
     current_monday = today - timedelta(days=today.weekday())
-    
+
     patterns = {
         "mornings": {
             "days": [0, 1, 2, 3, 4, 5, 6],  # All days
-            "slots": [(time(8, 0), time(12, 0))]
+            "slots": [(time(8, 0), time(12, 0))],
         },
         "evenings": {
             "days": [0, 1, 2, 3, 4],  # Weekdays
-            "slots": [(time(17, 0), time(21, 0))]
+            "slots": [(time(17, 0), time(21, 0))],
         },
         "early_bird": {
             "days": [0, 1, 2, 3, 4],  # Weekdays
-            "slots": [(time(6, 0), time(9, 0)), (time(12, 0), time(13, 0))]  # Early morning + lunch
+            "slots": [
+                (time(6, 0), time(9, 0)),
+                (time(12, 0), time(13, 0)),
+            ],  # Early morning + lunch
         },
         "weekends": {
             "days": [5, 6],  # Saturday, Sunday
-            "slots": [(time(9, 0), time(17, 0))]
+            "slots": [(time(9, 0), time(17, 0))],
         },
         "business_hours": {
             "days": [0, 1, 2, 3, 4],  # Weekdays
-            "slots": [(time(9, 0), time(17, 0))]
+            "slots": [(time(9, 0), time(17, 0))],
         },
         "afternoons": {
             "days": [0, 1, 2, 3, 4, 5],  # Mon-Sat
-            "slots": [(time(13, 0), time(18, 0))]
+            "slots": [(time(13, 0), time(18, 0))],
         },
         "evenings_weekends": {
             "days": [0, 1, 2, 3, 4],  # Weekday evenings
             "slots": [(time(18, 0), time(21, 0))],
-            "weekend_slots": [(time(10, 0), time(16, 0))]  # Weekend days
+            "weekend_slots": [(time(10, 0), time(16, 0))],  # Weekend days
         },
-        "flexible": {
-            "random": True  # Will generate random availability
-        },
-        "variable": {
-            "random": True,
-            "sparse": True  # Less dense random availability
-        },
-        "mixed": {
-            "random": True,
-            "mixed": True  # Mix of patterns
-        }
+        "flexible": {"random": True},  # Will generate random availability
+        "variable": {"random": True, "sparse": True},  # Less dense random availability
+        "mixed": {"random": True, "mixed": True},  # Mix of patterns
     }
-    
+
     pattern_config = patterns.get(pattern, patterns["flexible"])
-    
+
     for week_offset in range(weeks_ahead):
         week_start = current_monday + timedelta(weeks=week_offset)
-        
+
         # Add some randomness - occasionally skip weeks or modify pattern
         if random.random() < 0.1:  # 10% chance to skip a week (vacation, etc.)
             # Create a blackout for one random day
@@ -399,44 +530,57 @@ def create_availability_pattern(session: Session, instructor_id: int, pattern: s
                 blackout = BlackoutDate(
                     instructor_id=instructor_id,
                     date=blackout_day,
-                    reason="Personal day"
+                    reason="Personal day",
                 )
                 session.add(blackout)
             continue
-        
+
         if pattern_config.get("random"):
             # Generate random availability
             for day_offset in range(7):
                 current_date = week_start + timedelta(days=day_offset)
-                
+
                 if current_date <= today:
                     continue
-                
+
                 # Random chance of being available
                 if pattern_config.get("sparse") and random.random() < 0.6:
                     continue
                 elif not pattern_config.get("sparse") and random.random() < 0.3:
                     continue
-                
+
                 # Create availability entry
                 availability = InstructorAvailability(
-                    instructor_id=instructor_id,
-                    date=current_date,
-                    is_cleared=False
+                    instructor_id=instructor_id, date=current_date, is_cleared=False
                 )
                 session.add(availability)
                 session.flush()
-                
+
                 # Add random time slots
                 if pattern_config.get("mixed"):
                     # Mix of different slot types
                     slot_type = random.choice(["morning", "afternoon", "evening"])
                     if slot_type == "morning":
-                        slots = [(time(random.randint(7, 9), 0), time(random.randint(10, 12), 0))]
+                        slots = [
+                            (
+                                time(random.randint(7, 9), 0),
+                                time(random.randint(10, 12), 0),
+                            )
+                        ]
                     elif slot_type == "afternoon":
-                        slots = [(time(random.randint(12, 14), 0), time(random.randint(15, 17), 0))]
+                        slots = [
+                            (
+                                time(random.randint(12, 14), 0),
+                                time(random.randint(15, 17), 0),
+                            )
+                        ]
                     else:
-                        slots = [(time(random.randint(17, 19), 0), time(random.randint(20, 21), 0))]
+                        slots = [
+                            (
+                                time(random.randint(17, 19), 0),
+                                time(random.randint(20, 21), 0),
+                            )
+                        ]
                 else:
                     # Random slots throughout the day
                     num_slots = random.randint(1, 3)
@@ -445,121 +589,125 @@ def create_availability_pattern(session: Session, instructor_id: int, pattern: s
                     for _ in range(num_slots):
                         duration = random.choice([1, 2, 3])
                         if start_hour + duration <= 20:
-                            slots.append((time(start_hour, 0), time(start_hour + duration, 0)))
+                            slots.append(
+                                (time(start_hour, 0), time(start_hour + duration, 0))
+                            )
                             start_hour += duration + random.randint(1, 2)
-                
+
                 for start_time, end_time in slots:
                     slot = AvailabilitySlot(
                         availability_id=availability.id,
                         start_time=start_time,
-                        end_time=end_time
+                        end_time=end_time,
                     )
                     session.add(slot)
         else:
             # Use defined pattern
             days = pattern_config["days"]
             slots = pattern_config["slots"]
-            
+
             for day_offset in days:
                 current_date = week_start + timedelta(days=day_offset)
-                
+
                 if current_date <= today:
                     continue
-                
+
                 # Add slight randomness - 5% chance to skip
                 if random.random() < 0.05:
                     continue
-                
+
                 availability = InstructorAvailability(
-                    instructor_id=instructor_id,
-                    date=current_date,
-                    is_cleared=False
+                    instructor_id=instructor_id, date=current_date, is_cleared=False
                 )
                 session.add(availability)
                 session.flush()
-                
+
                 # Handle weekend slots for evenings_weekends pattern
                 if pattern == "evenings_weekends" and day_offset in [5, 6]:
                     slot_list = pattern_config.get("weekend_slots", slots)
                 else:
                     slot_list = slots
-                
+
                 for start_time, end_time in slot_list:
                     slot = AvailabilitySlot(
                         availability_id=availability.id,
                         start_time=start_time,
-                        end_time=end_time
+                        end_time=end_time,
                     )
                     session.add(slot)
-    
+
     session.commit()
+
 
 def create_dummy_students(session: Session):
     """Create dummy student accounts."""
     logger.info("Creating dummy students...")
-    
+
     created_count = 0
-    
+
     for template in STUDENT_TEMPLATES:
         # Check if user already exists
         existing = session.query(User).filter(User.email == template["email"]).first()
         if existing:
             logger.info(f"User {template['email']} already exists, skipping...")
             continue
-        
+
         # Create user
         user = User(
             email=template["email"],
             full_name=template["name"],
             hashed_password=get_password_hash(TEST_PASSWORD),
             role=UserRole.STUDENT,
-            is_active=True
+            is_active=True,
         )
         session.add(user)
         session.flush()
-        
+
         created_count += 1
         logger.info(f"Created student: {template['name']} ({template['email']})")
-    
+
     session.commit()
     logger.info(f"Created {created_count} dummy students")
+
 
 def create_dummy_instructors(session: Session):
     """Create dummy instructor accounts with profiles and availability."""
     logger.info("Creating dummy instructors...")
-    
+
     created_count = 0
-    
+
     for template in INSTRUCTOR_TEMPLATES:
         # Check if user already exists
         existing = session.query(User).filter(User.email == template["email"]).first()
         if existing:
             logger.info(f"User {template['email']} already exists, skipping...")
             continue
-        
+
         # Create user
         user = User(
             email=template["email"],
             full_name=template["name"],
             hashed_password=get_password_hash(TEST_PASSWORD),
             role=UserRole.INSTRUCTOR,
-            is_active=True
+            is_active=True,
         )
         session.add(user)
         session.flush()
-        
+
         # Create instructor profile
         profile = InstructorProfile(
             user_id=user.id,
             bio=template["bio"],
             years_experience=template["years_experience"],
             areas_of_service=", ".join(template["areas"]),  # Comma-separated string
-            min_advance_booking_hours=random.choice([1, 2, 4, 24]),  # Random advance booking time
-            buffer_time_minutes=random.choice([0, 15, 30])  # Random buffer time
+            min_advance_booking_hours=random.choice(
+                [1, 2, 4, 24]
+            ),  # Random advance booking time
+            buffer_time_minutes=random.choice([0, 15, 30]),  # Random buffer time
         )
         session.add(profile)
         session.flush()
-        
+
         # Create services
         for svc in template["services"]:
             service = Service(
@@ -567,139 +715,153 @@ def create_dummy_instructors(session: Session):
                 skill=svc["skill"],
                 hourly_rate=svc["rate"],
                 description=svc["desc"],
-                duration_override=random.choice([None, 45, 60, 90])  # Random duration
+                duration_override=random.choice([None, 45, 60, 90]),  # Random duration
             )
             session.add(service)
-        
+
         # Create availability pattern
         create_availability_pattern(session, user.id, template["availability_pattern"])
-        
+
         created_count += 1
         logger.info(f"Created instructor: {template['name']} ({template['email']})")
-    
+
     session.commit()
     logger.info(f"Created {created_count} dummy instructors")
+
 
 def create_sample_bookings(session: Session):
     """Create sample bookings between students and instructors."""
     logger.info("Creating sample bookings...")
-    
+
     # Get all students and instructors
     students = session.query(User).filter(User.role == UserRole.STUDENT).all()
     instructors = session.query(User).filter(User.role == UserRole.INSTRUCTOR).all()
-    
+
     if not students or not instructors:
         logger.warning("No students or instructors found, skipping bookings")
         return
-    
+
     booking_count = 0
     today = date.today()
-    
+
     # Create bookings for each student
     for student in students:
         # Get student's preferred services based on interests
-        student_template = next((s for s in STUDENT_TEMPLATES if s["email"] == student.email), None)
+        student_template = next(
+            (s for s in STUDENT_TEMPLATES if s["email"] == student.email), None
+        )
         if not student_template:
             continue
-            
+
         interests = student_template["interests"]
-        
+
         # Create a mix of past, upcoming, and cancelled bookings
         # Past completed bookings
         for i in range(2):
             past_date = today - timedelta(days=random.randint(7, 30))
-            booking = create_booking_for_date(session, student, interests, past_date, "past")
+            booking = create_booking_for_date(
+                session, student, interests, past_date, "past"
+            )
             if booking:
                 booking_count += 1
-        
+
         # Upcoming bookings
         for i in range(3):
             future_date = today + timedelta(days=random.randint(1, 14))
-            booking = create_booking_for_date(session, student, interests, future_date, "future")
+            booking = create_booking_for_date(
+                session, student, interests, future_date, "future"
+            )
             if booking:
                 booking_count += 1
-        
+
         # Cancelled bookings (mix of past and future)
         for i in range(1):
             cancel_date = today + timedelta(days=random.randint(-10, 10))
-            booking = create_booking_for_date(session, student, interests, cancel_date, "cancelled")
+            booking = create_booking_for_date(
+                session, student, interests, cancel_date, "cancelled"
+            )
             if booking:
                 booking_count += 1
-    
+
     session.commit()
     logger.info(f"Created {booking_count} sample bookings")
+
 
 def create_booking_for_date(session, student, interests, target_date, booking_type):
     """Helper function to create a booking for a specific date."""
     # Pick a random interest
     interest = random.choice(interests)
-    
+
     # Find instructors who offer this service
-    matching_services = session.query(Service).filter(
-        Service.skill == interest
-    ).all()
-    
+    matching_services = session.query(Service).filter(Service.skill == interest).all()
+
     if not matching_services:
         return None
-    
+
     # Pick a random service
     service = random.choice(matching_services)
     instructor_id = service.instructor_profile.user_id
-    
+
     # First, ensure availability exists for this date
-    availability = session.query(InstructorAvailability).filter(
-        InstructorAvailability.instructor_id == instructor_id,
-        InstructorAvailability.date == target_date
-    ).first()
-    
+    availability = (
+        session.query(InstructorAvailability)
+        .filter(
+            InstructorAvailability.instructor_id == instructor_id,
+            InstructorAvailability.date == target_date,
+        )
+        .first()
+    )
+
     # If no availability exists, create it
     if not availability:
         availability = InstructorAvailability(
-            instructor_id=instructor_id,
-            date=target_date,
-            is_cleared=False
+            instructor_id=instructor_id, date=target_date, is_cleared=False
         )
         session.add(availability)
         session.flush()
-        
+
         # Add some time slots
         time_slots = [
             (time(9, 0), time(10, 0)),
             (time(10, 30), time(11, 30)),
             (time(14, 0), time(15, 0)),
             (time(16, 0), time(17, 0)),
-            (time(18, 0), time(19, 0))
+            (time(18, 0), time(19, 0)),
         ]
-        
+
         for start_time, end_time in random.sample(time_slots, random.randint(2, 4)):
             slot = AvailabilitySlot(
                 availability_id=availability.id,
                 start_time=start_time,
-                end_time=end_time
+                end_time=end_time,
             )
             session.add(slot)
         session.flush()
-    
+
     # Get available slots
-    available_slots = session.query(AvailabilitySlot).filter(
-        AvailabilitySlot.availability_id == availability.id,
-        AvailabilitySlot.booking_id.is_(None)  # Not booked
-    ).all()
-    
+    available_slots = (
+        session.query(AvailabilitySlot)
+        .filter(
+            AvailabilitySlot.availability_id == availability.id,
+            AvailabilitySlot.booking_id.is_(None),  # Not booked
+        )
+        .all()
+    )
+
     if not available_slots:
         return None
-    
+
     # Pick a random slot
     slot = random.choice(available_slots)
-    
+
     # Calculate booking details
     duration_minutes = service.duration_override or 60
     hours = duration_minutes / 60
     total_price = float(service.hourly_rate) * hours
-    
+
     # Determine booking status based on type
-    today = date.today()
-    
+    date.today()
+
     if booking_type == "past":
         status = BookingStatus.COMPLETED
         completed_at = datetime.combine(target_date, slot.end_time)
@@ -711,25 +873,27 @@ def create_booking_for_date(session, student, interests, target_date, booking_ty
         completed_at = None
         cancelled_at = datetime.now() - timedelta(days=random.randint(1, 5))
         cancelled_by = random.choice([student.id, instructor_id])
-        cancellation_reason = random.choice([
-            "Schedule conflict",
-            "Feeling unwell",
-            "Emergency came up",
-            "Need to reschedule"
-        ])
+        cancellation_reason = random.choice(
+            [
+                "Schedule conflict",
+                "Feeling unwell",
+                "Emergency came up",
+                "Need to reschedule",
+            ]
+        )
     else:  # future
         status = BookingStatus.CONFIRMED
         completed_at = None
         cancelled_at = None
         cancelled_by = None
         cancellation_reason = None
-    
+
     # Determine location type and meeting location
     location_types = ["student_home", "instructor_location", "neutral"]
     location_type = random.choice(location_types)
-    
-    area = service.instructor_profile.areas_of_service.split(',')[0].strip()
-    
+
+    area = service.instructor_profile.areas_of_service.split(",")[0].strip()
+
     if location_type == "student_home":
         meeting_location = f"Student's home in {area}"
     elif location_type == "instructor_location":
@@ -740,10 +904,10 @@ def create_booking_for_date(session, student, interests, target_date, booking_ty
             f"Public Library in {area}",
             f"{area} Community Center",
             f"Central Park near {area}",
-            f"Bryant Park (near {area})"
+            f"Bryant Park (near {area})",
         ]
         meeting_location = random.choice(neutral_locations)
-    
+
     # Create booking
     booking = Booking(
         student_id=student.id,
@@ -761,63 +925,78 @@ def create_booking_for_date(session, student, interests, target_date, booking_ty
         service_area=area,
         meeting_location=meeting_location,
         location_type=location_type,  # NEW FIELD
-        student_note=random.choice([
-            "Looking forward to the lesson!",
-            "First time trying this, excited!",
-            "Continuing from last session",
-            "Please focus on fundamentals",
-            "Need help with specific techniques",
-            None
-        ]),
-        instructor_note="Great progress today!" if status == BookingStatus.COMPLETED else None,
+        student_note=random.choice(
+            [
+                "Looking forward to the lesson!",
+                "First time trying this, excited!",
+                "Continuing from last session",
+                "Please focus on fundamentals",
+                "Need help with specific techniques",
+                None,
+            ]
+        ),
+        instructor_note="Great progress today!"
+        if status == BookingStatus.COMPLETED
+        else None,
         completed_at=completed_at,
         cancelled_at=cancelled_at,
         cancelled_by_id=cancelled_by,
-        cancellation_reason=cancellation_reason
+        cancellation_reason=cancellation_reason,
     )
-    
+
     session.add(booking)
     session.flush()
-    
+
     # Update slot to mark as booked
     slot.booking_id = booking.id
-    
-    logger.info(f"Created {booking_type} booking: {student.full_name} -> {service.skill} on {target_date} ({status}) at {location_type}")
-    
+
+    logger.info(
+        f"Created {booking_type} booking: {student.full_name} -> {service.skill} on {target_date} ({status}) at {location_type}"
+    )
+
     return booking
-    
+
+
 def main():
     """Main function to reset and seed the database."""
     logger.info("Starting database reset and seed process...")
-    
+
     # Create engine and session
     engine = create_engine(settings.database_url)
     session = Session(engine)
-    
+
     try:
         # Step 1: Cleanup
         excluded_ids = cleanup_database(session)
-        
+
         # Step 2: Create dummy instructors
         create_dummy_instructors(session)
-        
+
         # Step 3: Create dummy students
         create_dummy_students(session)
-        
+
         # Step 4: Create sample bookings
         create_sample_bookings(session)
-        
+
         # Step 5: Summary
         total_users = session.query(User).count()
-        total_instructors = session.query(User).filter(User.role == UserRole.INSTRUCTOR).count()
-        total_students = session.query(User).filter(User.role == UserRole.STUDENT).count()
+        total_instructors = (
+            session.query(User).filter(User.role == UserRole.INSTRUCTOR).count()
+        )
+        total_students = (
+            session.query(User).filter(User.role == UserRole.STUDENT).count()
+        )
         total_bookings = session.query(Booking).count()
-        upcoming_bookings = session.query(Booking).filter(
-            Booking.booking_date >= date.today(),
-            Booking.status == BookingStatus.CONFIRMED
-        ).count()
-        
-        logger.info("\n" + "="*50)
+        upcoming_bookings = (
+            session.query(Booking)
+            .filter(
+                Booking.booking_date >= date.today(),
+                Booking.status == BookingStatus.CONFIRMED,
+            )
+            .count()
+        )
+
+        logger.info("\n" + "=" * 50)
         logger.info("Database reset complete!")
         logger.info(f"Total users: {total_users}")
         logger.info(f"  - Instructors: {total_instructors}")
@@ -825,8 +1004,8 @@ def main():
         logger.info(f"  - Preserved users: {len(excluded_ids)}")
         logger.info(f"Total bookings: {total_bookings}")
         logger.info(f"  - Upcoming: {upcoming_bookings}")
-        logger.info("="*50)
-        
+        logger.info("=" * 50)
+
         logger.info("\nTest credentials for dummy accounts:")
         logger.info(f"Password for all test accounts: {TEST_PASSWORD}")
         logger.info("\nSample student logins:")
@@ -835,13 +1014,14 @@ def main():
         logger.info("\nSample instructor logins:")
         for template in INSTRUCTOR_TEMPLATES[:3]:
             logger.info(f"  - {template['email']}")
-        
+
     except Exception as e:
         logger.error(f"Error during database reset: {str(e)}")
         session.rollback()
         raise
     finally:
         session.close()
+
 
 if __name__ == "__main__":
     main()

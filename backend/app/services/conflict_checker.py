@@ -10,17 +10,15 @@ Handles all booking conflict detection and validation including:
 """
 
 import logging
-from datetime import date, time, datetime, timedelta
-from typing import List, Optional, Dict, Any
+from datetime import date, datetime, time, timedelta
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import and_, or_
 
-from ..models.booking import Booking, BookingStatus
 from ..models.availability import AvailabilitySlot, InstructorAvailability
+from ..models.booking import Booking, BookingStatus
 from ..models.instructor import InstructorProfile
 from .base import BaseService
-from ..core.exceptions import ValidationException
 
 logger = logging.getLogger(__name__)
 
@@ -28,87 +26,90 @@ logger = logging.getLogger(__name__)
 class ConflictChecker(BaseService):
     """
     Service for checking booking conflicts and availability validation.
-    
+
     This service centralizes all conflict detection logic to ensure
     consistent validation across the platform.
     """
-    
+
     def __init__(self, db: Session):
         """Initialize conflict checker service."""
         super().__init__(db)
         self.logger = logging.getLogger(__name__)
-    
+
     def check_booking_conflicts(
         self,
         instructor_id: int,
         check_date: date,
         start_time: time,
         end_time: time,
-        exclude_slot_id: Optional[int] = None
+        exclude_slot_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """
         Check if a time range conflicts with existing bookings.
-        
+
         Args:
             instructor_id: The instructor to check
             check_date: The date to check
             start_time: Start time of the range to check
             end_time: End time of the range to check
             exclude_slot_id: Optional slot ID to exclude from check
-            
+
         Returns:
             List of conflicts with booking details
         """
         query = (
             self.db.query(Booking)
             .join(AvailabilitySlot, Booking.availability_slot_id == AvailabilitySlot.id)
-            .join(InstructorAvailability, AvailabilitySlot.availability_id == InstructorAvailability.id)
+            .join(
+                InstructorAvailability,
+                AvailabilitySlot.availability_id == InstructorAvailability.id,
+            )
             .filter(
                 InstructorAvailability.instructor_id == instructor_id,
                 Booking.booking_date == check_date,
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED])
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             )
         )
-        
+
         if exclude_slot_id:
             query = query.filter(AvailabilitySlot.id != exclude_slot_id)
-        
+
         bookings = query.all()
         conflicts = []
-        
+
         for booking in bookings:
             slot = booking.availability_slot
             # Check if time ranges overlap
-            if (start_time < slot.end_time and end_time > slot.start_time):
-                conflicts.append({
-                    'booking_id': booking.id,
-                    'start_time': str(slot.start_time),
-                    'end_time': str(slot.end_time),
-                    'student_name': booking.student.full_name,
-                    'service_name': booking.service_name,
-                    'status': booking.status
-                })
-        
+            if start_time < slot.end_time and end_time > slot.start_time:
+                conflicts.append(
+                    {
+                        "booking_id": booking.id,
+                        "start_time": str(slot.start_time),
+                        "end_time": str(slot.end_time),
+                        "student_name": booking.student.full_name,
+                        "service_name": booking.service_name,
+                        "status": booking.status,
+                    }
+                )
+
         if conflicts:
             self.logger.warning(
                 f"Found {len(conflicts)} booking conflicts for {instructor_id} "
                 f"on {check_date} between {start_time}-{end_time}"
             )
-        
+
         return conflicts
-    
+
     def check_slot_availability(
-        self,
-        slot_id: int,
-        instructor_id: Optional[int] = None
+        self, slot_id: int, instructor_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Check if a specific slot is available for booking.
-        
+
         Args:
             slot_id: The availability slot ID
             instructor_id: Optional instructor ID for ownership check
-            
+
         Returns:
             Dictionary with availability status and details
         """
@@ -119,62 +120,54 @@ class ConflictChecker(BaseService):
             .filter(AvailabilitySlot.id == slot_id)
             .first()
         )
-        
+
         if not slot:
-            return {
-                "available": False,
-                "reason": "Slot not found"
-            }
-        
+            return {"available": False, "reason": "Slot not found"}
+
         # Check instructor ownership if specified
         if instructor_id and slot.availability.instructor_id != instructor_id:
             return {
                 "available": False,
-                "reason": "Slot belongs to different instructor"
+                "reason": "Slot belongs to different instructor",
             }
-        
+
         # Check if already booked
         if slot.booking_id:
-            booking = self.db.query(Booking).filter(
-                Booking.id == slot.booking_id
-            ).first()
-            
+            booking = (
+                self.db.query(Booking).filter(Booking.id == slot.booking_id).first()
+            )
+
             return {
                 "available": False,
                 "reason": "Slot is already booked",
-                "booking_status": booking.status if booking else None
+                "booking_status": booking.status if booking else None,
             }
-        
+
         # Check if slot is in the past
         slot_datetime = datetime.combine(slot.availability.date, slot.start_time)
         if slot_datetime < datetime.now():
-            return {
-                "available": False,
-                "reason": "Slot is in the past"
-            }
-        
+            return {"available": False, "reason": "Slot is in the past"}
+
         return {
             "available": True,
             "slot_info": {
                 "date": slot.availability.date.isoformat(),
                 "start_time": slot.start_time.isoformat(),
                 "end_time": slot.end_time.isoformat(),
-                "instructor_id": slot.availability.instructor_id
-            }
+                "instructor_id": slot.availability.instructor_id,
+            },
         }
-    
+
     def get_booked_slots_for_date(
-        self,
-        instructor_id: int,
-        target_date: date
+        self, instructor_id: int, target_date: date
     ) -> List[Dict[str, Any]]:
         """
         Get all booked slots for an instructor on a specific date.
-        
+
         Args:
             instructor_id: The instructor ID
             target_date: The date to check
-            
+
         Returns:
             List of booked slot details
         """
@@ -186,48 +179,49 @@ class ConflictChecker(BaseService):
                 Booking.id.label("booking_id"),
                 Booking.student_id,
                 Booking.service_name,
-                Booking.status
+                Booking.status,
             )
             .join(Booking, AvailabilitySlot.id == Booking.availability_slot_id)
-            .join(InstructorAvailability, AvailabilitySlot.availability_id == InstructorAvailability.id)
+            .join(
+                InstructorAvailability,
+                AvailabilitySlot.availability_id == InstructorAvailability.id,
+            )
             .filter(
                 InstructorAvailability.instructor_id == instructor_id,
                 InstructorAvailability.date == target_date,
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED])
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             )
             .all()
         )
-        
+
         return [
             {
-                'slot_id': slot.id,
-                'start_time': slot.start_time.isoformat(),
-                'end_time': slot.end_time.isoformat(),
-                'booking_id': slot.booking_id,
-                'student_id': slot.student_id,
-                'service_name': slot.service_name,
-                'status': slot.status
+                "slot_id": slot.id,
+                "start_time": slot.start_time.isoformat(),
+                "end_time": slot.end_time.isoformat(),
+                "booking_id": slot.booking_id,
+                "student_id": slot.student_id,
+                "service_name": slot.service_name,
+                "status": slot.status,
             }
             for slot in booked_slots
         ]
-    
+
     def get_booked_slots_for_week(
-        self,
-        instructor_id: int,
-        week_start: date
+        self, instructor_id: int, week_start: date
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
         Get all booked slots for an instructor for a week.
-        
+
         Args:
             instructor_id: The instructor ID
             week_start: Monday of the week
-            
+
         Returns:
             Dictionary mapping dates to booked slots
         """
         week_dates = [week_start + timedelta(days=i) for i in range(7)]
-        
+
         booked_slots = (
             self.db.query(
                 InstructorAvailability.date,
@@ -237,155 +231,145 @@ class ConflictChecker(BaseService):
                 Booking.id.label("booking_id"),
                 Booking.student_id,
                 Booking.service_name,
-                Booking.status
+                Booking.status,
             )
-            .join(AvailabilitySlot, InstructorAvailability.id == AvailabilitySlot.availability_id)
+            .join(
+                AvailabilitySlot,
+                InstructorAvailability.id == AvailabilitySlot.availability_id,
+            )
             .join(Booking, AvailabilitySlot.id == Booking.availability_slot_id)
             .filter(
                 InstructorAvailability.instructor_id == instructor_id,
                 InstructorAvailability.date.in_(week_dates),
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED])
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             )
             .order_by(InstructorAvailability.date, AvailabilitySlot.start_time)
             .all()
         )
-        
+
         # Group by date
         slots_by_date = {}
         for slot in booked_slots:
             date_str = slot.date.isoformat()
             if date_str not in slots_by_date:
                 slots_by_date[date_str] = []
-            
-            slots_by_date[date_str].append({
-                'slot_id': slot.id,
-                'start_time': slot.start_time.isoformat(),
-                'end_time': slot.end_time.isoformat(),
-                'booking_id': slot.booking_id,
-                'student_id': slot.student_id,
-                'service_name': slot.service_name,
-                'status': slot.status
-            })
-        
+
+            slots_by_date[date_str].append(
+                {
+                    "slot_id": slot.id,
+                    "start_time": slot.start_time.isoformat(),
+                    "end_time": slot.end_time.isoformat(),
+                    "booking_id": slot.booking_id,
+                    "student_id": slot.student_id,
+                    "service_name": slot.service_name,
+                    "status": slot.status,
+                }
+            )
+
         return slots_by_date
-    
+
     def validate_time_range(
         self,
         start_time: time,
         end_time: time,
         min_duration_minutes: int = 30,
-        max_duration_minutes: int = 480  # 8 hours
+        max_duration_minutes: int = 480,  # 8 hours
     ) -> Dict[str, Any]:
         """
         Validate a time range for basic constraints.
-        
+
         Args:
             start_time: Start time
             end_time: End time
             min_duration_minutes: Minimum allowed duration
             max_duration_minutes: Maximum allowed duration
-            
+
         Returns:
             Validation result with details
         """
         # Check time order
         if end_time <= start_time:
-            return {
-                "valid": False,
-                "reason": "End time must be after start time"
-            }
-        
+            return {"valid": False, "reason": "End time must be after start time"}
+
         # Calculate duration
         start = datetime.combine(date.today(), start_time)
         end = datetime.combine(date.today(), end_time)
         duration = end - start
         duration_minutes = int(duration.total_seconds() / 60)
-        
+
         # Check minimum duration
         if duration_minutes < min_duration_minutes:
             return {
                 "valid": False,
                 "reason": f"Duration must be at least {min_duration_minutes} minutes",
-                "duration_minutes": duration_minutes
+                "duration_minutes": duration_minutes,
             }
-        
+
         # Check maximum duration
         if duration_minutes > max_duration_minutes:
             return {
                 "valid": False,
                 "reason": f"Duration cannot exceed {max_duration_minutes} minutes",
-                "duration_minutes": duration_minutes
+                "duration_minutes": duration_minutes,
             }
-        
-        return {
-            "valid": True,
-            "duration_minutes": duration_minutes
-        }
-    
+
+        return {"valid": True, "duration_minutes": duration_minutes}
+
     def check_minimum_advance_booking(
-        self,
-        instructor_id: int,
-        booking_date: date,
-        booking_time: time
+        self, instructor_id: int, booking_date: date, booking_time: time
     ) -> Dict[str, Any]:
         """
         Check if booking meets minimum advance booking requirements.
-        
+
         Args:
             instructor_id: The instructor ID
             booking_date: Date of the booking
             booking_time: Time of the booking
-            
+
         Returns:
             Validation result with details
         """
         # Get instructor profile
-        profile = self.db.query(InstructorProfile).filter(
-            InstructorProfile.user_id == instructor_id
-        ).first()
-        
+        profile = (
+            self.db.query(InstructorProfile)
+            .filter(InstructorProfile.user_id == instructor_id)
+            .first()
+        )
+
         if not profile:
-            return {
-                "valid": False,
-                "reason": "Instructor profile not found"
-            }
-        
+            return {"valid": False, "reason": "Instructor profile not found"}
+
         # Calculate booking datetime
         booking_datetime = datetime.combine(booking_date, booking_time)
         min_booking_time = datetime.now() + timedelta(
             hours=profile.min_advance_booking_hours
         )
-        
+
         if booking_datetime < min_booking_time:
-            hours_until_booking = (booking_datetime - datetime.now()).total_seconds() / 3600
+            hours_until_booking = (
+                booking_datetime - datetime.now()
+            ).total_seconds() / 3600
             return {
                 "valid": False,
                 "reason": f"Bookings must be made at least {profile.min_advance_booking_hours} hours in advance",
                 "min_advance_hours": profile.min_advance_booking_hours,
-                "hours_until_booking": max(0, hours_until_booking)
+                "hours_until_booking": max(0, hours_until_booking),
             }
-        
-        return {
-            "valid": True,
-            "min_advance_hours": profile.min_advance_booking_hours
-        }
-    
+
+        return {"valid": True, "min_advance_hours": profile.min_advance_booking_hours}
+
     def find_overlapping_slots(
-        self,
-        instructor_id: int,
-        target_date: date,
-        start_time: time,
-        end_time: time
+        self, instructor_id: int, target_date: date, start_time: time, end_time: time
     ) -> List[Dict[str, Any]]:
         """
         Find all slots that overlap with a given time range.
-        
+
         Args:
             instructor_id: The instructor ID
             target_date: The date to check
             start_time: Start time of the range
             end_time: End time of the range
-            
+
         Returns:
             List of overlapping slots
         """
@@ -394,123 +378,126 @@ class ConflictChecker(BaseService):
             .join(InstructorAvailability)
             .filter(
                 InstructorAvailability.instructor_id == instructor_id,
-                InstructorAvailability.date == target_date
+                InstructorAvailability.date == target_date,
             )
             .all()
         )
-        
+
         overlapping = []
         for slot in slots:
             # Check if slots overlap
-            if (slot.start_time < end_time and slot.end_time > start_time):
-                overlapping.append({
-                    'slot_id': slot.id,
-                    'start_time': slot.start_time.isoformat(),
-                    'end_time': slot.end_time.isoformat(),
-                    'has_booking': slot.booking_id is not None
-                })
-        
+            if slot.start_time < end_time and slot.end_time > start_time:
+                overlapping.append(
+                    {
+                        "slot_id": slot.id,
+                        "start_time": slot.start_time.isoformat(),
+                        "end_time": slot.end_time.isoformat(),
+                        "has_booking": slot.booking_id is not None,
+                    }
+                )
+
         return overlapping
-    
-    def check_blackout_date(
-        self,
-        instructor_id: int,
-        target_date: date
-    ) -> bool:
+
+    def check_blackout_date(self, instructor_id: int, target_date: date) -> bool:
         """
         Check if a date is blacked out for an instructor.
-        
+
         Args:
             instructor_id: The instructor ID
             target_date: The date to check
-            
+
         Returns:
             True if date is blacked out
         """
         from ..models.availability import BlackoutDate
-        
-        blackout = self.db.query(BlackoutDate).filter(
-            BlackoutDate.instructor_id == instructor_id,
-            BlackoutDate.date == target_date
-        ).first()
-        
+
+        blackout = (
+            self.db.query(BlackoutDate)
+            .filter(
+                BlackoutDate.instructor_id == instructor_id,
+                BlackoutDate.date == target_date,
+            )
+            .first()
+        )
+
         return blackout is not None
-    
+
     def validate_booking_constraints(
         self,
         instructor_id: int,
         booking_date: date,
         start_time: time,
         end_time: time,
-        service_id: Optional[int] = None
+        service_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Comprehensive validation of booking constraints.
-        
+
         Checks:
         - Time range validity
         - Minimum advance booking
         - Blackout dates
         - Existing conflicts
-        
+
         Args:
             instructor_id: The instructor ID
             booking_date: Date of the booking
             start_time: Start time
             end_time: End time
             service_id: Optional service ID for additional validation
-            
+
         Returns:
             Comprehensive validation result
         """
         errors = []
         warnings = []
-        
+
         # Validate time range
         time_validation = self.validate_time_range(start_time, end_time)
-        if not time_validation['valid']:
-            errors.append(time_validation['reason'])
-        
+        if not time_validation["valid"]:
+            errors.append(time_validation["reason"])
+
         # Check if date is in the past
         if booking_date < date.today():
             errors.append("Cannot book for past dates")
         elif booking_date == date.today() and start_time < datetime.now().time():
             errors.append("Cannot book for past time slots")
-        
+
         # Check minimum advance booking
         advance_check = self.check_minimum_advance_booking(
             instructor_id, booking_date, start_time
         )
-        if not advance_check['valid']:
-            errors.append(advance_check['reason'])
-        
+        if not advance_check["valid"]:
+            errors.append(advance_check["reason"])
+
         # Check blackout date
         if self.check_blackout_date(instructor_id, booking_date):
             errors.append("Instructor is not available on this date")
-        
+
         # Check for conflicts
         conflicts = self.check_booking_conflicts(
             instructor_id, booking_date, start_time, end_time
         )
         if conflicts:
-            errors.append(f"Time slot conflicts with {len(conflicts)} existing bookings")
-        
+            errors.append(
+                f"Time slot conflicts with {len(conflicts)} existing bookings"
+            )
+
         # If service provided, validate service constraints
         if service_id:
             from ..models.service import Service
-            service = self.db.query(Service).filter(
-                Service.id == service_id
-            ).first()
-            
+
+            service = self.db.query(Service).filter(Service.id == service_id).first()
+
             if service and service.duration_override:
                 # Check if slot duration matches service duration
-                duration_minutes = time_validation.get('duration_minutes', 0)
+                duration_minutes = time_validation.get("duration_minutes", 0)
                 if duration_minutes != service.duration_override:
                     warnings.append(
                         f"Service requires {service.duration_override} minutes, "
                         f"but slot is {duration_minutes} minutes"
                     )
-        
+
         return {
             "valid": len(errors) == 0,
             "errors": errors,
@@ -519,6 +506,6 @@ class ConflictChecker(BaseService):
                 "time_validation": time_validation,
                 "advance_booking": advance_check,
                 "conflicts": conflicts,
-                "has_blackout": self.check_blackout_date(instructor_id, booking_date)
-            }
+                "has_blackout": self.check_blackout_date(instructor_id, booking_date),
+            },
         }

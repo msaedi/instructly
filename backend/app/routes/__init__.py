@@ -1,2 +1,2 @@
-from . import auth, instructors, availability_windows
+from . import auth, availability_windows, instructors
 from .bookings import router as bookings_router

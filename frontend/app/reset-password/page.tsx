@@ -1,22 +1,22 @@
 // frontend/app/reset-password/page.tsx
-"use client";
+'use client';
 
 /**
  * Reset Password Page
- * 
+ *
  * This page handles the password reset process after a user clicks
  * the reset link in their email. It validates the reset token,
  * displays password requirements, and allows users to set a new password.
  * Includes real-time password strength validation and confirmation matching.
- * 
+ *
  * @module reset-password/page
  */
 
-import { useState, useEffect, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { Lock, Eye, EyeOff, CheckCircle, XCircle } from "lucide-react";
-import { fetchAPI } from "@/lib/api";
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { Lock, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react';
+import { fetchAPI } from '@/lib/api';
 import { BRAND } from '@/app/config/brand';
 import { logger } from '@/lib/logger';
 
@@ -45,26 +45,26 @@ interface TokenValidationResponse {
 
 /**
  * Reset Password Form Component
- * 
+ *
  * Handles token validation and password reset submission
- * 
+ *
  * @component
  * @returns {JSX.Element} The reset password form
  */
 function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get("token");
+  const token = searchParams.get('token');
 
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [requestStatus, setRequestStatus] = useState<RequestStatus>(RequestStatus.IDLE);
   const [isVerifying, setIsVerifying] = useState(true);
   const [tokenValid, setTokenValid] = useState(false);
-  const [maskedEmail, setMaskedEmail] = useState("");
-  const [error, setError] = useState("");
+  const [maskedEmail, setMaskedEmail] = useState('');
+  const [error, setError] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
 
   // Password validation states
@@ -74,9 +74,9 @@ function ResetPasswordForm() {
     hasNumber: false,
   });
 
-  logger.debug('ResetPasswordForm initialized', { 
+  logger.debug('ResetPasswordForm initialized', {
     hasToken: !!token,
-    tokenLength: token?.length 
+    tokenLength: token?.length,
   });
 
   /**
@@ -89,8 +89,8 @@ function ResetPasswordForm() {
       return;
     }
 
-    logger.info('Verifying password reset token', { 
-      tokenPrefix: token.substring(0, 8) + '...' 
+    logger.info('Verifying password reset token', {
+      tokenPrefix: token.substring(0, 8) + '...',
     });
 
     try {
@@ -98,24 +98,24 @@ function ResetPasswordForm() {
       const response = await fetchAPI(`/auth/password-reset/verify/${token}`);
       const data: TokenValidationResponse = await response.json();
       logger.timeEnd('tokenVerification');
-      
+
       if (data.valid) {
-        logger.info('Reset token validated successfully', { 
-          maskedEmail: data.email 
+        logger.info('Reset token validated successfully', {
+          maskedEmail: data.email,
         });
         setTokenValid(true);
         setMaskedEmail(data.email || '');
       } else {
-        logger.warn('Reset token invalid or expired', { 
-          error: data.error 
+        logger.warn('Reset token invalid or expired', {
+          error: data.error,
         });
-        setError("This reset link is invalid or has expired.");
+        setError('This reset link is invalid or has expired.');
       }
     } catch (err) {
-      logger.error('Failed to verify reset token', err, { 
-        token: token.substring(0, 8) + '...' 
+      logger.error('Failed to verify reset token', err, {
+        token: token.substring(0, 8) + '...',
       });
-      setError("Failed to verify reset link.");
+      setError('Failed to verify reset link.');
     } finally {
       setIsVerifying(false);
     }
@@ -132,41 +132,41 @@ function ResetPasswordForm() {
       hasUppercase: /[A-Z]/.test(password),
       hasNumber: /[0-9]/.test(password),
     };
-    
+
     setPasswordValidations(validations);
-    
+
     logger.debug('Password validation updated', {
       passwordLength: password.length,
-      validations
+      validations,
     });
   }, [password]);
 
   /**
    * Handle form submission
-   * 
+   *
    * @param {React.FormEvent} e - Form event
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     logger.info('Password reset form submitted');
-    
-    setError("");
+
+    setError('');
 
     // Validate passwords match
     if (password !== confirmPassword) {
-      const errorMsg = "Passwords do not match";
+      const errorMsg = 'Passwords do not match';
       logger.warn('Password reset validation failed', { error: errorMsg });
       setError(errorMsg);
       return;
     }
 
     // Validate password requirements
-    const allValid = Object.values(passwordValidations).every(v => v);
+    const allValid = Object.values(passwordValidations).every((v) => v);
     if (!allValid) {
-      const errorMsg = "Password does not meet all requirements";
-      logger.warn('Password reset validation failed', { 
+      const errorMsg = 'Password does not meet all requirements';
+      logger.warn('Password reset validation failed', {
         error: errorMsg,
-        validations: passwordValidations 
+        validations: passwordValidations,
       });
       setError(errorMsg);
       return;
@@ -175,25 +175,25 @@ function ResetPasswordForm() {
     setRequestStatus(RequestStatus.LOADING);
 
     try {
-      logger.info('Submitting password reset', { 
-        tokenPrefix: token?.substring(0, 8) + '...' 
+      logger.info('Submitting password reset', {
+        tokenPrefix: token?.substring(0, 8) + '...',
       });
       logger.time('passwordReset');
 
       const resetData: PasswordResetConfirm = {
         token: token!,
         new_password: password,
-        password_confirm: confirmPassword
+        password_confirm: confirmPassword,
       };
 
-      const response = await fetchAPI("/auth/password-reset/confirm", {
-        method: "POST",
+      const response = await fetchAPI('/auth/password-reset/confirm', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           token: resetData.token,
-          new_password: resetData.new_password
+          new_password: resetData.new_password,
         }),
       });
 
@@ -203,15 +203,15 @@ function ResetPasswordForm() {
         const data = await response.json();
         logger.warn('Password reset failed', {
           status: response.status,
-          error: data.detail
+          error: data.detail,
         });
-        
+
         // Handle specific error cases
         if (response.status === 400 && data.detail?.includes('expired')) {
-          throw new Error("This reset link has expired. Please request a new one.");
+          throw new Error('This reset link has expired. Please request a new one.');
         }
-        
-        throw new Error(data.detail || "Failed to reset password");
+
+        throw new Error(data.detail || 'Failed to reset password');
       }
 
       logger.info('Password reset successful');
@@ -220,7 +220,7 @@ function ResetPasswordForm() {
     } catch (err) {
       const errorMessage = getErrorMessage(err);
       logger.error('Password reset error', err, { errorMessage });
-      
+
       setError(errorMessage);
       setRequestStatus(RequestStatus.ERROR);
     }
@@ -231,7 +231,7 @@ function ResetPasswordForm() {
    */
   const handleGoToLogin = () => {
     logger.info('Navigating to login from password reset');
-    router.push("/login");
+    router.push('/login');
   };
 
   const isLoading = requestStatus === RequestStatus.LOADING;
@@ -241,7 +241,7 @@ function ResetPasswordForm() {
     logger.debug('Rendering token verification loading state');
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div 
+        <div
           className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"
           role="status"
           aria-label="Verifying reset link"
@@ -256,8 +256,8 @@ function ResetPasswordForm() {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <Link 
-            href="/" 
+          <Link
+            href="/"
             className="flex justify-center mb-6"
             onClick={() => logger.info('Navigating to home from invalid token page')}
           >
@@ -265,21 +265,21 @@ function ResetPasswordForm() {
               {BRAND.name}
             </h1>
           </Link>
-          
+
           <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
             <div className="text-center">
               <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/20 mb-4">
                 <XCircle className="h-6 w-6 text-red-600 dark:text-red-400" aria-hidden="true" />
               </div>
-              
+
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                 Invalid Reset Link
               </h2>
-              
+
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                {error || "This password reset link is invalid or has expired."}
+                {error || 'This password reset link is invalid or has expired.'}
               </p>
-              
+
               <Link
                 href="/forgot-password"
                 className="text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium"
@@ -300,8 +300,8 @@ function ResetPasswordForm() {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <Link 
-            href="/" 
+          <Link
+            href="/"
             className="flex justify-center mb-6"
             onClick={() => logger.info('Navigating to home from reset success')}
           >
@@ -309,21 +309,25 @@ function ResetPasswordForm() {
               {BRAND.name}
             </h1>
           </Link>
-          
+
           <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
             <div className="text-center">
               <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 dark:bg-green-900/20 mb-4">
-                <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" aria-hidden="true" />
+                <CheckCircle
+                  className="h-6 w-6 text-green-600 dark:text-green-400"
+                  aria-hidden="true"
+                />
               </div>
-              
+
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                 Password Reset Successful
               </h2>
-              
+
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                Your password has been successfully reset. You can now log in with your new password.
+                Your password has been successfully reset. You can now log in with your new
+                password.
               </p>
-              
+
               <button
                 onClick={handleGoToLogin}
                 className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:ring-offset-gray-800"
@@ -342,16 +346,14 @@ function ResetPasswordForm() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <Link 
-          href="/" 
+        <Link
+          href="/"
           className="flex justify-center mb-6"
           onClick={() => logger.info('Navigating to home from reset form')}
         >
-          <h1 className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">
-            {BRAND.name}
-          </h1>
+          <h1 className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">{BRAND.name}</h1>
         </Link>
-        
+
         <h2 className="text-center text-3xl font-extrabold text-gray-900 dark:text-white">
           Reset your password
         </h2>
@@ -367,8 +369,8 @@ function ResetPasswordForm() {
           <form className="space-y-6" onSubmit={handleSubmit} noValidate>
             {/* New Password Field */}
             <div>
-              <label 
-                htmlFor="password" 
+              <label
+                htmlFor="password"
                 className="block text-sm font-medium text-gray-700 dark:text-gray-300"
               >
                 New Password
@@ -380,7 +382,7 @@ function ResetPasswordForm() {
                 <input
                   id="password"
                   name="password"
-                  type={showPassword ? "text" : "password"}
+                  type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -393,7 +395,7 @@ function ResetPasswordForm() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? (
                     <EyeOff className="h-5 w-5 text-gray-400" />
@@ -406,8 +408,8 @@ function ResetPasswordForm() {
 
             {/* Confirm Password Field */}
             <div>
-              <label 
-                htmlFor="confirmPassword" 
+              <label
+                htmlFor="confirmPassword"
                 className="block text-sm font-medium text-gray-700 dark:text-gray-300"
               >
                 Confirm New Password
@@ -419,7 +421,7 @@ function ResetPasswordForm() {
                 <input
                   id="confirmPassword"
                   name="confirmPassword"
-                  type={showConfirmPassword ? "text" : "password"}
+                  type={showConfirmPassword ? 'text' : 'password'}
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
@@ -431,7 +433,9 @@ function ResetPasswordForm() {
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                  aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                  aria-label={
+                    showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'
+                  }
                 >
                   {showConfirmPassword ? (
                     <EyeOff className="h-5 w-5 text-gray-400" />
@@ -448,21 +452,39 @@ function ResetPasswordForm() {
                 Password must contain:
               </p>
               <ul className="text-xs space-y-1" role="list">
-                <li 
-                  className={`flex items-center ${passwordValidations.minLength ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}
-                  aria-label={`At least 8 characters: ${passwordValidations.minLength ? 'requirement met' : 'requirement not met'}`}
+                <li
+                  className={`flex items-center ${
+                    passwordValidations.minLength
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-gray-400'
+                  }`}
+                  aria-label={`At least 8 characters: ${
+                    passwordValidations.minLength ? 'requirement met' : 'requirement not met'
+                  }`}
                 >
                   {passwordValidations.minLength ? '✓' : '○'} At least 8 characters
                 </li>
-                <li 
-                  className={`flex items-center ${passwordValidations.hasUppercase ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}
-                  aria-label={`One uppercase letter: ${passwordValidations.hasUppercase ? 'requirement met' : 'requirement not met'}`}
+                <li
+                  className={`flex items-center ${
+                    passwordValidations.hasUppercase
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-gray-400'
+                  }`}
+                  aria-label={`One uppercase letter: ${
+                    passwordValidations.hasUppercase ? 'requirement met' : 'requirement not met'
+                  }`}
                 >
                   {passwordValidations.hasUppercase ? '✓' : '○'} One uppercase letter
                 </li>
-                <li 
-                  className={`flex items-center ${passwordValidations.hasNumber ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}
-                  aria-label={`One number: ${passwordValidations.hasNumber ? 'requirement met' : 'requirement not met'}`}
+                <li
+                  className={`flex items-center ${
+                    passwordValidations.hasNumber
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-gray-400'
+                  }`}
+                  aria-label={`One number: ${
+                    passwordValidations.hasNumber ? 'requirement met' : 'requirement not met'
+                  }`}
                 >
                   {passwordValidations.hasNumber ? '✓' : '○'} One number
                 </li>
@@ -480,20 +502,31 @@ function ResetPasswordForm() {
             <div>
               <button
                 type="submit"
-                disabled={isLoading || !Object.values(passwordValidations).every(v => v)}
+                disabled={isLoading || !Object.values(passwordValidations).every((v) => v)}
                 className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed dark:ring-offset-gray-800"
               >
                 {isLoading ? (
                   <>
-                    <svg 
-                      className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" 
-                      xmlns="http://www.w3.org/2000/svg" 
-                      fill="none" 
+                    <svg
+                      className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
                       viewBox="0 0 24 24"
                       aria-hidden="true"
                     >
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
                     </svg>
                     Resetting...
                   </>
@@ -511,23 +544,25 @@ function ResetPasswordForm() {
 
 /**
  * Main Reset Password Page Component
- * 
+ *
  * @component
  * @returns {JSX.Element} The reset password page with suspense boundary
  */
 export default function ResetPasswordPage() {
   logger.debug('ResetPasswordPage rendered');
-  
+
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div 
-          className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"
-          role="status"
-          aria-label="Loading"
-        ></div>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+          <div
+            className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"
+            role="status"
+            aria-label="Loading"
+          ></div>
+        </div>
+      }
+    >
       <ResetPasswordForm />
     </Suspense>
   );

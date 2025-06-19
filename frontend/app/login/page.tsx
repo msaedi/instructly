@@ -1,19 +1,19 @@
 // frontend/app/login/page.tsx
-"use client";
+'use client';
 
-import { BRAND } from "@/app/config/brand"
-import { useState, Suspense } from "react";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { BRAND } from '@/app/config/brand';
+import { useState, Suspense } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { API_URL, API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
 import { logger } from '@/lib/logger';
 
 /**
  * LoginForm Component
- * 
+ *
  * Handles user authentication with email/password credentials.
  * Supports role-based redirection and custom redirect URLs.
- * 
+ *
  * Features:
  * - Email and password validation
  * - Role-based redirection (instructor vs student)
@@ -21,21 +21,21 @@ import { logger } from '@/lib/logger';
  * - Error handling for invalid credentials and network errors
  * - Forgot password link
  * - Sign up link with redirect preservation
- * 
+ *
  * Security considerations:
  * - Uses OAuth2 password flow with form data
  * - Stores JWT token in localStorage
  * - Validates email format client-side
- * 
+ *
  * @component
  */
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect') || '/'; 
+  const redirect = searchParams.get('redirect') || '/';
   const [formData, setFormData] = useState({
-    email: "",
-    password: "",
+    email: '',
+    password: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,15 +45,15 @@ function LoginForm() {
    */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
     // Clear error for this field when user starts typing
     if (errors[name]) {
-      setErrors(prev => ({
+      setErrors((prev) => ({
         ...prev,
-        [name]: ""
+        [name]: '',
       }));
     }
   };
@@ -64,23 +64,23 @@ function LoginForm() {
    */
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    
+
     if (!formData.email.trim()) {
-      newErrors.email = "Email is required";
+      newErrors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = "Please enter a valid email";
+      newErrors.email = 'Please enter a valid email';
     }
-    
+
     if (!formData.password) {
-      newErrors.password = "Password is required";
+      newErrors.password = 'Password is required';
     }
 
     setErrors(newErrors);
-    
+
     if (Object.keys(newErrors).length > 0) {
       logger.debug('Login form validation failed', { errors: newErrors });
     }
-    
+
     return Object.keys(newErrors).length === 0;
   };
 
@@ -90,52 +90,52 @@ function LoginForm() {
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
-    
+
     setIsSubmitting(true);
-    logger.info('Login attempt', { 
+    logger.info('Login attempt', {
       email: formData.email,
       hasRedirect: redirect !== '/',
-      redirectTo: redirect
+      redirectTo: redirect,
     });
-  
+
     try {
       // FastAPI expects form data for OAuth2
       const params = new URLSearchParams();
       params.append('username', formData.email); // OAuth2 expects 'username'
       params.append('password', formData.password);
-  
+
       const response = await fetch(`${API_URL}${API_ENDPOINTS.LOGIN}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: params
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params,
       });
-      
+
       if (response.ok) {
         const data = await response.json();
-        
+
         // Store token in localStorage
         localStorage.setItem('access_token', data.access_token);
         logger.info('Login successful, token stored');
-        
+
         // Fetch user data to get their role
         try {
           const userResponse = await fetchWithAuth(API_ENDPOINTS.ME);
           if (userResponse.ok) {
             const userData = await userResponse.json();
-            
-            logger.info('User data fetched', { 
+
+            logger.info('User data fetched', {
               role: userData.role,
-              userId: userData.id 
+              userId: userData.id,
             });
-            
+
             // Redirect based on role
-            if (userData.role === "instructor") {
+            if (userData.role === 'instructor') {
               logger.debug('Redirecting to instructor dashboard');
-              router.push("/dashboard/instructor");
+              router.push('/dashboard/instructor');
             } else {
               logger.debug('Redirecting to specified location', { redirect });
               router.push(redirect); // Use the redirect parameter for students
@@ -153,21 +153,21 @@ function LoginForm() {
       } else {
         // Handle login failure
         if (response.status === 401) {
-          logger.warn('Login failed - invalid credentials', { 
-            email: formData.email 
+          logger.warn('Login failed - invalid credentials', {
+            email: formData.email,
           });
-          setErrors({ password: "Invalid email or password" });
+          setErrors({ password: 'Invalid email or password' });
         } else {
-          logger.error('Login failed - server error', { 
+          logger.error('Login failed - server error', {
             status: response.status,
-            statusText: response.statusText 
+            statusText: response.statusText,
           });
-          setErrors({ password: "Server error. Please try again later." });
+          setErrors({ password: 'Server error. Please try again later.' });
         }
       }
     } catch (error) {
       logger.error('Login network error', error);
-      setErrors({ password: "Network error. Please check your connection and try again." });
+      setErrors({ password: 'Network error. Please check your connection and try again.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -228,7 +228,7 @@ function LoginForm() {
               )}
             </div>
           </div>
-          
+
           {/* Forgot Password Link */}
           <div className="flex items-center justify-between">
             <div className="text-sm">
@@ -241,7 +241,7 @@ function LoginForm() {
               </Link>
             </div>
           </div>
-          
+
           {/* Submit Button */}
           <div>
             <button
@@ -251,9 +251,25 @@ function LoginForm() {
             >
               {isSubmitting ? (
                 <>
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  <svg
+                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
                   </svg>
                   Signing in...
                 </>
@@ -267,9 +283,9 @@ function LoginForm() {
         {/* Sign Up Link */}
         <div className="mt-6 text-center">
           <p className="text-sm text-gray-600">
-            Don't have an account?{" "}
-            <Link 
-              href={`/signup${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`} 
+            Don't have an account?{' '}
+            <Link
+              href={`/signup${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
               className="font-medium text-indigo-600 hover:text-indigo-500 transition-colors"
               onClick={() => logger.debug('Navigating to sign up', { preservedRedirect: redirect })}
             >
@@ -284,10 +300,10 @@ function LoginForm() {
 
 /**
  * Login Page Component
- * 
+ *
  * Main login page with InstaInstru branding and login form.
  * Uses Suspense for better loading experience with dynamic imports.
- * 
+ *
  * @component
  * @example
  * ```tsx
@@ -297,12 +313,12 @@ function LoginForm() {
  */
 export default function Login() {
   logger.info('Login page loaded');
-  
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <Link 
-          href="/" 
+        <Link
+          href="/"
           className="flex justify-center"
           onClick={() => logger.debug('Navigating to home from login')}
         >
@@ -315,17 +331,19 @@ export default function Login() {
         </h2>
       </div>
 
-      <Suspense fallback={
-        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-            <div className="animate-pulse">
-              <div className="h-10 bg-gray-200 rounded mb-4"></div>
-              <div className="h-10 bg-gray-200 rounded mb-4"></div>
-              <div className="h-10 bg-gray-200 rounded"></div>
+      <Suspense
+        fallback={
+          <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+            <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+              <div className="animate-pulse">
+                <div className="h-10 bg-gray-200 rounded mb-4"></div>
+                <div className="h-10 bg-gray-200 rounded mb-4"></div>
+                <div className="h-10 bg-gray-200 rounded"></div>
+              </div>
             </div>
           </div>
-        </div>
-      }>
+        }
+      >
         <LoginForm />
       </Suspense>
     </div>

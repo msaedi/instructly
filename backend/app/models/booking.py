@@ -18,16 +18,25 @@ Foreign Keys: student_id, instructor_id, service_id, availability_slot_id, cance
 """
 
 import logging
-from typing import Literal, Optional
 from datetime import datetime
-from decimal import Decimal
 from enum import Enum
+from typing import Optional
+
 from sqlalchemy import (
-    Column, Integer, String, DateTime, ForeignKey, 
-    Numeric, Date, Time, Text, Boolean, CheckConstraint
+    CheckConstraint,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    Time,
 )
+from sqlalchemy.orm import backref, relationship
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship, backref
+
 from ..database import Base
 
 logger = logging.getLogger(__name__)
@@ -36,10 +45,10 @@ logger = logging.getLogger(__name__)
 class BookingStatus(str, Enum):
     """
     Enum for booking statuses throughout the booking lifecycle.
-    
+
     Note: Since we use instant booking, PENDING should rarely be used.
     All bookings start as CONFIRMED.
-    
+
     Values:
         PENDING: Reserved for future use (e.g., if approval flow is added)
         CONFIRMED: Default status - booking is immediately confirmed
@@ -47,25 +56,27 @@ class BookingStatus(str, Enum):
         CANCELLED: Booking was cancelled by student or instructor
         NO_SHOW: Student didn't show up for the lesson
     """
-    PENDING = "PENDING"        # Reserved for future use
-    CONFIRMED = "CONFIRMED"    # Default - booking is confirmed
-    COMPLETED = "COMPLETED"    # Lesson has been completed
-    CANCELLED = "CANCELLED"    # Booking was cancelled
-    NO_SHOW = "NO_SHOW"       # Student didn't show up
+
+    PENDING = "PENDING"  # Reserved for future use
+    CONFIRMED = "CONFIRMED"  # Default - booking is confirmed
+    COMPLETED = "COMPLETED"  # Lesson has been completed
+    CANCELLED = "CANCELLED"  # Booking was cancelled
+    NO_SHOW = "NO_SHOW"  # Student didn't show up
 
 
 class LocationType(str, Enum):
     """
     Enum for booking location types.
-    
+
     Helps instructors quickly understand where they need to go
     and helps with logistics planning.
-    
+
     Values:
         STUDENT_HOME: Lesson will be at student's home/location
         INSTRUCTOR_LOCATION: Lesson will be at instructor's studio/location
         NEUTRAL: Lesson will be at a neutral location (e.g., park, library)
     """
+
     STUDENT_HOME = "student_home"
     INSTRUCTOR_LOCATION = "instructor_location"
     NEUTRAL = "neutral"
@@ -74,18 +85,18 @@ class LocationType(str, Enum):
 class Booking(Base):
     """
     Model representing a booking between a student and instructor.
-    
+
     This model handles instant bookings - when a student books a time slot,
     it's immediately confirmed. The booking captures all relevant information
     at the time of booking to maintain historical accuracy.
-    
+
     Design Principles:
     1. Snapshot Approach: Service details (name, rate) are copied at booking time
        to preserve historical accuracy even if service details change later.
     2. Instant Confirmation: Bookings are confirmed immediately upon creation.
     3. Comprehensive Tracking: All state changes are tracked with timestamps.
     4. Flexible Location: Supports various location types for different teaching scenarios.
-    
+
     Attributes:
         Core Fields:
             id: Primary key
@@ -93,7 +104,7 @@ class Booking(Base):
             instructor_id: The instructor providing the service
             service_id: The service being booked
             availability_slot_id: The specific time slot being booked
-        
+
         Snapshot Data (preserved for history):
             booking_date: Date of the lesson (YYYY-MM-DD)
             start_time: Start time of the lesson (HH:MM:SS)
@@ -102,7 +113,7 @@ class Booking(Base):
             hourly_rate: Rate at booking time (Decimal)
             total_price: Total price calculated (Decimal)
             duration_minutes: Duration in minutes (Integer)
-        
+
         Booking Details:
             status: Current booking status (BookingStatus enum)
             service_area: NYC area where service is provided
@@ -110,18 +121,18 @@ class Booking(Base):
             meeting_location: Specific location/address details
             student_note: Note from student at booking
             instructor_note: Note from instructor (can be added later)
-        
+
         Timestamps:
             created_at: When booking was made
             updated_at: When booking was last modified
             confirmed_at: When booking was confirmed (same as created for instant)
             completed_at: When lesson was completed
             cancelled_at: When booking was cancelled (if applicable)
-        
+
         Cancellation Info:
             cancelled_by_id: User ID who cancelled the booking
             cancellation_reason: Reason for cancellation
-    
+
     Relationships:
         student: User who made the booking
         instructor: User providing the service
@@ -129,81 +140,94 @@ class Booking(Base):
         availability_slot: Time slot that was booked
         cancelled_by: User who cancelled (if cancelled)
     """
+
     __tablename__ = "bookings"
-    
+
     # Primary key
     id = Column(Integer, primary_key=True, index=True)
-    
+
     # Foreign keys
     student_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     instructor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
-    availability_slot_id = Column(Integer, ForeignKey("availability_slots.id"), nullable=True)
-    
+    availability_slot_id = Column(
+        Integer, ForeignKey("availability_slots.id"), nullable=True
+    )
+
     # Booking snapshot data - preserved for historical accuracy
-    booking_date = Column(Date, nullable=False, index=True)  # Indexed for query performance
+    booking_date = Column(
+        Date, nullable=False, index=True
+    )  # Indexed for query performance
     start_time = Column(Time, nullable=False)
     end_time = Column(Time, nullable=False)
     service_name = Column(String, nullable=False)  # Snapshot of service name
     hourly_rate = Column(Numeric(10, 2), nullable=False)  # Snapshot of rate
     total_price = Column(Numeric(10, 2), nullable=False)
     duration_minutes = Column(Integer, nullable=False)
-    
+
     # Status with check constraint
-    status = Column(String(20), nullable=False, default=BookingStatus.CONFIRMED, index=True)
-    
+    status = Column(
+        String(20), nullable=False, default=BookingStatus.CONFIRMED, index=True
+    )
+
     # Location details
     service_area = Column(String, nullable=True)  # e.g., "Manhattan, Brooklyn"
     location_type = Column(String(50), nullable=True, default=LocationType.NEUTRAL)
     meeting_location = Column(Text, nullable=True)  # Detailed address/instructions
-    
+
     # Communication
     student_note = Column(Text, nullable=True)  # Note provided during booking
     instructor_note = Column(Text, nullable=True)  # Instructor can add notes later
-    
+
     # Timestamps - all timezone-aware
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    confirmed_at = Column(DateTime(timezone=True), server_default=func.now())  # Instant booking
+    confirmed_at = Column(
+        DateTime(timezone=True), server_default=func.now()
+    )  # Instant booking
     completed_at = Column(DateTime(timezone=True), nullable=True)
     cancelled_at = Column(DateTime(timezone=True), nullable=True)
-    
+
     # Cancellation details
     cancelled_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     cancellation_reason = Column(Text, nullable=True)
-    
+
     # Relationships
-    student = relationship("User", foreign_keys=[student_id], backref="student_bookings")
-    instructor = relationship("User", foreign_keys=[instructor_id], backref="instructor_bookings")
+    student = relationship(
+        "User", foreign_keys=[student_id], backref="student_bookings"
+    )
+    instructor = relationship(
+        "User", foreign_keys=[instructor_id], backref="instructor_bookings"
+    )
     service = relationship("Service", backref="bookings")
     availability_slot = relationship(
-        "AvailabilitySlot", 
+        "AvailabilitySlot",
         foreign_keys=[availability_slot_id],
         backref=backref("booking", uselist=False),  # One-to-one relationship
-        post_update=True  # Avoid circular dependency issues
+        post_update=True,  # Avoid circular dependency issues
     )
     cancelled_by = relationship("User", foreign_keys=[cancelled_by_id])
-    
+
     # Table constraints to ensure data integrity
     __table_args__ = (
         CheckConstraint(
             "status IN ('PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW')",
-            name='ck_bookings_status'
+            name="ck_bookings_status",
         ),
         CheckConstraint(
             "location_type IN ('student_home', 'instructor_location', 'neutral')",
-            name='ck_bookings_location_type'
+            name="ck_bookings_location_type",
         ),
-        CheckConstraint('duration_minutes > 0', name='check_duration_positive'),
-        CheckConstraint('total_price >= 0', name='check_price_non_negative'),
-        CheckConstraint('hourly_rate > 0', name='check_rate_positive'),
-        CheckConstraint('start_time < end_time', name='check_time_order'),
+        CheckConstraint("duration_minutes > 0", name="check_duration_positive"),
+        CheckConstraint("total_price >= 0", name="check_price_non_negative"),
+        CheckConstraint("hourly_rate > 0", name="check_rate_positive"),
+        CheckConstraint("start_time < end_time", name="check_time_order"),
     )
-    
+
     def __init__(self, **kwargs):
         """
         Initialize booking with instant confirmation.
-        
+
         Sets default status to CONFIRMED if not provided,
         supporting the instant booking workflow.
         """
@@ -211,22 +235,26 @@ class Booking(Base):
         # Default to CONFIRMED for instant booking
         if not self.status:
             self.status = BookingStatus.CONFIRMED
-        logger.info(f"Creating booking for student {self.student_id} with instructor {self.instructor_id}")
-    
+        logger.info(
+            f"Creating booking for student {self.student_id} with instructor {self.instructor_id}"
+        )
+
     def __repr__(self):
         """String representation for debugging."""
-        return (f"<Booking {self.id}: student={self.student_id}, "
-                f"instructor={self.instructor_id}, date={self.booking_date}, "
-                f"status={self.status}>")
-    
+        return (
+            f"<Booking {self.id}: student={self.student_id}, "
+            f"instructor={self.instructor_id}, date={self.booking_date}, "
+            f"status={self.status}>"
+        )
+
     def cancel(self, cancelled_by_user_id: int, reason: Optional[str] = None) -> None:
         """
         Cancel this booking.
-        
+
         Args:
             cancelled_by_user_id: ID of the user cancelling the booking
             reason: Optional cancellation reason
-        
+
         Side Effects:
             - Updates status to CANCELLED
             - Sets cancelled_at timestamp
@@ -237,13 +265,13 @@ class Booking(Base):
         self.cancelled_by_id = cancelled_by_user_id
         self.cancellation_reason = reason
         logger.info(f"Booking {self.id} cancelled by user {cancelled_by_user_id}")
-    
+
     def complete(self) -> None:
         """
         Mark this booking as completed.
-        
+
         Should be called after the lesson has been successfully delivered.
-        
+
         Side Effects:
             - Updates status to COMPLETED
             - Sets completed_at timestamp
@@ -251,56 +279,60 @@ class Booking(Base):
         self.status = BookingStatus.COMPLETED
         self.completed_at = datetime.utcnow()
         logger.info(f"Booking {self.id} marked as completed")
-    
+
     def mark_no_show(self) -> None:
         """
         Mark this booking as a no-show.
-        
+
         Should be called when the student doesn't attend the scheduled lesson.
-        
+
         Side Effects:
             - Updates status to NO_SHOW
         """
         self.status = BookingStatus.NO_SHOW
         logger.info(f"Booking {self.id} marked as no-show")
-    
+
     @property
     def is_cancellable(self) -> bool:
         """
         Check if booking can still be cancelled.
-        
+
         Returns:
             bool: True if booking is in a cancellable state (CONFIRMED or PENDING)
         """
         return self.status in [BookingStatus.CONFIRMED, BookingStatus.PENDING]
-    
+
     @property
     def is_upcoming(self) -> bool:
         """
         Check if booking is in the future.
-        
+
         Returns:
             bool: True if booking date is in the future and status is CONFIRMED
         """
         from datetime import date
-        return self.booking_date > date.today() and self.status == BookingStatus.CONFIRMED
-    
+
+        return (
+            self.booking_date > date.today() and self.status == BookingStatus.CONFIRMED
+        )
+
     @property
     def is_past(self) -> bool:
         """
         Check if booking is in the past.
-        
+
         Returns:
             bool: True if booking date has passed
         """
         from datetime import date
+
         return self.booking_date < date.today()
-    
+
     @property
     def location_type_display(self) -> str:
         """
         Get display-friendly location type.
-        
+
         Returns:
             str: Human-readable location type
         """
@@ -310,51 +342,59 @@ class Booking(Base):
             return "Instructor's Location"
         else:
             return "Neutral Location"
-    
+
     @property
     def can_be_modified_by(self, user_id: int) -> bool:
         """
         Check if a user can modify this booking.
-        
+
         Args:
             user_id: ID of the user attempting modification
-        
+
         Returns:
             bool: True if user is either the student or instructor
         """
         return user_id in [self.student_id, self.instructor_id]
-    
+
     def to_dict(self) -> dict:
         """
         Convert booking to dictionary for API responses.
-        
+
         Returns:
             dict: Booking data suitable for JSON serialization
         """
         return {
-            'id': self.id,
-            'student_id': self.student_id,
-            'instructor_id': self.instructor_id,
-            'service_id': self.service_id,
-            'booking_date': self.booking_date.isoformat() if self.booking_date else None,
-            'start_time': str(self.start_time) if self.start_time else None,
-            'end_time': str(self.end_time) if self.end_time else None,
-            'service_name': self.service_name,
-            'hourly_rate': float(self.hourly_rate),
-            'total_price': float(self.total_price),
-            'duration_minutes': self.duration_minutes,
-            'status': self.status,
-            'location_type': self.location_type,
-            'location_type_display': self.location_type_display,
-            'meeting_location': self.meeting_location,
-            'service_area': self.service_area,
-            'student_note': self.student_note,
-            'instructor_note': self.instructor_note,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'confirmed_at': self.confirmed_at.isoformat() if self.confirmed_at else None,
-            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
-            'cancelled_at': self.cancelled_at.isoformat() if self.cancelled_at else None,
-            'cancelled_by_id': self.cancelled_by_id,
-            'cancellation_reason': self.cancellation_reason,
+            "id": self.id,
+            "student_id": self.student_id,
+            "instructor_id": self.instructor_id,
+            "service_id": self.service_id,
+            "booking_date": self.booking_date.isoformat()
+            if self.booking_date
+            else None,
+            "start_time": str(self.start_time) if self.start_time else None,
+            "end_time": str(self.end_time) if self.end_time else None,
+            "service_name": self.service_name,
+            "hourly_rate": float(self.hourly_rate),
+            "total_price": float(self.total_price),
+            "duration_minutes": self.duration_minutes,
+            "status": self.status,
+            "location_type": self.location_type,
+            "location_type_display": self.location_type_display,
+            "meeting_location": self.meeting_location,
+            "service_area": self.service_area,
+            "student_note": self.student_note,
+            "instructor_note": self.instructor_note,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "confirmed_at": self.confirmed_at.isoformat()
+            if self.confirmed_at
+            else None,
+            "completed_at": self.completed_at.isoformat()
+            if self.completed_at
+            else None,
+            "cancelled_at": self.cancelled_at.isoformat()
+            if self.cancelled_at
+            else None,
+            "cancelled_by_id": self.cancelled_by_id,
+            "cancellation_reason": self.cancellation_reason,
         }

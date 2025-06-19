@@ -2,10 +2,10 @@
 
 /**
  * WeekNavigator Component
- * 
+ *
  * Provides week navigation controls with current week display.
  * Shows week date range and navigation arrows for moving between weeks.
- * 
+ *
  * @component
  * @module components/availability
  */
@@ -31,10 +31,10 @@ interface WeekNavigatorProps {
 
 /**
  * Week navigation component with date display
- * 
+ *
  * @param {WeekNavigatorProps} props - Component props
  * @returns Week navigator component
- * 
+ *
  * @example
  * ```tsx
  * <WeekNavigator
@@ -48,21 +48,21 @@ export default function WeekNavigator({
   currentWeekStart,
   onNavigate,
   disabled = false,
-  hasUnsavedChanges = false
+  hasUnsavedChanges = false,
 }: WeekNavigatorProps): React.ReactElement {
   /**
    * Handle navigation with logging
    */
   const handleNavigate = (direction: 'prev' | 'next') => {
-    logger.debug('Week navigation requested', { 
-      direction, 
-      hasUnsavedChanges 
+    logger.debug('Week navigation requested', {
+      direction,
+      hasUnsavedChanges,
     });
     onNavigate(direction);
   };
-  
+
   const weekRangeDisplay = formatWeekRange(currentWeekStart);
-  
+
   return (
     <div className="mb-6 bg-white rounded-lg shadow p-4">
       <div className="flex items-center justify-between">
@@ -70,16 +70,16 @@ export default function WeekNavigator({
         <button
           onClick={() => handleNavigate('prev')}
           disabled={disabled}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors 
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors
                    disabled:opacity-50 disabled:cursor-not-allowed
-                   focus:outline-none focus:ring-2 focus:ring-offset-2 
+                   focus:outline-none focus:ring-2 focus:ring-offset-2
                    focus:ring-indigo-500"
           title="Previous week"
           aria-label="Go to previous week"
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
-        
+
         {/* Week Display */}
         <div className="text-center flex-1">
           <div className="flex items-center justify-center gap-2 mb-1">
@@ -89,20 +89,18 @@ export default function WeekNavigator({
           <p className="text-sm text-gray-600">
             Edit availability for this specific week
             {hasUnsavedChanges && (
-              <span className="text-amber-600 font-medium ml-2">
-                (unsaved changes)
-              </span>
+              <span className="text-amber-600 font-medium ml-2">(unsaved changes)</span>
             )}
           </p>
         </div>
-        
+
         {/* Next Week Button */}
         <button
           onClick={() => handleNavigate('next')}
           disabled={disabled}
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors
                    disabled:opacity-50 disabled:cursor-not-allowed
-                   focus:outline-none focus:ring-2 focus:ring-offset-2 
+                   focus:outline-none focus:ring-2 focus:ring-offset-2
                    focus:ring-indigo-500"
           title="Next week"
           aria-label="Go to next week"

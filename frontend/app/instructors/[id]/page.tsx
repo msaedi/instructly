@@ -1,19 +1,19 @@
 // frontend/app/instructors/[id]/page.tsx
-"use client";
+'use client';
 
 /**
  * Individual Instructor Profile Page
- * 
+ *
  * This page displays detailed information about a specific instructor,
  * including their bio, services with pricing, areas served, and experience.
  * Provides actions to book a session or message the instructor.
- * 
+ *
  * @module instructors/[id]/page
  */
 
-import { useState, useEffect, use } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, MessageCircle, Calendar } from "lucide-react";
+import { useState, useEffect, use } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft, MessageCircle, Calendar } from 'lucide-react';
 import { fetchAPI } from '@/lib/api';
 import { BRAND } from '@/app/config/brand';
 import { logger } from '@/lib/logger';
@@ -25,9 +25,9 @@ import { getErrorMessage } from '@/types/common';
 
 /**
  * Instructor Profile Page Component
- * 
+ *
  * Displays detailed information about a specific instructor
- * 
+ *
  * @component
  * @param {Object} props - Component props
  * @param {Promise<{id: string}>} props.params - Route parameters containing instructor ID
@@ -47,46 +47,46 @@ export default function InstructorProfilePage({ params }: { params: Promise<{ id
     const fetchInstructor = async () => {
       logger.info('Fetching instructor profile', { instructorId: id });
       setRequestStatus(RequestStatus.LOADING);
-      
+
       try {
         logger.time(`fetchInstructor-${id}`);
         const response = await fetchAPI(`/instructors/${id}`);
         logger.timeEnd(`fetchInstructor-${id}`);
-        
+
         if (!response.ok) {
           if (response.status === 404) {
-            logger.warn('Instructor not found', { 
-              instructorId: id, 
-              status: response.status 
+            logger.warn('Instructor not found', {
+              instructorId: id,
+              status: response.status,
             });
-            throw new Error("Instructor not found");
+            throw new Error('Instructor not found');
           }
-          
+
           logger.error('Failed to fetch instructor profile', null, {
             instructorId: id,
             status: response.status,
-            statusText: response.statusText
+            statusText: response.statusText,
           });
-          throw new Error("Failed to fetch instructor profile");
+          throw new Error('Failed to fetch instructor profile');
         }
-        
+
         const data: InstructorProfile = await response.json();
         logger.info('Instructor profile fetched successfully', {
           instructorId: id,
           userId: data.user_id,
           servicesCount: data.services.length,
-          areasCount: data.areas_of_service.length
+          areasCount: data.areas_of_service.length,
         });
-        
+
         setInstructor(data);
         setRequestStatus(RequestStatus.SUCCESS);
       } catch (err) {
         const errorMessage = getErrorMessage(err);
         logger.error('Error fetching instructor profile', err, {
           instructorId: id,
-          errorMessage
+          errorMessage,
         });
-        
+
         setError(errorMessage);
         setRequestStatus(RequestStatus.ERROR);
       }
@@ -105,10 +105,10 @@ export default function InstructorProfilePage({ params }: { params: Promise<{ id
    * Handle back navigation to instructors list
    */
   const handleBackClick = () => {
-    logger.info('Navigating back to instructors list from profile', { 
-      instructorId: id 
+    logger.info('Navigating back to instructors list from profile', {
+      instructorId: id,
     });
-    router.push("/instructors");
+    router.push('/instructors');
   };
 
   /**
@@ -117,7 +117,7 @@ export default function InstructorProfilePage({ params }: { params: Promise<{ id
   const handleBookSession = () => {
     logger.info('Book session clicked', {
       instructorId: id,
-      instructorName: instructor?.user.full_name
+      instructorName: instructor?.user.full_name,
     });
     // TODO: Implement booking flow navigation
     logger.warn('Book session not yet implemented', { instructorId: id });
@@ -129,7 +129,7 @@ export default function InstructorProfilePage({ params }: { params: Promise<{ id
   const handleMessageInstructor = () => {
     logger.info('Message instructor clicked', {
       instructorId: id,
-      instructorName: instructor?.user.full_name
+      instructorName: instructor?.user.full_name,
     });
     // TODO: Implement messaging feature
     logger.warn('Messaging feature not yet implemented', { instructorId: id });
@@ -140,7 +140,7 @@ export default function InstructorProfilePage({ params }: { params: Promise<{ id
     logger.debug('Rendering loading state for instructor profile', { instructorId: id });
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div 
+        <div
           className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"
           role="status"
           aria-label="Loading instructor profile"
@@ -151,9 +151,9 @@ export default function InstructorProfilePage({ params }: { params: Promise<{ id
 
   // Error state
   if (requestStatus === RequestStatus.ERROR) {
-    logger.debug('Rendering error state for instructor profile', { 
-      instructorId: id, 
-      error 
+    logger.debug('Rendering error state for instructor profile', {
+      instructorId: id,
+      error,
     });
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -175,15 +175,15 @@ export default function InstructorProfilePage({ params }: { params: Promise<{ id
 
   // Instructor not found (should not happen after error handling above)
   if (!instructor) {
-    logger.error('Instructor data is null after successful fetch', null, { 
-      instructorId: id 
+    logger.error('Instructor data is null after successful fetch', null, {
+      instructorId: id,
     });
     return null;
   }
 
   logger.debug('Rendering instructor profile', {
     instructorId: id,
-    instructorName: instructor.user.full_name
+    instructorName: instructor.user.full_name,
   });
 
   return (
@@ -202,32 +202,45 @@ export default function InstructorProfilePage({ params }: { params: Promise<{ id
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
           {/* Header Section */}
           <div className="p-8 border-b dark:border-gray-700">
-            <h1 className="text-3xl font-bold mb-4 dark:text-white">
-              {instructor.user.full_name}
-            </h1>
+            <h1 className="text-3xl font-bold mb-4 dark:text-white">{instructor.user.full_name}</h1>
             <div className="flex flex-wrap gap-4 text-gray-600 dark:text-gray-400">
               <div className="flex items-center gap-2">
-                <svg 
-                  className="h-5 w-5" 
-                  fill="none" 
-                  viewBox="0 0 24 24" 
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
                   stroke="currentColor"
                   aria-hidden="true"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
                 </svg>
-                <span>Areas: {instructor.areas_of_service.join(", ")}</span>
+                <span>Areas: {instructor.areas_of_service.join(', ')}</span>
               </div>
               <div className="flex items-center gap-2">
-                <svg 
-                  className="h-5 w-5" 
-                  fill="none" 
-                  viewBox="0 0 24 24" 
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
                   stroke="currentColor"
                   aria-hidden="true"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
                 <span>{instructor.years_experience} years experience</span>
               </div>
@@ -243,14 +256,12 @@ export default function InstructorProfilePage({ params }: { params: Promise<{ id
               </h2>
               <div className="space-y-3">
                 {instructor.services.map((service) => (
-                  <div 
-                    key={service.id} 
+                  <div
+                    key={service.id}
                     className="flex justify-between items-start p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"
                   >
                     <div>
-                      <h3 className="font-medium text-gray-900 dark:text-white">
-                        {service.skill}
-                      </h3>
+                      <h3 className="font-medium text-gray-900 dark:text-white">{service.skill}</h3>
                       {service.description && (
                         <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                           {service.description}
@@ -270,9 +281,7 @@ export default function InstructorProfilePage({ params }: { params: Promise<{ id
               <h2 id="about-heading" className="text-xl font-semibold mb-4 dark:text-white">
                 About
               </h2>
-              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                {instructor.bio}
-              </p>
+              <p className="text-gray-700 dark:text-gray-300 leading-relaxed">{instructor.bio}</p>
             </section>
 
             {/* Action Buttons */}

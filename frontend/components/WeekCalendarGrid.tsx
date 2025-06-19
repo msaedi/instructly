@@ -23,10 +23,10 @@ interface DateInfo {
 
 /**
  * WeekCalendarGrid Component
- * 
+ *
  * Displays a week-based calendar grid for managing availability.
  * Supports both desktop (table) and mobile (list) views with configurable hour ranges.
- * 
+ *
  * Features:
  * - Configurable start and end hours
  * - Responsive design (table on desktop, list on mobile)
@@ -34,7 +34,7 @@ interface DateInfo {
  * - Past date indication
  * - Week navigation support
  * - Structured logging for debugging
- * 
+ *
  * @component
  * @example
  * ```tsx
@@ -71,15 +71,12 @@ const WeekCalendarGrid: React.FC<WeekCalendarGridProps> = ({
   renderCell,
   renderMobileCell,
   onNavigateWeek,
-  currentWeekDisplay
+  currentWeekDisplay,
 }) => {
   /**
    * Generate array of hours based on start and end times
    */
-  const hours = Array.from(
-    { length: endHour - startHour + 1 }, 
-    (_, i) => startHour + i
-  );
+  const hours = Array.from({ length: endHour - startHour + 1 }, (_, i) => startHour + i);
 
   /**
    * Format hour for display
@@ -112,7 +109,7 @@ const WeekCalendarGrid: React.FC<WeekCalendarGridProps> = ({
     hourRange: { startHour, endHour },
     totalHours: hours.length,
     daysInWeek: weekDates.length,
-    hasNavigation: !!onNavigateWeek
+    hasNavigation: !!onNavigateWeek,
   });
 
   /**
@@ -121,9 +118,9 @@ const WeekCalendarGrid: React.FC<WeekCalendarGridProps> = ({
   const handleNavigateWeek = (direction: 'prev' | 'next') => {
     logger.info('Week navigation triggered', {
       direction,
-      currentWeek: currentWeekDisplay || weekDates[0]?.fullDate
+      currentWeek: currentWeekDisplay || weekDates[0]?.fullDate,
     });
-    
+
     if (onNavigateWeek) {
       onNavigateWeek(direction);
     }
@@ -148,9 +145,9 @@ const WeekCalendarGrid: React.FC<WeekCalendarGridProps> = ({
                 logger.debug('Rendering day header', {
                   day: dateInfo.dayOfWeek,
                   date: dateInfo.fullDate,
-                  isPast
+                  isPast,
                 });
-                
+
                 return (
                   <th key={index} className="text-center p-2 text-gray-600 w-32">
                     <div className="font-semibold capitalize">{dateInfo.dayOfWeek}</div>
@@ -161,11 +158,9 @@ const WeekCalendarGrid: React.FC<WeekCalendarGridProps> = ({
             </tr>
           </thead>
           <tbody>
-            {hours.map(hour => (
+            {hours.map((hour) => (
               <tr key={hour} className="border-t">
-                <td className="p-2 text-sm text-gray-600 w-24">
-                  {formatHour(hour)}
-                </td>
+                <td className="p-2 text-sm text-gray-600 w-24">{formatHour(hour)}</td>
                 {weekDates.map((dateInfo) => (
                   <td key={`${dateInfo.fullDate}-${hour}`} className="p-1 w-32">
                     {renderCell(dateInfo.fullDate, hour)}
@@ -181,28 +176,27 @@ const WeekCalendarGrid: React.FC<WeekCalendarGridProps> = ({
       <div className="md:hidden space-y-4">
         {weekDates.map((dateInfo, index) => {
           const isPast = isPastDate(dateInfo.fullDate);
-          
+
           logger.debug('Rendering mobile day view', {
             day: dateInfo.dayOfWeek,
             date: dateInfo.fullDate,
             isPast,
-            index
+            index,
           });
-          
+
           return (
-            <div 
-              key={index} 
-              className={`border rounded-lg p-4 ${isPast ? 'bg-gray-50' : ''}`}
-            >
+            <div key={index} className={`border rounded-lg p-4 ${isPast ? 'bg-gray-50' : ''}`}>
               <h3 className="font-semibold capitalize mb-1">{dateInfo.dayOfWeek}</h3>
               <p className="text-sm text-gray-600 mb-3">
                 {dateInfo.dateStr}
                 {isPast && <span className="text-gray-500 ml-2">(Past date)</span>}
               </p>
               <div className="grid grid-cols-3 gap-2">
-                {hours.map(hour => (
+                {hours.map((hour) => (
                   <React.Fragment key={`${dateInfo.fullDate}-${hour}`}>
-                    {renderMobileCell ? renderMobileCell(dateInfo.fullDate, hour) : renderCell(dateInfo.fullDate, hour)}
+                    {renderMobileCell
+                      ? renderMobileCell(dateInfo.fullDate, hour)
+                      : renderCell(dateInfo.fullDate, hour)}
                   </React.Fragment>
                 ))}
               </div>

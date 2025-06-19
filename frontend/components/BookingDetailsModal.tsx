@@ -6,10 +6,10 @@ import { logger } from '@/lib/logger';
 
 /**
  * BookingDetailsModal Component
- * 
+ *
  * Displays comprehensive booking information in a modal dialog.
  * Used by students to view their booking details.
- * 
+ *
  * Features:
  * - Full booking information display
  * - Status badge with color coding
@@ -19,7 +19,7 @@ import { logger } from '@/lib/logger';
  * - Student/instructor details
  * - Notes and cancellation info
  * - Responsive design with scroll handling
- * 
+ *
  * @component
  * @example
  * ```tsx
@@ -39,17 +39,17 @@ interface BookingDetailsModalProps {
   onClose: () => void;
 }
 
-export default function BookingDetailsModal({ 
-  booking, 
-  isOpen, 
-  onClose 
+export default function BookingDetailsModal({
+  booking,
+  isOpen,
+  onClose,
 }: BookingDetailsModalProps) {
   // Don't render if not open or no booking
   if (!isOpen || !booking) return null;
 
-  logger.debug('Rendering booking details modal', { 
+  logger.debug('Rendering booking details modal', {
     bookingId: booking?.id,
-    status: booking?.status 
+    status: booking?.status,
   });
 
   /**
@@ -63,7 +63,7 @@ export default function BookingDetailsModal({
         weekday: 'long',
         month: 'long',
         day: 'numeric',
-        year: 'numeric'
+        year: 'numeric',
       });
     } catch (error) {
       logger.error('Failed to format date in modal', error, { dateStr });
@@ -116,10 +116,10 @@ export default function BookingDetailsModal({
    */
   const getStatusColor = (status: string): string => {
     const statusColors: Record<string, string> = {
-      'CONFIRMED': 'bg-green-100 text-green-800',
-      'COMPLETED': 'bg-gray-100 text-gray-800',
-      'CANCELLED': 'bg-red-100 text-red-800',
-      'NO_SHOW': 'bg-yellow-100 text-yellow-800'
+      CONFIRMED: 'bg-green-100 text-green-800',
+      COMPLETED: 'bg-gray-100 text-gray-800',
+      CANCELLED: 'bg-red-100 text-red-800',
+      NO_SHOW: 'bg-yellow-100 text-yellow-800',
     };
     return statusColors[status.toUpperCase()] || 'bg-gray-100 text-gray-800';
   };
@@ -146,7 +146,11 @@ export default function BookingDetailsModal({
         <div className="p-6 space-y-6">
           {/* Status and Confirmation */}
           <div className="flex items-center justify-between">
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(booking.status)}`}>
+            <span
+              className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
+                booking.status
+              )}`}
+            >
               {booking.status}
             </span>
             <div className="flex items-center text-gray-600">
@@ -157,9 +161,7 @@ export default function BookingDetailsModal({
 
           {/* Service Info */}
           <div className="bg-blue-50 rounded-lg p-4">
-            <h3 className="font-semibold text-lg text-blue-900 mb-2">
-              {booking.service_name}
-            </h3>
+            <h3 className="font-semibold text-lg text-blue-900 mb-2">{booking.service_name}</h3>
             <div className="space-y-1">
               <div className="flex items-center text-blue-700">
                 <DollarSign className="w-4 h-4 mr-1" />
@@ -167,9 +169,7 @@ export default function BookingDetailsModal({
               </div>
               {booking.service?.hourly_rate && (
                 <div className="flex items-center text-blue-600 text-sm">
-                  <span className="ml-5">
-                    (${formatPrice(booking.service.hourly_rate)}/hour)
-                  </span>
+                  <span className="ml-5">(${formatPrice(booking.service.hourly_rate)}/hour)</span>
                 </div>
               )}
             </div>
@@ -221,9 +221,7 @@ export default function BookingDetailsModal({
                   {booking.meeting_location || 'Location details will be provided by instructor'}
                 </p>
                 {booking.service_area && (
-                  <p className="text-sm text-gray-500 mt-1">
-                    Service area: {booking.service_area}
-                  </p>
+                  <p className="text-sm text-gray-500 mt-1">Service area: {booking.service_area}</p>
                 )}
               </div>
             </div>

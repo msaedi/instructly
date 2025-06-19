@@ -7,10 +7,10 @@ import { logger } from '@/lib/logger';
 
 /**
  * CancelBookingModal Component
- * 
+ *
  * Modal dialog for booking cancellation with reason requirement.
  * Updated with professional design system.
- * 
+ *
  * @component
  */
 interface CancelBookingModalProps {
@@ -31,7 +31,7 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
   isOpen,
   error: externalError,
   onClose,
-  onConfirm
+  onConfirm,
 }) => {
   const [reason, setReason] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -47,7 +47,7 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validate reason
     if (!reason.trim()) {
       setValidationError('Please provide a reason for cancellation');
@@ -58,9 +58,9 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
     setIsLoading(true);
     setValidationError('');
 
-    logger.info('Booking cancellation initiated', { 
+    logger.info('Booking cancellation initiated', {
       bookingId: booking.id,
-      reasonLength: reason.length 
+      reasonLength: reason.length,
     });
 
     try {
@@ -94,7 +94,7 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
         weekday: 'long',
         year: 'numeric',
         month: 'long',
-        day: 'numeric'
+        day: 'numeric',
       });
     } catch (error) {
       logger.error('Failed to format date in cancel modal', error, { dateStr });
@@ -113,7 +113,7 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
       return date.toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
-        hour12: true
+        hour12: true,
       });
     } catch (error) {
       return timeStr;
@@ -134,8 +134,8 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
           <button
             type="button"
             onClick={handleClose}
-            className="px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg 
-                     hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 
+            className="px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg
+                     hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2
                      focus:ring-gray-500 transition-all duration-150 font-medium"
             disabled={isLoading}
           >
@@ -144,9 +144,9 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
           <button
             onClick={handleSubmit}
             disabled={isLoading || !reason.trim()}
-            className="px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 
-                     focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 
-                     transition-all duration-150 font-medium disabled:opacity-50 
+            className="px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700
+                     focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500
+                     transition-all duration-150 font-medium disabled:opacity-50
                      disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isLoading ? (
@@ -175,13 +175,17 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
             </div>
             <div className="flex items-center gap-2 text-gray-700">
               <Clock className="w-4 h-4 text-gray-400" />
-              <span>{formatTime(booking.start_time)} - {formatTime(booking.end_time)}</span>
+              <span>
+                {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
+              </span>
             </div>
             <div className="text-gray-700">
               <span className="font-medium">Service:</span> {booking.service_name}
             </div>
             <div className="text-gray-700">
-              <span className="font-medium">{booking.instructor?.full_name || 'Unknown Instructor'}</span>
+              <span className="font-medium">
+                {booking.instructor?.full_name || 'Unknown Instructor'}
+              </span>
             </div>
           </div>
         </div>
@@ -192,27 +196,24 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
           <div className="flex-1">
             <p className="text-sm text-amber-900 font-medium">Cancellation Policy</p>
             <p className="text-sm text-amber-700 mt-1">
-              Cancellations may be subject to the instructor's cancellation policy. 
-              Late cancellations might incur fees.
+              Cancellations may be subject to the instructor's cancellation policy. Late
+              cancellations might incur fees.
             </p>
           </div>
         </div>
 
         {/* Reason Input */}
         <div>
-          <label 
-            htmlFor="reason" 
-            className="block text-sm font-medium text-gray-700 mb-2"
-          >
+          <label htmlFor="reason" className="block text-sm font-medium text-gray-700 mb-2">
             Cancellation reason <span className="text-red-500">*</span>
           </label>
           <textarea
             id="reason"
             rows={4}
-            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 
+            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2
                        focus:ring-offset-2 transition-colors ${
-                         displayError 
-                           ? 'border-red-300 focus:ring-red-500' 
+                         displayError
+                           ? 'border-red-300 focus:ring-red-500'
                            : 'border-gray-300 focus:ring-indigo-500'
                        }`}
             placeholder="Please let us know why you need to cancel..."
@@ -222,7 +223,7 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
               setValidationError(''); // Clear validation error when typing
             }}
             disabled={isLoading}
-            aria-describedby={displayError ? "error-message" : undefined}
+            aria-describedby={displayError ? 'error-message' : undefined}
             aria-invalid={!!displayError}
           />
           {displayError && (

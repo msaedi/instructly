@@ -1,18 +1,18 @@
 // frontend/components/modals/DeleteProfileModal.tsx
-"use client";
+'use client';
 
-import { useState } from "react";
-import { AlertTriangle, Shield, Trash2 } from "lucide-react";
+import { useState } from 'react';
+import { AlertTriangle, Shield, Trash2 } from 'lucide-react';
 import Modal from '@/components/Modal';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
 
 /**
  * DeleteProfileModal Component
- * 
+ *
  * Modal dialog for deleting an instructor profile with safety confirmation.
  * Updated with professional design system.
- * 
+ *
  * @component
  */
 interface DeleteProfileModalProps {
@@ -24,45 +24,45 @@ interface DeleteProfileModalProps {
   onSuccess: () => void;
 }
 
-export default function DeleteProfileModal({ 
-  isOpen, 
-  onClose, 
-  onSuccess 
+export default function DeleteProfileModal({
+  isOpen,
+  onClose,
+  onSuccess,
 }: DeleteProfileModalProps) {
-  const [confirmText, setConfirmText] = useState("");
+  const [confirmText, setConfirmText] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
   /**
    * Handle profile deletion
    */
   const handleDelete = async () => {
-    if (confirmText !== "DELETE") {
+    if (confirmText !== 'DELETE') {
       logger.warn('Delete profile attempted without proper confirmation');
-      setError("Please type DELETE to confirm");
+      setError('Please type DELETE to confirm');
       return;
     }
 
     setLoading(true);
-    setError("");
+    setError('');
 
     logger.info('Instructor profile deletion initiated');
 
     try {
       const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, {
-        method: "DELETE",
+        method: 'DELETE',
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || "Failed to delete profile");
+        throw new Error(errorData.detail || 'Failed to delete profile');
       }
 
       logger.info('Instructor profile deleted successfully');
       onSuccess();
       onClose();
     } catch (err: any) {
-      const errorMessage = err.message || "Failed to delete profile. Please try again.";
+      const errorMessage = err.message || 'Failed to delete profile. Please try again.';
       logger.error('Failed to delete instructor profile', err);
       setError(errorMessage);
     } finally {
@@ -75,7 +75,7 @@ export default function DeleteProfileModal({
 
   logger.debug('Delete profile modal opened');
 
-  const isConfirmed = confirmText === "DELETE";
+  const isConfirmed = confirmText === 'DELETE';
 
   return (
     <Modal
@@ -90,12 +90,12 @@ export default function DeleteProfileModal({
             type="button"
             onClick={() => {
               logger.debug('Delete profile modal cancelled');
-              setConfirmText("");
-              setError("");
+              setConfirmText('');
+              setError('');
               onClose();
             }}
-            className="px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg 
-                     hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 
+            className="px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg
+                     hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2
                      focus:ring-gray-500 transition-all duration-150 font-medium"
             disabled={loading}
           >
@@ -104,9 +104,9 @@ export default function DeleteProfileModal({
           <button
             onClick={handleDelete}
             disabled={!isConfirmed || loading}
-            className="px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 
-                     disabled:opacity-50 disabled:cursor-not-allowed transition-all 
-                     duration-150 font-medium focus:outline-none focus:ring-2 
+            className="px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700
+                     disabled:opacity-50 disabled:cursor-not-allowed transition-all
+                     duration-150 font-medium focus:outline-none focus:ring-2
                      focus:ring-offset-2 focus:ring-red-500 flex items-center gap-2"
           >
             {loading ? (
@@ -130,19 +130,13 @@ export default function DeleteProfileModal({
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
             <AlertTriangle className="w-8 h-8 text-red-600" />
           </div>
-          <h3 className="text-xl font-semibold text-gray-900">
-            Delete Instructor Profile
-          </h3>
-          <p className="mt-2 text-gray-600">
-            This action cannot be undone
-          </p>
+          <h3 className="text-xl font-semibold text-gray-900">Delete Instructor Profile</h3>
+          <p className="mt-2 text-gray-600">This action cannot be undone</p>
         </div>
 
         {/* Consequences Warning */}
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <h4 className="text-sm font-medium text-red-900 mb-3">
-            This will permanently delete:
-          </h4>
+          <h4 className="text-sm font-medium text-red-900 mb-3">This will permanently delete:</h4>
           <ul className="space-y-2 text-sm text-red-700">
             <li className="flex items-start gap-2">
               <span className="text-red-500 mt-0.5">•</span>
@@ -173,8 +167,8 @@ export default function DeleteProfileModal({
           <div className="flex-1">
             <p className="text-sm text-blue-900 font-medium">Student Account Preserved</p>
             <p className="text-sm text-blue-700 mt-1">
-              You will remain a student and can continue booking lessons. 
-              You can always become an instructor again later.
+              You will remain a student and can continue booking lessons. You can always become an
+              instructor again later.
             </p>
           </div>
         </div>
@@ -197,12 +191,12 @@ export default function DeleteProfileModal({
             value={confirmText}
             onChange={(e) => {
               setConfirmText(e.target.value);
-              setError(""); // Clear error when typing
+              setError(''); // Clear error when typing
             }}
-            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 
+            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2
                        focus:ring-offset-2 transition-colors font-mono ${
-                         isConfirmed 
-                           ? 'border-green-300 focus:ring-green-500 bg-green-50' 
+                         isConfirmed
+                           ? 'border-green-300 focus:ring-green-500 bg-green-50'
                            : 'border-gray-300 focus:ring-red-500'
                        }`}
             placeholder="Type DELETE here"

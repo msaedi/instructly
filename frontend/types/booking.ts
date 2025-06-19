@@ -11,41 +11,40 @@ export interface Booking {
   instructor_id: number;
   service_id: number;
   availability_slot_id: number;
-  
+
   // Date and time fields
   booking_date: string; // ISO date string (YYYY-MM-DD)
-  start_time: string;   // Time string (HH:MM:SS)
-  end_time: string;     // Time string (HH:MM:SS)
-  
+  start_time: string; // Time string (HH:MM:SS)
+  end_time: string; // Time string (HH:MM:SS)
+
   // Booking details
   status: BookingStatus;
   service_name: string; // Snapshot of service name at booking time
-  hourly_rate: number;  
+  hourly_rate: number;
   total_price: number;
   duration_minutes: number;
-  
-  
+
   // Location fields
-  service_area?: string; 
-  meeting_location?: string;  
-  location_type?: LocationType;  
-  
+  service_area?: string;
+  meeting_location?: string;
+  location_type?: LocationType;
+
   // Notes - REMOVE 'notes?' and use these instead
-  student_note?: string;  
-  instructor_note?: string;  
-  
+  student_note?: string;
+  instructor_note?: string;
+
   // Timestamps
-  created_at: string;   // ISO datetime string
-  updated_at: string;   // ISO datetime string
-  confirmed_at?: string;  
-  completed_at?: string;  
+  created_at: string; // ISO datetime string
+  updated_at: string; // ISO datetime string
+  confirmed_at?: string;
+  completed_at?: string;
   cancelled_at?: string; // ISO datetime string
-  
+
   // Cancellation fields
   cancelled_by?: 'STUDENT' | 'INSTRUCTOR';
-  cancelled_by_id?: number;  
+  cancelled_by_id?: number;
   cancellation_reason?: string;
-  
+
   // Relations (populated in detailed views) - KEEP THESE!
   student?: User;
   instructor?: User;
@@ -85,7 +84,7 @@ export interface InstructorProfile {
   buffer_time_minutes: number;
   created_at: string;
   updated_at: string;
-  
+
   // Relations
   user?: User;
   services?: Service[];
@@ -96,11 +95,11 @@ export interface AvailabilitySlot {
   id: number;
   availability_id: number;
   start_time: string; // HH:MM:SS
-  end_time: string;   // HH:MM:SS
+  end_time: string; // HH:MM:SS
   booking_id?: number; // If booked, references the booking
   created_at: string;
   updated_at: string;
-  
+
   // Computed/joined fields
   is_available?: boolean;
   date?: string; // From parent availability
@@ -113,7 +112,7 @@ export interface InstructorAvailability {
   date: string; // YYYY-MM-DD
   created_at: string;
   updated_at: string;
-  
+
   // Relations
   slots?: AvailabilitySlot[];
 }
@@ -129,7 +128,7 @@ export interface BlackoutDate {
 
 // API Response wrappers
 export interface PaginatedResponse<T> {
-  bookings: T[];  // Changed from 'items' to match backend
+  bookings: T[]; // Changed from 'items' to match backend
   total: number;
   page: number;
   per_page: number;
@@ -228,9 +227,9 @@ export const getLocationTypeDisplay = (locationType: LocationType): string => {
     case 'instructor_location':
       return "Instructor's Location";
     case 'neutral':
-      return "Neutral Location";
+      return 'Neutral Location';
     default:
-      return "Location TBD";
+      return 'Location TBD';
   }
 };
 
@@ -238,13 +237,13 @@ export const getLocationTypeDisplay = (locationType: LocationType): string => {
 export const getLocationTypeIcon = (locationType: LocationType): string => {
   switch (locationType) {
     case 'student_home':
-      return "🏠";
+      return '🏠';
     case 'instructor_location':
-      return "🏫";
+      return '🏫';
     case 'neutral':
-      return "📍";
+      return '📍';
     default:
-      return "📍";
+      return '📍';
   }
 };
 

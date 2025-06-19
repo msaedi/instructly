@@ -12,27 +12,27 @@ Note: RecurringAvailability has been removed as part of the refactoring
 to use only date-specific availability.
 """
 
-from .user import User, UserRole
-from .instructor import InstructorProfile
-from .service import Service
-from .password_reset import PasswordResetToken
-from .availability import InstructorAvailability, AvailabilitySlot, BlackoutDate
+from .availability import AvailabilitySlot, BlackoutDate, InstructorAvailability
 from .booking import Booking, BookingStatus
+from .instructor import InstructorProfile
+from .password_reset import PasswordResetToken
+from .service import Service
+from .user import User, UserRole
 
 __all__ = [
     # User models
-    "User", 
+    "User",
     "UserRole",
     # Instructor models
-    "InstructorProfile", 
+    "InstructorProfile",
     "Service",
     # Availability models
     "InstructorAvailability",
-    "AvailabilitySlot", 
+    "AvailabilitySlot",
     "BlackoutDate",
     # Authentication models
     "PasswordResetToken",
     # Booking models
     "Booking",
-    "BookingStatus"
+    "BookingStatus",
 ]

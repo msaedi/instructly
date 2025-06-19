@@ -1,24 +1,24 @@
 // frontend/app/dashboard/instructor/page.tsx
-"use client";
+'use client';
 
-import { BRAND } from '@/app/config/brand'
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react"; 
-import Link from "next/link";
-import { Edit, Calendar, ExternalLink, LogOut, Trash2 } from "lucide-react";
-import EditProfileModal from "@/components/modals/EditProfileModal";
-import DeleteProfileModal from "@/components/modals/DeleteProfileModal";
+import { BRAND } from '@/app/config/brand';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
+import { Edit, Calendar, ExternalLink, LogOut, Trash2 } from 'lucide-react';
+import EditProfileModal from '@/components/modals/EditProfileModal';
+import DeleteProfileModal from '@/components/modals/DeleteProfileModal';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import { InstructorProfile, getInstructorDisplayName } from '@/types/instructor';
 
 /**
  * InstructorDashboard Component
- * 
+ *
  * Main dashboard interface for instructors. Provides an overview of their
  * profile, quick stats, and access to key management features.
- * 
+ *
  * Features:
  * - Profile information display and editing
  * - Quick stats overview (bookings, ratings, earnings)
@@ -26,7 +26,7 @@ import { InstructorProfile, getInstructorDisplayName } from '@/types/instructor'
  * - Public profile preview link
  * - Profile deletion option
  * - Authentication protection with redirect
- * 
+ *
  * @component
  * @example
  * ```tsx
@@ -48,46 +48,46 @@ export default function InstructorDashboard() {
    * Handles 404 case for instructors without profiles
    */
   const fetchProfile = async () => {
-    const token = localStorage.getItem("access_token");
+    const token = localStorage.getItem('access_token');
     if (!token) {
       logger.warn('No access token found, redirecting to login');
-      router.push("/login?redirect=/dashboard/instructor");
+      router.push('/login?redirect=/dashboard/instructor');
       return;
     }
-  
+
     try {
       logger.info('Fetching instructor profile');
       const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-  
+
       if (response.status === 404) {
         logger.warn('No instructor profile found');
-        setError("No instructor profile found. Please complete your profile setup.");
+        setError('No instructor profile found. Please complete your profile setup.');
         setIsLoading(false);
         return;
       }
-  
+
       if (!response.ok) {
-        throw new Error("Failed to fetch profile");
+        throw new Error('Failed to fetch profile');
       }
-  
+
       const data: InstructorProfile = await response.json();
-      
+
       // Validate data structure
       if (!data.user || !data.services) {
         logger.error('Invalid profile data structure', undefined, { data });
-        throw new Error("Invalid profile data received");
+        throw new Error('Invalid profile data received');
       }
-      
+
       logger.info('Instructor profile loaded successfully', {
         userId: data.user_id,
         servicesCount: data.services.length,
-        areasCount: data.areas_of_service?.length || 0
+        areasCount: data.areas_of_service?.length || 0,
       });
-      
+
       setProfile(data);
     } catch (err) {
       logger.error('Error fetching instructor profile', err);
-      setError(err instanceof Error ? err.message : "An error occurred");
+      setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsLoading(false);
     }
@@ -104,8 +104,8 @@ export default function InstructorDashboard() {
    */
   const handleLogout = () => {
     logger.info('Instructor logging out');
-    localStorage.removeItem("access_token");
-    router.push("/");
+    localStorage.removeItem('access_token');
+    router.push('/');
   };
 
   /**
@@ -124,7 +124,7 @@ export default function InstructorDashboard() {
    */
   const handleProfileDelete = () => {
     logger.info('Instructor profile deleted, redirecting to student dashboard');
-    router.push("/dashboard/student");
+    router.push('/dashboard/student');
   };
 
   /**
@@ -210,20 +210,18 @@ export default function InstructorDashboard() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Link 
-          href="/" 
+        <Link
+          href="/"
           className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4 transition-colors"
           onClick={() => logger.debug('Navigating back to home')}
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Home
         </Link>
-        
+
         {/* Welcome Section */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Welcome back, {displayName}!
-          </h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back, {displayName}!</h1>
           <p className="text-gray-600">Manage your instructor profile and bookings</p>
         </div>
 
@@ -245,7 +243,7 @@ export default function InstructorDashboard() {
             <p className="text-sm text-gray-500 mt-1">Payment integration pending</p>
           </div>
         </div>
-        
+
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <Link
@@ -269,7 +267,7 @@ export default function InstructorDashboard() {
             </div>
           </div>
         </div>
-        
+
         {/* Profile Section */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
           <div className="flex justify-between items-start mb-6">
@@ -298,7 +296,10 @@ export default function InstructorDashboard() {
               <h3 className="text-sm font-medium text-gray-500 mb-2">Services & Pricing</h3>
               <div className="space-y-2">
                 {profile.services.map((service) => (
-                  <div key={service.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                  <div
+                    key={service.id}
+                    className="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
+                  >
                     <div>
                       <span className="font-medium">{service.skill}</span>
                       {service.description && (
@@ -315,7 +316,7 @@ export default function InstructorDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <h3 className="text-sm font-medium text-gray-500 mb-1">Areas of Service</h3>
-                <p className="text-gray-900">{profile.areas_of_service.join(", ")}</p>
+                <p className="text-gray-900">{profile.areas_of_service.join(', ')}</p>
               </div>
               <div>
                 <h3 className="text-sm font-medium text-gray-500 mb-1">Experience</h3>
@@ -346,7 +347,7 @@ export default function InstructorDashboard() {
           </button>
         </div>
       </div>
-      
+
       {/* Modals */}
       {showEditModal && (
         <EditProfileModal

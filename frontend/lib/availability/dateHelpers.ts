@@ -2,11 +2,11 @@
 
 /**
  * Date Helper Utilities for Availability System
- * 
+ *
  * This module provides date manipulation and formatting utilities
  * specifically for the instructor availability management system.
  * All dates are handled in local time to match user expectations.
- * 
+ *
  * @module availability/dateHelpers
  */
 
@@ -15,10 +15,10 @@ import { logger } from '@/lib/logger';
 
 /**
  * Format a Date object to API format (YYYY-MM-DD)
- * 
+ *
  * @param date - JavaScript Date object
  * @returns ISO date string in YYYY-MM-DD format
- * 
+ *
  * @example
  * ```ts
  * formatDateForAPI(new Date('2025-06-15')) // "2025-06-15"
@@ -28,19 +28,19 @@ export function formatDateForAPI(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
-  
+
   const formatted = `${year}-${month}-${day}`;
   logger.debug('Formatted date for API', { input: date.toISOString(), output: formatted });
-  
+
   return formatted;
 }
 
 /**
  * Get the start of the current week (Monday)
- * 
+ *
  * @param referenceDate - Optional reference date (defaults to today)
  * @returns Date object set to Monday at 00:00:00
- * 
+ *
  * @example
  * ```ts
  * // If today is Thursday June 18, 2025
@@ -51,25 +51,25 @@ export function getCurrentWeekStart(referenceDate: Date = new Date()): Date {
   const date = new Date(referenceDate);
   const dayOfWeek = date.getDay();
   const diff = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-  
+
   const monday = new Date(date.setDate(diff));
   monday.setHours(0, 0, 0, 0);
-  
+
   logger.debug('Calculated week start', {
     referenceDate: referenceDate.toISOString(),
     weekStart: monday.toISOString(),
-    dayOfWeek
+    dayOfWeek,
   });
-  
+
   return monday;
 }
 
 /**
  * Generate array of dates for a week starting from Monday
- * 
+ *
  * @param weekStart - The Monday date to start from
  * @returns Array of WeekDateInfo objects for the week
- * 
+ *
  * @example
  * ```ts
  * const weekDates = getWeekDates(new Date('2025-06-15'));
@@ -78,35 +78,35 @@ export function getCurrentWeekStart(referenceDate: Date = new Date()): Date {
  */
 export function getWeekDates(weekStart: Date): WeekDateInfo[] {
   const dates: WeekDateInfo[] = [];
-  
+
   for (let i = 0; i < 7; i++) {
     const date = new Date(weekStart);
     date.setDate(weekStart.getDate() + i);
-    
+
     dates.push({
       date,
       dateStr: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       dayOfWeek: AVAILABILITY_CONSTANTS.DAYS_OF_WEEK[i],
-      fullDate: formatDateForAPI(date)
+      fullDate: formatDateForAPI(date),
     });
   }
-  
+
   logger.debug('Generated week dates', {
     weekStart: formatDateForAPI(weekStart),
     firstDate: dates[0].fullDate,
-    lastDate: dates[6].fullDate
+    lastDate: dates[6].fullDate,
   });
-  
+
   return dates;
 }
 
 /**
  * Check if a specific time slot is in the past
- * 
+ *
  * @param dateStr - Date in YYYY-MM-DD format
  * @param hour - Hour of the day (0-23)
  * @returns true if the time slot is before current time
- * 
+ *
  * @example
  * ```ts
  * // Current time: June 15, 2025 at 2:30 PM
@@ -116,29 +116,29 @@ export function getWeekDates(weekStart: Date): WeekDateInfo[] {
  * ```
  */
 export function isTimeSlotInPast(dateStr: string, hour: number): boolean {
-  const [year, month, day] = dateStr.split('-').map(num => parseInt(num));
+  const [year, month, day] = dateStr.split('-').map((num) => parseInt(num));
   const slotDateTime = new Date(year, month - 1, day, hour, 0, 0, 0);
   const now = new Date();
-  
+
   const isPast = slotDateTime < now;
-  
+
   logger.debug('Checked if time slot is past', {
     dateStr,
     hour,
     slotTime: slotDateTime.toISOString(),
     currentTime: now.toISOString(),
-    isPast
+    isPast,
   });
-  
+
   return isPast;
 }
 
 /**
  * Check if a date is in the past (comparing only dates, not times)
- * 
+ *
  * @param dateStr - Date in YYYY-MM-DD format
  * @returns true if the date is before today
- * 
+ *
  * @example
  * ```ts
  * // Today: June 15, 2025
@@ -150,21 +150,21 @@ export function isTimeSlotInPast(dateStr: string, hour: number): boolean {
 export function isDateInPast(dateStr: string): boolean {
   const date = new Date(dateStr);
   const today = new Date();
-  
+
   // Reset times to midnight for date-only comparison
   today.setHours(0, 0, 0, 0);
   date.setHours(0, 0, 0, 0);
-  
+
   return date < today;
 }
 
 /**
  * Get the end date for a given time period option
- * 
+ *
  * @param option - The time period option
  * @param customDate - Custom date if option is 'date'
  * @returns ISO date string for the end date
- * 
+ *
  * @example
  * ```ts
  * getEndDateForOption('end-of-year') // "2025-12-31"
@@ -177,7 +177,7 @@ export function getEndDateForOption(
   customDate?: string
 ): string {
   const today = new Date();
-  
+
   switch (option) {
     case 'date':
       if (!customDate) {
@@ -186,17 +186,17 @@ export function getEndDateForOption(
         return formatDateForAPI(endOfMonth);
       }
       return customDate;
-      
+
     case 'end-of-year':
       const endOfYear = new Date(today.getFullYear(), 11, 31);
       return formatDateForAPI(endOfYear);
-      
+
     case 'indefinitely':
       // Default to 1 year from now for "indefinitely"
       const nextYear = new Date();
       nextYear.setFullYear(nextYear.getFullYear() + 1);
       return formatDateForAPI(nextYear);
-      
+
     default:
       logger.error('Invalid option for end date', null, { option });
       throw new Error(`Invalid option: ${option}`);
@@ -205,10 +205,10 @@ export function getEndDateForOption(
 
 /**
  * Format a week range for display
- * 
+ *
  * @param weekStart - The Monday of the week
  * @returns Formatted string like "June 15 - June 21, 2025"
- * 
+ *
  * @example
  * ```ts
  * formatWeekRange(new Date('2025-06-15'))
@@ -218,22 +218,22 @@ export function getEndDateForOption(
 export function formatWeekRange(weekStart: Date): string {
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 6);
-  
-  const startStr = weekStart.toLocaleDateString('en-US', { 
-    month: 'long', 
-    day: 'numeric' 
-  });
-  
-  const endStr = weekEnd.toLocaleDateString('en-US', { 
-    month: 'long', 
+
+  const startStr = weekStart.toLocaleDateString('en-US', {
+    month: 'long',
     day: 'numeric',
-    year: 'numeric'
   });
-  
+
+  const endStr = weekEnd.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
   // If same month, don't repeat it
   const startMonth = weekStart.getMonth();
   const endMonth = weekEnd.getMonth();
-  
+
   if (startMonth === endMonth) {
     const day = weekStart.getDate();
     const endDay = weekEnd.getDate();
@@ -241,17 +241,17 @@ export function formatWeekRange(weekStart: Date): string {
     const year = weekStart.getFullYear();
     return `${month} ${day} - ${endDay}, ${year}`;
   }
-  
+
   return `${startStr} - ${endStr}`;
 }
 
 /**
  * Calculate the number of weeks between two dates
- * 
+ *
  * @param startDate - Start date
  * @param endDate - End date
  * @returns Number of weeks (rounded down)
- * 
+ *
  * @example
  * ```ts
  * const start = new Date('2025-06-15');
@@ -267,7 +267,7 @@ export function getWeeksBetween(startDate: Date, endDate: Date): number {
 
 /**
  * Get the previous Monday from a given date
- * 
+ *
  * @param date - Reference date
  * @returns Date object for the previous Monday
  */
@@ -279,7 +279,7 @@ export function getPreviousMonday(date: Date): Date {
 
 /**
  * Get the next Monday from a given date
- * 
+ *
  * @param date - Reference date
  * @returns Date object for the next Monday
  */
@@ -291,26 +291,26 @@ export function getNextMonday(date: Date): Date {
 
 /**
  * Parse a time string into hours and minutes
- * 
+ *
  * @param timeStr - Time in HH:MM:SS format
  * @returns Object with hours and minutes
- * 
+ *
  * @example
  * ```ts
  * parseTimeString('14:30:00') // { hours: 14, minutes: 30 }
  * ```
  */
 export function parseTimeString(timeStr: string): { hours: number; minutes: number } {
-  const [hours, minutes] = timeStr.split(':').map(n => parseInt(n));
+  const [hours, minutes] = timeStr.split(':').map((n) => parseInt(n));
   return { hours, minutes };
 }
 
 /**
  * Format hour for display
- * 
+ *
  * @param hour - Hour in 24-hour format (0-23)
  * @returns Formatted string like "9:00 AM"
- * 
+ *
  * @example
  * ```ts
  * formatHourDisplay(9)  // "9:00 AM"

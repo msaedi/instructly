@@ -1,11 +1,11 @@
 // frontend/app/dashboard/student/page.tsx
-"use client";
+'use client';
 
-import { BRAND } from '@/app/config/brand'
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { Calendar, Search, LogOut } from "lucide-react";
+import { BRAND } from '@/app/config/brand';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Calendar, Search, LogOut } from 'lucide-react';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { bookingsApi } from '@/lib/api/bookings';
 import { Booking } from '@/types/booking';
@@ -14,17 +14,17 @@ import { UserData } from '@/types/user';
 
 /**
  * StudentDashboard Component
- * 
+ *
  * Main dashboard interface for students. Provides quick access to instructor search,
  * booking management, and displays upcoming sessions.
- * 
+ *
  * Features:
  * - Authentication verification and role-based redirect
  * - Quick action cards for common tasks
  * - Upcoming sessions preview (shows up to 3)
  * - Loading and empty states
  * - Responsive design
- * 
+ *
  * @component
  * @example
  * ```tsx
@@ -49,10 +49,10 @@ export default function StudentDashboard() {
    * Redirects to appropriate dashboard if not a student
    */
   const fetchUserData = async () => {
-    const token = localStorage.getItem("access_token");
+    const token = localStorage.getItem('access_token');
     if (!token) {
       logger.warn('No access token found, redirecting to login');
-      router.push("/login");
+      router.push('/login');
       return;
     }
 
@@ -61,32 +61,32 @@ export default function StudentDashboard() {
       const response = await fetchWithAuth(API_ENDPOINTS.ME);
 
       if (!response.ok) {
-        throw new Error("Failed to fetch user data");
+        throw new Error('Failed to fetch user data');
       }
 
       const data: UserData = await response.json();
-      
+
       // Verify user role
-      if (data.role !== "student") {
-        logger.info('User is instructor, redirecting to instructor dashboard', { 
+      if (data.role !== 'student') {
+        logger.info('User is instructor, redirecting to instructor dashboard', {
           userId: data.id,
-          role: data.role 
+          role: data.role,
         });
-        router.push("/dashboard/instructor");
+        router.push('/dashboard/instructor');
         return;
       }
-      
-      logger.info('Student data loaded successfully', { 
+
+      logger.info('Student data loaded successfully', {
         userId: data.id,
-        email: data.email 
+        email: data.email,
       });
-      
+
       setUserData(data);
       // Once we have user data, fetch bookings
       fetchBookings();
     } catch (err) {
       logger.error('Error fetching user data', err);
-      router.push("/login");
+      router.push('/login');
     } finally {
       setIsLoading(false);
     }
@@ -98,16 +98,16 @@ export default function StudentDashboard() {
   const fetchBookings = async () => {
     try {
       logger.debug('Fetching upcoming bookings for student dashboard');
-      
-      const myBookings = await bookingsApi.getMyBookings({ 
+
+      const myBookings = await bookingsApi.getMyBookings({
         upcoming: true,
-        per_page: 10 
+        per_page: 10,
       });
-      
+
       // If we have bookings, store them
       if (myBookings.bookings && Array.isArray(myBookings.bookings)) {
-        logger.info('Upcoming bookings loaded', { 
-          count: myBookings.bookings.length 
+        logger.info('Upcoming bookings loaded', {
+          count: myBookings.bookings.length,
         });
         setUpcomingBookings(myBookings.bookings);
       }
@@ -123,8 +123,8 @@ export default function StudentDashboard() {
    */
   const handleLogout = () => {
     logger.info('Student logging out');
-    localStorage.removeItem("access_token");
-    router.push("/");
+    localStorage.removeItem('access_token');
+    router.push('/');
   };
 
   /**
@@ -197,8 +197,8 @@ export default function StudentDashboard() {
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <Link 
-            href="/instructors" 
+          <Link
+            href="/instructors"
             className="block"
             onClick={() => logger.debug('Navigating to find instructors')}
           >
@@ -213,8 +213,8 @@ export default function StudentDashboard() {
             </div>
           </Link>
 
-          <Link 
-            href="/dashboard/student/bookings" 
+          <Link
+            href="/dashboard/student/bookings"
             className="block"
             onClick={() => logger.debug('Navigating to my bookings')}
           >
@@ -233,7 +233,7 @@ export default function StudentDashboard() {
         {/* Upcoming Sessions */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h2 className="text-xl font-bold text-gray-900 mb-4">Upcoming Sessions</h2>
-          
+
           {bookingsLoading ? (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500 mx-auto"></div>
@@ -242,8 +242,8 @@ export default function StudentDashboard() {
           ) : upcomingBookings.length > 0 ? (
             <div className="space-y-4">
               {upcomingBookings.slice(0, 3).map((booking) => (
-                <div 
-                  key={booking.id} 
+                <div
+                  key={booking.id}
                   className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
                   onClick={() => {
                     logger.debug('Booking card clicked', { bookingId: booking.id });
@@ -261,32 +261,37 @@ export default function StudentDashboard() {
                           weekday: 'long',
                           year: 'numeric',
                           month: 'long',
-                          day: 'numeric'
-                        })} at {formatTime(booking.start_time)}
+                          day: 'numeric',
+                        })}{' '}
+                        at {formatTime(booking.start_time)}
                       </p>
                       {booking.meeting_location && (
-                        <p className="text-sm text-gray-500">
-                          📍 {booking.meeting_location}
-                        </p>
+                        <p className="text-sm text-gray-500">📍 {booking.meeting_location}</p>
                       )}
                     </div>
                     <div className="text-right">
                       <p className="font-semibold text-gray-900">${booking.total_price}</p>
-                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeColor(booking.status)}`}>
+                      <span
+                        className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeColor(
+                          booking.status
+                        )}`}
+                      >
                         {booking.status}
                       </span>
                     </div>
                   </div>
                 </div>
               ))}
-              
+
               {upcomingBookings.length > 3 && (
                 <Link
                   href="/dashboard/student/bookings"
                   className="block text-center text-indigo-600 hover:text-indigo-700 font-medium transition-colors"
-                  onClick={() => logger.debug('View all bookings clicked', { 
-                    totalBookings: upcomingBookings.length 
-                  })}
+                  onClick={() =>
+                    logger.debug('View all bookings clicked', {
+                      totalBookings: upcomingBookings.length,
+                    })
+                  }
                 >
                   View all {upcomingBookings.length} bookings →
                 </Link>

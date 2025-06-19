@@ -2,10 +2,10 @@
 
 /**
  * ValidationPreviewModal Component
- * 
+ *
  * Displays validation results before saving availability changes.
  * Shows conflicts, warnings, and allows user to review or force save.
- * 
+ *
  * @component
  * @module components/modals
  */
@@ -34,10 +34,10 @@ interface ValidationPreviewModalProps {
 
 /**
  * Modal for previewing validation results
- * 
+ *
  * @param {ValidationPreviewModalProps} props - Component props
  * @returns Modal component or null if not open
- * 
+ *
  * @example
  * ```tsx
  * <ValidationPreviewModal
@@ -54,23 +54,23 @@ export default function ValidationPreviewModal({
   validationResults,
   onClose,
   onConfirm,
-  isSaving = false
+  isSaving = false,
 }: ValidationPreviewModalProps): React.ReactElement | null {
   if (!isOpen || !validationResults) return null;
-  
+
   const { valid, summary, details, warnings } = validationResults;
-  
+
   /**
    * Handle confirm save
    */
   const handleConfirm = () => {
     logger.info('Validation preview confirmed', {
       totalOperations: summary.total_operations,
-      conflicts: summary.invalid_operations
+      conflicts: summary.invalid_operations,
     });
     onConfirm();
   };
-  
+
   /**
    * Format operation action for display
    */
@@ -86,7 +86,7 @@ export default function ValidationPreviewModal({
         return action;
     }
   };
-  
+
   /**
    * Get icon for operation status
    */
@@ -96,7 +96,7 @@ export default function ValidationPreviewModal({
     }
     return <XCircle className="w-4 h-4 text-red-600" />;
   };
-  
+
   return (
     <Modal
       isOpen={isOpen}
@@ -125,13 +125,13 @@ export default function ValidationPreviewModal({
               <div>
                 <span className="font-medium">Changes:</span>
                 <span className="ml-2">
-                  +{summary.estimated_changes.slots_added} / 
-                  -{summary.estimated_changes.slots_removed}
+                  +{summary.estimated_changes.slots_added} / -
+                  {summary.estimated_changes.slots_removed}
                 </span>
               </div>
             </div>
           </div>
-          
+
           {/* Warnings */}
           {warnings.length > 0 && (
             <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -148,14 +148,14 @@ export default function ValidationPreviewModal({
               </div>
             </div>
           )}
-          
+
           {/* Conflict Details */}
           {summary.invalid_operations > 0 && (
             <div>
               <h4 className="font-medium mb-2 text-red-600">Conflicts</h4>
               <div className="space-y-2">
                 {details
-                  .filter(d => d.reason && !d.reason.includes('Valid'))
+                  .filter((d) => d.reason && !d.reason.includes('Valid'))
                   .map((detail, idx) => (
                     <div key={idx} className="p-3 bg-red-50 border border-red-200 rounded text-sm">
                       <div className="flex items-start gap-2">
@@ -164,14 +164,16 @@ export default function ValidationPreviewModal({
                           <div className="font-medium">
                             {formatAction(detail.action)}
                             {detail.date && ` on ${new Date(detail.date).toLocaleDateString()}`}
-                            {detail.start_time && detail.end_time && 
+                            {detail.start_time &&
+                              detail.end_time &&
                               ` ${detail.start_time} - ${detail.end_time}`}
                           </div>
                           <div className="text-red-600 mt-1">{detail.reason}</div>
                           {detail.conflicts_with && detail.conflicts_with.length > 0 && (
                             <div className="text-xs text-gray-600 mt-1">
-                              Conflicts with booking(s): {detail.conflicts_with
-                                .map(c => `${c.start_time} - ${c.end_time}`)
+                              Conflicts with booking(s):{' '}
+                              {detail.conflicts_with
+                                .map((c) => `${c.start_time} - ${c.end_time}`)
                                 .join(', ')}
                             </div>
                           )}
@@ -182,21 +184,25 @@ export default function ValidationPreviewModal({
               </div>
             </div>
           )}
-          
+
           {/* Valid Operations */}
           {summary.valid_operations > 0 && (
             <div>
               <h4 className="font-medium mb-2 text-green-600">Valid Operations</h4>
               <div className="space-y-1 max-h-40 overflow-y-auto">
                 {details
-                  .filter(d => d.reason && d.reason.includes('Valid'))
+                  .filter((d) => d.reason && d.reason.includes('Valid'))
                   .map((detail, idx) => (
-                    <div key={idx} className="p-2 bg-green-50 rounded text-sm flex items-start gap-2">
+                    <div
+                      key={idx}
+                      className="p-2 bg-green-50 rounded text-sm flex items-start gap-2"
+                    >
                       {getStatusIcon(detail)}
                       <span>
                         {formatAction(detail.action)}
                         {detail.date && ` on ${new Date(detail.date).toLocaleDateString()}`}
-                        {detail.start_time && detail.end_time && 
+                        {detail.start_time &&
+                          detail.end_time &&
                           ` ${detail.start_time} - ${detail.end_time}`}
                       </span>
                     </div>
@@ -211,8 +217,8 @@ export default function ValidationPreviewModal({
         <button
           onClick={onClose}
           disabled={isSaving}
-          className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg 
-                   hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 
+          className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg
+                   hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2
                    focus:ring-gray-500 transition-colors disabled:opacity-50"
         >
           Cancel
@@ -221,8 +227,8 @@ export default function ValidationPreviewModal({
           <button
             onClick={handleConfirm}
             disabled={isSaving}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 
-                     focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700
+                     focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500
                      transition-colors disabled:opacity-50 flex items-center gap-2"
           >
             {isSaving ? (

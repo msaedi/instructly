@@ -10,13 +10,12 @@ Handles formatting and presentation logic for frontend display including:
 """
 
 import logging
-from typing import Dict, List, Any, Optional
 from datetime import date, time
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
 from ..models.booking import Booking
-from ..models.user import User
 from .base import BaseService
 
 logger = logging.getLogger(__name__)
@@ -25,11 +24,11 @@ logger = logging.getLogger(__name__)
 class PresentationService(BaseService):
     """
     Service for handling presentation and display formatting.
-    
+
     Centralizes all UI-specific transformations to keep
     business logic separate from presentation concerns.
     """
-    
+
     # NYC Area abbreviations mapping
     AREA_ABBREVIATIONS = {
         "Upper West Side": "UWS",
@@ -57,104 +56,100 @@ class PresentationService(BaseService):
         "Long Island City": "LIC",
         "Bronx": "Bronx",
         "Staten Island": "SI",
-        "Manhattan": "Manhattan"
+        "Manhattan": "Manhattan",
     }
-    
+
     def __init__(self, db: Session):
         """Initialize presentation service."""
         super().__init__(db)
         self.logger = logging.getLogger(__name__)
-    
-    def format_student_name_for_privacy(self, full_name: Optional[str]) -> Dict[str, str]:
+
+    def format_student_name_for_privacy(
+        self, full_name: Optional[str]
+    ) -> Dict[str, str]:
         """
         Format student name for privacy (First name + Last initial).
-        
+
         Args:
             full_name: The student's full name
-            
+
         Returns:
             Dict with first_name and last_initial
-            
+
         Example:
             "John Smith" -> {"first_name": "John", "last_initial": "S."}
             "Jane" -> {"first_name": "Jane", "last_initial": ""}
         """
         if not full_name:
-            return {
-                "first_name": "Unknown",
-                "last_initial": ""
-            }
-        
+            return {"first_name": "Unknown", "last_initial": ""}
+
         name_parts = full_name.strip().split()
         first_name = name_parts[0] if name_parts else "Unknown"
         last_initial = ""
-        
+
         if len(name_parts) > 1:
             last_name = name_parts[-1]
             if last_name:
                 last_initial = last_name[0].upper() + "."
-        
-        return {
-            "first_name": first_name,
-            "last_initial": last_initial
-        }
-    
+
+        return {"first_name": first_name, "last_initial": last_initial}
+
     def abbreviate_service_area(self, service_area: Optional[str]) -> str:
         """
         Convert service area to abbreviated form for display.
-        
+
         Args:
             service_area: Comma-separated list of service areas
-            
+
         Returns:
             Abbreviated area name (first area if multiple)
-            
+
         Example:
             "Upper West Side, Midtown" -> "UWS"
             "Brooklyn, Queens" -> "BK"
         """
         if not service_area:
             return "NYC"
-        
+
         # Split by comma and get first area
-        areas = [area.strip() for area in service_area.split(',')]
+        areas = [area.strip() for area in service_area.split(",")]
         if not areas:
             return "NYC"
-        
+
         first_area = areas[0]
-        
+
         # Check if we have an abbreviation
         if first_area in self.AREA_ABBREVIATIONS:
             return self.AREA_ABBREVIATIONS[first_area]
-        
+
         # If no abbreviation found, truncate to 10 chars
         return first_area[:10].strip()
-    
+
     def format_booked_slot_for_display(
         self,
         booking: Booking,
         slot_start_time: time,
         slot_end_time: time,
-        slot_date: date
+        slot_date: date,
     ) -> Dict[str, Any]:
         """
         Format a booked slot for calendar preview display.
-        
+
         Args:
             booking: The booking object
             slot_start_time: Slot start time
             slot_end_time: Slot end time
             slot_date: The date of the slot
-            
+
         Returns:
             Formatted slot dictionary for frontend display
         """
         # Format student name
         name_info = self.format_student_name_for_privacy(booking.student.full_name)
-        
+
         # Format service area
         service_area_short = self.abbreviate_service_area(booking.service_area)
-        
+
         return {
             "booking_id": booking.id,
             "date": slot_date.isoformat(),
@@ -165,77 +160,82 @@ class PresentationService(BaseService):
             "service_name": booking.service_name,
             "service_area_short": service_area_short,
             "duration_minutes": booking.duration_minutes,
-            "location_type": booking.location_type or "neutral"
+            "location_type": booking.location_type or "neutral",
         }
-    
+
     def format_booked_slots_from_service_data(
-        self,
-        booked_slots_by_date: Dict[str, List[Dict[str, Any]]]
+        self, booked_slots_by_date: Dict[str, List[Dict[str, Any]]]
     ) -> List[Dict[str, Any]]:
         """
         Format booked slots data from ConflictChecker service.
-        
+
         This method enriches the basic slot data with presentation-specific
         formatting for the frontend calendar display.
-        
+
         Args:
             booked_slots_by_date: Raw slot data from ConflictChecker
-            
+
         Returns:
             List of formatted slot dictionaries
         """
         formatted_slots = []
-        
+
         for date_str, slots in booked_slots_by_date.items():
             for slot in slots:
                 # Get the full booking details
-                booking = self.db.query(Booking).filter(
-                    Booking.id == slot['booking_id']
-                ).first()
-                
+                booking = (
+                    self.db.query(Booking)
+                    .filter(Booking.id == slot["booking_id"])
+                    .first()
+                )
+
                 if booking:
                     formatted_slot = self.format_booked_slot_for_display(
                         booking=booking,
-                        slot_start_time=time.fromisoformat(slot['start_time']),
-                        slot_end_time=time.fromisoformat(slot['end_time']),
-                        slot_date=date.fromisoformat(date_str)
+                        slot_start_time=time.fromisoformat(slot["start_time"]),
+                        slot_end_time=time.fromisoformat(slot["end_time"]),
+                        slot_date=date.fromisoformat(date_str),
                     )
                     formatted_slots.append(formatted_slot)
-        
+
         return formatted_slots
-    
+
     def format_duration_for_display(self, minutes: int) -> str:
         """
         Format duration in minutes to human-readable string.
-        
+
         Args:
             minutes: Duration in minutes
-            
+
         Returns:
             Formatted string (e.g., "1 hour", "90 minutes", "2 hours 30 minutes")
         """
         if minutes < 60:
             return f"{minutes} minute{'s' if minutes != 1 else ''}"
-        
+
         hours = minutes // 60
         remaining_minutes = minutes % 60
-        
+
         if remaining_minutes == 0:
             return f"{hours} hour{'s' if hours != 1 else ''}"
-        
+
         hour_text = f"{hours} hour{'s' if hours != 1 else ''}"
-        minute_text = f"{remaining_minutes} minute{'s' if remaining_minutes != 1 else ''}"
-        
+        minute_text = (
+            f"{remaining_minutes} minute{'s' if remaining_minutes != 1 else ''}"
+        )
+
         return f"{hour_text} {minute_text}"
-    
-    def format_time_for_display(self, time_value: time, use_12_hour: bool = True) -> str:
+
+    def format_time_for_display(
+        self, time_value: time, use_12_hour: bool = True
+    ) -> str:
         """
         Format time for user-friendly display.
-        
+
         Args:
             time_value: Time to format
             use_12_hour: Whether to use 12-hour format (AM/PM)
-            
+
         Returns:
             Formatted time string
         """
@@ -243,7 +243,7 @@ class PresentationService(BaseService):
             # Convert to 12-hour format with AM/PM
             hour = time_value.hour
             minute = time_value.minute
-            
+
             if hour == 0:
                 hour_12 = 12
                 period = "AM"
@@ -256,7 +256,7 @@ class PresentationService(BaseService):
             else:
                 hour_12 = hour - 12
                 period = "PM"
-            
+
             if minute == 0:
                 return f"{hour_12} {period}"
             else:
@@ -264,15 +264,17 @@ class PresentationService(BaseService):
         else:
             # 24-hour format
             return time_value.strftime("%H:%M")
-    
-    def format_price_for_display(self, amount: float, include_currency: bool = True) -> str:
+
+    def format_price_for_display(
+        self, amount: float, include_currency: bool = True
+    ) -> str:
         """
         Format price for display.
-        
+
         Args:
             amount: Price amount
             include_currency: Whether to include currency symbol
-            
+
         Returns:
             Formatted price string
         """

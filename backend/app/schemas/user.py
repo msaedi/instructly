@@ -1,11 +1,15 @@
-from pydantic import BaseModel, EmailStr, ConfigDict
-from typing import Optional
 from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, EmailStr
+
 from .base import StandardizedModel
+
 
 class UserRole(str, Enum):
     STUDENT = "student"
     INSTRUCTOR = "instructor"
+
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -13,12 +17,15 @@ class UserBase(BaseModel):
     role: UserRole
     is_active: Optional[bool] = True
 
+
 class UserCreate(UserBase):
     password: str
+
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
 
 class UserResponse(StandardizedModel):  # Changed from UserBase
     id: int
@@ -28,6 +35,8 @@ class UserResponse(StandardizedModel):  # Changed from UserBase
     is_active: Optional[bool] = True
 
     model_config = ConfigDict(from_attributes=True)
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str

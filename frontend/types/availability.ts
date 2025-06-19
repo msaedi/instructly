@@ -2,11 +2,11 @@
 
 /**
  * Availability Type Definitions
- * 
+ *
  * This module contains all TypeScript interfaces and types related to
  * instructor availability management, including bulk operations,
  * validation, week-based scheduling, and UI state management.
- * 
+ *
  * @module availability
  */
 
@@ -22,11 +22,18 @@ export type SlotAction = 'add' | 'remove' | 'update';
  * Days of the week type
  * Used for consistent day naming across the availability system
  */
-export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+export type DayOfWeek =
+  | 'monday'
+  | 'tuesday'
+  | 'wednesday'
+  | 'thursday'
+  | 'friday'
+  | 'saturday'
+  | 'sunday';
 
 /**
  * Represents a single operation on an availability slot
- * 
+ *
  * @interface SlotOperation
  * @example
  * ```ts
@@ -37,7 +44,7 @@ export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'frida
  *   start_time: '09:00:00',
  *   end_time: '10:00:00'
  * };
- * 
+ *
  * // Remove operation
  * const removeOp: SlotOperation = {
  *   action: 'remove',
@@ -48,23 +55,23 @@ export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'frida
 export interface SlotOperation {
   /** The type of operation to perform */
   action: SlotAction;
-  
+
   /** Date for add/update operations (ISO format: YYYY-MM-DD) */
   date?: string;
-  
+
   /** Start time for add/update operations (HH:MM:SS format) */
   start_time?: string;
-  
+
   /** End time for add/update operations (HH:MM:SS format) */
   end_time?: string;
-  
+
   /** Slot ID for remove/update operations */
   slot_id?: number;
 }
 
 /**
  * Request payload for bulk updating availability slots
- * 
+ *
  * @interface BulkUpdateRequest
  * @example
  * ```ts
@@ -80,36 +87,36 @@ export interface SlotOperation {
 export interface BulkUpdateRequest {
   /** Array of operations to perform */
   operations: SlotOperation[];
-  
+
   /** If true, only validate without applying changes */
   validate_only?: boolean;
 }
 
 /**
  * Result of a single slot operation
- * 
+ *
  * @interface OperationResult
  */
 export interface OperationResult {
   /** Index of the operation in the request array */
   operation_index: number;
-  
+
   /** The action that was attempted */
   action: string;
-  
+
   /** Status of the operation */
   status: 'success' | 'failed' | 'skipped';
-  
+
   /** Reason for failure or skip (if applicable) */
   reason?: string;
-  
+
   /** ID of the affected slot (for successful operations) */
   slot_id?: number;
 }
 
 /**
  * Response from bulk update operations
- * 
+ *
  * @interface BulkUpdateResponse
  * @example
  * ```ts
@@ -127,13 +134,13 @@ export interface OperationResult {
 export interface BulkUpdateResponse {
   /** Number of successful operations */
   successful: number;
-  
+
   /** Number of failed operations */
   failed: number;
-  
+
   /** Number of skipped operations */
   skipped: number;
-  
+
   /** Detailed results for each operation */
   results: OperationResult[];
 }
@@ -141,50 +148,50 @@ export interface BulkUpdateResponse {
 /**
  * Represents an existing availability slot from the database
  * Used for tracking current state during updates
- * 
+ *
  * @interface ExistingSlot
  */
 export interface ExistingSlot {
   /** Unique identifier of the slot */
   id: number;
-  
+
   /** Date of the slot (ISO format: YYYY-MM-DD) */
   date: string;
-  
+
   /** Start time (HH:MM:SS format) */
   start_time: string;
-  
+
   /** End time (HH:MM:SS format) */
   end_time: string;
 }
 
 /**
  * Detailed information about a validation operation
- * 
+ *
  * @interface ValidationSlotDetail
  */
 export interface ValidationSlotDetail {
   /** Index of the operation being validated */
   operation_index: number;
-  
+
   /** The action being validated */
   action: string;
-  
+
   /** Date for the operation (if applicable) */
   date?: string;
-  
+
   /** Start time for the operation (if applicable) */
   start_time?: string;
-  
+
   /** End time for the operation (if applicable) */
   end_time?: string;
-  
+
   /** Slot ID for the operation (if applicable) */
   slot_id?: number;
-  
+
   /** Reason for validation failure */
   reason?: string;
-  
+
   /** Bookings that conflict with this operation */
   conflicts_with?: Array<{
     /** ID of the conflicting booking */
@@ -198,25 +205,25 @@ export interface ValidationSlotDetail {
 
 /**
  * Summary of validation results
- * 
+ *
  * @interface ValidationSummary
  */
 export interface ValidationSummary {
   /** Total number of operations to validate */
   total_operations: number;
-  
+
   /** Number of valid operations */
   valid_operations: number;
-  
+
   /** Number of invalid operations */
   invalid_operations: number;
-  
+
   /** Count of operations by type (add, remove, update) */
   operations_by_type: Record<string, number>;
-  
+
   /** Whether any operations have booking conflicts */
   has_conflicts: boolean;
-  
+
   /** Estimated changes if operations are applied */
   estimated_changes: {
     /** Number of slots that would be added */
@@ -230,7 +237,7 @@ export interface ValidationSummary {
 
 /**
  * Response from week validation endpoint
- * 
+ *
  * @interface WeekValidationResponse
  * @example
  * ```ts
@@ -256,29 +263,29 @@ export interface ValidationSummary {
 export interface WeekValidationResponse {
   /** Whether all operations are valid */
   valid: boolean;
-  
+
   /** Summary of validation results */
   summary: ValidationSummary;
-  
+
   /** Detailed results for each operation */
   details: ValidationSlotDetail[];
-  
+
   /** Warning messages for the user */
   warnings: string[];
 }
 
 /**
  * Represents a single time slot within a day
- * 
+ *
  * @interface TimeSlot
  */
 export interface TimeSlot {
   /** Start time in HH:MM:SS format */
   start_time: string;
-  
+
   /** End time in HH:MM:SS format */
   end_time: string;
-  
+
   /** Whether the slot is available for booking */
   is_available: boolean;
 }
@@ -286,7 +293,7 @@ export interface TimeSlot {
 /**
  * Represents a week's worth of availability
  * Keys are ISO date strings (YYYY-MM-DD), values are arrays of time slots
- * 
+ *
  * @interface WeekSchedule
  * @example
  * ```ts
@@ -307,7 +314,7 @@ export interface WeekSchedule {
 
 /**
  * Request payload for validating week changes
- * 
+ *
  * @interface ValidateWeekRequest
  * @example
  * ```ts
@@ -321,10 +328,10 @@ export interface WeekSchedule {
 export interface ValidateWeekRequest {
   /** The current week schedule (as modified in the UI) */
   current_week: WeekSchedule;
-  
+
   /** The saved week schedule (from the backend) */
   saved_week: WeekSchedule;
-  
+
   /** Start date of the week (ISO format: YYYY-MM-DD) */
   week_start: string;
 }
@@ -334,7 +341,7 @@ export interface ValidateWeekRequest {
 /**
  * Extended date information for week calendar display
  * Provides all necessary date formats for UI rendering
- * 
+ *
  * @interface WeekDateInfo
  * @example
  * ```ts
@@ -349,13 +356,13 @@ export interface ValidateWeekRequest {
 export interface WeekDateInfo {
   /** JavaScript Date object */
   date: Date;
-  
+
   /** Formatted date string for display (e.g., "Jun 15") */
   dateStr: string;
-  
+
   /** Day of the week */
   dayOfWeek: DayOfWeek;
-  
+
   /** Full date in ISO format (YYYY-MM-DD) */
   fullDate: string;
 }
@@ -363,7 +370,7 @@ export interface WeekDateInfo {
 /**
  * Preset schedule template
  * Maps days of the week to their default time slots
- * 
+ *
  * @interface PresetSchedule
  * @example
  * ```ts
@@ -381,13 +388,13 @@ export interface PresetSchedule {
 /**
  * UI message for user feedback
  * Used for success, error, and informational messages
- * 
+ *
  * @interface AvailabilityMessage
  */
 export interface AvailabilityMessage {
   /** Message severity/type */
   type: 'success' | 'error' | 'info';
-  
+
   /** Message text to display */
   text: string;
 }
@@ -395,13 +402,13 @@ export interface AvailabilityMessage {
 /**
  * Options for applying schedule to future weeks
  * Determines the end date for bulk schedule application
- * 
+ *
  * @interface ApplyToFutureOptions
  */
 export interface ApplyToFutureOptions {
   /** The selected option type */
   option: 'date' | 'end-of-year' | 'indefinitely';
-  
+
   /** Specific end date if 'date' option is selected */
   untilDate?: string;
 }
@@ -409,7 +416,7 @@ export interface ApplyToFutureOptions {
 /**
  * Difference between two schedules
  * Used for generating operations during save
- * 
+ *
  * @interface ScheduleDiff
  */
 export interface ScheduleDiff {
@@ -418,7 +425,7 @@ export interface ScheduleDiff {
     date: string;
     slot: TimeSlot;
   }>;
-  
+
   /** Slots to be removed */
   toRemove: Array<{
     date: string;
@@ -430,16 +437,16 @@ export interface ScheduleDiff {
 /**
  * Options for operation generation
  * Controls how operations are generated from schedule differences
- * 
+ *
  * @interface OperationGeneratorOptions
  */
 export interface OperationGeneratorOptions {
   /** Skip operations for dates in the past */
   skipPastDates?: boolean;
-  
+
   /** Include today's date in operations */
   includeToday?: boolean;
-  
+
   /** Preserve slots with bookings */
   preserveBookedSlots?: boolean;
 }
@@ -451,23 +458,31 @@ export interface OperationGeneratorOptions {
 export const AVAILABILITY_CONSTANTS = {
   /** Default start hour for calendar grid */
   DEFAULT_START_HOUR: 8,
-  
+
   /** Default end hour for calendar grid */
   DEFAULT_END_HOUR: 20,
-  
+
   /** Ordered days of the week */
-  DAYS_OF_WEEK: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const,
-  
+  DAYS_OF_WEEK: [
+    'monday',
+    'tuesday',
+    'wednesday',
+    'thursday',
+    'friday',
+    'saturday',
+    'sunday',
+  ] as const,
+
   /** Maximum weeks to apply schedule in future */
   MAX_FUTURE_WEEKS: 52,
-  
+
   /** Auto-hide message timeout in milliseconds */
   MESSAGE_TIMEOUT: 5000,
 } as const;
 
 /**
  * Type guard to check if a string is a valid day of week
- * 
+ *
  * @param day - String to check
  * @returns boolean indicating if day is valid
  */
@@ -477,7 +492,7 @@ export function isDayOfWeek(day: string): day is DayOfWeek {
 
 /**
  * Type guard to check if an operation is valid
- * 
+ *
  * @param operation - Operation to validate
  * @returns boolean indicating if operation has required fields
  */
@@ -493,13 +508,13 @@ export function isValidOperation(operation: SlotOperation): boolean {
 
 /**
  * Helper to create an empty week schedule
- * 
+ *
  * @param weekDates - Array of dates for the week
  * @returns Empty WeekSchedule object
  */
 export function createEmptyWeekSchedule(weekDates: WeekDateInfo[]): WeekSchedule {
   const schedule: WeekSchedule = {};
-  weekDates.forEach(dateInfo => {
+  weekDates.forEach((dateInfo) => {
     schedule[dateInfo.fullDate] = [];
   });
   return schedule;

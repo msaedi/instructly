@@ -2,11 +2,11 @@
 
 /**
  * useBookedSlots Hook
- * 
+ *
  * Manages booked slots data for the availability calendar.
  * Provides utilities for checking bookings, caching data, and
  * handling booking-related operations.
- * 
+ *
  * @module hooks/availability/useBookedSlots
  */
 
@@ -14,10 +14,10 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { BookedSlotPreview } from '@/types/booking';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
-import { 
+import {
   isSlotBooked as checkSlotBooked,
   getBookingForSlot as findBookingForSlot,
-  createBookedHoursMap
+  createBookedHoursMap,
 } from '@/lib/availability/slotHelpers';
 import { logger } from '@/lib/logger';
 
@@ -36,7 +36,7 @@ export interface UseBookedSlotsReturn {
   selectedBookingId: number | null;
   /** Whether booking preview modal is shown */
   showBookingPreview: boolean;
-  
+
   // Utilities
   /** Check if a specific slot is booked */
   isSlotBooked: (date: string, hour: number) => boolean;
@@ -46,7 +46,7 @@ export interface UseBookedSlotsReturn {
   hasBookingInRange: (date: string, startHour: number, endHour: number) => boolean;
   /** Get all bookings for a specific date */
   getBookingsForDate: (date: string) => BookedSlotPreview[];
-  
+
   // Actions
   /** Fetch booked slots for a week */
   fetchBookedSlots: (weekStart: Date) => Promise<void>;
@@ -60,10 +60,10 @@ export interface UseBookedSlotsReturn {
 
 /**
  * Custom hook for managing booked slots data
- * 
+ *
  * @param options - Configuration options
  * @returns {UseBookedSlotsReturn} Booking state and utilities
- * 
+ *
  * @example
  * ```tsx
  * function AvailabilityCalendar({ weekStart }) {
@@ -72,7 +72,7 @@ export interface UseBookedSlotsReturn {
  *     isSlotBooked,
  *     handleBookingClick
  *   } = useBookedSlots();
- *   
+ *
  *   // Check if a slot is booked before allowing modifications
  *   if (isSlotBooked(date, hour)) {
  *     handleBookingClick(booking.id);
@@ -80,24 +80,26 @@ export interface UseBookedSlotsReturn {
  * }
  * ```
  */
-export function useBookedSlots(options: {
-  /** Enable caching of booking data */
-  enableCache?: boolean;
-  /** Cache duration in milliseconds */
-  cacheDuration?: number;
-} = {}): UseBookedSlotsReturn {
-  const { 
-    enableCache = true, 
-    cacheDuration = 5 * 60 * 1000 // 5 minutes default
+export function useBookedSlots(
+  options: {
+    /** Enable caching of booking data */
+    enableCache?: boolean;
+    /** Cache duration in milliseconds */
+    cacheDuration?: number;
+  } = {}
+): UseBookedSlotsReturn {
+  const {
+    enableCache = true,
+    cacheDuration = 5 * 60 * 1000, // 5 minutes default
   } = options;
-  
+
   // State
   const [bookedSlots, setBookedSlots] = useState<BookedSlotPreview[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
   const [showBookingPreview, setShowBookingPreview] = useState(false);
-  
+
   // Cache management
   const [cache, setCache] = useState<{
     weekStart: string | null;
@@ -106,116 +108,126 @@ export function useBookedSlots(options: {
   }>({
     weekStart: null,
     timestamp: 0,
-    data: []
+    data: [],
   });
-  
+
   /**
    * Create optimized lookup map for booked hours
    */
   const bookedHoursMap = useMemo(() => {
     return createBookedHoursMap(bookedSlots);
   }, [bookedSlots]);
-  
+
   /**
    * Fetch booked slots from API
    */
-  const fetchBookedSlots = useCallback(async (weekStart: Date) => {
-    const weekStartStr = formatDateForAPI(weekStart);
-    
-    // Check cache if enabled
-    if (enableCache && cache.weekStart === weekStartStr) {
-      const cacheAge = Date.now() - cache.timestamp;
-      if (cacheAge < cacheDuration) {
-        logger.debug('Using cached booked slots', {
+  const fetchBookedSlots = useCallback(
+    async (weekStart: Date) => {
+      const weekStartStr = formatDateForAPI(weekStart);
+
+      // Check cache if enabled
+      if (enableCache && cache.weekStart === weekStartStr) {
+        const cacheAge = Date.now() - cache.timestamp;
+        if (cacheAge < cacheDuration) {
+          logger.debug('Using cached booked slots', {
+            weekStart: weekStartStr,
+            cacheAge: Math.round(cacheAge / 1000) + 's',
+          });
+          setBookedSlots(cache.data);
+          return;
+        }
+      }
+
+      setIsLoadingBookings(true);
+      setBookingError(null);
+      logger.time('fetchBookedSlots');
+
+      try {
+        const response = await fetchWithAuth(
+          `${API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK}/booked-slots?start_date=${weekStartStr}`
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch booked slots');
+        }
+
+        const data = await response.json();
+        const slots = data.booked_slots || [];
+
+        logger.info('Fetched booked slots', {
           weekStart: weekStartStr,
-          cacheAge: Math.round(cacheAge / 1000) + 's'
+          count: slots.length,
+          dates: [...new Set(slots.map((s: BookedSlotPreview) => s.date))].length,
         });
-        setBookedSlots(cache.data);
-        return;
+
+        setBookedSlots(slots);
+
+        // Update cache
+        if (enableCache) {
+          setCache({
+            weekStart: weekStartStr,
+            timestamp: Date.now(),
+            data: slots,
+          });
+        }
+      } catch (error) {
+        logger.error('Failed to fetch booked slots', error);
+        setBookingError('Failed to load bookings');
+        setBookedSlots([]);
+      } finally {
+        logger.timeEnd('fetchBookedSlots');
+        setIsLoadingBookings(false);
       }
-    }
-    
-    setIsLoadingBookings(true);
-    setBookingError(null);
-    logger.time('fetchBookedSlots');
-    
-    try {
-      const response = await fetchWithAuth(
-        `${API_ENDPOINTS.INSTRUCTOR_AVAILABILITY_WEEK}/booked-slots?start_date=${weekStartStr}`
-      );
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch booked slots');
-      }
-      
-      const data = await response.json();
-      const slots = data.booked_slots || [];
-      
-      logger.info('Fetched booked slots', {
-        weekStart: weekStartStr,
-        count: slots.length,
-        dates: [...new Set(slots.map((s: BookedSlotPreview) => s.date))].length
-      });
-      
-      setBookedSlots(slots);
-      
-      // Update cache
-      if (enableCache) {
-        setCache({
-          weekStart: weekStartStr,
-          timestamp: Date.now(),
-          data: slots
-        });
-      }
-      
-    } catch (error) {
-      logger.error('Failed to fetch booked slots', error);
-      setBookingError('Failed to load bookings');
-      setBookedSlots([]);
-    } finally {
-      logger.timeEnd('fetchBookedSlots');
-      setIsLoadingBookings(false);
-    }
-  }, [enableCache, cache, cacheDuration]);
-  
+    },
+    [enableCache, cache, cacheDuration]
+  );
+
   /**
    * Check if a specific slot is booked (optimized)
    */
-  const isSlotBooked = useCallback((date: string, hour: number): boolean => {
-    // Use optimized map lookup
-    return bookedHoursMap.has(`${date}-${hour}`);
-  }, [bookedHoursMap]);
-  
+  const isSlotBooked = useCallback(
+    (date: string, hour: number): boolean => {
+      // Use optimized map lookup
+      return bookedHoursMap.has(`${date}-${hour}`);
+    },
+    [bookedHoursMap]
+  );
+
   /**
    * Get booking information for a slot
    */
-  const getBookingForSlot = useCallback((date: string, hour: number): BookedSlotPreview | null => {
-    return findBookingForSlot(date, hour, bookedSlots);
-  }, [bookedSlots]);
-  
+  const getBookingForSlot = useCallback(
+    (date: string, hour: number): BookedSlotPreview | null => {
+      return findBookingForSlot(date, hour, bookedSlots);
+    },
+    [bookedSlots]
+  );
+
   /**
    * Check if any booking exists in a time range
    */
-  const hasBookingInRange = useCallback((
-    date: string, 
-    startHour: number, 
-    endHour: number
-  ): boolean => {
-    for (let hour = startHour; hour < endHour; hour++) {
-      if (isSlotBooked(date, hour)) {
-        return true;
+  const hasBookingInRange = useCallback(
+    (date: string, startHour: number, endHour: number): boolean => {
+      for (let hour = startHour; hour < endHour; hour++) {
+        if (isSlotBooked(date, hour)) {
+          return true;
+        }
       }
-    }
-    return false;
-  }, [isSlotBooked]);
-  
+      return false;
+    },
+    [isSlotBooked]
+  );
+
   /**
    * Get all bookings for a specific date
    */
-  const getBookingsForDate = useCallback((date: string): BookedSlotPreview[] => {
-    return bookedSlots.filter(slot => slot.date === date);
-  }, [bookedSlots]);
-  
+  const getBookingsForDate = useCallback(
+    (date: string): BookedSlotPreview[] => {
+      return bookedSlots.filter((slot) => slot.date === date);
+    },
+    [bookedSlots]
+  );
+
   /**
    * Handle booking click event
    */
@@ -224,7 +236,7 @@ export function useBookedSlots(options: {
     setSelectedBookingId(bookingId);
     setShowBookingPreview(true);
   }, []);
-  
+
   /**
    * Close booking preview
    */
@@ -233,23 +245,26 @@ export function useBookedSlots(options: {
     setShowBookingPreview(false);
     setSelectedBookingId(null);
   }, []);
-  
+
   /**
    * Refresh booking data (force cache bypass)
    */
-  const refreshBookings = useCallback(async (weekStart: Date) => {
-    logger.info('Refreshing bookings (bypassing cache)');
-    
-    // Clear cache to force refresh
-    setCache({
-      weekStart: null,
-      timestamp: 0,
-      data: []
-    });
-    
-    await fetchBookedSlots(weekStart);
-  }, [fetchBookedSlots]);
-  
+  const refreshBookings = useCallback(
+    async (weekStart: Date) => {
+      logger.info('Refreshing bookings (bypassing cache)');
+
+      // Clear cache to force refresh
+      setCache({
+        weekStart: null,
+        timestamp: 0,
+        data: [],
+      });
+
+      await fetchBookedSlots(weekStart);
+    },
+    [fetchBookedSlots]
+  );
+
   /**
    * Log cache statistics periodically in development
    */
@@ -262,15 +277,15 @@ export function useBookedSlots(options: {
             weekStart: cache.weekStart,
             ageSeconds: Math.round(cacheAge / 1000),
             itemCount: cache.data.length,
-            isExpired: cacheAge > cacheDuration
+            isExpired: cacheAge > cacheDuration,
           });
         }
       }, 30000); // Log every 30 seconds
-      
+
       return () => clearInterval(interval);
     }
   }, [cache, cacheDuration, enableCache]);
-  
+
   return {
     // State
     bookedSlots,
@@ -278,17 +293,17 @@ export function useBookedSlots(options: {
     bookingError,
     selectedBookingId,
     showBookingPreview,
-    
+
     // Utilities
     isSlotBooked,
     getBookingForSlot,
     hasBookingInRange,
     getBookingsForDate,
-    
+
     // Actions
     fetchBookedSlots,
     handleBookingClick,
     closeBookingPreview,
-    refreshBookings
+    refreshBookings,
   };
 }

@@ -1,13 +1,13 @@
 // frontend/app/dashboard/instructor/availability/page.tsx
-"use client";
+'use client';
 
 /**
  * AvailabilityPage Component
- * 
+ *
  * Manages instructor availability on a week-by-week basis.
  * This is the main page that orchestrates all availability management features
  * using extracted hooks, utilities, and components.
- * 
+ *
  * Features:
  * - Week-based navigation and editing
  * - Visual calendar grid with time slots
@@ -17,7 +17,7 @@
  * - Apply to future weeks with automatic saving
  * - Real-time validation before saving
  * - Mobile-responsive design
- * 
+ *
  * @component
  * @module pages/dashboard/instructor/availability
  */
@@ -56,12 +56,12 @@ import { BRAND } from '@/app/config/brand';
 
 /**
  * Main availability management page
- * 
+ *
  * @returns Availability page component
  */
 export default function AvailabilityPage(): React.ReactElement {
   const router = useRouter();
-  
+
   // Core hooks for state management
   const {
     currentWeekStart,
@@ -76,9 +76,9 @@ export default function AvailabilityPage(): React.ReactElement {
     setWeekSchedule,
     setMessage,
     refreshSchedule,
-    currentWeekDisplay
+    currentWeekDisplay,
   } = useWeekSchedule();
-  
+
   const {
     bookedSlots,
     isSlotBooked,
@@ -88,9 +88,9 @@ export default function AvailabilityPage(): React.ReactElement {
     fetchBookedSlots,
     handleBookingClick,
     closeBookingPreview,
-    refreshBookings
+    refreshBookings,
   } = useBookedSlots();
-  
+
   const {
     isSaving,
     isValidating,
@@ -99,7 +99,7 @@ export default function AvailabilityPage(): React.ReactElement {
     saveWeekSchedule,
     copyFromPreviousWeek,
     applyToFutureWeeks,
-    setShowValidationPreview
+    setShowValidationPreview,
   } = useAvailabilityOperations({
     weekSchedule,
     savedWeekSchedule,
@@ -113,88 +113,89 @@ export default function AvailabilityPage(): React.ReactElement {
     },
     onScheduleUpdate: (newSchedule) => {
       setWeekSchedule(newSchedule);
-    }
+    },
   });
-  
+
   // Local UI state
   const [showApplyModal, setShowApplyModal] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  
+
   // Fetch booked slots when week changes
   useEffect(() => {
     if (!isLoading) {
       fetchBookedSlots(currentWeekStart);
     }
   }, [currentWeekStart, isLoading, fetchBookedSlots]);
-  
+
   /**
    * Toggle time slot availability
    * This is the main interaction handler for the calendar grid
    */
-  const toggleTimeSlot = useCallback((date: string, hour: number) => {
-    // Check if time slot is in the past
-    if (isTimeSlotInPast(date, hour)) {
-      setMessage({ 
-        type: 'error', 
-        text: ERROR_MESSAGES.PAST_SLOT
-      });
-      return;
-    }
+  const toggleTimeSlot = useCallback(
+    (date: string, hour: number) => {
+      // Check if time slot is in the past
+      if (isTimeSlotInPast(date, hour)) {
+        setMessage({
+          type: 'error',
+          text: ERROR_MESSAGES.PAST_SLOT,
+        });
+        return;
+      }
 
-    // Check if slot is booked
-    if (isSlotBooked(date, hour)) {
-      setMessage({ 
-        type: 'error', 
-        text: ERROR_MESSAGES.BOOKED_SLOT
+      // Check if slot is booked
+      if (isSlotBooked(date, hour)) {
+        setMessage({
+          type: 'error',
+          text: ERROR_MESSAGES.BOOKED_SLOT,
+        });
+        return;
+      }
+
+      const daySlots = weekSchedule[date] || [];
+      const isCurrentlyAvailable = daySlots.some((slot) => {
+        const startHour = parseInt(slot.start_time.split(':')[0]);
+        const endHour = parseInt(slot.end_time.split(':')[0]);
+        return hour >= startHour && hour < endHour && slot.is_available;
       });
-      return;
-    }
-    
-    const daySlots = weekSchedule[date] || [];
-    const isCurrentlyAvailable = daySlots.some(slot => {
-      const startHour = parseInt(slot.start_time.split(':')[0]);
-      const endHour = parseInt(slot.end_time.split(':')[0]);
-      return hour >= startHour && hour < endHour && slot.is_available;
-    });
-    
-    logger.info('Toggling time slot', {
-      date,
-      hour,
-      currentlyAvailable: isCurrentlyAvailable
-    });
-    
-    let newSlots = daySlots;
-    
-    if (isCurrentlyAvailable) {
-      // Remove this hour from availability
-      newSlots = removeHourFromSlots(daySlots, hour);
-    } else {
-      // Add this hour to availability
-      const newSlot = createHourSlot(hour);
-      newSlots = [...daySlots, newSlot].sort((a, b) => 
-        a.start_time.localeCompare(b.start_time)
-      );
-      
-      // Merge adjacent slots while respecting booking boundaries
-      newSlots = mergeAdjacentSlots(newSlots, date, bookedSlots);
-    }
-    
-    setWeekSchedule({
-      ...weekSchedule,
-      [date]: newSlots
-    });
-  }, [weekSchedule, setWeekSchedule, isSlotBooked, bookedSlots, setMessage]);
-  
+
+      logger.info('Toggling time slot', {
+        date,
+        hour,
+        currentlyAvailable: isCurrentlyAvailable,
+      });
+
+      let newSlots = daySlots;
+
+      if (isCurrentlyAvailable) {
+        // Remove this hour from availability
+        newSlots = removeHourFromSlots(daySlots, hour);
+      } else {
+        // Add this hour to availability
+        const newSlot = createHourSlot(hour);
+        newSlots = [...daySlots, newSlot].sort((a, b) => a.start_time.localeCompare(b.start_time));
+
+        // Merge adjacent slots while respecting booking boundaries
+        newSlots = mergeAdjacentSlots(newSlots, date, bookedSlots);
+      }
+
+      setWeekSchedule({
+        ...weekSchedule,
+        [date]: newSlots,
+      });
+    },
+    [weekSchedule, setWeekSchedule, isSlotBooked, bookedSlots, setMessage]
+  );
+
   /**
    * Remove an hour from availability slots
    */
   const removeHourFromSlots = (slots: any[], hour: number) => {
     const newSlots: any[] = [];
-    
-    slots.forEach(slot => {
+
+    slots.forEach((slot) => {
       const startHour = parseInt(slot.start_time.split(':')[0]);
       const endHour = parseInt(slot.end_time.split(':')[0]);
-      
+
       if (hour < startHour || hour >= endHour) {
         // Hour is outside this slot
         newSlots.push(slot);
@@ -204,107 +205,121 @@ export default function AvailabilityPage(): React.ReactElement {
         // Remove from start
         newSlots.push({
           ...slot,
-          start_time: `${(hour + 1).toString().padStart(2, '0')}:00:00`
+          start_time: `${(hour + 1).toString().padStart(2, '0')}:00:00`,
         });
       } else if (hour === endHour - 1) {
         // Remove from end
         newSlots.push({
           ...slot,
-          end_time: `${hour.toString().padStart(2, '0')}:00:00`
+          end_time: `${hour.toString().padStart(2, '0')}:00:00`,
         });
       } else {
         // Split the slot
         newSlots.push({
           ...slot,
-          end_time: `${hour.toString().padStart(2, '0')}:00:00`
+          end_time: `${hour.toString().padStart(2, '0')}:00:00`,
         });
         newSlots.push({
           ...slot,
-          start_time: `${(hour + 1).toString().padStart(2, '0')}:00:00`
+          start_time: `${(hour + 1).toString().padStart(2, '0')}:00:00`,
         });
       }
     });
-    
+
     return newSlots;
   };
-  
+
   /**
    * Apply preset schedule to current week
    */
-  const applyPresetToWeek = useCallback((preset: string) => {
-    const presetData = PRESET_SCHEDULES[preset];
-    if (!presetData) {
-      logger.error('Invalid preset selected', null, { preset });
-      return;
-    }
-    
-    logger.info('Applying preset schedule', { preset });
-    
-    const newSchedule: any = {};
-    weekDates.forEach(dateInfo => {
-      const daySlots = presetData[dateInfo.dayOfWeek];
-      newSchedule[dateInfo.fullDate] = daySlots || [];
-    });
-    
-    setWeekSchedule(newSchedule);
-    setMessage({ 
-      type: 'success', 
-      text: SUCCESS_MESSAGES.PRESET_APPLIED(preset.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()))
-    });
-  }, [weekDates, setWeekSchedule, setMessage]);
-  
+  const applyPresetToWeek = useCallback(
+    (preset: string) => {
+      const presetData = PRESET_SCHEDULES[preset];
+      if (!presetData) {
+        logger.error('Invalid preset selected', null, { preset });
+        return;
+      }
+
+      logger.info('Applying preset schedule', { preset });
+
+      const newSchedule: any = {};
+      weekDates.forEach((dateInfo) => {
+        const daySlots = presetData[dateInfo.dayOfWeek];
+        newSchedule[dateInfo.fullDate] = daySlots || [];
+      });
+
+      setWeekSchedule(newSchedule);
+      setMessage({
+        type: 'success',
+        text: SUCCESS_MESSAGES.PRESET_APPLIED(
+          preset.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
+        ),
+      });
+    },
+    [weekDates, setWeekSchedule, setMessage]
+  );
+
   /**
    * Clear week schedule (preserving booked slots)
    */
   const handleClearWeek = useCallback(() => {
     logger.info('Clearing week schedule');
-    
+
     // Create empty schedule preserving only booked slots
     const newSchedule: any = {};
-    weekDates.forEach(dateInfo => {
+    weekDates.forEach((dateInfo) => {
       newSchedule[dateInfo.fullDate] = [];
     });
-    
+
     setWeekSchedule(newSchedule);
     setShowClearConfirm(false);
-    
+
     const bookedCount = bookedSlots.length;
-    setMessage({ 
-      type: 'info', 
-      text: bookedCount > 0 
-        ? `Week cleared except for ${bookedCount} slot(s) with bookings. Remember to save!`
-        : 'Week cleared. Remember to save your changes.'
+    setMessage({
+      type: 'info',
+      text:
+        bookedCount > 0
+          ? `Week cleared except for ${bookedCount} slot(s) with bookings. Remember to save!`
+          : 'Week cleared. Remember to save your changes.',
     });
   }, [weekDates, bookedSlots.length, setWeekSchedule, setMessage]);
-  
-/**
- * Handle save operation
- */
-const handleSave = useCallback(async () => {
-  logger.info('Save operation started', { 
-    time: new Date().toISOString(),
-    weekStart: currentWeekStart.toISOString() 
-  });
-  
-  const result = await saveWeekSchedule();
-  
-  if (result.success) {
-    setMessage({ type: 'success', text: result.message });
-    
-    logger.debug('Refreshing schedule after save');
-    await refreshSchedule();
-    
-    logger.info('Save completed', {
-      hasUnsavedChanges,
-      weekScheduleKeys: Object.keys(weekSchedule),
-      savedWeekScheduleKeys: Object.keys(savedWeekSchedule)
+
+  /**
+   * Handle save operation
+   */
+  const handleSave = useCallback(async () => {
+    logger.info('Save operation started', {
+      time: new Date().toISOString(),
+      weekStart: currentWeekStart.toISOString(),
     });
-  } else {
-    logger.error('Save failed', null, { message: result.message });
-    setMessage({ type: 'error', text: result.message });
-  }
-}, [saveWeekSchedule, setMessage, refreshSchedule, weekSchedule, savedWeekSchedule, hasUnsavedChanges, currentWeekStart]);
-  
+
+    const result = await saveWeekSchedule();
+
+    if (result.success) {
+      setMessage({ type: 'success', text: result.message });
+
+      logger.debug('Refreshing schedule after save');
+      await refreshSchedule();
+
+      logger.info('Save completed', {
+        hasUnsavedChanges,
+        weekScheduleKeys: Object.keys(weekSchedule),
+        savedWeekScheduleKeys: Object.keys(savedWeekSchedule),
+      });
+    } else {
+      logger.error('Save failed', null, { message: result.message });
+      setMessage({ type: 'error', text: result.message });
+    }
+  }, [
+    saveWeekSchedule,
+    setMessage,
+    refreshSchedule,
+    weekSchedule,
+    savedWeekSchedule,
+    hasUnsavedChanges,
+    currentWeekStart,
+  ]);
+
   /**
    * Handle copy from previous week
    */
@@ -317,35 +332,39 @@ const handleSave = useCallback(async () => {
       setMessage({ type: 'error', text: result.message });
     }
   }, [copyFromPreviousWeek, setMessage]);
-  
+
   /**
    * Handle apply to future weeks
    */
-  const handleApplyToFuture = useCallback(async (endDate: string) => {
-    const result = await applyToFutureWeeks(endDate);
-    if (result.success) {
-      setMessage({ type: 'success', text: result.message });
-    } else {
-      setMessage({ type: 'error', text: result.message });
-    }
-    setShowApplyModal(false);
-  }, [applyToFutureWeeks, setMessage]);
-  
+  const handleApplyToFuture = useCallback(
+    async (endDate: string) => {
+      const result = await applyToFutureWeeks(endDate);
+      if (result.success) {
+        setMessage({ type: 'success', text: result.message });
+      } else {
+        setMessage({ type: 'error', text: result.message });
+      }
+      setShowApplyModal(false);
+    },
+    [applyToFutureWeeks, setMessage]
+  );
+
   /**
    * Cell renderer for desktop calendar grid
    */
   const renderCell = (date: string, hour: number) => {
     const isPastSlot = isTimeSlotInPast(date, hour);
-    const isAvailable = weekSchedule[date]?.some(slot => {
-      const startHour = parseInt(slot.start_time.split(':')[0]);
-      const endHour = parseInt(slot.end_time.split(':')[0]);
-      return hour >= startHour && hour < endHour && slot.is_available;
-    }) || false;
-    
+    const isAvailable =
+      weekSchedule[date]?.some((slot) => {
+        const startHour = parseInt(slot.start_time.split(':')[0]);
+        const endHour = parseInt(slot.end_time.split(':')[0]);
+        return hour >= startHour && hour < endHour && slot.is_available;
+      }) || false;
+
     const booking = getBookingForSlot(date, hour);
     const isBooked = !!booking;
     const isFirstSlot = !!(booking && parseInt(booking.start_time.split(':')[0]) === hour);
-    
+
     if (isBooked && booking) {
       return (
         <BookedSlotCell
@@ -355,7 +374,7 @@ const handleSave = useCallback(async () => {
         />
       );
     }
-    
+
     return (
       <TimeSlotButton
         hour={hour}
@@ -366,22 +385,23 @@ const handleSave = useCallback(async () => {
       />
     );
   };
-  
+
   /**
    * Cell renderer for mobile calendar grid
    */
   const renderMobileCell = (date: string, hour: number) => {
     const isPastSlot = isTimeSlotInPast(date, hour);
-    const isAvailable = weekSchedule[date]?.some(slot => {
-      const startHour = parseInt(slot.start_time.split(':')[0]);
-      const endHour = parseInt(slot.end_time.split(':')[0]);
-      return hour >= startHour && hour < endHour && slot.is_available;
-    }) || false;
-    
+    const isAvailable =
+      weekSchedule[date]?.some((slot) => {
+        const startHour = parseInt(slot.start_time.split(':')[0]);
+        const endHour = parseInt(slot.end_time.split(':')[0]);
+        return hour >= startHour && hour < endHour && slot.is_available;
+      }) || false;
+
     const booking = getBookingForSlot(date, hour);
     const isBooked = !!booking;
     const isFirstSlot = !!(booking && parseInt(booking.start_time.split(':')[0]) === hour);
-    
+
     if (isBooked && booking) {
       return (
         <BookedSlotCell
@@ -393,7 +413,7 @@ const handleSave = useCallback(async () => {
         />
       );
     }
-    
+
     return (
       <TimeSlotButton
         key={`${date}-${hour}`}
@@ -406,7 +426,7 @@ const handleSave = useCallback(async () => {
       />
     );
   };
-  
+
   // Loading state
   if (isLoading) {
     return (
@@ -415,15 +435,18 @@ const handleSave = useCallback(async () => {
       </div>
     );
   }
-  
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       {/* Back to Dashboard Link */}
-      <Link href="/dashboard/instructor" className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4">
+      <Link
+        href="/dashboard/instructor"
+        className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4"
+      >
         <ArrowLeft className="w-4 h-4 mr-2" />
         Back to Dashboard
       </Link>
-      
+
       {/* Page Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Manage Your Availability</h1>
@@ -432,11 +455,15 @@ const handleSave = useCallback(async () => {
 
       {/* Message Display */}
       {message && (
-        <div className={`mb-6 p-4 rounded-lg flex items-start gap-2 ${
-          message.type === 'success' ? 'bg-green-50 text-green-800' : 
-          message.type === 'error' ? 'bg-red-50 text-red-800' :
-          'bg-blue-50 text-blue-800'
-        }`}>
+        <div
+          className={`mb-6 p-4 rounded-lg flex items-start gap-2 ${
+            message.type === 'success'
+              ? 'bg-green-50 text-green-800'
+              : message.type === 'error'
+                ? 'bg-red-50 text-red-800'
+                : 'bg-blue-50 text-blue-800'
+          }`}
+        >
           <AlertCircle className="w-5 h-5 mt-0.5" />
           {message.text}
         </div>
@@ -494,15 +521,15 @@ const handleSave = useCallback(async () => {
         onConfirm={handleClearWeek}
         bookedSlotsCount={bookedSlots.length}
       />
-      
+
       <ApplyToFutureWeeksModal
         isOpen={showApplyModal}
         onClose={() => setShowApplyModal(false)}
         onConfirm={handleApplyToFuture}
-        hasAvailability={Object.keys(weekSchedule).some(date => weekSchedule[date].length > 0)}
+        hasAvailability={Object.keys(weekSchedule).some((date) => weekSchedule[date].length > 0)}
         currentWeekStart={currentWeekStart}
       />
-      
+
       <ValidationPreviewModal
         isOpen={showValidationPreview}
         validationResults={validationResults}
@@ -510,7 +537,7 @@ const handleSave = useCallback(async () => {
         onConfirm={() => saveWeekSchedule({ skipValidation: true })}
         isSaving={isSaving}
       />
-      
+
       {/* Booking Preview Modal */}
       {showBookingPreview && selectedBookingId && (
         <BookingQuickPreview
