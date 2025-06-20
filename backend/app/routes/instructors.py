@@ -120,13 +120,27 @@ async def update_profile(
 
     # Handle services update if provided
     if profile_update.services is not None:
-        # Delete existing services
-        db.query(Service).filter(Service.instructor_profile_id == db_profile.id).delete()
+        # TEMPORARY FIX: Only update services, don't delete and recreate
+        # Get existing services
+        existing_services = {s.skill.lower(): s for s in db_profile.services}
+        {s.skill.lower() for s in profile_update.services}
 
-        # Create new services
+        # Update existing services
         for service_data in profile_update.services:
-            db_service = Service(instructor_profile_id=db_profile.id, **service_data.model_dump())
-            db.add(db_service)
+            skill_lower = service_data.skill.lower()
+            if skill_lower in existing_services:
+                # Update existing service
+                service = existing_services[skill_lower]
+                for field, value in service_data.model_dump().items():
+                    setattr(service, field, value)
+            else:
+                # Create new service
+                db_service = Service(instructor_profile_id=db_profile.id, **service_data.model_dump())
+                db.add(db_service)
+
+        # For now, DON'T delete services that aren't in the update
+        # This prevents the foreign key error
+        # We'll handle this properly with soft delete
 
     db.commit()
     db.refresh(db_profile)

@@ -192,10 +192,26 @@ class InstructorProfileResponse(InstructorProfileBase):
     def convert_areas_to_list(cls, v):
         """Convert comma-separated string to list if needed."""
         if isinstance(v, str):
+            # Clean up any corrupted data
+            cleaned = v
+            # Remove excessive escaping
+            while '\\"' in cleaned or "\\\\" in cleaned:
+                cleaned = cleaned.replace('\\"', '"')
+                cleaned = cleaned.replace("\\'", "'")
+                cleaned = cleaned.replace("\\\\", "\\")
+
+            # Remove any curly braces
+            cleaned = cleaned.replace("{", "").replace("}", "")
+
             # Split by comma and clean up each area
-            areas = [area.strip() for area in v.split(",") if area.strip()]
-            # Apply the same formatting as the base validator
-            return [area.title() for area in areas]
+            areas = []
+            for area in cleaned.split(","):
+                # Remove quotes and whitespace
+                area = area.strip().strip('"').strip("'").strip()
+                if area and len(area) > 2:
+                    areas.append(area.title())
+
+            return areas
         return v
 
     @field_validator("services")
