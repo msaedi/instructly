@@ -310,16 +310,18 @@ class BookingService(BaseService):
         if not slot:
             raise NotFoundException("Availability slot not found")
 
-        # Load service
+        # Load service - ONLY ACTIVE SERVICES
         service = (
             self.db.query(Service)
             .options(joinedload(Service.instructor_profile))
-            .filter(Service.id == booking_data.service_id)
+            .filter(
+                Service.id == booking_data.service_id, Service.is_active == True  # Only allow booking active services
+            )
             .first()
         )
 
         if not service:
-            raise NotFoundException("Service not found")
+            raise NotFoundException("Service not found or no longer available")
 
         # Verify service belongs to instructor
         if service.instructor_profile.user_id != slot.availability.instructor_id:
@@ -541,16 +543,16 @@ class BookingService(BaseService):
         if slot.booking_id:
             return {"available": False, "reason": "Slot is already booked"}
 
-        # Get service and instructor profile
+        # Get service and instructor profile - ONLY ACTIVE SERVICES
         service = (
             self.db.query(Service)
             .options(joinedload(Service.instructor_profile))
-            .filter(Service.id == service_id)
+            .filter(Service.id == service_id, Service.is_active == True)  # Only check active services
             .first()
         )
 
         if not service:
-            return {"available": False, "reason": "Service not found"}
+            return {"available": False, "reason": "Service not found or no longer available"}
 
         # Check minimum advance booking
         booking_datetime = datetime.combine(slot.availability.date, slot.start_time)

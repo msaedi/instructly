@@ -99,3 +99,9 @@ class InstructorProfile(Base):
             logger.debug(f"Updated areas of service for instructor {self.user_id}: {self.areas_of_service}")
         else:
             self.areas_of_service = None
+
+    # Property for active services only
+    @property
+    def active_services(self):
+        """Return only active services."""
+        return [service for service in self.services if service.is_active]

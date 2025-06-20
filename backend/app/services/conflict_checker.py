@@ -465,9 +465,15 @@ class ConflictChecker(BaseService):
         if service_id:
             from ..models.service import Service
 
-            service = self.db.query(Service).filter(Service.id == service_id).first()
+            service = (
+                self.db.query(Service)
+                .filter(Service.id == service_id, Service.is_active == True)  # Only check active services
+                .first()
+            )
 
-            if service and service.duration_override:
+            if not service:
+                errors.append("Service not found or no longer available")
+            elif service.duration_override:
                 # Check if slot duration matches service duration
                 duration_minutes = time_validation.get("duration_minutes", 0)
                 if duration_minutes != service.duration_override:
