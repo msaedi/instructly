@@ -25,8 +25,6 @@ from ..database import Base
 
 logger = logging.getLogger(__name__)
 
-# RecurringAvailability class has been REMOVED - we now use date-specific availability only
-
 
 class InstructorAvailability(Base):
     """
@@ -86,6 +84,9 @@ class AvailabilitySlot(Base):
     on a specific date. Multiple slots can exist for a single date to handle
     split schedules (e.g., 9-12 and 2-5).
 
+    Note: The circular dependency with bookings has been removed. The relationship
+    is now one-way: Booking → AvailabilitySlot (via booking.availability_slot_id)
+
     Attributes:
         id: Primary key
         availability_id: Foreign key to instructor_availability table
@@ -108,18 +109,44 @@ class AvailabilitySlot(Base):
         ForeignKey("instructor_availability.id", ondelete="CASCADE"),
         nullable=False,
     )
-    booking_id = Column(Integer, ForeignKey("bookings.id"), nullable=True, index=True)
+    # REMOVED: booking_id - This created a circular dependency
     start_time = Column(Time, nullable=False)
     end_time = Column(Time, nullable=False)
 
     # Relationships
     availability = relationship("InstructorAvailability", back_populates="time_slots")
+    # Note: To find if a slot is booked, query bookings table WHERE availability_slot_id = slot.id
 
     # Index for performance
     __table_args__ = (Index("idx_availability_slots_availability_id", "availability_id"),)
 
     def __repr__(self):
         return f"<AvailabilitySlot {self.start_time}-{self.end_time}>"
+
+    @property
+    def is_booked(self):
+        """
+        Check if this slot has a booking.
+
+        This is a helper property that queries the bookings table.
+        Note: This will cause an additional query, so use judiciously.
+        """
+        from ..database import SessionLocal
+        from .booking import Booking, BookingStatus
+
+        db = SessionLocal()
+        try:
+            booking = (
+                db.query(Booking)
+                .filter(
+                    Booking.availability_slot_id == self.id,
+                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                )
+                .first()
+            )
+            return booking is not None
+        finally:
+            db.close()
 
 
 class BlackoutDate(Base):
