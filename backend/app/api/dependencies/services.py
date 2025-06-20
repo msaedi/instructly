@@ -16,6 +16,7 @@ from ...services.booking_service import BookingService
 from ...services.bulk_operation_service import BulkOperationService
 from ...services.cache_service import CacheService, get_cache_service
 from ...services.conflict_checker import ConflictChecker
+from ...services.instructor_service import InstructorService  # Add this import
 from ...services.notification_service import NotificationService
 from ...services.presentation_service import PresentationService
 from ...services.slot_manager import SlotManager
@@ -65,6 +66,25 @@ def get_booking_service(
 def get_cache_service_dep() -> CacheService:
     """Get cache service instance for dependency injection."""
     return get_cache_service_singleton()
+
+
+def get_instructor_service(
+    db: Session = Depends(get_db),
+    cache_service: CacheService = Depends(get_cache_service_dep),
+) -> InstructorService:
+    """
+    Get instructor service instance with all dependencies.
+
+    Args:
+        db: Database session
+        cache_service: Cache service for performance optimization
+
+    Returns:
+        InstructorService instance
+    """
+    from ...services.instructor_service import InstructorService
+
+    return InstructorService(db, cache_service)
 
 
 def get_availability_service(
@@ -118,6 +138,7 @@ def get_week_operation_service(
     db: Session = Depends(get_db),
     availability_service: AvailabilityService = Depends(get_availability_service),
     conflict_checker: ConflictChecker = Depends(get_conflict_checker),
+    cache_service: CacheService = Depends(get_cache_service_dep),
 ) -> WeekOperationService:
     """
     Get week operation service instance.
@@ -126,11 +147,12 @@ def get_week_operation_service(
         db: Database session
         availability_service: Availability service
         conflict_checker: Conflict checker service
+        cache_service: Cache service for warming
 
     Returns:
         WeekOperationService instance
     """
-    return WeekOperationService(db, availability_service, conflict_checker)
+    return WeekOperationService(db, availability_service, conflict_checker, cache_service)
 
 
 def get_bulk_operation_service(

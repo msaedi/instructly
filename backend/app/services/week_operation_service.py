@@ -117,8 +117,24 @@ class WeekOperationService(BaseService):
                 booking_info=booking_info,
             )
 
-        # Get updated availability
-        result = self.availability_service.get_week_availability(instructor_id, to_week_start)
+        # Ensure SQLAlchemy session is fresh
+        self.db.expire_all()
+
+        # Use CacheWarmingStrategy for consistent fresh data
+        if self.cache_service:
+            from .cache_strategies import CacheWarmingStrategy
+
+            warmer = CacheWarmingStrategy(self.cache_service, self.db)
+
+            # Warm cache with fresh data
+            result = await warmer.warm_with_verification(
+                instructor_id,
+                to_week_start,
+                expected_slot_count=None,  # We don't know exact count due to preserved bookings
+            )
+        else:
+            # No cache, get directly
+            result = self.availability_service.get_week_availability(instructor_id, to_week_start)
 
         # Add metadata
         if copy_result["dates_with_preserved_bookings"] or copy_result["slots_skipped"] > 0:
@@ -311,27 +327,43 @@ class WeekOperationService(BaseService):
                     [{"id": a.id, "is_cleared": a.is_cleared} for a in availability_to_update],
                 )
 
+        # Ensure SQLAlchemy session is fresh
+        self.db.expire_all()
+
         message = f"Successfully applied schedule to {dates_created + dates_modified} days"
         if dates_skipped > 0 or slots_skipped > 0:
             message += f" ({dates_skipped} days preserved, {slots_skipped} slots skipped due to bookings)"
 
-        # Just log without timing for now
         self.logger.info(
             f"Optimized apply_pattern completed: {dates_created} created, "
             f"{dates_modified} modified, {slots_created} slots"
         )
 
+        # Use CacheWarmingStrategy to ensure fresh data
         if self.cache_service and (dates_created > 0 or dates_modified > 0):
-            # Calculate all affected dates
-            affected_dates = []
+            from .cache_strategies import CacheWarmingStrategy
+
+            warmer = CacheWarmingStrategy(self.cache_service, self.db)
+
+            # We need to warm cache for ALL affected weeks
+            affected_weeks = set()
             current = start_date
             while current <= end_date:
-                affected_dates.append(current)
-                current += timedelta(days=1)
+                week_start = current - timedelta(days=current.weekday())
+                affected_weeks.add(week_start)
+                current += timedelta(days=7)
 
-            # Invalidate cache for all affected dates
-            self.cache_service.invalidate_instructor_availability(instructor_id, affected_dates)
-            self.logger.info(f"Invalidated cache for {len(affected_dates)} dates after apply_pattern")
+            # Warm cache for each affected week
+            # For the response, we'll use the first week
+            min(affected_weeks)
+
+            # Warm all affected weeks
+            for week_start in affected_weeks:
+                await warmer.warm_with_verification(
+                    instructor_id, week_start, expected_slot_count=None  # Complex operation, can't predict count
+                )
+
+            self.logger.info(f"Warmed cache for {len(affected_weeks)} affected weeks")
 
         return {
             "message": message,

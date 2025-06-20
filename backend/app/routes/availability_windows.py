@@ -171,6 +171,7 @@ async def copy_week_availability(
     copy_data: CopyWeekRequest,
     current_user: User = Depends(get_current_active_user),
     week_operation_service: WeekOperationService = Depends(get_week_operation_service),
+    cache_service: CacheService = Depends(get_cache_service_dep),
     db: Session = Depends(get_db),
 ):
     """
@@ -183,6 +184,10 @@ async def copy_week_availability(
     verify_instructor(current_user)
 
     try:
+        # Ensure week operation service has cache service
+        if not week_operation_service.cache_service and cache_service:
+            week_operation_service.cache_service = cache_service
+
         result = await week_operation_service.copy_week_availability(
             instructor_id=current_user.id,
             from_week_start=copy_data.from_week_start,
@@ -202,6 +207,7 @@ async def apply_to_date_range(
     apply_data: ApplyToDateRangeRequest,
     current_user: User = Depends(get_current_active_user),
     week_operation_service: WeekOperationService = Depends(get_week_operation_service),
+    cache_service: CacheService = Depends(get_cache_service_dep),
     db: Session = Depends(get_db),
 ):
     """
@@ -213,6 +219,10 @@ async def apply_to_date_range(
     verify_instructor(current_user)
 
     try:
+        # Ensure week operation service has cache service
+        if not week_operation_service.cache_service and cache_service:
+            week_operation_service.cache_service = cache_service
+
         result = await week_operation_service.apply_pattern_to_date_range(
             instructor_id=current_user.id,
             from_week_start=apply_data.from_week_start,
