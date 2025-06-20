@@ -42,6 +42,7 @@ from ..api.dependencies.auth import get_current_active_user
 from ..api.dependencies.services import (
     get_availability_service,
     get_bulk_operation_service,
+    get_cache_service_dep,
     get_conflict_checker,
     get_presentation_service,
     get_slot_manager,
@@ -67,6 +68,7 @@ from ..schemas.availability_window import (
 )
 from ..services.availability_service import AvailabilityService
 from ..services.bulk_operation_service import BulkOperationService
+from ..services.cache_service import CacheService
 from ..services.conflict_checker import ConflictChecker
 from ..services.presentation_service import PresentationService
 from ..services.slot_manager import SlotManager
@@ -132,6 +134,7 @@ async def save_week_availability(
     week_data: WeekSpecificScheduleCreate,
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
+    cache_service: CacheService = Depends(get_cache_service_dep),
     db: Session = Depends(get_db),
 ):
     """
@@ -140,13 +143,22 @@ async def save_week_availability(
     This endpoint allows instructors to set their availability for specific dates,
     completely replacing any existing availability for those dates while preserving
     booked slots.
+
+    The response includes the updated availability data, ensuring the frontend
+    always has fresh data without needing a separate fetch.
     """
     verify_instructor(current_user)
 
     try:
+        # Inject cache service into availability service if not already there
+        if not availability_service.cache_service and cache_service:
+            availability_service.cache_service = cache_service
+
         result = await availability_service.save_week_availability(instructor_id=current_user.id, week_data=week_data)
 
+        # The result now contains fresh data from the cache warming strategy
         return result
+
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:

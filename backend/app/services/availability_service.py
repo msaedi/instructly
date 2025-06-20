@@ -330,6 +330,9 @@ class AvailabilityService(BaseService):
         # Group schedule by date
         schedule_by_date = self._group_schedule_by_date(week_data.schedule)
 
+        # Count expected slots for verification
+        expected_slot_count = sum(len(slots) for slots in schedule_by_date.values())
+
         # Process each day with transaction
         with self.transaction():
             result = await self._process_week_days(
@@ -342,16 +345,31 @@ class AvailabilityService(BaseService):
         # Ensure SQLAlchemy session is fresh after transaction
         self.db.expire_all()
 
-        # Invalidate cache AFTER transaction commits
-        # This ensures the database has the new data before we clear the cache
-        self._invalidate_availability_caches(instructor_id, week_dates)
+        # Handle cache warming if cache service is available
+        if self.cache_service:
+            try:
+                from .cache_strategies import CacheWarmingStrategy
 
-        # Add a small delay to ensure DB replication (if using read replicas)
-        # Get updated availability
-        updated_availability = self.get_week_availability(instructor_id, monday)
+                warmer = CacheWarmingStrategy(self.cache_service, self.db)
+
+                # Only pass expected_slot_count if no dates were skipped
+                expected = expected_slot_count if not result.get("dates_with_bookings") else None
+
+                # Warm cache with verification
+                updated_availability = await warmer.warm_with_verification(
+                    instructor_id, monday, expected_slot_count=expected
+                )
+            except ImportError:
+                # Fallback if cache_strategies not available yet
+                self.logger.warning("Cache strategies not available, using direct fetch")
+                self._invalidate_availability_caches(instructor_id, week_dates)
+                updated_availability = self.get_week_availability(instructor_id, monday)
+        else:
+            # No cache, get directly
+            updated_availability = self.get_week_availability(instructor_id, monday)
 
         # Add metadata if dates were skipped
-        if result["dates_with_bookings"]:
+        if result.get("dates_with_bookings"):
             updated_availability["_metadata"] = {
                 "skipped_dates_with_bookings": result["dates_with_bookings"],
                 "message": f"Changes saved successfully. {len(result['dates_with_bookings'])} date(s) with existing bookings were not modified.",
