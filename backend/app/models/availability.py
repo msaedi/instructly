@@ -115,7 +115,8 @@ class AvailabilitySlot(Base):
 
     # Relationships
     availability = relationship("InstructorAvailability", back_populates="time_slots")
-    # Note: To find if a slot is booked, query bookings table WHERE availability_slot_id = slot.id
+    # Note: To find if a slot is booked, query the bookings table:
+    # SELECT * FROM bookings WHERE availability_slot_id = slot.id AND status IN ('CONFIRMED', 'COMPLETED')
 
     # Index for performance
     __table_args__ = (Index("idx_availability_slots_availability_id", "availability_id"),)
@@ -123,30 +124,11 @@ class AvailabilitySlot(Base):
     def __repr__(self):
         return f"<AvailabilitySlot {self.start_time}-{self.end_time}>"
 
-    @property
-    def is_booked(self):
-        """
-        Check if this slot has a booking.
-
-        This is a helper property that queries the bookings table.
-        Note: This will cause an additional query, so use judiciously.
-        """
-        from ..database import SessionLocal
-        from .booking import Booking, BookingStatus
-
-        db = SessionLocal()
-        try:
-            booking = (
-                db.query(Booking)
-                .filter(
-                    Booking.availability_slot_id == self.id,
-                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                )
-                .first()
-            )
-            return booking is not None
-        finally:
-            db.close()
+    # NOTE: The is_booked property has been removed as it creates a new database session
+    # which is an anti-pattern. To check if a slot is booked, use the service layer:
+    # - BookingService.is_slot_booked(slot_id)
+    # - ConflictChecker.check_slot_availability(slot_id)
+    # This ensures proper session management and follows the service layer pattern.
 
 
 class BlackoutDate(Base):

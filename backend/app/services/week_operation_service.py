@@ -811,12 +811,26 @@ class WeekOperationService(BaseService):
             .all()
         )
 
+        # Get booked slot IDs (FIXED: check via bookings table)
+        slot_ids = [s.id for s in slots]
+        booked_slot_ids = set()
+        if slot_ids:
+            booked_results = (
+                self.db.query(Booking.availability_slot_id)
+                .filter(
+                    Booking.availability_slot_id.in_(slot_ids),
+                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                )
+                .all()
+            )
+            booked_slot_ids = {slot_id[0] for slot_id in booked_results}
+
         # Convert to dict format
         return [
             {
                 "start_time": slot.start_time.isoformat(),
                 "end_time": slot.end_time.isoformat(),
-                "is_booked": slot.booking_id is not None,
+                "is_booked": slot.id in booked_slot_ids,
             }
             for slot in slots
         ]

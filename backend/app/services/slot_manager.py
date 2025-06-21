@@ -142,8 +142,18 @@ class SlotManager(BaseService):
         if not slot:
             raise NotFoundException("Slot not found")
 
-        # Check if slot has booking
-        if slot.booking_id:
+        # Check if slot has booking (FIXED: query bookings table)
+        has_booking = (
+            self.db.query(Booking)
+            .filter(
+                Booking.availability_slot_id == slot_id,
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+            )
+            .first()
+            is not None
+        )
+
+        if has_booking:
             raise BusinessRuleException("Cannot update slot that has a booking")
 
         # Determine new times
@@ -200,14 +210,18 @@ class SlotManager(BaseService):
         if not slot:
             raise NotFoundException("Slot not found")
 
-        # Check if slot has booking
-        if slot.booking_id and not force:
-            booking = self.db.query(Booking).filter(Booking.id == slot.booking_id).first()
-            if booking and booking.status in [
-                BookingStatus.CONFIRMED,
-                BookingStatus.COMPLETED,
-            ]:
-                raise BusinessRuleException(f"Cannot delete slot with {booking.status} booking")
+        # Check if slot has booking (FIXED: query bookings table)
+        booking = (
+            self.db.query(Booking)
+            .filter(
+                Booking.availability_slot_id == slot_id,
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+            )
+            .first()
+        )
+
+        if booking and not force:
+            raise BusinessRuleException(f"Cannot delete slot with {booking.status} booking")
 
         availability_id = slot.availability_id
 
@@ -257,10 +271,20 @@ class SlotManager(BaseService):
 
         self.logger.debug(f"Merging slots for availability_id {availability_id}: " f"{len(slots)} slots found")
 
-        # Separate booked and non-booked slots
+        # Separate booked and non-booked slots (FIXED: check via bookings table)
         if preserve_booked:
-            booked_slots = [s for s in slots if s.booking_id]
-            non_booked_slots = [s for s in slots if not s.booking_id]
+            booked_slot_ids = (
+                self.db.query(Booking.availability_slot_id)
+                .filter(
+                    Booking.availability_slot_id.in_([s.id for s in slots]),
+                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                )
+                .all()
+            )
+            booked_slot_ids = {slot_id[0] for slot_id in booked_slot_ids}
+
+            booked_slots = [s for s in slots if s.id in booked_slot_ids]
+            non_booked_slots = [s for s in slots if s.id not in booked_slot_ids]
 
             if booked_slots:
                 self.logger.info(f"Preserving {len(booked_slots)} booked slots")
@@ -326,8 +350,18 @@ class SlotManager(BaseService):
         if not slot:
             raise NotFoundException("Slot not found")
 
-        # Check if slot has booking
-        if slot.booking_id:
+        # Check if slot has booking (FIXED: query bookings table)
+        has_booking = (
+            self.db.query(Booking)
+            .filter(
+                Booking.availability_slot_id == slot_id,
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+            )
+            .first()
+            is not None
+        )
+
+        if has_booking:
             raise BusinessRuleException("Cannot split slot that has a booking")
 
         # Validate split time
@@ -426,20 +460,31 @@ class SlotManager(BaseService):
         Returns:
             List of suggested time slots
         """
-        # Get all non-booked slots
+        # Get all non-booked slots (FIXED: check via bookings table)
         slots = (
             self.db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.availability_id == availability_id,
-                AvailabilitySlot.booking_id.is_(None),
-            )
+            .filter(AvailabilitySlot.availability_id == availability_id)
             .order_by(AvailabilitySlot.start_time)
             .all()
         )
 
+        # Get booked slot IDs
+        booked_slot_ids = (
+            self.db.query(Booking.availability_slot_id)
+            .filter(
+                Booking.availability_slot_id.in_([s.id for s in slots]),
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+            )
+            .all()
+        )
+        booked_slot_ids = {slot_id[0] for slot_id in booked_slot_ids}
+
+        # Filter out booked slots
+        non_booked_slots = [s for s in slots if s.id not in booked_slot_ids]
+
         suggestions = []
 
-        for slot in slots:
+        for slot in non_booked_slots:
             # Calculate slot duration
             start_dt = datetime.combine(date.today(), slot.start_time)
             end_dt = datetime.combine(date.today(), slot.end_time)
@@ -493,9 +538,20 @@ class SlotManager(BaseService):
         )
 
     def _slots_can_merge(self, slot1: AvailabilitySlot, slot2: AvailabilitySlot, max_gap_minutes: int = 1) -> bool:
-        """Check if two slots can be merged."""
+        """Check if two slots can be merged (FIXED: check bookings via query)."""
         # Check if either has booking
-        if slot1.booking_id or slot2.booking_id:
+        slot_ids = [slot1.id, slot2.id]
+        has_bookings = (
+            self.db.query(Booking)
+            .filter(
+                Booking.availability_slot_id.in_(slot_ids),
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+            )
+            .count()
+            > 0
+        )
+
+        if has_bookings:
             return False
 
         # Calculate gap between slots
