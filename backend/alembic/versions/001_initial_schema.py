@@ -8,11 +8,12 @@ Create Date: 2024-12-21 00:00:00.000000
 This migration creates the foundational tables for user authentication
 and role management. All columns are created in their final form to
 avoid future modifications.
+
+UPDATED: Using VARCHAR for role instead of ENUM to avoid SQLAlchemy issues
 """
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
@@ -27,16 +28,7 @@ def upgrade() -> None:
     """Create initial user authentication schema."""
     print("Creating initial schema for users and authentication...")
 
-    # Create UserRole ENUM type for PostgreSQL with existence check
-    op.execute(
-        """
-        DO $$ BEGIN
-            CREATE TYPE userrole AS ENUM ('instructor', 'student');
-        EXCEPTION
-            WHEN duplicate_object THEN null;
-        END $$;
-    """
-    )
+    # NO LONGER CREATING ENUM TYPE - Using VARCHAR instead
 
     # Create users table with all final columns
     op.create_table(
@@ -48,7 +40,7 @@ def upgrade() -> None:
         sa.Column("is_active", sa.Boolean(), nullable=True, server_default="true"),
         sa.Column(
             "role",
-            postgresql.ENUM("instructor", "student", name="userrole", create_type=False),
+            sa.String(10),  # VARCHAR(10) instead of ENUM
             nullable=False,
         ),
         sa.Column(
@@ -87,15 +79,25 @@ def upgrade() -> None:
         unique=False,
     )
 
+    # Add check constraint for role values
+    op.create_check_constraint(
+        "ck_users_role",
+        "users",
+        "role IN ('instructor', 'student')",
+    )
+
     print("Initial schema created successfully!")
-    print("- Created UserRole ENUM type (or skipped if exists)")
-    print("- Created users table with authentication fields")
+    print("- Created users table with VARCHAR role field")
+    print("- Added check constraint for role values")
     print("- Created indexes for email lookups")
 
 
 def downgrade() -> None:
     """Drop all tables and types created in upgrade."""
     print("Dropping initial schema...")
+
+    # Drop check constraint first
+    op.drop_constraint("ck_users_role", "users", type_="check")
 
     # Drop indexes first
     op.drop_index("idx_users_email", table_name="users")
@@ -105,15 +107,6 @@ def downgrade() -> None:
     # Drop tables
     op.drop_table("users")
 
-    # Drop ENUM type if no other tables are using it
-    op.execute(
-        """
-        DO $$ BEGIN
-            DROP TYPE IF EXISTS userrole;
-        EXCEPTION
-            WHEN dependent_objects_still_exist THEN null;
-        END $$;
-    """
-    )
+    # No enum type to drop anymore
 
     print("Initial schema dropped successfully!")

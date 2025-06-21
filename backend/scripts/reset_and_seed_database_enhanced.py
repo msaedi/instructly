@@ -147,7 +147,6 @@ def cleanup_database(session: Session) -> List[int]:
 
     if user_ids_to_delete:
         # Delete in correct order to respect foreign keys
-        # (REMOVED the slot booking references section)
 
         # 1. Delete bookings
         session.query(Booking).filter(
@@ -216,7 +215,7 @@ def create_dummy_instructors(session: Session):
             email=template["email"],
             full_name=template["name"],
             hashed_password=get_password_hash(TEST_PASSWORD),
-            role=UserRole.INSTRUCTOR,
+            role=UserRole.INSTRUCTOR,  # Now using VARCHAR, this will just be the string value
             is_active=True,
         )
         session.add(user)
@@ -346,7 +345,7 @@ def create_dummy_students(session: Session):
             email=template["email"],
             full_name=template["name"],
             hashed_password=get_password_hash(TEST_PASSWORD),
-            role=UserRole.STUDENT,
+            role=UserRole.STUDENT,  # Now using VARCHAR, this will just be the string value
             is_active=True,
         )
         session.add(user)
@@ -388,7 +387,7 @@ def create_sample_bookings_with_deprecated(session: Session):
         if deprecated_service_id:
             deprecated_service = session.query(Service).filter(Service.id == deprecated_service_id).first()
 
-            # Get past slots (2 weeks ago to 1 week ago) - updated query
+            # Get past slots (2 weeks ago to 1 week ago)
             past_slots = (
                 session.query(AvailabilitySlot)
                 .join(InstructorAvailability)
@@ -432,10 +431,11 @@ def create_sample_bookings_with_deprecated(session: Session):
                 session.add(booking)
                 session.flush()
 
-                # REMOVED: slot.booking_id = booking.id
+                # NOTE: One-way relationship - booking references slot, not the other way around
+                # DO NOT do: slot.booking_id = booking.id (this field doesn't exist!)
                 deprecated_bookings_created += 1
 
-        # Create regular bookings (past and future) - updated query
+        # Create regular bookings (past and future)
         all_slots = (
             session.query(AvailabilitySlot)
             .join(InstructorAvailability)
@@ -495,7 +495,8 @@ def create_sample_bookings_with_deprecated(session: Session):
             session.add(booking)
             session.flush()
 
-            # REMOVED: slot.booking_id = booking.id
+            # NOTE: One-way relationship - booking references slot, not the other way around
+            # DO NOT do: slot.booking_id = booking.id (this field doesn't exist!)
             bookings_created += 1
 
     session.commit()

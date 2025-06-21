@@ -1,3 +1,4 @@
+# backend/app/models/user.py
 """
 User model for InstaInstru platform.
 
@@ -13,7 +14,7 @@ Classes:
 import enum
 import logging
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -71,7 +72,9 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     full_name = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
-    role = Column(Enum(UserRole), nullable=False)
+    # Using String instead of Enum to avoid SQLAlchemy enum issues
+    # The database has a check constraint to ensure valid values
+    role = Column(String(10), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
