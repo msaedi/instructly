@@ -147,13 +147,9 @@ def cleanup_database(session: Session) -> List[int]:
 
     if user_ids_to_delete:
         # Delete in correct order to respect foreign keys
+        # (REMOVED the slot booking references section)
 
-        # 1. Clear slot booking references
-        session.query(AvailabilitySlot).filter(AvailabilitySlot.booking_id.isnot(None)).update(
-            {"booking_id": None}, synchronize_session=False
-        )
-
-        # 2. Delete bookings
+        # 1. Delete bookings
         session.query(Booking).filter(
             or_(
                 Booking.student_id.in_(user_ids_to_delete),
@@ -161,7 +157,7 @@ def cleanup_database(session: Session) -> List[int]:
             )
         ).delete(synchronize_session=False)
 
-        # 3. Delete availability slots
+        # 2. Delete availability slots
         subquery = (
             session.query(InstructorAvailability.id)
             .filter(InstructorAvailability.instructor_id.in_(user_ids_to_delete))
@@ -171,17 +167,17 @@ def cleanup_database(session: Session) -> List[int]:
             synchronize_session=False
         )
 
-        # 4. Delete availability
+        # 3. Delete availability
         session.query(InstructorAvailability).filter(
             InstructorAvailability.instructor_id.in_(user_ids_to_delete)
         ).delete(synchronize_session=False)
 
-        # 5. Delete blackout dates
+        # 4. Delete blackout dates
         session.query(BlackoutDate).filter(BlackoutDate.instructor_id.in_(user_ids_to_delete)).delete(
             synchronize_session=False
         )
 
-        # 6. Delete services
+        # 5. Delete services
         profile_subquery = (
             session.query(InstructorProfile.id).filter(InstructorProfile.user_id.in_(user_ids_to_delete)).subquery()
         )
@@ -189,17 +185,17 @@ def cleanup_database(session: Session) -> List[int]:
             synchronize_session=False
         )
 
-        # 7. Delete instructor profiles
+        # 6. Delete instructor profiles
         session.query(InstructorProfile).filter(InstructorProfile.user_id.in_(user_ids_to_delete)).delete(
             synchronize_session=False
         )
 
-        # 8. Delete password reset tokens
+        # 7. Delete password reset tokens
         session.query(PasswordResetToken).filter(PasswordResetToken.user_id.in_(user_ids_to_delete)).delete(
             synchronize_session=False
         )
 
-        # 9. Finally delete users
+        # 8. Finally delete users
         session.query(User).filter(User.id.in_(user_ids_to_delete)).delete(synchronize_session=False)
 
         session.commit()
@@ -368,6 +364,11 @@ def create_sample_bookings_with_deprecated(session: Session):
     bookings_created = 0
     deprecated_bookings_created = 0
 
+    # Subquery for booked slots
+    booked_slots_subquery = session.query(Booking.availability_slot_id).filter(
+        Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED])
+    )
+
     for template in INSTRUCTOR_TEMPLATES:
         if "_user_id" not in template:
             continue
@@ -387,7 +388,7 @@ def create_sample_bookings_with_deprecated(session: Session):
         if deprecated_service_id:
             deprecated_service = session.query(Service).filter(Service.id == deprecated_service_id).first()
 
-            # Get past slots (2 weeks ago to 1 week ago)
+            # Get past slots (2 weeks ago to 1 week ago) - updated query
             past_slots = (
                 session.query(AvailabilitySlot)
                 .join(InstructorAvailability)
@@ -395,7 +396,7 @@ def create_sample_bookings_with_deprecated(session: Session):
                     InstructorAvailability.instructor_id == instructor_id,
                     InstructorAvailability.date >= today - timedelta(weeks=2),
                     InstructorAvailability.date <= today - timedelta(weeks=1),
-                    AvailabilitySlot.booking_id.is_(None),
+                    ~AvailabilitySlot.id.in_(booked_slots_subquery),  # Check slot not booked
                 )
                 .limit(5)  # Create 5 past bookings with deprecated service
                 .all()
@@ -431,10 +432,10 @@ def create_sample_bookings_with_deprecated(session: Session):
                 session.add(booking)
                 session.flush()
 
-                slot.booking_id = booking.id
+                # REMOVED: slot.booking_id = booking.id
                 deprecated_bookings_created += 1
 
-        # Create regular bookings (past and future)
+        # Create regular bookings (past and future) - updated query
         all_slots = (
             session.query(AvailabilitySlot)
             .join(InstructorAvailability)
@@ -442,7 +443,7 @@ def create_sample_bookings_with_deprecated(session: Session):
                 InstructorAvailability.instructor_id == instructor_id,
                 InstructorAvailability.date >= today - timedelta(weeks=2),
                 InstructorAvailability.date <= today + timedelta(weeks=3),
-                AvailabilitySlot.booking_id.is_(None),
+                ~AvailabilitySlot.id.in_(booked_slots_subquery),  # Check slot not booked
             )
             .all()
         )
@@ -494,7 +495,7 @@ def create_sample_bookings_with_deprecated(session: Session):
             session.add(booking)
             session.flush()
 
-            slot.booking_id = booking.id
+            # REMOVED: slot.booking_id = booking.id
             bookings_created += 1
 
     session.commit()

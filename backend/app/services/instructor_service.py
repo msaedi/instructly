@@ -186,12 +186,24 @@ class InstructorService(BaseService):
             raise NotFoundException("Instructor profile not found")
 
         with self.transaction():
+            # IMPORTANT: Handle services BEFORE deleting profile
+            # to avoid cascade issues
+
+            # Get all services (need to load them before profile deletion)
+            services = list(profile.services)
+
             # Soft delete all active services
-            for service in profile.services:
+            for service in services:
                 if service.is_active:
                     service.deactivate()
+                    # Explicitly update to ensure it's saved
+                    self.db.add(service)
 
-            # Delete the profile
+            # Flush to ensure services are updated
+            self.db.flush()
+
+            # Now we can safely delete the profile
+            # Services will remain in the database (soft deleted)
             self.db.delete(profile)
 
             # Revert user role

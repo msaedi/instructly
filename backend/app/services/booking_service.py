@@ -89,8 +89,17 @@ class BookingService(BaseService):
             # 1. Validate and load all required data
             slot, service, instructor_profile = await self._validate_booking_data(booking_data)
 
-            # 2. Check slot availability
-            if slot.booking_id:
+            # 2. Check slot availability (FIXED: no longer using slot.booking_id)
+            existing_booking = (
+                self.db.query(Booking)
+                .filter(
+                    Booking.availability_slot_id == slot.id,
+                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                )
+                .first()
+            )
+
+            if existing_booking:
                 raise ConflictException("This slot is already booked")
 
             # 3. Apply business rules
@@ -122,8 +131,7 @@ class BookingService(BaseService):
             self.db.add(booking)
             self.db.flush()  # Get the booking ID
 
-            # 6. Mark slot as booked
-            slot.booking_id = booking.id
+            # 6. Note: We no longer set slot.booking_id since that field was removed
 
             # 7. Commit transaction
             self.db.commit()
@@ -181,13 +189,8 @@ class BookingService(BaseService):
             # Cancel the booking
             booking.cancel(user.id, reason)
 
-            # Free up the availability slot
-            if booking.availability_slot_id:
-                slot = (
-                    self.db.query(AvailabilitySlot).filter(AvailabilitySlot.id == booking.availability_slot_id).first()
-                )
-                if slot:
-                    slot.booking_id = None
+            # Note: We no longer clear slot.booking_id since that field was removed
+            # The slot becomes available simply by the booking being cancelled
 
             self.db.commit()
 
@@ -539,8 +542,17 @@ class BookingService(BaseService):
         if not slot:
             return {"available": False, "reason": "Slot not found"}
 
-        # Check if already booked
-        if slot.booking_id:
+        # Check if already booked (FIXED: query bookings table instead of checking slot.booking_id)
+        existing_booking = (
+            self.db.query(Booking)
+            .filter(
+                Booking.availability_slot_id == slot.id,
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+            )
+            .first()
+        )
+
+        if existing_booking:
             return {"available": False, "reason": "Slot is already booked"}
 
         # Get service and instructor profile - ONLY ACTIVE SERVICES

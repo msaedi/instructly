@@ -148,18 +148,16 @@ class InstructorProfileUpdate(BaseModel):
     """
 
     bio: Optional[str] = Field(None, min_length=MIN_BIO_LENGTH, max_length=MAX_BIO_LENGTH)
-    areas_of_service: Optional[List[str]] = Field(None, min_length=1, max_length=10)
+    areas_of_service: Optional[List[str]] = Field(None, min_length=0, max_length=10)
     years_experience: Optional[int] = Field(None, ge=0, le=50)
-    services: Optional[List[ServiceCreate]] = Field(None, min_length=1, max_length=20)
+    services: Optional[List[ServiceCreate]] = Field(None, min_length=0, max_length=20)
 
     @field_validator("areas_of_service")
     def validate_areas(cls, v):
         """Ensure areas are properly formatted if provided."""
-        if v is not None:
+        if v is not None and len(v) > 0:
             unique_areas = list(set(area.strip().title() for area in v if area.strip()))
-            if not unique_areas:
-                raise ValueError("At least one area of service is required")
-            return unique_areas
+            return unique_areas if unique_areas else []
         return v
 
     @field_validator("services")

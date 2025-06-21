@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.models.availability import AvailabilitySlot, InstructorAvailability
-from app.models.booking import Booking
+from app.models.booking import Booking, BookingStatus
 from app.models.service import Service
 from app.models.user import User, UserRole
 from app.schemas.booking import BookingCreate
@@ -24,24 +24,69 @@ from app.services.instructor_service import InstructorService
 class TestSoftDeleteServices:
     """Test suite for service soft delete functionality."""
 
-    def test_soft_delete_service_with_bookings(self, db: Session, test_instructor: User, test_student: User):
+    def test_soft_delete_service_with_bookings(
+        self, db: Session, test_instructor_with_bookings: User, test_student: User
+    ):
         """Test that services with bookings are soft deleted, not removed."""
-        # Setup - Create instructor with services
+        # Setup - Get instructor service
         instructor_service = InstructorService(db)
 
         # Get initial state
-        initial_profile = instructor_service.get_instructor_profile(test_instructor.id, include_inactive_services=True)
-        len(initial_profile["services"])
+        initial_profile = instructor_service.get_instructor_profile(
+            test_instructor_with_bookings.id, include_inactive_services=True
+        )
 
-        # Find a service with bookings (or create one)
-        service_with_bookings = None
-        for service_data in initial_profile["services"]:
-            booking_count = db.query(Booking).filter(Booking.service_id == service_data["id"]).count()
-            if booking_count > 0:
-                service_with_bookings = service_data
-                break
+        # Find the service that has bookings (first one should have from our fixture)
+        service_with_bookings = initial_profile["services"][0]  # We know this has bookings from fixture
 
-        assert service_with_bookings is not None, "No service with bookings found"
+        # Verify it has bookings by checking the database directly
+        booking_count = (
+            db.query(Booking)
+            .filter(
+                Booking.service_id == service_with_bookings["id"],
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+            )
+            .count()
+        )
+
+        # If no bookings exist, create one to ensure the test is valid
+        if booking_count == 0:
+            # Get tomorrow's availability
+            tomorrow = date.today() + timedelta(days=1)
+            availability = (
+                db.query(InstructorAvailability)
+                .filter(
+                    InstructorAvailability.instructor_id == test_instructor_with_bookings.id,
+                    InstructorAvailability.date == tomorrow,
+                )
+                .first()
+            )
+
+            if availability:
+                slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == availability.id).first()
+
+                if slot:
+                    # Create a booking
+                    booking = Booking(
+                        student_id=test_student.id,
+                        instructor_id=test_instructor_with_bookings.id,
+                        service_id=service_with_bookings["id"],
+                        availability_slot_id=slot.id,
+                        booking_date=tomorrow,
+                        start_time=slot.start_time,
+                        end_time=slot.end_time,
+                        service_name=service_with_bookings["skill"],
+                        hourly_rate=service_with_bookings["hourly_rate"],
+                        total_price=service_with_bookings["hourly_rate"] * 3,
+                        duration_minutes=180,
+                        status=BookingStatus.CONFIRMED,
+                        meeting_location="Test Location",
+                    )
+                    db.add(booking)
+                    db.commit()
+                    booking_count = 1
+
+        assert booking_count > 0, "Test needs at least one booking to be valid"
 
         # Update profile, removing the service with bookings
         remaining_services = [
@@ -51,10 +96,12 @@ class TestSoftDeleteServices:
         ]
 
         update_data = InstructorProfileUpdate(services=remaining_services)
-        instructor_service.update_instructor_profile(test_instructor.id, update_data)
+        instructor_service.update_instructor_profile(test_instructor_with_bookings.id, update_data)
 
         # Verify service was soft deleted
-        all_services = instructor_service.get_instructor_profile(test_instructor.id, include_inactive_services=True)
+        all_services = instructor_service.get_instructor_profile(
+            test_instructor_with_bookings.id, include_inactive_services=True
+        )
 
         # Service should still exist but be inactive
         soft_deleted = next((s for s in all_services["services"] if s["id"] == service_with_bookings["id"]), None)
@@ -110,31 +157,19 @@ class TestSoftDeleteServices:
 
         assert service_exists is None, "Service should be hard deleted"
 
-    def test_reactivate_soft_deleted_service(self, db: Session, test_instructor: User):
+    def test_reactivate_soft_deleted_service(self, db: Session, test_instructor_with_inactive_service: User):
         """Test that soft deleted services can be reactivated."""
         instructor_service = InstructorService(db)
 
         # Get profile with all services
-        profile = instructor_service.get_instructor_profile(test_instructor.id, include_inactive_services=True)
+        profile = instructor_service.get_instructor_profile(
+            test_instructor_with_inactive_service.id, include_inactive_services=True
+        )
 
-        # Find an inactive service
+        # Find the inactive service (created by our fixture)
         inactive_service = next((s for s in profile["services"] if not s["is_active"]), None)
 
-        if not inactive_service:
-            # Create one by removing a service
-            active_services = [s for s in profile["services"] if s["is_active"]]
-            if len(active_services) > 1:
-                # Remove one service
-                update_services = [
-                    ServiceCreate(skill=s["skill"], hourly_rate=s["hourly_rate"]) for s in active_services[1:]
-                ]
-
-                update_data = InstructorProfileUpdate(services=update_services)
-                instructor_service.update_instructor_profile(test_instructor.id, update_data)
-
-                # Now we should have an inactive service
-                profile = instructor_service.get_instructor_profile(test_instructor.id, include_inactive_services=True)
-                inactive_service = next(s for s in profile["services"] if not s["is_active"])
+        assert inactive_service is not None, "Test fixture should have created an inactive service"
 
         # Reactivate by including it in update
         all_services = [
@@ -143,7 +178,9 @@ class TestSoftDeleteServices:
         ]
 
         update_data = InstructorProfileUpdate(services=all_services)
-        reactivated = instructor_service.update_instructor_profile(test_instructor.id, update_data)
+        reactivated = instructor_service.update_instructor_profile(
+            test_instructor_with_inactive_service.id, update_data
+        )
 
         # Verify all services are active
         for service in reactivated["services"]:
@@ -177,11 +214,27 @@ class TestSoftDeleteServices:
             # Try to book the now-inactive service
             inactive_service_id = active_services[1]["id"]
 
-            # Create a future availability slot
-            tomorrow = date.today() + timedelta(days=1)
-            availability = InstructorAvailability(instructor_id=test_instructor.id, date=tomorrow, is_cleared=False)
-            db.add(availability)
-            db.flush()
+            # Create a future availability slot (check if it exists first)
+            future_date = date.today() + timedelta(days=7)  # Use 7 days to avoid conflicts
+
+            # Check if availability already exists
+            existing_availability = (
+                db.query(InstructorAvailability)
+                .filter(
+                    InstructorAvailability.instructor_id == test_instructor.id,
+                    InstructorAvailability.date == future_date,
+                )
+                .first()
+            )
+
+            if not existing_availability:
+                availability = InstructorAvailability(
+                    instructor_id=test_instructor.id, date=future_date, is_cleared=False
+                )
+                db.add(availability)
+                db.flush()
+            else:
+                availability = existing_availability
 
             slot = AvailabilitySlot(availability_id=availability.id, start_time=time(14, 0), end_time=time(15, 0))
             db.add(slot)
@@ -204,15 +257,42 @@ class TestSoftDeleteServices:
         profile = instructor_service.get_instructor_profile(test_instructor.id, include_inactive_services=True)
         service_ids = [s["id"] for s in profile["services"]]
 
+        # Check if any services have bookings
+        services_with_bookings = []
+        for service_id in service_ids:
+            has_bookings = db.query(Booking).filter(Booking.service_id == service_id).first() is not None
+            if has_bookings:
+                services_with_bookings.append(service_id)
+
         # Delete the profile
         instructor_service.delete_instructor_profile(test_instructor.id)
 
-        # Verify all services are soft deleted
+        # Verify all services are handled correctly
         for service_id in service_ids:
             service = db.query(Service).filter(Service.id == service_id).first()
-            if service:  # Service might have been hard deleted if no bookings
-                assert service.is_active is False, "Service should be deactivated"
+            if service_id in services_with_bookings:
+                # Services with bookings should be soft deleted
+                assert service is not None, f"Service {service_id} with bookings was hard deleted"
+                assert service.is_active is False, f"Service {service_id} should be inactive"
+            else:
+                # Services without bookings might be hard deleted
+                # This is OK - the service can be either soft or hard deleted
+                if service:
+                    assert service.is_active is False, f"Service {service_id} should be inactive"
 
         # Verify user role changed
+        db.expire_all()  # Clear SQLAlchemy cache
         user = db.query(User).filter(User.id == test_instructor.id).first()
         assert user.role == UserRole.STUDENT, "User should be reverted to student role"
+
+        # Verify bookings are preserved with their service information
+        if services_with_bookings:
+            for service_id in services_with_bookings:
+                bookings = db.query(Booking).filter(Booking.service_id == service_id).all()
+
+                for booking in bookings:
+                    # Booking should still reference the service
+                    assert booking.service_id == service_id
+                    # Booking should have snapshot data
+                    assert booking.service_name is not None
+                    assert booking.hourly_rate is not None

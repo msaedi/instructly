@@ -23,7 +23,7 @@ from enum import Enum
 from typing import Optional
 
 from sqlalchemy import CheckConstraint, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, Time
-from sqlalchemy.orm import backref, relationship
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from ..database import Base
@@ -180,7 +180,7 @@ class Booking(Base):
     availability_slot = relationship(
         "AvailabilitySlot",
         foreign_keys=[availability_slot_id],
-        backref=backref("booking", uselist=False),  # One-to-one relationship
+        # backref=backref("booking", uselist=False),  # One-to-one relationship
         post_update=True,  # Avoid circular dependency issues
     )
     cancelled_by = relationship("User", foreign_keys=[cancelled_by_id])
