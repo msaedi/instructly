@@ -15,16 +15,22 @@ const getDefaultLogLevel = (): LogLevel => {
     }
   }
 
+  // Check environment variable for default level
+  const envLevel = process.env.NEXT_PUBLIC_LOG_LEVEL as LogLevel;
+  if (envLevel && ['debug', 'info', 'warn', 'error'].includes(envLevel)) {
+    return envLevel;
+  }
+
   // Default based on environment
   if (process.env.NODE_ENV === 'production') {
-    return 'info';
+    return 'warn'; // Changed from 'info' to be less verbose in production
   }
   return 'debug';
 };
 
 class Logger {
   private isDevelopment = process.env.NODE_ENV === 'development';
-  private isEnabled = process.env.NEXT_PUBLIC_ENABLE_LOGGING === 'true';
+  private isEnabled = process.env.NEXT_PUBLIC_ENABLE_LOGGING !== 'false'; // Default to true if not explicitly disabled
 
   private logLevels: Record<LogLevel, number> = {
     debug: 0,
@@ -36,7 +42,10 @@ class Logger {
   private currentLevel: LogLevel = getDefaultLogLevel();
 
   private shouldLog(level: LogLevel): boolean {
-    if (!this.isEnabled && !this.isDevelopment) return false;
+    // Check if logging is enabled at all
+    if (!this.isEnabled) return false;
+
+    // Check if this level should be logged based on current level setting
     return this.logLevels[level] >= this.logLevels[this.currentLevel];
   }
 
@@ -91,7 +100,8 @@ class Logger {
 
   // Special method for grouping related logs
   group(label: string, fn: () => void): void {
-    if (this.isDevelopment) {
+    if (this.shouldLog('debug')) {
+      // Only group if debug logging is enabled
       console.group(label);
       fn();
       console.groupEnd();
@@ -104,14 +114,16 @@ class Logger {
   private timers = new Map<string, number>();
 
   time(label: string): void {
-    if (this.isDevelopment) {
+    if (this.shouldLog('debug')) {
+      // Only time if debug logging is enabled
       // Use our own timer implementation to avoid conflicts
       this.timers.set(label, performance.now());
     }
   }
 
   timeEnd(label: string): void {
-    if (this.isDevelopment) {
+    if (this.shouldLog('debug')) {
+      // Only log timing if debug logging is enabled
       const startTime = this.timers.get(label);
       if (startTime) {
         const duration = performance.now() - startTime;
@@ -120,11 +132,28 @@ class Logger {
       }
     }
   }
+
   setLevel(level: LogLevel): void {
     this.currentLevel = level;
     if (typeof window !== 'undefined') {
       localStorage.setItem('log-level', level);
     }
+    console.log(`[LOGGER] Log level changed to: ${level}`);
+  }
+
+  // Method to completely enable/disable logging
+  setEnabled(enabled: boolean): void {
+    this.isEnabled = enabled;
+    console.log(`[LOGGER] Logging ${enabled ? 'enabled' : 'disabled'}`);
+  }
+
+  // Get current logger status
+  getStatus(): { enabled: boolean; level: LogLevel; isDevelopment: boolean } {
+    return {
+      enabled: this.isEnabled,
+      level: this.currentLevel,
+      isDevelopment: this.isDevelopment,
+    };
   }
 
   // Initialize from localStorage if available
@@ -135,6 +164,14 @@ class Logger {
         this.currentLevel = storedLevel;
       }
     }
+
+    // Log initial status (always show this)
+    console.log('[LOGGER] Initialized', {
+      enabled: this.isEnabled,
+      level: this.currentLevel,
+      isDevelopment: this.isDevelopment,
+      envVar: process.env.NEXT_PUBLIC_ENABLE_LOGGING,
+    });
   }
 }
 
@@ -145,6 +182,8 @@ export const logger = new Logger();
 if (typeof window !== 'undefined') {
   (window as any).logger = logger;
   (window as any).setLogLevel = (level: LogLevel) => logger.setLevel(level);
+  (window as any).setLoggingEnabled = (enabled: boolean) => logger.setEnabled(enabled);
+  (window as any).getLoggerStatus = () => logger.getStatus();
 }
 
 // Usage examples:
@@ -156,3 +195,8 @@ if (typeof window !== 'undefined') {
 // logger.time('SaveOperation');
 // await saveWeekSchedule();
 // logger.timeEnd('SaveOperation');
+//
+// In browser console:
+// setLogLevel('warn')  // Only show warnings and errors
+// setLoggingEnabled(false)  // Disable all logging
+// getLoggerStatus()  // Check current status
