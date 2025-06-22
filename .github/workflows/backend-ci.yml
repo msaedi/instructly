@@ -82,7 +82,7 @@ jobs:
         REDIS_URL: redis://localhost:6379
       run: |
         cd backend
-        pytest -v --cov=app --cov-report=xml --cov-report=term-missing --cov-fail-under=38 \
+        pytest -v --cov=app --cov-branch --cov-report=xml --cov-report=term-missing --cov-fail-under=38 \
           --ignore=tests/test_auth.py \
           --ignore=tests/test_connection.py \
           --ignore=tests/performance/ \
@@ -93,6 +93,7 @@ jobs:
           -k "not (cache_final or cache_fix_improved or week_operations_improved or availability_cache)"
 
     - name: Check specific service coverage
+      if: always()  # Run even if previous steps fail
       env:
         SECRET_KEY: test-secret-key-for-ci
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
@@ -115,10 +116,6 @@ jobs:
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        file: ./backend/coverage.xml
-        flags: backend
-        name: backend-coverage
-        fail_ci_if_error: false
 
   code-quality:
     name: Code Quality Checks
