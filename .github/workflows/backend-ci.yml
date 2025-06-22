@@ -55,40 +55,40 @@ jobs:
 
     - name: Debug environment variables
       run: |
-        echo "DATABASE_URL is set: ${DATABASE_URL:+yes}"
-        echo "SECRET_KEY is set: ${SECRET_KEY:+yes}"
+        echo "database_url is set: ${database_url:+yes}"
+        echo "secret_key is set: ${secret_key:+yes}"
         cd backend
-        python -c "import os; print('DATABASE_URL:', 'DATABASE_URL' in os.environ); print('SECRET_KEY:', 'SECRET_KEY' in os.environ)"
+        python -c "import os; print('database_url:', 'database_url' in os.environ); print('secret_key:', 'secret_key' in os.environ)"
 
     - name: Run database migrations
       env:
-        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
-        SECRET_KEY: test-secret-key-for-ci
-        SUPABASE_URL: https://test.supabase.co
-        SUPABASE_ANON_KEY: test-anon-key
-        RESEND_API_KEY: test-resend-key
+        database_url: postgresql://postgres:postgres@localhost:5432/instainstru_test
+        secret_key: test-secret-key-for-ci
+        supabase_url: https://test.supabase.co
+        supabase_anon_key: test-anon-key
+        resend_api_key: test-resend-key
       run: |
         cd backend
         alembic upgrade head
 
     - name: Run tests with coverage
       env:
-        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
-        SECRET_KEY: test-secret-key-for-ci
-        SUPABASE_URL: https://test.supabase.co
-        SUPABASE_ANON_KEY: test-anon-key
-        RESEND_API_KEY: ${{ secrets.RESEND_API_KEY || 'test-resend-key' }}
+        database_url: postgresql://postgres:postgres@localhost:5432/instainstru_test
+        secret_key: test-secret-key-for-ci
+        supabase_url: https://test.supabase.co
+        supabase_anon_key: test-anon-key
+        resend_api_key: ${{ secrets.RESEND_API_KEY || 'test-resend-key' }}
       run: |
         cd backend
         pytest -v --cov=app --cov-report=xml --cov-report=term-missing --cov-fail-under=50
 
     - name: Check specific service coverage
       env:
-        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
-        SECRET_KEY: test-secret-key-for-ci
-        SUPABASE_URL: https://test.supabase.co
-        SUPABASE_ANON_KEY: test-anon-key
-        RESEND_API_KEY: test-resend-key
+        database_url: postgresql://postgres:postgres@localhost:5432/instainstru_test
+        secret_key: test-secret-key-for-ci
+        supabase_url: https://test.supabase.co
+        supabase_anon_key: test-anon-key
+        resend_api_key: test-resend-key
       run: |
         cd backend
         # Check BookingService coverage (must be >= 90%)
