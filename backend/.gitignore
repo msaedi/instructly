@@ -1,2 +1,4 @@
 login.json
 .env.old
+backend/.coverage
+backend/htmlcov/
