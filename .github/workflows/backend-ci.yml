@@ -53,12 +53,20 @@ jobs:
         pip install -r requirements.txt
         pip install pytest-cov
 
+    - name: Debug environment variables
+      run: |
+        echo "DATABASE_URL is set: ${DATABASE_URL:+yes}"
+        echo "SECRET_KEY is set: ${SECRET_KEY:+yes}"
+        cd backend
+        python -c "import os; print('DATABASE_URL:', 'DATABASE_URL' in os.environ); print('SECRET_KEY:', 'SECRET_KEY' in os.environ)"
+
     - name: Run database migrations
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
         SECRET_KEY: test-secret-key-for-ci
-        SUPABASE_URL: https://test.supabase.co  # Dummy URL for testing
-        SUPABASE_ANON_KEY: test-anon-key  # Dummy key for testing
+        SUPABASE_URL: https://test.supabase.co
+        SUPABASE_ANON_KEY: test-anon-key
+        RESEND_API_KEY: test-resend-key
       run: |
         cd backend
         alembic upgrade head
@@ -67,14 +75,20 @@ jobs:
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
         SECRET_KEY: test-secret-key-for-ci
-        SUPABASE_URL: https://test.supabase.co  # Dummy URL for testing
-        SUPABASE_ANON_KEY: test-anon-key  # Dummy key for testing
+        SUPABASE_URL: https://test.supabase.co
+        SUPABASE_ANON_KEY: test-anon-key
         RESEND_API_KEY: ${{ secrets.RESEND_API_KEY || 'test-resend-key' }}
       run: |
         cd backend
         pytest -v --cov=app --cov-report=xml --cov-report=term-missing --cov-fail-under=50
 
     - name: Check specific service coverage
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+        SECRET_KEY: test-secret-key-for-ci
+        SUPABASE_URL: https://test.supabase.co
+        SUPABASE_ANON_KEY: test-anon-key
+        RESEND_API_KEY: test-resend-key
       run: |
         cd backend
         # Check BookingService coverage (must be >= 90%)
