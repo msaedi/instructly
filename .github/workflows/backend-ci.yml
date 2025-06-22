@@ -56,6 +56,9 @@ jobs:
     - name: Run database migrations
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+        SECRET_KEY: test-secret-key-for-ci
+        SUPABASE_URL: https://test.supabase.co  # Dummy URL for testing
+        SUPABASE_ANON_KEY: test-anon-key  # Dummy key for testing
       run: |
         cd backend
         alembic upgrade head
@@ -64,7 +67,9 @@ jobs:
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
         SECRET_KEY: test-secret-key-for-ci
-        RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        SUPABASE_URL: https://test.supabase.co  # Dummy URL for testing
+        SUPABASE_ANON_KEY: test-anon-key  # Dummy key for testing
+        RESEND_API_KEY: ${{ secrets.RESEND_API_KEY || 'test-resend-key' }}
       run: |
         cd backend
         pytest -v --cov=app --cov-report=xml --cov-report=term-missing --cov-fail-under=50
