@@ -29,3 +29,60 @@ ensure_newline_before_comments = true
 skip_glob = ["*/alembic/versions/*", "*/migrations/*"]
 known_first_party = ["app"]
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__init__.py",
+    "*/migrations/*",
+    "*/alembic/*",
+    "app/main.py",
+    "app/database.py",
+    "app/core/config.py",
+]
+
+[tool.coverage.report]
+precision = 2
+skip_covered = false
+show_missing = true
+skip_empty = true
+exclude_lines = [
+    # Have to re-enable the standard pragma
+    "pragma: no cover",
+
+    # Don't complain about missing debug-only code
+    "def __repr__",
+    "if self\\.debug",
+
+    # Don't complain if tests don't hit defensive assertion code
+    "raise AssertionError",
+    "raise NotImplementedError",
+
+    # Don't complain if non-runnable code isn't run
+    "if 0:",
+    "if __name__ == .__main__.:",
+
+    # Don't complain about abstract methods
+    "@(abc\\.)?abstractmethod",
+
+    # Ignore type checking blocks
+    "if TYPE_CHECKING:",
+
+    # Ignore ellipsis in abstract methods/stubs
+    "\\.\\.\\.",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::urllib3.exceptions.NotOpenSSLWarning",
+]
