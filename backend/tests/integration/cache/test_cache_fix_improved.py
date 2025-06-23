@@ -2,6 +2,7 @@
 # backend/tests/integration/cache/test_cache_fix_improved.py
 """
 Improved test script with better error handling and diagnostics.
+Updated to use the availability test helper.
 """
 
 import json
@@ -10,21 +11,15 @@ from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.auth import create_access_token
 from app.models.user import User
-from app.services.availability_service import AvailabilityService
-
-
-def get_auth_token(email: str) -> str:
-    """Get auth token for testing without HTTP calls."""
-    return create_access_token(data={"sub": email})
+from tests.helpers.availability_test_helper import get_availability_helper
 
 
 def test_basic_save_operation(db: Session, test_instructor_with_availability: User):
     """Test a basic save operation with detailed diagnostics."""
 
     instructor = test_instructor_with_availability
-    availability_service = AvailabilityService(db)
+    helper = get_availability_helper(db)
 
     # Get next Monday
     today = date.today()
@@ -37,9 +32,15 @@ def test_basic_save_operation(db: Session, test_instructor_with_availability: Us
 
     # First, check current state
     print("\n1. Checking current availability...")
-    current_data = availability_service.get_week_availability(instructor_id=instructor.id, week_start=next_monday)
+    current_data = helper.get_week_availability(instructor_id=instructor.id, week_start=next_monday)
 
-    current_slots = current_data.get(next_monday.isoformat(), [])
+    monday_data = None
+    for day in current_data.get("days", []):
+        if day["date"] == next_monday.isoformat():
+            monday_data = day
+            break
+
+    current_slots = monday_data["slots"] if monday_data else []
     print(f"   Current slots for Monday: {len(current_slots)}")
     if current_slots:
         print(f"   First slot: {current_slots[0]['start_time']} - {current_slots[0]['end_time']}")
@@ -52,7 +53,7 @@ def test_basic_save_operation(db: Session, test_instructor_with_availability: Us
 
     save_start = time.time()
 
-    result = availability_service.set_day_availability(
+    result = helper.set_day_availability(
         instructor_id=instructor.id, date=next_monday, slots=test_slots, clear_existing=True
     )
 
@@ -75,9 +76,9 @@ def test_basic_save_operation(db: Session, test_instructor_with_availability: Us
     print("\n3. Independent verification...")
     time.sleep(0.5)  # Small delay
 
-    verify_data = availability_service.get_week_availability(instructor_id=instructor.id, week_start=next_monday)
+    verify_data = helper.get_day_availability(instructor_id=instructor.id, date=next_monday)
 
-    verify_slots = verify_data.get(next_monday.isoformat(), [])
+    verify_slots = verify_data.get("slots", [])
     print(f"   Verified slots: {len(verify_slots)}")
     if verify_slots:
         print(f"   Verified slot: {verify_slots[0]['start_time']} - {verify_slots[0]['end_time']}")
@@ -93,7 +94,7 @@ def test_rapid_updates(db: Session, test_instructor_with_availability: User):
     """Test rapid sequential updates."""
 
     instructor = test_instructor_with_availability
-    availability_service = AvailabilityService(db)
+    helper = get_availability_helper(db)
 
     # Get next Monday
     today = date.today()
@@ -111,8 +112,8 @@ def test_rapid_updates(db: Session, test_instructor_with_availability: User):
 
         test_slots = [{"start_time": start_time, "end_time": "17:00:00"}]
 
-        # Save
-        result = availability_service.set_day_availability(
+        # Save using helper
+        result = helper.set_day_availability(
             instructor_id=instructor.id, date=next_monday, slots=test_slots, clear_existing=True
         )
 
@@ -129,9 +130,9 @@ def test_rapid_updates(db: Session, test_instructor_with_availability: User):
 
     # Final check
     print("\nFinal state check...")
-    final_data = availability_service.get_week_availability(instructor_id=instructor.id, week_start=next_monday)
+    final_data = helper.get_day_availability(instructor_id=instructor.id, date=next_monday)
 
-    final_slots = final_data.get(next_monday.isoformat(), [])
+    final_slots = final_data.get("slots", [])
     if final_slots:
         print(f"Final slot time: {final_slots[0]['start_time']} (should be 13:00:00)")
         assert final_slots[0]["start_time"] == "13:00:00", "Final slot time doesn't match expected"
@@ -140,13 +141,13 @@ def test_rapid_updates(db: Session, test_instructor_with_availability: User):
 # Pytest-style tests
 def test_save_and_retrieve(db: Session, test_instructor_with_availability: User):
     """Test saving and retrieving availability data."""
-    availability_service = AvailabilityService(db)
+    helper = get_availability_helper(db)
 
     # Use a future date
     test_date = date.today() + timedelta(days=30)
 
-    # Save slots
-    result = availability_service.set_day_availability(
+    # Save slots using helper
+    result = helper.set_day_availability(
         instructor_id=test_instructor_with_availability.id,
         date=test_date,
         slots=[{"start_time": "10:00:00", "end_time": "12:00:00"}],

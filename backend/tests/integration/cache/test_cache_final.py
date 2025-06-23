@@ -2,35 +2,22 @@
 # backend/tests/integration/cache/test_cache_final.py
 """
 Final comprehensive test to verify all cache fixes are working.
+Updated to use the availability test helper.
 """
 
 from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.auth import create_access_token
-from app.models.availability import AvailabilitySlot, InstructorAvailability
 from app.models.user import User
-from app.services.availability_service import AvailabilityService
-from app.services.bulk_operation_service import BulkOperationService
-from app.services.week_operation_service import WeekOperationService
-
-
-def get_auth_token(email: str) -> str:
-    """Get auth token for testing without HTTP calls."""
-    return create_access_token(data={"sub": email})
+from tests.helpers.availability_test_helper import get_availability_helper
 
 
 def test_all_operations(db: Session, test_instructor_with_availability: User):
     """Test all availability operations for cache consistency."""
 
-    # No need for token when calling services directly
     instructor = test_instructor_with_availability
-
-    # Initialize services
-    availability_service = AvailabilityService(db)
-    week_operation_service = WeekOperationService(db)
-    bulk_operation_service = BulkOperationService(db)
+    helper = get_availability_helper(db)
 
     # Use far future dates to avoid conflicts
     test_base = date(2026, 3, 2)  # A Monday in March 2026
@@ -40,21 +27,8 @@ def test_all_operations(db: Session, test_instructor_with_availability: User):
     # Test 1: Basic Save
     print("1. Testing basic save operation...")
 
-    # Clear existing and create new availability
-    existing = (
-        db.query(InstructorAvailability)
-        .filter(InstructorAvailability.instructor_id == instructor.id, InstructorAvailability.date == test_base)
-        .first()
-    )
-
-    if existing:
-        # Clear existing slots
-        db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == existing.id).delete()
-        existing.is_cleared = True
-        db.commit()
-
-    # Create new availability
-    result = availability_service.set_day_availability(
+    # Use helper to set availability
+    result = helper.set_day_availability(
         instructor_id=instructor.id,
         date=test_base,
         slots=[{"start_time": "09:00:00", "end_time": "12:00:00"}],
@@ -70,13 +44,11 @@ def test_all_operations(db: Session, test_instructor_with_availability: User):
     print("\n2. Testing copy week operation...")
     target_week = test_base + timedelta(days=7)
 
-    copy_result = week_operation_service.copy_week(
-        instructor_id=instructor.id, from_week_start=test_base, to_week_start=target_week
-    )
+    copy_result = helper.copy_week(instructor_id=instructor.id, from_week_start=test_base, to_week_start=target_week)
 
     if copy_result.get("success") and copy_result.get("slots_created", 0) > 0:
         # Verify the data was copied
-        target_availability = availability_service.get_day_availability(instructor_id=instructor.id, date=target_week)
+        target_availability = helper.get_day_availability(instructor_id=instructor.id, date=target_week)
         if target_availability and len(target_availability.get("slots", [])) > 0:
             print("   ✅ Copy week returns fresh data")
         else:
@@ -89,7 +61,7 @@ def test_all_operations(db: Session, test_instructor_with_availability: User):
     range_start = test_base + timedelta(days=14)
     range_end = range_start + timedelta(days=6)
 
-    apply_result = bulk_operation_service.apply_week_pattern(
+    apply_result = helper.apply_week_pattern(
         instructor_id=instructor.id, from_week_start=test_base, start_date=range_start, end_date=range_end
     )
 
@@ -97,7 +69,7 @@ def test_all_operations(db: Session, test_instructor_with_availability: User):
         print("   ✅ Apply pattern completed successfully")
 
         # Verify data is fresh
-        verify_availability = availability_service.get_day_availability(instructor_id=instructor.id, date=range_start)
+        verify_availability = helper.get_day_availability(instructor_id=instructor.id, date=range_start)
 
         if verify_availability and len(verify_availability.get("slots", [])) > 0:
             print("   ✅ Applied data is immediately available")
@@ -112,7 +84,7 @@ def test_all_operations(db: Session, test_instructor_with_availability: User):
 
     all_success = True
     for i in range(5):
-        update_result = availability_service.set_day_availability(
+        update_result = helper.set_day_availability(
             instructor_id=instructor.id,
             date=rapid_test_date,
             slots=[{"start_time": f"{10+i}:00:00", "end_time": f"{11+i}:00:00"}],
@@ -144,13 +116,16 @@ def test_all_operations(db: Session, test_instructor_with_availability: User):
 # Additional test to ensure it integrates with pytest
 def test_cache_operations_pytest(db: Session, test_instructor_with_availability: User):
     """Pytest-compatible version of the cache test."""
-    availability_service = AvailabilityService(db)
+    helper = get_availability_helper(db)
 
-    # Simple test that can be asserted
-    result = availability_service.get_week_availability(
-        instructor_id=test_instructor_with_availability.id,
-        week_start=date.today() - timedelta(days=date.today().weekday()),
-    )
+    # Get current week
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+
+    # Use helper to get week availability
+    result = helper.get_week_availability(instructor_id=test_instructor_with_availability.id, week_start=week_start)
 
     assert result is not None
     assert isinstance(result, dict)
+    assert "days" in result
+    assert len(result["days"]) == 7
