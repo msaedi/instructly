@@ -129,14 +129,21 @@ class ConflictChecker(BaseService):
                 "reason": "Slot belongs to different instructor",
             }
 
-        # Check if already booked
-        if slot.booking_id:
-            booking = self.db.query(Booking).filter(Booking.id == slot.booking_id).first()
+        # Check if already booked by querying bookings table
+        booking = (
+            self.db.query(Booking)
+            .filter(
+                Booking.availability_slot_id == slot_id,
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+            )
+            .first()
+        )
 
+        if booking:
             return {
                 "available": False,
                 "reason": "Slot is already booked",
-                "booking_status": booking.status if booking else None,
+                "booking_status": booking.status,
             }
 
         # Check if slot is in the past
@@ -367,6 +374,23 @@ class ConflictChecker(BaseService):
             .all()
         )
 
+        # Get all slot IDs first
+        slot_ids = [slot.id for slot in slots]
+
+        # Pre-fetch bookings for all slots in one query
+        booked_slot_ids = set()
+        if slot_ids:
+            bookings = (
+                self.db.query(Booking.availability_slot_id)
+                .filter(
+                    Booking.availability_slot_id.in_(slot_ids),
+                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                )
+                .all()
+            )
+            booked_slot_ids = {b[0] for b in bookings}
+
+        # Now check overlaps
         overlapping = []
         for slot in slots:
             # Check if slots overlap
@@ -376,7 +400,7 @@ class ConflictChecker(BaseService):
                         "slot_id": slot.id,
                         "start_time": slot.start_time.isoformat(),
                         "end_time": slot.end_time.isoformat(),
-                        "has_booking": slot.booking_id is not None,
+                        "has_booking": slot.id in booked_slot_ids,
                     }
                 )
 
