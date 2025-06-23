@@ -166,10 +166,10 @@ class TestWeekOperationService:
         pattern = service._extract_week_pattern(week_availability, date(2025, 6, 16))
 
         # Use lowercase day names
-        assert "monday" in pattern
-        assert "tuesday" in pattern
-        assert pattern["monday"] == week_availability["2025-06-16"]
-        assert pattern["tuesday"] == week_availability["2025-06-17"]
+        assert "Monday" in pattern
+        assert "Tuesday" in pattern
+        assert pattern["Monday"] == week_availability["2025-06-16"]
+        assert pattern["Tuesday"] == week_availability["2025-06-17"]
 
 
 class TestConflictChecker:
