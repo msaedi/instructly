@@ -63,12 +63,15 @@ class AvailabilityService(BaseService):
         Returns:
             Availability data for the date or None
         """
-        # Try cache first
+        # Try cache first - WITH ERROR HANDLING
         cache_key = f"availability:day:{instructor_id}:{target_date.isoformat()}"
         if self.cache_service:
-            cached = self.cache_service.get(cache_key)
-            if cached is not None:
-                return cached
+            try:
+                cached = self.cache_service.get(cache_key)
+                if cached is not None:
+                    return cached
+            except Exception as cache_error:
+                self.logger.warning(f"Cache error for date availability: {cache_error}. Falling back to database.")
 
         # Query only for specific date
         entry = (
@@ -96,9 +99,12 @@ class AvailabilityService(BaseService):
             ],
         }
 
-        # Cache for 1 hour
+        # Cache for 1 hour - WITH ERROR HANDLING
         if self.cache_service:
-            self.cache_service.set(cache_key, result, tier="warm")
+            try:
+                self.cache_service.set(cache_key, result, tier="warm")
+            except Exception as cache_error:
+                self.logger.warning(f"Failed to cache date availability: {cache_error}")
 
         return result
 
@@ -235,14 +241,20 @@ class AvailabilityService(BaseService):
         """
         self.log_operation("get_week_availability", instructor_id=instructor_id, start_date=start_date)
 
-        # Try cache first if available
+        # Try cache first if available - WITH ERROR HANDLING
         if self.cache_service:
-            cached_data = self.cache_service.get_week_availability(instructor_id, start_date)
-            if cached_data is not None:
-                self.logger.info(f"CACHE HIT for week availability: instructor={instructor_id}, start={start_date}")
-                return cached_data
-            else:
-                self.logger.info(f"CACHE MISS for week availability: instructor={instructor_id}, start={start_date}")
+            try:
+                cached_data = self.cache_service.get_week_availability(instructor_id, start_date)
+                if cached_data is not None:
+                    self.logger.info(f"CACHE HIT for week availability: instructor={instructor_id}, start={start_date}")
+                    return cached_data
+                else:
+                    self.logger.info(
+                        f"CACHE MISS for week availability: instructor={instructor_id}, start={start_date}"
+                    )
+            except Exception as cache_error:
+                # Log cache error but continue with database query
+                self.logger.warning(f"Cache error for week availability: {cache_error}. Falling back to database.")
 
         # Calculate week dates (Monday to Sunday)
         week_dates = self._calculate_week_dates(start_date)
@@ -291,10 +303,14 @@ class AvailabilityService(BaseService):
                 ]
                 self.logger.debug(f"Added {len(entry.time_slots)} slots for {date_str}")
 
-        # Cache the result if cache is available
+        # Cache the result if cache is available - WITH ERROR HANDLING
         if self.cache_service:
-            success = self.cache_service.cache_week_availability(instructor_id, start_date, week_schedule)
-            self.logger.info(f"Cached week availability: success={success}")
+            try:
+                success = self.cache_service.cache_week_availability(instructor_id, start_date, week_schedule)
+                self.logger.info(f"Cached week availability: success={success}")
+            except Exception as cache_error:
+                # Log cache error but don't fail the request
+                self.logger.warning(f"Failed to cache week availability: {cache_error}")
 
         return week_schedule
 
