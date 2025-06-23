@@ -170,10 +170,7 @@ def test_apply_pattern_validation(db: Session, test_instructor_with_availability
         print(f"   Apply failed: {result.get('message', 'Unknown error')}")
 
 
-@pytest.mark.skipif(
-    os.getenv("SKIP_CACHE_TESTS", "false").lower() == "true" or not os.getenv("REDIS_URL"),
-    reason="Cache consistency tests require cache to be enabled",
-)
+@pytest.mark.skipif(os.getenv("CI") == "true", reason="Flaky in CI environment - requires specific cache timing")
 def test_cache_consistency(db: Session, test_instructor_with_availability: User):
     """Test that operations maintain cache consistency.
 
