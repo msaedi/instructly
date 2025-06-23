@@ -1,13 +1,12 @@
 # backend/tests/test_auth.py
 """
-Test authentication functionality using proper test client.
+Test authentication functionality using proper test client fixture.
 """
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.auth import create_access_token, get_password_hash, verify_password
-from app.main import app
 from app.models.user import User, UserRole
 
 
@@ -37,10 +36,9 @@ class TestAuth:
         assert isinstance(token, str)
         assert len(token) > 0
 
-    def test_register_new_user(self, db: Session):
+    def test_register_new_user(self, db: Session, client: TestClient):
         """Test user registration endpoint."""
-        client = TestClient(app)
-
+        # Now using the client fixture instead of creating TestClient
         response = client.post(
             "/auth/register",
             json={
@@ -63,10 +61,8 @@ class TestAuth:
         assert user is not None
         assert user.role == UserRole.STUDENT
 
-    def test_register_duplicate_user(self, db: Session, test_student: User):
+    def test_register_duplicate_user(self, db: Session, client: TestClient, test_student: User):
         """Test registering with existing email fails."""
-        client = TestClient(app)
-
         response = client.post(
             "/auth/register",
             json={
@@ -80,10 +76,8 @@ class TestAuth:
         assert response.status_code == 400
         assert "already registered" in response.json()["detail"]
 
-    def test_login_success(self, db: Session, test_student: User, test_password: str):
+    def test_login_success(self, db: Session, client: TestClient, test_student: User, test_password: str):
         """Test successful login."""
-        client = TestClient(app)
-
         response = client.post("/auth/login", data={"username": test_student.email, "password": test_password})
 
         assert response.status_code == 200
@@ -91,28 +85,22 @@ class TestAuth:
         assert "access_token" in data
         assert data["token_type"] == "bearer"
 
-    def test_login_wrong_password(self, db: Session, test_student: User):
+    def test_login_wrong_password(self, db: Session, client: TestClient, test_student: User):
         """Test login with wrong password."""
-        client = TestClient(app)
-
         response = client.post("/auth/login", data={"username": test_student.email, "password": "WrongPassword123!"})
 
         assert response.status_code == 401
         assert "Incorrect email or password" in response.json()["detail"]
 
-    def test_login_nonexistent_user(self, db: Session):
+    def test_login_nonexistent_user(self, db: Session, client: TestClient):
         """Test login with non-existent user."""
-        client = TestClient(app)
-
         response = client.post("/auth/login", data={"username": "nonexistent@example.com", "password": "Password123!"})
 
         assert response.status_code == 401
         assert "Incorrect email or password" in response.json()["detail"]
 
-    def test_get_current_user(self, db: Session, test_student: User, auth_headers_student: dict):
+    def test_get_current_user(self, db: Session, client: TestClient, test_student: User, auth_headers_student: dict):
         """Test getting current user with valid token."""
-        client = TestClient(app)
-
         response = client.get("/auth/me", headers=auth_headers_student)
 
         assert response.status_code == 200
@@ -121,19 +109,15 @@ class TestAuth:
         assert data["full_name"] == test_student.full_name
         assert data["role"] == "student"
 
-    def test_get_current_user_invalid_token(self, db: Session):
+    def test_get_current_user_invalid_token(self, db: Session, client: TestClient):
         """Test getting current user with invalid token."""
-        client = TestClient(app)
-
         response = client.get("/auth/me", headers={"Authorization": "Bearer invalid_token"})
 
         assert response.status_code == 401
         assert "Could not validate credentials" in response.json()["detail"]
 
-    def test_get_current_user_no_token(self, db: Session):
+    def test_get_current_user_no_token(self, db: Session, client: TestClient):
         """Test getting current user without token."""
-        client = TestClient(app)
-
         response = client.get("/auth/me")
 
         assert response.status_code == 401

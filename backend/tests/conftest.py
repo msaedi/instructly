@@ -13,6 +13,7 @@ backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, backend_dir)
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -20,7 +21,8 @@ from app.auth import get_password_hash
 
 # Now we can import from app
 from app.core.config import settings
-from app.database import Base
+from app.database import Base, get_db
+from app.main import app
 from app.models.availability import AvailabilitySlot, InstructorAvailability
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
@@ -35,6 +37,28 @@ test_engine = create_engine(
 
 # Create test session factory
 TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+
+
+@pytest.fixture
+def client(db: Session):
+    """Create a test client with the test database."""
+
+    def override_get_db():
+        try:
+            yield db
+        finally:
+            pass
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    # Don't use context manager - create directly
+    test_client = TestClient(app)
+
+    yield test_client
+
+    # Cleanup
+    app.dependency_overrides.clear()
+    test_client.close()  # Explicitly close the client
 
 
 @pytest.fixture(scope="function")
