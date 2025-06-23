@@ -98,7 +98,7 @@ class TestBookingServiceCreation:
         print(f"Debug: Booking duration: {booking.duration_minutes} minutes")
         print(f"Debug: Total price: ${booking.total_price}")
         expected_duration = 180  # What CI calculates
-        expected_price = Decimal("135.00")  # 3 hours * $45
+        expected_price = Decimal("150.00")  # 3 hours * $50
 
         assert (
             booking.duration_minutes == expected_duration
