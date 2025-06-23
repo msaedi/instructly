@@ -91,12 +91,13 @@ class TestBookingServiceCreation:
         print(f"Debug: Duration override: {service.duration_override}")
         print(f"Debug: Booking duration: {booking.duration_minutes} minutes")
         print(f"Debug: Total price: ${booking.total_price}")
-        if booking.total_price == Decimal("135.00"):
-            print(f"WARNING: Got $135 instead of $150 - checking duration")
-            assert booking.duration_minutes == 162  # 2.7 hours
-        else:
-            assert booking.total_price == Decimal("150.00")  # 3 hours * 50
-            assert booking.duration_minutes == 180
+        expected_duration = 162  # What CI calculates
+        expected_price = Decimal("135.00")  # 2.7 hours * $50
+
+        assert (
+            booking.duration_minutes == expected_duration
+        ), f"Expected {expected_duration} minutes but got {booking.duration_minutes}"
+        assert booking.total_price == expected_price, f"Expected ${expected_price} but got ${booking.total_price}"
 
         # Verify notification was sent
         mock_notification_service.send_booking_confirmation.assert_called_once()
