@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# backend/scripts/test_week_operations_improved.py
+# backend/tests/integration/cache/test_week_operations_improved.py
 """
 Improved test script for week operations with better error handling.
 """
@@ -10,6 +10,9 @@ import time
 from datetime import date, timedelta
 
 import httpx
+from fastapi.testclient import TestClient
+
+from app.main import app
 
 # Test configuration
 API_URL = "http://localhost:8000"
@@ -17,29 +20,17 @@ SARAH_EMAIL = "sarah.chen@example.com"
 SARAH_PASSWORD = "TestPassword123!"
 
 
-async def get_auth_token(email: str, password: str) -> str:
-    """Get auth token for user."""
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"{API_URL}/auth/login",
-            data={
-                "username": email,
-                "password": password,
-            },
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-        )
-        if response.status_code == 200:
-            data = response.json()
-            return data["access_token"]
-        else:
-            print(f"Login failed: {response.status_code} - {response.text}")
-            return None
+def get_auth_token(email: str) -> str:
+    """Get auth token for testing without HTTP calls."""
+    client = TestClient(app)
+    response = client.post("/auth/login", data={...})
+    return response.json()["access_token"]
 
 
 async def test_copy_week_with_validation():
     """Test copy week operation with better validation."""
 
-    token = await get_auth_token(SARAH_EMAIL, SARAH_PASSWORD)
+    token = get_auth_token(SARAH_EMAIL)
     if not token:
         return
 
@@ -149,7 +140,7 @@ async def test_copy_week_with_validation():
 async def test_apply_pattern_validation():
     """Test apply pattern with validation of results."""
 
-    token = await get_auth_token(SARAH_EMAIL, SARAH_PASSWORD)
+    token = get_auth_token(SARAH_EMAIL)
     if not token:
         return
 
@@ -240,7 +231,7 @@ async def test_apply_pattern_validation():
 async def test_cache_consistency():
     """Test that operations maintain cache consistency."""
 
-    token = await get_auth_token(SARAH_EMAIL, SARAH_PASSWORD)
+    token = get_auth_token(SARAH_EMAIL)
     if not token:
         return
 
