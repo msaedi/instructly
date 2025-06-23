@@ -1,17 +1,17 @@
+# backend/tests/test_booked_slots_endpoint.py
 """
-Test the enhanced booked slots endpoint
-Save as: backend/scripts/test_booked_slots_endpoint.py
-Run from backend directory: python scripts/test_booked_slots_endpoint.py
+Test the enhanced booked slots endpoint - fixed version with commit
 """
-import json
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 
-import requests
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
-# Configuration
-BASE_URL = "http://localhost:8000"  # Update if different
-INSTRUCTOR_EMAIL = "sarah.chen@example.com"  # An instructor email
-INSTRUCTOR_PASSWORD = "TestPassword123!"
+from app.models.availability import AvailabilitySlot, InstructorAvailability
+from app.models.booking import Booking, BookingStatus
+from app.models.instructor import InstructorProfile
+from app.models.service import Service
+from app.models.user import User
 
 
 def get_monday_of_current_week():
@@ -21,76 +21,135 @@ def get_monday_of_current_week():
     return monday
 
 
-def test_endpoint():
-    print("=== Testing Enhanced Booked Slots Endpoint ===\n")
+def test_booked_slots_endpoint(
+    client: TestClient,
+    db: Session,
+    test_instructor_with_availability: User,
+    test_student: User,
+    auth_headers_instructor: dict,
+):
+    """Test the booked slots endpoint with proper test infrastructure."""
 
-    # 1. Login as instructor
-    print("1. Logging in as instructor...")
-    login_response = requests.post(
-        f"{BASE_URL}/auth/login",
-        data={"username": INSTRUCTOR_EMAIL, "password": INSTRUCTOR_PASSWORD},
-    )
+    # IMPORTANT: Commit the test data so the API endpoint can see it
+    # db.commit()
 
-    if login_response.status_code != 200:
-        print(f"❌ Login failed: {login_response.status_code}")
-        print(login_response.text)
-        return
-
-    token = login_response.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
-    print("✅ Login successful\n")
-
-    # 2. Call the booked slots endpoint
+    # First, create a booking for this week to ensure we have data
     monday = get_monday_of_current_week()
-    print(f"2. Testing endpoint for week starting: {monday}")
 
-    response = requests.get(
-        f"{BASE_URL}/instructors/availability-windows/week/booked-slots",
-        params={"start_date": monday.isoformat()},
-        headers=headers,
+    # Get instructor's profile and service
+    profile = (
+        db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor_with_availability.id).first()
     )
 
-    if response.status_code != 200:
-        print(f"❌ Endpoint failed: {response.status_code}")
-        print(response.text)
-        return
+    service = db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
 
-    data = response.json()
-    print("✅ Endpoint successful\n")
+    # Get or create availability for Monday
+    availability = (
+        db.query(InstructorAvailability)
+        .filter(
+            InstructorAvailability.instructor_id == test_instructor_with_availability.id,
+            InstructorAvailability.date == monday,
+        )
+        .first()
+    )
 
-    # 3. Check the response structure
-    print("3. Response structure:")
-    print(f"   - Total booked slots: {len(data.get('booked_slots', []))}")
+    if not availability:
+        availability = InstructorAvailability(
+            instructor_id=test_instructor_with_availability.id, date=monday, is_cleared=False
+        )
+        db.add(availability)
+        db.flush()
 
-    if data.get("booked_slots"):
-        print("\n4. Sample slot data:")
-        slot = data["booked_slots"][0]
-        print(json.dumps(slot, indent=2))
-
-        # Check for new fields
-        print("\n5. Checking for new fields:")
-        required_fields = [
-            "booking_id",
-            "date",
-            "start_time",
-            "end_time",
-            "student_first_name",
-            "student_last_initial",
-            "service_name",
-            "service_area_short",
-            "duration_minutes",
-            "location_type",
-        ]
-
-        for field in required_fields:
-            if field in slot:
-                print(f"   ✅ {field}: {slot[field]}")
-            else:
-                print(f"   ❌ {field}: MISSING")
+        # Add a slot
+        slot = AvailabilitySlot(availability_id=availability.id, start_time=time(9, 0), end_time=time(10, 0))
+        db.add(slot)
+        db.flush()
     else:
-        print("\n   ℹ️  No booked slots found for this week")
-        print("   Try testing with a different instructor or week")
+        slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == availability.id).first()
+
+    # Create booking with CORRECT location_type values
+    booking = Booking(
+        student_id=test_student.id,
+        instructor_id=test_instructor_with_availability.id,
+        service_id=service.id,
+        availability_slot_id=slot.id,
+        booking_date=monday,
+        start_time=slot.start_time,
+        end_time=slot.end_time,
+        service_name=service.skill,
+        hourly_rate=service.hourly_rate,
+        total_price=service.hourly_rate,
+        duration_minutes=60,
+        status=BookingStatus.CONFIRMED,
+        location_type="student_home",  # FIXED: was "student"
+        service_area="Manhattan",
+        meeting_location="123 Test St",
+    )
+    db.add(booking)
+    db.commit()  # Commit the booking too
+
+    # Now test the endpoint
+    response = client.get(
+        "/instructors/availability-windows/week/booked-slots",
+        params={"start_date": monday.isoformat()},
+        headers=auth_headers_instructor,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Check response structure
+    assert "booked_slots" in data
+    assert len(data["booked_slots"]) >= 1
+
+    # Check the slot data
+    slot_data = data["booked_slots"][0]
+
+    # Verify required fields
+    required_fields = [
+        "booking_id",
+        "date",
+        "start_time",
+        "end_time",
+        "student_first_name",
+        "student_last_initial",
+        "service_name",
+        "service_area_short",
+        "duration_minutes",
+        "location_type",
+    ]
+
+    for field in required_fields:
+        assert field in slot_data, f"Missing field: {field}"
+
+    # Verify data correctness
+    assert slot_data["date"] == monday.isoformat()
+    assert slot_data["student_first_name"] == "Test"
+    assert slot_data["student_last_initial"] == "S."
+    assert slot_data["service_name"] == service.skill
+    assert slot_data["duration_minutes"] == 60
+    assert slot_data["location_type"] == "student_home"
 
 
-if __name__ == "__main__":
-    test_endpoint()
+def test_booked_slots_endpoint_empty_week(
+    client: TestClient, db: Session, test_instructor: User, auth_headers_instructor: dict
+):
+    """Test the endpoint with no bookings."""
+
+    # IMPORTANT: Commit the test data
+    # db.commit()
+
+    # Get a week far in the future that won't have bookings
+    future_monday = date.today() + timedelta(days=365)
+
+    response = client.get(
+        "/instructors/availability-windows/week/booked-slots",
+        params={"start_date": future_monday.isoformat()},
+        headers=auth_headers_instructor,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert "booked_slots" in data
+    assert len(data["booked_slots"]) == 0

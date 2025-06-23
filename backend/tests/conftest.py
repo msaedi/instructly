@@ -14,7 +14,7 @@ sys.path.insert(0, backend_dir)
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.auth import get_password_hash
@@ -64,36 +64,36 @@ def client(db: Session):
 @pytest.fixture(scope="function")
 def db():
     """
-    Create a new database session for each test with proper rollback.
-
-    This uses nested transactions to ensure complete isolation.
+    Create a new database session for each test.
+    This version works with TestClient.
     """
-    # Create tables if they don't exist
+    # Create tables
     Base.metadata.create_all(bind=test_engine)
 
-    # Create a connection and transaction
-    connection = test_engine.connect()
-    transaction = connection.begin()
-
-    # Create a session bound to this connection
-    session = TestSessionLocal(bind=connection)
-
-    # Start a nested transaction (savepoint)
-    nested = connection.begin_nested()
-
-    # If the session would roll back, start a new savepoint
-    @event.listens_for(session, "after_transaction_end")
-    def end_savepoint(session, transaction):
-        nonlocal nested
-        if not nested.is_active:
-            nested = connection.begin_nested()
+    # Create a fresh session
+    session = TestSessionLocal()
 
     yield session
 
     # Cleanup
+    session.rollback()
     session.close()
-    transaction.rollback()
-    connection.close()
+
+    # Clean all test data after each test
+    cleanup_db = TestSessionLocal()
+    try:
+        # Delete in dependency order to avoid FK violations
+        cleanup_db.query(Booking).delete()
+        cleanup_db.query(AvailabilitySlot).delete()
+        cleanup_db.query(InstructorAvailability).delete()
+        cleanup_db.query(Service).delete()
+        cleanup_db.query(InstructorProfile).delete()
+        cleanup_db.query(User).delete()
+        cleanup_db.commit()
+    except Exception:
+        cleanup_db.rollback()
+    finally:
+        cleanup_db.close()
 
 
 @pytest.fixture
@@ -114,6 +114,7 @@ def test_student(db: Session, test_password: str) -> User:
     )
     db.add(student)
     db.flush()
+    db.commit()
     return student
 
 
@@ -164,6 +165,7 @@ def test_instructor(db: Session, test_password: str) -> User:
         db.add(service)
 
     db.flush()
+    db.commit()
     return instructor
 
 
@@ -189,6 +191,7 @@ def test_instructor_with_availability(db: Session, test_instructor: User) -> Use
             db.add(slot)
 
     db.flush()
+    db.commit()
     return test_instructor
 
 

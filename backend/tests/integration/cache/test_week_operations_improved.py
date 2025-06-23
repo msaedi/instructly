@@ -5,9 +5,11 @@ Improved test script for week operations with better error handling.
 Updated to use the availability test helper.
 """
 
+import os
 import time
 from datetime import date, timedelta
 
+import pytest
 from sqlalchemy.orm import Session
 
 from app.models.user import User
@@ -168,8 +170,16 @@ def test_apply_pattern_validation(db: Session, test_instructor_with_availability
         print(f"   Apply failed: {result.get('message', 'Unknown error')}")
 
 
+@pytest.mark.skipif(
+    os.getenv("SKIP_CACHE_TESTS", "false").lower() == "true" or not os.getenv("REDIS_URL"),
+    reason="Cache consistency tests require cache to be enabled",
+)
 def test_cache_consistency(db: Session, test_instructor_with_availability: User):
-    """Test that operations maintain cache consistency."""
+    """Test that operations maintain cache consistency.
+
+    This test requires cache to be enabled for consistent results.
+    It tests rapid sequential operations that expect immediate consistency.
+    """
 
     instructor = test_instructor_with_availability
     helper = get_availability_helper(db)
