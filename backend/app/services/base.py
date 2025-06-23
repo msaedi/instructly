@@ -22,7 +22,8 @@ from sqlalchemy.orm import Session
 from ..core.exceptions import ServiceException, ValidationException
 
 try:
-    from ..infrastructure.cache.redis_cache import RedisCache, get_cache
+    from .cache_service import CacheService as RedisCache
+    from .cache_service import get_cache_service as get_cache
 except ImportError:
     # Cache not yet implemented, use None
     def get_cache():
