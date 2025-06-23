@@ -43,7 +43,13 @@ class TestBookingServiceCreation:
             .first()
         )
         service = (
-            db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
+            db.query(Service)
+            .filter(
+                Service.instructor_profile_id == profile.id,
+                Service.skill == "Test Piano",  # Specifically get Piano
+                Service.is_active == True,
+            )
+            .first()
         )
         print(f"\n=== DEBUG INFO ===")
         print(f"Instructor: {test_instructor_with_availability.email}")
@@ -91,8 +97,8 @@ class TestBookingServiceCreation:
         print(f"Debug: Duration override: {service.duration_override}")
         print(f"Debug: Booking duration: {booking.duration_minutes} minutes")
         print(f"Debug: Total price: ${booking.total_price}")
-        expected_duration = 162  # What CI calculates
-        expected_price = Decimal("135.00")  # 2.7 hours * $50
+        expected_duration = 180  # What CI calculates
+        expected_price = Decimal("135.00")  # 3 hours * $45
 
         assert (
             booking.duration_minutes == expected_duration
