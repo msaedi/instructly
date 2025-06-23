@@ -10,6 +10,7 @@ Handles week-based availability operations including:
 """
 
 import logging
+import time as time_module
 from datetime import date, time, timedelta
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
@@ -1012,7 +1013,7 @@ class WeekOperationService(BaseService):
             Cached or fresh week pattern
         """
         # Start performance measurement
-        start_time = time.time()
+        start_time = time_module.time()
 
         cache_key = f"week_pattern:{instructor_id}:{week_start.isoformat()}"
 
@@ -1022,7 +1023,7 @@ class WeekOperationService(BaseService):
             if cached:
                 self.logger.debug(f"Week pattern cache hit for {week_start}")
                 # Record metric
-                elapsed = time.time() - start_time
+                elapsed = time_module.time() - start_time
                 self._record_metric("pattern_extraction", elapsed, success=True)
                 return cached
 
@@ -1035,7 +1036,7 @@ class WeekOperationService(BaseService):
             self.cache.set(cache_key, pattern, ttl=cache_ttl)
 
         # Record metric
-        elapsed = time.time() - start_time
+        elapsed = time_module.time() - start_time
         self._record_metric("pattern_extraction", elapsed, success=True)
 
         return pattern

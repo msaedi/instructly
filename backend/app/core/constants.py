@@ -33,15 +33,7 @@ MAX_FUTURE_DAYS = 365  # Maximum days in the future for availability (1 year)
 MAX_SLOTS_PER_DAY = 10  # Maximum time slots per day
 
 # Day of week mapping
-DAYS_OF_WEEK = [
-    "monday",
-    "tuesday",
-    "wednesday",
-    "thursday",
-    "friday",
-    "saturday",
-    "sunday",
-]
+DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 # Frontend URLs
 ALLOWED_ORIGINS = [
