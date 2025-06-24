@@ -99,7 +99,7 @@ jobs:
 
         # Run ALL tests with full app coverage
         echo "=== Running all tests with full coverage ==="
-        pytest -v --cov=app --cov-branch --cov-report=xml --cov-report=term-missing
+        pytest -v --cov=app --cov-branch --cov-report=xml --cov-report=term-missing --cov-report=.
 
         # Save the exit code
         echo "PYTEST_EXIT_CODE=$?" >> $GITHUB_ENV
