@@ -96,8 +96,7 @@ jobs:
 
         # Run ALL tests with coverage
         echo "=== Running all tests with full coverage ==="
-        # Run pytest with coverage - this creates .coverage file
-        pytest -v --cov=app --cov-branch || PYTEST_EXIT_CODE=$?
+        python -m coverage run -m pytest -v || PYTEST_EXIT_CODE=$?
 
         # If PYTEST_EXIT_CODE is not set, tests passed (exit code 0)
         PYTEST_EXIT_CODE=${PYTEST_EXIT_CODE:-0}
@@ -105,8 +104,8 @@ jobs:
 
         # Now generate the reports from the .coverage file
         echo "=== Generating coverage reports ==="
-        coverage xml     # Creates coverage.xml for Codecov
-        coverage report  # Shows summary in terminal
+        python -m coverage xml     # Creates coverage.xml for Codecov
+        python -m coverage report  # Shows summary in terminal
 
         # Debug: Show what coverage files were created
         echo "=== Coverage files created ==="
