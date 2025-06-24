@@ -21,6 +21,19 @@ from app.schemas.availability_window import (
 from app.services.availability_service import AvailabilityService
 
 
+def get_next_monday(from_date=None):
+    """Get the next Monday from the given date (or today)."""
+    if from_date is None:
+        from_date = date.today()
+
+    # Calculate days until Monday (0 = Monday, 6 = Sunday)
+    days_ahead = 0 - from_date.weekday()
+    if days_ahead <= 0:  # Target day already happened this week
+        days_ahead += 7
+
+    return from_date + timedelta(days_ahead)
+
+
 class TestAvailabilityServiceQueries:
     """Test and document all database query patterns in AvailabilityService."""
 
@@ -29,7 +42,7 @@ class TestAvailabilityServiceQueries:
         service = AvailabilityService(db)
 
         # Create test data
-        monday = date.today() - timedelta(days=date.today().weekday())
+        monday = get_next_monday() - timedelta(days=date.today().weekday())
 
         # Create availability for multiple days
         for i in range(3):  # Mon, Tue, Wed
@@ -58,7 +71,7 @@ class TestAvailabilityServiceQueries:
     def test_get_week_availability_with_cleared_days(self, db: Session, test_instructor: User):
         """Test how cleared days are handled in queries."""
         service = AvailabilityService(db)
-        monday = date.today() - timedelta(days=date.today().weekday())
+        monday = get_next_monday() - timedelta(days=date.today().weekday())
 
         # Create a cleared day (properly)
         availability = InstructorAvailability(
@@ -79,7 +92,7 @@ class TestAvailabilityServiceQueries:
     async def test_save_week_availability_transaction_pattern(self, db: Session, test_instructor: User):
         """Document transaction boundaries for save operations (async)."""
         service = AvailabilityService(db)
-        monday = date.today() + timedelta(days=7)  # Future Monday
+        monday = get_next_monday()  # Future Monday
 
         # Create week data with proper schema format
         week_data = WeekSpecificScheduleCreate(
@@ -104,7 +117,7 @@ class TestAvailabilityServiceQueries:
 
         # Get the booking date
         booking_date = test_booking.booking_date
-        monday = booking_date - timedelta(days=booking_date.weekday())
+        monday = get_next_monday(booking_date) - timedelta(days=booking_date.weekday())
 
         # Get week data before operation
         week_before = service.get_week_availability(
@@ -198,7 +211,7 @@ class TestAvailabilityServiceTransactions:
     async def test_save_week_rollback_on_error(self, db: Session, test_instructor: User):
         """Test that transactions rollback on error."""
         service = AvailabilityService(db)
-        monday = date.today() + timedelta(days=14)
+        monday = get_next_monday() + timedelta(days=14)
 
         # Count existing availabilities
         count_before = (

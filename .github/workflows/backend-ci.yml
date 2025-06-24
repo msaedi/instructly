@@ -101,13 +101,20 @@ jobs:
         echo "=== Running all tests with full coverage ==="
         pytest -v --cov=app --cov-branch --cov-report=xml --cov-report=term-missing
 
-        # Show coverage summary
+        # Save the exit code
+        echo "PYTEST_EXIT_CODE=$?" >> $GITHUB_ENV
+
+        # Always show coverage summary if it exists
         echo "=== Coverage Summary ==="
-        coverage report
+        coverage report || echo "No coverage report available"
 
         # Debug: Show what's in the coverage file
         echo "=== Coverage XML Preview ==="
-        head -n 100 coverage.xml | grep -E "(filename|line-rate)" || echo "Coverage XML generated"
+        if [ -f coverage.xml ]; then
+          head -n 100 coverage.xml | grep -E "(filename|line-rate)" || echo "Coverage XML generated"
+        else
+          echo "No coverage.xml file found"
+        fi
 
     - name: Upload coverage reports to Codecov
       if: always()
@@ -120,7 +127,7 @@ jobs:
         verbose: true
 
     - name: Check specific service coverage
-      if: always()
+      if: success() || failure()
       env:
         SECRET_KEY: test-secret-key-for-ci
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
@@ -137,15 +144,28 @@ jobs:
           || echo "BookingService coverage check completed"
 
     - name: Coverage Analysis
-      if: always()
+      if: success() || failure()
       run: |
         cd backend
-        echo "=== Detailed Coverage Analysis ==="
-        # Show coverage for key services
-        coverage report --include="app/services/*.py" --sort=cover
+        if [ -f .coverage ]; then
+          echo "=== Detailed Coverage Analysis ==="
+          # Show coverage for key services
+          coverage report --include="app/services/*.py" --sort=cover || echo "No service coverage data"
 
-        echo "=== Files with Low Coverage ==="
-        coverage report --include="app/**/*.py" --skip-covered --skip-empty
+          echo "=== Files with Low Coverage ==="
+          coverage report --include="app/**/*.py" --skip-covered --skip-empty || echo "No coverage data available"
+        else
+          echo "No coverage data file found"
+        fi
+
+    # Fail the job if tests failed
+    - name: Check test results
+      if: always()
+      run: |
+        if [ "${{ env.PYTEST_EXIT_CODE }}" != "0" ]; then
+          echo "Tests failed with exit code ${{ env.PYTEST_EXIT_CODE }}"
+          exit 1
+        fi
 
   code-quality:
     name: Code Quality Checks
