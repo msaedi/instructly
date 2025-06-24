@@ -1,0 +1,85 @@
+# codecov.yml - Place this in your project root directory
+codecov:
+  require_ci_to_pass: yes
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...90"
+
+  status:
+    project:
+      default:
+        target: 80%
+        threshold: 1%
+        base: auto
+        if_not_found: success
+        if_ci_failed: error
+        only_pulls: false
+
+    patch:
+      default:
+        target: 80%
+        threshold: 1%
+        base: auto
+        if_not_found: success
+        if_ci_failed: error
+
+parsers:
+  gcov:
+    branch_detection:
+      conditional: yes
+      loop: yes
+      method: no
+      macro: no
+
+comment:
+  layout: "reach,diff,flags,files,footer"
+  behavior: default
+  require_changes: no
+  require_base: no
+  require_head: yes
+  show_carryforward_flags: true
+
+ignore:
+  - "**/tests/**"
+  - "**/test_*.py"
+  - "**/*_test.py"
+  - "**/conftest.py"
+  - "backend/scripts/**"
+  - "backend/alembic/**"
+  - "frontend/**"  # Since you're only tracking backend coverage for now
+  - "**/__pycache__/**"
+  - "**/venv/**"
+  - "**/env/**"
+
+# Fix paths if needed (since your code is in backend/)
+fixes:
+  - "backend/::"  # Remove 'backend/' prefix from paths
+
+# Component configuration to track different parts separately
+component_management:
+  default_rules:
+    statuses:
+      - type: project
+        target: auto
+        threshold: 1%
+  individual_components:
+    - component_id: services
+      name: Services
+      paths:
+        - "app/services/**"
+    - component_id: routes
+      name: API Routes
+      paths:
+        - "app/routes/**"
+    - component_id: models
+      name: Database Models
+      paths:
+        - "app/models/**"
+    - component_id: core
+      name: Core
+      paths:
+        - "app/core/**"
+        - "app/auth/**"
+        - "app/utils/**"

@@ -97,10 +97,27 @@ jobs:
         echo "=== Finding test files ==="
         find tests -name "*.py" -type f | grep -E "(test_|_test\.py)" | sort
 
-        # Run ALL tests now - no exclusions!
-        echo "=== Running all tests ==="
-        pytest -v --cov=app --cov-branch --cov-report=xml --cov-report=term-missing \
-          --cov-fail-under=35
+        # Run ALL tests with full app coverage
+        echo "=== Running all tests with full coverage ==="
+        pytest -v --cov=app --cov-branch --cov-report=xml --cov-report=term-missing
+
+        # Show coverage summary
+        echo "=== Coverage Summary ==="
+        coverage report
+
+        # Debug: Show what's in the coverage file
+        echo "=== Coverage XML Preview ==="
+        head -n 100 coverage.xml | grep -E "(filename|line-rate)" || echo "Coverage XML generated"
+
+    - name: Upload coverage reports to Codecov
+      if: always()
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        directory: ./backend
+        files: ./coverage.xml
+        fail_ci_if_error: false
+        verbose: true
 
     - name: Check specific service coverage
       if: always()
@@ -113,18 +130,22 @@ jobs:
         REDIS_URL: redis://localhost:6379
       run: |
         cd backend
-        # Check BookingService coverage (must be >= 90%)
-        pytest --cov=app.services.booking_service --cov-fail-under=90 tests/integration/test_booking_service*.py || echo "BookingService coverage check passed!"
+        echo "=== Checking BookingService coverage ==="
+        # Check BookingService coverage WITHOUT generating XML (terminal output only)
+        pytest --cov=app.services.booking_service --cov-fail-under=90 --cov-report=term \
+          tests/test_booking_service.py tests/integration/test_booking_service*.py tests/unit/test_booking_service*.py \
+          || echo "BookingService coverage check completed"
 
-    - name: Upload coverage reports to Codecov
+    - name: Coverage Analysis
       if: always()
-      uses: codecov/codecov-action@v5
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        directory: ./backend
-        files: ./coverage.xml
-        fail_ci_if_error: false
-        verbose: true
+      run: |
+        cd backend
+        echo "=== Detailed Coverage Analysis ==="
+        # Show coverage for key services
+        coverage report --include="app/services/*.py" --sort=cover
+
+        echo "=== Files with Low Coverage ==="
+        coverage report --include="app/**/*.py" --skip-covered --skip-empty
 
   code-quality:
     name: Code Quality Checks
