@@ -81,7 +81,7 @@ jobs:
         cd backend
         alembic upgrade head
 
-    - name: Run ALL tests with coverage and analysis
+    - name: Run ALL tests with coverage
       id: pytest-coverage
       continue-on-error: true
       env:
@@ -103,66 +103,22 @@ jobs:
         PYTEST_EXIT_CODE=${PYTEST_EXIT_CODE:-0}
         echo "PYTEST_EXIT_CODE=${PYTEST_EXIT_CODE}" >> $GITHUB_ENV
 
-        # Generate all reports
+        # Generate reports immediately
         echo ""
         echo "=== Generating coverage reports ==="
         coverage xml
         coverage json
+        coverage html
 
-        # Show detailed report
+        # Show basic summary
         echo ""
-        echo "=== Coverage Report ==="
-        coverage report --show-missing
+        echo "=== Coverage Summary ==="
+        coverage report | tail -n 10
 
-        # Service-level coverage
+        # Debug: Show coverage files created
         echo ""
-        echo "=== Service Coverage Analysis ==="
-        coverage report --include="app/services/*.py" --sort=cover || echo "No service coverage data"
-
-        # Route coverage
-        echo ""
-        echo "=== Route Coverage ==="
-        coverage report --include="app/routes/*.py" --sort=cover || echo "No route coverage data"
-
-        # Files with low coverage
-        echo ""
-        echo "=== Files with Low Coverage (<70%) ==="
-        coverage report --include="app/**/*.py" --skip-covered --skip-empty --fail-under=70 2>/dev/null || echo "Some files have low coverage"
-
-        # Parse JSON for statistics
-        echo ""
-        echo "=== Coverage Statistics ==="
-        if [ -f coverage.json ]; then
-          python -c "import json; data = json.load(open('coverage.json')); total = data['totals']; print(f\"Total Coverage: {total['percent_covered']:.2f}%\"); print(f\"Lines Covered: {total['covered_lines']}/{total['num_statements']}\"); print(f\"Branches Covered: {total.get('covered_branches', 0)}/{total.get('num_branches', 0)}\")"
-        fi
-
-        # Check specific high-coverage services
-        echo ""
-        echo "=== High-Coverage Service Checks ==="
-
-        # BaseService (99% target)
-        echo "BaseService:"
-        coverage report --include="app/services/base.py" || echo "BaseService not tested"
-
-        # SlotManager (98% target)
-        echo ""
-        echo "SlotManager:"
-        coverage report --include="app/services/slot_manager.py" || echo "SlotManager not tested"
-
-        # BookingService (96% target)
-        echo ""
-        echo "BookingService:"
-        coverage report --include="app/services/booking_service.py" || echo "BookingService not tested"
-
-        # ConflictChecker (90% target)
-        echo ""
-        echo "ConflictChecker:"
-        coverage report --include="app/services/conflict_checker.py" || echo "ConflictChecker not tested"
-
-        # WeekOperationService (88% target)
-        echo ""
-        echo "WeekOperationService:"
-        coverage report --include="app/services/week_operation_service.py" || echo "WeekOperationService not tested"
+        echo "=== Coverage files created ==="
+        ls -la .coverage* coverage.* 2>/dev/null || echo "No coverage files found"
 
     - name: Upload coverage reports to Codecov
       if: always()
@@ -173,6 +129,72 @@ jobs:
         files: ./backend/coverage.xml
         fail_ci_if_error: false
         verbose: true
+
+    - name: Coverage Analysis
+      if: always()
+      env:
+        COVERAGE_FILE: .coverage
+      run: |
+        cd backend
+
+        echo "=== Detailed Coverage Analysis ==="
+
+        # Check if .coverage file exists
+        if [ -f .coverage ]; then
+          echo "Found .coverage file, analyzing..."
+
+          # Overall detailed report
+          echo ""
+          echo "=== Detailed Coverage Report ==="
+          coverage report --show-missing
+
+          # Service-level coverage
+          echo ""
+          echo "=== Service Coverage Analysis ==="
+          coverage report --include="app/services/*.py" --sort=cover || echo "No service coverage data"
+
+          # Show top services
+          echo ""
+          echo "=== Top Services by Coverage ==="
+          coverage report --include="app/services/*.py" --sort=cover | head -n 10
+
+          # Route coverage
+          echo ""
+          echo "=== Route Coverage ==="
+          coverage report --include="app/routes/*.py" --sort=cover || echo "No route coverage data"
+
+          # Low coverage files
+          echo ""
+          echo "=== Files with Low Coverage (<70%) ==="
+          coverage report --include="app/**/*.py" --skip-covered --skip-empty | grep -E "^(app/|TOTAL)" | awk '$5 < 70 {print $0}' || echo "All files have good coverage!"
+
+          # High-coverage service checks
+          echo ""
+          echo "=== High-Coverage Service Details ==="
+
+          for service in base slot_manager booking_service conflict_checker week_operation_service availability_service; do
+            echo ""
+            echo "📊 ${service}.py:"
+            coverage report --include="app/services/${service}.py" | grep -E "(${service}|TOTAL)" || echo "${service} not found"
+          done
+
+          # Parse JSON for overall statistics
+          echo ""
+          echo "=== Overall Statistics ==="
+          if [ -f coverage.json ]; then
+            python -c "import json; data = json.load(open('coverage.json')); total = data['totals']; print(f'Total Coverage: {total[\"percent_covered\"]:.2f}%'); print(f'Lines Covered: {total[\"covered_lines\"]}/{total[\"num_statements\"]}'); print(f'Branches Covered: {total.get(\"covered_branches\", 0)}/{total.get(\"num_branches\", 0)}')"
+          fi
+
+        else
+          echo "❌ ERROR: No .coverage file found for analysis!"
+          echo "This usually means the coverage data wasn't preserved between steps."
+          echo ""
+          echo "Files in current directory:"
+          ls -la
+          echo ""
+          echo "Looking for any coverage files:"
+          find . -name ".coverage*" -o -name "coverage.*" | head -20
+        fi
 
     - name: Upload coverage artifacts
       if: always()
