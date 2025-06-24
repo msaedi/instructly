@@ -54,3 +54,8 @@ scripts/*.txt
 scripts/*.json
 .coverage
 htmlcov/
+backend/coverage.xml
+backend/coverage.json
+backend/.coverage
+backend/htmlcov/
+project_overview.txt
