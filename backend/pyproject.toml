@@ -32,6 +32,9 @@ sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 
 [tool.coverage.run]
 source = ["app"]
+branch = true
+data_file = ".coverage"
+parallel = false
 omit = [
     "*/tests/*",
     "*/test_*.py",
@@ -77,12 +80,30 @@ exclude_lines = [
 [tool.coverage.html]
 directory = "htmlcov"
 
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.coverage.json]
+output = "coverage.json"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-addopts = "-v --tb=short"
+addopts = """
+    -v
+    --tb=short
+    --strict-markers
+    --cov-config=pyproject.toml
+"""
 filterwarnings = [
     "ignore::urllib3.exceptions.NotOpenSSLWarning",
+    "ignore::DeprecationWarning",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "requires_cache: marks tests that require cache to be running",
 ]

@@ -61,7 +61,7 @@ jobs:
         cd backend
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pytest-cov httpx
+        pip install pytest-cov coverage[toml]
 
     - name: Verify Redis connection
       run: |
@@ -81,7 +81,7 @@ jobs:
         cd backend
         alembic upgrade head
 
-    - name: Run ALL tests with coverage
+    - name: Run ALL tests with coverage and analysis
       id: pytest-coverage
       continue-on-error: true
       env:
@@ -91,38 +91,78 @@ jobs:
         FRONTEND_URL: http://localhost:3000
         ENVIRONMENT: test
         REDIS_URL: redis://localhost:6379
+        COVERAGE_FILE: .coverage
       run: |
         cd backend
 
-        # Run ALL tests with coverage
-        echo "=== Running all tests with full coverage ==="
-        # Run pytest with coverage - this creates .coverage file
-        pytest -v --cov=app --cov-branch || PYTEST_EXIT_CODE=$?
+        # Run all tests with coverage using coverage.py directly
+        echo "=== Running all tests with coverage ==="
+        coverage run --source=app --branch -m pytest -v || PYTEST_EXIT_CODE=$?
 
-        # If PYTEST_EXIT_CODE is not set, tests passed (exit code 0)
+        # Save exit code
         PYTEST_EXIT_CODE=${PYTEST_EXIT_CODE:-0}
         echo "PYTEST_EXIT_CODE=${PYTEST_EXIT_CODE}" >> $GITHUB_ENV
 
-        # Now generate the reports from the .coverage file
+        # Generate all reports
+        echo ""
         echo "=== Generating coverage reports ==="
-        coverage xml     # Creates coverage.xml for Codecov
-        coverage report  # Shows summary in terminal
+        coverage xml
+        coverage json
 
-        # Debug: Show what coverage files were created
-        echo "=== Coverage files created ==="
-        ls -la .coverage* coverage.* 2>/dev/null || echo "No coverage files found"
+        # Show detailed report
+        echo ""
+        echo "=== Coverage Report ==="
+        coverage report --show-missing
 
-        # Show detailed coverage summary
-        echo "=== Coverage Summary ==="
-        coverage report --show-missing || echo "No coverage report available"
+        # Service-level coverage
+        echo ""
+        echo "=== Service Coverage Analysis ==="
+        coverage report --include="app/services/*.py" --sort=cover || echo "No service coverage data"
 
-        # Debug: Show what's in the coverage file
-        echo "=== Coverage XML Preview ==="
-        if [ -f coverage.xml ]; then
-          head -n 100 coverage.xml | grep -E "(filename|line-rate)" || echo "Coverage XML generated"
-        else
-          echo "No coverage.xml file found"
+        # Route coverage
+        echo ""
+        echo "=== Route Coverage ==="
+        coverage report --include="app/routes/*.py" --sort=cover || echo "No route coverage data"
+
+        # Files with low coverage
+        echo ""
+        echo "=== Files with Low Coverage (<70%) ==="
+        coverage report --include="app/**/*.py" --skip-covered --skip-empty --fail-under=70 2>/dev/null || echo "Some files have low coverage"
+
+        # Parse JSON for statistics
+        echo ""
+        echo "=== Coverage Statistics ==="
+        if [ -f coverage.json ]; then
+          python -c "import json; data = json.load(open('coverage.json')); total = data['totals']; print(f\"Total Coverage: {total['percent_covered']:.2f}%\"); print(f\"Lines Covered: {total['covered_lines']}/{total['num_statements']}\"); print(f\"Branches Covered: {total.get('covered_branches', 0)}/{total.get('num_branches', 0)}\")"
         fi
+
+        # Check specific high-coverage services
+        echo ""
+        echo "=== High-Coverage Service Checks ==="
+
+        # BaseService (99% target)
+        echo "BaseService:"
+        coverage report --include="app/services/base.py" || echo "BaseService not tested"
+
+        # SlotManager (98% target)
+        echo ""
+        echo "SlotManager:"
+        coverage report --include="app/services/slot_manager.py" || echo "SlotManager not tested"
+
+        # BookingService (96% target)
+        echo ""
+        echo "BookingService:"
+        coverage report --include="app/services/booking_service.py" || echo "BookingService not tested"
+
+        # ConflictChecker (90% target)
+        echo ""
+        echo "ConflictChecker:"
+        coverage report --include="app/services/conflict_checker.py" || echo "ConflictChecker not tested"
+
+        # WeekOperationService (88% target)
+        echo ""
+        echo "WeekOperationService:"
+        coverage report --include="app/services/week_operation_service.py" || echo "WeekOperationService not tested"
 
     - name: Upload coverage reports to Codecov
       if: always()
@@ -130,50 +170,20 @@ jobs:
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         directory: ./backend
-        files: ./coverage.xml
+        files: ./backend/coverage.xml
         fail_ci_if_error: false
         verbose: true
 
-    - name: Check specific service coverage
-      if: success() || failure()
-      env:
-        SECRET_KEY: test-secret-key-for-ci
-        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
-        RESEND_API_KEY: test-resend-key
-        FRONTEND_URL: http://localhost:3000
-        ENVIRONMENT: test
-        REDIS_URL: redis://localhost:6379
-      run: |
-        cd backend
-        echo "=== Checking BookingService coverage ==="
-        # Check BookingService coverage WITHOUT generating XML (terminal output only)
-        pytest --cov=app.services.booking_service --cov-fail-under=90 --cov-report=term \
-          tests/test_booking_service.py tests/integration/test_booking_service*.py tests/unit/test_booking_service*.py \
-          || echo "BookingService coverage check completed"
-
-    - name: Coverage Analysis
-      if: success() || failure()
-      run: |
-        cd backend
-
-        # Debug: Check what coverage files exist
-        echo "=== Coverage files present ==="
-        ls -la .coverage* coverage.* 2>/dev/null || echo "No coverage files found"
-
-        # Try to generate coverage report from existing data
-        if [ -f .coverage ]; then
-          echo "=== Detailed Coverage Analysis ==="
-          # Show coverage for key services
-          coverage report --include="app/services/*.py" --sort=cover || echo "No service coverage data"
-
-          echo ""
-          echo "=== Files with Low Coverage ==="
-          coverage report --include="app/**/*.py" --skip-covered --skip-empty || echo "No coverage data available"
-        else
-          echo "No .coverage data file found"
-          echo "This might happen if pytest uses a different coverage data format."
-          echo "Check the pytest output above for coverage information."
-        fi
+    - name: Upload coverage artifacts
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-reports
+        path: |
+          backend/.coverage
+          backend/coverage.xml
+          backend/coverage.json
+          backend/htmlcov/
 
     # Fail the job if tests failed
     - name: Check test results
