@@ -380,20 +380,23 @@ class BulkOperationService(BaseService):
                 reason="Slot not found or not owned by instructor",
             )
 
-        # Check if slot has bookings
-        if slot.booking_id:
-            booking = self.db.query(Booking).filter(Booking.id == slot.booking_id).first()
+        # Check if slot has bookings (FIXED: query bookings table for one-way relationship)
+        booking = (
+            self.db.query(Booking)
+            .filter(
+                Booking.availability_slot_id == slot.id,
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+            )
+            .first()
+        )
 
-            if booking and booking.status in [
-                BookingStatus.CONFIRMED,
-                BookingStatus.COMPLETED,
-            ]:
-                return OperationResult(
-                    operation_index=operation_index,
-                    action="remove",
-                    status="failed",
-                    reason=f"Cannot remove slot with {booking.status} booking",
-                )
+        if booking:
+            return OperationResult(
+                operation_index=operation_index,
+                action="remove",
+                status="failed",
+                reason=f"Cannot remove slot with {booking.status} booking",
+            )
 
         if validate_only:
             return OperationResult(
@@ -582,7 +585,8 @@ class BulkOperationService(BaseService):
                         (
                             s
                             for s in existing_db_slots
-                            if s["start_time"] == saved_slot.start_time and s["end_time"] == saved_slot.end_time
+                            if s["start_time"] == saved_slot.start_time.strftime("%H:%M:%S")
+                            and s["end_time"] == saved_slot.end_time.strftime("%H:%M:%S")
                         ),
                         None,
                     )
