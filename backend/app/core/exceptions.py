@@ -150,3 +150,13 @@ class InsufficientNoticeException(BusinessRuleException):
                 "provided_hours": provided_hours,
             },
         )
+
+
+class RepositoryException(Exception):
+    """
+    Exception raised for repository layer errors.
+
+    This exception is used when data access operations fail,
+    such as database connection issues, query failures, or
+    constraint violations.
+    """

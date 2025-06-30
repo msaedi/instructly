@@ -16,8 +16,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from ..core.exceptions import BusinessRuleException, ConflictException, NotFoundException, ValidationException
-from ..models.availability import AvailabilitySlot, InstructorAvailability
-from ..models.booking import Booking, BookingStatus
+from ..models.availability import AvailabilitySlot
+from ..repositories import RepositoryFactory
+from ..repositories.slot_manager_repository import SlotManagerRepository
 from .base import BaseService
 from .conflict_checker import ConflictChecker
 
@@ -32,11 +33,18 @@ class SlotManager(BaseService):
     when manipulating time slots.
     """
 
-    def __init__(self, db: Session, conflict_checker: Optional[ConflictChecker] = None):
+    def __init__(
+        self,
+        db: Session,
+        conflict_checker: Optional[ConflictChecker] = None,
+        repository: Optional[SlotManagerRepository] = None,
+    ):
         """Initialize slot manager service."""
         super().__init__(db)
         self.logger = logging.getLogger(__name__)
         self.conflict_checker = conflict_checker or ConflictChecker(db)
+        # Add repository - either use provided or create new
+        self.repository = repository or RepositoryFactory.create_slot_manager_repository(db)
 
     def create_slot(
         self,
@@ -64,9 +72,7 @@ class SlotManager(BaseService):
             ConflictException: If conflicts detected
         """
         # Get availability entry
-        availability = (
-            self.db.query(InstructorAvailability).filter(InstructorAvailability.id == availability_id).first()
-        )
+        availability = self.repository.get_availability_by_id(availability_id)
 
         if not availability:
             raise NotFoundException("Availability entry not found")
@@ -92,17 +98,14 @@ class SlotManager(BaseService):
                 raise ConflictException(f"Time slot conflicts with {len(conflicts)} existing bookings")
 
         # Check for duplicate slot
-        if self._slot_exists(availability_id, start_time, end_time):
+        if self.repository.slot_exists(availability_id, start_time, end_time):
             raise ConflictException("This exact time slot already exists")
 
         # Create the slot
-        new_slot = AvailabilitySlot(availability_id=availability_id, start_time=start_time, end_time=end_time)
-
-        self.db.add(new_slot)
-        self.db.flush()
+        new_slot = self.repository.create(availability_id=availability_id, start_time=start_time, end_time=end_time)
 
         # Auto merge if requested and no bookings exist
-        if auto_merge and not self._has_bookings_on_date(availability):
+        if auto_merge and not self.repository.availability_has_bookings(availability_id):
             self.merge_overlapping_slots(availability_id)
 
         self.db.commit()
@@ -137,23 +140,13 @@ class SlotManager(BaseService):
             ConflictException: If new times conflict
         """
         # Get the slot
-        slot = self.db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot_id).first()
+        slot = self.repository.get_slot_by_id(slot_id)
 
         if not slot:
             raise NotFoundException("Slot not found")
 
-        # Check if slot has booking (FIXED: query bookings table)
-        has_booking = (
-            self.db.query(Booking)
-            .filter(
-                Booking.availability_slot_id == slot_id,
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-            )
-            .first()
-            is not None
-        )
-
-        if has_booking:
+        # Check if slot has booking
+        if self.repository.slot_has_booking(slot_id):
             raise BusinessRuleException("Cannot update slot that has a booking")
 
         # Determine new times
@@ -179,15 +172,12 @@ class SlotManager(BaseService):
                 raise ConflictException(f"New time range conflicts with {len(conflicts)} bookings")
 
         # Update the slot
-        slot.start_time = new_start
-        slot.end_time = new_end
+        updated_slot = self.repository.update(slot_id, start_time=new_start, end_time=new_end)
 
         self.db.commit()
-        self.db.refresh(slot)
-
         self.logger.info(f"Updated slot {slot_id}: {new_start}-{new_end}")
 
-        return slot
+        return updated_slot
 
     def delete_slot(self, slot_id: int, force: bool = False) -> bool:
         """
@@ -205,20 +195,13 @@ class SlotManager(BaseService):
             BusinessRuleException: If slot has booking and not forced
         """
         # Get the slot
-        slot = self.db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot_id).first()
+        slot = self.repository.get_slot_by_id(slot_id)
 
         if not slot:
             raise NotFoundException("Slot not found")
 
-        # Check if slot has booking (FIXED: query bookings table)
-        booking = (
-            self.db.query(Booking)
-            .filter(
-                Booking.availability_slot_id == slot_id,
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-            )
-            .first()
-        )
+        # Check if slot has booking
+        booking = self.repository.get_booking_for_slot(slot_id)
 
         if booking and not force:
             raise BusinessRuleException(f"Cannot delete slot with {booking.status} booking")
@@ -226,19 +209,15 @@ class SlotManager(BaseService):
         availability_id = slot.availability_id
 
         # Delete the slot
-        self.db.delete(slot)
+        self.repository.delete(slot_id)
         self.db.flush()
 
         # Check if this was the last slot for the availability
-        remaining_slots = (
-            self.db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == availability_id).count()
-        )
+        remaining_slots = self.repository.count_slots_for_availability(availability_id)
 
         if remaining_slots == 0:
             # Mark availability as cleared or delete it
-            availability = (
-                self.db.query(InstructorAvailability).filter(InstructorAvailability.id == availability_id).first()
-            )
+            availability = self.repository.get_availability_by_id(availability_id)
             if availability:
                 availability.is_cleared = True
 
@@ -259,29 +238,17 @@ class SlotManager(BaseService):
             Number of slots merged
         """
         # Get all slots ordered by start time
-        slots = (
-            self.db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.availability_id == availability_id)
-            .order_by(AvailabilitySlot.start_time)
-            .all()
-        )
+        slots = self.repository.get_slots_by_availability_ordered(availability_id)
 
         if len(slots) <= 1:
             return 0
 
         self.logger.debug(f"Merging slots for availability_id {availability_id}: " f"{len(slots)} slots found")
 
-        # Separate booked and non-booked slots (FIXED: check via bookings table)
+        # Separate booked and non-booked slots
         if preserve_booked:
-            booked_slot_ids = (
-                self.db.query(Booking.availability_slot_id)
-                .filter(
-                    Booking.availability_slot_id.in_([s.id for s in slots]),
-                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                )
-                .all()
-            )
-            booked_slot_ids = {slot_id[0] for slot_id in booked_slot_ids}
+            slot_ids = [s.id for s in slots]
+            booked_slot_ids = self.repository.get_booked_slot_ids(slot_ids)
 
             booked_slots = [s for s in slots if s.id in booked_slot_ids]
             non_booked_slots = [s for s in slots if s.id not in booked_slot_ids]
@@ -311,7 +278,7 @@ class SlotManager(BaseService):
                     current.end_time = next_slot.end_time
 
                 # Delete the merged slot
-                self.db.delete(next_slot)
+                self.repository.delete(next_slot.id)
                 merged_count += 1
             else:
                 # Slots are not adjacent
@@ -345,23 +312,13 @@ class SlotManager(BaseService):
             BusinessRuleException: If slot has booking
         """
         # Get the slot
-        slot = self.db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot_id).first()
+        slot = self.repository.get_slot_by_id(slot_id)
 
         if not slot:
             raise NotFoundException("Slot not found")
 
-        # Check if slot has booking (FIXED: query bookings table)
-        has_booking = (
-            self.db.query(Booking)
-            .filter(
-                Booking.availability_slot_id == slot_id,
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-            )
-            .first()
-            is not None
-        )
-
-        if has_booking:
+        # Check if slot has booking
+        if self.repository.slot_has_booking(slot_id):
             raise BusinessRuleException("Cannot split slot that has a booking")
 
         # Validate split time
@@ -369,7 +326,7 @@ class SlotManager(BaseService):
             raise ValidationException("Split time must be between slot start and end times")
 
         # Create second slot
-        second_slot = AvailabilitySlot(
+        second_slot = self.repository.create(
             availability_id=slot.availability_id,
             start_time=split_time,
             end_time=slot.end_time,
@@ -378,7 +335,6 @@ class SlotManager(BaseService):
         # Update first slot
         slot.end_time = split_time
 
-        self.db.add(second_slot)
         self.db.commit()
         self.db.refresh(slot)
         self.db.refresh(second_slot)
@@ -406,16 +362,7 @@ class SlotManager(BaseService):
             List of gaps with start/end times
         """
         # Get all slots for the date
-        slots = (
-            self.db.query(AvailabilitySlot)
-            .join(InstructorAvailability)
-            .filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                InstructorAvailability.date == target_date,
-            )
-            .order_by(AvailabilitySlot.start_time)
-            .all()
-        )
+        slots = self.repository.get_slots_for_instructor_date(instructor_id, target_date)
 
         if not slots:
             return []
@@ -460,27 +407,11 @@ class SlotManager(BaseService):
         Returns:
             List of suggested time slots
         """
-        # Get all non-booked slots (FIXED: check via bookings table)
-        slots = (
-            self.db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.availability_id == availability_id)
-            .order_by(AvailabilitySlot.start_time)
-            .all()
-        )
-
-        # Get booked slot IDs
-        booked_slot_ids = (
-            self.db.query(Booking.availability_slot_id)
-            .filter(
-                Booking.availability_slot_id.in_([s.id for s in slots]),
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-            )
-            .all()
-        )
-        booked_slot_ids = {slot_id[0] for slot_id in booked_slot_ids}
+        # Get all slots with their booking status
+        slots_with_status = self.repository.get_slots_with_booking_status(availability_id)
 
         # Filter out booked slots
-        non_booked_slots = [s for s in slots if s.id not in booked_slot_ids]
+        non_booked_slots = [slot for slot, status in slots_with_status if status is None]
 
         suggestions = []
 
@@ -511,45 +442,11 @@ class SlotManager(BaseService):
 
     # Private helper methods
 
-    def _slot_exists(self, availability_id: int, start_time: time, end_time: time) -> bool:
-        """Check if an exact slot already exists."""
-        return (
-            self.db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.availability_id == availability_id,
-                AvailabilitySlot.start_time == start_time,
-                AvailabilitySlot.end_time == end_time,
-            )
-            .first()
-            is not None
-        )
-
-    def _has_bookings_on_date(self, availability: InstructorAvailability) -> bool:
-        """Check if any slots for this availability have bookings."""
-        return (
-            self.db.query(Booking)
-            .join(AvailabilitySlot, Booking.availability_slot_id == AvailabilitySlot.id)
-            .filter(
-                AvailabilitySlot.availability_id == availability.id,
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-            )
-            .count()
-            > 0
-        )
-
     def _slots_can_merge(self, slot1: AvailabilitySlot, slot2: AvailabilitySlot, max_gap_minutes: int = 1) -> bool:
-        """Check if two slots can be merged (FIXED: check bookings via query)."""
+        """Check if two slots can be merged."""
         # Check if either has booking
         slot_ids = [slot1.id, slot2.id]
-        has_bookings = (
-            self.db.query(Booking)
-            .filter(
-                Booking.availability_slot_id.in_(slot_ids),
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-            )
-            .count()
-            > 0
-        )
+        has_bookings = self.repository.count_bookings_for_slots(slot_ids) > 0
 
         if has_bookings:
             return False

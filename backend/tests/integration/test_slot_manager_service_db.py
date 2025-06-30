@@ -245,11 +245,14 @@ class TestSlotManagerDatabaseOperations:
             db.add(booking)
             db.commit()
 
-            # The test should expect failure when trying to force delete a booked slot
-            from sqlalchemy.exc import IntegrityError
+            # The test should expect RepositoryException since BaseRepository wraps IntegrityError
+            from app.core.exceptions import RepositoryException
 
-            with pytest.raises(IntegrityError):
+            with pytest.raises(RepositoryException) as exc_info:
                 service.delete_slot(slot.id, force=True)
+
+            # Verify the error message mentions the constraint violation
+            assert "Cannot delete due to existing references" in str(exc_info.value)
 
     def test_merge_overlapping_slots(self, db: Session, test_instructor_with_availability: User):
         """Test merging overlapping/adjacent slots."""
