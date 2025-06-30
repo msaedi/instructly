@@ -189,6 +189,7 @@ class TestSlotManagerCRUDLogic:
             new_slot = Mock(spec=AvailabilitySlot)
             new_slot.id = 999
             service.repository.create = Mock(return_value=new_slot)
+            service.repository.get_slot_by_id = Mock(return_value=new_slot)
 
             service.db.commit = Mock()
             service.db.refresh = Mock()

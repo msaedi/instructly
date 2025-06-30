@@ -581,13 +581,18 @@ class BulkOperationService(BaseService):
 
                 if not still_exists:
                     # Find the DB slot ID
+                    # Handle both string and time object formats
+                    saved_start = saved_slot.start_time
+                    saved_end = saved_slot.end_time
+
+                    # Convert to string if it's a time object
+                    if hasattr(saved_start, "strftime"):
+                        saved_start = saved_start.strftime("%H:%M:%S")
+                    if hasattr(saved_end, "strftime"):
+                        saved_end = saved_end.strftime("%H:%M:%S")
+
                     db_slot = next(
-                        (
-                            s
-                            for s in existing_db_slots
-                            if s["start_time"] == saved_slot.start_time.strftime("%H:%M:%S")
-                            and s["end_time"] == saved_slot.end_time.strftime("%H:%M:%S")
-                        ),
+                        (s for s in existing_db_slots if s["start_time"] == saved_start and s["end_time"] == saved_end),
                         None,
                     )
 

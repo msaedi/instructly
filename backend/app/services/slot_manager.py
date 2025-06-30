@@ -109,11 +109,33 @@ class SlotManager(BaseService):
             self.merge_overlapping_slots(availability_id)
 
         self.db.commit()
-        self.db.refresh(new_slot)
 
-        self.logger.info(f"Created slot {new_slot.id} for availability {availability_id}: " f"{start_time}-{end_time}")
+        # After merging, the new_slot might have been deleted
+        # Try to get the slot by ID first
+        final_slot = self.repository.get_slot_by_id(new_slot.id)
 
-        return new_slot
+        if not final_slot:
+            # The slot was merged into another slot
+            # Find the slot that now contains our time range
+            slots = self.repository.get_slots_by_availability_ordered(availability_id)
+            for slot in slots:
+                # Check if this slot contains our original time range
+                if slot.start_time <= start_time and slot.end_time >= end_time:
+                    final_slot = slot
+                    break
+
+        if final_slot:
+            self.db.refresh(final_slot)
+            self.logger.info(
+                f"Created slot {new_slot.id} for availability {availability_id}: " f"{start_time}-{end_time}"
+            )
+            return final_slot
+        else:
+            # This shouldn't happen, but return the original slot info
+            self.logger.info(
+                f"Created slot {new_slot.id} for availability {availability_id}: " f"{start_time}-{end_time}"
+            )
+            return new_slot
 
     def update_slot(
         self,

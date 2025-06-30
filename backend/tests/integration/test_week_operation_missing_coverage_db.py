@@ -241,11 +241,25 @@ class TestWeekOperationComplexPatterns:
         instructor = test_instructor_with_availability
         service = WeekOperationService(db)
 
-        # Create pattern with multiple slots
-        pattern_week = date(2025, 6, 16)
-        avail = InstructorAvailability(instructor_id=instructor.id, date=pattern_week, is_cleared=False)
-        db.add(avail)
-        db.flush()
+        # Create pattern with multiple slots - use a different week to avoid conflicts
+        pattern_week = date(2025, 6, 23)  # Use a different week than the fixture
+
+        # Check if availability already exists for pattern week
+        existing_avail = (
+            db.query(InstructorAvailability)
+            .filter(InstructorAvailability.instructor_id == instructor.id, InstructorAvailability.date == pattern_week)
+            .first()
+        )
+
+        if not existing_avail:
+            avail = InstructorAvailability(instructor_id=instructor.id, date=pattern_week, is_cleared=False)
+            db.add(avail)
+            db.flush()
+        else:
+            avail = existing_avail
+            # Clear any existing slots
+            db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == avail.id).delete()
+            db.flush()
 
         # Multiple slots in pattern
         for hour in [9, 11, 14, 16]:
@@ -255,10 +269,24 @@ class TestWeekOperationComplexPatterns:
         db.commit()
 
         # Create booking that conflicts with one slot
-        target_date = date(2025, 7, 1)
-        target_avail = InstructorAvailability(instructor_id=instructor.id, date=target_date, is_cleared=False)
-        db.add(target_avail)
-        db.flush()
+        target_date = date(2025, 7, 8)  # Use a future date that won't conflict
+
+        # Check if target availability already exists
+        existing_target = (
+            db.query(InstructorAvailability)
+            .filter(InstructorAvailability.instructor_id == instructor.id, InstructorAvailability.date == target_date)
+            .first()
+        )
+
+        if not existing_target:
+            target_avail = InstructorAvailability(instructor_id=instructor.id, date=target_date, is_cleared=False)
+            db.add(target_avail)
+            db.flush()
+        else:
+            target_avail = existing_target
+            # Clear any existing slots
+            db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == target_avail.id).delete()
+            db.flush()
 
         conflict_slot = AvailabilitySlot(
             availability_id=target_avail.id, start_time=time(10, 30), end_time=time(11, 30)
