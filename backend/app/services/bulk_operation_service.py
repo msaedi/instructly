@@ -16,8 +16,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from ..models.availability import AvailabilitySlot, InstructorAvailability
+from ..models.availability import InstructorAvailability
 from ..models.booking import Booking, BookingStatus
+from ..repositories.factory import RepositoryFactory
 from ..schemas.availability_window import (
     BulkUpdateRequest,
     OperationResult,
@@ -31,6 +32,7 @@ from .conflict_checker import ConflictChecker
 from .slot_manager import SlotManager
 
 if TYPE_CHECKING:
+    from ..repositories.bulk_operation_repository import BulkOperationRepository
     from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
@@ -50,6 +52,7 @@ class BulkOperationService(BaseService):
         slot_manager: Optional[SlotManager] = None,
         conflict_checker: Optional[ConflictChecker] = None,
         cache_service: Optional["CacheService"] = None,
+        repository: Optional["BulkOperationRepository"] = None,
     ):
         """Initialize bulk operation service."""
         super().__init__(db, cache=cache_service)
@@ -57,6 +60,7 @@ class BulkOperationService(BaseService):
         self.slot_manager = slot_manager or SlotManager(db)
         self.conflict_checker = conflict_checker or ConflictChecker(db)
         self.cache_service = cache_service
+        self.repository = repository or RepositoryFactory.create_bulk_operation_repository(db)
 
     async def process_bulk_update(self, instructor_id: int, update_data: BulkUpdateRequest) -> Dict[str, Any]:
         """
@@ -129,10 +133,10 @@ class BulkOperationService(BaseService):
             # For remove operations, we need to look up the dates from the slot IDs
             for op in update_data.operations:
                 if op.action == "remove" and op.slot_id:
-                    # Query the slot's date before it was deleted
-                    slot = self.db.query(AvailabilitySlot).filter_by(id=op.slot_id).first()
-                    if slot and slot.availability:
-                        affected_dates.add(slot.availability.date)
+                    # Query the slot's date using repository
+                    slots_data = self.repository.get_slots_by_ids([op.slot_id])
+                    for slot_id, slot_date, _, _ in slots_data:
+                        affected_dates.add(slot_date)
                 elif op.date:
                     # Handle both string and date objects
                     if isinstance(op.date, str):
@@ -302,24 +306,10 @@ class BulkOperationService(BaseService):
 
         # Actually add the slot
         try:
-            # Get or create availability entry
-            availability = (
-                self.db.query(InstructorAvailability)
-                .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date == operation.date,
-                )
-                .first()
+            # Get or create availability entry using repository
+            availability = self.repository.get_or_create_availability(
+                instructor_id=instructor_id, target_date=operation.date, is_cleared=False
             )
-
-            if not availability:
-                availability = InstructorAvailability(
-                    instructor_id=instructor_id, date=operation.date, is_cleared=False
-                )
-                self.db.add(availability)
-                self.db.flush()
-            else:
-                availability.is_cleared = False
 
             # Create slot
             new_slot = self.slot_manager.create_slot(
@@ -327,7 +317,7 @@ class BulkOperationService(BaseService):
                 start_time=operation.start_time,
                 end_time=operation.end_time,
                 validate_conflicts=False,  # Already validated
-                auto_merge=not self._has_bookings_on_date(availability),
+                auto_merge=not self.repository.has_bookings_on_date(availability.id),
             )
 
             return OperationResult(
@@ -361,16 +351,8 @@ class BulkOperationService(BaseService):
                 reason="Missing slot_id for remove operation",
             )
 
-        # Find the slot
-        slot = (
-            self.db.query(AvailabilitySlot)
-            .join(InstructorAvailability)
-            .filter(
-                AvailabilitySlot.id == operation.slot_id,
-                InstructorAvailability.instructor_id == instructor_id,
-            )
-            .first()
-        )
+        # Find the slot using repository
+        slot = self.repository.get_slot_for_instructor(operation.slot_id, instructor_id)
 
         if not slot:
             return OperationResult(
@@ -380,17 +362,18 @@ class BulkOperationService(BaseService):
                 reason="Slot not found or not owned by instructor",
             )
 
-        # Check if slot has bookings (FIXED: query bookings table for one-way relationship)
-        booking = (
-            self.db.query(Booking)
-            .filter(
-                Booking.availability_slot_id == slot.id,
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+        # Check if slot has bookings using repository
+        if self.repository.slot_has_active_booking(operation.slot_id):
+            # Get booking status for better error message
+            booking = (
+                self.db.query(Booking)
+                .filter(
+                    Booking.availability_slot_id == slot.id,
+                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                )
+                .first()
             )
-            .first()
-        )
 
-        if booking:
             return OperationResult(
                 operation_index=operation_index,
                 action="remove",
@@ -434,16 +417,8 @@ class BulkOperationService(BaseService):
                 reason="Missing slot_id for update operation",
             )
 
-        # Find the slot
-        slot = (
-            self.db.query(AvailabilitySlot)
-            .join(InstructorAvailability)
-            .filter(
-                AvailabilitySlot.id == operation.slot_id,
-                InstructorAvailability.instructor_id == instructor_id,
-            )
-            .first()
-        )
+        # Find the slot using repository
+        slot = self.repository.get_slot_for_instructor(operation.slot_id, instructor_id)
 
         if not slot:
             return OperationResult(
@@ -519,36 +494,20 @@ class BulkOperationService(BaseService):
         """Get existing slots for a week from database."""
         end_date = week_start + timedelta(days=6)
 
-        slots = (
-            self.db.query(
-                AvailabilitySlot.id,
-                InstructorAvailability.date,
-                AvailabilitySlot.start_time,
-                AvailabilitySlot.end_time,
-            )
-            .join(
-                InstructorAvailability,
-                AvailabilitySlot.availability_id == InstructorAvailability.id,
-            )
-            .filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                InstructorAvailability.date >= week_start,
-                InstructorAvailability.date <= end_date,
-            )
-            .all()
-        )
+        # Use repository to get week slots
+        slots = self.repository.get_week_slots(instructor_id, week_start, end_date)
 
         # Organize by date
         slots_by_date = {}
         for slot in slots:
-            date_str = slot.date.isoformat()
+            date_str = slot["date"].isoformat()
             if date_str not in slots_by_date:
                 slots_by_date[date_str] = []
             slots_by_date[date_str].append(
                 {
-                    "id": slot.id,
-                    "start_time": slot.start_time.strftime("%H:%M:%S"),
-                    "end_time": slot.end_time.strftime("%H:%M:%S"),
+                    "id": slot["id"],
+                    "start_time": slot["start_time"].strftime("%H:%M:%S"),
+                    "end_time": slot["end_time"].strftime("%H:%M:%S"),
                 }
             )
 
@@ -704,16 +663,8 @@ class BulkOperationService(BaseService):
 
     def _has_bookings_on_date(self, availability: InstructorAvailability) -> bool:
         """Check if any slots for this availability have bookings."""
-        return (
-            self.db.query(Booking)
-            .join(AvailabilitySlot, Booking.availability_slot_id == AvailabilitySlot.id)
-            .filter(
-                AvailabilitySlot.availability_id == availability.id,
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-            )
-            .count()
-            > 0
-        )
+        # Use repository method instead of direct query
+        return self.repository.has_bookings_on_date(availability.id)
 
     @contextmanager
     def _null_transaction(self):

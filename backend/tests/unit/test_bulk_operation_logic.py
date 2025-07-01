@@ -65,12 +65,30 @@ class TestBulkOperationLogic:
     @pytest.fixture
     def bulk_service(self, mock_db, mock_slot_manager, mock_conflict_checker, mock_cache_service):
         """Create BulkOperationService with mocked dependencies."""
-        return BulkOperationService(
+        service = BulkOperationService(
             db=mock_db,
             slot_manager=mock_slot_manager,
             conflict_checker=mock_conflict_checker,
             cache_service=mock_cache_service,
         )
+
+        # Mock the repository
+        from unittest.mock import Mock
+
+        from app.repositories.bulk_operation_repository import BulkOperationRepository
+
+        mock_repository = Mock(spec=BulkOperationRepository)
+        service.repository = mock_repository
+
+        # Set up default return values for commonly used methods
+        mock_repository.get_slots_by_ids = Mock(return_value=[])
+        mock_repository.get_or_create_availability = Mock()
+        mock_repository.has_bookings_on_date = Mock(return_value=False)
+        mock_repository.get_slot_for_instructor = Mock(return_value=None)
+        mock_repository.slot_has_active_booking = Mock(return_value=False)
+        mock_repository.get_booked_slot_ids = Mock(return_value=set())
+
+        return service
 
     @pytest.mark.asyncio
     async def test_process_add_operation_validation(self, bulk_service, mock_conflict_checker):
@@ -157,12 +175,15 @@ class TestBulkOperationLogic:
     @pytest.mark.asyncio
     async def test_process_remove_with_booking(self, bulk_service, mock_db):
         """Test remove operation when slot has booking."""
-        # Mock slot with booking
+        # Mock slot that exists and belongs to instructor
         mock_slot = Mock()
-        mock_slot.booking_id = 123
-        mock_db.query().join().filter().first.return_value = mock_slot
+        mock_slot.id = 1
+        bulk_service.repository.get_slot_for_instructor.return_value = mock_slot
 
-        # Mock booking
+        # Mock that slot has an active booking
+        bulk_service.repository.slot_has_active_booking.return_value = True
+
+        # Mock booking details for the error message
         mock_booking = Mock()
         mock_booking.status = BookingStatus.CONFIRMED
         mock_db.query().filter().first.return_value = mock_booking
@@ -333,8 +354,13 @@ class TestBulkOperationLogic:
         assert "Missing slot_id" in result.reason
 
         # Test invalid time range
-        mock_slot = Mock(start_time=time(10, 0), end_time=time(11, 0), availability=Mock(instructor_id=1))
-        mock_db.query().join().filter().first.return_value = mock_slot
+        mock_slot = Mock()
+        mock_slot.start_time = time(10, 0)
+        mock_slot.end_time = time(11, 0)
+        mock_slot.availability = Mock(instructor_id=1, date=date.today())
+
+        # Mock repository to return the slot
+        bulk_service.repository.get_slot_for_instructor.return_value = mock_slot
 
         mock_conflict_checker.validate_time_range.return_value = {"valid": False, "reason": "Invalid time"}
 
@@ -350,15 +376,13 @@ class TestBulkOperationLogic:
         """Test checking if availability has bookings."""
         mock_availability = Mock(id=1)
 
-        # Mock query to return count > 0
-        mock_db.query().join().filter().count.return_value = 2
-
+        # Test when bookings exist - mock repository instead of db
+        bulk_service.repository.has_bookings_on_date.return_value = True
         result = bulk_service._has_bookings_on_date(mock_availability)
         assert result is True
 
-        # Mock query to return count = 0
-        mock_db.query().join().filter().count.return_value = 0
-
+        # Test when no bookings exist
+        bulk_service.repository.has_bookings_on_date.return_value = False
         result = bulk_service._has_bookings_on_date(mock_availability)
         assert result is False
 
@@ -373,6 +397,13 @@ class TestBulkOperationLogic:
         ]
 
         request = BulkUpdateRequest(operations=operations, validate_only=False)
+
+        # Mock repository for the remove operation (will fail because slot not found)
+        bulk_service.repository.get_slot_for_instructor.return_value = None
+
+        # Mock repository for the add operation (will succeed)
+        mock_availability = Mock(id=1)
+        bulk_service.repository.get_or_create_availability.return_value = mock_availability
 
         # Mock second operation to succeed
         with patch.object(
