@@ -222,7 +222,19 @@ class TestBulkOperationServiceIntegration:
     async def test_validate_week_changes(self, bulk_service: BulkOperationService, test_instructor_with_availability):
         """Test week validation functionality."""
 
-        week_start = date.today() - timedelta(days=date.today().weekday())
+        # CRITICAL FIX: Use a future week to ensure all days have slots in the database
+        # This prevents the issue where past days don't have slots created by the fixture
+        today = date.today()
+        # If today is Monday, use this week. Otherwise, use next Monday
+        if today.weekday() == 0:  # Today is Monday
+            week_start = today
+        else:
+            days_until_next_monday = (7 - today.weekday()) % 7
+            week_start = today + timedelta(days=days_until_next_monday)
+
+        print(f"\nDEBUG: Today is {today} ({today.strftime('%A')})")
+        print(f"DEBUG: week_start is {week_start} ({week_start.strftime('%A')})")
+        print(f"DEBUG: That's {(week_start - today).days} days from today")
 
         # Get current week data
         current_week = {}
