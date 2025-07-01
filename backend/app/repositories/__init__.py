@@ -11,18 +11,20 @@ Key Components:
 - RepositoryFactory: Factory for creating repository instances
 - AvailabilityRepository: Repository for availability operations
 - SlotManagerRepository: Repository for slot management
+- ConflictCheckerRepository: Repository for conflict checking
 
 Usage:
     from app.repositories import BaseRepository, RepositoryFactory
 
     # In a service:
-    repository = RepositoryFactory.create_availability_repository(db)
-    availability = repository.get_by_date(instructor_id, date)
+    repository = RepositoryFactory.create_conflict_checker_repository(db)
+    bookings = repository.get_bookings_for_conflict_check(instructor_id, date)
 """
 
 # Import specific repositories as they are created
 from .availability_repository import AvailabilityRepository
 from .base_repository import BaseRepository, IRepository
+from .conflict_checker_repository import ConflictCheckerRepository
 from .factory import RepositoryFactory
 from .slot_manager_repository import SlotManagerRepository
 
@@ -32,6 +34,7 @@ __all__ = [
     "RepositoryFactory",
     "AvailabilityRepository",
     "SlotManagerRepository",
+    "ConflictCheckerRepository",
 ]
 
 # Version info

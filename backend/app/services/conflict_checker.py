@@ -7,17 +7,19 @@ Handles all booking conflict detection and validation including:
 - Validating availability windows
 - Finding available slots
 - Managing booking constraints
+
+Refactored to use Repository Pattern for data access.
 """
 
 import logging
 from datetime import date, datetime, time, timedelta
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
-from ..models.availability import AvailabilitySlot, InstructorAvailability
 from ..models.booking import Booking, BookingStatus
-from ..models.instructor import InstructorProfile
+from ..repositories import RepositoryFactory
+from ..repositories.conflict_checker_repository import ConflictCheckerRepository
 from .base import BaseService
 
 logger = logging.getLogger(__name__)
@@ -31,10 +33,17 @@ class ConflictChecker(BaseService):
     consistent validation across the platform.
     """
 
-    def __init__(self, db: Session):
-        """Initialize conflict checker service."""
+    def __init__(self, db: Session, repository: Optional[ConflictCheckerRepository] = None):
+        """
+        Initialize conflict checker service.
+
+        Args:
+            db: Database session
+            repository: Optional ConflictCheckerRepository instance
+        """
         super().__init__(db)
         self.logger = logging.getLogger(__name__)
+        self.repository = repository or RepositoryFactory.create_conflict_checker_repository(db)
 
     def check_booking_conflicts(
         self,
@@ -57,29 +66,12 @@ class ConflictChecker(BaseService):
         Returns:
             List of conflicts with booking details
         """
-        query = (
-            self.db.query(Booking)
-            .join(AvailabilitySlot, Booking.availability_slot_id == AvailabilitySlot.id)
-            .join(
-                InstructorAvailability,
-                AvailabilitySlot.availability_id == InstructorAvailability.id,
-            )
-            .filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                Booking.booking_date == check_date,
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-            )
-        )
+        bookings = self.repository.get_bookings_for_conflict_check(instructor_id, check_date, exclude_slot_id)
 
-        if exclude_slot_id:
-            query = query.filter(AvailabilitySlot.id != exclude_slot_id)
-
-        bookings = query.all()
         conflicts = []
-
         for booking in bookings:
             slot = booking.availability_slot
-            # Check if time ranges overlap
+            # Check if time ranges overlap (business logic stays in service)
             if start_time < slot.end_time and end_time > slot.start_time:
                 conflicts.append(
                     {
@@ -112,12 +104,7 @@ class ConflictChecker(BaseService):
             Dictionary with availability status and details
         """
         # Get the slot with relationships
-        slot = (
-            self.db.query(AvailabilitySlot)
-            .options(joinedload(AvailabilitySlot.availability))
-            .filter(AvailabilitySlot.id == slot_id)
-            .first()
-        )
+        slot = self.repository.get_slot_with_availability(slot_id)
 
         if not slot:
             return {"available": False, "reason": "Slot not found"}
@@ -172,38 +159,17 @@ class ConflictChecker(BaseService):
         Returns:
             List of booked slot details
         """
-        booked_slots = (
-            self.db.query(
-                AvailabilitySlot.id,
-                AvailabilitySlot.start_time,
-                AvailabilitySlot.end_time,
-                Booking.id.label("booking_id"),
-                Booking.student_id,
-                Booking.service_name,
-                Booking.status,
-            )
-            .join(Booking, AvailabilitySlot.id == Booking.availability_slot_id)
-            .join(
-                InstructorAvailability,
-                AvailabilitySlot.availability_id == InstructorAvailability.id,
-            )
-            .filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                InstructorAvailability.date == target_date,
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-            )
-            .all()
-        )
+        booked_slots = self.repository.get_booked_slots_for_date(instructor_id, target_date)
 
         return [
             {
-                "slot_id": slot.id,
-                "start_time": slot.start_time.isoformat(),
-                "end_time": slot.end_time.isoformat(),
-                "booking_id": slot.booking_id,
-                "student_id": slot.student_id,
-                "service_name": slot.service_name,
-                "status": slot.status,
+                "slot_id": slot["id"],
+                "start_time": slot["start_time"].isoformat(),
+                "end_time": slot["end_time"].isoformat(),
+                "booking_id": slot["booking_id"],
+                "student_id": slot["student_id"],
+                "service_name": slot["service_name"],
+                "status": slot["status"],
             }
             for slot in booked_slots
         ]
@@ -221,47 +187,24 @@ class ConflictChecker(BaseService):
         """
         week_dates = [week_start + timedelta(days=i) for i in range(7)]
 
-        booked_slots = (
-            self.db.query(
-                InstructorAvailability.date,
-                AvailabilitySlot.id,
-                AvailabilitySlot.start_time,
-                AvailabilitySlot.end_time,
-                Booking.id.label("booking_id"),
-                Booking.student_id,
-                Booking.service_name,
-                Booking.status,
-            )
-            .join(
-                AvailabilitySlot,
-                InstructorAvailability.id == AvailabilitySlot.availability_id,
-            )
-            .join(Booking, AvailabilitySlot.id == Booking.availability_slot_id)
-            .filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                InstructorAvailability.date.in_(week_dates),
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-            )
-            .order_by(InstructorAvailability.date, AvailabilitySlot.start_time)
-            .all()
-        )
+        booked_slots = self.repository.get_booked_slots_for_week(instructor_id, week_dates)
 
-        # Group by date
+        # Group by date (business logic)
         slots_by_date = {}
         for slot in booked_slots:
-            date_str = slot.date.isoformat()
+            date_str = slot["date"].isoformat()
             if date_str not in slots_by_date:
                 slots_by_date[date_str] = []
 
             slots_by_date[date_str].append(
                 {
-                    "slot_id": slot.id,
-                    "start_time": slot.start_time.isoformat(),
-                    "end_time": slot.end_time.isoformat(),
-                    "booking_id": slot.booking_id,
-                    "student_id": slot.student_id,
-                    "service_name": slot.service_name,
-                    "status": slot.status,
+                    "slot_id": slot["id"],
+                    "start_time": slot["start_time"].isoformat(),
+                    "end_time": slot["end_time"].isoformat(),
+                    "booking_id": slot["booking_id"],
+                    "student_id": slot["student_id"],
+                    "service_name": slot["service_name"],
+                    "status": slot["status"],
                 }
             )
 
@@ -276,6 +219,8 @@ class ConflictChecker(BaseService):
     ) -> Dict[str, Any]:
         """
         Validate a time range for basic constraints.
+
+        Business logic - stays in service.
 
         Args:
             start_time: Start time
@@ -329,7 +274,7 @@ class ConflictChecker(BaseService):
             Validation result with details
         """
         # Get instructor profile
-        profile = self.db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).first()
+        profile = self.repository.get_instructor_profile(instructor_id)
 
         if not profile:
             return {"valid": False, "reason": "Instructor profile not found"}
@@ -364,15 +309,7 @@ class ConflictChecker(BaseService):
         Returns:
             List of overlapping slots
         """
-        slots = (
-            self.db.query(AvailabilitySlot)
-            .join(InstructorAvailability)
-            .filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                InstructorAvailability.date == target_date,
-            )
-            .all()
-        )
+        slots = self.repository.get_slots_for_date(instructor_id, target_date)
 
         # Get all slot IDs first
         slot_ids = [slot.id for slot in slots]
@@ -380,6 +317,8 @@ class ConflictChecker(BaseService):
         # Pre-fetch bookings for all slots in one query
         booked_slot_ids = set()
         if slot_ids:
+            from ..models.booking import Booking
+
             bookings = (
                 self.db.query(Booking.availability_slot_id)
                 .filter(
@@ -390,7 +329,7 @@ class ConflictChecker(BaseService):
             )
             booked_slot_ids = {b[0] for b in bookings}
 
-        # Now check overlaps
+        # Now check overlaps (business logic)
         overlapping = []
         for slot in slots:
             # Check if slots overlap
@@ -417,17 +356,7 @@ class ConflictChecker(BaseService):
         Returns:
             True if date is blacked out
         """
-        from ..models.availability import BlackoutDate
-
-        blackout = (
-            self.db.query(BlackoutDate)
-            .filter(
-                BlackoutDate.instructor_id == instructor_id,
-                BlackoutDate.date == target_date,
-            )
-            .first()
-        )
-
+        blackout = self.repository.get_blackout_date(instructor_id, target_date)
         return blackout is not None
 
     def validate_booking_constraints(
@@ -487,13 +416,7 @@ class ConflictChecker(BaseService):
 
         # If service provided, validate service constraints
         if service_id:
-            from ..models.service import Service
-
-            service = (
-                self.db.query(Service)
-                .filter(Service.id == service_id, Service.is_active == True)  # Only check active services
-                .first()
-            )
+            service = self.repository.get_active_service(service_id)
 
             if not service:
                 errors.append("Service not found or no longer available")

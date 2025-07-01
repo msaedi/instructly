@@ -17,6 +17,7 @@ from .base_repository import BaseRepository
 # Avoid circular imports
 if TYPE_CHECKING:
     from .availability_repository import AvailabilityRepository
+    from .conflict_checker_repository import ConflictCheckerRepository
     from .slot_manager_repository import SlotManagerRepository
 
 
@@ -56,17 +57,18 @@ class RepositoryFactory:
 
         return AvailabilityRepository(db)
 
+    @staticmethod
+    def create_conflict_checker_repository(db: Session) -> "ConflictCheckerRepository":
+        """Create repository for conflict checking queries."""
+        from .conflict_checker_repository import ConflictCheckerRepository
+
+        return ConflictCheckerRepository(db)
+
     # @staticmethod
     # def create_booking_repository(db: Session) -> 'BookingRepository':
     #     """Create repository for booking operations."""
     #     from .booking_repository import BookingRepository
     #     return BookingRepository(db)
-
-    # @staticmethod
-    # def create_conflict_checker_repository(db: Session) -> 'ConflictCheckerRepository':
-    #     """Create repository for conflict checking queries."""
-    #     from .conflict_checker_repository import ConflictCheckerRepository
-    #     return ConflictCheckerRepository(db)
 
     # @staticmethod
     # def create_week_operation_repository(db: Session) -> 'WeekOperationRepository':

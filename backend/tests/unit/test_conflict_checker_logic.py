@@ -1,10 +1,10 @@
 # backend/tests/unit/test_conflict_checker_logic.py
 """
-Fixed unit tests for ConflictChecker business logic with proper service fixture.
+Updated unit tests for ConflictChecker business logic with repository mocking.
 """
 
 from datetime import date, datetime, time, timedelta
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock
 
 import pytest
 from sqlalchemy.orm import Session
@@ -13,17 +13,24 @@ from app.models.availability import AvailabilitySlot, BlackoutDate, InstructorAv
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service import Service
+from app.repositories.conflict_checker_repository import ConflictCheckerRepository
 from app.services.conflict_checker import ConflictChecker
 
 
 class TestConflictCheckerDataTransformation:
     """Test data transformation logic that stays in service."""
 
-    def test_booking_conflict_response_formatting(self):
-        """Test how booking conflicts are formatted for response."""
-        db = Mock(spec=Session)
-        service = ConflictChecker(db)
+    @pytest.fixture
+    def service(self):
+        """Create ConflictChecker with mock repository."""
+        mock_db = Mock(spec=Session)
+        mock_repository = Mock(spec=ConflictCheckerRepository)
+        service = ConflictChecker(mock_db)
+        service.repository = mock_repository
+        return service
 
+    def test_booking_conflict_response_formatting(self, service):
+        """Test how booking conflicts are formatted for response."""
         # Mock booking data
         mock_booking = Mock(spec=Booking)
         mock_booking.id = 123
@@ -41,8 +48,8 @@ class TestConflictCheckerDataTransformation:
         mock_student.full_name = "John Doe"
         mock_booking.student = mock_student
 
-        # Mock query chain
-        db.query.return_value.join.return_value.join.return_value.filter.return_value.all.return_value = [mock_booking]
+        # Mock repository method
+        service.repository.get_bookings_for_conflict_check.return_value = [mock_booking]
 
         # Test the formatting logic
         conflicts = service.check_booking_conflicts(
@@ -58,24 +65,22 @@ class TestConflictCheckerDataTransformation:
         assert conflict["student_name"] == "John Doe"
         assert conflict["service_name"] == "Piano Lessons"
 
-    def test_booked_slots_response_formatting(self):
+    def test_booked_slots_response_formatting(self, service):
         """Test formatting of booked slots response."""
-        db = Mock(spec=Session)
-        service = ConflictChecker(db)
+        # Mock repository response
+        mock_slots = [
+            {
+                "id": 456,
+                "start_time": time(14, 0),
+                "end_time": time(15, 0),
+                "booking_id": 789,
+                "student_id": 111,
+                "service_name": "Guitar Lessons",
+                "status": BookingStatus.CONFIRMED,
+            }
+        ]
 
-        # Mock query result (using namedtuple-like object)
-        class MockSlotResult:
-            def __init__(self):
-                self.id = 456
-                self.start_time = time(14, 0)
-                self.end_time = time(15, 0)
-                self.booking_id = 789
-                self.student_id = 111
-                self.service_name = "Guitar Lessons"
-                self.status = BookingStatus.CONFIRMED
-
-        mock_result = MockSlotResult()
-        db.query.return_value.join.return_value.join.return_value.filter.return_value.all.return_value = [mock_result]
+        service.repository.get_booked_slots_for_date.return_value = mock_slots
 
         # Test the formatting
         booked_slots = service.get_booked_slots_for_date(instructor_id=1, target_date=date.today())
@@ -89,11 +94,8 @@ class TestConflictCheckerDataTransformation:
         assert slot["student_id"] == 111
         assert slot["service_name"] == "Guitar Lessons"
 
-    def test_slot_availability_response_formatting(self):
+    def test_slot_availability_response_formatting(self, service):
         """Test slot availability response formatting logic."""
-        db = Mock(spec=Session)
-        service = ConflictChecker(db)
-
         # Mock available slot
         mock_slot = Mock(spec=AvailabilitySlot)
         mock_slot.id = 123
@@ -105,10 +107,10 @@ class TestConflictCheckerDataTransformation:
         mock_availability.instructor_id = 1
         mock_slot.availability = mock_availability
 
-        db.query.return_value.options.return_value.filter.return_value.first.return_value = mock_slot
+        service.repository.get_slot_with_availability.return_value = mock_slot
 
         # Mock no booking found (slot is available)
-        db.query.return_value.filter.return_value.first.return_value = None
+        service.db.query.return_value.filter.return_value.first.return_value = None
 
         # Test available slot formatting
         result = service.check_slot_availability(slot_id=123, instructor_id=1)
@@ -121,11 +123,8 @@ class TestConflictCheckerDataTransformation:
         assert slot_info["end_time"] == "10:00:00"
         assert slot_info["instructor_id"] == 1
 
-    def test_conflict_data_formatting(self):
+    def test_conflict_data_formatting(self, service):
         """Test how conflict data is formatted for response."""
-        db = Mock(spec=Session)
-        service = ConflictChecker(db)
-
         # Create mock booking with all fields
         mock_booking = Mock(spec=Booking)
         mock_booking.id = 123
@@ -138,7 +137,7 @@ class TestConflictCheckerDataTransformation:
         mock_slot.end_time = time(11, 0)
         mock_booking.availability_slot = mock_slot
 
-        db.query.return_value.join.return_value.join.return_value.filter.return_value.all.return_value = [mock_booking]
+        service.repository.get_bookings_for_conflict_check.return_value = [mock_booking]
 
         conflicts = service.check_booking_conflicts(
             instructor_id=1, check_date=date.today(), start_time=time(9, 30), end_time=time(10, 30)
@@ -155,32 +154,29 @@ class TestConflictCheckerDataTransformation:
         assert conflict["service_name"] == "Piano Lessons"
         assert conflict["status"] == BookingStatus.CONFIRMED
 
-    def test_week_data_grouping(self):
+    def test_week_data_grouping(self, service):
         """Test how weekly data is grouped by date."""
-        db = Mock(spec=Session)
-        service = ConflictChecker(db)
-
-        # Create mock data for multiple days
+        # Mock repository response
         mock_data = []
         base_date = date.today()
 
         for day_offset in range(3):
             slot_date = base_date + timedelta(days=day_offset)
             for hour in [9, 14]:
-                mock_slot = MagicMock()
-                mock_slot.date = slot_date
-                mock_slot.id = day_offset * 10 + hour
-                mock_slot.start_time = time(hour, 0)
-                mock_slot.end_time = time(hour + 1, 0)
-                mock_slot.booking_id = 100 + mock_slot.id
-                mock_slot.student_id = 1
-                mock_slot.service_name = "Test Service"
-                mock_slot.status = BookingStatus.CONFIRMED
-                mock_data.append(mock_slot)
+                mock_data.append(
+                    {
+                        "date": slot_date,
+                        "id": day_offset * 10 + hour,
+                        "start_time": time(hour, 0),
+                        "end_time": time(hour + 1, 0),
+                        "booking_id": 100 + day_offset * 10 + hour,
+                        "student_id": 1,
+                        "service_name": "Test Service",
+                        "status": BookingStatus.CONFIRMED,
+                    }
+                )
 
-        db.query.return_value.join.return_value.join.return_value.filter.return_value.order_by.return_value.all.return_value = (
-            mock_data
-        )
+        service.repository.get_booked_slots_for_week.return_value = mock_data
 
         result = service.get_booked_slots_for_week(instructor_id=1, week_start=base_date)
 
@@ -198,16 +194,11 @@ class TestConflictCheckerDataTransformation:
                 assert "end_time" in slot
                 assert "booking_id" in slot
 
-    def test_empty_result_handling(self):
+    def test_empty_result_handling(self, service):
         """Test handling of empty query results."""
-        db = Mock(spec=Session)
-        service = ConflictChecker(db)
-
-        # Mock empty results for all query chains
-        db.query.return_value.join.return_value.join.return_value.filter.return_value.all.return_value = []
-        db.query.return_value.join.return_value.join.return_value.filter.return_value.order_by.return_value.all.return_value = (
-            []
-        )
+        # Mock empty results
+        service.repository.get_bookings_for_conflict_check.return_value = []
+        service.repository.get_booked_slots_for_week.return_value = []
 
         # Test empty conflicts
         conflicts = service.check_booking_conflicts(
@@ -227,47 +218,48 @@ class TestConflictCheckerValidationRules:
 
     @pytest.fixture
     def service(self):
-        """Create ConflictChecker with mock database."""
+        """Create ConflictChecker with mock repository."""
         mock_db = Mock(spec=Session)
-        return ConflictChecker(mock_db)
+        mock_repository = Mock(spec=ConflictCheckerRepository)
+        service = ConflictChecker(mock_db)
+        service.repository = mock_repository
+        return service
 
     def test_past_date_validation_rules(self, service):
         """Test business rules for past date validation."""
-        # Mock other validations to pass
-        with patch.object(service, "validate_time_range") as mock_time_val, patch.object(
-            service, "check_minimum_advance_booking"
-        ) as mock_advance, patch.object(service, "check_blackout_date") as mock_blackout, patch.object(
-            service, "check_booking_conflicts"
-        ) as mock_conflicts:
-            mock_time_val.return_value = {"valid": True, "duration_minutes": 60}
-            mock_advance.return_value = {"valid": True}
-            mock_blackout.return_value = False
-            mock_conflicts.return_value = []
+        # Mock repository methods to return valid data
+        service.repository.get_bookings_for_conflict_check.return_value = []
+        service.repository.get_blackout_date.return_value = None
 
-            # Test past date
-            result = service.validate_booking_constraints(
-                instructor_id=1,
-                booking_date=date.today() - timedelta(days=1),
-                start_time=time(14, 0),
-                end_time=time(15, 0),
-            )
+        # Mock profile with 2 hour advance requirement
+        mock_profile = Mock(spec=InstructorProfile)
+        mock_profile.min_advance_booking_hours = 2
+        service.repository.get_instructor_profile.return_value = mock_profile
 
+        # Test past date
+        result = service.validate_booking_constraints(
+            instructor_id=1,
+            booking_date=date.today() - timedelta(days=1),
+            start_time=time(14, 0),
+            end_time=time(15, 0),
+        )
+
+        assert result["valid"] == False
+        assert any("past" in error.lower() for error in result["errors"])
+
+        # Test today with past time
+        result = service.validate_booking_constraints(
+            instructor_id=1,
+            booking_date=date.today(),
+            start_time=time(8, 0),  # Assuming it's after 8 AM when test runs
+            end_time=time(9, 0),
+        )
+
+        # This might be valid or invalid depending on current time
+        # The business rule is documented in the assertion
+        if datetime.now().time() > time(8, 0):
             assert result["valid"] == False
             assert any("past" in error.lower() for error in result["errors"])
-
-            # Test today with past time
-            result = service.validate_booking_constraints(
-                instructor_id=1,
-                booking_date=date.today(),
-                start_time=time(8, 0),  # Assuming it's after 8 AM when test runs
-                end_time=time(9, 0),
-            )
-
-            # This might be valid or invalid depending on current time
-            # The business rule is documented in the assertion
-            if datetime.now().time() > time(8, 0):
-                assert result["valid"] == False
-                assert any("past" in error.lower() for error in result["errors"])
 
     def test_service_duration_validation_rules(self, service):
         """Test service-specific duration validation."""
@@ -275,56 +267,50 @@ class TestConflictCheckerValidationRules:
         mock_service = Mock(spec=Service)
         mock_service.duration_override = 90  # 90 minutes required
         mock_service.is_active = True
+        service.repository.get_active_service.return_value = mock_service
 
-        service.db.query.return_value.filter.return_value.first.return_value = mock_service
+        # Mock other validations to pass
+        service.repository.get_bookings_for_conflict_check.return_value = []
+        service.repository.get_blackout_date.return_value = None
 
-        # Mock other validations
-        with patch.object(service, "validate_time_range") as mock_time_val, patch.object(
-            service, "check_minimum_advance_booking"
-        ) as mock_advance, patch.object(service, "check_blackout_date") as mock_blackout, patch.object(
-            service, "check_booking_conflicts"
-        ) as mock_conflicts:
-            mock_time_val.return_value = {"valid": True, "duration_minutes": 60}  # Only 60 minutes
-            mock_advance.return_value = {"valid": True}
-            mock_blackout.return_value = False
-            mock_conflicts.return_value = []
+        mock_profile = Mock(spec=InstructorProfile)
+        mock_profile.min_advance_booking_hours = 2
+        service.repository.get_instructor_profile.return_value = mock_profile
 
-            # Test service duration mismatch
-            result = service.validate_booking_constraints(
-                instructor_id=1,
-                booking_date=date.today() + timedelta(days=1),
-                start_time=time(14, 0),
-                end_time=time(15, 0),  # 60 minutes but service needs 90
-                service_id=1,
-            )
+        # Test service duration mismatch
+        result = service.validate_booking_constraints(
+            instructor_id=1,
+            booking_date=date.today() + timedelta(days=1),
+            start_time=time(14, 0),
+            end_time=time(15, 0),  # 60 minutes but service needs 90
+            service_id=1,
+        )
 
-            assert result["valid"] == True  # Valid but with warning
-            assert len(result["warnings"]) >= 1
-            assert any("90 minutes" in warning for warning in result["warnings"])
+        assert result["valid"] == True  # Valid but with warning
+        assert len(result["warnings"]) >= 1
+        assert any("90 minutes" in warning for warning in result["warnings"])
 
     def test_blackout_date_priority_rules(self, service):
         """Test that blackout dates take priority over other validations."""
         # Mock blackout date exists
-        with patch.object(service, "validate_time_range") as mock_time_val, patch.object(
-            service, "check_minimum_advance_booking"
-        ) as mock_advance, patch.object(service, "check_blackout_date") as mock_blackout, patch.object(
-            service, "check_booking_conflicts"
-        ) as mock_conflicts:
-            mock_time_val.return_value = {"valid": True, "duration_minutes": 60}
-            mock_advance.return_value = {"valid": True}
-            mock_blackout.return_value = True  # Blackout date
-            mock_conflicts.return_value = []
+        service.repository.get_blackout_date.return_value = Mock(spec=BlackoutDate)
 
-            result = service.validate_booking_constraints(
-                instructor_id=1,
-                booking_date=date.today() + timedelta(days=1),
-                start_time=time(14, 0),
-                end_time=time(15, 0),
-            )
+        # Mock other validations to pass
+        service.repository.get_bookings_for_conflict_check.return_value = []
+        mock_profile = Mock(spec=InstructorProfile)
+        mock_profile.min_advance_booking_hours = 2
+        service.repository.get_instructor_profile.return_value = mock_profile
 
-            assert result["valid"] == False
-            assert any("not available" in error for error in result["errors"])
-            assert result["details"]["has_blackout"] == True
+        result = service.validate_booking_constraints(
+            instructor_id=1,
+            booking_date=date.today() + timedelta(days=1),
+            start_time=time(14, 0),
+            end_time=time(15, 0),
+        )
+
+        assert result["valid"] == False
+        assert any("not available" in error for error in result["errors"])
+        assert result["details"]["has_blackout"] == True
 
     def test_time_overlap_detection_logic(self, service):
         """Test the time overlap detection algorithm."""
@@ -344,10 +330,8 @@ class TestConflictCheckerValidationRules:
             self._create_mock_booking(time(12, 30), time(14, 0)),  # After
         ]
 
-        # Mock the database query
-        service.db.query.return_value.join.return_value.join.return_value.filter.return_value.all.return_value = (
-            mock_bookings
-        )
+        # Mock the repository method
+        service.repository.get_bookings_for_conflict_check.return_value = mock_bookings
 
         # Call the method
         conflicts = service.check_booking_conflicts(
@@ -375,9 +359,7 @@ class TestConflictCheckerValidationRules:
             self._create_mock_booking(time(10, 0), time(11, 0)),  # Exact same time
         ]
 
-        service.db.query.return_value.join.return_value.join.return_value.filter.return_value.all.return_value = (
-            mock_bookings
-        )
+        service.repository.get_bookings_for_conflict_check.return_value = mock_bookings
 
         conflicts = service.check_booking_conflicts(
             instructor_id=1, check_date=date.today(), start_time=check_start, end_time=check_end
@@ -423,8 +405,7 @@ class TestConflictCheckerValidationRules:
         # Mock instructor profile
         mock_profile = Mock(spec=InstructorProfile)
         mock_profile.min_advance_booking_hours = 24
-
-        service.db.query.return_value.filter.return_value.first.return_value = mock_profile
+        service.repository.get_instructor_profile.return_value = mock_profile
 
         # Test booking exactly 24 hours in advance
         booking_datetime = datetime.now() + timedelta(hours=24, minutes=1)
@@ -449,8 +430,7 @@ class TestConflictCheckerValidationRules:
         """Test validation for past dates/times."""
         mock_profile = Mock(spec=InstructorProfile)
         mock_profile.min_advance_booking_hours = 2
-
-        service.db.query.return_value.filter.return_value.first.return_value = mock_profile
+        service.repository.get_instructor_profile.return_value = mock_profile
 
         # Test past date
         yesterday = date.today() - timedelta(days=1)
@@ -474,7 +454,7 @@ class TestConflictCheckerValidationRules:
         mock_availability.date = date.today() + timedelta(days=1)
         mock_slot.availability = mock_availability
 
-        service.db.query.return_value.options.return_value.filter.return_value.first.return_value = mock_slot
+        service.repository.get_slot_with_availability.return_value = mock_slot
 
         # Mock no booking found (available)
         service.db.query.return_value.filter.return_value.first.return_value = None
@@ -497,28 +477,10 @@ class TestConflictCheckerValidationRules:
         mock_availability.date = date.today() - timedelta(days=1)  # Yesterday
         mock_slot.availability = mock_availability
 
-        # First mock call returns the slot
-        service.db.query.return_value.options.return_value.filter.return_value.first.return_value = mock_slot
+        service.repository.get_slot_with_availability.return_value = mock_slot
 
-        # Second mock call (for booking check) returns None - no booking exists
-        booking_query_mock = Mock()
-        booking_query_mock.first.return_value = None
-
-        # Set up the mock to handle the two different query chains
-        def side_effect(*args):
-            if args[0] == AvailabilitySlot:
-                # First query for slot
-                mock_chain = Mock()
-                mock_chain.options.return_value.filter.return_value.first.return_value = mock_slot
-                return mock_chain
-            elif args[0] == Booking:
-                # Second query for booking
-                mock_chain = Mock()
-                mock_chain.filter.return_value.first.return_value = None  # No booking
-                return mock_chain
-            return Mock()
-
-        service.db.query.side_effect = side_effect
+        # Mock no booking found (so it can check for past validation)
+        service.db.query.return_value.filter.return_value.first.return_value = None
 
         result = service.check_slot_availability(slot_id=1)
 
@@ -527,29 +489,17 @@ class TestConflictCheckerValidationRules:
 
     def test_comprehensive_validation_aggregation(self, service):
         """Test how multiple validation errors are aggregated."""
+        # Mock repository to return None for service (not found)
+        service.repository.get_active_service.return_value = None
+
         # Mock profile
         mock_profile = Mock(spec=InstructorProfile)
         mock_profile.min_advance_booking_hours = 2
-        service.db.query.return_value.filter.return_value.first.return_value = mock_profile
+        service.repository.get_instructor_profile.return_value = mock_profile
 
-        # Mock no conflicts
-        service.db.query.return_value.join.return_value.join.return_value.filter.return_value.all.return_value = []
-
-        # Mock service query to return None (service not found)
-        def query_side_effect(*args):
-            if len(args) > 0 and args[0] == Service:
-                # Service query
-                mock_chain = Mock()
-                mock_chain.filter.return_value.first.return_value = None  # Service not found
-                return mock_chain
-            else:
-                # Default mock chain for other queries
-                mock_chain = Mock()
-                mock_chain.filter.return_value.first.return_value = mock_profile
-                mock_chain.join.return_value.join.return_value.filter.return_value.all.return_value = []
-                return mock_chain
-
-        service.db.query.side_effect = query_side_effect
+        # Mock no conflicts and no blackout
+        service.repository.get_bookings_for_conflict_check.return_value = []
+        service.repository.get_blackout_date.return_value = None
 
         # Past date with invalid time range
         past_date = date.today() - timedelta(days=1)
@@ -571,7 +521,7 @@ class TestConflictCheckerValidationRules:
         """Test blackout date validation logic."""
         # Mock blackout date exists
         mock_blackout = Mock(spec=BlackoutDate)
-        service.db.query.return_value.filter.return_value.first.return_value = mock_blackout
+        service.repository.get_blackout_date.return_value = mock_blackout
 
         # Check blackout date
         is_blackout = service.check_blackout_date(instructor_id=1, target_date=date.today() + timedelta(days=5))
@@ -579,7 +529,7 @@ class TestConflictCheckerValidationRules:
         assert is_blackout == True
 
         # Mock no blackout
-        service.db.query.return_value.filter.return_value.first.return_value = None
+        service.repository.get_blackout_date.return_value = None
 
         is_blackout = service.check_blackout_date(instructor_id=1, target_date=date.today() + timedelta(days=5))
 
@@ -591,14 +541,15 @@ class TestConflictCheckerValidationRules:
         mock_service = Mock(spec=Service)
         mock_service.duration_override = 90  # 90 minutes required
         mock_service.is_active = True
-
-        service.db.query.return_value.filter.return_value.first.return_value = mock_service
+        service.repository.get_active_service.return_value = mock_service
 
         # Mock other validations to pass
-        service.validate_time_range = Mock(return_value={"valid": True, "duration_minutes": 60})
-        service.check_minimum_advance_booking = Mock(return_value={"valid": True})
-        service.check_blackout_date = Mock(return_value=False)
-        service.check_booking_conflicts = Mock(return_value=[])
+        service.repository.get_bookings_for_conflict_check.return_value = []
+        service.repository.get_blackout_date.return_value = None
+
+        mock_profile = Mock(spec=InstructorProfile)
+        mock_profile.min_advance_booking_hours = 2
+        service.repository.get_instructor_profile.return_value = mock_profile
 
         result = service.validate_booking_constraints(
             instructor_id=1,
@@ -622,7 +573,7 @@ class TestConflictCheckerValidationRules:
             self._create_mock_slot(4, time(14, 0), time(15, 0)),
         ]
 
-        service.db.query.return_value.join.return_value.filter.return_value.all.return_value = mock_slots
+        service.repository.get_slots_for_date.return_value = mock_slots
 
         # Mock bookings query for checking booked status
         service.db.query.return_value.filter.return_value.all.return_value = []
@@ -643,10 +594,11 @@ class TestConflictCheckerValidationRules:
         # Mock profile
         mock_profile = Mock(spec=InstructorProfile)
         mock_profile.min_advance_booking_hours = 2
-        service.db.query.return_value.filter.return_value.first.return_value = mock_profile
+        service.repository.get_instructor_profile.return_value = mock_profile
 
-        # Mock empty bookings
-        service.db.query.return_value.join.return_value.join.return_value.filter.return_value.all.return_value = []
+        # Mock empty bookings and no blackout
+        service.repository.get_bookings_for_conflict_check.return_value = []
+        service.repository.get_blackout_date.return_value = None
 
         # Test with multiple validation failures
         result = service.validate_booking_constraints(
@@ -662,26 +614,23 @@ class TestConflictCheckerValidationRules:
         assert all(isinstance(error, str) for error in result["errors"])
         assert all(len(error) > 10 for error in result["errors"])  # Not empty messages
 
-    def test_query_efficiency_indicators(self, service):
-        """Test that methods indicate what data they need (for repository pattern)."""
-        # This helps document what each method needs from the database
+    def test_repository_method_usage(self, service):
+        """Test that service uses repository methods correctly."""
+        # Test check_booking_conflicts uses repository
+        service.repository.get_bookings_for_conflict_check.return_value = []
 
-        # Mock the query chain to return empty list
-        service.db.query.return_value.join.return_value.join.return_value.filter.return_value.all.return_value = []
-
-        # check_booking_conflicts needs: Booking + AvailabilitySlot + InstructorAvailability
         service.check_booking_conflicts(1, date.today(), time(10, 0), time(11, 0))
 
-        # Verify it queries Booking model
-        service.db.query.assert_called_with(Booking)
+        service.repository.get_bookings_for_conflict_check.assert_called_once_with(1, date.today(), None)
 
-        # Reset for next test
-        service.db.reset_mock()
+        # Test check_slot_availability uses repository
+        service.repository.get_slot_with_availability.return_value = None
 
-        # check_slot_availability needs: AvailabilitySlot with joinedload
-        service.db.query.return_value.options.return_value.filter.return_value.first.return_value = None
-        service.check_slot_availability(1)
-        service.db.query.assert_called_with(AvailabilitySlot)
+        result = service.check_slot_availability(1)
+
+        service.repository.get_slot_with_availability.assert_called_once_with(1)
+        assert result["available"] == False
+        assert "not found" in result["reason"]
 
     # Helper methods
     def _create_mock_booking(self, start: time, end: time) -> Mock:
@@ -714,9 +663,12 @@ class TestConflictCheckerEdgeCases:
 
     @pytest.fixture
     def service(self):
-        """Create ConflictChecker with mock database."""
+        """Create ConflictChecker with mock repository."""
         mock_db = Mock(spec=Session)
-        return ConflictChecker(mock_db)
+        mock_repository = Mock(spec=ConflictCheckerRepository)
+        service = ConflictChecker(mock_db)
+        service.repository = mock_repository
+        return service
 
     def test_midnight_boundary_handling(self, service):
         """Test handling of times near midnight."""
@@ -750,7 +702,7 @@ class TestConflictCheckerEdgeCases:
     def test_none_handling_in_validation(self, service):
         """Test handling of None values in validation."""
         # Mock profile not found
-        service.db.query.return_value.filter.return_value.first.return_value = None
+        service.repository.get_instructor_profile.return_value = None
 
         result = service.check_minimum_advance_booking(
             instructor_id=999, booking_date=date.today() + timedelta(days=1), booking_time=time(10, 0)
@@ -761,18 +713,16 @@ class TestConflictCheckerEdgeCases:
 
     def test_inactive_service_validation(self, service):
         """Test validation with inactive service."""
-        # Mock inactive service
-        mock_service = Mock(spec=Service)
-        mock_service.is_active = False
+        # Repository returns None for inactive service
+        service.repository.get_active_service.return_value = None
 
-        # Query returns nothing because we filter by is_active=True
-        service.db.query.return_value.filter.return_value.first.return_value = None
+        # Mock other validations to pass
+        service.repository.get_bookings_for_conflict_check.return_value = []
+        service.repository.get_blackout_date.return_value = None
 
-        # Mock other validations
-        service.validate_time_range = Mock(return_value={"valid": True, "duration_minutes": 60})
-        service.check_minimum_advance_booking = Mock(return_value={"valid": True})
-        service.check_blackout_date = Mock(return_value=False)
-        service.check_booking_conflicts = Mock(return_value=[])
+        mock_profile = Mock(spec=InstructorProfile)
+        mock_profile.min_advance_booking_hours = 2
+        service.repository.get_instructor_profile.return_value = mock_profile
 
         result = service.validate_booking_constraints(
             instructor_id=1,
