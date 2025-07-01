@@ -357,10 +357,25 @@ class TestBulkOperationMissingCoverage:
     @pytest.mark.asyncio
     async def test_today_time_edge_case(self, db: Session, test_instructor):
         """Test edge case for today's date with future time."""
-        # Set time to future today
-        future_time = (datetime.now() + timedelta(hours=3)).time()
+        # Calculate a safe future time that won't wrap past midnight
+        current_hour = datetime.now().hour
 
-        operations = [SlotOperation(action="add", date=date.today(), start_time=future_time, end_time=time(23, 0))]
+        # If it's too late in the day, skip this test or use tomorrow
+        if current_hour >= 20:  # After 8 PM
+            # Use tomorrow with morning time instead
+            operations = [
+                SlotOperation(
+                    action="add", date=date.today() + timedelta(days=1), start_time=time(9, 0), end_time=time(10, 0)
+                )
+            ]
+        else:
+            # Safe to add 3 hours without wrapping
+            future_hour = min(current_hour + 3, 20)  # Cap at 8 PM
+            future_time = time(future_hour, 0)
+            end_hour = min(future_hour + 1, 21)  # Cap at 9 PM
+            end_time = time(end_hour, 0)
+
+            operations = [SlotOperation(action="add", date=date.today(), start_time=future_time, end_time=end_time)]
 
         request = BulkUpdateRequest(operations=operations, validate_only=False)
         bulk_service = BulkOperationService(db)
@@ -368,8 +383,9 @@ class TestBulkOperationMissingCoverage:
         # Should succeed if time is in future
         result = await bulk_service.process_bulk_update(test_instructor.id, request)
 
-        # This might succeed or fail depending on current time
-        assert result["successful"] + result["failed"] == 1
+        # This should now always succeed
+        assert result["successful"] == 1
+        assert result["failed"] == 0
 
     @pytest.mark.asyncio
     async def test_simple_remove_operation_verification(self, db: Session, test_instructor):

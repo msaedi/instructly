@@ -16,6 +16,7 @@ from .base_repository import BaseRepository
 
 # Avoid circular imports
 if TYPE_CHECKING:
+    from .availability_repository import AvailabilityRepository
     from .slot_manager_repository import SlotManagerRepository
 
 
@@ -41,8 +42,6 @@ class RepositoryFactory:
         """
         return BaseRepository(db, model)
 
-    # These methods will be uncommented as we create each repository
-
     @staticmethod
     def create_slot_manager_repository(db: Session) -> "SlotManagerRepository":
         """Create repository for slot management operations."""
@@ -50,11 +49,12 @@ class RepositoryFactory:
 
         return SlotManagerRepository(db)
 
-    # @staticmethod
-    # def create_availability_repository(db: Session) -> 'AvailabilityRepository':
-    #     """Create repository for availability operations."""
-    #     from .availability_repository import AvailabilityRepository
-    #     return AvailabilityRepository(db)
+    @staticmethod
+    def create_availability_repository(db: Session) -> "AvailabilityRepository":
+        """Create repository for availability operations."""
+        from .availability_repository import AvailabilityRepository
+
+        return AvailabilityRepository(db)
 
     # @staticmethod
     # def create_booking_repository(db: Session) -> 'BookingRepository':

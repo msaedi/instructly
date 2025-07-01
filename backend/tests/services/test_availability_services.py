@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 from app.core.exceptions import ConflictException, ValidationException
+from app.repositories.availability_repository import AvailabilityRepository
 from app.services.availability_service import AvailabilityService
 from app.services.conflict_checker import ConflictChecker
 from app.services.slot_manager import SlotManager
@@ -27,21 +28,25 @@ class TestAvailabilityService:
 
     @pytest.fixture
     def service(self, mock_db):
-        """Create service instance with mock DB."""
-        return AvailabilityService(mock_db)
+        """Create service instance with mock DB and repository."""
+        service = AvailabilityService(mock_db)
+        # Mock the repository
+        mock_repository = Mock(spec=AvailabilityRepository)
+        service.repository = mock_repository
+        return service
 
     def test_get_week_availability_empty(self, service, mock_db):
         """Test getting empty week availability."""
-        # Setup
-        mock_db.query().filter().options().all.return_value = []
+        # Setup - mock repository instead of database
+        service.repository.get_week_availability.return_value = []
 
         # Execute
         result = service.get_week_availability(instructor_id=1, start_date=date(2025, 6, 16))  # Monday
 
         # Assert
         assert result == {}
-        # Change this line - expect 2 calls instead of 1
-        assert mock_db.query.call_count >= 1  # At least one call
+        # Verify repository was called
+        service.repository.get_week_availability.assert_called_once()
 
     def test_get_week_availability_with_slots(self, service, mock_db):
         """Test getting week with availability slots."""
@@ -55,7 +60,9 @@ class TestAvailabilityService:
         mock_slot.end_time = time(10, 0)
 
         mock_availability.time_slots = [mock_slot]
-        mock_db.query().filter().options().all.return_value = [mock_availability]
+
+        # Mock repository response
+        service.repository.get_week_availability.return_value = [mock_availability]
 
         # Execute
         result = service.get_week_availability(instructor_id=1, start_date=date(2025, 6, 16))

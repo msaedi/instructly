@@ -7,25 +7,27 @@ Core service handling instructor availability management including:
 - Saving and updating availability
 - Date-specific availability management
 - Coordination with booking system
+
+REFACTORED: Now uses AvailabilityRepository for all data access
 """
 
 import logging
 from datetime import date, time, timedelta
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import and_
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
-from ..core.exceptions import ConflictException, NotFoundException
+from ..core.exceptions import ConflictException, NotFoundException, RepositoryException
 from ..models.availability import AvailabilitySlot, BlackoutDate, InstructorAvailability
-from ..models.booking import Booking, BookingStatus
 from ..models.instructor import InstructorProfile
+from ..repositories.factory import RepositoryFactory
 from ..schemas.availability_window import BlackoutDateCreate, SpecificDateAvailabilityCreate, WeekSpecificScheduleCreate
 from ..utils.time_helpers import time_to_string
 from .base import BaseService
 
 # TYPE_CHECKING import to avoid circular dependencies
 if TYPE_CHECKING:
+    from ..repositories.availability_repository import AvailabilityRepository
     from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
@@ -39,13 +41,21 @@ class AvailabilityService(BaseService):
     clean interfaces for the route handlers.
     """
 
-    def __init__(self, db: Session, cache_service: Optional["CacheService"] = None):
-        """Initialize availability service with optional cache."""
+    def __init__(
+        self,
+        db: Session,
+        cache_service: Optional["CacheService"] = None,
+        repository: Optional["AvailabilityRepository"] = None,
+    ):
+        """Initialize availability service with optional cache and repository."""
         # Pass the cache service to BaseService
         # The CacheService has a redis property that matches RedisCache interface
         super().__init__(db, cache=cache_service)
         self.logger = logging.getLogger(__name__)
         self.cache_service = cache_service
+
+        # Initialize repository
+        self.repository = repository or RepositoryFactory.create_availability_repository(db)
 
         if cache_service:
             self.logger.info("AvailabilityService initialized WITH cache service")
@@ -73,16 +83,12 @@ class AvailabilityService(BaseService):
             except Exception as cache_error:
                 self.logger.warning(f"Cache error for date availability: {cache_error}. Falling back to database.")
 
-        # Query only for specific date
-        entry = (
-            self.db.query(InstructorAvailability)
-            .filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                InstructorAvailability.date == target_date,
-            )
-            .options(joinedload(InstructorAvailability.time_slots))
-            .first()
-        )
+        # Query using repository
+        try:
+            entry = self.repository.get_availability_by_date(instructor_id, target_date)
+        except RepositoryException as e:
+            self.logger.error(f"Repository error getting availability: {e}")
+            return None
 
         if not entry or entry.is_cleared:
             return None
@@ -122,31 +128,11 @@ class AvailabilityService(BaseService):
         Returns:
             Dict mapping date strings to slot counts
         """
-        # Use raw SQL for optimal performance
-        query = """
-            SELECT
-                ia.date,
-                COUNT(aslot.id) as slot_count
-            FROM instructor_availability ia
-            LEFT JOIN availability_slots aslot ON ia.id = aslot.availability_id
-            WHERE
-                ia.instructor_id = :instructor_id
-                AND ia.date BETWEEN :start_date AND :end_date
-                AND ia.is_cleared = false
-            GROUP BY ia.date
-            ORDER BY ia.date
-        """
-
-        result = self.db.execute(
-            query,
-            {
-                "instructor_id": instructor_id,
-                "start_date": start_date,
-                "end_date": end_date,
-            },
-        )
-
-        return {row.date.isoformat(): row.slot_count for row in result}
+        try:
+            return self.repository.get_availability_summary(instructor_id, start_date, end_date)
+        except RepositoryException as e:
+            self.logger.error(f"Error getting availability summary: {e}")
+            return {}
 
     def prefetch_week_availability(self, instructor_id: int, start_date: date) -> None:
         """
@@ -155,17 +141,14 @@ class AvailabilityService(BaseService):
         Optimized for initial calendar load.
         """
         week_dates = self._calculate_week_dates(start_date)
+        end_date = week_dates[-1]
 
-        # Single query with all data
-        entries = (
-            self.db.query(InstructorAvailability)
-            .filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                InstructorAvailability.date.in_(week_dates),
-            )
-            .options(joinedload(InstructorAvailability.time_slots))
-            .all()
-        )
+        try:
+            # Use repository to get all entries
+            entries = self.repository.get_week_availability(instructor_id, start_date, end_date)
+        except RepositoryException as e:
+            self.logger.error(f"Error prefetching week availability: {e}")
+            return
 
         # Cache each day individually for granular access
         for entry in entries:
@@ -203,19 +186,16 @@ class AvailabilityService(BaseService):
         Returns:
             List of InstructorAvailability entries with loaded time slots
         """
-        query = (
-            self.db.query(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id == instructor_id)
-            .options(joinedload(InstructorAvailability.time_slots))
-        )
-
-        if start_date and end_date:
-            query = query.filter(
-                InstructorAvailability.date >= start_date,
-                InstructorAvailability.date <= end_date,
-            )
-
-        return query.all()
+        try:
+            if start_date and end_date:
+                return self.repository.get_week_availability(instructor_id, start_date, end_date)
+            else:
+                # For no date range, use base repository get_all with filter
+                # This could be added as a method to AvailabilityRepository if needed
+                return self.repository.find_by(instructor_id=instructor_id)
+        except RepositoryException as e:
+            self.logger.error(f"Error getting all availability: {e}")
+            return []
 
     def get_week_availability(self, instructor_id: int, start_date: date) -> Dict[str, List[Dict[str, Any]]]:
         """
@@ -258,22 +238,18 @@ class AvailabilityService(BaseService):
 
         # Calculate week dates (Monday to Sunday)
         week_dates = self._calculate_week_dates(start_date)
+        end_date = week_dates[-1]
 
-        # Get instructor availability for this week
+        # Get instructor availability for this week using repository
         import time as time_module
 
         start_time = time_module.time()
-        availability_entries = (
-            self.db.query(InstructorAvailability)
-            .filter(
-                and_(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date.in_(week_dates),
-                )
-            )
-            .options(joinedload(InstructorAvailability.time_slots))
-            .all()
-        )
+
+        try:
+            availability_entries = self.repository.get_week_availability(instructor_id, start_date, end_date)
+        except RepositoryException as e:
+            self.logger.error(f"Error getting week availability: {e}")
+            return {}
 
         query_time = (time_module.time() - start_time) * 1000
         self.logger.info(f"Database query took {query_time:.2f}ms")
@@ -410,54 +386,42 @@ class AvailabilityService(BaseService):
             ConflictException: If slot already exists
         """
         with self.transaction():
-            # Check for existing entry
-            existing = (
-                self.db.query(InstructorAvailability)
-                .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date == availability_data.specific_date,
+            # Get or create availability entry using repository
+            try:
+                availability = self.repository.get_or_create_availability(
+                    instructor_id, availability_data.specific_date
                 )
-                .first()
-            )
 
-            if existing and not existing.is_cleared:
                 # Check for duplicate slot
-                duplicate = self._check_duplicate_slot(
-                    existing, availability_data.start_time, availability_data.end_time
-                )
-                if duplicate:
-                    raise ConflictException("This time slot already exists")
+                if availability and not availability.is_cleared:
+                    if self.repository.slot_exists(
+                        availability.id, availability_data.start_time, availability_data.end_time
+                    ):
+                        raise ConflictException("This time slot already exists")
 
-            # Create or update availability entry
-            if not existing:
-                availability_entry = InstructorAvailability(
-                    instructor_id=instructor_id,
-                    date=availability_data.specific_date,
-                    is_cleared=False,
-                )
-                self.db.add(availability_entry)
-                self.db.flush()
-            else:
-                availability_entry = existing
-                if availability_entry.is_cleared:
-                    availability_entry.is_cleared = False
+                # Update cleared status if needed
+                if availability.is_cleared:
+                    availability.is_cleared = False
 
-            # Add time slot
-            time_slot = AvailabilitySlot(
-                availability_id=availability_entry.id,
-                start_time=availability_data.start_time,
-                end_time=availability_data.end_time,
-            )
-            self.db.add(time_slot)
-            self.db.commit()
+                # Add time slot using repository create
+                slot = AvailabilitySlot(
+                    availability_id=availability.id,
+                    start_time=availability_data.start_time,
+                    end_time=availability_data.end_time,
+                )
+                self.db.add(slot)
+                self.db.commit()
+
+            except RepositoryException as e:
+                raise ConflictException(f"Failed to add availability: {str(e)}")
 
             # Invalidate cache
             self._invalidate_availability_caches(instructor_id, [availability_data.specific_date])
 
             return {
-                "id": availability_entry.id,
+                "id": availability.id,
                 "instructor_id": instructor_id,
-                "specific_date": availability_entry.date,
+                "specific_date": availability.date,
                 "start_time": time_to_string(availability_data.start_time),
                 "end_time": time_to_string(availability_data.end_time),
                 "is_available": True,
@@ -475,15 +439,11 @@ class AvailabilityService(BaseService):
         Returns:
             List of future blackout dates
         """
-        return (
-            self.db.query(BlackoutDate)
-            .filter(
-                BlackoutDate.instructor_id == instructor_id,
-                BlackoutDate.date >= date.today(),
-            )
-            .order_by(BlackoutDate.date)
-            .all()
-        )
+        try:
+            return self.repository.get_future_blackout_dates(instructor_id)
+        except RepositoryException as e:
+            self.logger.error(f"Error getting blackout dates: {e}")
+            return []
 
     def add_blackout_date(self, instructor_id: int, blackout_data: BlackoutDateCreate) -> BlackoutDate:
         """
@@ -499,30 +459,19 @@ class AvailabilityService(BaseService):
         Raises:
             ConflictException: If date already exists
         """
-        # Check if already exists
-        existing = (
-            self.db.query(BlackoutDate)
-            .filter(
-                BlackoutDate.instructor_id == instructor_id,
-                BlackoutDate.date == blackout_data.date,
-            )
-            .first()
-        )
-
-        if existing:
+        # Check if already exists using repository
+        existing_blackouts = self.repository.get_future_blackout_dates(instructor_id)
+        if any(b.date == blackout_data.date for b in existing_blackouts):
             raise ConflictException("Blackout date already exists")
 
-        blackout = BlackoutDate(
-            instructor_id=instructor_id,
-            date=blackout_data.date,
-            reason=blackout_data.reason,
-        )
-
-        self.db.add(blackout)
-        self.db.commit()
-        self.db.refresh(blackout)
-
-        return blackout
+        try:
+            blackout = self.repository.create_blackout_date(instructor_id, blackout_data.date, blackout_data.reason)
+            self.db.commit()
+            return blackout
+        except RepositoryException as e:
+            if "already exists" in str(e):
+                raise ConflictException("Blackout date already exists")
+            raise
 
     def delete_blackout_date(self, instructor_id: int, blackout_id: int) -> bool:
         """
@@ -538,24 +487,17 @@ class AvailabilityService(BaseService):
         Raises:
             NotFoundException: If blackout date not found
         """
-        blackout = (
-            self.db.query(BlackoutDate)
-            .filter(
-                BlackoutDate.id == blackout_id,
-                BlackoutDate.instructor_id == instructor_id,
-            )
-            .first()
-        )
+        try:
+            success = self.repository.delete_blackout_date(blackout_id, instructor_id)
+            if not success:
+                raise NotFoundException("Blackout date not found")
+            self.db.commit()
+            return True
+        except RepositoryException as e:
+            self.logger.error(f"Error deleting blackout date: {e}")
+            raise
 
-        if not blackout:
-            raise NotFoundException("Blackout date not found")
-
-        self.db.delete(blackout)
-        self.db.commit()
-
-        return True
-
-    # Private helper methods
+    # Private helper methods (business logic stays in service)
 
     def _get_instructor_profile(self, instructor_id: int) -> InstructorProfile:
         """Get instructor profile or raise exception."""
@@ -658,50 +600,48 @@ class AvailabilityService(BaseService):
         slots_created = 0
         has_bookings = False
 
-        # Get existing availability
-        existing = (
-            self.db.query(InstructorAvailability)
-            .filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                InstructorAvailability.date == target_date,
-            )
-            .first()
-        )
+        try:
+            # Get or create availability using repository
+            availability = self.repository.get_or_create_availability(instructor_id, target_date)
+            is_new = availability.id is None
 
-        if existing:
-            # Handle existing availability with potential bookings
-            booked_slots = self._get_booked_slots(existing.id)
-            booked_time_ranges = [(slot.start_time, slot.end_time) for slot in booked_slots]
+            if is_new:
+                dates_created = 1
 
-            if booked_time_ranges:
+            # Check for existing bookings
+            booked_slot_ids = self.repository.get_booked_slot_ids(instructor_id, target_date)
+            if booked_slot_ids:
                 has_bookings = True
-                self.logger.info(f"Found {len(booked_time_ranges)} booked slots for {target_date}")
+                self.logger.info(f"Found {len(booked_slot_ids)} booked slots for {target_date}")
 
-            if clear_existing:
+            if clear_existing and booked_slot_ids:
                 # Delete only non-booked slots
-                self._delete_non_booked_slots(existing.id, booked_slots)
+                self.repository.delete_non_booked_slots(availability.id, booked_slot_ids)
 
-            availability_entry = existing
-            availability_entry.is_cleared = False
-        else:
-            # Create new availability entry
-            availability_entry = InstructorAvailability(instructor_id=instructor_id, date=target_date, is_cleared=False)
-            self.db.add(availability_entry)
-            self.db.flush()
-            dates_created = 1
-            booked_time_ranges = []
+            # Get booked time ranges for conflict checking
+            booked_slots = self.repository.get_slots_by_availability_id(availability.id)
+            booked_time_ranges = [
+                (slot.start_time, slot.end_time) for slot in booked_slots if slot.id in booked_slot_ids
+            ]
 
-        # Add new slots that don't conflict with bookings
-        for slot in slots:
-            if not self._conflicts_with_bookings(slot.start_time, slot.end_time, booked_time_ranges):
-                if not self._slot_exists(availability_entry.id, slot.start_time, slot.end_time):
-                    time_slot = AvailabilitySlot(
-                        availability_id=availability_entry.id,
-                        start_time=slot.start_time,
-                        end_time=slot.end_time,
-                    )
-                    self.db.add(time_slot)
-                    slots_created += 1
+            # Set availability as not cleared
+            availability.is_cleared = False
+
+            # Add new slots that don't conflict with bookings
+            for slot in slots:
+                if not self._conflicts_with_bookings(slot.start_time, slot.end_time, booked_time_ranges):
+                    if not self.repository.slot_exists(availability.id, slot.start_time, slot.end_time):
+                        time_slot = AvailabilitySlot(
+                            availability_id=availability.id,
+                            start_time=slot.start_time,
+                            end_time=slot.end_time,
+                        )
+                        self.db.add(time_slot)
+                        slots_created += 1
+
+        except RepositoryException as e:
+            self.logger.error(f"Error processing date with slots: {e}")
+            raise
 
         return {
             "dates_created": dates_created,
@@ -714,55 +654,32 @@ class AvailabilityService(BaseService):
         dates_created = 0
         has_bookings = False
 
-        # Check for existing bookings
-        existing_bookings = self._count_bookings_for_date(instructor_id, target_date)
+        try:
+            # Check for existing bookings using repository
+            existing_bookings = self.repository.count_bookings_for_date(instructor_id, target_date)
 
-        if existing_bookings > 0:
-            has_bookings = True
-            self.logger.warning(f"Cannot clear {target_date} - has {existing_bookings} bookings")
-        else:
-            # Safe to delete
-            deleted = (
-                self.db.query(InstructorAvailability)
-                .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date == target_date,
-                )
-                .delete(synchronize_session=False)
-            )
+            if existing_bookings > 0:
+                has_bookings = True
+                self.logger.warning(f"Cannot clear {target_date} - has {existing_bookings} bookings")
+            else:
+                # Safe to delete - get existing availability
+                existing = self.repository.get_availability_by_date(instructor_id, target_date)
+                if existing:
+                    # Delete the availability entry
+                    self.db.delete(existing)
 
-            # Create cleared entry if something was deleted
-            if deleted > 0 and target_date != date.today():
-                availability_entry = InstructorAvailability(
-                    instructor_id=instructor_id, date=target_date, is_cleared=True
-                )
-                self.db.add(availability_entry)
-                dates_created = 1
+                    # Create cleared entry if not today
+                    if target_date != date.today():
+                        availability_entry = InstructorAvailability(
+                            instructor_id=instructor_id, date=target_date, is_cleared=True
+                        )
+                        self.db.add(availability_entry)
+                        dates_created = 1
+
+        except RepositoryException as e:
+            self.logger.error(f"Error processing date without slots: {e}")
 
         return {"dates_created": dates_created, "has_bookings": has_bookings}
-
-    def _get_booked_slots(self, availability_id: int) -> List[AvailabilitySlot]:
-        """Get slots that have bookings."""
-        return (
-            self.db.query(AvailabilitySlot)
-            .join(Booking, AvailabilitySlot.id == Booking.availability_slot_id)
-            .filter(
-                AvailabilitySlot.availability_id == availability_id,
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-            )
-            .all()
-        )
-
-    def _delete_non_booked_slots(self, availability_id: int, booked_slots: List[AvailabilitySlot]) -> int:
-        """Delete slots that don't have bookings."""
-        booked_slot_ids = [slot.id for slot in booked_slots]
-
-        query = self.db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == availability_id)
-
-        if booked_slot_ids:
-            query = query.filter(~AvailabilitySlot.id.in_(booked_slot_ids))
-
-        return query.delete(synchronize_session=False)
 
     def _conflicts_with_bookings(
         self, start_time: time, end_time: time, booked_ranges: List[Tuple[time, time]]
@@ -772,49 +689,6 @@ class AvailabilityService(BaseService):
             if start_time < booked_end and end_time > booked_start:
                 return True
         return False
-
-    def _slot_exists(self, availability_id: int, start_time: time, end_time: time) -> bool:
-        """Check if an exact slot already exists."""
-        return (
-            self.db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.availability_id == availability_id,
-                AvailabilitySlot.start_time == start_time,
-                AvailabilitySlot.end_time == end_time,
-            )
-            .first()
-            is not None
-        )
-
-    def _count_bookings_for_date(self, instructor_id: int, target_date: date) -> int:
-        """Count bookings for a specific date."""
-        return (
-            self.db.query(Booking)
-            .join(AvailabilitySlot, Booking.availability_slot_id == AvailabilitySlot.id)
-            .join(
-                InstructorAvailability,
-                AvailabilitySlot.availability_id == InstructorAvailability.id,
-            )
-            .filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                InstructorAvailability.date == target_date,
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-            )
-            .count()
-        )
-
-    def _check_duplicate_slot(self, availability: InstructorAvailability, start_time: time, end_time: time) -> bool:
-        """Check if a slot already exists."""
-        return (
-            self.db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.availability_id == availability.id,
-                AvailabilitySlot.start_time == start_time,
-                AvailabilitySlot.end_time == end_time,
-            )
-            .first()
-            is not None
-        )
 
     def _invalidate_availability_caches(self, instructor_id: int, dates: List[date]) -> None:
         """Invalidate caches for affected dates."""
