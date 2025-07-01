@@ -35,6 +35,7 @@ Benefits:
 # Import specific repositories as they are created
 from .availability_repository import AvailabilityRepository
 from .base_repository import BaseRepository, IRepository
+from .booking_repository import BookingRepository
 from .bulk_operation_repository import BulkOperationRepository
 from .conflict_checker_repository import ConflictCheckerRepository
 from .factory import RepositoryFactory
@@ -48,6 +49,7 @@ __all__ = [
     "SlotManagerRepository",
     "ConflictCheckerRepository",
     "BulkOperationRepository",
+    "BookingRepository",
 ]
 
 # Version info

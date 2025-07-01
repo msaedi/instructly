@@ -1,8 +1,8 @@
 # backend/tests/unit/test_booking_service_logic.py
 """
-Unit tests for BookingService business logic.
+Unit tests for BookingService business logic with repository pattern.
 
-These tests mock all dependencies (database, notification service, etc.)
+These tests mock all dependencies (repository, notification service, etc.)
 to test the business logic in isolation.
 """
 
@@ -19,6 +19,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service import Service
 from app.models.user import User, UserRole
+from app.repositories.booking_repository import BookingRepository
 from app.schemas.booking import BookingCreate, BookingUpdate
 from app.services.booking_service import BookingService
 
@@ -51,13 +52,42 @@ class TestBookingServiceUnit:
         return mock
 
     @pytest.fixture
-    def booking_service(self, mock_db, mock_notification_service):
+    def mock_repository(self):
+        """Create a mock booking repository."""
+        repository = Mock(spec=BookingRepository)
+        # Set default return values for common methods
+        repository.get_booking_for_slot.return_value = None
+        repository.create.return_value = Mock(spec=Booking, id=1)
+        repository.get_booking_with_details.return_value = None
+        repository.update.return_value = None
+        return repository
+
+    @pytest.fixture
+    def mock_slot_repository(self):
+        """Create a mock slot manager repository."""
+        repository = Mock()
+        return repository
+
+    @pytest.fixture
+    def mock_availability_repository(self):
+        """Create a mock availability repository."""
+        repository = Mock()
+        repository.get_availability_slot_with_details.return_value = None
+        return repository
+
+    @pytest.fixture
+    def booking_service(
+        self, mock_db, mock_notification_service, mock_repository, mock_slot_repository, mock_availability_repository
+    ):
         """Create BookingService with mocked dependencies."""
-        service = BookingService(mock_db, mock_notification_service)
+        service = BookingService(mock_db, mock_notification_service, mock_repository)
         # Mock the transaction context manager
         service.transaction = MagicMock()
         service.transaction.return_value.__enter__ = Mock()
         service.transaction.return_value.__exit__ = Mock(return_value=None)
+        # Replace the other repositories
+        service.slot_repository = mock_slot_repository
+        service.availability_repository = mock_availability_repository
         return service
 
     @pytest.fixture
@@ -89,15 +119,18 @@ class TestBookingServiceUnit:
         service.hourly_rate = 50.0
         service.is_active = True
         service.duration_override = None
+        service.instructor_profile_id = 1
+        return service
 
-        # Mock the instructor profile - use consistent ID
+    @pytest.fixture
+    def mock_instructor_profile(self):
+        """Create a mock instructor profile."""
         profile = Mock(spec=InstructorProfile)
+        profile.id = 1
         profile.user_id = 2  # Same as mock_instructor.id
         profile.min_advance_booking_hours = 24
         profile.areas_of_service = "Manhattan, Brooklyn"
-        service.instructor_profile = profile
-
-        return service
+        return profile
 
     @pytest.fixture
     def mock_slot(self):
@@ -107,7 +140,7 @@ class TestBookingServiceUnit:
         slot.start_time = time(14, 0)
         slot.end_time = time(15, 0)
 
-        # Mock the availability relationship - use consistent ID
+        # Mock the availability relationship
         availability = Mock(spec=InstructorAvailability)
         availability.instructor_id = 2  # Same as mock_instructor.id
         availability.date = date.today() + timedelta(days=2)
@@ -150,7 +183,15 @@ class TestBookingServiceUnit:
 
     @pytest.mark.asyncio
     async def test_create_booking_success(
-        self, booking_service, mock_db, mock_student, mock_instructor, mock_service, mock_slot
+        self,
+        booking_service,
+        mock_db,
+        mock_student,
+        mock_instructor,
+        mock_service,
+        mock_slot,
+        mock_instructor_profile,
+        mock_booking,
     ):
         """Test successful booking creation."""
         # Setup mocks
@@ -162,49 +203,32 @@ class TestBookingServiceUnit:
             student_note="Looking forward to it!",
         )
 
-        # Ensure consistency in instructor IDs
-        assert mock_slot.availability.instructor_id == mock_instructor.id
-        assert mock_service.instructor_profile.user_id == mock_instructor.id
+        # Make sure the service's instructor_profile_id matches the profile
+        mock_service.instructor_profile_id = mock_instructor_profile.id
 
-        # Mock the query chains for _validate_booking_data
-        # First query - get availability slot
-        slot_query_chain = Mock()
-        slot_query_chain.options.return_value = slot_query_chain
-        slot_query_chain.filter.return_value = slot_query_chain
-        slot_query_chain.first.return_value = mock_slot
+        # Mock repository responses
+        booking_service.availability_repository.get_availability_slot_with_details.return_value = mock_slot
+        booking_service.repository.get_booking_for_slot.return_value = None  # No existing booking
 
-        # Second query - get service
-        service_query_chain = Mock()
-        service_query_chain.options.return_value = service_query_chain
-        service_query_chain.filter.return_value = service_query_chain
-        service_query_chain.first.return_value = mock_service
-
-        # Third query - check for existing booking in create_booking
-        booking_check_chain = Mock()
-        booking_check_chain.filter.return_value = booking_check_chain
-        booking_check_chain.first.return_value = None  # No existing booking
-
-        # Set up query returns in order
-        mock_db.query.side_effect = [
-            slot_query_chain,  # For AvailabilitySlot in _validate_booking_data
-            service_query_chain,  # For Service in _validate_booking_data
-            booking_check_chain,  # For existing booking check in create_booking
+        # Mock the service and instructor profile queries (still direct DB queries in the service)
+        mock_db.query.return_value.filter.return_value.first.side_effect = [
+            mock_service,  # For service query
+            mock_instructor_profile,  # For instructor profile query
         ]
 
-        # Mock the booking creation
-        created_booking = Mock(spec=Booking)
-        created_booking.id = 1
-        created_booking.status = BookingStatus.CONFIRMED
+        # Mock repository create and get_booking_with_details
+        created_booking = Mock(spec=Booking, id=1, status=BookingStatus.CONFIRMED)
+        booking_service.repository.create.return_value = created_booking
+        booking_service.repository.get_booking_with_details.return_value = mock_booking
 
-        # Mock _load_booking_with_relationships
-        with patch.object(booking_service, "_load_booking_with_relationships", return_value=created_booking):
-            with patch.object(booking_service, "_invalidate_booking_caches"):
-                result = await booking_service.create_booking(mock_student, booking_data)
+        with patch.object(booking_service, "_invalidate_booking_caches"):
+            result = await booking_service.create_booking(mock_student, booking_data)
 
         # Assertions
-        assert result == created_booking
-        mock_db.add.assert_called_once()
-        mock_db.flush.assert_called()
+        assert result == mock_booking
+        booking_service.availability_repository.get_availability_slot_with_details.assert_called_once_with(1)
+        booking_service.repository.get_booking_for_slot.assert_called_once_with(1, active_only=True)
+        booking_service.repository.create.assert_called_once()
         mock_db.commit.assert_called()
         booking_service.notification_service.send_booking_confirmation.assert_called_once()
 
@@ -222,12 +246,7 @@ class TestBookingServiceUnit:
         booking_data = BookingCreate(availability_slot_id=999, service_id=1, location_type="neutral")
 
         # Mock slot not found
-        slot_query_chain = Mock()
-        slot_query_chain.options.return_value = slot_query_chain
-        slot_query_chain.filter.return_value = slot_query_chain
-        slot_query_chain.first.return_value = None  # Slot not found
-
-        mock_db.query.return_value = slot_query_chain
+        booking_service.availability_repository.get_availability_slot_with_details.return_value = None
 
         with pytest.raises(NotFoundException, match="Availability slot not found"):
             await booking_service.create_booking(mock_student, booking_data)
@@ -237,67 +256,49 @@ class TestBookingServiceUnit:
         """Test booking creation fails with inactive service."""
         booking_data = BookingCreate(availability_slot_id=1, service_id=1, location_type="neutral")
 
-        # Mock the query chains
-        # First query - get availability slot
-        slot_query_chain = Mock()
-        slot_query_chain.options.return_value = slot_query_chain
-        slot_query_chain.filter.return_value = slot_query_chain
-        slot_query_chain.first.return_value = mock_slot
+        # Mock repository responses
+        booking_service.availability_repository.get_availability_slot_with_details.return_value = mock_slot
+        booking_service.repository.get_booking_for_slot.return_value = None
 
-        # Second query - service not found (inactive)
-        service_query_chain = Mock()
-        service_query_chain.options.return_value = service_query_chain
-        service_query_chain.filter.return_value = service_query_chain
-        service_query_chain.first.return_value = None  # Service not found/inactive
-
-        # Set up query returns in order
-        mock_db.query.side_effect = [slot_query_chain, service_query_chain]
+        # Mock service not found (inactive)
+        mock_db.query.return_value.filter.return_value.first.return_value = None
 
         with pytest.raises(NotFoundException, match="Service not found or no longer available"):
             await booking_service.create_booking(mock_student, booking_data)
 
     @pytest.mark.asyncio
     async def test_create_booking_slot_already_booked(
-        self, booking_service, mock_db, mock_student, mock_instructor, mock_slot, mock_service, mock_booking
+        self, booking_service, mock_db, mock_student, mock_slot, mock_booking, mock_service, mock_instructor_profile
     ):
         """Test booking creation fails when slot already booked."""
         booking_data = BookingCreate(availability_slot_id=1, service_id=1, location_type="neutral")
 
-        # Ensure consistency in instructor IDs
-        assert mock_slot.availability.instructor_id == mock_instructor.id
-        assert mock_service.instructor_profile.user_id == mock_instructor.id
+        # Debug: Print the initial values
+        print(f"mock_slot.availability.instructor_id: {mock_slot.availability.instructor_id}")
+        print(f"mock_service.instructor_profile_id: {mock_service.instructor_profile_id}")
+        print(f"mock_instructor_profile.id: {mock_instructor_profile.id}")
+        print(f"mock_instructor_profile.user_id: {mock_instructor_profile.user_id}")
 
-        # Mock the query chains
-        # First query - get availability slot
-        slot_query_chain = Mock()
-        slot_query_chain.options.return_value = slot_query_chain
-        slot_query_chain.filter.return_value = slot_query_chain
-        slot_query_chain.first.return_value = mock_slot
+        # Mock repository responses
+        booking_service.availability_repository.get_availability_slot_with_details.return_value = mock_slot
+        booking_service.repository.get_booking_for_slot.return_value = mock_booking  # Slot is booked!
 
-        # Second query - get service
-        service_query_chain = Mock()
-        service_query_chain.options.return_value = service_query_chain
-        service_query_chain.filter.return_value = service_query_chain
-        service_query_chain.first.return_value = mock_service
+        # Create separate mocks for the two queries to ensure they return the right objects
+        service_query_mock = Mock()
+        service_query_mock.filter.return_value.first.return_value = mock_service
 
-        # Third query - check for existing booking (finds one)
-        booking_check_chain = Mock()
-        booking_check_chain.filter.return_value = booking_check_chain
-        booking_check_chain.first.return_value = mock_booking  # Booking exists!
+        profile_query_mock = Mock()
+        profile_query_mock.filter.return_value.first.return_value = mock_instructor_profile
 
-        # Set up query returns in order
-        mock_db.query.side_effect = [
-            slot_query_chain,  # For AvailabilitySlot
-            service_query_chain,  # For Service
-            booking_check_chain,  # For existing booking check
-        ]
+        # Set up the query mock to return different mocks for each call
+        mock_db.query.side_effect = [service_query_mock, profile_query_mock]
 
         with pytest.raises(ConflictException, match="This slot is already booked"):
             await booking_service.create_booking(mock_student, booking_data)
 
     @pytest.mark.asyncio
     async def test_create_booking_minimum_advance_hours(
-        self, booking_service, mock_db, mock_student, mock_instructor, mock_service, mock_slot
+        self, booking_service, mock_db, mock_student, mock_service, mock_slot, mock_instructor_profile
     ):
         """Test minimum advance booking hours validation."""
         booking_data = BookingCreate(availability_slot_id=1, service_id=1, location_type="neutral")
@@ -306,34 +307,15 @@ class TestBookingServiceUnit:
         mock_slot.availability.date = date.today()
         mock_slot.start_time = (datetime.now() + timedelta(hours=1)).time()
 
-        # Ensure consistency in instructor IDs
-        assert mock_slot.availability.instructor_id == mock_instructor.id
-        assert mock_service.instructor_profile.user_id == mock_instructor.id
+        # Make sure the service's instructor_profile_id matches the profile
+        mock_service.instructor_profile_id = mock_instructor_profile.id
 
-        # Mock the query chains
-        # First query - get availability slot
-        slot_query_chain = Mock()
-        slot_query_chain.options.return_value = slot_query_chain
-        slot_query_chain.filter.return_value = slot_query_chain
-        slot_query_chain.first.return_value = mock_slot
+        # Mock repository responses
+        booking_service.availability_repository.get_availability_slot_with_details.return_value = mock_slot
+        booking_service.repository.get_booking_for_slot.return_value = None
 
-        # Second query - get service
-        service_query_chain = Mock()
-        service_query_chain.options.return_value = service_query_chain
-        service_query_chain.filter.return_value = service_query_chain
-        service_query_chain.first.return_value = mock_service
-
-        # Third query - check for existing booking
-        booking_check_chain = Mock()
-        booking_check_chain.filter.return_value = booking_check_chain
-        booking_check_chain.first.return_value = None  # No existing booking
-
-        # Set up query returns in order
-        mock_db.query.side_effect = [
-            slot_query_chain,  # For AvailabilitySlot
-            service_query_chain,  # For Service
-            booking_check_chain,  # For existing booking check
-        ]
+        # Mock the service and instructor profile queries
+        mock_db.query.return_value.filter.return_value.first.side_effect = [mock_service, mock_instructor_profile]
 
         with pytest.raises(BusinessRuleException, match="at least 24 hours in advance"):
             await booking_service.create_booking(mock_student, booking_data)
@@ -342,11 +324,10 @@ class TestBookingServiceUnit:
     async def test_cancel_booking_success(self, booking_service, mock_db, mock_student, mock_booking):
         """Test successful booking cancellation by student."""
         # Mock the booking retrieval
-        with patch.object(booking_service, "_load_booking_with_relationships", return_value=mock_booking):
-            with patch.object(booking_service, "_invalidate_booking_caches"):
-                result = await booking_service.cancel_booking(
-                    booking_id=1, user=mock_student, reason="Schedule conflict"
-                )
+        booking_service.repository.get_booking_with_details.return_value = mock_booking
+
+        with patch.object(booking_service, "_invalidate_booking_caches"):
+            result = await booking_service.cancel_booking(booking_id=1, user=mock_student, reason="Schedule conflict")
 
         # Assertions
         mock_booking.cancel.assert_called_once_with(mock_student.id, "Schedule conflict")
@@ -356,9 +337,10 @@ class TestBookingServiceUnit:
     @pytest.mark.asyncio
     async def test_cancel_booking_not_found(self, booking_service):
         """Test cancellation fails when booking not found."""
-        with patch.object(booking_service, "_load_booking_with_relationships", return_value=None):
-            with pytest.raises(NotFoundException, match="Booking not found"):
-                await booking_service.cancel_booking(1, Mock())
+        booking_service.repository.get_booking_with_details.return_value = None
+
+        with pytest.raises(NotFoundException, match="Booking not found"):
+            await booking_service.cancel_booking(1, Mock())
 
     @pytest.mark.asyncio
     async def test_cancel_booking_unauthorized(self, booking_service, mock_booking):
@@ -366,9 +348,10 @@ class TestBookingServiceUnit:
         unauthorized_user = Mock(spec=User)
         unauthorized_user.id = 999
 
-        with patch.object(booking_service, "_load_booking_with_relationships", return_value=mock_booking):
-            with pytest.raises(ValidationException, match="You don't have permission to cancel this booking"):
-                await booking_service.cancel_booking(1, unauthorized_user)
+        booking_service.repository.get_booking_with_details.return_value = mock_booking
+
+        with pytest.raises(ValidationException, match="You don't have permission to cancel this booking"):
+            await booking_service.cancel_booking(1, unauthorized_user)
 
     @pytest.mark.asyncio
     async def test_cancel_booking_not_cancellable(self, booking_service, mock_student, mock_booking):
@@ -376,46 +359,37 @@ class TestBookingServiceUnit:
         mock_booking.is_cancellable = False
         mock_booking.status = BookingStatus.COMPLETED
 
-        with patch.object(booking_service, "_load_booking_with_relationships", return_value=mock_booking):
-            with pytest.raises(BusinessRuleException, match="Booking cannot be cancelled"):
-                await booking_service.cancel_booking(1, mock_student)
+        booking_service.repository.get_booking_with_details.return_value = mock_booking
 
-    def test_get_bookings_for_student(self, booking_service, mock_db, mock_student, mock_booking):
+        with pytest.raises(BusinessRuleException, match="Booking cannot be cancelled"):
+            await booking_service.cancel_booking(1, mock_student)
+
+    def test_get_bookings_for_student(self, booking_service, mock_student, mock_booking):
         """Test retrieving bookings for a student."""
-        # Mock query chain
-        query_mock = Mock()
-        query_mock.filter.return_value = query_mock
-        query_mock.order_by.return_value = query_mock
-        query_mock.limit.return_value = query_mock
-        query_mock.all.return_value = [mock_booking]
-
-        mock_db.query.return_value.options.return_value = query_mock
+        booking_service.repository.get_student_bookings.return_value = [mock_booking]
 
         bookings = booking_service.get_bookings_for_user(mock_student)
 
         assert len(bookings) == 1
         assert bookings[0] == mock_booking
-        query_mock.filter.assert_called()
+        booking_service.repository.get_student_bookings.assert_called_once_with(
+            student_id=mock_student.id, status=None, upcoming_only=False, limit=None
+        )
 
-    def test_get_bookings_for_instructor(self, booking_service, mock_db, mock_instructor, mock_booking):
+    def test_get_bookings_for_instructor(self, booking_service, mock_instructor, mock_booking):
         """Test retrieving bookings for an instructor."""
-        # Mock query chain
-        query_mock = Mock()
-        query_mock.filter.return_value = query_mock
-        query_mock.order_by.return_value = query_mock
-        query_mock.limit.return_value = query_mock
-        query_mock.all.return_value = [mock_booking]
-
-        mock_db.query.return_value.options.return_value = query_mock
+        booking_service.repository.get_instructor_bookings.return_value = [mock_booking]
 
         bookings = booking_service.get_bookings_for_user(mock_instructor)
 
         assert len(bookings) == 1
-        query_mock.filter.assert_called()
+        booking_service.repository.get_instructor_bookings.assert_called_once_with(
+            instructor_id=mock_instructor.id, status=None, upcoming_only=False, limit=None
+        )
 
-    def test_get_booking_stats_empty(self, booking_service, mock_db, mock_instructor):
+    def test_get_booking_stats_empty(self, booking_service, mock_instructor):
         """Test booking statistics with no bookings."""
-        mock_db.query.return_value.filter.return_value.all.return_value = []
+        booking_service.repository.get_instructor_bookings_for_stats.return_value = []
 
         stats = booking_service.get_booking_stats_for_instructor(mock_instructor.id)
 
@@ -426,7 +400,7 @@ class TestBookingServiceUnit:
         assert stats["total_earnings"] == 0
         assert stats["completion_rate"] == 0
 
-    def test_get_booking_stats_with_bookings(self, booking_service, mock_db, mock_instructor):
+    def test_get_booking_stats_with_bookings(self, booking_service, mock_instructor):
         """Test booking statistics with various bookings."""
         # Create different types of bookings
         completed_booking = Mock()
@@ -445,7 +419,7 @@ class TestBookingServiceUnit:
         cancelled_booking.is_upcoming = False
         cancelled_booking.total_price = Decimal("75.00")
 
-        mock_db.query.return_value.filter.return_value.all.return_value = [
+        booking_service.repository.get_instructor_bookings_for_stats.return_value = [
             completed_booking,
             upcoming_booking,
             cancelled_booking,
@@ -465,28 +439,32 @@ class TestBookingServiceUnit:
         """Test successful booking update by instructor."""
         update_data = BookingUpdate(instructor_note="Please bring your music sheets", meeting_location="Room 202")
 
-        with patch.object(booking_service, "_load_booking_with_relationships", return_value=mock_booking):
-            with patch.object(booking_service, "_invalidate_booking_caches"):
-                booking_service.update_booking(1, mock_instructor, update_data)
+        booking_service.repository.get_booking_with_details.side_effect = [mock_booking, mock_booking]
+        booking_service.repository.update.return_value = mock_booking
 
-        assert mock_booking.instructor_note == "Please bring your music sheets"
-        assert mock_booking.meeting_location == "Room 202"
+        with patch.object(booking_service, "_invalidate_booking_caches"):
+            booking_service.update_booking(1, mock_instructor, update_data)
+
+        booking_service.repository.update.assert_called_once_with(
+            1, instructor_note="Please bring your music sheets", meeting_location="Room 202"
+        )
         mock_db.commit.assert_called()
-        mock_db.refresh.assert_called_with(mock_booking)
 
     def test_update_booking_student_forbidden(self, booking_service, mock_student, mock_booking):
         """Test students cannot update bookings."""
         update_data = BookingUpdate(instructor_note="Should fail")
 
-        with patch.object(booking_service, "_load_booking_with_relationships", return_value=mock_booking):
-            with pytest.raises(ValidationException, match="Only the instructor can update booking details"):
-                booking_service.update_booking(1, mock_student, update_data)
+        booking_service.repository.get_booking_with_details.return_value = mock_booking
+
+        with pytest.raises(ValidationException, match="Only the instructor can update booking details"):
+            booking_service.update_booking(1, mock_student, update_data)
 
     def test_complete_booking_success(self, booking_service, mock_db, mock_instructor, mock_booking):
         """Test marking booking as completed."""
-        with patch.object(booking_service, "_load_booking_with_relationships", return_value=mock_booking):
-            with patch.object(booking_service, "_invalidate_booking_caches"):
-                booking_service.complete_booking(1, mock_instructor)
+        booking_service.repository.get_booking_with_details.side_effect = [mock_booking, mock_booking]
+
+        with patch.object(booking_service, "_invalidate_booking_caches"):
+            booking_service.complete_booking(1, mock_instructor)
 
         mock_booking.complete.assert_called_once()
         mock_db.commit.assert_called()
@@ -497,28 +475,22 @@ class TestBookingServiceUnit:
         wrong_instructor.id = 999
         wrong_instructor.role = UserRole.INSTRUCTOR
 
-        with patch.object(booking_service, "_load_booking_with_relationships", return_value=mock_booking):
-            with pytest.raises(ValidationException, match="You can only complete your own bookings"):
-                booking_service.complete_booking(1, wrong_instructor)
+        booking_service.repository.get_booking_with_details.return_value = mock_booking
+
+        with pytest.raises(ValidationException, match="You can only complete your own bookings"):
+            booking_service.complete_booking(1, wrong_instructor)
 
     @pytest.mark.asyncio
-    async def test_check_availability_success(self, booking_service, mock_db, mock_slot, mock_service):
+    async def test_check_availability_success(
+        self, booking_service, mock_db, mock_slot, mock_service, mock_instructor_profile
+    ):
         """Test checking availability for available slot."""
-        # Mock the query chains separately
-        # First query - get slot
-        slot_query = Mock()
-        slot_query.options.return_value.filter.return_value.first.return_value = mock_slot
+        # Mock repository responses
+        booking_service.availability_repository.get_availability_slot_with_details.return_value = mock_slot
+        booking_service.repository.get_booking_for_slot.return_value = None  # No booking exists
 
-        # Second query - check for existing booking
-        booking_query = Mock()
-        booking_query.filter.return_value.first.return_value = None  # No booking exists
-
-        # Third query - get service
-        service_query = Mock()
-        service_query.options.return_value.filter.return_value.first.return_value = mock_service
-
-        # Set up query returns in order
-        mock_db.query.side_effect = [slot_query, booking_query, service_query]
+        # Mock service and instructor profile queries
+        mock_db.query.return_value.filter.return_value.first.side_effect = [mock_service, mock_instructor_profile]
 
         result = await booking_service.check_availability(slot_id=1, service_id=1)
 
@@ -526,19 +498,11 @@ class TestBookingServiceUnit:
         assert "slot_info" in result
 
     @pytest.mark.asyncio
-    async def test_check_availability_slot_booked(self, booking_service, mock_db, mock_slot, mock_booking):
+    async def test_check_availability_slot_booked(self, booking_service, mock_slot, mock_booking):
         """Test checking availability for booked slot."""
-        # Mock the query chains separately
-        # First query - get slot
-        slot_query = Mock()
-        slot_query.options.return_value.filter.return_value.first.return_value = mock_slot
-
-        # Second query - check for existing booking (finds one)
-        booking_query = Mock()
-        booking_query.filter.return_value.first.return_value = mock_booking
-
-        # Set up query returns (no third query since it returns early)
-        mock_db.query.side_effect = [slot_query, booking_query]
+        # Mock repository responses
+        booking_service.availability_repository.get_availability_slot_with_details.return_value = mock_slot
+        booking_service.repository.get_booking_for_slot.return_value = mock_booking  # Slot is booked
 
         result = await booking_service.check_availability(slot_id=1, service_id=1)
 
@@ -546,7 +510,7 @@ class TestBookingServiceUnit:
         assert result["reason"] == "Slot is already booked"
 
     @pytest.mark.asyncio
-    async def test_send_booking_reminders_success(self, booking_service, mock_db, mock_notification_service):
+    async def test_send_booking_reminders_success(self, booking_service, mock_notification_service):
         """Test sending booking reminders."""
         # Create tomorrow's booking
         tomorrow_booking = Mock()
@@ -554,7 +518,7 @@ class TestBookingServiceUnit:
         tomorrow_booking.booking_date = date.today() + timedelta(days=1)
         tomorrow_booking.status = BookingStatus.CONFIRMED
 
-        mock_db.query.return_value.filter.return_value.options.return_value.all.return_value = [tomorrow_booking]
+        booking_service.repository.get_bookings_for_date.return_value = [tomorrow_booking]
 
         count = await booking_service.send_booking_reminders()
 
@@ -562,7 +526,7 @@ class TestBookingServiceUnit:
         mock_notification_service.send_reminder_emails.assert_called()
 
     @pytest.mark.asyncio
-    async def test_send_booking_reminders_with_failures(self, booking_service, mock_db, mock_notification_service):
+    async def test_send_booking_reminders_with_failures(self, booking_service, mock_notification_service):
         """Test reminder sending handles individual failures."""
         # Create bookings
         booking1 = Mock()
@@ -570,7 +534,7 @@ class TestBookingServiceUnit:
         booking2 = Mock()
         booking2.id = 2
 
-        mock_db.query.return_value.filter.return_value.options.return_value.all.return_value = [booking1, booking2]
+        booking_service.repository.get_bookings_for_date.return_value = [booking1, booking2]
 
         # Make first reminder fail
         mock_notification_service.send_reminder_emails.side_effect = [Exception("Email error"), None]  # Second succeeds

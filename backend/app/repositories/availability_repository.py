@@ -219,6 +219,30 @@ class AvailabilityRepository(BaseRepository[InstructorAvailability]):
             self.logger.error(f"Error getting slots: {str(e)}")
             raise RepositoryException(f"Failed to get slots: {str(e)}")
 
+    def get_availability_slot_with_details(self, slot_id: int) -> Optional[AvailabilitySlot]:
+        """
+        Get an availability slot with its availability relationship loaded.
+
+        This method is used by BookingService to validate slot availability
+        and check instructor ownership.
+
+        Args:
+            slot_id: The availability slot ID
+
+        Returns:
+            The slot with availability loaded, or None if not found
+        """
+        try:
+            return (
+                self.db.query(AvailabilitySlot)
+                .options(joinedload(AvailabilitySlot.availability))
+                .filter(AvailabilitySlot.id == slot_id)
+                .first()
+            )
+        except SQLAlchemyError as e:
+            self.logger.error(f"Error getting availability slot details: {str(e)}")
+            raise RepositoryException(f"Failed to get availability slot: {str(e)}")
+
     def slot_exists(self, availability_id: int, start_time: time, end_time: time) -> bool:
         """
         Check if an exact slot already exists.

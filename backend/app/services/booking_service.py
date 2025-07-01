@@ -13,7 +13,7 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from ..core.exceptions import BusinessRuleException, ConflictException, NotFoundException, ValidationException
 from ..models.availability import AvailabilitySlot
@@ -21,6 +21,7 @@ from ..models.booking import Booking, BookingStatus
 from ..models.instructor import InstructorProfile
 from ..models.service import Service
 from ..models.user import User, UserRole
+from ..repositories.factory import RepositoryFactory
 from ..schemas.booking import BookingCreate, BookingUpdate
 from .base import BaseService
 from .notification_service import NotificationService
@@ -42,16 +43,23 @@ class BookingService(BaseService):
     with other services like availability and notifications.
     """
 
-    def __init__(self, db: Session, notification_service: Optional[NotificationService] = None):
+    def __init__(self, db: Session, notification_service: Optional[NotificationService] = None, repository=None):
         """
         Initialize booking service.
 
         Args:
             db: Database session
             notification_service: Optional notification service instance
+            repository: Optional BookingRepository instance
         """
         super().__init__(db)
         self.notification_service = notification_service or NotificationService(db)
+        self.repository = repository or RepositoryFactory.create_booking_repository(db)
+
+        # Create repositories for related services
+        # Note: In a complete implementation, these would be passed in or use a service locator
+        self.slot_repository = RepositoryFactory.create_slot_manager_repository(db)
+        self.availability_repository = RepositoryFactory.create_availability_repository(db)
 
     async def create_booking(self, student: User, booking_data: BookingCreate) -> Booking:
         """
@@ -89,15 +97,8 @@ class BookingService(BaseService):
             # 1. Validate and load all required data
             slot, service, instructor_profile = await self._validate_booking_data(booking_data)
 
-            # 2. Check slot availability (FIXED: no longer using slot.booking_id)
-            existing_booking = (
-                self.db.query(Booking)
-                .filter(
-                    Booking.availability_slot_id == slot.id,
-                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                )
-                .first()
-            )
+            # 2. Check slot availability using repository
+            existing_booking = self.repository.get_booking_for_slot(slot.id, active_only=True)
 
             if existing_booking:
                 raise ConflictException("This slot is already booked")
@@ -108,8 +109,8 @@ class BookingService(BaseService):
             # 4. Calculate pricing
             pricing = self._calculate_pricing(service, slot)
 
-            # 5. Create the booking
-            booking = Booking(
+            # 5. Create the booking using repository
+            booking = self.repository.create(
                 student_id=student.id,
                 instructor_id=slot.availability.instructor_id,
                 service_id=service.id,
@@ -128,25 +129,20 @@ class BookingService(BaseService):
                 student_note=booking_data.student_note,
             )
 
-            self.db.add(booking)
-            self.db.flush()  # Get the booking ID
-
-            # 6. Note: We no longer set slot.booking_id since that field was removed
-
-            # 7. Commit transaction
+            # 6. Commit transaction
             self.db.commit()
 
-            # 8. Load relationships for response
-            booking = self._load_booking_with_relationships(booking.id)
+            # 7. Load relationships for response
+            booking = self.repository.get_booking_with_details(booking.id)
 
-            # 9. Send notifications (async, don't fail booking if this fails)
+            # 8. Send notifications (async, don't fail booking if this fails)
             try:
                 await self.notification_service.send_booking_confirmation(booking)
             except Exception as e:
                 logger.error(f"Failed to send booking confirmation: {str(e)}")
                 # Don't fail the booking, but log for retry
 
-            # 10. Invalidate relevant caches
+            # 9. Invalidate relevant caches
             self._invalidate_booking_caches(booking)
 
             logger.info(f"Booking {booking.id} created successfully")
@@ -171,7 +167,7 @@ class BookingService(BaseService):
         """
         with self.transaction():
             # Load booking with relationships
-            booking = self._load_booking_with_relationships(booking_id)
+            booking = self.repository.get_booking_with_details(booking_id)
             if not booking:
                 raise NotFoundException("Booking not found")
 
@@ -188,9 +184,6 @@ class BookingService(BaseService):
 
             # Cancel the booking
             booking.cancel(user.id, reason)
-
-            # Note: We no longer clear slot.booking_id since that field was removed
-            # The slot becomes available simply by the booking being cancelled
 
             self.db.commit()
 
@@ -226,35 +219,15 @@ class BookingService(BaseService):
         Returns:
             List of bookings
         """
-        query = self.db.query(Booking).options(
-            joinedload(Booking.student),
-            joinedload(Booking.instructor),
-            joinedload(Booking.service),
-        )
-
-        # Filter by user role
+        # Use repository methods based on user role
         if user.role == UserRole.STUDENT:
-            query = query.filter(Booking.student_id == user.id)
-        else:  # INSTRUCTOR
-            query = query.filter(Booking.instructor_id == user.id)
-
-        # Apply filters
-        if status:
-            query = query.filter(Booking.status == status)
-
-        if upcoming_only:
-            query = query.filter(
-                Booking.booking_date >= date.today(),
-                Booking.status == BookingStatus.CONFIRMED,
+            return self.repository.get_student_bookings(
+                student_id=user.id, status=status, upcoming_only=upcoming_only, limit=limit
             )
-
-        # Order and limit
-        query = query.order_by(Booking.booking_date.desc(), Booking.start_time.desc())
-
-        if limit:
-            query = query.limit(limit)
-
-        return query.all()
+        else:  # INSTRUCTOR
+            return self.repository.get_instructor_bookings(
+                instructor_id=user.id, status=status, upcoming_only=upcoming_only, limit=limit
+            )
 
     def get_booking_stats_for_instructor(self, instructor_id: int) -> Dict[str, Any]:
         """
@@ -266,7 +239,7 @@ class BookingService(BaseService):
         Returns:
             Dictionary of statistics
         """
-        bookings = self.db.query(Booking).filter(Booking.instructor_id == instructor_id).all()
+        bookings = self.repository.get_instructor_bookings_for_stats(instructor_id)
 
         # Calculate stats
         total_bookings = len(bookings)
@@ -302,21 +275,17 @@ class BookingService(BaseService):
         self, booking_data: BookingCreate
     ) -> tuple[AvailabilitySlot, Service, InstructorProfile]:
         """Validate and load all required data for booking."""
-        # Load availability slot
-        slot = (
-            self.db.query(AvailabilitySlot)
-            .options(joinedload(AvailabilitySlot.availability))
-            .filter(AvailabilitySlot.id == booking_data.availability_slot_id)
-            .first()
-        )
+        # Load availability slot using repository
+        slot = self.availability_repository.get_availability_slot_with_details(booking_data.availability_slot_id)
 
         if not slot:
             raise NotFoundException("Availability slot not found")
 
         # Load service - ONLY ACTIVE SERVICES
+        # Note: This should ideally use a ServiceRepository, but we'll use direct query for now
+        # In a complete implementation, this would be: service = self.service_repository.get_active_service_with_profile(booking_data.service_id)
         service = (
             self.db.query(Service)
-            .options(joinedload(Service.instructor_profile))
             .filter(
                 Service.id == booking_data.service_id, Service.is_active == True  # Only allow booking active services
             )
@@ -326,11 +295,22 @@ class BookingService(BaseService):
         if not service:
             raise NotFoundException("Service not found or no longer available")
 
+        # Get instructor profile
+        # Note: This should ideally use an InstructorRepository
+        instructor_profile = (
+            self.db.query(InstructorProfile)
+            .filter(InstructorProfile.user_id == slot.availability.instructor_id)
+            .first()
+        )
+
+        if not instructor_profile:
+            raise NotFoundException("Instructor profile not found")
+
         # Verify service belongs to instructor
-        if service.instructor_profile.user_id != slot.availability.instructor_id:
+        if service.instructor_profile_id != instructor_profile.id:
             raise ValidationException("Service does not belong to this instructor")
 
-        return slot, service, service.instructor_profile
+        return slot, service, instructor_profile
 
     async def _apply_booking_rules(
         self,
@@ -346,14 +326,10 @@ class BookingService(BaseService):
 
         if booking_datetime < min_booking_time:
             raise BusinessRuleException(
-                "Bookings must be made at least " f"{instructor_profile.min_advance_booking_hours} hours in advance"
+                f"Bookings must be made at least {instructor_profile.min_advance_booking_hours} hours in advance"
             )
 
         # Additional business rules can be added here
-        # - Check for blackout dates
-        # - Check for maximum bookings per day
-        # - Check for overlapping bookings
-        # etc.
 
     async def _apply_cancellation_rules(self, booking: Booking, user: User) -> None:
         """Apply business rules for cancellation."""
@@ -395,20 +371,6 @@ class BookingService(BaseService):
             "hourly_rate": service.hourly_rate,
         }
 
-    def _load_booking_with_relationships(self, booking_id: int) -> Optional[Booking]:
-        """Load booking with all relationships."""
-        return (
-            self.db.query(Booking)
-            .options(
-                joinedload(Booking.student),
-                joinedload(Booking.instructor),
-                joinedload(Booking.service),
-                joinedload(Booking.availability_slot),
-            )
-            .filter(Booking.id == booking_id)
-            .first()
-        )
-
     def _invalidate_booking_caches(self, booking: Booking) -> None:
         """Invalidate caches affected by booking changes."""
         # Invalidate user-specific caches
@@ -435,7 +397,7 @@ class BookingService(BaseService):
         Returns:
             Booking if user has access, None otherwise
         """
-        booking = self._load_booking_with_relationships(booking_id)
+        booking = self.repository.get_booking_with_details(booking_id)
 
         if booking and user.id in [booking.student_id, booking.instructor_id]:
             return booking
@@ -458,7 +420,7 @@ class BookingService(BaseService):
             NotFoundException: If booking not found
             ValidationException: If user cannot update
         """
-        booking = self._load_booking_with_relationships(booking_id)
+        booking = self.repository.get_booking_with_details(booking_id)
 
         if not booking:
             raise NotFoundException("Booking not found")
@@ -467,14 +429,20 @@ class BookingService(BaseService):
         if user.id != booking.instructor_id:
             raise ValidationException("Only the instructor can update booking details")
 
-        # Update allowed fields
+        # Update allowed fields using repository
+        update_dict = {}
         if update_data.instructor_note is not None:
-            booking.instructor_note = update_data.instructor_note
+            update_dict["instructor_note"] = update_data.instructor_note
         if update_data.meeting_location is not None:
-            booking.meeting_location = update_data.meeting_location
+            update_dict["meeting_location"] = update_data.meeting_location
+
+        if update_dict:
+            booking = self.repository.update(booking_id, **update_dict)
 
         self.db.commit()
-        self.db.refresh(booking)
+
+        # Reload with relationships
+        booking = self.repository.get_booking_with_details(booking_id)
 
         self._invalidate_booking_caches(booking)
 
@@ -499,7 +467,7 @@ class BookingService(BaseService):
         if instructor.role != UserRole.INSTRUCTOR:
             raise ValidationException("Only instructors can mark bookings as complete")
 
-        booking = self._load_booking_with_relationships(booking_id)
+        booking = self.repository.get_booking_with_details(booking_id)
 
         if not booking:
             raise NotFoundException("Booking not found")
@@ -513,7 +481,9 @@ class BookingService(BaseService):
         # Mark as complete
         booking.complete()
         self.db.commit()
-        self.db.refresh(booking)
+
+        # Reload booking
+        booking = self.repository.get_booking_with_details(booking_id)
 
         self._invalidate_booking_caches(booking)
 
@@ -531,50 +501,39 @@ class BookingService(BaseService):
         Returns:
             Dictionary with availability status and details
         """
-        # Get the slot
-        slot = (
-            self.db.query(AvailabilitySlot)
-            .options(joinedload(AvailabilitySlot.availability))
-            .filter(AvailabilitySlot.id == slot_id)
-            .first()
-        )
+        # Get the slot using repository
+        slot = self.availability_repository.get_availability_slot_with_details(slot_id)
 
         if not slot:
             return {"available": False, "reason": "Slot not found"}
 
-        # Check if already booked (FIXED: query bookings table instead of checking slot.booking_id)
-        existing_booking = (
-            self.db.query(Booking)
-            .filter(
-                Booking.availability_slot_id == slot.id,
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-            )
-            .first()
-        )
+        # Check if already booked using repository
+        existing_booking = self.repository.get_booking_for_slot(slot.id, active_only=True)
 
         if existing_booking:
             return {"available": False, "reason": "Slot is already booked"}
 
         # Get service and instructor profile - ONLY ACTIVE SERVICES
-        service = (
-            self.db.query(Service)
-            .options(joinedload(Service.instructor_profile))
-            .filter(Service.id == service_id, Service.is_active == True)  # Only check active services
-            .first()
-        )
+        # Note: This should use ServiceRepository in complete implementation
+        service = self.db.query(Service).filter(Service.id == service_id, Service.is_active == True).first()
 
         if not service:
             return {"available": False, "reason": "Service not found or no longer available"}
 
+        # Get instructor profile
+        instructor_profile = (
+            self.db.query(InstructorProfile).filter(InstructorProfile.id == service.instructor_profile_id).first()
+        )
+
         # Check minimum advance booking
         booking_datetime = datetime.combine(slot.availability.date, slot.start_time)
-        min_booking_time = datetime.now() + timedelta(hours=service.instructor_profile.min_advance_booking_hours)
+        min_booking_time = datetime.now() + timedelta(hours=instructor_profile.min_advance_booking_hours)
 
         if booking_datetime < min_booking_time:
             return {
                 "available": False,
-                "reason": f"Must book at least {service.instructor_profile.min_advance_booking_hours} hours in advance",
-                "min_advance_hours": service.instructor_profile.min_advance_booking_hours,
+                "reason": f"Must book at least {instructor_profile.min_advance_booking_hours} hours in advance",
+                "min_advance_hours": instructor_profile.min_advance_booking_hours,
             }
 
         return {
@@ -596,14 +555,8 @@ class BookingService(BaseService):
         """
         tomorrow = date.today() + timedelta(days=1)
 
-        bookings = (
-            self.db.query(Booking)
-            .filter(
-                Booking.booking_date == tomorrow,
-                Booking.status == BookingStatus.CONFIRMED,
-            )
-            .options(joinedload(Booking.student), joinedload(Booking.instructor))
-            .all()
+        bookings = self.repository.get_bookings_for_date(
+            booking_date=tomorrow, status=BookingStatus.CONFIRMED, with_relationships=True
         )
 
         logger.info(f"Found {len(bookings)} bookings for tomorrow")
