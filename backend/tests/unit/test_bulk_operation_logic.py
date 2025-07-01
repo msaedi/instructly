@@ -161,8 +161,8 @@ class TestBulkOperationLogic:
         assert result.status == "failed"
         assert "Missing slot_id" in result.reason
 
-        # Test slot not found
-        mock_db.query().join().filter().first.return_value = None
+        # Test slot not found - repository returns None
+        bulk_service.repository.get_slot_for_instructor.return_value = None
 
         operation = SlotOperation(action="remove", slot_id=999)
         result = await bulk_service._process_remove_operation(
@@ -201,7 +201,7 @@ class TestBulkOperationLogic:
         """Test that validate_only mode doesn't make changes."""
         # Mock availability
         mock_availability = Mock(id=1, instructor_id=1)
-        mock_db.query().filter().first.return_value = mock_availability
+        bulk_service.repository.get_or_create_availability.return_value = mock_availability
 
         operation = SlotOperation(
             action="add", date=date.today() + timedelta(days=1), start_time=time(9, 0), end_time=time(10, 0)
@@ -249,13 +249,13 @@ class TestBulkOperationLogic:
         }
 
         # Current state has only morning slot
-        current_week = {"2024-01-01": [Mock(start_time="09:00:00", end_time="10:00:00")]}
+        current_week = {"2024-01-01": [Mock(start_time=time(9, 0), end_time=time(10, 0))]}
 
-        # Saved state has both slots
+        # Saved state has both slots - need to use time objects, not strings
         saved_week = {
             "2024-01-01": [
-                Mock(start_time="09:00:00", end_time="10:00:00"),
-                Mock(start_time="14:00:00", end_time="15:00:00"),
+                Mock(start_time=time(9, 0), end_time=time(10, 0)),
+                Mock(start_time=time(14, 0), end_time=time(15, 0)),
             ]
         }
 
