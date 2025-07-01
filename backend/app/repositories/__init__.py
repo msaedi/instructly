@@ -13,17 +13,19 @@ Key Components:
 - SlotManagerRepository: Repository for slot management (13 methods)
 - ConflictCheckerRepository: Repository for conflict checking (13 methods)
 - BulkOperationRepository: Repository for bulk operations (13 methods)
+- BookingRepository: Repository for booking operations
+- WeekOperationRepository: Repository for week operations (15 methods)
 
 Usage:
     from app.repositories import BaseRepository, RepositoryFactory
 
     # In a service:
-    repository = RepositoryFactory.create_bulk_operation_repository(db)
-    slots = repository.get_slots_by_ids([1, 2, 3])
+    repository = RepositoryFactory.create_week_operation_repository(db)
+    bookings = repository.get_week_bookings_with_slots(instructor_id, week_dates)
 
     # Or use specific repository:
-    from app.repositories import BulkOperationRepository
-    repo = BulkOperationRepository(db)
+    from app.repositories import WeekOperationRepository
+    repo = WeekOperationRepository(db)
 
 Benefits:
 - Separation of data access from business logic
@@ -40,6 +42,7 @@ from .bulk_operation_repository import BulkOperationRepository
 from .conflict_checker_repository import ConflictCheckerRepository
 from .factory import RepositoryFactory
 from .slot_manager_repository import SlotManagerRepository
+from .week_operation_repository import WeekOperationRepository
 
 __all__ = [
     "BaseRepository",
@@ -50,6 +53,7 @@ __all__ = [
     "ConflictCheckerRepository",
     "BulkOperationRepository",
     "BookingRepository",
+    "WeekOperationRepository",
 ]
 
 # Version info

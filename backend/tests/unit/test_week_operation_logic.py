@@ -4,15 +4,17 @@ Unit tests for WeekOperationService business logic.
 
 These tests isolate business logic from database and external dependencies
 using mocks to ensure we're testing only the service logic.
+
+UPDATED: Now mocks the repository instead of internal methods.
 """
 
 from datetime import date, time, timedelta
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import ANY, AsyncMock, Mock, patch
 
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models.availability import AvailabilitySlot
+from app.repositories.week_operation_repository import WeekOperationRepository
 from app.services.availability_service import AvailabilityService
 from app.services.cache_service import CacheService
 from app.services.conflict_checker import ConflictChecker
@@ -28,13 +30,15 @@ class TestWeekOperationInitialization:
         mock_availability = Mock(spec=AvailabilityService)
         mock_conflict = Mock(spec=ConflictChecker)
         mock_cache = Mock(spec=CacheService)
+        mock_repository = Mock(spec=WeekOperationRepository)
 
-        service = WeekOperationService(mock_db, mock_availability, mock_conflict, mock_cache)
+        service = WeekOperationService(mock_db, mock_availability, mock_conflict, mock_cache, mock_repository)
 
         assert service.db == mock_db
         assert service.availability_service == mock_availability
         assert service.conflict_checker == mock_conflict
         assert service.cache_service == mock_cache
+        assert service.repository == mock_repository
 
     def test_initialization_lazy_dependencies(self):
         """Test lazy loading of dependencies."""
@@ -48,6 +52,7 @@ class TestWeekOperationInitialization:
         assert service.availability_service is not None
         assert service.conflict_checker is not None
         assert service.cache_service is None  # This one is None by default
+        assert service.repository is not None  # Repository should be created
 
 
 class TestWeekCalculations:
@@ -56,7 +61,9 @@ class TestWeekCalculations:
     @pytest.fixture
     def service(self):
         """Create service with mock dependencies."""
-        return WeekOperationService(Mock(spec=Session))
+        mock_db = Mock(spec=Session)
+        mock_repository = Mock(spec=WeekOperationRepository)
+        return WeekOperationService(mock_db, repository=mock_repository)
 
     def test_calculate_week_dates_from_monday(self, service):
         """Test calculating week dates starting from Monday."""
@@ -91,7 +98,8 @@ class TestWeekPatternExtraction:
         """Create service with mock dependencies."""
         mock_db = Mock(spec=Session)
         mock_availability = Mock(spec=AvailabilityService)
-        return WeekOperationService(mock_db, mock_availability)
+        mock_repository = Mock(spec=WeekOperationRepository)
+        return WeekOperationService(mock_db, mock_availability, repository=mock_repository)
 
     def test_extract_week_pattern_full_week(self, service):
         """Test extracting pattern from full week data."""
@@ -174,12 +182,15 @@ class TestCopyWeekLogic:
         mock_db = Mock(spec=Session)
         mock_db.transaction = Mock()
         mock_db.expire_all = Mock()
+        mock_db.flush = Mock()
 
         mock_availability = Mock(spec=AvailabilityService)
         mock_conflict = Mock(spec=ConflictChecker)
         mock_cache = Mock(spec=CacheService)
+        mock_repository = Mock(spec=WeekOperationRepository)
 
-        return WeekOperationService(mock_db, mock_availability, mock_conflict, mock_cache)
+        service = WeekOperationService(mock_db, mock_availability, mock_conflict, mock_cache, mock_repository)
+        return service
 
     @pytest.mark.asyncio
     async def test_copy_week_validates_dates(self, service):
@@ -188,25 +199,21 @@ class TestCopyWeekLogic:
         from_week = date(2025, 6, 24)  # Tuesday
         to_week = date(2025, 6, 25)  # Wednesday
 
-        # Mock internal methods
-        service._get_target_week_bookings = Mock(
-            return_value={
-                "booked_slot_ids": set(),
-                "availability_with_bookings": set(),
-                "booked_time_ranges_by_date": {},
-                "total_bookings": 0,
-            }
-        )
-        service._clear_non_booked_slots = Mock()
-        service.availability_service.get_week_availability = Mock(return_value={})
-        service._copy_week_slots = AsyncMock(
-            return_value={
-                "dates_created": 0,
-                "slots_created": 0,
-                "slots_skipped": 0,
-                "dates_with_preserved_bookings": [],
-            }
-        )
+        # Mock repository methods
+        service.repository.get_week_bookings_with_slots.return_value = {
+            "booked_slot_ids": set(),
+            "availability_with_bookings": set(),
+            "booked_time_ranges_by_date": {},
+            "total_bookings": 0,
+        }
+        service.repository.delete_non_booked_slots.return_value = 0
+        service.repository.delete_empty_availability_entries.return_value = 0
+        service.repository.get_slots_with_booking_status.return_value = []
+        service.repository.get_or_create_availability.return_value = Mock(id=1)
+        service.repository.slot_exists.return_value = False
+        service.repository.bulk_create_slots.return_value = 0
+
+        service.availability_service.get_week_availability.return_value = {}
 
         # Disable cache to avoid warming issues
         service.cache_service = None
@@ -227,38 +234,39 @@ class TestCopyWeekLogic:
         from_week = date(2025, 6, 16)  # Monday
         to_week = date(2025, 6, 23)  # Next Monday
 
-        # Mock target week has bookings
-        service._get_target_week_bookings = Mock(
-            return_value={
-                "booked_slot_ids": {101, 102},
-                "availability_with_bookings": {10},
-                "booked_time_ranges_by_date": {"2025-06-24": [{"start_time": time(9, 0), "end_time": time(10, 0)}]},
-                "total_bookings": 2,
-            }
-        )
+        # Mock repository for target week bookings
+        service.repository.get_week_bookings_with_slots.return_value = {
+            "booked_slot_ids": {101, 102},
+            "availability_with_bookings": {10},
+            "booked_time_ranges_by_date": {"2025-06-24": [{"start_time": time(9, 0), "end_time": time(10, 0)}]},
+            "total_bookings": 2,
+        }
 
-        service._clear_non_booked_slots = Mock()
-        service.availability_service.get_week_availability = Mock(
-            return_value={"2025-06-17": [{"start_time": "09:00", "end_time": "12:00"}]}  # Tuesday source
-        )
+        service.repository.delete_non_booked_slots.return_value = 5
+        service.repository.delete_empty_availability_entries.return_value = 1
 
-        # Mock the async copy operation
-        service._copy_week_slots = AsyncMock(
-            return_value={
-                "dates_created": 6,
-                "slots_created": 10,
-                "slots_skipped": 2,
-                "dates_with_preserved_bookings": ["2025-06-24"],
-            }
-        )
+        # Mock source week availability
+        service.availability_service.get_week_availability.return_value = {
+            "2025-06-17": [{"start_time": "09:00", "end_time": "12:00"}]  # Tuesday source
+        }
+
+        # Mock repository for copying
+        service.repository.get_slots_with_booking_status.return_value = [
+            {"start_time": time(9, 0), "end_time": time(12, 0), "is_booked": False}
+        ]
+
+        mock_availability = Mock(id=20)
+        service.repository.get_or_create_availability.return_value = mock_availability
+        service.repository.slot_exists.return_value = False
+        service.repository.bulk_create_slots.return_value = 1
 
         # Disable cache to avoid warming strategy issues
         service.cache_service = None
 
         result = await service.copy_week_availability(instructor_id, from_week, to_week)
 
-        # Verify clearing was called with correct params
-        service._clear_non_booked_slots.assert_called_once_with(instructor_id, to_week, {101, 102}, {10})
+        # Verify repository calls
+        service.repository.delete_non_booked_slots.assert_called_once_with(instructor_id, ANY, {101, 102})
 
         # Result should have availability data or metadata
         assert result is not None
@@ -279,8 +287,9 @@ class TestApplyPatternLogic:
         mock_db.expire_all = Mock()
 
         mock_availability = Mock(spec=AvailabilityService)
+        mock_repository = Mock(spec=WeekOperationRepository)
 
-        return WeekOperationService(mock_db, mock_availability)
+        return WeekOperationService(mock_db, mock_availability, repository=mock_repository)
 
     @pytest.mark.asyncio
     async def test_apply_pattern_date_range_calculation(self, service):
@@ -291,18 +300,36 @@ class TestApplyPatternLogic:
         end_date = date(2025, 7, 10)  # Thursday
 
         # Mock source pattern
-        service.availability_service.get_week_availability = Mock(
-            return_value={
-                "2025-06-16": [{"start_time": "09:00", "end_time": "10:00"}],  # Monday
-                "2025-06-17": [{"start_time": "14:00", "end_time": "16:00"}],  # Tuesday
-            }
-        )
+        service.availability_service.get_week_availability.return_value = {
+            "2025-06-16": [{"start_time": "09:00", "end_time": "10:00"}],  # Monday
+            "2025-06-17": [{"start_time": "14:00", "end_time": "16:00"}],  # Tuesday
+        }
 
-        # Mock database queries
-        service.db.query.return_value.filter.return_value.all.return_value = []  # No existing
-        service._get_bookings_in_range = Mock(
-            return_value={"bookings_by_date": {}, "booked_slot_ids": set(), "total_bookings": 0}
-        )
+        # Mock repository methods
+        service.repository.get_availability_in_range.return_value = []  # No existing
+        service.repository.get_bookings_in_date_range.return_value = {
+            "bookings_by_date": {},
+            "booked_slot_ids": set(),
+            "total_bookings": 0,
+        }
+
+        # Mock bulk create availability to return entries with IDs
+        # This is important - the service expects these to have IDs
+        mock_availability_entries = []
+        current = start_date
+        entry_id = 100
+        while current <= end_date:
+            mock_entry = Mock()
+            mock_entry.id = entry_id
+            mock_entry.date = current
+            mock_availability_entries.append(mock_entry)
+            current += timedelta(days=1)
+            entry_id += 1
+
+        service.repository.bulk_create_availability.return_value = mock_availability_entries
+        service.repository.bulk_delete_slots.return_value = 0
+        service.repository.bulk_create_slots.return_value = 20  # Some slots created
+        service.repository.bulk_update_availability.return_value = 0
 
         # Disable cache for testing
         service.cache_service = None
@@ -318,6 +345,10 @@ class TestApplyPatternLogic:
         assert "slots_created" in result
         assert "message" in result
 
+        # Verify repository was called
+        service.repository.get_availability_in_range.assert_called_once()
+        service.repository.get_bookings_in_date_range.assert_called_once()
+
     @pytest.mark.asyncio
     async def test_apply_pattern_conflict_detection(self, service):
         """Test conflict detection during pattern application."""
@@ -327,31 +358,29 @@ class TestApplyPatternLogic:
         end_date = date(2025, 7, 3)
 
         # Mock pattern
-        service.availability_service.get_week_availability = Mock(
-            return_value={
-                "2025-06-17": [{"start_time": "09:00", "end_time": "11:00"}],  # Tuesday
-            }
-        )
+        service.availability_service.get_week_availability.return_value = {
+            "2025-06-17": [{"start_time": "09:00", "end_time": "11:00"}],  # Tuesday
+        }
 
         # Mock existing bookings
-        service._get_bookings_in_range = Mock(
-            return_value={
-                "bookings_by_date": {
-                    "2025-07-01": [
-                        {  # Wednesday conflicts with Tuesday pattern
-                            "slot_id": 101,
-                            "start_time": time(9, 30),
-                            "end_time": time(10, 30),
-                        }
-                    ]
-                },
-                "booked_slot_ids": {101},
-                "total_bookings": 1,
-            }
-        )
+        service.repository.get_bookings_in_date_range.return_value = {
+            "bookings_by_date": {
+                "2025-07-01": [
+                    {  # Wednesday conflicts with Tuesday pattern
+                        "slot_id": 101,
+                        "start_time": time(9, 30),
+                        "end_time": time(10, 30),
+                    }
+                ]
+            },
+            "booked_slot_ids": {101},
+            "total_bookings": 1,
+        }
 
         # Mock existing availability
-        service.db.query.return_value.filter.return_value.all.return_value = []
+        service.repository.get_availability_in_range.return_value = []
+        service.repository.bulk_create_availability.return_value = []
+        service.repository.bulk_create_slots.return_value = 0
 
         # Disable cache for testing
         service.cache_service = None
@@ -368,16 +397,19 @@ class TestBulkOperationLogic:
 
     @pytest.fixture
     def service(self):
-        """Create service with mock db."""
+        """Create service with mock db and repository."""
         mock_db = Mock(spec=Session)
-        mock_db.bulk_insert_mappings = Mock()
-        return WeekOperationService(mock_db)
+        mock_repository = Mock(spec=WeekOperationRepository)
+        return WeekOperationService(mock_db, repository=mock_repository)
 
     def test_bulk_create_slots_empty_list(self, service):
         """Test bulk create with empty list."""
+        service.repository.bulk_create_slots.return_value = 0
+
         result = service._bulk_create_slots([])
+
         assert result == 0
-        service.db.bulk_insert_mappings.assert_not_called()
+        service.repository.bulk_create_slots.assert_called_once_with([])
 
     def test_bulk_create_slots_data_transformation(self, service):
         """Test data transformation for bulk insert."""
@@ -386,15 +418,12 @@ class TestBulkOperationLogic:
             {"availability_id": 1, "start_time": time(10, 0), "end_time": time(11, 0)},
         ]
 
+        service.repository.bulk_create_slots.return_value = 2
+
         result = service._bulk_create_slots(slots_data)
 
         assert result == 2
-        service.db.bulk_insert_mappings.assert_called_once()
-
-        # Verify correct model and data format
-        call_args = service.db.bulk_insert_mappings.call_args
-        assert call_args[0][0] == AvailabilitySlot
-        assert len(call_args[0][1]) == 2
+        service.repository.bulk_create_slots.assert_called_once_with(slots_data)
 
 
 class TestCacheIntegrationLogic:
@@ -402,12 +431,13 @@ class TestCacheIntegrationLogic:
 
     @pytest.fixture
     def service(self):
-        """Create service with mock cache."""
+        """Create service with mock cache and repository."""
         mock_db = Mock(spec=Session)
         mock_cache = Mock(spec=CacheService)
         mock_availability = Mock(spec=AvailabilityService)
+        mock_repository = Mock(spec=WeekOperationRepository)
 
-        return WeekOperationService(mock_db, mock_availability, cache_service=mock_cache)
+        return WeekOperationService(mock_db, mock_availability, cache_service=mock_cache, repository=mock_repository)
 
     def test_get_cached_week_pattern_cache_hit(self, service):
         """Test pattern retrieval with cache hit."""
@@ -458,11 +488,13 @@ class TestCacheIntegrationLogic:
         end_date = date(2025, 7, 15)  # Crosses 3 weeks
 
         # Mock pattern and operations
-        service.availability_service.get_week_availability = Mock(return_value={})
-        service._get_bookings_in_range = Mock(
-            return_value={"bookings_by_date": {}, "booked_slot_ids": set(), "total_bookings": 0}
-        )
-        service.db.query.return_value.filter.return_value.all.return_value = []
+        service.availability_service.get_week_availability.return_value = {}
+        service.repository.get_bookings_in_date_range.return_value = {
+            "bookings_by_date": {},
+            "booked_slot_ids": set(),
+            "total_bookings": 0,
+        }
+        service.repository.get_availability_in_range.return_value = []
 
         # Disable cache warming for this test
         service.cache_service = None
@@ -480,7 +512,8 @@ class TestProgressCallbackLogic:
     def service(self):
         """Create service instance."""
         mock_db = Mock(spec=Session)
-        return WeekOperationService(mock_db)
+        mock_repository = Mock(spec=WeekOperationRepository)
+        return WeekOperationService(mock_db, repository=mock_repository)
 
     @pytest.mark.asyncio
     async def test_apply_pattern_with_progress_callback(self, service):
@@ -517,8 +550,11 @@ class TestDateConflictLogic:
 
     @pytest.fixture
     def service(self):
-        """Create service instance."""
-        return WeekOperationService(Mock(spec=Session))
+        """Create service instance with repository."""
+        mock_db = Mock(spec=Session)
+        mock_db.flush = Mock()
+        mock_repository = Mock(spec=WeekOperationRepository)
+        return WeekOperationService(mock_db, repository=mock_repository)
 
     @pytest.mark.asyncio
     async def test_copy_day_slots_conflict_detection(self, service):
@@ -534,10 +570,11 @@ class TestDateConflictLogic:
             {"start_time": time(9, 30), "end_time": time(10, 30)},  # Conflicts with first two
         ]
 
-        # Mock database operations
-        service.db.query.return_value.filter.return_value.first.return_value = None
-        service.db.add = Mock()
-        service.db.flush = Mock()
+        # Mock repository operations
+        mock_availability = Mock(id=1)
+        service.repository.get_or_create_availability.return_value = mock_availability
+        service.repository.slot_exists.return_value = False
+        service.repository.bulk_create_slots.return_value = 1
 
         result = await service._copy_day_slots(
             instructor_id, source_slots, target_date, has_bookings=True, booked_ranges=booked_ranges
@@ -555,7 +592,8 @@ class TestPerformanceMonitoring:
     def service(self):
         """Create service with monitoring."""
         mock_db = Mock(spec=Session)
-        service = WeekOperationService(mock_db)
+        mock_repository = Mock(spec=WeekOperationRepository)
+        service = WeekOperationService(mock_db, repository=mock_repository)
         service._metrics = {}  # Initialize metrics
         return service
 

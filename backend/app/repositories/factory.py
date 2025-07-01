@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from .bulk_operation_repository import BulkOperationRepository
     from .conflict_checker_repository import ConflictCheckerRepository
     from .slot_manager_repository import SlotManagerRepository
+    from .week_operation_repository import WeekOperationRepository
 
 
 class RepositoryFactory:
@@ -80,8 +81,9 @@ class RepositoryFactory:
 
         return BookingRepository(db)
 
-    # @staticmethod
-    # def create_week_operation_repository(db: Session) -> 'WeekOperationRepository':
-    #     """Create repository for week operation queries."""
-    #     from .week_operation_repository import WeekOperationRepository
-    #     return WeekOperationRepository(db)
+    @staticmethod
+    def create_week_operation_repository(db: Session) -> "WeekOperationRepository":
+        """Create repository for week operation queries."""
+        from .week_operation_repository import WeekOperationRepository
+
+        return WeekOperationRepository(db)

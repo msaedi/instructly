@@ -4,6 +4,8 @@ Document all database query patterns used in WeekOperationService.
 
 This serves as the specification for the WeekOperationRepository
 that will be implemented in the repository pattern.
+
+UPDATED: Now tests the actual repository implementation.
 """
 
 from datetime import date, time, timedelta
@@ -12,6 +14,7 @@ from unittest.mock import Mock
 import pytest
 from sqlalchemy.orm import Session
 
+from app.repositories.week_operation_repository import WeekOperationRepository
 from app.services.availability_service import AvailabilityService
 from app.services.conflict_checker import ConflictChecker
 from app.services.week_operation_service import WeekOperationService
@@ -27,19 +30,24 @@ class TestWeekOperationQueryPatterns:
         conflict_checker = Mock(spec=ConflictChecker)
         return WeekOperationService(db, availability_service, conflict_checker)
 
-    def test_get_target_week_bookings_pattern(self, db: Session, service: WeekOperationService):
+    @pytest.fixture
+    def repository(self, db: Session):
+        """Create WeekOperationRepository for testing."""
+        return WeekOperationRepository(db)
+
+    def test_get_target_week_bookings_pattern(self, db: Session, repository: WeekOperationRepository):
         """Document pattern for getting bookings in a target week.
 
         Repository method signature:
-        def get_week_bookings_with_slots(instructor_id: int, week_dates: List[date]) -> List[BookingInfo]
+        def get_week_bookings_with_slots(instructor_id: int, week_dates: List[date]) -> Dict
         """
         # Setup test data
         instructor_id = 1
         week_start = date(2025, 6, 23)  # Monday
         week_dates = [week_start + timedelta(days=i) for i in range(7)]
 
-        # Execute the query pattern
-        result = service._get_target_week_bookings(instructor_id, week_start)
+        # Execute the query pattern using repository
+        result = repository.get_week_bookings_with_slots(instructor_id, week_dates)
 
         # Document the complex join query pattern:
         # - Join Booking -> AvailabilitySlot -> InstructorAvailability
@@ -51,6 +59,7 @@ class TestWeekOperationQueryPatterns:
         assert "booked_slot_ids" in result
         assert "availability_with_bookings" in result
         assert "booked_time_ranges_by_date" in result
+        assert "total_bookings" in result
 
     def test_clear_non_booked_slots_pattern(self, db: Session, service: WeekOperationService):
         """Document pattern for clearing non-booked slots.
@@ -68,17 +77,18 @@ class TestWeekOperationQueryPatterns:
         # The pattern uses subqueries and bulk deletes
         # Repository needs to handle cascade implications
 
-    def test_get_bookings_in_range_pattern(self, db: Session, service: WeekOperationService):
+    def test_get_bookings_in_range_pattern(self, db: Session, repository: WeekOperationRepository):
         """Document pattern for getting bookings in a date range.
 
         Repository method signature:
-        def get_bookings_in_date_range(instructor_id: int, start_date: date, end_date: date) -> BookingsInfo
+        def get_bookings_in_date_range(instructor_id: int, start_date: date, end_date: date) -> Dict
         """
         instructor_id = 1
         start_date = date(2025, 6, 1)
         end_date = date(2025, 6, 30)
 
-        result = service._get_bookings_in_range(instructor_id, start_date, end_date)
+        # Execute using repository
+        result = repository.get_bookings_in_date_range(instructor_id, start_date, end_date)
 
         # Pattern includes:
         # - Complex join across 3 tables
@@ -94,7 +104,7 @@ class TestWeekOperationQueryPatterns:
         """Document pattern for getting all slots including booking status.
 
         Repository method signature:
-        def get_slots_with_booking_status(instructor_id: int, target_date: date) -> List[SlotInfo]
+        def get_slots_with_booking_status(instructor_id: int, target_date: date) -> List[Dict]
         """
         date(2025, 6, 23)
 
