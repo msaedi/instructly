@@ -1,3 +1,4 @@
+# backend/app/models/booking.py
 """
 Booking model for InstaInstru platform.
 
@@ -14,7 +15,11 @@ Key Features:
 
 Database Table: bookings
 Primary Key: id
-Foreign Keys: student_id, instructor_id, service_id, availability_slot_id, cancelled_by_id
+Foreign Keys: student_id, instructor_id, service_id, cancelled_by_id
+
+UPDATED: Removed FK constraint from availability_slot_id per Work Stream #9
+- Bookings are independent commitments that exist regardless of availability changes
+- The availability_slot_id column remains for historical reference but has no FK constraint
 """
 
 import logging
@@ -85,6 +90,8 @@ class Booking(Base):
     2. Instant Confirmation: Bookings are confirmed immediately upon creation.
     3. Comprehensive Tracking: All state changes are tracked with timestamps.
     4. Flexible Location: Supports various location types for different teaching scenarios.
+    5. UPDATED - Layer Independence: Bookings exist independently of availability slots.
+       The availability_slot_id is kept for historical reference but has no FK constraint.
 
     Attributes:
         Core Fields:
@@ -92,7 +99,7 @@ class Booking(Base):
             student_id: The student who made the booking
             instructor_id: The instructor providing the service
             service_id: The service being booked
-            availability_slot_id: The specific time slot being booked
+            availability_slot_id: Reference to the slot that was booked (no FK constraint)
 
         Snapshot Data (preserved for history):
             booking_date: Date of the lesson (YYYY-MM-DD)
@@ -126,7 +133,6 @@ class Booking(Base):
         student: User who made the booking
         instructor: User providing the service
         service: Service being provided
-        availability_slot: Time slot that was booked
         cancelled_by: User who cancelled (if cancelled)
     """
 
@@ -139,7 +145,10 @@ class Booking(Base):
     student_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     instructor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
-    availability_slot_id = Column(Integer, ForeignKey("availability_slots.id"), nullable=True)
+
+    # UPDATED: No foreign key constraint - bookings are independent of availability changes
+    # This column is kept for historical reference but has no FK constraint
+    availability_slot_id = Column(Integer, nullable=True)
 
     # Booking snapshot data - preserved for historical accuracy
     booking_date = Column(Date, nullable=False, index=True)  # Indexed for query performance
@@ -177,12 +186,11 @@ class Booking(Base):
     student = relationship("User", foreign_keys=[student_id], backref="student_bookings")
     instructor = relationship("User", foreign_keys=[instructor_id], backref="instructor_bookings")
     service = relationship("Service", backref="bookings")
-    availability_slot = relationship(
-        "AvailabilitySlot",
-        foreign_keys=[availability_slot_id],
-        # backref=backref("booking", uselist=False),  # One-to-one relationship
-        post_update=True,  # Avoid circular dependency issues
-    )
+
+    # REMOVED: availability_slot relationship - no longer valid without FK constraint
+    # To check if a slot is booked, query the bookings table:
+    # SELECT * FROM bookings WHERE availability_slot_id = ? AND status IN ('CONFIRMED', 'COMPLETED')
+
     cancelled_by = relationship("User", foreign_keys=[cancelled_by_id])
 
     # Table constraints to ensure data integrity

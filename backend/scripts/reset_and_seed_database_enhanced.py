@@ -3,11 +3,15 @@
 """
 Enhanced Database reset and seed script with soft delete testing.
 
+UPDATED for Work Stream #9: Bookings no longer reference availability_slot_id.
+Bookings are created as independent commitments with just time/date/instructor info.
+
 Features:
 - Creates past bookings with services that will be soft deleted
 - Generates availability and bookings in past 2 weeks and future 3 weeks
 - Tests copy from previous week functionality
 - Creates realistic workload patterns
+- Bookings exist independently of availability slots
 """
 
 import logging
@@ -355,18 +359,18 @@ def create_dummy_students(session: Session):
 
 
 def create_sample_bookings_with_deprecated(session: Session):
-    """Create bookings including past bookings with services that will be soft deleted."""
-    logger.info("Creating sample bookings with deprecated services...")
+    """
+    Create bookings including past bookings with services that will be soft deleted.
+
+    UPDATED: Bookings are created independently without referencing availability_slot_id.
+    This implements the architectural principle that bookings are independent commitments.
+    """
+    logger.info("Creating sample bookings (independent of availability slots)...")
 
     students = session.query(User).filter(User.role == UserRole.STUDENT).all()
     today = date.today()
     bookings_created = 0
     deprecated_bookings_created = 0
-
-    # Subquery for booked slots
-    booked_slots_subquery = session.query(Booking.availability_slot_id).filter(
-        Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED])
-    )
 
     for template in INSTRUCTOR_TEMPLATES:
         if "_user_id" not in template:
@@ -383,40 +387,56 @@ def create_sample_bookings_with_deprecated(session: Session):
         if not services:
             continue
 
+        # Get instructor's typical schedule pattern (just for realistic booking times)
+        instructor_availabilities = (
+            session.query(InstructorAvailability)
+            .filter(
+                InstructorAvailability.instructor_id == instructor_id,
+                InstructorAvailability.date >= today - timedelta(weeks=2),
+                InstructorAvailability.date <= today + timedelta(weeks=3),
+            )
+            .all()
+        )
+
+        # Extract typical time patterns from availability
+        typical_times = []
+        for avail in instructor_availabilities[:5]:  # Sample a few days
+            for slot in avail.time_slots:
+                typical_times.append((slot.start_time, slot.end_time))
+
+        if not typical_times:
+            # Default times if no availability found
+            typical_times = [(time(9, 0), time(10, 0)), (time(14, 0), time(15, 0))]
+
         # Create past bookings with deprecated service
         if deprecated_service_id:
             deprecated_service = session.query(Service).filter(Service.id == deprecated_service_id).first()
 
-            # Get past slots (2 weeks ago to 1 week ago)
-            past_slots = (
-                session.query(AvailabilitySlot)
-                .join(InstructorAvailability)
-                .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date >= today - timedelta(weeks=2),
-                    InstructorAvailability.date <= today - timedelta(weeks=1),
-                    ~AvailabilitySlot.id.in_(booked_slots_subquery),  # Check slot not booked
-                )
-                .limit(5)  # Create 5 past bookings with deprecated service
-                .all()
-            )
+            # Create 5 past bookings with deprecated service
+            for i in range(5):
+                # Random date in the past 2 weeks
+                booking_date = today - timedelta(days=random.randint(7, 14))
 
-            for slot in past_slots:
+                # Skip weekends sometimes
+                if booking_date.weekday() >= 5 and random.random() < 0.7:
+                    continue
+
                 student = random.choice(students)
+                start_time, end_time = random.choice(typical_times)
 
                 # Calculate duration
-                start_datetime = datetime.combine(date.today(), slot.start_time)
-                end_datetime = datetime.combine(date.today(), slot.end_time)
+                start_datetime = datetime.combine(date.today(), start_time)
+                end_datetime = datetime.combine(date.today(), end_time)
                 duration_minutes = int((end_datetime - start_datetime).total_seconds() / 60)
 
                 booking = Booking(
                     student_id=student.id,
                     instructor_id=instructor_id,
                     service_id=deprecated_service_id,
-                    availability_slot_id=slot.id,
-                    booking_date=slot.availability.date,
-                    start_time=slot.start_time,
-                    end_time=slot.end_time,
+                    availability_slot_id=None,  # UPDATED: No longer set
+                    booking_date=booking_date,
+                    start_time=start_time,
+                    end_time=end_time,
                     service_name=deprecated_service.skill,
                     hourly_rate=deprecated_service.hourly_rate,
                     total_price=Decimal(str(deprecated_service.hourly_rate * duration_minutes / 60)),
@@ -424,35 +444,29 @@ def create_sample_bookings_with_deprecated(session: Session):
                     status=BookingStatus.COMPLETED,  # Past bookings are completed
                     location_type=random.choice(["student_home", "instructor_location", "neutral"]),
                     meeting_location=f"{random.choice(['Student home', 'Instructor studio', 'Local library'])}",
-                    created_at=slot.availability.date - timedelta(days=2),
-                    confirmed_at=slot.availability.date - timedelta(days=2),
-                    completed_at=slot.availability.date + timedelta(hours=duration_minutes / 60),
+                    created_at=booking_date - timedelta(days=2),
+                    confirmed_at=booking_date - timedelta(days=2),
+                    completed_at=booking_date + timedelta(hours=duration_minutes / 60),
                 )
                 session.add(booking)
-                session.flush()
-
-                # NOTE: One-way relationship - booking references slot, not the other way around
-                # DO NOT do: slot.booking_id = booking.id (this field doesn't exist!)
                 deprecated_bookings_created += 1
 
         # Create regular bookings (past and future)
-        all_slots = (
-            session.query(AvailabilitySlot)
-            .join(InstructorAvailability)
-            .filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                InstructorAvailability.date >= today - timedelta(weeks=2),
-                InstructorAvailability.date <= today + timedelta(weeks=3),
-                ~AvailabilitySlot.id.in_(booked_slots_subquery),  # Check slot not booked
-            )
-            .all()
-        )
+        # Generate dates from 2 weeks ago to 3 weeks future
+        all_dates = []
+        current = today - timedelta(weeks=2)
+        while current <= today + timedelta(weeks=3):
+            # Skip weekends sometimes
+            if current.weekday() < 5 or random.random() < 0.3:
+                all_dates.append(current)
+            current += timedelta(days=1)
 
-        # Book 30-50% of available slots
-        slots_to_book = random.sample(all_slots, min(len(all_slots), int(len(all_slots) * random.uniform(0.3, 0.5))))
+        # Book 30-50% of the dates
+        dates_to_book = random.sample(all_dates, min(len(all_dates), int(len(all_dates) * random.uniform(0.3, 0.5))))
 
-        for slot in slots_to_book:
+        for booking_date in dates_to_book:
             student = random.choice(students)
+
             # Use only active services for regular bookings
             active_services = [s for s in services if s.is_active and s.id != deprecated_service_id]
             if not active_services:
@@ -460,15 +474,24 @@ def create_sample_bookings_with_deprecated(session: Session):
 
             service = random.choice(active_services)
 
+            # Choose random time from typical patterns
+            if typical_times:
+                start_time, end_time = random.choice(typical_times)
+            else:
+                # Generate random time if no pattern
+                start_hour = random.randint(9, 18)
+                start_time = time(start_hour, 0)
+                end_time = time(start_hour + random.randint(1, 2), 0)
+
             # Calculate duration
-            start_datetime = datetime.combine(date.today(), slot.start_time)
-            end_datetime = datetime.combine(date.today(), slot.end_time)
+            start_datetime = datetime.combine(date.today(), start_time)
+            end_datetime = datetime.combine(date.today(), end_time)
             duration_minutes = int((end_datetime - start_datetime).total_seconds() / 60)
 
             # Determine booking status based on date
-            if slot.availability.date < today:
+            if booking_date < today:
                 status = BookingStatus.COMPLETED
-            elif slot.availability.date == today:
+            elif booking_date == today:
                 status = BookingStatus.CONFIRMED
             else:
                 status = BookingStatus.CONFIRMED
@@ -477,10 +500,10 @@ def create_sample_bookings_with_deprecated(session: Session):
                 student_id=student.id,
                 instructor_id=instructor_id,
                 service_id=service.id,
-                availability_slot_id=slot.id,
-                booking_date=slot.availability.date,
-                start_time=slot.start_time,
-                end_time=slot.end_time,
+                availability_slot_id=None,  # UPDATED: No longer set
+                booking_date=booking_date,
+                start_time=start_time,
+                end_time=end_time,
                 service_name=service.skill,
                 hourly_rate=service.hourly_rate,
                 total_price=Decimal(str(service.hourly_rate * duration_minutes / 60)),
@@ -493,15 +516,12 @@ def create_sample_bookings_with_deprecated(session: Session):
                 completed_at=datetime.now() if status == BookingStatus.COMPLETED else None,
             )
             session.add(booking)
-            session.flush()
-
-            # NOTE: One-way relationship - booking references slot, not the other way around
-            # DO NOT do: slot.booking_id = booking.id (this field doesn't exist!)
             bookings_created += 1
 
     session.commit()
     logger.info(f"Created {bookings_created} regular bookings")
     logger.info(f"Created {deprecated_bookings_created} bookings with services to be soft deleted")
+    logger.info("Note: Bookings are now independent of availability slots (Work Stream #9)")
 
 
 def soft_delete_deprecated_services(session: Session):
@@ -527,9 +547,57 @@ def soft_delete_deprecated_services(session: Session):
     logger.info(f"Soft deleted {soft_deleted_count} services")
 
 
+def test_layer_independence(session: Session):
+    """Test that bookings persist when availability is deleted."""
+    logger.info("\nTesting availability-booking layer independence...")
+
+    # Find a booking from the past week
+    past_booking = (
+        session.query(Booking)
+        .filter(Booking.booking_date < date.today(), Booking.booking_date >= date.today() - timedelta(days=7))
+        .first()
+    )
+
+    if past_booking:
+        # Find availability slots for that instructor on that date
+        slots = (
+            session.query(AvailabilitySlot)
+            .join(InstructorAvailability)
+            .filter(
+                InstructorAvailability.instructor_id == past_booking.instructor_id,
+                InstructorAvailability.date == past_booking.booking_date,
+            )
+            .all()
+        )
+
+        if slots:
+            logger.info(
+                f"Found {len(slots)} availability slots for instructor {past_booking.instructor_id} on {past_booking.booking_date}"
+            )
+            logger.info(f"Deleting these slots to test independence...")
+
+            for slot in slots:
+                session.delete(slot)
+
+            session.commit()
+
+            # Verify booking still exists
+            booking_check = session.query(Booking).filter(Booking.id == past_booking.id).first()
+            if booking_check:
+                logger.info("✅ SUCCESS: Booking persists after availability deletion!")
+                logger.info(f"   Booking {booking_check.id} still exists for {booking_check.service_name}")
+            else:
+                logger.error("❌ FAILURE: Booking was deleted with availability!")
+        else:
+            logger.info("No availability slots found to test deletion")
+    else:
+        logger.info("No past bookings found to test with")
+
+
 def main():
     """Main function."""
     logger.info("Starting enhanced database reset and seed process...")
+    logger.info("UPDATED: Implementing Work Stream #9 - Bookings independent of availability slots")
 
     engine = create_engine(settings.database_url, pool_pre_ping=True)
     session = Session(engine)
@@ -542,13 +610,16 @@ def main():
         create_dummy_instructors(session)
         create_dummy_students(session)
 
-        # Step 3: Create bookings (including with deprecated services)
+        # Step 3: Create bookings (now independent of availability slots)
         create_sample_bookings_with_deprecated(session)
 
         # Step 4: Soft delete deprecated services
         soft_delete_deprecated_services(session)
 
-        # Step 5: Summary
+        # Step 5: Test layer independence
+        test_layer_independence(session)
+
+        # Step 6: Summary
         total_users = session.query(User).count()
         total_instructors = session.query(User).filter(User.role == UserRole.INSTRUCTOR).count()
         total_students = session.query(User).filter(User.role == UserRole.STUDENT).count()
@@ -591,6 +662,11 @@ def main():
         logger.info("  - Sarah Chen: 'Sight Reading' service soft deleted")
         logger.info("  - Michael Rodriguez: 'Ukulele' service soft deleted")
         logger.info("  - James Kim: 'Java Programming' service soft deleted")
+
+        logger.info("\n🎯 ARCHITECTURAL CHANGE (Work Stream #9):")
+        logger.info("  - Bookings no longer reference availability_slot_id")
+        logger.info("  - Bookings are independent commitments")
+        logger.info("  - Availability can be modified without affecting bookings")
 
     except Exception as e:
         logger.error(f"Error during database reset: {str(e)}")

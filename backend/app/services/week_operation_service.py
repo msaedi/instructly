@@ -2,6 +2,9 @@
 """
 Week Operation Service for InstaInstru Platform
 
+FIXED: Implements proper separation between availability and booking layers.
+Availability operations no longer check for booking conflicts.
+
 Handles week-based availability operations including:
 - Copying availability between weeks
 - Applying patterns to date ranges
@@ -74,7 +77,10 @@ class WeekOperationService(BaseService):
         self, instructor_id: int, from_week_start: date, to_week_start: date
     ) -> Dict[str, Any]:
         """
-        Copy availability from one week to another while preserving bookings.
+        Copy availability from one week to another.
+
+        Note: This creates the same availability pattern. Existing bookings
+        in the target week remain unaffected (they are an independent layer).
 
         Args:
             instructor_id: The instructor ID
@@ -101,17 +107,11 @@ class WeekOperationService(BaseService):
             self.logger.warning(f"Target week start {to_week_start} is not a Monday")
 
         with self.transaction():
-            # Get booking information for target week using repository
+            # Get target week dates
             target_week_dates = self.calculate_week_dates(to_week_start)
-            booking_info = self.repository.get_week_bookings_with_slots(instructor_id, target_week_dates)
 
-            # Delete non-booked slots from target week
-            self._clear_non_booked_slots(
-                instructor_id,
-                target_week_dates,
-                booking_info["booked_slot_ids"],
-                booking_info["availability_with_bookings"],
-            )
+            # Clear ALL existing slots from target week
+            self._clear_all_slots(instructor_id, target_week_dates)
 
             # Get source week availability
             source_week = self.availability_service.get_week_availability(instructor_id, from_week_start)
@@ -122,7 +122,6 @@ class WeekOperationService(BaseService):
                 source_week=source_week,
                 from_week_start=from_week_start,
                 to_week_start=to_week_start,
-                booking_info=booking_info,
             )
 
         # Ensure SQLAlchemy session is fresh
@@ -138,18 +137,19 @@ class WeekOperationService(BaseService):
             result = await warmer.warm_with_verification(
                 instructor_id,
                 to_week_start,
-                expected_slot_count=None,  # We don't know exact count due to preserved bookings
+                expected_slot_count=None,
             )
         else:
             # No cache, get directly
             result = self.availability_service.get_week_availability(instructor_id, to_week_start)
 
-        # Add metadata
-        if copy_result["dates_with_preserved_bookings"] or copy_result["slots_skipped"] > 0:
+        # Add metadata if useful
+        if copy_result.get("dates_created", 0) > 0 or copy_result.get("slots_created", 0) > 0:
             result["_metadata"] = {
-                "dates_with_preserved_bookings": copy_result["dates_with_preserved_bookings"],
-                "slots_skipped": copy_result["slots_skipped"],
-                "message": f"Week copied successfully. {len(copy_result['dates_with_preserved_bookings'])} date(s) had bookings preserved.",
+                "operation": "week_copy",
+                "dates_created": copy_result["dates_created"],
+                "slots_created": copy_result["slots_created"],
+                "message": f"Week copied successfully. {copy_result['slots_created']} slots created.",
             }
 
         return result
@@ -162,7 +162,10 @@ class WeekOperationService(BaseService):
         end_date: date,
     ) -> Dict[str, Any]:
         """
-        Apply a week's pattern to a date range - OPTIMIZED VERSION.
+        Apply a week's pattern to a date range.
+
+        This creates availability slots based on the pattern. Existing bookings
+        are unaffected as they are an independent layer.
 
         Key optimizations:
         1. Bulk fetch all existing data upfront
@@ -183,16 +186,12 @@ class WeekOperationService(BaseService):
         # Create pattern from source week
         week_pattern = self._extract_week_pattern(source_week, from_week_start)
 
-        # OPTIMIZATION 1: Bulk fetch all data upfront using repository
+        # OPTIMIZATION: Bulk fetch all data upfront using repository
         existing_availability = self.repository.get_availability_in_range(instructor_id, start_date, end_date)
 
         # Create lookup dict for O(1) access
         existing_by_date = {entry.date: entry for entry in existing_availability}
 
-        # Get ALL bookings in range at once
-        bookings_in_range = self.repository.get_bookings_in_date_range(instructor_id, start_date, end_date)
-
-        # OPTIMIZATION 2: Use single transaction
         with self.transaction():
             # Prepare bulk operations
             new_availability_entries = []
@@ -204,17 +203,10 @@ class WeekOperationService(BaseService):
             current_date = start_date
             dates_created = 0
             dates_modified = 0
-            dates_skipped = 0
             slots_created = 0
-            slots_skipped = 0
 
             while current_date <= end_date:
                 day_name = DAYS_OF_WEEK[current_date.weekday()]
-                current_date_str = current_date.isoformat()
-
-                # Check if date has bookings
-                date_has_bookings = current_date_str in bookings_in_range["bookings_by_date"]
-                booked_slots = bookings_in_range["bookings_by_date"].get(current_date_str, [])
 
                 # Get existing availability for this date
                 existing = existing_by_date.get(current_date)
@@ -228,15 +220,8 @@ class WeekOperationService(BaseService):
                         availability_id = existing.id
                         dates_modified += 1
 
-                        # Mark non-booked slots for deletion
-                        if date_has_bookings:
-                            booked_ids = [s["slot_id"] for s in booked_slots]
-                            for slot in existing.time_slots:
-                                if slot.id not in booked_ids:
-                                    slots_to_delete.append(slot.id)
-                        else:
-                            # No bookings - delete all slots
-                            slots_to_delete.extend([s.id for s in existing.time_slots])
+                        # Delete ALL existing slots (no booking checks!)
+                        slots_to_delete.extend([s.id for s in existing.time_slots])
                     else:
                         # Create new availability entry
                         new_entry = {
@@ -247,34 +232,23 @@ class WeekOperationService(BaseService):
                         new_availability_entries.append(new_entry)
                         dates_created += 1
 
-                    # Prepare new slots
+                    # Prepare new slots - ALL of them, no conflict checking!
                     for pattern_slot in week_pattern[day_name]:
                         slot_start = string_to_time(pattern_slot["start_time"])
                         slot_end = string_to_time(pattern_slot["end_time"])
 
-                        # Check conflicts with bookings
-                        conflicts = False
-                        for booked_slot in booked_slots:
-                            if slot_start < booked_slot["end_time"] and slot_end > booked_slot["start_time"]:
-                                conflicts = True
-                                slots_skipped += 1
-                                break
-
-                        if not conflicts:
-                            new_slots.append(
-                                {
-                                    "date": current_date,
-                                    "start_time": slot_start,
-                                    "end_time": slot_end,
-                                    "existing_availability": existing,
-                                }
-                            )
-                            slots_created += 1
+                        new_slots.append(
+                            {
+                                "date": current_date,
+                                "start_time": slot_start,
+                                "end_time": slot_end,
+                                "existing_availability": existing,
+                            }
+                        )
+                        slots_created += 1
                 else:
-                    # No pattern for this day
-                    if date_has_bookings:
-                        dates_skipped += 1
-                    elif existing and not existing.is_cleared:
+                    # No pattern for this day - clear it
+                    if existing and not existing.is_cleared:
                         # Clear the day
                         availability_to_update.append({"id": existing.id, "is_cleared": True})
                         slots_to_delete.extend([s.id for s in existing.time_slots])
@@ -282,7 +256,7 @@ class WeekOperationService(BaseService):
 
                 current_date += timedelta(days=1)
 
-            # OPTIMIZATION 3: Bulk operations using repository
+            # OPTIMIZATION: Bulk operations using repository
             # Bulk insert new availability entries
             created_entries = []
             if new_availability_entries:
@@ -332,15 +306,12 @@ class WeekOperationService(BaseService):
         self.db.expire_all()
 
         message = f"Successfully applied schedule to {dates_created + dates_modified} days"
-        if dates_skipped > 0 or slots_skipped > 0:
-            message += f" ({dates_skipped} days preserved, {slots_skipped} slots skipped due to bookings)"
-
         self.logger.info(
-            f"Optimized apply_pattern completed: {dates_created} created, "
+            f"Pattern application completed: {dates_created} created, "
             f"{dates_modified} modified, {slots_created} slots"
         )
 
-        # Use CacheWarmingStrategy to ensure fresh data
+        # Cache warming for affected weeks
         if self.cache_service and (dates_created > 0 or dates_modified > 0):
             from .cache_strategies import CacheWarmingStrategy
 
@@ -356,9 +327,7 @@ class WeekOperationService(BaseService):
 
             # Warm all affected weeks
             for week_start in affected_weeks:
-                await warmer.warm_with_verification(
-                    instructor_id, week_start, expected_slot_count=None  # Complex operation, can't predict count
-                )
+                await warmer.warm_with_verification(instructor_id, week_start, expected_slot_count=None)
 
             self.logger.info(f"Warmed cache for {len(affected_weeks)} affected weeks")
 
@@ -368,10 +337,7 @@ class WeekOperationService(BaseService):
             "end_date": end_date.isoformat(),
             "dates_created": dates_created,
             "dates_modified": dates_modified,
-            "dates_skipped": dates_skipped,
             "slots_created": slots_created,
-            "slots_skipped": slots_skipped,
-            "total_bookings_preserved": bookings_in_range["total_bookings"],
         }
 
     def calculate_week_dates(self, monday: date) -> List[date]:
@@ -398,28 +364,21 @@ class WeekOperationService(BaseService):
             Pattern indexed by day name (Monday, Tuesday, etc.)
         """
         week_availability = self.availability_service.get_week_availability(instructor_id, week_start)
-
         return self._extract_week_pattern(week_availability, week_start)
 
     # Private helper methods
 
-    def _clear_non_booked_slots(
-        self,
-        instructor_id: int,
-        week_dates: List[date],
-        booked_slot_ids: set,
-        availability_with_bookings: set,
-    ) -> None:
-        """Clear non-booked slots from target week using repository."""
-        # Delete slots that are NOT booked
-        deleted_slots = self.repository.delete_non_booked_slots(instructor_id, week_dates, booked_slot_ids)
+    def _clear_all_slots(self, instructor_id: int, week_dates: List[date]) -> None:
+        """Clear ALL slots from the given dates."""
+        # Delete all slots for the week
+        deleted_slots = self.repository.delete_non_booked_slots(
+            instructor_id, week_dates, set()  # Empty set means delete all
+        )
 
         # Delete availability entries with no remaining slots
         deleted_availabilities = self.repository.delete_empty_availability_entries(instructor_id, week_dates)
 
-        self.logger.debug(
-            f"Deleted {deleted_slots} non-booked slots and " f"{deleted_availabilities} empty availability entries"
-        )
+        self.logger.debug(f"Deleted {deleted_slots} slots and " f"{deleted_availabilities} empty availability entries")
 
     async def _copy_week_slots(
         self,
@@ -427,65 +386,41 @@ class WeekOperationService(BaseService):
         source_week: Dict[str, List[Dict]],
         from_week_start: date,
         to_week_start: date,
-        booking_info: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Copy slots from source to target week."""
         dates_created = 0
         slots_created = 0
-        slots_skipped = 0
-        dates_with_preserved_bookings = []
 
         for i in range(7):
             source_date = from_week_start + timedelta(days=i)
             target_date = to_week_start + timedelta(days=i)
-            source_date.isoformat()
-            target_date_str = target_date.isoformat()
 
-            # Check if target date has bookings
-            has_bookings = target_date_str in booking_info["booked_time_ranges_by_date"]
-
-            # Get ALL slots from source date (including booked ones)
+            # Get ALL slots from source date
             source_slots = self.repository.get_slots_with_booking_status(instructor_id, source_date)
 
             if source_slots:
-                # Copy ALL slots (booked become available)
+                # Copy ALL slots
                 result = await self._copy_day_slots(
                     instructor_id=instructor_id,
                     source_slots=source_slots,
                     target_date=target_date,
-                    has_bookings=has_bookings,
-                    booked_ranges=booking_info["booked_time_ranges_by_date"].get(target_date_str, []),
                 )
 
                 dates_created += result["dates_created"]
                 slots_created += result["slots_created"]
-                slots_skipped += result["slots_skipped"]
-
-                if has_bookings:
-                    dates_with_preserved_bookings.append(target_date_str)
             else:
-                # Source day has no slots
-                if has_bookings:
-                    # Preserve booked slots
-                    self.logger.info(f"Preserving booked slots on {target_date} " "(source day was empty)")
-                    dates_with_preserved_bookings.append(target_date_str)
-                else:
-                    # Create cleared entry using repository
-                    availability_entry = self.repository.get_or_create_availability(
-                        instructor_id, target_date, is_cleared=True
-                    )
-                    if availability_entry:
-                        dates_created += 1
+                # Source day has no slots - create cleared entry
+                availability_entry = self.repository.get_or_create_availability(
+                    instructor_id, target_date, is_cleared=True
+                )
+                if availability_entry:
+                    dates_created += 1
 
-        self.logger.info(
-            f"Week copy complete: {dates_created} dates, " f"{slots_created} slots, {slots_skipped} slots skipped"
-        )
+        self.logger.info(f"Week copy complete: {dates_created} dates, {slots_created} slots created")
 
         return {
             "dates_created": dates_created,
             "slots_created": slots_created,
-            "slots_skipped": slots_skipped,
-            "dates_with_preserved_bookings": dates_with_preserved_bookings,
         }
 
     async def _copy_day_slots(
@@ -493,13 +428,15 @@ class WeekOperationService(BaseService):
         instructor_id: int,
         source_slots: List[Dict],
         target_date: date,
-        has_bookings: bool,
-        booked_ranges: List[Dict],
     ) -> Dict[str, Any]:
-        """Copy slots for a single day."""
+        """
+        Copy slots for a single day.
+
+        This method copies ALL slots from source to target without
+        checking for booking conflicts. Bookings are an independent layer.
+        """
         dates_created = 0
         slots_created = 0
-        slots_skipped = 0
 
         # Get or create availability entry using repository
         existing_availability = self.repository.get_or_create_availability(instructor_id, target_date, is_cleared=False)
@@ -520,7 +457,7 @@ class WeekOperationService(BaseService):
         # Collect slots to create in bulk
         slots_to_create = []
 
-        # Copy slots that don't conflict
+        # Copy ALL slots - no conflict checking!
         for slot in source_slots:
             slot_start = slot.get("start_time")
             slot_end = slot.get("end_time")
@@ -531,29 +468,16 @@ class WeekOperationService(BaseService):
             if isinstance(slot_end, str):
                 slot_end = string_to_time(slot_end)
 
-            # Check conflicts
-            conflicts = False
-            if has_bookings:
-                for booked_range in booked_ranges:
-                    if slot_start < booked_range["end_time"] and slot_end > booked_range["start_time"]:
-                        conflicts = True
-                        slots_skipped += 1
-                        self.logger.debug(
-                            f"Skipping slot {slot_start}-{slot_end} " f"on {target_date} due to booking conflict"
-                        )
-                        break
-
-            if not conflicts:
-                # Check if slot already exists using repository
-                if not self.repository.slot_exists(availability_id, slot_start, slot_end):
-                    slots_to_create.append(
-                        {
-                            "availability_id": availability_id,
-                            "start_time": slot_start,
-                            "end_time": slot_end,
-                        }
-                    )
-                    slots_created += 1
+            # Only check if slot already exists to avoid duplicates
+            if not self.repository.slot_exists(availability_id, slot_start, slot_end):
+                slots_to_create.append(
+                    {
+                        "availability_id": availability_id,
+                        "start_time": slot_start,
+                        "end_time": slot_end,
+                    }
+                )
+                slots_created += 1
 
         # Bulk create slots if any
         if slots_to_create:
@@ -562,7 +486,7 @@ class WeekOperationService(BaseService):
         return {
             "dates_created": dates_created,
             "slots_created": slots_created,
-            "slots_skipped": slots_skipped,
+            "slots_skipped": 0,  # Always 0 - we don't skip slots anymore
         }
 
     def _extract_week_pattern(
@@ -588,15 +512,16 @@ class WeekOperationService(BaseService):
         instructor_id: int,
         target_date: date,
         pattern_slots: List[Dict],
-        has_bookings: bool,
-        booked_slots: List[Dict],
     ) -> Dict[str, Any]:
-        """Apply pattern to a single date using repository."""
+        """
+        Apply pattern to a single date.
+
+        This method applies ALL pattern slots without checking for
+        booking conflicts. Existing slots are replaced with the pattern.
+        """
         dates_created = 0
         dates_modified = 0
         slots_created = 0
-        slots_skipped = 0
-        skipped = False
 
         # Get or create availability using repository
         availability_entry = self.repository.get_or_create_availability(instructor_id, target_date, is_cleared=False)
@@ -606,44 +531,30 @@ class WeekOperationService(BaseService):
             dates_created = 1
         else:
             dates_modified = 1
-            # Delete non-booked slots
-            if has_bookings:
-                booked_ids = [s["slot_id"] for s in booked_slots]
-                self.repository.bulk_delete_slots(
-                    [slot.id for slot in availability_entry.time_slots if slot.id not in booked_ids]
-                )
-            else:
-                # No bookings - delete all
-                self.repository.bulk_delete_slots([slot.id for slot in availability_entry.time_slots])
+            # Delete ALL existing slots
+            if hasattr(availability_entry, "time_slots") and availability_entry.time_slots:
+                slot_ids = [slot.id for slot in availability_entry.time_slots]
+                if slot_ids:
+                    self.repository.bulk_delete_slots(slot_ids)
 
         # Collect slots to create
         slots_to_create = []
 
-        # Add pattern slots
+        # Add ALL pattern slots - no conflict checking!
         for pattern_slot in pattern_slots:
             slot_start = string_to_time(pattern_slot["start_time"])
             slot_end = string_to_time(pattern_slot["end_time"])
 
-            # Check conflicts
-            conflicts = False
-            if has_bookings:
-                for booked_slot in booked_slots:
-                    if slot_start < booked_slot["end_time"] and slot_end > booked_slot["start_time"]:
-                        conflicts = True
-                        slots_skipped += 1
-                        break
-
-            if not conflicts:
-                # Check if slot exists
-                if not self.repository.slot_exists(availability_entry.id, slot_start, slot_end):
-                    slots_to_create.append(
-                        {
-                            "availability_id": availability_entry.id,
-                            "start_time": slot_start,
-                            "end_time": slot_end,
-                        }
-                    )
-                    slots_created += 1
+            # Only check if slot exists to avoid duplicates
+            if not self.repository.slot_exists(availability_entry.id, slot_start, slot_end):
+                slots_to_create.append(
+                    {
+                        "availability_id": availability_entry.id,
+                        "start_time": slot_start,
+                        "end_time": slot_end,
+                    }
+                )
+                slots_created += 1
 
         # Bulk create slots
         if slots_to_create:
@@ -653,8 +564,8 @@ class WeekOperationService(BaseService):
             "dates_created": dates_created,
             "dates_modified": dates_modified,
             "slots_created": slots_created,
-            "slots_skipped": slots_skipped,
-            "skipped": skipped,
+            "slots_skipped": 0,  # Always 0 - we don't skip anymore
+            "skipped": False,  # Never skip entire date
         }
 
     def _clear_date_availability(self, instructor_id: int, target_date: date) -> Dict[str, Any]:
@@ -682,8 +593,7 @@ class WeekOperationService(BaseService):
 
         return {"dates_created": dates_created, "dates_modified": dates_modified}
 
-    # Add these methods to the end of WeekOperationService class:
-
+    # Keep these methods unchanged as requested
     def _bulk_create_slots(self, slots_data: List[Dict[str, Any]]) -> int:
         """
         Efficiently bulk create slots using repository.

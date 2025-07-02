@@ -119,10 +119,10 @@ class TestWeekOperationCacheWarming:
 
         result = await service.copy_week_availability(instructor_id, from_week, to_week)
 
-        # Should have metadata about preserved bookings
-        assert result is not None
+        # Work Stream #9: No longer track preserved bookings
         assert "_metadata" in result
-        assert "dates_with_preserved_bookings" in result["_metadata"]
+        assert result["_metadata"]["operation"] == "week_copy"
+        assert result["_metadata"]["slots_created"] >= 0
 
 
 class TestWeekOperationGetAllSlots:
@@ -206,7 +206,7 @@ class TestWeekOperationApplyPattern:
         service.repository.slot_exists.return_value = False
         service.repository.bulk_create_slots.return_value = 1
 
-        result = await service._apply_pattern_to_date(instructor_id, target_date, pattern_slots, False, [])
+        result = await service._apply_pattern_to_date(instructor_id, target_date, pattern_slots)
 
         assert result["dates_created"] == 1
         assert result["slots_created"] == 1
@@ -214,11 +214,15 @@ class TestWeekOperationApplyPattern:
 
     @pytest.mark.asyncio
     async def test_apply_pattern_to_date_with_conflicts(self, service):
-        """Test applying pattern with booking conflicts."""
+        """
+        Test applying pattern to a date that has bookings.
+
+        With the new architecture, ALL pattern slots are created regardless
+        of existing bookings. Bookings and availability are independent layers.
+        """
         instructor_id = 123
         target_date = date(2025, 7, 1)
         pattern_slots = [{"start_time": "09:00", "end_time": "10:00"}, {"start_time": "10:00", "end_time": "11:00"}]
-        booked_slots = [{"slot_id": 101, "start_time": time(9, 30), "end_time": time(10, 30)}]
 
         # Mock existing availability - has _sa_instance_state
         mock_availability = Mock(id=50)
@@ -227,15 +231,17 @@ class TestWeekOperationApplyPattern:
         mock_availability._sa_instance_state = Mock()  # This marks it as existing
 
         service.repository.get_or_create_availability.return_value = mock_availability
-        service.repository.bulk_delete_slots.return_value = 1
+        service.repository.bulk_delete_slots.return_value = 2  # Deletes existing slots
         service.repository.slot_exists.return_value = False
-        service.repository.bulk_create_slots.return_value = 1
+        service.repository.bulk_create_slots.return_value = 2  # Creates BOTH pattern slots
 
-        result = await service._apply_pattern_to_date(instructor_id, target_date, pattern_slots, True, booked_slots)
+        # Note: No more has_bookings or booked_slots parameters!
+        result = await service._apply_pattern_to_date(instructor_id, target_date, pattern_slots)
 
         assert result["dates_modified"] == 1
-        assert result["slots_created"] == 1  # Only non-conflicting slot
-        assert result["slots_skipped"] == 1  # One conflicting slot
+        assert result["slots_created"] == 2  # BOTH slots created (no conflict checking)
+        assert result["slots_skipped"] == 0  # NEVER skip slots due to bookings
+        assert result["skipped"] == False  # Never skip entire date
 
 
 class TestWeekOperationClearDate:
@@ -314,7 +320,7 @@ class TestWeekOperationErrorHandling:
         service.repository.get_slots_with_booking_status.return_value = []
         service.repository.get_or_create_availability.return_value = Mock(id=1)
 
-        result = await service._copy_day_slots(instructor_id, [], target_date, False, [])
+        result = await service._copy_day_slots(instructor_id, [], target_date)
 
         assert result["dates_created"] == 0
         assert result["slots_created"] == 0

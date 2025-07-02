@@ -100,7 +100,6 @@ class BookingRepository(BaseRepository[Booking]):
                 joinedload(Booking.student),
                 joinedload(Booking.instructor),
                 joinedload(Booking.service),
-                joinedload(Booking.availability_slot),
             )
 
             # Apply user filter based on role
@@ -152,9 +151,7 @@ class BookingRepository(BaseRepository[Booking]):
         try:
             query = (
                 self.db.query(Booking)
-                .options(
-                    joinedload(Booking.instructor), joinedload(Booking.service), joinedload(Booking.availability_slot)
-                )
+                .options(joinedload(Booking.instructor), joinedload(Booking.service))
                 .filter(Booking.student_id == student_id)
             )
 
@@ -197,9 +194,7 @@ class BookingRepository(BaseRepository[Booking]):
         try:
             query = (
                 self.db.query(Booking)
-                .options(
-                    joinedload(Booking.student), joinedload(Booking.service), joinedload(Booking.availability_slot)
-                )
+                .options(joinedload(Booking.student), joinedload(Booking.service))
                 .filter(Booking.instructor_id == instructor_id)
             )
 
@@ -241,7 +236,6 @@ class BookingRepository(BaseRepository[Booking]):
                     joinedload(Booking.student),
                     joinedload(Booking.instructor),
                     joinedload(Booking.service),
-                    joinedload(Booking.availability_slot),
                     joinedload(Booking.cancelled_by),
                 )
                 .filter(Booking.id == booking_id)
@@ -322,7 +316,6 @@ class BookingRepository(BaseRepository[Booking]):
                     joinedload(Booking.instructor),
                     joinedload(Booking.student),
                     joinedload(Booking.service),
-                    joinedload(Booking.availability_slot),
                 )
                 .filter(Booking.booking_date >= date.today(), Booking.status.in_([BookingStatus.CONFIRMED]))
             )
@@ -461,7 +454,6 @@ class BookingRepository(BaseRepository[Booking]):
             joinedload(Booking.student),
             joinedload(Booking.instructor),
             joinedload(Booking.service),
-            joinedload(Booking.availability_slot),
         )
 
     # Additional Repository Methods (from BaseRepository)
