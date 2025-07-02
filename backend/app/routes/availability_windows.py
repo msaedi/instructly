@@ -271,39 +271,49 @@ def get_all_availability(
     end_date: Optional[date] = Query(None),
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
+    db: Session = Depends(get_db),
 ):
     """
     Get all availability windows.
 
     This endpoint returns a flat list of all availability slots.
     Optionally filter by date range.
+
+    UPDATED FOR WORK STREAM #10: Works directly with AvailabilitySlot objects.
     """
     verify_instructor(current_user)
 
     try:
-        # Get availability entries
-        availability_entries = availability_service.get_all_availability(
-            instructor_id=current_user.id, start_date=start_date, end_date=end_date
-        )
+        # Import AvailabilitySlot model
+        from ..models.availability import AvailabilitySlot
+
+        # Build query for slots directly
+        query = db.query(AvailabilitySlot).filter(AvailabilitySlot.instructor_id == current_user.id)
+
+        # Apply date filters if provided
+        if start_date:
+            query = query.filter(AvailabilitySlot.date >= start_date)
+        if end_date:
+            query = query.filter(AvailabilitySlot.date <= end_date)
+
+        # Order by date and time
+        slots = query.order_by(AvailabilitySlot.date, AvailabilitySlot.start_time).all()
 
         # Convert to response format
         result = []
-        for entry in availability_entries:
-            if not entry.is_cleared and entry.time_slots:
-                for slot in entry.time_slots:
-                    result.append(
-                        {
-                            "id": slot.id,
-                            "instructor_id": entry.instructor_id,
-                            "specific_date": entry.date,
-                            "start_time": slot.start_time.isoformat(),
-                            "end_time": slot.end_time.isoformat(),
-                            "is_available": True,
-                            "is_recurring": False,
-                            "day_of_week": None,
-                            "is_cleared": False,
-                        }
-                    )
+        for slot in slots:
+            result.append(
+                {
+                    "id": slot.id,
+                    "instructor_id": slot.instructor_id,
+                    "specific_date": slot.date,
+                    "start_time": slot.start_time.isoformat(),
+                    "end_time": slot.end_time.isoformat(),
+                    "is_available": True,
+                    "is_recurring": False,
+                    "day_of_week": None,
+                }
+            )
 
         return result
     except DomainException as e:
@@ -354,6 +364,8 @@ def update_availability_window(
     """
     Update an availability time slot.
 
+    UPDATED FOR WORK STREAM #10: Works directly with AvailabilitySlot properties.
+
     Args:
         window_id: The ID of the slot to update
         update_data: The fields to update
@@ -371,17 +383,16 @@ def update_availability_window(
             validate_conflicts=True,
         )
 
-        # Return in expected format
+        # Return in expected format - now accessing properties directly from slot
         return {
             "id": updated_slot.id,
-            "instructor_id": updated_slot.availability.instructor_id,
-            "specific_date": updated_slot.availability.date,
+            "instructor_id": updated_slot.instructor_id,
+            "specific_date": updated_slot.date,
             "start_time": updated_slot.start_time.isoformat(),
             "end_time": updated_slot.end_time.isoformat(),
             "is_available": update_data.is_available if update_data.is_available is not None else True,
             "is_recurring": False,
             "day_of_week": None,
-            "is_cleared": False,
         }
     except DomainException as e:
         raise e.to_http_exception()
