@@ -2,13 +2,16 @@
 """
 Conflict Checker Service for InstaInstru Platform
 
+UPDATED FOR WORK STREAM #10: Single-table availability design.
+
 Handles all booking conflict detection and validation including:
 - Checking if time slots conflict with existing bookings
 - Validating availability windows
 - Finding available slots
 - Managing booking constraints
 
-Refactored to use Repository Pattern for data access.
+All slot references now use the single-table design where AvailabilitySlot
+contains instructor_id and date directly.
 """
 
 import logging
@@ -96,6 +99,8 @@ class ConflictChecker(BaseService):
         """
         Check if a specific slot is available for booking.
 
+        UPDATED: Slot now has instructor_id and date directly.
+
         Args:
             slot_id: The availability slot ID
             instructor_id: Optional instructor ID for ownership check
@@ -110,7 +115,7 @@ class ConflictChecker(BaseService):
             return {"available": False, "reason": "Slot not found"}
 
         # Check instructor ownership if specified
-        if instructor_id and slot.availability.instructor_id != instructor_id:
+        if instructor_id and slot.instructor_id != instructor_id:
             return {
                 "available": False,
                 "reason": "Slot belongs to different instructor",
@@ -134,17 +139,17 @@ class ConflictChecker(BaseService):
             }
 
         # Check if slot is in the past
-        slot_datetime = datetime.combine(slot.availability.date, slot.start_time)
+        slot_datetime = datetime.combine(slot.date, slot.start_time)
         if slot_datetime < datetime.now():
             return {"available": False, "reason": "Slot is in the past"}
 
         return {
             "available": True,
             "slot_info": {
-                "date": slot.availability.date.isoformat(),
+                "date": slot.date.isoformat(),
                 "start_time": slot.start_time.isoformat(),
                 "end_time": slot.end_time.isoformat(),
-                "instructor_id": slot.availability.instructor_id,
+                "instructor_id": slot.instructor_id,
             },
         }
 

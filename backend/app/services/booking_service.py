@@ -2,11 +2,16 @@
 """
 Booking Service for InstaInstru Platform
 
+UPDATED FOR WORK STREAM #10: Single-table availability design.
+
 Handles all booking-related business logic including:
 - Creating instant bookings
 - Validating booking constraints
 - Managing booking lifecycle
 - Coordinating with other services
+
+All slot references now use the single-table design where AvailabilitySlot
+contains instructor_id and date directly.
 """
 
 import logging
@@ -112,10 +117,10 @@ class BookingService(BaseService):
             # 5. Create the booking using repository
             booking = self.repository.create(
                 student_id=student.id,
-                instructor_id=slot.availability.instructor_id,
+                instructor_id=slot.instructor_id,  # Now directly from slot
                 service_id=service.id,
                 availability_slot_id=slot.id,
-                booking_date=slot.availability.date,
+                booking_date=slot.date,  # Now directly from slot
                 start_time=slot.start_time,
                 end_time=slot.end_time,
                 service_name=service.skill,
@@ -295,11 +300,11 @@ class BookingService(BaseService):
         if not service:
             raise NotFoundException("Service not found or no longer available")
 
-        # Get instructor profile
+        # Get instructor profile using instructor_id from slot
         # Note: This should ideally use an InstructorRepository
         instructor_profile = (
             self.db.query(InstructorProfile)
-            .filter(InstructorProfile.user_id == slot.availability.instructor_id)
+            .filter(InstructorProfile.user_id == slot.instructor_id)  # Now directly from slot
             .first()
         )
 
@@ -321,7 +326,7 @@ class BookingService(BaseService):
     ) -> None:
         """Apply business rules for booking creation."""
         # Check minimum advance booking time
-        booking_datetime = datetime.combine(slot.availability.date, slot.start_time)
+        booking_datetime = datetime.combine(slot.date, slot.start_time)  # Now directly from slot
         min_booking_time = datetime.now() + timedelta(hours=instructor_profile.min_advance_booking_hours)
 
         if booking_datetime < min_booking_time:
@@ -526,7 +531,7 @@ class BookingService(BaseService):
         )
 
         # Check minimum advance booking
-        booking_datetime = datetime.combine(slot.availability.date, slot.start_time)
+        booking_datetime = datetime.combine(slot.date, slot.start_time)  # Now directly from slot
         min_booking_time = datetime.now() + timedelta(hours=instructor_profile.min_advance_booking_hours)
 
         if booking_datetime < min_booking_time:
@@ -539,10 +544,10 @@ class BookingService(BaseService):
         return {
             "available": True,
             "slot_info": {
-                "date": slot.availability.date.isoformat(),
+                "date": slot.date.isoformat(),  # Now directly from slot
                 "start_time": slot.start_time.isoformat(),
                 "end_time": slot.end_time.isoformat(),
-                "instructor_id": slot.availability.instructor_id,
+                "instructor_id": slot.instructor_id,  # Now directly from slot
             },
         }
 

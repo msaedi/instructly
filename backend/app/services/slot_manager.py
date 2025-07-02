@@ -2,14 +2,15 @@
 """
 Slot Manager Service for InstaInstru Platform
 
+UPDATED FOR WORK STREAM #10: Single-table availability design.
+
 Manages time slot operations including:
 - Creating, updating, and deleting slots
 - Merging overlapping slots
 - Slot validation and optimization
 - Time slot calculations
 
-FIXED: Implements proper separation between availability and booking layers.
-Slot operations no longer check for booking conflicts.
+All methods now use instructor_id + date instead of availability_id.
 """
 
 import logging
@@ -51,7 +52,8 @@ class SlotManager(BaseService):
 
     def create_slot(
         self,
-        availability_id: int,
+        instructor_id: int,
+        target_date: date,
         start_time: time,
         end_time: time,
         validate_conflicts: bool = True,  # DEPRECATED - kept for backward compatibility
@@ -60,11 +62,12 @@ class SlotManager(BaseService):
         """
         Create a new availability slot.
 
-        FIXED: No longer checks for booking conflicts. The validate_conflicts
-        parameter is deprecated and ignored to maintain backward compatibility.
+        UPDATED: Now uses instructor_id and date instead of availability_id.
+        No longer checks for booking conflicts (layer independence).
 
         Args:
-            availability_id: The instructor availability entry ID
+            instructor_id: The instructor ID
+            target_date: The date for the slot
             start_time: Start time of the slot
             end_time: End time of the slot
             validate_conflicts: DEPRECATED - ignored for layer independence
@@ -75,14 +78,7 @@ class SlotManager(BaseService):
 
         Raises:
             ValidationException: If validation fails
-            NotFoundException: If availability not found
         """
-        # Get availability entry
-        availability = self.repository.get_availability_by_id(availability_id)
-
-        if not availability:
-            raise NotFoundException("Availability entry not found")
-
         # Validate time alignment (15-minute blocks)
         self._validate_time_alignment(start_time)
         self._validate_time_alignment(end_time)
@@ -92,18 +88,18 @@ class SlotManager(BaseService):
         if not validation["valid"]:
             raise ValidationException(validation["reason"])
 
-        # FIXED: Removed booking conflict check - layer independence
-
         # Check for duplicate slot
-        if self.repository.slot_exists(availability_id, start_time, end_time):
+        if self.repository.slot_exists(instructor_id, target_date, start_time, end_time):
             raise ConflictException("This exact time slot already exists")
 
         # Create the slot
-        new_slot = self.repository.create(availability_id=availability_id, start_time=start_time, end_time=end_time)
+        new_slot = self.repository.create(
+            instructor_id=instructor_id, date=target_date, start_time=start_time, end_time=end_time
+        )
 
-        # FIXED: Always merge if requested - don't check for bookings
+        # Always merge if requested - don't check for bookings
         if auto_merge:
-            self.merge_overlapping_slots(availability_id)
+            self.merge_overlapping_slots(instructor_id, target_date)
 
         self.db.commit()
 
@@ -114,7 +110,7 @@ class SlotManager(BaseService):
         if not final_slot:
             # The slot was merged into another slot
             # Find the slot that now contains our time range
-            slots = self.repository.get_slots_by_availability_ordered(availability_id)
+            slots = self.repository.get_slots_for_date_ordered(instructor_id, target_date)
             for slot in slots:
                 # Check if this slot contains our original time range
                 if slot.start_time <= start_time and slot.end_time >= end_time:
@@ -124,13 +120,15 @@ class SlotManager(BaseService):
         if final_slot:
             self.db.refresh(final_slot)
             self.logger.info(
-                f"Created slot {new_slot.id} for availability {availability_id}: " f"{start_time}-{end_time}"
+                f"Created slot {new_slot.id} for instructor {instructor_id} on {target_date}: "
+                f"{start_time}-{end_time}"
             )
             return final_slot
         else:
             # This shouldn't happen, but return the original slot info
             self.logger.info(
-                f"Created slot {new_slot.id} for availability {availability_id}: " f"{start_time}-{end_time}"
+                f"Created slot {new_slot.id} for instructor {instructor_id} on {target_date}: "
+                f"{start_time}-{end_time}"
             )
             return new_slot
 
@@ -144,8 +142,7 @@ class SlotManager(BaseService):
         """
         Update an existing slot's times.
 
-        FIXED: No longer checks for booking conflicts. The validate_conflicts
-        parameter is deprecated and ignored to maintain backward compatibility.
+        No longer checks for booking conflicts (layer independence).
 
         Args:
             slot_id: The slot ID to update
@@ -166,8 +163,6 @@ class SlotManager(BaseService):
         if not slot:
             raise NotFoundException("Slot not found")
 
-        # FIXED: Removed booking check - allow updates regardless
-
         # Determine new times
         new_start = start_time if start_time is not None else slot.start_time
         new_end = end_time if end_time is not None else slot.end_time
@@ -176,8 +171,6 @@ class SlotManager(BaseService):
         validation = self.conflict_checker.validate_time_range(new_start, new_end)
         if not validation["valid"]:
             raise ValidationException(validation["reason"])
-
-        # FIXED: Removed booking conflict check - layer independence
 
         # Update the slot
         updated_slot = self.repository.update(slot_id, start_time=new_start, end_time=new_end)
@@ -191,8 +184,8 @@ class SlotManager(BaseService):
         """
         Delete an availability slot.
 
-        FIXED: Always allows deletion regardless of bookings. The force
-        parameter is deprecated and ignored to maintain backward compatibility.
+        UPDATED: Always allows deletion regardless of bookings.
+        Removed is_cleared logic since InstructorAvailability no longer exists.
 
         Args:
             slot_id: The slot ID to delete
@@ -210,51 +203,37 @@ class SlotManager(BaseService):
         if not slot:
             raise NotFoundException("Slot not found")
 
-        # FIXED: Removed booking check - always allow deletion
-
-        availability_id = slot.availability_id
-
         # Delete the slot
         self.repository.delete(slot_id)
-        self.db.flush()
-
-        # Check if this was the last slot for the availability
-        remaining_slots = self.repository.count_slots_for_availability(availability_id)
-
-        if remaining_slots == 0:
-            # Mark availability as cleared or delete it
-            availability = self.repository.get_availability_by_id(availability_id)
-            if availability:
-                availability.is_cleared = True
-
         self.db.commit()
 
         self.logger.info(f"Deleted slot {slot_id}")
         return True
 
-    def merge_overlapping_slots(self, availability_id: int, preserve_booked: bool = True) -> int:
+    def merge_overlapping_slots(self, instructor_id: int, target_date: date, preserve_booked: bool = True) -> int:
         """
-        Merge overlapping or adjacent slots for an availability entry.
+        Merge overlapping or adjacent slots for a specific date.
 
-        FIXED: Always merges overlapping slots regardless of bookings. The
-        preserve_booked parameter is deprecated and ignored.
+        UPDATED: Now uses instructor_id and date instead of availability_id.
+        Always merges overlapping slots regardless of bookings.
 
         Args:
-            availability_id: The availability entry ID
+            instructor_id: The instructor ID
+            target_date: The date to merge slots on
             preserve_booked: DEPRECATED - ignored for layer independence
 
         Returns:
             Number of slots merged
         """
         # Get all slots ordered by start time
-        slots = self.repository.get_slots_by_availability_ordered(availability_id)
+        slots = self.repository.get_slots_for_date_ordered(instructor_id, target_date)
 
         if len(slots) <= 1:
             return 0
 
-        self.logger.debug(f"Merging slots for availability_id {availability_id}: " f"{len(slots)} slots found")
-
-        # FIXED: Removed booking separation logic - merge all overlapping slots
+        self.logger.debug(
+            f"Merging slots for instructor {instructor_id} on {target_date}: " f"{len(slots)} slots found"
+        )
 
         # Merge slots
         merged_count = 0
@@ -295,7 +274,7 @@ class SlotManager(BaseService):
         """
         Split a slot into two at the specified time.
 
-        FIXED: Allows splitting regardless of bookings.
+        Allows splitting regardless of bookings.
 
         Args:
             slot_id: The slot ID to split
@@ -314,15 +293,14 @@ class SlotManager(BaseService):
         if not slot:
             raise NotFoundException("Slot not found")
 
-        # FIXED: Removed booking check - allow split regardless
-
         # Validate split time
         if split_time <= slot.start_time or split_time >= slot.end_time:
             raise ValidationException("Split time must be between slot start and end times")
 
         # Create second slot
         second_slot = self.repository.create(
-            availability_id=slot.availability_id,
+            instructor_id=slot.instructor_id,
+            date=slot.date,
             start_time=split_time,
             end_time=slot.end_time,
         )
@@ -347,6 +325,8 @@ class SlotManager(BaseService):
     ) -> List[Dict[str, Any]]:
         """
         Find gaps in availability that could be filled.
+
+        UPDATED: Method signature already uses instructor_id and date.
 
         Args:
             instructor_id: The instructor ID
@@ -391,9 +371,13 @@ class SlotManager(BaseService):
 
         return gaps
 
-    def optimize_availability(self, availability_id: int, target_duration_minutes: int = 60) -> List[Dict[str, Any]]:
+    def optimize_availability(
+        self, instructor_id: int, target_date: date, target_duration_minutes: int = 60
+    ) -> List[Dict[str, Any]]:
         """
         Suggest optimal slot arrangements for a given duration.
+
+        UPDATED: Now uses instructor_id and date instead of availability_id.
 
         This method finds FREE time slots that can accommodate bookings of the
         specified duration. It MUST check existing bookings to avoid suggesting
@@ -403,14 +387,15 @@ class SlotManager(BaseService):
         helper that needs to respect existing bookings.
 
         Args:
-            availability_id: The availability entry ID
+            instructor_id: The instructor ID
+            target_date: The date to optimize
             target_duration_minutes: Desired booking duration
 
         Returns:
             List of suggested time slots that are FREE for booking
         """
         # Get all slots with their booking status
-        slots_with_status = self.repository.get_slots_with_booking_status(availability_id)
+        slots_with_status = self.repository.get_slots_with_booking_status_for_date(instructor_id, target_date)
 
         # Filter out booked slots - we only want to suggest FREE times
         non_booked_slots = [slot for slot, status in slots_with_status if status is None]
@@ -448,7 +433,7 @@ class SlotManager(BaseService):
         """
         Check if two slots can be merged.
 
-        FIXED: Only checks time adjacency, not bookings.
+        Only checks time adjacency, not bookings.
         """
         # Calculate gap between slots
         gap_start = slot1.end_time
