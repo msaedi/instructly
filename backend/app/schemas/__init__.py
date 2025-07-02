@@ -14,10 +14,6 @@ from .availability import (
     AvailabilitySlotBase,
     AvailabilitySlotCreate,
     CopyWeekRequest,
-    InstructorAvailability,
-    InstructorAvailabilityBase,
-    InstructorAvailabilityCreate,
-    InstructorAvailabilityUpdate,
     WeekScheduleCreate,
 )
 
@@ -81,10 +77,6 @@ __all__ = [
     "AvailabilitySlotBase",
     "AvailabilitySlotCreate",
     "AvailabilitySlot",
-    "InstructorAvailabilityBase",
-    "InstructorAvailabilityCreate",
-    "InstructorAvailabilityUpdate",
-    "InstructorAvailability",
     "DateTimeSlot",
     "WeekScheduleCreate",
     "CopyWeekRequest",

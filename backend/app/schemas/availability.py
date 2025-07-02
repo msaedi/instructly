@@ -10,7 +10,7 @@ the table renaming refactoring.
 """
 
 from datetime import date, time
-from typing import List, Optional
+from typing import List
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -32,52 +32,16 @@ class AvailabilitySlotBase(BaseModel):
 class AvailabilitySlotCreate(AvailabilitySlotBase):
     """Schema for creating a new availability slot."""
 
+    instructor_id: int
+    date: date
+
 
 class AvailabilitySlot(AvailabilitySlotBase):
     """Schema for returning availability slot data."""
 
     id: int
-    availability_id: int  # Changed from date_override_id
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class InstructorAvailabilityBase(BaseModel):
-    """Base schema for instructor availability entries."""
-
-    date: date
-    is_cleared: bool = False
-
-
-class InstructorAvailabilityCreate(InstructorAvailabilityBase):
-    """Schema for creating instructor availability."""
-
-    time_slots: List[AvailabilitySlotCreate] = []
-
-    @field_validator("date")
-    def validate_not_past(cls, v):
-        """Prevent creating availability for past dates."""
-        if v < date.today():
-            raise ValueError("Cannot create availability for past dates")
-        return v
-
-
-class InstructorAvailabilityUpdate(BaseModel):
-    """Schema for updating instructor availability."""
-
-    is_cleared: Optional[bool] = None
-    time_slots: Optional[List[AvailabilitySlotCreate]] = None
-
-
-class InstructorAvailability(InstructorAvailabilityBase):
-    """Schema for returning instructor availability data."""
-
-    id: int
     instructor_id: int
-    time_slots: List[AvailabilitySlot] = []
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
-
+    date: date
     model_config = ConfigDict(from_attributes=True)
 
 

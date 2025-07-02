@@ -101,7 +101,6 @@ class AvailabilityWindowResponse(StandardizedModel):
     day_of_week: Optional[DayOfWeekEnum] = None  # Always None now
     specific_date: Optional[DateType] = None
     is_recurring: bool  # Always False now
-    is_cleared: bool = False
     start_time: TimeType  # Add these from base
     end_time: TimeType
     is_available: bool = True
