@@ -2,6 +2,8 @@
 """
 Integration tests for BulkOperationService with real database.
 Tests actual service behavior and database interactions.
+
+FIXED: Updated for Work Stream #9 - Availability-booking layer separation.
 """
 
 from datetime import date, time, timedelta
@@ -64,24 +66,29 @@ class TestBulkOperationServiceIntegration:
     async def test_bulk_add_with_conflicts(
         self, bulk_service: BulkOperationService, test_instructor_with_bookings, test_booking
     ):
-        """Test bulk add with booking conflicts."""
-        # Try to add slots that conflict with existing booking
+        """Test bulk add when slots already exist or conflict with bookings."""
+        # FIXED: With Work Stream #9, we don't check booking conflicts
+        # But we still can't create duplicate slots
         booking_date = test_booking.booking_date
 
         operations = [
+            # This will fail because a slot already exists at this time (not because of booking)
             SlotOperation(
                 action="add", date=booking_date, start_time=test_booking.start_time, end_time=test_booking.end_time
             ),
+            # This should succeed - different time
             SlotOperation(action="add", date=booking_date, start_time=time(18, 0), end_time=time(19, 0)),
         ]
 
         request = BulkUpdateRequest(operations=operations, validate_only=False)
         result = await bulk_service.process_bulk_update(test_instructor_with_bookings.id, request)
 
-        assert result["successful"] == 1  # Only non-conflicting slot
-        assert result["failed"] == 1  # Conflicting slot
+        # FIXED: Both operations should process
+        assert result["successful"] == 1  # Only the non-duplicate slot
+        assert result["failed"] == 1  # The duplicate slot
         assert result["results"][0].status == "failed"
-        assert "Conflicts with" in result["results"][0].reason
+        # FIXED: Error is about duplicate slot, not booking conflict
+        assert "already exists" in result["results"][0].reason.lower()
 
     @pytest.mark.asyncio
     async def test_bulk_remove_slots(self, bulk_service: BulkOperationService, test_instructor_with_availability):
@@ -111,7 +118,8 @@ class TestBulkOperationServiceIntegration:
 
     @pytest.mark.asyncio
     async def test_bulk_remove_with_bookings(self, bulk_service: BulkOperationService, test_booking):
-        """Test that slots with bookings cannot be removed."""
+        """Test that slots with bookings CAN be removed with new architecture."""
+        # FIXED: With Work Stream #9, we ALLOW removal of slots with bookings
         slot_id = test_booking.availability_slot_id
 
         operations = [SlotOperation(action="remove", slot_id=slot_id)]
@@ -119,9 +127,17 @@ class TestBulkOperationServiceIntegration:
 
         result = await bulk_service.process_bulk_update(test_booking.instructor_id, request)
 
-        assert result["successful"] == 0
-        assert result["failed"] == 1
-        assert "booking" in result["results"][0].reason.lower()
+        # FIXED: Should succeed now
+        assert result["successful"] == 1
+        assert result["failed"] == 0
+
+        # Verify slot was actually removed
+        remaining = bulk_service.db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot_id).count()
+        assert remaining == 0
+
+        # But booking should still exist (layer independence)
+        booking_exists = bulk_service.db.query(test_booking.__class__).filter_by(id=test_booking.id).first()
+        assert booking_exists is not None
 
     @pytest.mark.asyncio
     async def test_bulk_update_slots(self, bulk_service: BulkOperationService, test_instructor_with_availability):
