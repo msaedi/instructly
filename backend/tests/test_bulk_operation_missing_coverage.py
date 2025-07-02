@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import ValidationException
 from app.models.availability import AvailabilitySlot, InstructorAvailability
+from app.models.booking import Booking
 from app.schemas.availability_window import BulkUpdateRequest, SlotOperation, ValidateWeekRequest
 from app.services.bulk_operation_service import BulkOperationService
 
@@ -274,11 +275,15 @@ class TestBulkOperationMissingCoverage:
         request = BulkUpdateRequest(operations=operations, validate_only=False)
         bulk_service = BulkOperationService(db)
 
-        # Even with force, should not delete booked slots
+        # Now we expect SUCCESS - layer independence allows deletion
         result = await bulk_service.process_bulk_update(test_booking.instructor_id, request)
 
-        assert result["failed"] == 1
-        assert "booking" in result["results"][0].reason.lower()
+        assert result["successful"] == 1
+        assert result["failed"] == 0
+
+        # Verify booking still exists after slot deletion
+        booking_after = db.query(Booking).filter(Booking.id == test_booking.id).first()
+        assert booking_after is not None  # Booking persists despite slot removal
 
     @pytest.mark.asyncio
     async def test_week_validation_with_complex_changes(self, db: Session, test_instructor):
