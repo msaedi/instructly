@@ -2,16 +2,17 @@
 """
 BulkOperation Repository for InstaInstru Platform
 
-Implements all data access operations for bulk availability operations,
-based on the documented query patterns from strategic testing.
+UPDATED FOR WORK STREAM #10: Single-table availability design.
 
-This repository handles:
-- Slot retrieval and validation
-- Availability management
-- Booking conflict checks
-- Bulk slot operations
-- Cache invalidation support
-- Week validation queries
+This repository now works with the simplified single-table design where
+AvailabilitySlot contains both date and time information. Methods dealing
+with InstructorAvailability have been removed or transformed.
+
+Key changes:
+- No more InstructorAvailability operations
+- No more is_cleared status management
+- Parameters changed from availability_id to instructor_id + date
+- Simplified queries without complex joins
 """
 
 import logging
@@ -22,7 +23,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from ..core.exceptions import RepositoryException
-from ..models.availability import AvailabilitySlot, InstructorAvailability
+from ..models.availability import AvailabilitySlot
 from ..models.booking import Booking, BookingStatus
 from ..models.instructor import InstructorProfile
 from .base_repository import BaseRepository
@@ -30,17 +31,17 @@ from .base_repository import BaseRepository
 logger = logging.getLogger(__name__)
 
 
-class BulkOperationRepository(BaseRepository[InstructorAvailability]):
+class BulkOperationRepository(BaseRepository[AvailabilitySlot]):
     """
     Repository for bulk operation data access.
 
-    Implements all 13 documented query patterns from strategic testing.
-    Primary model is InstructorAvailability but queries across multiple tables.
+    Works with the single-table design where AvailabilitySlot
+    contains instructor_id, date, start_time, and end_time.
     """
 
     def __init__(self, db: Session):
-        """Initialize with InstructorAvailability model as primary."""
-        super().__init__(db, InstructorAvailability)
+        """Initialize with AvailabilitySlot model."""
+        super().__init__(db, AvailabilitySlot)
         self.logger = logging.getLogger(__name__)
 
     # Slot Retrieval Queries
@@ -49,7 +50,7 @@ class BulkOperationRepository(BaseRepository[InstructorAvailability]):
         """
         Get slots with their dates for cache invalidation.
 
-        Used when removing slots to determine which cache entries to invalidate.
+        Simplified without InstructorAvailability join.
 
         Args:
             slot_ids: List of slot IDs to retrieve
@@ -61,11 +62,10 @@ class BulkOperationRepository(BaseRepository[InstructorAvailability]):
             results = (
                 self.db.query(
                     AvailabilitySlot.id,
-                    InstructorAvailability.date,
+                    AvailabilitySlot.date,
                     AvailabilitySlot.start_time,
                     AvailabilitySlot.end_time,
                 )
-                .join(InstructorAvailability, AvailabilitySlot.availability_id == InstructorAvailability.id)
                 .filter(AvailabilitySlot.id.in_(slot_ids))
                 .all()
             )
@@ -76,60 +76,17 @@ class BulkOperationRepository(BaseRepository[InstructorAvailability]):
             self.logger.error(f"Error getting slots by IDs: {str(e)}")
             raise RepositoryException(f"Failed to get slots: {str(e)}")
 
-    def get_or_create_availability(
-        self, instructor_id: int, target_date: date, is_cleared: bool = False
-    ) -> InstructorAvailability:
-        """
-        Get existing availability or create new one for a date.
+    # Booking Check Queries
 
-        Used in add operations to ensure availability entry exists.
+    def has_bookings_on_date(self, instructor_id: int, target_date: date) -> bool:
+        """
+        Check if any slots on a date have bookings.
+
+        Updated for single-table design with instructor_id and date.
 
         Args:
             instructor_id: The instructor ID
-            target_date: The date to get/create availability for
-            is_cleared: Initial cleared status if creating
-
-        Returns:
-            InstructorAvailability instance (existing or new)
-        """
-        try:
-            availability = (
-                self.db.query(InstructorAvailability)
-                .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date == target_date,
-                )
-                .first()
-            )
-
-            if not availability:
-                availability = InstructorAvailability(
-                    instructor_id=instructor_id, date=target_date, is_cleared=is_cleared
-                )
-                self.db.add(availability)
-                self.db.flush()
-            else:
-                # Update is_cleared if needed
-                if availability.is_cleared and not is_cleared:
-                    availability.is_cleared = False
-                    self.db.flush()
-
-            return availability
-
-        except SQLAlchemyError as e:
-            self.logger.error(f"Error getting/creating availability: {str(e)}")
-            raise RepositoryException(f"Failed to manage availability: {str(e)}")
-
-    # Booking Check Queries
-
-    def has_bookings_on_date(self, availability_id: int) -> bool:
-        """
-        Check if any slots for this availability have bookings.
-
-        Used to determine if auto-merge should be applied.
-
-        Args:
-            availability_id: The availability ID to check
+            target_date: The date to check
 
         Returns:
             True if there are confirmed/completed bookings, False otherwise
@@ -139,7 +96,8 @@ class BulkOperationRepository(BaseRepository[InstructorAvailability]):
                 self.db.query(Booking)
                 .join(AvailabilitySlot, Booking.availability_slot_id == AvailabilitySlot.id)
                 .filter(
-                    AvailabilitySlot.availability_id == availability_id,
+                    AvailabilitySlot.instructor_id == instructor_id,
+                    AvailabilitySlot.date == target_date,
                     Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
                 )
                 .count()
@@ -200,19 +158,11 @@ class BulkOperationRepository(BaseRepository[InstructorAvailability]):
                 .all()
             )
 
-            return {row.availability_slot_id for row in results}
+            return {row.availability_slot_id for row in results if row.availability_slot_id is not None}
 
         except SQLAlchemyError as e:
             self.logger.error(f"Error getting booked slot IDs: {str(e)}")
             raise RepositoryException(f"Failed to get booked slots: {str(e)}")
-
-    def availability_has_bookings(self, availability_id: int) -> bool:
-        """
-        Check if an availability entry has any bookings.
-
-        Alias for has_bookings_on_date for consistency.
-        """
-        return self.has_bookings_on_date(availability_id)
 
     # Week Validation Queries
 
@@ -220,7 +170,7 @@ class BulkOperationRepository(BaseRepository[InstructorAvailability]):
         """
         Get all slots for a week for validation.
 
-        Used in week validation to compare current vs saved state.
+        Simplified without InstructorAvailability join.
 
         Args:
             instructor_id: The instructor ID
@@ -234,17 +184,16 @@ class BulkOperationRepository(BaseRepository[InstructorAvailability]):
             results = (
                 self.db.query(
                     AvailabilitySlot.id,
-                    InstructorAvailability.date,
+                    AvailabilitySlot.date,
                     AvailabilitySlot.start_time,
                     AvailabilitySlot.end_time,
                 )
-                .join(InstructorAvailability, AvailabilitySlot.availability_id == InstructorAvailability.id)
                 .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date >= week_start,
-                    InstructorAvailability.date <= week_end,
+                    AvailabilitySlot.instructor_id == instructor_id,
+                    AvailabilitySlot.date >= week_start,
+                    AvailabilitySlot.date <= week_end,
                 )
-                .order_by(InstructorAvailability.date, AvailabilitySlot.start_time)
+                .order_by(AvailabilitySlot.date, AvailabilitySlot.start_time)
                 .all()
             )
 
@@ -268,7 +217,7 @@ class BulkOperationRepository(BaseRepository[InstructorAvailability]):
         """
         Get a slot only if it belongs to the instructor.
 
-        Used for update/remove operations to verify ownership.
+        Simplified without InstructorAvailability join.
 
         Args:
             slot_id: The slot ID
@@ -280,10 +229,9 @@ class BulkOperationRepository(BaseRepository[InstructorAvailability]):
         try:
             return (
                 self.db.query(AvailabilitySlot)
-                .join(InstructorAvailability)
                 .filter(
                     AvailabilitySlot.id == slot_id,
-                    InstructorAvailability.instructor_id == instructor_id,
+                    AvailabilitySlot.instructor_id == instructor_id,
                 )
                 .first()
             )
@@ -292,14 +240,15 @@ class BulkOperationRepository(BaseRepository[InstructorAvailability]):
             self.logger.error(f"Error getting slot for instructor: {str(e)}")
             raise RepositoryException(f"Failed to get slot: {str(e)}")
 
-    def slot_exists(self, availability_id: int, start_time: time, end_time: time) -> bool:
+    def slot_exists(self, instructor_id: int, target_date: date, start_time: time, end_time: time) -> bool:
         """
         Check if a slot already exists for given time range.
 
-        Used to prevent duplicate slots.
+        Updated for single-table design with instructor_id and date.
 
         Args:
-            availability_id: The availability ID
+            instructor_id: The instructor ID
+            target_date: The date
             start_time: Slot start time
             end_time: Slot end time
 
@@ -310,7 +259,8 @@ class BulkOperationRepository(BaseRepository[InstructorAvailability]):
             exists = (
                 self.db.query(AvailabilitySlot)
                 .filter(
-                    AvailabilitySlot.availability_id == availability_id,
+                    AvailabilitySlot.instructor_id == instructor_id,
+                    AvailabilitySlot.date == target_date,
                     AvailabilitySlot.start_time == start_time,
                     AvailabilitySlot.end_time == end_time,
                 )
@@ -325,20 +275,28 @@ class BulkOperationRepository(BaseRepository[InstructorAvailability]):
 
     # Slot Count Queries
 
-    def count_slots_for_availability(self, availability_id: int) -> int:
+    def count_slots_for_date(self, instructor_id: int, target_date: date) -> int:
         """
-        Count remaining slots for an availability.
+        Count remaining slots for a date.
 
-        Used after delete to check if availability should be cleared.
+        Replaces count_slots_for_availability in single-table design.
 
         Args:
-            availability_id: The availability ID
+            instructor_id: The instructor ID
+            target_date: The date
 
         Returns:
             Number of slots
         """
         try:
-            return self.db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == availability_id).count()
+            return (
+                self.db.query(AvailabilitySlot)
+                .filter(
+                    AvailabilitySlot.instructor_id == instructor_id,
+                    AvailabilitySlot.date == target_date,
+                )
+                .count()
+            )
 
         except SQLAlchemyError as e:
             self.logger.error(f"Error counting slots: {str(e)}")
@@ -350,7 +308,7 @@ class BulkOperationRepository(BaseRepository[InstructorAvailability]):
         """
         Get unique dates that actually exist for cache invalidation.
 
-        Used to determine which cache entries to invalidate.
+        Simplified to query AvailabilitySlot directly.
 
         Args:
             instructor_id: The instructor ID
@@ -361,10 +319,10 @@ class BulkOperationRepository(BaseRepository[InstructorAvailability]):
         """
         try:
             results = (
-                self.db.query(InstructorAvailability.date)
+                self.db.query(AvailabilitySlot.date)
                 .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date.in_(operation_dates),
+                    AvailabilitySlot.instructor_id == instructor_id,
+                    AvailabilitySlot.date.in_(operation_dates),
                 )
                 .distinct()
                 .all()
@@ -382,10 +340,10 @@ class BulkOperationRepository(BaseRepository[InstructorAvailability]):
         """
         Create multiple slots efficiently.
 
-        Used for batch insertion in bulk operations.
+        Updated for single-table design with instructor_id and date in each slot.
 
         Args:
-            slots: List of slot data dictionaries
+            slots: List of slot data dictionaries with instructor_id, date, start_time, end_time
 
         Returns:
             List of created AvailabilitySlot objects
@@ -403,33 +361,7 @@ class BulkOperationRepository(BaseRepository[InstructorAvailability]):
             self.logger.error(f"Error bulk creating slots: {str(e)}")
             raise RepositoryException(f"Failed to bulk create slots: {str(e)}")
 
-    def update_availability_cleared_status(self, availability_id: int, is_cleared: bool) -> bool:
-        """
-        Update the cleared status of an availability.
-
-        Used when all slots are removed from a date.
-
-        Args:
-            availability_id: The availability ID
-            is_cleared: New cleared status
-
-        Returns:
-            True if updated, False if not found
-        """
-        try:
-            result = (
-                self.db.query(InstructorAvailability)
-                .filter(InstructorAvailability.id == availability_id)
-                .update({"is_cleared": is_cleared})
-            )
-            self.db.flush()
-            return result > 0
-
-        except SQLAlchemyError as e:
-            self.logger.error(f"Error updating cleared status: {str(e)}")
-            raise RepositoryException(f"Failed to update status: {str(e)}")
-
-    # Profile Query (might be shared with other repositories)
+    # Profile Query (unchanged)
 
     def get_instructor_profile(self, instructor_id: int) -> Optional[InstructorProfile]:
         """

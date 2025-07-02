@@ -2,16 +2,17 @@
 """
 WeekOperation Repository for InstaInstru Platform
 
-Implements all data access operations for week-based availability operations,
-based on the documented query patterns from strategic testing.
+UPDATED FOR WORK STREAM #10: Single-table availability design.
 
-This repository handles:
-- Week booking queries with complex joins
-- Bulk availability operations
-- Slot management for date ranges
-- Cleanup operations for empty entries
-- Conflict checking support
-- Pattern application queries
+This repository now works with the simplified single-table design where
+AvailabilitySlot contains both date and time information. The complex
+two-table operations have been removed, resulting in MUCH simpler code.
+
+Key simplifications:
+- No more InstructorAvailability operations
+- No more empty entry cleanup
+- Direct slot queries without complex joins
+- No more two-step processes
 """
 
 import logging
@@ -19,37 +20,36 @@ from datetime import date, time
 from typing import Dict, List, Set
 
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from ..core.exceptions import RepositoryException
-from ..models.availability import AvailabilitySlot, InstructorAvailability
+from ..models.availability import AvailabilitySlot
 from ..models.booking import Booking, BookingStatus
 from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
 
 
-class WeekOperationRepository(BaseRepository[InstructorAvailability]):
+class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
     """
     Repository for week operation data access.
 
-    Implements all 15 documented query patterns from strategic testing.
-    Primary model is InstructorAvailability but queries across multiple tables.
+    Works with the single-table design where AvailabilitySlot
+    contains instructor_id, date, start_time, and end_time.
     """
 
     def __init__(self, db: Session):
-        """Initialize with InstructorAvailability model as primary."""
-        super().__init__(db, InstructorAvailability)
+        """Initialize with AvailabilitySlot model."""
+        super().__init__(db, AvailabilitySlot)
         self.logger = logging.getLogger(__name__)
 
     # Week Booking Queries
 
     def get_week_bookings_with_slots(self, instructor_id: int, week_dates: List[date]) -> Dict[str, any]:
         """
-        Get all bookings in a target week with slot and availability information.
+        Get all bookings in a target week.
 
-        This complex query joins Booking -> AvailabilitySlot -> InstructorAvailability
-        to get complete booking information for the week.
+        Simplified query without complex joins through InstructorAvailability.
 
         Args:
             instructor_id: The instructor ID
@@ -58,26 +58,20 @@ class WeekOperationRepository(BaseRepository[InstructorAvailability]):
         Returns:
             Dictionary with:
                 - booked_slot_ids: Set of slot IDs that are booked
-                - availability_with_bookings: Set of availability IDs with bookings
                 - booked_time_ranges_by_date: Dict of date -> list of time ranges
                 - total_bookings: Total count of bookings
         """
         try:
+            # Direct query on bookings - no complex joins needed!
             bookings = (
                 self.db.query(
                     Booking.booking_date,
-                    AvailabilitySlot.id.label("slot_id"),
-                    AvailabilitySlot.start_time,
-                    AvailabilitySlot.end_time,
-                    InstructorAvailability.id.label("availability_id"),
-                )
-                .join(AvailabilitySlot, Booking.availability_slot_id == AvailabilitySlot.id)
-                .join(
-                    InstructorAvailability,
-                    AvailabilitySlot.availability_id == InstructorAvailability.id,
+                    Booking.availability_slot_id.label("slot_id"),
+                    Booking.start_time,
+                    Booking.end_time,
                 )
                 .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
+                    Booking.instructor_id == instructor_id,
                     Booking.booking_date.in_(week_dates),
                     Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
                 )
@@ -86,12 +80,11 @@ class WeekOperationRepository(BaseRepository[InstructorAvailability]):
 
             # Process booking information
             booked_slot_ids = set()
-            booked_availability_ids = set()
             booked_time_ranges_by_date = {}
 
             for booking in bookings:
-                booked_slot_ids.add(booking.slot_id)
-                booked_availability_ids.add(booking.availability_id)
+                if booking.slot_id:  # Some bookings might not have slot_id
+                    booked_slot_ids.add(booking.slot_id)
 
                 date_str = booking.booking_date.isoformat()
                 if date_str not in booked_time_ranges_by_date:
@@ -104,7 +97,6 @@ class WeekOperationRepository(BaseRepository[InstructorAvailability]):
 
             return {
                 "booked_slot_ids": booked_slot_ids,
-                "availability_with_bookings": booked_availability_ids,
                 "booked_time_ranges_by_date": booked_time_ranges_by_date,
                 "total_bookings": len(bookings),
             }
@@ -116,6 +108,8 @@ class WeekOperationRepository(BaseRepository[InstructorAvailability]):
     def get_bookings_in_date_range(self, instructor_id: int, start_date: date, end_date: date) -> Dict[str, any]:
         """
         Get all bookings in a date range for pattern operations.
+
+        Simplified without complex joins.
 
         Args:
             instructor_id: The instructor ID
@@ -129,21 +123,16 @@ class WeekOperationRepository(BaseRepository[InstructorAvailability]):
                 - total_bookings: Total count of bookings
         """
         try:
+            # Direct query on bookings
             bookings = (
                 self.db.query(
                     Booking.booking_date,
-                    AvailabilitySlot.id.label("slot_id"),
-                    AvailabilitySlot.start_time,
-                    AvailabilitySlot.end_time,
-                    InstructorAvailability.id.label("availability_id"),
-                )
-                .join(AvailabilitySlot, Booking.availability_slot_id == AvailabilitySlot.id)
-                .join(
-                    InstructorAvailability,
-                    AvailabilitySlot.availability_id == InstructorAvailability.id,
+                    Booking.availability_slot_id.label("slot_id"),
+                    Booking.start_time,
+                    Booking.end_time,
                 )
                 .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
+                    Booking.instructor_id == instructor_id,
                     Booking.booking_date >= start_date,
                     Booking.booking_date <= end_date,
                     Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
@@ -167,7 +156,8 @@ class WeekOperationRepository(BaseRepository[InstructorAvailability]):
                         "end_time": booking.end_time,
                     }
                 )
-                booked_slot_ids.add(booking.slot_id)
+                if booking.slot_id:
+                    booked_slot_ids.add(booking.slot_id)
 
             self.logger.info(f"Found {len(bookings)} bookings across {len(bookings_by_date)} dates")
 
@@ -181,84 +171,42 @@ class WeekOperationRepository(BaseRepository[InstructorAvailability]):
             self.logger.error(f"Error getting bookings in range: {str(e)}")
             raise RepositoryException(f"Failed to get bookings: {str(e)}")
 
-    # Availability Queries
+    # Slot Queries
 
-    def get_availability_in_range(
-        self, instructor_id: int, start_date: date, end_date: date
-    ) -> List[InstructorAvailability]:
+    def get_week_slots(self, instructor_id: int, start_date: date, end_date: date) -> List[AvailabilitySlot]:
         """
-        Bulk fetch all availability entries in a date range.
+        Get all slots for a week.
 
-        Used for optimization in apply_pattern_to_date_range.
+        Simple direct query in single-table design.
 
         Args:
             instructor_id: The instructor ID
-            start_date: Start of range
-            end_date: End of range
+            start_date: Start of week
+            end_date: End of week
 
         Returns:
-            List of InstructorAvailability entries with eager loaded slots
+            List of availability slots
         """
         try:
             return (
-                self.db.query(InstructorAvailability)
-                .options(joinedload(InstructorAvailability.time_slots))
+                self.db.query(AvailabilitySlot)
                 .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date >= start_date,
-                    InstructorAvailability.date <= end_date,
+                    AvailabilitySlot.instructor_id == instructor_id,
+                    AvailabilitySlot.date >= start_date,
+                    AvailabilitySlot.date <= end_date,
                 )
+                .order_by(AvailabilitySlot.date, AvailabilitySlot.start_time)
                 .all()
             )
-
         except SQLAlchemyError as e:
-            self.logger.error(f"Error getting availability in range: {str(e)}")
-            raise RepositoryException(f"Failed to get availability: {str(e)}")
-
-    def get_or_create_availability(
-        self, instructor_id: int, target_date: date, is_cleared: bool = False
-    ) -> InstructorAvailability:
-        """
-        Get existing availability or create new one.
-
-        Implements the get-or-create pattern for availability entries.
-
-        Args:
-            instructor_id: The instructor ID
-            target_date: The date
-            is_cleared: Initial cleared status if creating
-
-        Returns:
-            InstructorAvailability instance (existing or new)
-        """
-        try:
-            availability = (
-                self.db.query(InstructorAvailability)
-                .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date == target_date,
-                )
-                .first()
-            )
-
-            if not availability:
-                availability = InstructorAvailability(
-                    instructor_id=instructor_id, date=target_date, is_cleared=is_cleared
-                )
-                self.db.add(availability)
-                self.db.flush()
-
-            return availability
-
-        except SQLAlchemyError as e:
-            self.logger.error(f"Error get/create availability: {str(e)}")
-            raise RepositoryException(f"Failed to manage availability: {str(e)}")
+            self.logger.error(f"Error getting week slots: {str(e)}")
+            raise RepositoryException(f"Failed to get slots: {str(e)}")
 
     def get_slots_with_booking_status(self, instructor_id: int, target_date: date) -> List[Dict[str, any]]:
         """
         Get all slots for a date with their booking status.
 
-        Correctly handles one-way relationship by checking bookings table.
+        Simplified query without InstructorAvailability join.
 
         Args:
             instructor_id: The instructor ID
@@ -268,13 +216,12 @@ class WeekOperationRepository(BaseRepository[InstructorAvailability]):
             List of slot dictionaries with booking status
         """
         try:
-            # First get all slots for the date
+            # Get all slots for the date
             slots = (
                 self.db.query(AvailabilitySlot)
-                .join(InstructorAvailability)
                 .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date == target_date,
+                    AvailabilitySlot.instructor_id == instructor_id,
+                    AvailabilitySlot.date == target_date,
                 )
                 .all()
             )
@@ -311,37 +258,12 @@ class WeekOperationRepository(BaseRepository[InstructorAvailability]):
 
     # Bulk Operations
 
-    def bulk_create_availability(self, entries: List[Dict[str, any]]) -> List[InstructorAvailability]:
-        """
-        Bulk create availability entries.
-
-        Uses bulk_save_objects with return_defaults for efficiency.
-
-        Args:
-            entries: List of dictionaries with availability data
-
-        Returns:
-            List of created InstructorAvailability objects with IDs
-        """
-        try:
-            availability_objects = [InstructorAvailability(**entry_data) for entry_data in entries]
-            self.db.bulk_save_objects(availability_objects, return_defaults=True)
-            self.db.flush()
-            return availability_objects
-
-        except IntegrityError as e:
-            self.logger.error(f"Integrity error bulk creating availability: {str(e)}")
-            raise RepositoryException(f"Duplicate availability entries: {str(e)}")
-        except SQLAlchemyError as e:
-            self.logger.error(f"Error bulk creating availability: {str(e)}")
-            raise RepositoryException(f"Failed to bulk create: {str(e)}")
-
     def bulk_create_slots(self, slots: List[Dict[str, any]]) -> int:
         """
         Bulk create slots using high-performance bulk_insert_mappings.
 
         Args:
-            slots: List of slot dictionaries
+            slots: List of slot dictionaries with instructor_id, date, start_time, end_time
 
         Returns:
             Number of slots created
@@ -360,30 +282,6 @@ class WeekOperationRepository(BaseRepository[InstructorAvailability]):
         except SQLAlchemyError as e:
             self.logger.error(f"Error bulk creating slots: {str(e)}")
             raise RepositoryException(f"Failed to bulk create slots: {str(e)}")
-
-    def bulk_update_availability(self, updates: List[Dict[str, any]]) -> int:
-        """
-        Bulk update availability entries.
-
-        Typically used to update is_cleared status on multiple entries.
-
-        Args:
-            updates: List of dicts with 'id' and fields to update
-
-        Returns:
-            Number of entries updated
-        """
-        try:
-            if not updates:
-                return 0
-
-            self.db.bulk_update_mappings(InstructorAvailability, updates)
-            self.db.flush()
-            return len(updates)
-
-        except SQLAlchemyError as e:
-            self.logger.error(f"Error bulk updating availability: {str(e)}")
-            raise RepositoryException(f"Failed to bulk update: {str(e)}")
 
     def bulk_delete_slots(self, slot_ids: List[int]) -> int:
         """
@@ -413,13 +311,43 @@ class WeekOperationRepository(BaseRepository[InstructorAvailability]):
             self.logger.error(f"Error bulk deleting slots: {str(e)}")
             raise RepositoryException(f"Failed to delete slots: {str(e)}")
 
-    # Cleanup Operations
+    def delete_slots_by_dates(self, instructor_id: int, dates: List[date]) -> int:
+        """
+        Delete all slots for specific dates.
+
+        Direct deletion in single-table design.
+
+        Args:
+            instructor_id: The instructor ID
+            dates: List of dates to clear
+
+        Returns:
+            Number of slots deleted
+        """
+        try:
+            if not dates:
+                return 0
+
+            result = (
+                self.db.query(AvailabilitySlot)
+                .filter(
+                    AvailabilitySlot.instructor_id == instructor_id,
+                    AvailabilitySlot.date.in_(dates),
+                )
+                .delete(synchronize_session=False)
+            )
+            self.db.flush()
+            return result
+
+        except SQLAlchemyError as e:
+            self.logger.error(f"Error deleting slots by dates: {str(e)}")
+            raise RepositoryException(f"Failed to delete slots: {str(e)}")
 
     def delete_non_booked_slots(self, instructor_id: int, week_dates: List[date], booked_slot_ids: Set[int]) -> int:
         """
         Delete all non-booked slots from a week.
 
-        Used during week copy to clear slots that don't have bookings.
+        Simplified without InstructorAvailability joins.
 
         Args:
             instructor_id: The instructor ID
@@ -430,36 +358,16 @@ class WeekOperationRepository(BaseRepository[InstructorAvailability]):
             Number of slots deleted
         """
         try:
+            query = self.db.query(AvailabilitySlot).filter(
+                AvailabilitySlot.instructor_id == instructor_id,
+                AvailabilitySlot.date.in_(week_dates),
+            )
+
             if booked_slot_ids:
                 # Delete slots NOT in booked set
-                result = (
-                    self.db.query(AvailabilitySlot)
-                    .filter(
-                        AvailabilitySlot.availability_id.in_(
-                            self.db.query(InstructorAvailability.id).filter(
-                                InstructorAvailability.instructor_id == instructor_id,
-                                InstructorAvailability.date.in_(week_dates),
-                            )
-                        ),
-                        ~AvailabilitySlot.id.in_(booked_slot_ids),
-                    )
-                    .delete(synchronize_session=False)
-                )
-            else:
-                # No bookings - delete all slots for the week
-                result = (
-                    self.db.query(AvailabilitySlot)
-                    .filter(
-                        AvailabilitySlot.availability_id.in_(
-                            self.db.query(InstructorAvailability.id).filter(
-                                InstructorAvailability.instructor_id == instructor_id,
-                                InstructorAvailability.date.in_(week_dates),
-                            )
-                        )
-                    )
-                    .delete(synchronize_session=False)
-                )
+                query = query.filter(~AvailabilitySlot.id.in_(booked_slot_ids))
 
+            result = query.delete(synchronize_session=False)
             self.db.flush()
             return result
 
@@ -467,95 +375,17 @@ class WeekOperationRepository(BaseRepository[InstructorAvailability]):
             self.logger.error(f"Error deleting non-booked slots: {str(e)}")
             raise RepositoryException(f"Failed to delete slots: {str(e)}")
 
-    def delete_empty_availability_entries(self, instructor_id: int, week_dates: List[date]) -> int:
-        """
-        Delete availability entries that have no slots.
-
-        Cleanup operation after deleting slots.
-
-        Args:
-            instructor_id: The instructor ID
-            week_dates: List of dates to check
-
-        Returns:
-            Number of availability entries deleted
-        """
-        try:
-            # Find availability IDs that still have slots
-            subquery = (
-                self.db.query(AvailabilitySlot.availability_id)
-                .join(InstructorAvailability)
-                .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date.in_(week_dates),
-                )
-                .distinct()
-                .subquery()
-            )
-
-            # Delete availability entries not in the subquery
-            result = (
-                self.db.query(InstructorAvailability)
-                .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date.in_(week_dates),
-                    ~InstructorAvailability.id.in_(subquery),
-                )
-                .delete(synchronize_session=False)
-            )
-
-            self.db.flush()
-            return result
-
-        except SQLAlchemyError as e:
-            self.logger.error(f"Error deleting empty availability: {str(e)}")
-            raise RepositoryException(f"Failed to delete entries: {str(e)}")
-
-    def delete_availability_without_slots(self, instructor_id: int, date_range: List[date]) -> int:
-        """
-        Delete availability entries that have no associated slots.
-
-        More general version of delete_empty_availability_entries.
-
-        Args:
-            instructor_id: The instructor ID
-            date_range: List of dates to check
-
-        Returns:
-            Number of entries deleted
-        """
-        try:
-            # Subquery to find availability IDs with slots
-            subquery = self.db.query(AvailabilitySlot.availability_id).distinct().subquery()
-
-            # Delete entries without slots
-            result = (
-                self.db.query(InstructorAvailability)
-                .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date.in_(date_range),
-                    ~InstructorAvailability.id.in_(subquery),
-                )
-                .delete(synchronize_session=False)
-            )
-
-            self.db.flush()
-            return result
-
-        except SQLAlchemyError as e:
-            self.logger.error(f"Error deleting availability without slots: {str(e)}")
-            raise RepositoryException(f"Failed to cleanup: {str(e)}")
-
     # Validation Queries
 
-    def slot_exists(self, availability_id: int, start_time: time, end_time: time) -> bool:
+    def slot_exists(self, instructor_id: int, target_date: date, start_time: time, end_time: time) -> bool:
         """
         Check if a slot exists for the given time range.
 
-        Used to avoid duplicate slot creation.
+        Updated for single-table design with instructor_id and date.
 
         Args:
-            availability_id: The availability ID
+            instructor_id: The instructor ID
+            target_date: The date
             start_time: Slot start time
             end_time: Slot end time
 
@@ -566,7 +396,8 @@ class WeekOperationRepository(BaseRepository[InstructorAvailability]):
             exists = (
                 self.db.query(AvailabilitySlot)
                 .filter(
-                    AvailabilitySlot.availability_id == availability_id,
+                    AvailabilitySlot.instructor_id == instructor_id,
+                    AvailabilitySlot.date == target_date,
                     AvailabilitySlot.start_time == start_time,
                     AvailabilitySlot.end_time == end_time,
                 )
@@ -579,20 +410,28 @@ class WeekOperationRepository(BaseRepository[InstructorAvailability]):
             self.logger.error(f"Error checking slot existence: {str(e)}")
             raise RepositoryException(f"Failed to check slot: {str(e)}")
 
-    def count_slots_for_availability(self, availability_id: int) -> int:
+    def count_slots_for_date(self, instructor_id: int, target_date: date) -> int:
         """
-        Count slots for an availability entry.
+        Count slots for a specific date.
 
-        Used to check if availability should be marked as cleared.
+        Replaces count_slots_for_availability in single-table design.
 
         Args:
-            availability_id: The availability ID
+            instructor_id: The instructor ID
+            target_date: The date
 
         Returns:
             Number of slots
         """
         try:
-            return self.db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == availability_id).count()
+            return (
+                self.db.query(AvailabilitySlot)
+                .filter(
+                    AvailabilitySlot.instructor_id == instructor_id,
+                    AvailabilitySlot.date == target_date,
+                )
+                .count()
+            )
 
         except SQLAlchemyError as e:
             self.logger.error(f"Error counting slots: {str(e)}")

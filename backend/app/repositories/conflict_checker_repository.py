@@ -2,31 +2,30 @@
 """
 ConflictChecker Repository for InstaInstru Platform
 
-Implements all data access operations for conflict checking and validation,
-based on the documented query patterns from strategic testing.
+UPDATED FOR WORK STREAM #10: Single-table availability design.
 
-This repository handles:
-- Booking conflict detection queries
-- Slot availability checking
-- Weekly booking aggregation
-- Blackout date validation
-- Instructor profile and service queries
-- Complex availability summaries
+This repository now works with the simplified single-table design where
+AvailabilitySlot contains both date and time information. All joins through
+InstructorAvailability have been removed.
+
+Key changes:
+- Removed all InstructorAvailability joins
+- Using AvailabilitySlot.instructor_id and AvailabilitySlot.date directly
+- Deleted 5 unused methods (40% reduction)
+- Simplified queries from 3-way to 2-way joins
 """
 
 import logging
 from datetime import date
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import and_, case, func
 from sqlalchemy.orm import Session, joinedload
 
 from ..core.exceptions import RepositoryException
-from ..models.availability import AvailabilitySlot, BlackoutDate, InstructorAvailability
+from ..models.availability import AvailabilitySlot, BlackoutDate
 from ..models.booking import Booking, BookingStatus
 from ..models.instructor import InstructorProfile
 from ..models.service import Service
-from ..models.user import User
 from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
@@ -36,7 +35,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
     """
     Repository for conflict checking data access.
 
-    Implements all 13 documented query patterns from strategic testing.
+    Implements 8 query patterns (down from 13) after removing unused methods.
     Primary model is Booking but queries across multiple tables.
     """
 
@@ -53,8 +52,8 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
         """
         Get bookings that could conflict with a time range on a specific date.
 
-        Complex JOIN query across Booking, AvailabilitySlot, and InstructorAvailability.
-        Used in check_booking_conflicts to find overlapping bookings.
+        SIMPLIFIED: Now directly joins Booking → AvailabilitySlot without
+        going through InstructorAvailability.
 
         Args:
             instructor_id: The instructor to check
@@ -68,13 +67,9 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             query = (
                 self.db.query(Booking)
                 .join(AvailabilitySlot, Booking.availability_slot_id == AvailabilitySlot.id)
-                .join(
-                    InstructorAvailability,
-                    AvailabilitySlot.availability_id == InstructorAvailability.id,
-                )
                 .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    Booking.booking_date == check_date,
+                    AvailabilitySlot.instructor_id == instructor_id,
+                    AvailabilitySlot.date == check_date,
                     Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
                 )
             )
@@ -92,20 +87,21 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
 
     def get_slot_with_availability(self, slot_id: int) -> Optional[AvailabilitySlot]:
         """
-        Get a slot with its availability relationship eager loaded.
+        Get a slot with its instructor relationship eager loaded.
 
-        Used in check_slot_availability to validate slot ownership.
+        SIMPLIFIED: No longer loads the intermediate availability table,
+        just loads the instructor directly.
 
         Args:
             slot_id: The availability slot ID
 
         Returns:
-            AvailabilitySlot with availability loaded, or None
+            AvailabilitySlot with instructor loaded, or None
         """
         try:
             return (
                 self.db.query(AvailabilitySlot)
-                .options(joinedload(AvailabilitySlot.availability))
+                .options(joinedload(AvailabilitySlot.instructor))
                 .filter(AvailabilitySlot.id == slot_id)
                 .first()
             )
@@ -119,8 +115,8 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
         """
         Get all booked slots for an instructor on a specific date.
 
-        Returns composite data from multiple tables including slot times,
-        booking details, and student information.
+        SIMPLIFIED: Queries directly from AvailabilitySlot without
+        InstructorAvailability join.
 
         Args:
             instructor_id: The instructor ID
@@ -141,13 +137,9 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
                     Booking.status,
                 )
                 .join(Booking, AvailabilitySlot.id == Booking.availability_slot_id)
-                .join(
-                    InstructorAvailability,
-                    AvailabilitySlot.availability_id == InstructorAvailability.id,
-                )
                 .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date == target_date,
+                    AvailabilitySlot.instructor_id == instructor_id,
+                    AvailabilitySlot.date == target_date,
                     Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
                 )
                 .all()
@@ -177,7 +169,8 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
         """
         Get all booked slots for an instructor for a week.
 
-        Returns data grouped by date for easy processing by the service.
+        SIMPLIFIED: Uses AvailabilitySlot.date directly instead of
+        joining through InstructorAvailability.
 
         Args:
             instructor_id: The instructor ID
@@ -189,7 +182,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
         try:
             results = (
                 self.db.query(
-                    InstructorAvailability.date,
+                    AvailabilitySlot.date,
                     AvailabilitySlot.id,
                     AvailabilitySlot.start_time,
                     AvailabilitySlot.end_time,
@@ -198,17 +191,13 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
                     Booking.service_name,
                     Booking.status,
                 )
-                .join(
-                    AvailabilitySlot,
-                    InstructorAvailability.id == AvailabilitySlot.availability_id,
-                )
                 .join(Booking, AvailabilitySlot.id == Booking.availability_slot_id)
                 .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date.in_(week_dates),
+                    AvailabilitySlot.instructor_id == instructor_id,
+                    AvailabilitySlot.date.in_(week_dates),
                     Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
                 )
-                .order_by(InstructorAvailability.date, AvailabilitySlot.start_time)
+                .order_by(AvailabilitySlot.date, AvailabilitySlot.start_time)
                 .all()
             )
 
@@ -237,7 +226,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
         """
         Get all availability slots for an instructor on a specific date.
 
-        Used for finding overlapping slots and availability analysis.
+        SIMPLIFIED: Direct query on AvailabilitySlot table.
 
         Args:
             instructor_id: The instructor ID
@@ -249,10 +238,9 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
         try:
             return (
                 self.db.query(AvailabilitySlot)
-                .join(InstructorAvailability)
                 .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date == target_date,
+                    AvailabilitySlot.instructor_id == instructor_id,
+                    AvailabilitySlot.date == target_date,
                 )
                 .all()
             )
@@ -265,6 +253,9 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
     def get_blackout_date(self, instructor_id: int, target_date: date) -> Optional[BlackoutDate]:
         """
         Check if a specific date is blacked out for an instructor.
+
+        NOTE: This query is unchanged as BlackoutDate already references
+        instructor directly.
 
         Args:
             instructor_id: The instructor ID
@@ -292,7 +283,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
         """
         Get instructor profile for validation checks.
 
-        Used for minimum advance booking hours and other constraints.
+        NOTE: This query is unchanged as it doesn't involve availability.
 
         Args:
             instructor_id: The instructor ID (user_id)
@@ -310,7 +301,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
         """
         Get an active service by ID.
 
-        Used for service constraint validation.
+        NOTE: This query is unchanged as it doesn't involve availability.
 
         Args:
             service_id: The service ID
@@ -324,230 +315,9 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             self.logger.error(f"Error getting active service: {str(e)}")
             raise RepositoryException(f"Failed to get service: {str(e)}")
 
-    # Range-based Queries
-
-    def get_blackouts_in_range(self, instructor_id: int, start_date: date, end_date: date) -> List[BlackoutDate]:
-        """
-        Get all blackout dates for an instructor in a date range.
-
-        Used for comprehensive validation across multiple days.
-
-        Args:
-            instructor_id: The instructor ID
-            start_date: Range start date
-            end_date: Range end date
-
-        Returns:
-            List of BlackoutDate objects
-        """
-        try:
-            return (
-                self.db.query(BlackoutDate)
-                .filter(BlackoutDate.instructor_id == instructor_id, BlackoutDate.date.between(start_date, end_date))
-                .all()
-            )
-        except Exception as e:
-            self.logger.error(f"Error getting blackouts in range: {str(e)}")
-            raise RepositoryException(f"Failed to get blackouts: {str(e)}")
-
-    def get_bookings_in_range(self, instructor_id: int, start_date: date, end_date: date) -> List[Booking]:
-        """
-        Get all bookings for an instructor in a date range.
-
-        Used for conflict checking across multiple days.
-
-        Args:
-            instructor_id: The instructor ID
-            start_date: Range start date
-            end_date: Range end date
-
-        Returns:
-            List of Booking objects with related data
-        """
-        try:
-            return (
-                self.db.query(Booking)
-                .join(AvailabilitySlot, Booking.availability_slot_id == AvailabilitySlot.id)
-                .join(InstructorAvailability, AvailabilitySlot.availability_id == InstructorAvailability.id)
-                .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    Booking.booking_date.between(start_date, end_date),
-                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                )
-                .all()
-            )
-        except Exception as e:
-            self.logger.error(f"Error getting bookings in range: {str(e)}")
-            raise RepositoryException(f"Failed to get bookings: {str(e)}")
-
-    # Complex Aggregation Queries
-
-    def get_instructor_availability_summary(
-        self, instructor_id: int, start_date: date, end_date: date
-    ) -> List[Dict[str, Any]]:
-        """
-        Get comprehensive availability summary with slot counts and booking status.
-
-        Complex aggregation query for dashboard and reporting.
-
-        Args:
-            instructor_id: The instructor ID
-            start_date: Range start date
-            end_date: Range end date
-
-        Returns:
-            List of dictionaries with daily summaries
-        """
-        try:
-            results = (
-                self.db.query(
-                    InstructorAvailability.date,
-                    func.count(AvailabilitySlot.id).label("total_slots"),
-                    func.count(Booking.id).label("booked_slots"),
-                    func.count(BlackoutDate.id).label("blackout_count"),
-                )
-                .outerjoin(AvailabilitySlot, InstructorAvailability.id == AvailabilitySlot.availability_id)
-                .outerjoin(
-                    Booking,
-                    and_(
-                        AvailabilitySlot.id == Booking.availability_slot_id,
-                        Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                    ),
-                )
-                .outerjoin(
-                    BlackoutDate,
-                    and_(BlackoutDate.instructor_id == instructor_id, BlackoutDate.date == InstructorAvailability.date),
-                )
-                .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date.between(start_date, end_date),
-                )
-                .group_by(InstructorAvailability.date)
-                .all()
-            )
-
-            return [
-                {
-                    "date": row.date,
-                    "total_slots": row.total_slots,
-                    "booked_slots": row.booked_slots,
-                    "blackout_count": row.blackout_count,
-                }
-                for row in results
-            ]
-
-        except Exception as e:
-            self.logger.error(f"Error getting availability summary: {str(e)}")
-            raise RepositoryException(f"Failed to get summary: {str(e)}")
-
-    def get_detailed_bookings_for_conflict_check(self, instructor_id: int, check_date: date) -> List[Dict[str, Any]]:
-        """
-        Get bookings with full details for advanced conflict detection.
-
-        Includes student names and service details for comprehensive conflict information.
-
-        Args:
-            instructor_id: The instructor ID
-            check_date: The date to check
-
-        Returns:
-            List of dictionaries with comprehensive booking details
-        """
-        try:
-            results = (
-                self.db.query(
-                    Booking.id,
-                    Booking.start_time,
-                    Booking.end_time,
-                    Booking.service_name,
-                    Booking.status,
-                    User.full_name.label("student_name"),
-                    Service.skill.label("service_skill"),
-                    AvailabilitySlot.id.label("slot_id"),
-                )
-                .join(User, Booking.student_id == User.id)
-                .join(Service, Booking.service_id == Service.id)
-                .join(AvailabilitySlot, Booking.availability_slot_id == AvailabilitySlot.id)
-                .join(InstructorAvailability, AvailabilitySlot.availability_id == InstructorAvailability.id)
-                .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    Booking.booking_date == check_date,
-                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                )
-                .all()
-            )
-
-            return [
-                {
-                    "id": row.id,
-                    "start_time": row.start_time,
-                    "end_time": row.end_time,
-                    "service_name": row.service_name,
-                    "status": row.status,
-                    "student_name": row.student_name,
-                    "service_skill": row.service_skill,
-                    "slot_id": row.slot_id,
-                }
-                for row in results
-            ]
-
-        except Exception as e:
-            self.logger.error(f"Error getting detailed bookings: {str(e)}")
-            raise RepositoryException(f"Failed to get detailed bookings: {str(e)}")
-
-    def get_slot_utilization_stats(self, instructor_id: int, days_back: int = 30) -> List[Dict[str, Any]]:
-        """
-        Get slot utilization statistics for the past N days.
-
-        Used for instructor dashboard and analytics.
-
-        Args:
-            instructor_id: The instructor ID
-            days_back: Number of days to look back (default 30)
-
-        Returns:
-            List of dictionaries with utilization statistics
-        """
-        try:
-            from datetime import datetime, timedelta
-
-            start_date = datetime.now().date() - timedelta(days=days_back)
-
-            results = (
-                self.db.query(
-                    InstructorAvailability.date,
-                    func.count(AvailabilitySlot.id).label("available_slots"),
-                    func.sum(case((Booking.id.isnot(None), 1), else_=0)).label("booked_slots"),
-                    func.avg(
-                        func.extract("epoch", AvailabilitySlot.end_time - AvailabilitySlot.start_time) / 3600
-                    ).label("avg_slot_duration_hours"),
-                )
-                .outerjoin(AvailabilitySlot, InstructorAvailability.id == AvailabilitySlot.availability_id)
-                .outerjoin(
-                    Booking,
-                    and_(
-                        AvailabilitySlot.id == Booking.availability_slot_id,
-                        Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                    ),
-                )
-                .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date >= start_date,
-                )
-                .group_by(InstructorAvailability.date)
-                .all()
-            )
-
-            return [
-                {
-                    "date": row.date,
-                    "available_slots": row.available_slots,
-                    "booked_slots": int(row.booked_slots or 0),
-                    "avg_slot_duration_hours": float(row.avg_slot_duration_hours or 0),
-                }
-                for row in results
-            ]
-
-        except Exception as e:
-            self.logger.error(f"Error getting utilization stats: {str(e)}")
-            raise RepositoryException(f"Failed to get stats: {str(e)}")
+    # REMOVED METHODS (not used by any service):
+    # - get_blackouts_in_range()
+    # - get_bookings_in_range()
+    # - get_instructor_availability_summary()
+    # - get_detailed_bookings_for_conflict_check()
+    # - get_slot_utilization_stats()
