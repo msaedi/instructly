@@ -2,6 +2,9 @@
 """
 Unit tests for BulkOperationService business logic.
 Tests logic in isolation with mocked dependencies.
+
+FIXED: Updated for Work Stream #9 - Availability-booking layer separation.
+Tests no longer expect operations to fail due to booking conflicts.
 """
 
 from datetime import date, time, timedelta
@@ -131,11 +134,20 @@ class TestBulkOperationLogic:
         assert "past time slots" in result.reason
 
     @pytest.mark.asyncio
-    async def test_process_add_with_conflicts(self, bulk_service, mock_conflict_checker):
-        """Test add operation when conflicts exist."""
+    async def test_process_add_with_conflicts(self, bulk_service, mock_conflict_checker, mock_slot_manager):
+        """Test add operation when conflicts exist - should succeed with new architecture."""
+        # FIXED: Operations now succeed even when bookings exist
         mock_conflict_checker.check_booking_conflicts.return_value = [
             {"booking_id": 1, "start_time": "09:00", "end_time": "10:00"}
         ]
+
+        # Mock the availability and slot creation
+        mock_availability = Mock(id=1)
+        bulk_service.repository.get_or_create_availability.return_value = mock_availability
+
+        # Mock successful slot creation - return a mock slot with id
+        mock_slot = Mock(id=123)
+        mock_slot_manager.create_slot.return_value = mock_slot
 
         operation = SlotOperation(
             action="add", date=date.today() + timedelta(days=1), start_time=time(9, 0), end_time=time(10, 0)
@@ -145,8 +157,13 @@ class TestBulkOperationLogic:
             instructor_id=1, operation=operation, operation_index=0, validate_only=False
         )
 
-        assert result.status == "failed"
-        assert "Conflicts with 1 existing bookings" in result.reason
+        # FIXED: Should succeed regardless of conflicts
+        assert result.status == "success"
+        assert result.slot_id == 123
+        # Verify slot was created without conflict validation
+        mock_slot_manager.create_slot.assert_called_once_with(
+            availability_id=1, start_time=time(9, 0), end_time=time(10, 0), validate_conflicts=False, auto_merge=True
+        )
 
     @pytest.mark.asyncio
     async def test_process_remove_operation_validation(self, bulk_service, mock_db):
@@ -173,8 +190,8 @@ class TestBulkOperationLogic:
         assert "not found" in result.reason
 
     @pytest.mark.asyncio
-    async def test_process_remove_with_booking(self, bulk_service, mock_db):
-        """Test remove operation when slot has booking."""
+    async def test_process_remove_with_booking(self, bulk_service, mock_db, mock_slot_manager):
+        """Test remove operation when slot has booking - should succeed with new architecture."""
         # Mock slot that exists and belongs to instructor
         mock_slot = Mock()
         mock_slot.id = 1
@@ -193,8 +210,10 @@ class TestBulkOperationLogic:
             instructor_id=1, operation=operation, operation_index=0, validate_only=False
         )
 
-        assert result.status == "failed"
-        assert "Cannot remove slot with CONFIRMED booking" in result.reason
+        # FIXED: Should succeed regardless of bookings
+        assert result.status == "success"
+        # Verify slot was deleted
+        mock_slot_manager.delete_slot.assert_called_once_with(1)
 
     @pytest.mark.asyncio
     async def test_validate_only_mode_behavior(self, bulk_service, mock_db, mock_conflict_checker):
@@ -372,19 +391,7 @@ class TestBulkOperationLogic:
         assert result.status == "failed"
         assert "End time must be after start time" in result.reason
 
-    def test_has_bookings_on_date(self, bulk_service, mock_db):
-        """Test checking if availability has bookings."""
-        mock_availability = Mock(id=1)
-
-        # Test when bookings exist - mock repository instead of db
-        bulk_service.repository.has_bookings_on_date.return_value = True
-        result = bulk_service._has_bookings_on_date(mock_availability)
-        assert result is True
-
-        # Test when no bookings exist
-        bulk_service.repository.has_bookings_on_date.return_value = False
-        result = bulk_service._has_bookings_on_date(mock_availability)
-        assert result is False
+    # REMOVED: test_has_bookings_on_date - Method no longer exists in service
 
     @pytest.mark.asyncio
     async def test_error_handling_in_batch(self, bulk_service):
