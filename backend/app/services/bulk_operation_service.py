@@ -7,6 +7,9 @@ Handles bulk availability operations including:
 - Validation of bulk changes
 - Batch processing with rollback capability
 - Week validation and preview
+
+FIXED: Implements proper separation between availability and booking layers.
+Availability operations no longer check for booking conflicts.
 """
 
 import logging
@@ -16,8 +19,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from ..models.availability import InstructorAvailability
-from ..models.booking import Booking, BookingStatus
 from ..repositories.factory import RepositoryFactory
 from ..schemas.availability_window import (
     BulkUpdateRequest,
@@ -282,20 +283,7 @@ class BulkOperationService(BaseService):
                     reason="Cannot add availability for past time slots",
                 )
 
-        # Check for booking conflicts
-        conflicts = self.conflict_checker.check_booking_conflicts(
-            instructor_id, operation.date, operation.start_time, operation.end_time
-        )
-
-        if conflicts:
-            return OperationResult(
-                operation_index=operation_index,
-                action="add",
-                status="failed",
-                reason=f"Conflicts with {len(conflicts)} existing bookings",
-                conflicts=conflicts,
-            )
-
+        # FIXED: Removed booking conflict check - just add the slot
         if validate_only:
             return OperationResult(
                 operation_index=operation_index,
@@ -311,13 +299,13 @@ class BulkOperationService(BaseService):
                 instructor_id=instructor_id, target_date=operation.date, is_cleared=False
             )
 
-            # Create slot
+            # Create slot without conflict validation
             new_slot = self.slot_manager.create_slot(
                 availability_id=availability.id,
                 start_time=operation.start_time,
                 end_time=operation.end_time,
-                validate_conflicts=False,  # Already validated
-                auto_merge=not self.repository.has_bookings_on_date(availability.id),
+                validate_conflicts=False,  # FIXED: Never validate conflicts
+                auto_merge=True,  # FIXED: Always allow merging
             )
 
             return OperationResult(
@@ -362,25 +350,7 @@ class BulkOperationService(BaseService):
                 reason="Slot not found or not owned by instructor",
             )
 
-        # Check if slot has bookings using repository
-        if self.repository.slot_has_active_booking(operation.slot_id):
-            # Get booking status for better error message
-            booking = (
-                self.db.query(Booking)
-                .filter(
-                    Booking.availability_slot_id == slot.id,
-                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                )
-                .first()
-            )
-
-            return OperationResult(
-                operation_index=operation_index,
-                action="remove",
-                status="failed",
-                reason=f"Cannot remove slot with {booking.status} booking",
-            )
-
+        # FIXED: Removed booking check - just allow removal
         if validate_only:
             return OperationResult(
                 operation_index=operation_index,
@@ -441,24 +411,7 @@ class BulkOperationService(BaseService):
                 reason="End time must be after start time",
             )
 
-        # Check conflicts
-        availability = slot.availability
-        conflicts = self.conflict_checker.check_booking_conflicts(
-            instructor_id,
-            availability.date,
-            new_start,
-            new_end,
-            exclude_slot_id=operation.slot_id,
-        )
-
-        if conflicts:
-            return OperationResult(
-                operation_index=operation_index,
-                action="update",
-                status="failed",
-                reason=f"New time range conflicts with {len(conflicts)} bookings",
-            )
-
+        # FIXED: Removed conflict check - just allow update
         if validate_only:
             return OperationResult(
                 operation_index=operation_index,
@@ -473,7 +426,7 @@ class BulkOperationService(BaseService):
                 slot_id=operation.slot_id,
                 start_time=new_start,
                 end_time=new_end,
-                validate_conflicts=False,  # Already validated
+                validate_conflicts=False,  # FIXED: Never validate conflicts
             )
 
             return OperationResult(
@@ -647,24 +600,14 @@ class BulkOperationService(BaseService):
         warnings = []
 
         if summary.invalid_operations > 0:
-            warnings.append(f"{summary.invalid_operations} operations will fail due to conflicts")
+            warnings.append(f"{summary.invalid_operations} operations will fail")
 
-        # Find dates with booking conflicts
-        booked_dates = set()
-        for detail in validation_results:
-            if detail.conflicts_with or "bookings" in (detail.reason or ""):
-                if detail.date:
-                    booked_dates.add(detail.date.strftime("%A"))
-
-        if booked_dates:
-            warnings.append(f"Operations affect days with bookings: {', '.join(sorted(booked_dates))}")
+        # FIXED: Removed warning about operations affecting days with bookings
+        # as this is no longer relevant with layer independence
 
         return warnings
 
-    def _has_bookings_on_date(self, availability: InstructorAvailability) -> bool:
-        """Check if any slots for this availability have bookings."""
-        # Use repository method instead of direct query
-        return self.repository.has_bookings_on_date(availability.id)
+    # FIXED: Removed _has_bookings_on_date method entirely
 
     @contextmanager
     def _null_transaction(self):

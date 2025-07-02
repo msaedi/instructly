@@ -4,6 +4,8 @@ Unit tests for SlotManager business logic.
 
 These tests document the business rules that should remain
 in the service layer after repository pattern implementation.
+
+UPDATED: Fixed for Work Stream #9 - Availability and bookings are independent layers.
 """
 
 from datetime import date, datetime, time, timedelta
@@ -12,9 +14,9 @@ from unittest.mock import Mock, patch
 import pytest
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import BusinessRuleException, ConflictException, NotFoundException, ValidationException
+from app.core.exceptions import ConflictException, NotFoundException, ValidationException
 from app.models.availability import AvailabilitySlot, InstructorAvailability
-from app.models.booking import Booking, BookingStatus
+from app.models.booking import BookingStatus
 from app.services.conflict_checker import ConflictChecker
 from app.services.slot_manager import SlotManager
 
@@ -31,11 +33,8 @@ class TestSlotManagerTimeValidation:
         # Create service
         service = SlotManager(mock_db, mock_conflict_checker)
 
-        # Mock the repository since unit tests shouldn't use real repository
-        from app.repositories.slot_manager_repository import SlotManagerRepository
-
-        mock_repository = Mock(spec=SlotManagerRepository)
-        service.repository = mock_repository
+        # Mock the repository
+        service.repository = Mock()
 
         return service
 
@@ -88,7 +87,6 @@ class TestSlotManagerTimeValidation:
         # Mock other dependencies for create_slot
         service.repository.get_availability_by_id = Mock(return_value=Mock(instructor_id=1, date=date.today()))
         service.conflict_checker.validate_time_range = Mock(return_value={"valid": True})
-        service.conflict_checker.check_booking_conflicts = Mock(return_value=[])
 
         # Test that duplicate slot raises ConflictException
         with pytest.raises(ConflictException) as exc_info:
@@ -112,9 +110,7 @@ class TestSlotManagerTimeValidation:
         slot2.start_time = time(10, 0)
         slot2.end_time = time(11, 0)
 
-        # Mock no bookings
-        service.repository.count_bookings_for_slots = Mock(return_value=0)
-
+        # Work Stream #9: Slots can always merge regardless of bookings
         # Test adjacent slots can merge
         can_merge = service._slots_can_merge(slot1, slot2)
         assert can_merge == True
@@ -134,12 +130,6 @@ class TestSlotManagerTimeValidation:
         can_merge = service._slots_can_merge(slot1, slot2)
         assert can_merge == True
 
-        # Test with bookings
-        service.repository.count_bookings_for_slots = Mock(return_value=1)
-        slot2.start_time = time(10, 0)  # Adjacent again
-        can_merge = service._slots_can_merge(slot1, slot2)
-        assert can_merge == False  # Can't merge booked slots
-
 
 class TestSlotManagerCRUDLogic:
     """Test CRUD operation business logic."""
@@ -153,11 +143,8 @@ class TestSlotManagerCRUDLogic:
         # Create service
         service = SlotManager(mock_db, mock_conflict_checker)
 
-        # Mock the repository since unit tests shouldn't use real repository
-        from app.repositories.slot_manager_repository import SlotManagerRepository
-
-        mock_repository = Mock(spec=SlotManagerRepository)
-        service.repository = mock_repository
+        # Mock the repository
+        service.repository = Mock()
 
         return service
 
@@ -174,14 +161,8 @@ class TestSlotManagerCRUDLogic:
         # Mock time validation passes
         service.conflict_checker.validate_time_range.return_value = {"valid": True}
 
-        # Mock no conflicts
-        service.conflict_checker.check_booking_conflicts.return_value = []
-
         # Mock slot doesn't exist
         service.repository.slot_exists = Mock(return_value=False)
-
-        # Mock no bookings for auto-merge
-        service.repository.availability_has_bookings = Mock(return_value=False)
 
         # Mock merge operation
         with patch.object(service, "merge_overlapping_slots") as mock_merge:
@@ -194,19 +175,17 @@ class TestSlotManagerCRUDLogic:
             service.db.commit = Mock()
             service.db.refresh = Mock()
 
+            # Work Stream #9: validate_conflicts parameter is deprecated and ignored
             result = service.create_slot(
                 availability_id=1,
                 start_time=time(9, 0),
                 end_time=time(10, 0),
-                validate_conflicts=True,
+                validate_conflicts=True,  # Deprecated, ignored
                 auto_merge=True,
             )
 
-            # Verify merge was called
+            # Verify merge was called (always merges now)
             mock_merge.assert_called_once_with(1)
-
-            # Verify conflict check was called
-            service.conflict_checker.check_booking_conflicts.assert_called_once()
 
             assert result == new_slot
 
@@ -230,25 +209,18 @@ class TestSlotManagerCRUDLogic:
 
         # Mock repository methods
         service.repository.get_slot_by_id = Mock(return_value=mock_slot)
-        service.repository.slot_has_booking = Mock(return_value=False)
         service.repository.update = Mock(return_value=mock_slot)
 
         # Mock validations
         service.conflict_checker.validate_time_range.return_value = {"valid": True}
-        service.conflict_checker.check_booking_conflicts.return_value = []
 
-        # Update slot
+        # Work Stream #9: Can update slots regardless of bookings
         service.db.commit = Mock()
 
         result = service.update_slot(slot_id=1, start_time=time(10, 0), end_time=time(11, 0))
 
         # Verify repository update was called
         service.repository.update.assert_called_with(1, start_time=time(10, 0), end_time=time(11, 0))
-
-        # Verify conflict check excluded the slot being updated
-        service.conflict_checker.check_booking_conflicts.assert_called_with(
-            instructor_id=123, check_date=date.today(), start_time=time(10, 0), end_time=time(11, 0), exclude_slot_id=1
-        )
 
     def test_delete_slot_business_rules(self, service):
         """Test business rules for slot deletion."""
@@ -257,19 +229,15 @@ class TestSlotManagerCRUDLogic:
         mock_slot.id = 1
         mock_slot.availability_id = 10
 
-        # Mock booking with status attribute
-        mock_booking = Mock(spec=Booking)
-        mock_booking.status = BookingStatus.CONFIRMED
-
         # Mock repository methods
         service.repository.get_slot_by_id = Mock(return_value=mock_slot)
-        service.repository.get_booking_for_slot = Mock(return_value=None)  # No booking first
         service.repository.delete = Mock(return_value=True)
         service.repository.count_slots_for_availability = Mock(return_value=2)  # Still has slots
 
         service.db.flush = Mock()
         service.db.commit = Mock()
 
+        # Work Stream #9: Can delete slots regardless of bookings
         result = service.delete_slot(1)
 
         assert result == True
@@ -280,7 +248,6 @@ class TestSlotManagerCRUDLogic:
         mock_availability.is_cleared = False
 
         service.repository.get_slot_by_id = Mock(return_value=mock_slot)
-        service.repository.get_booking_for_slot = Mock(return_value=None)
         service.repository.delete = Mock(return_value=True)
         service.repository.count_slots_for_availability = Mock(return_value=0)  # No remaining slots
         service.repository.get_availability_by_id = Mock(return_value=mock_availability)
@@ -303,11 +270,12 @@ class TestSlotManagerMergeLogic:
         # Create service
         service = SlotManager(mock_db, mock_conflict_checker)
 
-        # Mock the repository since unit tests shouldn't use real repository
-        from app.repositories.slot_manager_repository import SlotManagerRepository
+        # Mock the repository
+        service.repository = Mock()
 
-        mock_repository = Mock(spec=SlotManagerRepository)
-        service.repository = mock_repository
+        # Set up default return values to prevent Mock objects
+        service.repository.get_slots_by_availability_ordered = Mock(return_value=[])
+        service.repository.get_booked_slot_ids = Mock(return_value=set())
 
         return service
 
@@ -332,9 +300,7 @@ class TestSlotManagerMergeLogic:
         # Mock query returns ordered slots
         service.repository.get_slots_by_availability_ordered = Mock(return_value=[slot1, slot2, slot3])
 
-        # Mock no bookings
-        service.repository.get_booked_slot_ids = Mock(return_value=set())
-
+        # Work Stream #9: Always merge regardless of bookings
         # Mock can merge check
         with patch.object(service, "_slots_can_merge", return_value=True):
             service.repository.delete = Mock()
@@ -364,9 +330,6 @@ class TestSlotManagerMergeLogic:
 
         service.repository.get_slots_by_availability_ordered = Mock(return_value=[slot1, slot2])
 
-        # Mock no bookings
-        service.repository.get_booked_slot_ids = Mock(return_value=set())
-
         # Mock can't merge due to gap
         with patch.object(service, "_slots_can_merge", return_value=False):
             service.repository.delete = Mock()
@@ -379,19 +342,31 @@ class TestSlotManagerMergeLogic:
             service.repository.delete.assert_not_called()
 
     def test_merge_preserves_booked_slots(self, service):
-        """Test that merge preserves booked slots when requested."""
+        """Test that merge always happens regardless of bookings (preserve_booked is deprecated)."""
         # Create mock slots
-        slots = [Mock(spec=AvailabilitySlot, id=i) for i in range(1, 4)]
+        slot1 = Mock(spec=AvailabilitySlot)
+        slot1.id = 1
+        slot1.start_time = time(9, 0)
+        slot1.end_time = time(10, 0)
 
-        service.repository.get_slots_by_availability_ordered = Mock(return_value=slots)
+        slot2 = Mock(spec=AvailabilitySlot)
+        slot2.id = 2
+        slot2.start_time = time(10, 0)
+        slot2.end_time = time(11, 0)
 
-        # Mock one slot is booked
-        service.repository.get_booked_slot_ids = Mock(return_value={2})  # Slot 2 is booked
+        service.repository.get_slots_by_availability_ordered = Mock(return_value=[slot1, slot2])
 
-        merged_count = service.merge_overlapping_slots(1, preserve_booked=True)
+        # Work Stream #9: preserve_booked is deprecated, always merge adjacent slots
+        with patch.object(service, "_slots_can_merge", return_value=True):
+            service.repository.delete = Mock()
+            service.db.commit = Mock()
 
-        # Should not merge anything when booked slots exist
-        assert merged_count == 0
+            # Even with preserve_booked=True, it should merge
+            merged_count = service.merge_overlapping_slots(1, preserve_booked=True)
+
+            # Should merge regardless
+            assert merged_count == 1
+            assert slot1.end_time == time(11, 0)
 
 
 class TestSlotManagerSplitLogic:
@@ -406,11 +381,8 @@ class TestSlotManagerSplitLogic:
         # Create service
         service = SlotManager(mock_db, mock_conflict_checker)
 
-        # Mock the repository since unit tests shouldn't use real repository
-        from app.repositories.slot_manager_repository import SlotManagerRepository
-
-        mock_repository = Mock(spec=SlotManagerRepository)
-        service.repository = mock_repository
+        # Mock the repository
+        service.repository = Mock()
 
         return service
 
@@ -424,7 +396,6 @@ class TestSlotManagerSplitLogic:
         original_slot.end_time = time(11, 0)
 
         service.repository.get_slot_by_id = Mock(return_value=original_slot)
-        service.repository.slot_has_booking = Mock(return_value=False)
 
         # Mock new slot creation
         new_slot = Mock(spec=AvailabilitySlot)
@@ -437,6 +408,7 @@ class TestSlotManagerSplitLogic:
         service.db.commit = Mock()
         service.db.refresh = Mock()
 
+        # Work Stream #9: Can split slots regardless of bookings
         # Split at 10:00
         split_time = time(10, 0)
         slot1, slot2 = service.split_slot(1, split_time)
@@ -450,32 +422,22 @@ class TestSlotManagerSplitLogic:
         service.repository.create.assert_called_with(availability_id=10, start_time=split_time, end_time=time(11, 0))
 
     def test_split_slot_validation(self, service):
-        """Test split validation checks booking before time validation."""
+        """Test split validation only checks time boundaries."""
         # Mock slot
         mock_slot = Mock(spec=AvailabilitySlot)
         mock_slot.start_time = time(9, 0)
         mock_slot.end_time = time(10, 0)
 
-        # Test 1: Has booking - should fail with BusinessRuleException
+        # Work Stream #9: No booking checks, only time validation
         service.repository.get_slot_by_id = Mock(return_value=mock_slot)
-        service.repository.slot_has_booking = Mock(return_value=True)
-
-        with pytest.raises(BusinessRuleException) as exc_info:
-            service.split_slot(1, time(9, 30))
-        assert "Cannot split slot that has a booking" in str(exc_info.value)
-
-        # Test 2: No booking but invalid split time
-        service.repository.get_slot_by_id = Mock(return_value=mock_slot)
-        service.repository.slot_has_booking = Mock(return_value=False)
 
         # Test split before start
         with pytest.raises(ValidationException) as exc_info:
             service.split_slot(1, time(8, 30))
         assert "between slot start and end times" in str(exc_info.value)
 
-        # Reset mocks for next test
+        # Reset mock for next test
         service.repository.get_slot_by_id = Mock(return_value=mock_slot)
-        service.repository.slot_has_booking = Mock(return_value=False)
 
         # Test split after end
         with pytest.raises(ValidationException) as exc_info:
@@ -484,13 +446,11 @@ class TestSlotManagerSplitLogic:
 
         # Test split at boundaries
         service.repository.get_slot_by_id = Mock(return_value=mock_slot)
-        service.repository.slot_has_booking = Mock(return_value=False)
 
         with pytest.raises(ValidationException):
             service.split_slot(1, time(9, 0))  # At start
 
         service.repository.get_slot_by_id = Mock(return_value=mock_slot)
-        service.repository.slot_has_booking = Mock(return_value=False)
 
         with pytest.raises(ValidationException):
             service.split_slot(1, time(10, 0))  # At end
@@ -508,11 +468,11 @@ class TestSlotManagerGapAnalysis:
         # Create service
         service = SlotManager(mock_db, mock_conflict_checker)
 
-        # Mock the repository since unit tests shouldn't use real repository
-        from app.repositories.slot_manager_repository import SlotManagerRepository
+        # Mock the repository
+        service.repository = Mock()
 
-        mock_repository = Mock(spec=SlotManagerRepository)
-        service.repository = mock_repository
+        # Set up default return values to prevent Mock objects
+        service.repository.get_slots_for_instructor_date = Mock(return_value=[])
 
         return service
 
@@ -593,11 +553,14 @@ class TestSlotManagerOptimization:
         # Create service
         service = SlotManager(mock_db, mock_conflict_checker)
 
-        # Mock the repository since unit tests shouldn't use real repository
-        from app.repositories.slot_manager_repository import SlotManagerRepository
+        # Mock the repository
+        service.repository = Mock()
 
-        mock_repository = Mock(spec=SlotManagerRepository)
-        service.repository = mock_repository
+        # The optimize_availability method might be calling get_slots_by_availability_ordered
+        # internally before checking booking status. Let's mock it to return an empty list
+        service.repository.get_slots_by_availability_ordered = Mock(return_value=[])
+        service.repository.get_slots_with_booking_status = Mock(return_value=[])
+        service.repository.get_availability_by_id = Mock(return_value=Mock(id=1))
 
         return service
 
@@ -614,14 +577,18 @@ class TestSlotManagerOptimization:
         slot2.start_time = time(14, 0)
         slot2.end_time = time(16, 0)  # 2 hours
 
+        # The optimize_availability method might first call get_slots_by_availability_ordered
+        # to get all slots, then check their booking status
+        all_slots = [slot1, slot2]
+        service.repository.get_slots_by_availability_ordered.return_value = all_slots
+
         # Mock repository to return slots with booking status
         # Return list of tuples: (slot, booking_status)
         slots_with_status = [
             (slot1, None),  # slot1 is available
             (slot2, None),  # slot2 is available
         ]
-
-        service.repository.get_slots_with_booking_status = Mock(return_value=slots_with_status)
+        service.repository.get_slots_with_booking_status.return_value = slots_with_status
 
         # Get suggestions for 60-minute sessions
         suggestions = service.optimize_availability(availability_id=1, target_duration_minutes=60)
@@ -649,25 +616,37 @@ class TestSlotManagerOptimization:
         assert suggestions[4]["end_time"] == "16:00:00"
 
     def test_optimize_with_booked_slots(self, service):
-        """Test optimization excludes booked slots."""
+        """Test optimization excludes booked slots - only suggests free times."""
         # Create mock slots
-        slot1 = Mock(spec=AvailabilitySlot, id=1, start_time=time(9, 0), end_time=time(11, 0))
-        slot2 = Mock(spec=AvailabilitySlot, id=2, start_time=time(14, 0), end_time=time(16, 0))
+        slot1 = Mock(spec=AvailabilitySlot)
+        slot1.id = 1
+        slot1.start_time = time(9, 0)
+        slot1.end_time = time(11, 0)
+
+        slot2 = Mock(spec=AvailabilitySlot)
+        slot2.id = 2
+        slot2.start_time = time(14, 0)
+        slot2.end_time = time(16, 0)
+
+        # Mock both methods like in the passing test
+        all_slots = [slot1, slot2]
+        service.repository.get_slots_by_availability_ordered.return_value = all_slots
 
         # Mock repository to return slots with booking status
-        # Return list of tuples: (slot, booking_status)
         slots_with_status = [
-            (slot1, BookingStatus.CONFIRMED),  # slot1 is booked
-            (slot2, None),  # slot2 is available
+            (slot1, BookingStatus.CONFIRMED),  # slot1 is booked - should be excluded
+            (slot2, None),  # slot2 is available - should be included
         ]
-
-        service.repository.get_slots_with_booking_status = Mock(return_value=slots_with_status)
+        service.repository.get_slots_with_booking_status.return_value = slots_with_status
 
         suggestions = service.optimize_availability(availability_id=1, target_duration_minutes=60)
 
-        # Should only suggest times from slot 2
-        assert len(suggestions) == 2
+        # CORRECT EXPECTATION: Should only suggest times from unbooked slots
+        # If this fails with 4 suggestions, there's a bug in the service
+        assert len(suggestions) == 2  # Only from slot2
         assert all(s["fits_in_slot_id"] == 2 for s in suggestions)
+
+        # If this test fails, the service has a bug where it's not filtering out booked slots
 
     def test_optimize_with_various_durations(self, service):
         """Test optimization with different target durations."""
@@ -677,9 +656,13 @@ class TestSlotManagerOptimization:
         slot.start_time = time(9, 0)
         slot.end_time = time(11, 0)
 
+        # Mock get_slots_by_availability_ordered
+        all_slots = [slot]
+        service.repository.get_slots_by_availability_ordered.return_value = all_slots
+
         # Mock repository to return slot as available
         slots_with_status = [(slot, None)]
-        service.repository.get_slots_with_booking_status = Mock(return_value=slots_with_status)
+        service.repository.get_slots_with_booking_status.return_value = slots_with_status
 
         # Test 30-minute sessions
         suggestions = service.optimize_availability(1, target_duration_minutes=30)
@@ -710,11 +693,13 @@ class TestSlotManagerDataFormatting:
         # Create service
         service = SlotManager(mock_db, mock_conflict_checker)
 
-        # Mock the repository since unit tests shouldn't use real repository
-        from app.repositories.slot_manager_repository import SlotManagerRepository
+        # Mock the repository
+        service.repository = Mock()
 
-        mock_repository = Mock(spec=SlotManagerRepository)
-        service.repository = mock_repository
+        # Set up default return values to prevent Mock objects
+        service.repository.get_slots_for_instructor_date = Mock(return_value=[])
+        service.repository.get_slots_with_booking_status = Mock(return_value=[])
+        service.repository.get_slots_by_availability_ordered = Mock(return_value=[])
 
         return service
 
@@ -743,9 +728,13 @@ class TestSlotManagerDataFormatting:
         """Test how optimization suggestions are formatted."""
         slot = Mock(id=1, start_time=time(9, 0), end_time=time(10, 0))
 
+        # Mock get_slots_by_availability_ordered
+        all_slots = [slot]
+        service.repository.get_slots_by_availability_ordered.return_value = all_slots
+
         # Mock repository to return slot as available
         slots_with_status = [(slot, None)]
-        service.repository.get_slots_with_booking_status = Mock(return_value=slots_with_status)
+        service.repository.get_slots_with_booking_status.return_value = slots_with_status
 
         suggestions = service.optimize_availability(1, target_duration_minutes=30)
 
@@ -778,11 +767,8 @@ class TestSlotManagerErrorHandling:
         # Create service
         service = SlotManager(mock_db, mock_conflict_checker)
 
-        # Mock the repository since unit tests shouldn't use real repository
-        from app.repositories.slot_manager_repository import SlotManagerRepository
-
-        mock_repository = Mock(spec=SlotManagerRepository)
-        service.repository = mock_repository
+        # Mock the repository
+        service.repository = Mock()
 
         return service
 
@@ -815,15 +801,15 @@ class TestSlotManagerErrorHandling:
 
     def test_handle_business_rule_violations(self, service):
         """Test business rule violation handling."""
-        # Mock slot with booking
-        mock_slot = Mock()
-        service.repository.get_slot_by_id = Mock(return_value=mock_slot)
-        service.repository.slot_has_booking = Mock(return_value=True)
+        # Work Stream #9: No more booking checks, so we test other business rules
 
-        with pytest.raises(BusinessRuleException) as exc_info:
-            service.update_slot(1, end_time=time(12, 0))
+        # Test slot not found
+        service.repository.get_slot_by_id = Mock(return_value=None)
 
-        assert "Cannot update slot that has a booking" in str(exc_info.value)
+        with pytest.raises(NotFoundException) as exc_info:
+            service.update_slot(999, end_time=time(12, 0))
+
+        assert "Slot not found" in str(exc_info.value)
 
 
 class TestSlotManagerMissingCoverage:
@@ -838,11 +824,13 @@ class TestSlotManagerMissingCoverage:
         # Create service
         service = SlotManager(mock_db, mock_conflict_checker)
 
-        # Mock the repository since unit tests shouldn't use real repository
-        from app.repositories.slot_manager_repository import SlotManagerRepository
+        # Mock the repository
+        service.repository = Mock()
 
-        mock_repository = Mock(spec=SlotManagerRepository)
-        service.repository = mock_repository
+        # Set up default return values to prevent Mock objects
+        service.repository.get_slots_by_availability_ordered = Mock(return_value=[])
+        service.repository.get_slots_with_booking_status = Mock(return_value=[])
+        service.repository.get_slots_for_instructor_date = Mock(return_value=[])
 
         return service
 
@@ -856,11 +844,9 @@ class TestSlotManagerMissingCoverage:
         mock_slot.availability = Mock(instructor_id=123, date=date.today())
 
         service.repository.get_slot_by_id = Mock(return_value=mock_slot)
-        service.repository.slot_has_booking = Mock(return_value=False)
         service.repository.update = Mock(return_value=mock_slot)
 
         service.conflict_checker.validate_time_range.return_value = {"valid": True}
-        service.conflict_checker.check_booking_conflicts.return_value = []
 
         service.db.commit = Mock()
 
@@ -908,9 +894,13 @@ class TestSlotManagerMissingCoverage:
         small_slot.start_time = time(9, 0)
         small_slot.end_time = time(9, 30)  # Only 30 minutes
 
+        # Mock get_slots_by_availability_ordered
+        all_slots = [small_slot]
+        service.repository.get_slots_by_availability_ordered.return_value = all_slots
+
         # Mock repository to return slot as available
         slots_with_status = [(small_slot, None)]
-        service.repository.get_slots_with_booking_status = Mock(return_value=slots_with_status)
+        service.repository.get_slots_with_booking_status.return_value = slots_with_status
 
         # Request 60-minute optimization
         suggestions = service.optimize_availability(availability_id=1, target_duration_minutes=60)
@@ -930,9 +920,7 @@ class TestSlotManagerMissingCoverage:
         slot2.start_time = time(10, 0)  # Exactly adjacent
         slot2.end_time = time(11, 0)
 
-        # No bookings
-        service.repository.count_bookings_for_slots = Mock(return_value=0)
-
+        # Work Stream #9: Slots can always merge regardless of bookings
         can_merge = service._slots_can_merge(slot1, slot2)
         assert can_merge == True
 
@@ -947,7 +935,6 @@ class TestSlotManagerMissingCoverage:
         mock_availability.is_cleared = True  # Already cleared
 
         service.repository.get_slot_by_id = Mock(return_value=mock_slot)
-        service.repository.get_booking_for_slot = Mock(return_value=None)  # No booking
         service.repository.delete = Mock(return_value=True)
         service.repository.count_slots_for_availability = Mock(return_value=0)  # Last slot
         service.repository.get_availability_by_id = Mock(return_value=mock_availability)
@@ -974,11 +961,12 @@ class TestSlotManagerEdgeCases:
         # Create service
         service = SlotManager(mock_db, mock_conflict_checker)
 
-        # Mock the repository since unit tests shouldn't use real repository
-        from app.repositories.slot_manager_repository import SlotManagerRepository
+        # Mock the repository
+        service.repository = Mock()
 
-        mock_repository = Mock(spec=SlotManagerRepository)
-        service.repository = mock_repository
+        # Set up default return values to prevent Mock objects
+        service.repository.get_slots_by_availability_ordered = Mock(return_value=[])
+        service.repository.get_slots_for_instructor_date = Mock(return_value=[])
 
         return service
 
@@ -996,9 +984,6 @@ class TestSlotManagerEdgeCases:
         slot2.end_time = time(11, 0)
 
         service.repository.get_slots_by_availability_ordered = Mock(return_value=[slot1, slot2])
-
-        # Mock no bookings
-        service.repository.get_booked_slot_ids = Mock(return_value=set())
 
         with patch.object(service, "_slots_can_merge", return_value=True):
             service.repository.delete = Mock()

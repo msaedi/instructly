@@ -6,6 +6,7 @@ These tests isolate business logic from database and external dependencies
 using mocks to ensure we're testing only the service logic.
 
 UPDATED: Now mocks the repository instead of internal methods.
+FIXED: Updated for Work Stream #9 - availability operations don't check bookings.
 """
 
 from datetime import date, time, timedelta
@@ -229,7 +230,11 @@ class TestCopyWeekLogic:
 
     @pytest.mark.asyncio
     async def test_copy_week_booking_preservation_logic(self, service):
-        """Test logic for preserving bookings during copy."""
+        """Test logic for copying week with layer independence.
+
+        FIXED: With Work Stream #9, we delete ALL slots, not just non-booked ones.
+        The empty set in delete_non_booked_slots call indicates we're deleting all slots.
+        """
         instructor_id = 123
         from_week = date(2025, 6, 16)  # Monday
         to_week = date(2025, 6, 23)  # Next Monday
@@ -265,8 +270,10 @@ class TestCopyWeekLogic:
 
         result = await service.copy_week_availability(instructor_id, from_week, to_week)
 
-        # Verify repository calls
-        service.repository.delete_non_booked_slots.assert_called_once_with(instructor_id, ANY, {101, 102})
+        # Verify repository calls - with Work Stream #9, we pass empty set to delete ALL slots
+        service.repository.delete_non_booked_slots.assert_called_once_with(
+            instructor_id, ANY, set()  # Week dates  # Empty set means delete ALL slots
+        )
 
         # Result should have availability data or metadata
         assert result is not None
@@ -293,7 +300,10 @@ class TestApplyPatternLogic:
 
     @pytest.mark.asyncio
     async def test_apply_pattern_date_range_calculation(self, service):
-        """Test date range processing in apply pattern."""
+        """Test date range processing in apply pattern.
+
+        FIXED: With Work Stream #9, we don't check bookings when applying patterns.
+        """
         instructor_id = 123
         from_week = date(2025, 6, 16)  # Monday
         start_date = date(2025, 7, 1)  # Tuesday
@@ -306,30 +316,18 @@ class TestApplyPatternLogic:
         }
 
         # Mock repository methods
-        service.repository.get_availability_in_range.return_value = []  # No existing
-        service.repository.get_bookings_in_date_range.return_value = {
-            "bookings_by_date": {},
-            "booked_slot_ids": set(),
-            "total_bookings": 0,
-        }
+        service.repository.get_availability_in_range.return_value = []  # Return empty list
+        service.repository.bulk_create_availability.return_value = []  # Return empty list
+        mock_availability = Mock()
+        mock_availability.id = 100
+        mock_availability.date = start_date
+        mock_availability._sa_instance_state = Mock()  # Existing entry
+        mock_availability.time_slots = []
 
-        # Mock bulk create availability to return entries with IDs
-        # This is important - the service expects these to have IDs
-        mock_availability_entries = []
-        current = start_date
-        entry_id = 100
-        while current <= end_date:
-            mock_entry = Mock()
-            mock_entry.id = entry_id
-            mock_entry.date = current
-            mock_availability_entries.append(mock_entry)
-            current += timedelta(days=1)
-            entry_id += 1
-
-        service.repository.bulk_create_availability.return_value = mock_availability_entries
+        service.repository.get_or_create_availability.return_value = mock_availability
         service.repository.bulk_delete_slots.return_value = 0
+        service.repository.slot_exists.return_value = False
         service.repository.bulk_create_slots.return_value = 20  # Some slots created
-        service.repository.bulk_update_availability.return_value = 0
 
         # Disable cache for testing
         service.cache_service = None
@@ -345,13 +343,15 @@ class TestApplyPatternLogic:
         assert "slots_created" in result
         assert "message" in result
 
-        # Verify repository was called
-        service.repository.get_availability_in_range.assert_called_once()
-        service.repository.get_bookings_in_date_range.assert_called_once()
+        # With Work Stream #9, we should NOT call get_bookings_in_date_range
+        service.repository.get_bookings_in_date_range.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_apply_pattern_conflict_detection(self, service):
-        """Test conflict detection during pattern application."""
+        """Test pattern application without conflict detection.
+
+        FIXED: With Work Stream #9, we don't check for conflicts or skip slots.
+        """
         instructor_id = 123
         from_week = date(2025, 6, 16)
         start_date = date(2025, 7, 1)
@@ -362,34 +362,28 @@ class TestApplyPatternLogic:
             "2025-06-17": [{"start_time": "09:00", "end_time": "11:00"}],  # Tuesday
         }
 
-        # Mock existing bookings
-        service.repository.get_bookings_in_date_range.return_value = {
-            "bookings_by_date": {
-                "2025-07-01": [
-                    {  # Wednesday conflicts with Tuesday pattern
-                        "slot_id": 101,
-                        "start_time": time(9, 30),
-                        "end_time": time(10, 30),
-                    }
-                ]
-            },
-            "booked_slot_ids": {101},
-            "total_bookings": 1,
-        }
+        # Mock repository operations
+        service.repository.get_availability_in_range.return_value = []  # Return empty list
+        service.repository.bulk_create_availability.return_value = []  # Return empty list
+        mock_availability = Mock()
+        mock_availability.id = 100
+        mock_availability.date = start_date
+        mock_availability._sa_instance_state = Mock()
+        mock_availability.time_slots = []
 
-        # Mock existing availability
-        service.repository.get_availability_in_range.return_value = []
-        service.repository.bulk_create_availability.return_value = []
-        service.repository.bulk_create_slots.return_value = 0
+        service.repository.get_or_create_availability.return_value = mock_availability
+        service.repository.bulk_delete_slots.return_value = 0
+        service.repository.slot_exists.return_value = False
+        service.repository.bulk_create_slots.return_value = 3  # All slots created
 
         # Disable cache for testing
         service.cache_service = None
 
         result = await service.apply_pattern_to_date_range(instructor_id, from_week, start_date, end_date)
 
-        # Should skip conflicting slots
-        assert result["slots_skipped"] >= 0
-        assert result["total_bookings_preserved"] == 1
+        # With Work Stream #9, we don't skip slots
+        assert "slots_skipped" not in result or result.get("slots_skipped", 0) == 0
+        assert result["slots_created"] > 0
 
 
 class TestBulkOperationLogic:
@@ -558,7 +552,11 @@ class TestDateConflictLogic:
 
     @pytest.mark.asyncio
     async def test_copy_day_slots_conflict_detection(self, service):
-        """Test conflict detection when copying day slots."""
+        """Test day slot copying without conflict detection.
+
+        FIXED: With Work Stream #9, _copy_day_slots no longer accepts has_bookings
+        or booked_ranges parameters. It copies ALL slots.
+        """
         instructor_id = 123
         source_slots = [
             {"start_time": "09:00", "end_time": "10:00"},
@@ -566,23 +564,19 @@ class TestDateConflictLogic:
             {"start_time": "14:00", "end_time": "16:00"},
         ]
         target_date = date(2025, 7, 1)
-        booked_ranges = [
-            {"start_time": time(9, 30), "end_time": time(10, 30)},  # Conflicts with first two
-        ]
 
         # Mock repository operations
         mock_availability = Mock(id=1)
         service.repository.get_or_create_availability.return_value = mock_availability
         service.repository.slot_exists.return_value = False
-        service.repository.bulk_create_slots.return_value = 1
+        service.repository.bulk_create_slots.return_value = 3  # All slots created
 
-        result = await service._copy_day_slots(
-            instructor_id, source_slots, target_date, has_bookings=True, booked_ranges=booked_ranges
-        )
+        # Call without the removed parameters
+        result = await service._copy_day_slots(instructor_id, source_slots, target_date)
 
-        # Should skip 2 conflicting slots
-        assert result["slots_skipped"] == 2
-        assert result["slots_created"] == 1  # Only the 14:00-16:00 slot
+        # With Work Stream #9, all slots are created, none are skipped
+        assert result["slots_skipped"] == 0
+        assert result["slots_created"] == 3  # All 3 slots created
 
 
 class TestPerformanceMonitoring:

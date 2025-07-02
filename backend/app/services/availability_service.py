@@ -9,11 +9,13 @@ Core service handling instructor availability management including:
 - Coordination with booking system
 
 REFACTORED: Now uses AvailabilityRepository for all data access
+FIXED: Implements proper separation between availability and booking layers.
+Availability operations no longer check for booking conflicts.
 """
 
 import logging
-from datetime import date, time, timedelta
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from datetime import date, timedelta
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -294,15 +296,18 @@ class AvailabilityService(BaseService):
         """
         Save availability for specific dates in a week.
 
-        This replaces existing availability while preserving booked slots.
-        The operation is atomic - all changes succeed or all are rolled back.
+        This replaces existing availability. The operation is atomic -
+        all changes succeed or all are rolled back.
+
+        FIXED: Now creates all requested slots regardless of existing bookings.
+        Bookings persist independently as per the architectural principle.
 
         Args:
             instructor_id: The instructor's user ID
             week_data: The week schedule data
 
         Returns:
-            Updated week availability with metadata about skipped dates
+            Updated week availability
 
         Raises:
             ValidationException: If validation fails
@@ -344,12 +349,9 @@ class AvailabilityService(BaseService):
 
                 warmer = CacheWarmingStrategy(self.cache_service, self.db)
 
-                # Only pass expected_slot_count if no dates were skipped
-                expected = expected_slot_count if not result.get("dates_with_bookings") else None
-
                 # Warm cache with verification
                 updated_availability = await warmer.warm_with_verification(
-                    instructor_id, monday, expected_slot_count=expected
+                    instructor_id, monday, expected_slot_count=expected_slot_count
                 )
             except ImportError:
                 # Fallback if cache_strategies not available yet
@@ -360,13 +362,7 @@ class AvailabilityService(BaseService):
             # No cache, get directly
             updated_availability = self.get_week_availability(instructor_id, monday)
 
-        # Add metadata if dates were skipped
-        if result.get("dates_with_bookings"):
-            updated_availability["_metadata"] = {
-                "skipped_dates_with_bookings": result["dates_with_bookings"],
-                "message": f"Changes saved successfully. {len(result['dates_with_bookings'])} date(s) with existing bookings were not modified.",
-            }
-
+        # FIXED: Removed metadata about skipped dates as we no longer skip anything
         return updated_availability
 
     def add_specific_date_availability(
@@ -550,7 +546,6 @@ class AvailabilityService(BaseService):
         """Process each day of the week."""
         dates_created = 0
         slots_created = 0
-        dates_with_bookings = []
 
         for week_date in week_dates:
             # Skip past dates
@@ -567,25 +562,17 @@ class AvailabilityService(BaseService):
                 )
                 dates_created += result["dates_created"]
                 slots_created += result["slots_created"]
-                if result.get("has_bookings"):
-                    dates_with_bookings.append(week_date.strftime("%Y-%m-%d"))
             else:
                 # Process date without new slots
                 if clear_existing:
                     result = await self._process_date_without_slots(instructor_id=instructor_id, target_date=week_date)
                     dates_created += result["dates_created"]
-                    if result.get("has_bookings"):
-                        dates_with_bookings.append(week_date.strftime("%Y-%m-%d"))
 
-        self.logger.info(
-            f"Processed week: {dates_created} dates, {slots_created} slots, "
-            f"{len(dates_with_bookings)} dates with bookings"
-        )
+        self.logger.info(f"Processed week: {dates_created} dates, {slots_created} slots")
 
         return {
             "dates_created": dates_created,
             "slots_created": slots_created,
-            "dates_with_bookings": dates_with_bookings,
         }
 
     async def _process_date_with_slots(
@@ -598,7 +585,6 @@ class AvailabilityService(BaseService):
         """Process a date that has new slots."""
         dates_created = 0
         slots_created = 0
-        has_bookings = False
 
         try:
             # Get or create availability using repository
@@ -608,36 +594,29 @@ class AvailabilityService(BaseService):
             if is_new:
                 dates_created = 1
 
-            # Check for existing bookings
-            booked_slot_ids = self.repository.get_booked_slot_ids(instructor_id, target_date)
-            if booked_slot_ids:
-                has_bookings = True
-                self.logger.info(f"Found {len(booked_slot_ids)} booked slots for {target_date}")
-
-            if clear_existing and booked_slot_ids:
-                # Delete only non-booked slots
-                self.repository.delete_non_booked_slots(availability.id, booked_slot_ids)
-
-            # Get booked time ranges for conflict checking
-            booked_slots = self.repository.get_slots_by_availability_id(availability.id)
-            booked_time_ranges = [
-                (slot.start_time, slot.end_time) for slot in booked_slots if slot.id in booked_slot_ids
-            ]
+            # FIXED: Delete ALL existing slots when clearing, not just non-booked
+            if clear_existing and availability.time_slots:
+                # Get all slot IDs
+                all_slot_ids = [slot.id for slot in availability.time_slots]
+                if all_slot_ids:
+                    # Delete ALL slots - layer independence
+                    for slot in availability.time_slots:
+                        self.db.delete(slot)
+                    self.logger.info(f"Deleted ALL {len(all_slot_ids)} slots for {target_date}")
 
             # Set availability as not cleared
             availability.is_cleared = False
 
-            # Add new slots that don't conflict with bookings
+            # FIXED: Add ALL requested slots without checking for booking conflicts
             for slot in slots:
-                if not self._conflicts_with_bookings(slot.start_time, slot.end_time, booked_time_ranges):
-                    if not self.repository.slot_exists(availability.id, slot.start_time, slot.end_time):
-                        time_slot = AvailabilitySlot(
-                            availability_id=availability.id,
-                            start_time=slot.start_time,
-                            end_time=slot.end_time,
-                        )
-                        self.db.add(time_slot)
-                        slots_created += 1
+                if not self.repository.slot_exists(availability.id, slot.start_time, slot.end_time):
+                    time_slot = AvailabilitySlot(
+                        availability_id=availability.id,
+                        start_time=slot.start_time,
+                        end_time=slot.end_time,
+                    )
+                    self.db.add(time_slot)
+                    slots_created += 1
 
         except RepositoryException as e:
             self.logger.error(f"Error processing date with slots: {e}")
@@ -646,49 +625,35 @@ class AvailabilityService(BaseService):
         return {
             "dates_created": dates_created,
             "slots_created": slots_created,
-            "has_bookings": has_bookings,
         }
 
     async def _process_date_without_slots(self, instructor_id: int, target_date: date) -> Dict[str, Any]:
         """Process a date that has no new slots (clearing)."""
         dates_created = 0
-        has_bookings = False
 
         try:
-            # Check for existing bookings using repository
-            existing_bookings = self.repository.count_bookings_for_date(instructor_id, target_date)
+            # FIXED: Always allow clearing - don't check for bookings
+            # Get existing availability
+            existing = self.repository.get_availability_by_date(instructor_id, target_date)
+            if existing:
+                # Delete the availability entry (and cascade to slots)
+                self.db.delete(existing)
+                self.logger.info(f"Cleared availability for {target_date}")
 
-            if existing_bookings > 0:
-                has_bookings = True
-                self.logger.warning(f"Cannot clear {target_date} - has {existing_bookings} bookings")
-            else:
-                # Safe to delete - get existing availability
-                existing = self.repository.get_availability_by_date(instructor_id, target_date)
-                if existing:
-                    # Delete the availability entry
-                    self.db.delete(existing)
-
-                    # Create cleared entry if not today
-                    if target_date != date.today():
-                        availability_entry = InstructorAvailability(
-                            instructor_id=instructor_id, date=target_date, is_cleared=True
-                        )
-                        self.db.add(availability_entry)
-                        dates_created = 1
+                # Create cleared entry if not today
+                if target_date != date.today():
+                    availability_entry = InstructorAvailability(
+                        instructor_id=instructor_id, date=target_date, is_cleared=True
+                    )
+                    self.db.add(availability_entry)
+                    dates_created = 1
 
         except RepositoryException as e:
             self.logger.error(f"Error processing date without slots: {e}")
 
-        return {"dates_created": dates_created, "has_bookings": has_bookings}
+        return {"dates_created": dates_created}
 
-    def _conflicts_with_bookings(
-        self, start_time: time, end_time: time, booked_ranges: List[Tuple[time, time]]
-    ) -> bool:
-        """Check if a time range conflicts with booked slots."""
-        for booked_start, booked_end in booked_ranges:
-            if start_time < booked_end and end_time > booked_start:
-                return True
-        return False
+    # FIXED: Removed _conflicts_with_bookings method entirely
 
     def _invalidate_availability_caches(self, instructor_id: int, dates: List[date]) -> None:
         """Invalidate caches for affected dates."""

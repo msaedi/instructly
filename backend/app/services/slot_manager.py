@@ -7,6 +7,9 @@ Manages time slot operations including:
 - Merging overlapping slots
 - Slot validation and optimization
 - Time slot calculations
+
+FIXED: Implements proper separation between availability and booking layers.
+Slot operations no longer check for booking conflicts.
 """
 
 import logging
@@ -15,7 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
-from ..core.exceptions import BusinessRuleException, ConflictException, NotFoundException, ValidationException
+from ..core.exceptions import ConflictException, NotFoundException, ValidationException
 from ..models.availability import AvailabilitySlot
 from ..repositories import RepositoryFactory
 from ..repositories.slot_manager_repository import SlotManagerRepository
@@ -51,17 +54,20 @@ class SlotManager(BaseService):
         availability_id: int,
         start_time: time,
         end_time: time,
-        validate_conflicts: bool = True,
+        validate_conflicts: bool = True,  # DEPRECATED - kept for backward compatibility
         auto_merge: bool = True,
     ) -> AvailabilitySlot:
         """
         Create a new availability slot.
 
+        FIXED: No longer checks for booking conflicts. The validate_conflicts
+        parameter is deprecated and ignored to maintain backward compatibility.
+
         Args:
             availability_id: The instructor availability entry ID
             start_time: Start time of the slot
             end_time: End time of the slot
-            validate_conflicts: Whether to check for booking conflicts
+            validate_conflicts: DEPRECATED - ignored for layer independence
             auto_merge: Whether to merge with adjacent slots
 
         Returns:
@@ -69,7 +75,7 @@ class SlotManager(BaseService):
 
         Raises:
             ValidationException: If validation fails
-            ConflictException: If conflicts detected
+            NotFoundException: If availability not found
         """
         # Get availability entry
         availability = self.repository.get_availability_by_id(availability_id)
@@ -86,16 +92,7 @@ class SlotManager(BaseService):
         if not validation["valid"]:
             raise ValidationException(validation["reason"])
 
-        # Check for conflicts if requested
-        if validate_conflicts:
-            conflicts = self.conflict_checker.check_booking_conflicts(
-                instructor_id=availability.instructor_id,
-                check_date=availability.date,
-                start_time=start_time,
-                end_time=end_time,
-            )
-            if conflicts:
-                raise ConflictException(f"Time slot conflicts with {len(conflicts)} existing bookings")
+        # FIXED: Removed booking conflict check - layer independence
 
         # Check for duplicate slot
         if self.repository.slot_exists(availability_id, start_time, end_time):
@@ -104,8 +101,8 @@ class SlotManager(BaseService):
         # Create the slot
         new_slot = self.repository.create(availability_id=availability_id, start_time=start_time, end_time=end_time)
 
-        # Auto merge if requested and no bookings exist
-        if auto_merge and not self.repository.availability_has_bookings(availability_id):
+        # FIXED: Always merge if requested - don't check for bookings
+        if auto_merge:
             self.merge_overlapping_slots(availability_id)
 
         self.db.commit()
@@ -142,24 +139,26 @@ class SlotManager(BaseService):
         slot_id: int,
         start_time: Optional[time] = None,
         end_time: Optional[time] = None,
-        validate_conflicts: bool = True,
+        validate_conflicts: bool = True,  # DEPRECATED - kept for backward compatibility
     ) -> AvailabilitySlot:
         """
         Update an existing slot's times.
+
+        FIXED: No longer checks for booking conflicts. The validate_conflicts
+        parameter is deprecated and ignored to maintain backward compatibility.
 
         Args:
             slot_id: The slot ID to update
             start_time: New start time (optional)
             end_time: New end time (optional)
-            validate_conflicts: Whether to check for conflicts
+            validate_conflicts: DEPRECATED - ignored for layer independence
 
         Returns:
             Updated slot
 
         Raises:
             NotFoundException: If slot not found
-            BusinessRuleException: If slot has booking
-            ConflictException: If new times conflict
+            ValidationException: If new times invalid
         """
         # Get the slot
         slot = self.repository.get_slot_by_id(slot_id)
@@ -167,9 +166,7 @@ class SlotManager(BaseService):
         if not slot:
             raise NotFoundException("Slot not found")
 
-        # Check if slot has booking
-        if self.repository.slot_has_booking(slot_id):
-            raise BusinessRuleException("Cannot update slot that has a booking")
+        # FIXED: Removed booking check - allow updates regardless
 
         # Determine new times
         new_start = start_time if start_time is not None else slot.start_time
@@ -180,18 +177,7 @@ class SlotManager(BaseService):
         if not validation["valid"]:
             raise ValidationException(validation["reason"])
 
-        # Check for conflicts if requested
-        if validate_conflicts:
-            availability = slot.availability
-            conflicts = self.conflict_checker.check_booking_conflicts(
-                instructor_id=availability.instructor_id,
-                check_date=availability.date,
-                start_time=new_start,
-                end_time=new_end,
-                exclude_slot_id=slot_id,
-            )
-            if conflicts:
-                raise ConflictException(f"New time range conflicts with {len(conflicts)} bookings")
+        # FIXED: Removed booking conflict check - layer independence
 
         # Update the slot
         updated_slot = self.repository.update(slot_id, start_time=new_start, end_time=new_end)
@@ -205,16 +191,18 @@ class SlotManager(BaseService):
         """
         Delete an availability slot.
 
+        FIXED: Always allows deletion regardless of bookings. The force
+        parameter is deprecated and ignored to maintain backward compatibility.
+
         Args:
             slot_id: The slot ID to delete
-            force: Force deletion even if booked (dangerous!)
+            force: DEPRECATED - all deletions allowed for layer independence
 
         Returns:
             True if deleted successfully
 
         Raises:
             NotFoundException: If slot not found
-            BusinessRuleException: If slot has booking and not forced
         """
         # Get the slot
         slot = self.repository.get_slot_by_id(slot_id)
@@ -222,11 +210,7 @@ class SlotManager(BaseService):
         if not slot:
             raise NotFoundException("Slot not found")
 
-        # Check if slot has booking
-        booking = self.repository.get_booking_for_slot(slot_id)
-
-        if booking and not force:
-            raise BusinessRuleException(f"Cannot delete slot with {booking.status} booking")
+        # FIXED: Removed booking check - always allow deletion
 
         availability_id = slot.availability_id
 
@@ -252,9 +236,12 @@ class SlotManager(BaseService):
         """
         Merge overlapping or adjacent slots for an availability entry.
 
+        FIXED: Always merges overlapping slots regardless of bookings. The
+        preserve_booked parameter is deprecated and ignored.
+
         Args:
             availability_id: The availability entry ID
-            preserve_booked: Whether to preserve booked slots
+            preserve_booked: DEPRECATED - ignored for layer independence
 
         Returns:
             Number of slots merged
@@ -267,27 +254,14 @@ class SlotManager(BaseService):
 
         self.logger.debug(f"Merging slots for availability_id {availability_id}: " f"{len(slots)} slots found")
 
-        # Separate booked and non-booked slots
-        if preserve_booked:
-            slot_ids = [s.id for s in slots]
-            booked_slot_ids = self.repository.get_booked_slot_ids(slot_ids)
+        # FIXED: Removed booking separation logic - merge all overlapping slots
 
-            booked_slots = [s for s in slots if s.id in booked_slot_ids]
-            non_booked_slots = [s for s in slots if s.id not in booked_slot_ids]
-
-            if booked_slots:
-                self.logger.info(f"Preserving {len(booked_slots)} booked slots")
-                # Don't merge if any booked slots exist
-                return 0
-        else:
-            non_booked_slots = slots
-
-        # Merge non-booked slots
+        # Merge slots
         merged_count = 0
         merged_slots = []
-        current = non_booked_slots[0]
+        current = slots[0]
 
-        for next_slot in non_booked_slots[1:]:
+        for next_slot in slots[1:]:
             # Check if slots overlap or are adjacent (within 1 minute)
             if self._slots_can_merge(current, next_slot):
                 self.logger.debug(
@@ -321,6 +295,8 @@ class SlotManager(BaseService):
         """
         Split a slot into two at the specified time.
 
+        FIXED: Allows splitting regardless of bookings.
+
         Args:
             slot_id: The slot ID to split
             split_time: Time to split at
@@ -331,7 +307,6 @@ class SlotManager(BaseService):
         Raises:
             NotFoundException: If slot not found
             ValidationException: If split time invalid
-            BusinessRuleException: If slot has booking
         """
         # Get the slot
         slot = self.repository.get_slot_by_id(slot_id)
@@ -339,9 +314,7 @@ class SlotManager(BaseService):
         if not slot:
             raise NotFoundException("Slot not found")
 
-        # Check if slot has booking
-        if self.repository.slot_has_booking(slot_id):
-            raise BusinessRuleException("Cannot split slot that has a booking")
+        # FIXED: Removed booking check - allow split regardless
 
         # Validate split time
         if split_time <= slot.start_time or split_time >= slot.end_time:
@@ -422,17 +395,24 @@ class SlotManager(BaseService):
         """
         Suggest optimal slot arrangements for a given duration.
 
+        This method finds FREE time slots that can accommodate bookings of the
+        specified duration. It MUST check existing bookings to avoid suggesting
+        already-booked times.
+
+        NOTE: This is NOT an availability CRUD operation. This is a booking
+        helper that needs to respect existing bookings.
+
         Args:
             availability_id: The availability entry ID
             target_duration_minutes: Desired booking duration
 
         Returns:
-            List of suggested time slots
+            List of suggested time slots that are FREE for booking
         """
         # Get all slots with their booking status
         slots_with_status = self.repository.get_slots_with_booking_status(availability_id)
 
-        # Filter out booked slots
+        # Filter out booked slots - we only want to suggest FREE times
         non_booked_slots = [slot for slot, status in slots_with_status if status is None]
 
         suggestions = []
@@ -465,14 +445,11 @@ class SlotManager(BaseService):
     # Private helper methods
 
     def _slots_can_merge(self, slot1: AvailabilitySlot, slot2: AvailabilitySlot, max_gap_minutes: int = 1) -> bool:
-        """Check if two slots can be merged."""
-        # Check if either has booking
-        slot_ids = [slot1.id, slot2.id]
-        has_bookings = self.repository.count_bookings_for_slots(slot_ids) > 0
+        """
+        Check if two slots can be merged.
 
-        if has_bookings:
-            return False
-
+        FIXED: Only checks time adjacency, not bookings.
+        """
         # Calculate gap between slots
         gap_start = slot1.end_time
         gap_end = slot2.start_time
