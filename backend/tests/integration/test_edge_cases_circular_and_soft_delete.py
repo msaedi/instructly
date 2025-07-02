@@ -13,7 +13,6 @@ from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 import pytest
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.availability import AvailabilitySlot, InstructorAvailability
@@ -64,7 +63,7 @@ class TestCircularDependencyEdgeCases:
         assert booking.status == BookingStatus.CONFIRMED
 
     def test_cascade_delete_availability_slot(self, db: Session, instructor_user: User, student_user: User):
-        """Test that we cannot delete slots that have associated bookings."""
+        """Test that we CAN delete slots that have associated bookings (layer independence)."""
         # Create availability and slot
         availability = InstructorAvailability(
             instructor_id=instructor_user.id, date=date.today() + timedelta(days=1), is_cleared=False
@@ -95,33 +94,27 @@ class TestCircularDependencyEdgeCases:
         db.add(booking)
         db.commit()
 
-        # Attempt to delete the slot should fail due to foreign key constraint
-        with pytest.raises(IntegrityError):
-            db.delete(slot)
-            db.commit()
+        slot_id = slot.id
+        booking_id = booking.id
 
-        db.rollback()
-
-        # The proper way: cancel the booking first, then delete the slot
-        booking.status = BookingStatus.CANCELLED
-        booking.availability_slot_id = None  # Remove the reference
-        db.commit()
-
-        # Now we can delete the slot
+        # Now we CAN delete the slot directly (layer independence)
         db.delete(slot)
         db.commit()
 
         # Verify slot is deleted
-        assert db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot.id).first() is None
+        assert db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot_id).first() is None
 
-        # Verify booking still exists
-        booking = db.query(Booking).filter(Booking.id == booking.id).first()
-        assert booking is not None
-        assert booking.availability_slot_id is None
-        assert booking.status == BookingStatus.CANCELLED
+        # Verify booking still exists with its original status and slot reference
+        booking_after = db.query(Booking).filter(Booking.id == booking_id).first()
+        assert booking_after is not None
+        assert booking_after.availability_slot_id == slot_id  # Still references the deleted slot
+        assert booking_after.status == BookingStatus.CONFIRMED  # Status unchanged
+        assert booking_after.booking_date == availability.date
+        assert booking_after.start_time == time(10, 0)
+        assert booking_after.end_time == time(11, 0)
 
     def test_cascade_delete_instructor_availability(self, db: Session, instructor_user: User, student_user: User):
-        """Test cascade behavior when deleting instructor availability."""
+        """Test cascade behavior when deleting instructor availability - bookings persist independently."""
         # Create availability with slots
         availability = InstructorAvailability(
             instructor_id=instructor_user.id, date=date.today() + timedelta(days=1), is_cleared=False
@@ -153,31 +146,29 @@ class TestCircularDependencyEdgeCases:
         db.add(booking)
         db.commit()
 
-        # Cannot delete availability with booked slots
-        with pytest.raises(IntegrityError):
-            db.delete(availability)
-            db.commit()
+        slot1_id = slot1.id
+        slot2_id = slot2.id
+        booking_id = booking.id
+        availability_id = availability.id
 
-        db.rollback()
-
-        # The proper way: handle bookings first
-        booking = db.query(Booking).filter(Booking.availability_slot_id == slot1.id).first()
-        booking.status = BookingStatus.CANCELLED
-        booking.availability_slot_id = None
-        db.commit()
-
-        # Now we can delete the availability (cascades to slots)
+        # Now we CAN delete availability directly (cascades to slots)
         db.delete(availability)
         db.commit()
 
-        # Verify slots are deleted
-        assert db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot1.id).first() is None
-        assert db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot2.id).first() is None
+        # Verify availability is deleted
+        assert db.query(InstructorAvailability).filter(InstructorAvailability.id == availability_id).first() is None
 
-        # Verify booking still exists
-        booking = db.query(Booking).filter(Booking.id == booking.id).first()
-        assert booking is not None
-        assert booking.availability_slot_id is None
+        # Verify slots are deleted (cascade still works for availability->slots)
+        assert db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot1_id).first() is None
+        assert db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot2_id).first() is None
+
+        # Verify booking still exists with original status and data
+        booking_after = db.query(Booking).filter(Booking.id == booking_id).first()
+        assert booking_after is not None
+        assert booking_after.availability_slot_id == slot1_id  # Still references the deleted slot
+        assert booking_after.status == BookingStatus.CONFIRMED  # Not cancelled
+        assert booking_after.instructor_id == instructor_user.id
+        assert booking_after.booking_date == date.today() + timedelta(days=1)
 
     def test_no_reverse_relationship_from_slot(self, db: Session, instructor_user: User):
         """Verify that availability slots don't have a booking relationship."""
