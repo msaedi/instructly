@@ -2,15 +2,17 @@
 """
 Availability Service for InstaInstru Platform
 
-Core service handling instructor availability management including:
-- Week-based availability viewing
-- Saving and updating availability
-- Date-specific availability management
-- Coordination with booking system
+UPDATED FOR WORK STREAM #10: Single-table availability design.
 
-REFACTORED: Now uses AvailabilityRepository for all data access
-FIXED: Implements proper separation between availability and booking layers.
-Availability operations no longer check for booking conflicts.
+This service has been significantly simplified by removing the concept of
+InstructorAvailability entries. Now works directly with AvailabilitySlots
+that contain instructor_id and date.
+
+Key changes:
+- No more InstructorAvailability model references
+- No more is_cleared flag - absence of slots means cleared
+- Direct slot queries using instructor_id and date
+- Simplified data structures
 """
 
 import logging
@@ -20,7 +22,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from ..core.exceptions import ConflictException, NotFoundException, RepositoryException
-from ..models.availability import AvailabilitySlot, BlackoutDate, InstructorAvailability
+from ..models.availability import AvailabilitySlot, BlackoutDate
 from ..models.instructor import InstructorProfile
 from ..repositories.factory import RepositoryFactory
 from ..schemas.availability_window import BlackoutDateCreate, SpecificDateAvailabilityCreate, WeekSpecificScheduleCreate
@@ -39,8 +41,7 @@ class AvailabilityService(BaseService):
     """
     Service layer for availability operations.
 
-    Centralizes all availability business logic and provides
-    clean interfaces for the route handlers.
+    Works directly with AvailabilitySlot objects in the single-table design.
     """
 
     def __init__(
@@ -50,8 +51,6 @@ class AvailabilityService(BaseService):
         repository: Optional["AvailabilityRepository"] = None,
     ):
         """Initialize availability service with optional cache and repository."""
-        # Pass the cache service to BaseService
-        # The CacheService has a redis property that matches RedisCache interface
         super().__init__(db, cache=cache_service)
         self.logger = logging.getLogger(__name__)
         self.cache_service = cache_service
@@ -66,16 +65,18 @@ class AvailabilityService(BaseService):
 
     def get_availability_for_date(self, instructor_id: int, target_date: date) -> Optional[Dict[str, Any]]:
         """
-        Get availability for a specific date (optimized for single day).
+        Get availability for a specific date.
+
+        SIMPLIFIED: Queries slots directly by instructor_id and date.
 
         Args:
             instructor_id: The instructor ID
             target_date: The specific date
 
         Returns:
-            Availability data for the date or None
+            Availability data for the date or None if no slots
         """
-        # Try cache first - WITH ERROR HANDLING
+        # Try cache first
         cache_key = f"availability:day:{instructor_id}:{target_date.isoformat()}"
         if self.cache_service:
             try:
@@ -85,29 +86,29 @@ class AvailabilityService(BaseService):
             except Exception as cache_error:
                 self.logger.warning(f"Cache error for date availability: {cache_error}. Falling back to database.")
 
-        # Query using repository
+        # Query slots directly
         try:
-            entry = self.repository.get_availability_by_date(instructor_id, target_date)
+            slots = self.repository.get_slots_by_date(instructor_id, target_date)
         except RepositoryException as e:
             self.logger.error(f"Repository error getting availability: {e}")
             return None
 
-        if not entry or entry.is_cleared:
+        if not slots:
             return None
 
         result = {
-            "date": entry.date.isoformat(),
+            "date": target_date.isoformat(),
             "slots": [
                 {
                     "start_time": time_to_string(slot.start_time),
                     "end_time": time_to_string(slot.end_time),
                     "is_available": True,
                 }
-                for slot in entry.time_slots
+                for slot in slots
             ],
         }
 
-        # Cache for 1 hour - WITH ERROR HANDLING
+        # Cache for 1 hour
         if self.cache_service:
             try:
                 self.cache_service.set(cache_key, result, tier="warm")
@@ -120,7 +121,7 @@ class AvailabilityService(BaseService):
         """
         Get summary of availability (slot counts) for date range.
 
-        Useful for calendar views that just need to show if days have availability.
+        SIMPLIFIED: Counts slots directly without InstructorAvailability.
 
         Args:
             instructor_id: The instructor ID
@@ -136,75 +137,11 @@ class AvailabilityService(BaseService):
             self.logger.error(f"Error getting availability summary: {e}")
             return {}
 
-    def prefetch_week_availability(self, instructor_id: int, start_date: date) -> None:
-        """
-        Prefetch and cache a week's availability in one query.
-
-        Optimized for initial calendar load.
-        """
-        week_dates = self._calculate_week_dates(start_date)
-        end_date = week_dates[-1]
-
-        try:
-            # Use repository to get all entries
-            entries = self.repository.get_week_availability(instructor_id, start_date, end_date)
-        except RepositoryException as e:
-            self.logger.error(f"Error prefetching week availability: {e}")
-            return
-
-        # Cache each day individually for granular access
-        for entry in entries:
-            if not entry.is_cleared and entry.time_slots:
-                day_data = {
-                    "date": entry.date.isoformat(),
-                    "slots": [
-                        {
-                            "start_time": time_to_string(slot.start_time),
-                            "end_time": time_to_string(slot.end_time),
-                            "is_available": True,
-                        }
-                        for slot in entry.time_slots
-                    ],
-                }
-
-                cache_key = f"availability:day:{instructor_id}:{entry.date.isoformat()}"
-                if self.cache_service:
-                    self.cache_service.set(cache_key, day_data, tier="hot")
-
-    def get_all_availability(
-        self,
-        instructor_id: int,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
-    ) -> List[InstructorAvailability]:
-        """
-        Get all availability entries with optional date filtering.
-
-        Args:
-            instructor_id: The instructor ID
-            start_date: Optional start date filter
-            end_date: Optional end date filter
-
-        Returns:
-            List of InstructorAvailability entries with loaded time slots
-        """
-        try:
-            if start_date and end_date:
-                return self.repository.get_week_availability(instructor_id, start_date, end_date)
-            else:
-                # For no date range, use base repository get_all with filter
-                # This could be added as a method to AvailabilityRepository if needed
-                return self.repository.find_by(instructor_id=instructor_id)
-        except RepositoryException as e:
-            self.logger.error(f"Error getting all availability: {e}")
-            return []
-
     def get_week_availability(self, instructor_id: int, start_date: date) -> Dict[str, List[Dict[str, Any]]]:
         """
         Get availability for a specific week.
 
-        Returns a dictionary mapping ISO date strings to lists of time slots.
-        Days marked as "cleared" or without entries are not included.
+        SIMPLIFIED: Returns slots grouped by date, no is_cleared concept.
 
         Args:
             instructor_id: The instructor's user ID
@@ -212,18 +149,10 @@ class AvailabilityService(BaseService):
 
         Returns:
             Dict mapping date strings to time slot lists
-
-        Example:
-            {
-                "2024-06-10": [
-                    {"start_time": "09:00:00", "end_time": "12:00:00", "is_available": true}
-                ],
-                "2024-06-11": []
-            }
         """
         self.log_operation("get_week_availability", instructor_id=instructor_id, start_date=start_date)
 
-        # Try cache first if available - WITH ERROR HANDLING
+        # Try cache first
         if self.cache_service:
             try:
                 cached_data = self.cache_service.get_week_availability(instructor_id, start_date)
@@ -235,59 +164,49 @@ class AvailabilityService(BaseService):
                         f"CACHE MISS for week availability: instructor={instructor_id}, start={start_date}"
                     )
             except Exception as cache_error:
-                # Log cache error but continue with database query
                 self.logger.warning(f"Cache error for week availability: {cache_error}. Falling back to database.")
 
         # Calculate week dates (Monday to Sunday)
         week_dates = self._calculate_week_dates(start_date)
         end_date = week_dates[-1]
 
-        # Get instructor availability for this week using repository
+        # Get all slots for the week
         import time as time_module
 
         start_time = time_module.time()
 
         try:
-            availability_entries = self.repository.get_week_availability(instructor_id, start_date, end_date)
+            all_slots = self.repository.get_week_availability(instructor_id, start_date, end_date)
         except RepositoryException as e:
             self.logger.error(f"Error getting week availability: {e}")
             return {}
 
         query_time = (time_module.time() - start_time) * 1000
         self.logger.info(f"Database query took {query_time:.2f}ms")
+        self.logger.debug(f"Found {len(all_slots)} slots for the week")
 
-        self.logger.debug(f"Found {len(availability_entries)} availability entries for the week")
-
-        # Build response
+        # Group slots by date
         week_schedule = {}
+        for slot in all_slots:
+            date_str = slot.date.isoformat()
 
-        for entry in availability_entries:
-            date_str = entry.date.isoformat()
+            if date_str not in week_schedule:
+                week_schedule[date_str] = []
 
-            # Skip cleared days
-            if entry.is_cleared:
-                self.logger.debug(f"Day {date_str} is explicitly cleared")
-                continue
+            week_schedule[date_str].append(
+                {
+                    "start_time": time_to_string(slot.start_time),
+                    "end_time": time_to_string(slot.end_time),
+                    "is_available": True,
+                }
+            )
 
-            # Add time slots
-            if entry.time_slots:
-                week_schedule[date_str] = [
-                    {
-                        "start_time": time_to_string(slot.start_time),
-                        "end_time": time_to_string(slot.end_time),
-                        "is_available": True,
-                    }
-                    for slot in entry.time_slots
-                ]
-                self.logger.debug(f"Added {len(entry.time_slots)} slots for {date_str}")
-
-        # Cache the result if cache is available - WITH ERROR HANDLING
+        # Cache the result
         if self.cache_service:
             try:
                 success = self.cache_service.cache_week_availability(instructor_id, start_date, week_schedule)
                 self.logger.info(f"Cached week availability: success={success}")
             except Exception as cache_error:
-                # Log cache error but don't fail the request
                 self.logger.warning(f"Failed to cache week availability: {cache_error}")
 
         return week_schedule
@@ -296,11 +215,7 @@ class AvailabilityService(BaseService):
         """
         Save availability for specific dates in a week.
 
-        This replaces existing availability. The operation is atomic -
-        all changes succeed or all are rolled back.
-
-        FIXED: Now creates all requested slots regardless of existing bookings.
-        Bookings persist independently as per the architectural principle.
+        SIMPLIFIED: Works directly with slots, no InstructorAvailability entries.
 
         Args:
             instructor_id: The instructor's user ID
@@ -308,10 +223,6 @@ class AvailabilityService(BaseService):
 
         Returns:
             Updated week availability
-
-        Raises:
-            ValidationException: If validation fails
-            BusinessRuleException: If business rules are violated
         """
         self.log_operation(
             "save_week_availability",
@@ -327,42 +238,62 @@ class AvailabilityService(BaseService):
         # Group schedule by date
         schedule_by_date = self._group_schedule_by_date(week_data.schedule)
 
-        # Count expected slots for verification
+        # Count expected slots
         expected_slot_count = sum(len(slots) for slots in schedule_by_date.values())
 
-        # Process each day with transaction
         with self.transaction():
-            result = await self._process_week_days(
-                instructor_id=instructor_id,
-                week_dates=week_dates,
-                schedule_by_date=schedule_by_date,
-                clear_existing=week_data.clear_existing,
-            )
+            # If clearing existing, delete all slots for the week
+            if week_data.clear_existing:
+                deleted_count = self.repository.delete_slots_by_dates(instructor_id, week_dates)
+                self.logger.info(f"Deleted {deleted_count} existing slots")
 
-        # Ensure SQLAlchemy session is fresh after transaction
+            # Process each date with new slots
+            slots_created = 0
+            for week_date in week_dates:
+                # Skip past dates
+                if week_date < date.today():
+                    continue
+
+                if week_date in schedule_by_date:
+                    # Create new slots for this date
+                    new_slots = []
+                    for slot in schedule_by_date[week_date]:
+                        # Check if slot already exists
+                        if not self.repository.slot_exists(instructor_id, week_date, slot.start_time, slot.end_time):
+                            new_slots.append(
+                                AvailabilitySlot(
+                                    instructor_id=instructor_id,
+                                    date=week_date,
+                                    start_time=slot.start_time,
+                                    end_time=slot.end_time,
+                                )
+                            )
+
+                    if new_slots:
+                        self.db.add_all(new_slots)
+                        slots_created += len(new_slots)
+
+            self.logger.info(f"Created {slots_created} new slots")
+
+        # Ensure SQLAlchemy session is fresh
         self.db.expire_all()
 
-        # Handle cache warming if cache service is available
+        # Handle cache warming
         if self.cache_service:
             try:
                 from .cache_strategies import CacheWarmingStrategy
 
                 warmer = CacheWarmingStrategy(self.cache_service, self.db)
-
-                # Warm cache with verification
                 updated_availability = await warmer.warm_with_verification(
                     instructor_id, monday, expected_slot_count=expected_slot_count
                 )
             except ImportError:
-                # Fallback if cache_strategies not available yet
                 self.logger.warning("Cache strategies not available, using direct fetch")
                 self._invalidate_availability_caches(instructor_id, week_dates)
                 updated_availability = self.get_week_availability(instructor_id, monday)
         else:
-            # No cache, get directly
             updated_availability = self.get_week_availability(instructor_id, monday)
 
-        # FIXED: Removed metadata about skipped dates as we no longer skip anything
         return updated_availability
 
     def add_specific_date_availability(
@@ -371,63 +302,49 @@ class AvailabilityService(BaseService):
         """
         Add availability for a specific date.
 
+        SIMPLIFIED: Creates slot directly without InstructorAvailability.
+
         Args:
             instructor_id: The instructor's user ID
             availability_data: The specific date and time slot
 
         Returns:
             Created availability slot information
-
-        Raises:
-            ConflictException: If slot already exists
         """
         with self.transaction():
-            # Get or create availability entry using repository
-            try:
-                availability = self.repository.get_or_create_availability(
-                    instructor_id, availability_data.specific_date
-                )
+            # Check for duplicate slot
+            if self.repository.slot_exists(
+                instructor_id, availability_data.specific_date, availability_data.start_time, availability_data.end_time
+            ):
+                raise ConflictException("This time slot already exists")
 
-                # Check for duplicate slot
-                if availability and not availability.is_cleared:
-                    if self.repository.slot_exists(
-                        availability.id, availability_data.start_time, availability_data.end_time
-                    ):
-                        raise ConflictException("This time slot already exists")
-
-                # Update cleared status if needed
-                if availability.is_cleared:
-                    availability.is_cleared = False
-
-                # Add time slot using repository create
-                slot = AvailabilitySlot(
-                    availability_id=availability.id,
-                    start_time=availability_data.start_time,
-                    end_time=availability_data.end_time,
-                )
-                self.db.add(slot)
-                self.db.commit()
-
-            except RepositoryException as e:
-                raise ConflictException(f"Failed to add availability: {str(e)}")
+            # Create new slot
+            slot = self.repository.create_slot(
+                instructor_id=instructor_id,
+                date=availability_data.specific_date,
+                start_time=availability_data.start_time,
+                end_time=availability_data.end_time,
+            )
+            self.db.commit()
 
             # Invalidate cache
             self._invalidate_availability_caches(instructor_id, [availability_data.specific_date])
 
             return {
-                "id": availability.id,
+                "id": slot.id,
                 "instructor_id": instructor_id,
-                "specific_date": availability.date,
-                "start_time": time_to_string(availability_data.start_time),
-                "end_time": time_to_string(availability_data.end_time),
+                "specific_date": slot.date,
+                "start_time": time_to_string(slot.start_time),
+                "end_time": time_to_string(slot.end_time),
                 "is_available": True,
                 "is_recurring": False,
-                "is_cleared": False,
             }
 
     def get_blackout_dates(self, instructor_id: int) -> List[BlackoutDate]:
         """
         Get instructor's future blackout dates.
+
+        NOTE: Blackout dates remain unchanged in single-table design.
 
         Args:
             instructor_id: The instructor's user ID
@@ -445,17 +362,16 @@ class AvailabilityService(BaseService):
         """
         Add a blackout date for an instructor.
 
+        NOTE: Blackout dates remain unchanged in single-table design.
+
         Args:
             instructor_id: The instructor's user ID
             blackout_data: The blackout date information
 
         Returns:
             Created blackout date
-
-        Raises:
-            ConflictException: If date already exists
         """
-        # Check if already exists using repository
+        # Check if already exists
         existing_blackouts = self.repository.get_future_blackout_dates(instructor_id)
         if any(b.date == blackout_data.date for b in existing_blackouts):
             raise ConflictException("Blackout date already exists")
@@ -473,15 +389,14 @@ class AvailabilityService(BaseService):
         """
         Delete a blackout date.
 
+        NOTE: Blackout dates remain unchanged in single-table design.
+
         Args:
             instructor_id: The instructor's user ID
             blackout_id: The blackout date ID
 
         Returns:
             True if deleted successfully
-
-        Raises:
-            NotFoundException: If blackout date not found
         """
         try:
             success = self.repository.delete_blackout_date(blackout_id, instructor_id)
@@ -493,7 +408,7 @@ class AvailabilityService(BaseService):
             self.logger.error(f"Error deleting blackout date: {e}")
             raise
 
-    # Private helper methods (business logic stays in service)
+    # Private helper methods
 
     def _get_instructor_profile(self, instructor_id: int) -> InstructorProfile:
         """Get instructor profile or raise exception."""
@@ -535,125 +450,6 @@ class AvailabilityService(BaseService):
             schedule_by_date[slot.date].append(slot)
 
         return schedule_by_date
-
-    async def _process_week_days(
-        self,
-        instructor_id: int,
-        week_dates: List[date],
-        schedule_by_date: Dict[date, List[Any]],
-        clear_existing: bool,
-    ) -> Dict[str, Any]:
-        """Process each day of the week."""
-        dates_created = 0
-        slots_created = 0
-
-        for week_date in week_dates:
-            # Skip past dates
-            if week_date < date.today():
-                continue
-
-            if week_date in schedule_by_date:
-                # Process date with new slots
-                result = await self._process_date_with_slots(
-                    instructor_id=instructor_id,
-                    target_date=week_date,
-                    slots=schedule_by_date[week_date],
-                    clear_existing=clear_existing,
-                )
-                dates_created += result["dates_created"]
-                slots_created += result["slots_created"]
-            else:
-                # Process date without new slots
-                if clear_existing:
-                    result = await self._process_date_without_slots(instructor_id=instructor_id, target_date=week_date)
-                    dates_created += result["dates_created"]
-
-        self.logger.info(f"Processed week: {dates_created} dates, {slots_created} slots")
-
-        return {
-            "dates_created": dates_created,
-            "slots_created": slots_created,
-        }
-
-    async def _process_date_with_slots(
-        self,
-        instructor_id: int,
-        target_date: date,
-        slots: List[Any],
-        clear_existing: bool,
-    ) -> Dict[str, Any]:
-        """Process a date that has new slots."""
-        dates_created = 0
-        slots_created = 0
-
-        try:
-            # Get or create availability using repository
-            availability = self.repository.get_or_create_availability(instructor_id, target_date)
-            is_new = availability.id is None
-
-            if is_new:
-                dates_created = 1
-
-            # FIXED: Delete ALL existing slots when clearing, not just non-booked
-            if clear_existing and availability.time_slots:
-                # Get all slot IDs
-                all_slot_ids = [slot.id for slot in availability.time_slots]
-                if all_slot_ids:
-                    # Delete ALL slots - layer independence
-                    for slot in availability.time_slots:
-                        self.db.delete(slot)
-                    self.logger.info(f"Deleted ALL {len(all_slot_ids)} slots for {target_date}")
-
-            # Set availability as not cleared
-            availability.is_cleared = False
-
-            # FIXED: Add ALL requested slots without checking for booking conflicts
-            for slot in slots:
-                if not self.repository.slot_exists(availability.id, slot.start_time, slot.end_time):
-                    time_slot = AvailabilitySlot(
-                        availability_id=availability.id,
-                        start_time=slot.start_time,
-                        end_time=slot.end_time,
-                    )
-                    self.db.add(time_slot)
-                    slots_created += 1
-
-        except RepositoryException as e:
-            self.logger.error(f"Error processing date with slots: {e}")
-            raise
-
-        return {
-            "dates_created": dates_created,
-            "slots_created": slots_created,
-        }
-
-    async def _process_date_without_slots(self, instructor_id: int, target_date: date) -> Dict[str, Any]:
-        """Process a date that has no new slots (clearing)."""
-        dates_created = 0
-
-        try:
-            # FIXED: Always allow clearing - don't check for bookings
-            # Get existing availability
-            existing = self.repository.get_availability_by_date(instructor_id, target_date)
-            if existing:
-                # Delete the availability entry (and cascade to slots)
-                self.db.delete(existing)
-                self.logger.info(f"Cleared availability for {target_date}")
-
-                # Create cleared entry if not today
-                if target_date != date.today():
-                    availability_entry = InstructorAvailability(
-                        instructor_id=instructor_id, date=target_date, is_cleared=True
-                    )
-                    self.db.add(availability_entry)
-                    dates_created = 1
-
-        except RepositoryException as e:
-            self.logger.error(f"Error processing date without slots: {e}")
-
-        return {"dates_created": dates_created}
-
-    # FIXED: Removed _conflicts_with_bookings method entirely
 
     def _invalidate_availability_caches(self, instructor_id: int, dates: List[date]) -> None:
         """Invalidate caches for affected dates."""

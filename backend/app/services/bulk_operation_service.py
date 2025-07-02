@@ -2,14 +2,16 @@
 """
 Bulk Operation Service for InstaInstru Platform
 
+UPDATED FOR WORK STREAM #10: Single-table availability design.
+
 Handles bulk availability operations including:
 - Multiple slot operations in a single transaction
 - Validation of bulk changes
 - Batch processing with rollback capability
 - Week validation and preview
 
-FIXED: Implements proper separation between availability and booking layers.
-Availability operations no longer check for booking conflicts.
+All operations now work directly with AvailabilitySlot objects
+using instructor_id + date instead of availability_id.
 """
 
 import logging
@@ -44,7 +46,7 @@ class BulkOperationService(BaseService):
     Service for handling bulk availability operations.
 
     Provides transactional bulk updates with validation
-    and rollback capabilities.
+    and rollback capabilities using the single-table design.
     """
 
     def __init__(
@@ -126,7 +128,7 @@ class BulkOperationService(BaseService):
                 self.db.rollback()
                 self.logger.info("No successful operations - rolling back")
 
-        # CRITICAL FIX: Invalidate cache after successful operations
+        # Invalidate cache after successful operations
         if successful > 0 and not update_data.validate_only:
             # Get unique dates from operations
             affected_dates = set()
@@ -253,7 +255,11 @@ class BulkOperationService(BaseService):
         operation_index: int,
         validate_only: bool,
     ) -> OperationResult:
-        """Process add slot operation."""
+        """
+        Process add slot operation.
+
+        UPDATED: Creates slot directly without InstructorAvailability.
+        """
         # Validate required fields
         if not all([operation.date, operation.start_time, operation.end_time]):
             return OperationResult(
@@ -283,7 +289,15 @@ class BulkOperationService(BaseService):
                     reason="Cannot add availability for past time slots",
                 )
 
-        # FIXED: Removed booking conflict check - just add the slot
+        # Check if slot already exists
+        if self.repository.slot_exists(instructor_id, operation.date, operation.start_time, operation.end_time):
+            return OperationResult(
+                operation_index=operation_index,
+                action="add",
+                status="failed",
+                reason="This time slot already exists",
+            )
+
         if validate_only:
             return OperationResult(
                 operation_index=operation_index,
@@ -294,18 +308,14 @@ class BulkOperationService(BaseService):
 
         # Actually add the slot
         try:
-            # Get or create availability entry using repository
-            availability = self.repository.get_or_create_availability(
-                instructor_id=instructor_id, target_date=operation.date, is_cleared=False
-            )
-
-            # Create slot without conflict validation
+            # Create slot directly using slot manager
             new_slot = self.slot_manager.create_slot(
-                availability_id=availability.id,
+                instructor_id=instructor_id,
+                target_date=operation.date,
                 start_time=operation.start_time,
                 end_time=operation.end_time,
-                validate_conflicts=False,  # FIXED: Never validate conflicts
-                auto_merge=True,  # FIXED: Always allow merging
+                validate_conflicts=False,  # Layer independence
+                auto_merge=True,
             )
 
             return OperationResult(
@@ -330,7 +340,11 @@ class BulkOperationService(BaseService):
         operation_index: int,
         validate_only: bool,
     ) -> OperationResult:
-        """Process remove slot operation."""
+        """
+        Process remove slot operation.
+
+        Allows removal regardless of bookings (layer independence).
+        """
         if not operation.slot_id:
             return OperationResult(
                 operation_index=operation_index,
@@ -350,7 +364,6 @@ class BulkOperationService(BaseService):
                 reason="Slot not found or not owned by instructor",
             )
 
-        # FIXED: Removed booking check - just allow removal
         if validate_only:
             return OperationResult(
                 operation_index=operation_index,
@@ -378,7 +391,11 @@ class BulkOperationService(BaseService):
         operation_index: int,
         validate_only: bool,
     ) -> OperationResult:
-        """Process update slot operation."""
+        """
+        Process update slot operation.
+
+        Allows updates regardless of bookings (layer independence).
+        """
         if not operation.slot_id:
             return OperationResult(
                 operation_index=operation_index,
@@ -411,7 +428,6 @@ class BulkOperationService(BaseService):
                 reason="End time must be after start time",
             )
 
-        # FIXED: Removed conflict check - just allow update
         if validate_only:
             return OperationResult(
                 operation_index=operation_index,
@@ -426,7 +442,7 @@ class BulkOperationService(BaseService):
                 slot_id=operation.slot_id,
                 start_time=new_start,
                 end_time=new_end,
-                validate_conflicts=False,  # FIXED: Never validate conflicts
+                validate_conflicts=False,  # Layer independence
             )
 
             return OperationResult(
@@ -602,12 +618,7 @@ class BulkOperationService(BaseService):
         if summary.invalid_operations > 0:
             warnings.append(f"{summary.invalid_operations} operations will fail")
 
-        # FIXED: Removed warning about operations affecting days with bookings
-        # as this is no longer relevant with layer independence
-
         return warnings
-
-    # FIXED: Removed _has_bookings_on_date method entirely
 
     @contextmanager
     def _null_transaction(self):
