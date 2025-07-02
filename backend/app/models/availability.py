@@ -5,19 +5,17 @@ Availability models for InstaInstru platform.
 This module defines the database models for managing instructor availability,
 including date-specific availability entries, time slots, and blackout dates.
 
-The availability system uses a two-table hierarchy:
-- InstructorAvailability: One entry per instructor per date
-- AvailabilitySlot: Multiple time ranges per date
+The availability system uses a single-table design where AvailabilitySlot
+contains both date and time information for instructor availability.
 
 Classes:
-    InstructorAvailability: Manages availability for specific dates
     AvailabilitySlot: Defines time slots within a date
     BlackoutDate: Tracks instructor vacation/unavailable days
 """
 
 import logging
 
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Index, Integer, String, Time, UniqueConstraint
+from sqlalchemy import Column, Date, DateTime, ForeignKey, Index, Integer, String, Time, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -26,109 +24,55 @@ from ..database import Base
 logger = logging.getLogger(__name__)
 
 
-class InstructorAvailability(Base):
+class AvailabilitySlot(Base):
     """
-    Instructor availability for specific dates.
+    Time slots when an instructor is available.
 
-    This model represents availability entries for specific dates. Each entry
-    can either contain time slots (when is_cleared=False) or mark the entire
-    day as unavailable (when is_cleared=True).
+    Single-table design: Each slot contains both date and time information,
+    eliminating the need for a separate instructor_availability table.
 
     Attributes:
         id: Primary key
         instructor_id: Foreign key to users table
-        date: The specific date this availability applies to
-        is_cleared: If True, the instructor is unavailable this entire day
+        date: The date of this availability slot
+        start_time: Start time of this availability slot
+        end_time: End time of this availability slot
         created_at: Timestamp when the record was created
         updated_at: Timestamp when the record was last updated
 
     Relationships:
-        instructor: The User who owns this availability
-        time_slots: List of AvailabilitySlot objects for this date
-    """
+        instructor: The User who owns this availability slot
 
-    __tablename__ = "instructor_availability"
-
-    id = Column(Integer, primary_key=True, index=True)
-    instructor_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    date = Column(Date, nullable=False)
-    is_cleared = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    # Relationships
-    instructor = relationship("User", back_populates="availability")
-    time_slots = relationship("AvailabilitySlot", back_populates="availability", cascade="all, delete-orphan")
-
-    # Constraints
-    __table_args__ = (
-        UniqueConstraint("instructor_id", "date", name="unique_instructor_date"),
-        Index("idx_instructor_availability_instructor_date", "instructor_id", "date"),
-    )
-
-    def __repr__(self):
-        return f"<InstructorAvailability {self.date} {'(cleared)' if self.is_cleared else ''}>"
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        logger.debug(
-            f"Creating InstructorAvailability for instructor {kwargs.get('instructor_id')} on {kwargs.get('date')}"
-        )
-
-
-class AvailabilitySlot(Base):
-    """
-    Time slots for a specific date's availability.
-
-    Each slot represents a continuous time range when the instructor is available
-    on a specific date. Multiple slots can exist for a single date to handle
-    split schedules (e.g., 9-12 and 2-5).
-
-    Note: The circular dependency with bookings has been removed. The relationship
-    is now one-way: Booking → AvailabilitySlot (via booking.availability_slot_id)
-
-    Attributes:
-        id: Primary key
-        availability_id: Foreign key to instructor_availability table
-        start_time: Start time of this availability slot
-        end_time: End time of this availability slot
-
-    Relationships:
-        availability: The InstructorAvailability entry this slot belongs to
-
-    Example:
-        Morning slot: 09:00:00 - 12:00:00
-        Afternoon slot: 14:00:00 - 17:00:00
+    Note: The relationship to bookings is one-way: Booking → AvailabilitySlot
     """
 
     __tablename__ = "availability_slots"
 
     id = Column(Integer, primary_key=True, index=True)
-    availability_id = Column(
+    instructor_id = Column(
         Integer,
-        ForeignKey("instructor_availability.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    # REMOVED: booking_id - This created a circular dependency
+    date = Column(Date, nullable=False)
     start_time = Column(Time, nullable=False)
     end_time = Column(Time, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    availability = relationship("InstructorAvailability", back_populates="time_slots")
-    # Note: To find if a slot is booked, query the bookings table:
-    # SELECT * FROM bookings WHERE availability_slot_id = slot.id AND status IN ('CONFIRMED', 'COMPLETED')
+    instructor = relationship("User", back_populates="availability_slots")
 
-    # Index for performance
-    __table_args__ = (Index("idx_availability_slots_availability_id", "availability_id"),)
+    # Indexes for performance
+    __table_args__ = (
+        Index("idx_availability_instructor_date", "instructor_id", "date"),
+        Index("idx_availability_date", "date"),
+        Index("idx_availability_instructor_id", "instructor_id"),
+        Index("unique_instructor_date_time_slot", "instructor_id", "date", "start_time", "end_time", unique=True),
+    )
 
     def __repr__(self):
-        return f"<AvailabilitySlot {self.start_time}-{self.end_time}>"
-
-    # NOTE: The is_booked property has been removed as it creates a new database session
-    # which is an anti-pattern. To check if a slot is booked, use the service layer:
-    # - BookingService.is_slot_booked(slot_id)
-    # - ConflictChecker.check_slot_availability(slot_id)
-    # This ensures proper session management and follows the service layer pattern.
+        return f"<AvailabilitySlot {self.date} {self.start_time}-{self.end_time}>"
 
 
 class BlackoutDate(Base):

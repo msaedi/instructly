@@ -1,13 +1,13 @@
 # backend/alembic/versions/003_availability_system.py
-"""Availability system - Single-table design for time slots and blackout dates
+"""Availability system - Date-specific availability and blackout dates
 
 Revision ID: 003_availability_system
 Revises: 002_instructor_system
 Create Date: 2024-12-21 00:00:02.000000
 
-This migration creates the availability management tables using a
-single-table design for availability_slots (no intermediate
-instructor_availability table).
+This migration creates the availability management tables including
+instructor_availability, availability_slots, and blackout_dates.
+Note: No booking_id in availability_slots (correct one-way relationship).
 """
 from typing import Sequence, Union
 
@@ -26,14 +26,13 @@ def upgrade() -> None:
     """Create availability management tables."""
     print("Creating availability system tables...")
 
-    # Create availability_slots table with single-table design
+    # Create instructor_availability table (formerly specific_date_availability)
     op.create_table(
-        "availability_slots",
+        "instructor_availability",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("instructor_id", sa.Integer(), nullable=False),
         sa.Column("date", sa.Date(), nullable=False),
-        sa.Column("start_time", sa.Time(), nullable=False),
-        sa.Column("end_time", sa.Time(), nullable=False),
+        sa.Column("is_cleared", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -52,35 +51,47 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id"),
-        comment="Instructor availability time slots - single table design",
+        sa.UniqueConstraint("instructor_id", "date", name="unique_instructor_date"),
+        comment="Instructor availability for specific dates",
     )
 
-    # Create indexes for availability_slots
+    # Create indexes for instructor_availability
     op.create_index(
-        "idx_availability_instructor_date",
-        "availability_slots",
+        "idx_instructor_availability_instructor_date",
+        "instructor_availability",
         ["instructor_id", "date"],
     )
     op.create_index(
         "idx_availability_date",
-        "availability_slots",
-        ["date"],
-    )
-    op.create_index(
-        "idx_availability_instructor_id",
-        "availability_slots",
-        ["instructor_id"],
+        "instructor_availability",
+        ["instructor_id", "date"],
     )
 
-    # Create unique constraint to prevent duplicate slots
-    op.create_index(
-        "unique_instructor_date_time_slot",
+    # Create availability_slots table (formerly date_time_slots)
+    # IMPORTANT: No booking_id column - one-way relationship only
+    op.create_table(
         "availability_slots",
-        ["instructor_id", "date", "start_time", "end_time"],
-        unique=True,
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("availability_id", sa.Integer(), nullable=False),
+        sa.Column("start_time", sa.Time(), nullable=False),
+        sa.Column("end_time", sa.Time(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["availability_id"],
+            ["instructor_availability.id"],
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        comment="Time slots within a specific date's availability",
     )
 
-    # Create blackout_dates table (UNCHANGED from original)
+    # Create index for availability_slots
+    op.create_index(
+        "idx_availability_slots_availability_id",
+        "availability_slots",
+        ["availability_id"],
+    )
+
+    # Create blackout_dates table for instructor vacations/unavailable dates
     op.create_table(
         "blackout_dates",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -113,8 +124,8 @@ def upgrade() -> None:
     )
 
     print("Availability system tables created successfully!")
-    print("- Created availability_slots with single-table design")
-    print("- No intermediate instructor_availability table")
+    print("- Created instructor_availability table with is_cleared flag")
+    print("- Created availability_slots WITHOUT booking_id (one-way relationship)")
     print("- Created blackout_dates table for vacation tracking")
 
 
@@ -128,11 +139,13 @@ def downgrade() -> None:
     op.drop_index("ix_blackout_dates_instructor_id", table_name="blackout_dates")
     op.drop_table("blackout_dates")
 
-    # Drop availability_slots indexes and table
-    op.drop_index("unique_instructor_date_time_slot", table_name="availability_slots")
-    op.drop_index("idx_availability_instructor_id", table_name="availability_slots")
-    op.drop_index("idx_availability_date", table_name="availability_slots")
-    op.drop_index("idx_availability_instructor_date", table_name="availability_slots")
+    # Drop availability_slots index and table
+    op.drop_index("idx_availability_slots_availability_id", table_name="availability_slots")
     op.drop_table("availability_slots")
+
+    # Drop instructor_availability indexes and table
+    op.drop_index("idx_availability_date", table_name="instructor_availability")
+    op.drop_index("idx_instructor_availability_instructor_date", table_name="instructor_availability")
+    op.drop_table("instructor_availability")
 
     print("Availability system tables dropped successfully!")

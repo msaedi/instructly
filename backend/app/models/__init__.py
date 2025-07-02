@@ -12,7 +12,7 @@ Note: RecurringAvailability has been removed as part of the refactoring
 to use only date-specific availability.
 """
 
-from .availability import AvailabilitySlot, BlackoutDate, InstructorAvailability
+from .availability import AvailabilitySlot, BlackoutDate
 from .booking import Booking, BookingStatus
 from .instructor import InstructorProfile
 from .password_reset import PasswordResetToken
@@ -27,7 +27,6 @@ __all__ = [
     "InstructorProfile",
     "Service",
     # Availability models
-    "InstructorAvailability",
     "AvailabilitySlot",
     "BlackoutDate",
     # Authentication models

@@ -74,6 +74,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["student_id"], ["users.id"]),
         sa.ForeignKeyConstraint(["instructor_id"], ["users.id"]),
         sa.ForeignKeyConstraint(["service_id"], ["services.id"]),
+        sa.ForeignKeyConstraint(["availability_slot_id"], ["availability_slots.id"]),
         sa.ForeignKeyConstraint(["cancelled_by_id"], ["users.id"]),
         sa.PrimaryKeyConstraint("id"),
         comment="Instant booking records between students and instructors",
@@ -92,6 +93,7 @@ def upgrade() -> None:
     )
     op.create_index("idx_bookings_student_status", "bookings", ["student_id", "status"])
     op.create_index("idx_bookings_service_id", "bookings", ["service_id"])
+    op.create_index("idx_bookings_availability_slot_id", "bookings", ["availability_slot_id"])
     op.create_index("idx_bookings_cancelled_by_id", "bookings", ["cancelled_by_id"])
 
     # Add check constraints
@@ -152,6 +154,7 @@ def downgrade() -> None:
 
     # Drop bookings indexes
     op.drop_index("idx_bookings_cancelled_by_id", table_name="bookings")
+    op.drop_index("idx_bookings_availability_slot_id", table_name="bookings")
     op.drop_index("idx_bookings_service_id", table_name="bookings")
     op.drop_index("idx_bookings_student_status", table_name="bookings")
     op.drop_index("idx_bookings_instructor_date_status", table_name="bookings")

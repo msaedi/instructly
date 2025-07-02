@@ -56,7 +56,7 @@ class User(Base):
 
     Relationships:
         instructor_profile: One-to-one with InstructorProfile (instructors only)
-        availability: One-to-many with InstructorAvailability (instructors only)
+        availability_slots: One-to-many with AvailabilitySlot (instructors only)
         blackout_dates: One-to-many with BlackoutDate (instructors only)
         password_reset_tokens: One-to-many with PasswordResetToken
 
@@ -81,12 +81,13 @@ class User(Base):
     # Relationships
     instructor_profile = relationship("InstructorProfile", back_populates="user", uselist=False)
 
-    # Availability relationships - UPDATED
-    availability = relationship(
-        "InstructorAvailability",
+    # Availability relationships - Single-table design
+    availability_slots = relationship(
+        "AvailabilitySlot",
         back_populates="instructor",
         cascade="all, delete-orphan",
     )
+
     blackout_dates = relationship("BlackoutDate", back_populates="instructor", cascade="all, delete-orphan")
 
     # Password reset relationships

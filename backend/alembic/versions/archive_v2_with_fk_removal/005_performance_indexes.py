@@ -33,21 +33,6 @@ def upgrade() -> None:
         ["booking_date", "status"],
     )
 
-    # Availability performance indexes
-    # This index is optimized for week view queries
-    op.create_index(
-        "idx_availability_week_lookup",
-        "availability_slots",
-        ["instructor_id", "date", "start_time"],
-    )
-
-    # Partial index for future dates (common query)
-    op.create_index(
-        "idx_availability_future",
-        "availability_slots",
-        ["instructor_id", "date"],
-    )
-
     # Partial index for upcoming bookings (confirmed only)
     op.create_index(
         "idx_bookings_upcoming",
