@@ -300,7 +300,9 @@ class AvailabilityService(BaseService):
                     new_slots = []
                     for slot in schedule_by_date[week_date]:
                         # Check if slot already exists
-                        if not self.repository.slot_exists(instructor_id, week_date, slot.start_time, slot.end_time):
+                        if not self.repository.slot_exists(
+                            instructor_id, target_date=week_date, start_time=slot.start_time, end_time=slot.end_time
+                        ):
                             new_slots.append(
                                 AvailabilitySlot(
                                     instructor_id=instructor_id,
@@ -355,7 +357,10 @@ class AvailabilityService(BaseService):
         with self.transaction():
             # Check for duplicate slot
             if self.repository.slot_exists(
-                instructor_id, availability_data.specific_date, availability_data.start_time, availability_data.end_time
+                instructor_id,
+                target_date=availability_data.specific_date,
+                start_time=availability_data.start_time,
+                end_time=availability_data.end_time,
             ):
                 raise ConflictException("This time slot already exists")
 

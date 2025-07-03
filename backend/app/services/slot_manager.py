@@ -111,7 +111,7 @@ class SlotManager(BaseService):
         if not final_slot:
             # The slot was merged into another slot
             # Find the slot that now contains our time range
-            slots = self.repository.get_slots_for_date_ordered(instructor_id, target_date)
+            slots = self.repository.get_slots_by_date_ordered(instructor_id, target_date)
             for slot in slots:
                 # Check if this slot contains our original time range
                 if slot.start_time <= start_time and slot.end_time >= end_time:
@@ -227,7 +227,7 @@ class SlotManager(BaseService):
             Number of slots merged
         """
         # Get all slots ordered by start time
-        slots = self.repository.get_slots_for_date_ordered(instructor_id, target_date)
+        slots = self.repository.get_slots_by_date_ordered(instructor_id, target_date)
 
         if len(slots) <= 1:
             return 0

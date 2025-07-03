@@ -5,8 +5,10 @@ Integration tests for SlotManager database operations.
 These tests document transaction boundaries and database interaction patterns
 that will need to be maintained during repository pattern implementation.
 
-UPDATED: Fixed tests to match Work Stream #9 - Availability operations no longer
-check for bookings (layer independence).
+UPDATED FOR WORK STREAM #10: Single-table availability design.
+- Removed InstructorAvailability references
+- Updated to use instructor_id and date instead of availability_id
+- Fixed tests to match layer independence
 """
 
 from datetime import date, time, timedelta
@@ -15,7 +17,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictException, NotFoundException, ValidationException
-from app.models.availability import AvailabilitySlot, InstructorAvailability
+from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.service import Service
 from app.models.user import User
@@ -26,61 +28,48 @@ from app.services.slot_manager import SlotManager
 class TestSlotManagerDatabaseOperations:
     """Test all database operations in SlotManager service."""
 
-    def test_create_slot_success(self, db: Session, test_instructor_with_availability: User):
+    def test_create_slot_success(self, db: Session, test_instructor: User):
         """Test successful slot creation."""
         conflict_checker = ConflictChecker(db)
         service = SlotManager(db, conflict_checker)
 
-        # Get an availability entry
-        availability = (
-            db.query(InstructorAvailability)
-            .filter(
-                InstructorAvailability.instructor_id == test_instructor_with_availability.id,
-                InstructorAvailability.is_cleared == False,
-            )
-            .first()
+        # Create a new slot
+        new_slot = service.create_slot(
+            instructor_id=test_instructor.id,
+            target_date=date.today() + timedelta(days=7),
+            start_time=time(15, 0),
+            end_time=time(16, 0),
+            validate_conflicts=True,
+            auto_merge=False,
         )
 
-        if availability:
-            # Create a new slot
-            new_slot = service.create_slot(
-                availability_id=availability.id,
-                start_time=time(15, 0),
-                end_time=time(16, 0),
-                validate_conflicts=True,
-                auto_merge=False,
-            )
+        assert new_slot.id is not None
+        assert new_slot.start_time == time(15, 0)
+        assert new_slot.end_time == time(16, 0)
+        assert new_slot.instructor_id == test_instructor.id
+        assert new_slot.date == date.today() + timedelta(days=7)
 
-            assert new_slot.id is not None
-            assert new_slot.start_time == time(15, 0)
-            assert new_slot.end_time == time(16, 0)
-            assert new_slot.availability_id == availability.id
+        # Verify it's in the database
+        saved_slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.id == new_slot.id).first()
 
-            # Verify it's in the database
-            saved_slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.id == new_slot.id).first()
+        assert saved_slot is not None
+        assert saved_slot.start_time == time(15, 0)
 
-            assert saved_slot is not None
-            assert saved_slot.start_time == time(15, 0)
-
-    def test_create_slot_with_invalid_time_alignment(self, db: Session, test_instructor_with_availability: User):
+    def test_create_slot_with_invalid_time_alignment(self, db: Session, test_instructor: User):
         """Test slot creation with invalid time alignment."""
         conflict_checker = ConflictChecker(db)
         service = SlotManager(db, conflict_checker)
 
-        availability = (
-            db.query(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id == test_instructor_with_availability.id)
-            .first()
-        )
+        # Try to create slot with invalid time (not 15-minute aligned)
+        with pytest.raises(ValidationException) as exc_info:
+            service.create_slot(
+                instructor_id=test_instructor.id,
+                target_date=date.today() + timedelta(days=7),
+                start_time=time(15, 7),  # Invalid alignment
+                end_time=time(16, 0),
+            )
 
-        if availability:
-            # Try to create slot with invalid time (not 15-minute aligned)
-            with pytest.raises(ValidationException) as exc_info:
-                service.create_slot(
-                    availability_id=availability.id, start_time=time(15, 7), end_time=time(16, 0)  # Invalid alignment
-                )
-
-            assert "must align to 15-minute blocks" in str(exc_info.value)
+        assert "must align to 15-minute blocks" in str(exc_info.value)
 
     def test_create_slot_with_conflict(self, db: Session, test_instructor_with_availability: User, test_booking):
         """Test slot creation that would have conflicted with existing booking in old system.
@@ -91,84 +80,80 @@ class TestSlotManagerDatabaseOperations:
         conflict_checker = ConflictChecker(db)
         service = SlotManager(db, conflict_checker)
 
-        # Get the availability that has the booking
-        slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.id == test_booking.availability_slot_id).first()
-        if slot:
-            availability_id = slot.availability_id
+        # Get the date that has the booking
+        booking_date = test_booking.booking_date
 
-            # In the old system, we couldn't create ANY slot when a booking existed
-            # Now we can. Create a slot at a different time to avoid duplicate error.
-            # Since booking is typically at 11:00-12:00, create one at 13:00-14:00
-            new_slot = service.create_slot(
-                availability_id=availability_id,
-                start_time=time(13, 0),
-                end_time=time(14, 0),
-                validate_conflicts=True,  # Deprecated parameter, ignored
-                # auto_merge defaults to True - test real behavior
-            )
+        # In the old system, we couldn't create ANY slot when a booking existed
+        # Now we can. Create a slot at a different time to avoid duplicate error.
+        # Since booking is typically at 11:00-12:00, create one at 13:00-14:00
+        new_slot = service.create_slot(
+            instructor_id=test_instructor_with_availability.id,
+            target_date=booking_date,
+            start_time=time(13, 0),
+            end_time=time(14, 0),
+            validate_conflicts=True,  # Deprecated parameter, ignored
+            # auto_merge defaults to True - test real behavior
+        )
 
-            assert new_slot is not None
-            # The slot might have been merged with adjacent slots, which is fine
-            # The key point is that creation succeeded
-            assert new_slot.start_time <= time(13, 0)
-            assert new_slot.end_time >= time(14, 0)
+        assert new_slot is not None
+        # The slot might have been merged with adjacent slots, which is fine
+        # The key point is that creation succeeded
+        assert new_slot.start_time <= time(13, 0)
+        assert new_slot.end_time >= time(14, 0)
 
-            # The key point: we successfully created a slot on a date that has bookings
-            # This demonstrates layer independence - in the old system this would have
-            # raised ConflictException
+        # The key point: we successfully created a slot on a date that has bookings
+        # This demonstrates layer independence - in the old system this would have
+        # raised ConflictException
 
     def test_create_duplicate_slot(self, db: Session, test_instructor_with_availability: User):
         """Test creating a duplicate slot."""
         conflict_checker = ConflictChecker(db)
         service = SlotManager(db, conflict_checker)
 
-        availability = (
-            db.query(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id == test_instructor_with_availability.id)
+        # Get an existing slot
+        existing_slot = (
+            db.query(AvailabilitySlot)
+            .filter(AvailabilitySlot.instructor_id == test_instructor_with_availability.id)
             .first()
         )
 
-        if availability and availability.time_slots:
-            existing_slot = availability.time_slots[0]
-
+        if existing_slot:
             # Try to create exact duplicate
             with pytest.raises(ConflictException) as exc_info:
                 service.create_slot(
-                    availability_id=availability.id,
+                    instructor_id=test_instructor_with_availability.id,
+                    target_date=existing_slot.date,
                     start_time=existing_slot.start_time,
                     end_time=existing_slot.end_time,
                 )
 
             assert "already exists" in str(exc_info.value)
 
-    def test_update_slot_success(self, db: Session, test_instructor_with_availability: User):
+    def test_update_slot_success(self, db: Session, test_instructor: User):
         """Test successful slot update."""
         conflict_checker = ConflictChecker(db)
         service = SlotManager(db, conflict_checker)
 
         # Create a slot first
-        availability = (
-            db.query(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id == test_instructor_with_availability.id)
-            .first()
+        new_slot = service.create_slot(
+            instructor_id=test_instructor.id,
+            target_date=date.today() + timedelta(days=7),
+            start_time=time(17, 0),
+            end_time=time(18, 0),
+            auto_merge=False,
         )
 
-        if availability:
-            new_slot = service.create_slot(
-                availability_id=availability.id, start_time=time(17, 0), end_time=time(18, 0), auto_merge=False
-            )
+        # Update the slot
+        updated_slot = service.update_slot(slot_id=new_slot.id, start_time=time(17, 30), end_time=time(18, 30))
 
-            # Update the slot
-            updated_slot = service.update_slot(slot_id=new_slot.id, start_time=time(17, 30), end_time=time(18, 30))
+        assert updated_slot.start_time == time(17, 30)
+        assert updated_slot.end_time == time(18, 30)
 
-            assert updated_slot.start_time == time(17, 30)
-            assert updated_slot.end_time == time(18, 30)
+        # Verify in database
+        db_slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.id == new_slot.id).first()
 
-            # Verify in database
-            db_slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.id == new_slot.id).first()
-
-            assert db_slot.start_time == time(17, 30)
-            assert db_slot.end_time == time(18, 30)
+        assert db_slot.start_time == time(17, 30)
+        assert db_slot.end_time == time(18, 30)
 
     def test_update_slot_with_booking(self, db: Session, test_booking):
         """Test updating a slot that has a booking.
@@ -196,34 +181,31 @@ class TestSlotManagerDatabaseOperations:
         db.refresh(test_booking)
         assert test_booking.end_time == original_booking_end  # Booking keeps its original time
 
-    def test_delete_slot_success(self, db: Session, test_instructor_with_availability: User):
+    def test_delete_slot_success(self, db: Session, test_instructor: User):
         """Test successful slot deletion."""
         conflict_checker = ConflictChecker(db)
         service = SlotManager(db, conflict_checker)
 
         # Create a slot to delete
-        availability = (
-            db.query(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id == test_instructor_with_availability.id)
-            .first()
+        new_slot = service.create_slot(
+            instructor_id=test_instructor.id,
+            target_date=date.today() + timedelta(days=7),
+            start_time=time(19, 0),
+            end_time=time(20, 0),
+            auto_merge=False,
         )
 
-        if availability:
-            new_slot = service.create_slot(
-                availability_id=availability.id, start_time=time(19, 0), end_time=time(20, 0), auto_merge=False
-            )
+        slot_id = new_slot.id
 
-            slot_id = new_slot.id
+        # Delete the slot
+        result = service.delete_slot(slot_id)
 
-            # Delete the slot
-            result = service.delete_slot(slot_id)
+        assert result == True
 
-            assert result == True
+        # Verify it's gone from database
+        deleted_slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot_id).first()
 
-            # Verify it's gone from database
-            deleted_slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot_id).first()
-
-            assert deleted_slot is None
+        assert deleted_slot is None
 
     def test_delete_slot_with_booking_no_force(self, db: Session, test_booking):
         """Test deleting a booked slot without force.
@@ -261,90 +243,96 @@ class TestSlotManagerDatabaseOperations:
         service = SlotManager(db, conflict_checker)
 
         # Create a slot and book it
-        availability = (
-            db.query(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id == test_instructor_with_availability.id)
+        slot = service.create_slot(
+            instructor_id=test_instructor_with_availability.id,
+            target_date=date.today() + timedelta(days=7),
+            start_time=time(20, 0),
+            end_time=time(21, 0),
+            auto_merge=False,
+        )
+
+        # Create a booking for this slot
+        service_obj = (
+            db.query(Service)
+            .filter(Service.instructor_profile_id == test_instructor_with_availability.instructor_profile.id)
             .first()
         )
 
-        if availability:
-            slot = service.create_slot(
-                availability_id=availability.id, start_time=time(20, 0), end_time=time(21, 0), auto_merge=False
-            )
+        booking = Booking(
+            student_id=test_instructor_with_availability.id,
+            instructor_id=test_instructor_with_availability.id,
+            service_id=service_obj.id,
+            availability_slot_id=slot.id,
+            booking_date=slot.date,
+            start_time=slot.start_time,
+            end_time=slot.end_time,
+            service_name="Test Service",
+            hourly_rate=50.00,
+            total_price=50.00,
+            duration_minutes=60,
+            status=BookingStatus.CONFIRMED,
+            location_type="student_home",
+        )
+        db.add(booking)
+        db.commit()
 
-            # Create a booking for this slot
-            service_obj = (
-                db.query(Service)
-                .filter(Service.instructor_profile_id == test_instructor_with_availability.instructor_profile.id)
-                .first()
-            )
+        # Delete should SUCCEED now - FK constraint is removed
+        result = service.delete_slot(slot.id, force=True)
 
-            booking = Booking(
-                student_id=test_instructor_with_availability.id,
-                instructor_id=test_instructor_with_availability.id,
-                service_id=service_obj.id,
-                availability_slot_id=slot.id,
-                booking_date=availability.date,
-                start_time=slot.start_time,
-                end_time=slot.end_time,
-                service_name="Test Service",
-                hourly_rate=50.00,
-                total_price=50.00,
-                duration_minutes=60,
-                status=BookingStatus.CONFIRMED,
-                location_type="student_home",
-            )
-            db.add(booking)
-            db.commit()
+        assert result == True
 
-            # Delete should SUCCEED now - FK constraint is removed
-            result = service.delete_slot(slot.id, force=True)
+        # Verify slot is deleted
+        deleted_slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot.id).first()
+        assert deleted_slot is None
 
-            assert result == True
+        # Verify booking still exists with its availability_slot_id pointing to deleted slot
+        db.refresh(booking)
+        assert booking.id is not None
+        assert booking.availability_slot_id == slot.id  # Still points to deleted slot
+        assert booking.status == BookingStatus.CONFIRMED
 
-            # Verify slot is deleted
-            deleted_slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot.id).first()
-            assert deleted_slot is None
-
-            # Verify booking still exists with its availability_slot_id pointing to deleted slot
-            db.refresh(booking)
-            assert booking.id is not None
-            assert booking.availability_slot_id == slot.id  # Still points to deleted slot
-            assert booking.status == BookingStatus.CONFIRMED
-
-    def test_merge_overlapping_slots(self, db: Session, test_instructor_with_availability: User):
+    def test_merge_overlapping_slots(self, db: Session, test_instructor: User):
         """Test merging overlapping/adjacent slots."""
         conflict_checker = ConflictChecker(db)
         service = SlotManager(db, conflict_checker)
 
-        # Create a new availability for clean test
-        new_availability = InstructorAvailability(
-            instructor_id=test_instructor_with_availability.id, date=date.today() + timedelta(days=10), is_cleared=False
-        )
-        db.add(new_availability)
-        db.commit()
+        merge_date = date.today() + timedelta(days=10)
 
         # Create adjacent slots
         slot1 = service.create_slot(
-            availability_id=new_availability.id, start_time=time(9, 0), end_time=time(10, 0), auto_merge=False
+            instructor_id=test_instructor.id,
+            target_date=merge_date,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            auto_merge=False,
         )
 
         slot2 = service.create_slot(
-            availability_id=new_availability.id, start_time=time(10, 0), end_time=time(11, 0), auto_merge=False
+            instructor_id=test_instructor.id,
+            target_date=merge_date,
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+            auto_merge=False,
         )
 
         slot3 = service.create_slot(
-            availability_id=new_availability.id, start_time=time(11, 0), end_time=time(12, 0), auto_merge=False
+            instructor_id=test_instructor.id,
+            target_date=merge_date,
+            start_time=time(11, 0),
+            end_time=time(12, 0),
+            auto_merge=False,
         )
 
         # Merge slots
-        merged_count = service.merge_overlapping_slots(new_availability.id)
+        merged_count = service.merge_overlapping_slots(test_instructor.id, merge_date)
 
         assert merged_count == 2  # Two slots were merged
 
         # Check result - should have one slot from 9-12
         remaining_slots = (
-            db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == new_availability.id).all()
+            db.query(AvailabilitySlot)
+            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.date == merge_date)
+            .all()
         )
 
         assert len(remaining_slots) == 1
@@ -360,87 +348,102 @@ class TestSlotManagerDatabaseOperations:
         conflict_checker = ConflictChecker(db)
         service = SlotManager(db, conflict_checker)
 
-        # Use existing availability with booking
-        availability_id = test_instructor_with_availability.availability[0].id
+        # Use existing date with booking
+        merge_date = date.today()
 
         # Count initial slots
-        initial_slots = db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == availability_id).all()
+        initial_slots = (
+            db.query(AvailabilitySlot)
+            .filter(
+                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
+                AvailabilitySlot.date == merge_date,
+            )
+            .all()
+        )
 
         # Try to merge - should merge adjacent slots regardless of bookings
-        merged_count = service.merge_overlapping_slots(availability_id, preserve_booked=True)
+        merged_count = service.merge_overlapping_slots(
+            test_instructor_with_availability.id, merge_date, preserve_booked=True
+        )
 
         # Merging may or may not happen depending on whether slots are adjacent
         # The key is that it doesn't fail due to bookings
         assert merged_count >= 0
 
         # Verify we still have slots (might be fewer due to merging)
-        final_slots = db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == availability_id).count()
+        final_slots = (
+            db.query(AvailabilitySlot)
+            .filter(
+                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
+                AvailabilitySlot.date == merge_date,
+            )
+            .count()
+        )
         assert final_slots > 0
 
-    def test_split_slot_success(self, db: Session, test_instructor_with_availability: User):
+    def test_split_slot_success(self, db: Session, test_instructor: User):
         """Test successful slot splitting."""
         conflict_checker = ConflictChecker(db)
         service = SlotManager(db, conflict_checker)
 
         # Create a large slot to split
-        availability = (
-            db.query(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id == test_instructor_with_availability.id)
-            .first()
+        large_slot = service.create_slot(
+            instructor_id=test_instructor.id,
+            target_date=date.today() + timedelta(days=7),
+            start_time=time(14, 0),
+            end_time=time(16, 0),
+            auto_merge=False,
         )
 
-        if availability:
-            large_slot = service.create_slot(
-                availability_id=availability.id, start_time=time(14, 0), end_time=time(16, 0), auto_merge=False
+        # Split at 15:00
+        slot1, slot2 = service.split_slot(large_slot.id, time(15, 0))
+
+        assert slot1.start_time == time(14, 0)
+        assert slot1.end_time == time(15, 0)
+        assert slot2.start_time == time(15, 0)
+        assert slot2.end_time == time(16, 0)
+
+        # Verify both in database
+        db_slots = (
+            db.query(AvailabilitySlot)
+            .filter(
+                AvailabilitySlot.instructor_id == test_instructor.id,
+                AvailabilitySlot.date == large_slot.date,
+                AvailabilitySlot.start_time >= time(14, 0),
+                AvailabilitySlot.end_time <= time(16, 0),
             )
+            .all()
+        )
 
-            # Split at 15:00
-            slot1, slot2 = service.split_slot(large_slot.id, time(15, 0))
+        assert len(db_slots) == 2
 
-            assert slot1.start_time == time(14, 0)
-            assert slot1.end_time == time(15, 0)
-            assert slot2.start_time == time(15, 0)
-            assert slot2.end_time == time(16, 0)
-
-            # Verify both in database
-            db_slots = (
-                db.query(AvailabilitySlot)
-                .filter(
-                    AvailabilitySlot.availability_id == availability.id,
-                    AvailabilitySlot.start_time >= time(14, 0),
-                    AvailabilitySlot.end_time <= time(16, 0),
-                )
-                .all()
-            )
-
-            assert len(db_slots) == 2
-
-    def test_find_gaps_in_availability(self, db: Session, test_instructor_with_availability: User):
+    def test_find_gaps_in_availability(self, db: Session, test_instructor: User):
         """Test finding gaps between slots."""
         conflict_checker = ConflictChecker(db)
         service = SlotManager(db, conflict_checker)
 
-        # Create availability with gaps
-        new_availability = InstructorAvailability(
-            instructor_id=test_instructor_with_availability.id, date=date.today() + timedelta(days=15), is_cleared=False
-        )
-        db.add(new_availability)
-        db.commit()
-
         # Create slots with gaps
+        gap_date = date.today() + timedelta(days=15)
+
         service.create_slot(
-            availability_id=new_availability.id, start_time=time(9, 0), end_time=time(10, 0), auto_merge=False
+            instructor_id=test_instructor.id,
+            target_date=gap_date,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            auto_merge=False,
         )
 
         service.create_slot(
-            availability_id=new_availability.id,
+            instructor_id=test_instructor.id,
+            target_date=gap_date,
             start_time=time(11, 0),  # 1 hour gap
             end_time=time(12, 0),
             auto_merge=False,
         )
 
         service.create_slot(
-            availability_id=new_availability.id,
+            instructor_id=test_instructor.id,
+            target_date=gap_date,
             start_time=time(14, 0),  # 2 hour gap
             end_time=time(15, 0),
             auto_merge=False,
@@ -448,63 +451,47 @@ class TestSlotManagerDatabaseOperations:
 
         # Find gaps
         gaps = service.find_gaps_in_availability(
-            instructor_id=test_instructor_with_availability.id, target_date=new_availability.date, min_gap_minutes=30
+            instructor_id=test_instructor.id, target_date=gap_date, min_gap_minutes=30
         )
 
         assert len(gaps) == 2
         assert gaps[0]["duration_minutes"] == 60  # 10-11
         assert gaps[1]["duration_minutes"] == 120  # 12-14
 
-    def test_optimize_availability(self, db: Session, test_instructor_with_availability: User):
+    def test_optimize_availability(self, db: Session, test_instructor: User):
         """Test availability optimization suggestions."""
         conflict_checker = ConflictChecker(db)
         service = SlotManager(db, conflict_checker)
 
+        opt_date = date.today() + timedelta(days=20)
+
         # Create large slot for optimization
-        availability = (
-            db.query(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id == test_instructor_with_availability.id)
-            .first()
+        large_slot = service.create_slot(
+            instructor_id=test_instructor.id,
+            target_date=opt_date,
+            start_time=time(9, 0),
+            end_time=time(12, 0),  # 3 hours
+            auto_merge=False,
         )
 
-        if availability:
-            # Clear existing slots for clean test
-            for slot in availability.time_slots:
-                if (
-                    not db.query(Booking)
-                    .filter(
-                        Booking.availability_slot_id == slot.id,
-                        Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                    )
-                    .first()
-                ):
-                    db.delete(slot)
-            db.commit()
+        # Get optimization suggestions for 60-minute sessions
+        suggestions = service.optimize_availability(
+            instructor_id=test_instructor.id, target_date=opt_date, target_duration_minutes=60
+        )
 
-            # Create large slot
-            large_slot = service.create_slot(
-                availability_id=availability.id,
-                start_time=time(9, 0),
-                end_time=time(12, 0),  # 3 hours
-                auto_merge=False,
-            )
-
-            # Get optimization suggestions for 60-minute sessions
-            suggestions = service.optimize_availability(availability_id=availability.id, target_duration_minutes=60)
-
-            assert len(suggestions) == 3  # 3 one-hour slots
-            assert suggestions[0]["start_time"] == "09:00:00"
-            assert suggestions[0]["end_time"] == "10:00:00"
-            assert suggestions[1]["start_time"] == "10:00:00"
-            assert suggestions[1]["end_time"] == "11:00:00"
-            assert suggestions[2]["start_time"] == "11:00:00"
-            assert suggestions[2]["end_time"] == "12:00:00"
+        assert len(suggestions) == 3  # 3 one-hour slots
+        assert suggestions[0]["start_time"] == "09:00:00"
+        assert suggestions[0]["end_time"] == "10:00:00"
+        assert suggestions[1]["start_time"] == "10:00:00"
+        assert suggestions[1]["end_time"] == "11:00:00"
+        assert suggestions[2]["start_time"] == "11:00:00"
+        assert suggestions[2]["end_time"] == "12:00:00"
 
 
 class TestSlotManagerTransactionBehavior:
     """Test transaction handling in SlotManager operations."""
 
-    def test_create_slot_rollback_on_error(self, db: Session, test_instructor_with_availability: User):
+    def test_create_slot_rollback_on_error(self, db: Session, test_instructor: User):
         """Test that slot creation rolls back on error."""
         conflict_checker = ConflictChecker(db)
         service = SlotManager(db, conflict_checker)
@@ -512,39 +499,18 @@ class TestSlotManagerTransactionBehavior:
         # Get slot count before
         initial_count = db.query(AvailabilitySlot).count()
 
-        # Try to create slot with invalid availability ID
-        with pytest.raises(NotFoundException):
-            service.create_slot(availability_id=99999, start_time=time(10, 0), end_time=time(11, 0))  # Non-existent
+        # Try to create slot with invalid time range
+        with pytest.raises(ValidationException):
+            service.create_slot(
+                instructor_id=test_instructor.id,
+                target_date=date.today() + timedelta(days=7),
+                start_time=time(10, 0),
+                end_time=time(9, 0),  # End before start
+            )
 
         # Verify no slot was created
         final_count = db.query(AvailabilitySlot).count()
         assert final_count == initial_count
-
-    def test_delete_last_slot_updates_availability(self, db: Session, test_instructor_with_availability: User):
-        """Test that deleting last slot marks availability as cleared."""
-        conflict_checker = ConflictChecker(db)
-        service = SlotManager(db, conflict_checker)
-
-        # Create new availability with one slot
-        new_availability = InstructorAvailability(
-            instructor_id=test_instructor_with_availability.id, date=date.today() + timedelta(days=20), is_cleared=False
-        )
-        db.add(new_availability)
-        db.commit()
-
-        slot = service.create_slot(
-            availability_id=new_availability.id, start_time=time(10, 0), end_time=time(11, 0), auto_merge=False
-        )
-
-        # Verify availability is not cleared
-        assert new_availability.is_cleared == False
-
-        # Delete the only slot
-        service.delete_slot(slot.id)
-
-        # Verify availability is now cleared
-        db.refresh(new_availability)
-        assert new_availability.is_cleared == True
 
 
 class TestSlotManagerErrorConditions:
@@ -570,34 +536,34 @@ class TestSlotManagerErrorConditions:
             service.split_slot(99999, time(10, 30))
         assert "Slot not found" in str(exc_info.value)
 
-    def test_invalid_time_range_operations(self, db: Session, test_instructor_with_availability: User):
+    def test_invalid_time_range_operations(self, db: Session, test_instructor: User):
         """Test operations with invalid time ranges."""
         conflict_checker = ConflictChecker(db)
         service = SlotManager(db, conflict_checker)
 
-        availability = (
-            db.query(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id == test_instructor_with_availability.id)
-            .first()
-        )
-
-        if availability:
-            # Test create with end before start
-            with pytest.raises(ValidationException):
-                service.create_slot(
-                    availability_id=availability.id, start_time=time(10, 0), end_time=time(9, 0)  # Before start
-                )
-
-            # Create slot for split test
-            slot = service.create_slot(
-                availability_id=availability.id, start_time=time(10, 0), end_time=time(11, 0), auto_merge=False
+        # Test create with end before start
+        with pytest.raises(ValidationException):
+            service.create_slot(
+                instructor_id=test_instructor.id,
+                target_date=date.today() + timedelta(days=7),
+                start_time=time(10, 0),
+                end_time=time(9, 0),  # Before start
             )
 
-            # Test split outside slot range
-            with pytest.raises(ValidationException) as exc_info:
-                service.split_slot(slot.id, time(9, 30))  # Before start
-            assert "between slot start and end times" in str(exc_info.value)
+        # Create slot for split test
+        slot = service.create_slot(
+            instructor_id=test_instructor.id,
+            target_date=date.today() + timedelta(days=7),
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+            auto_merge=False,
+        )
 
-            with pytest.raises(ValidationException) as exc_info:
-                service.split_slot(slot.id, time(11, 30))  # After end
-            assert "between slot start and end times" in str(exc_info.value)
+        # Test split outside slot range
+        with pytest.raises(ValidationException) as exc_info:
+            service.split_slot(slot.id, time(9, 30))  # Before start
+        assert "between slot start and end times" in str(exc_info.value)
+
+        with pytest.raises(ValidationException) as exc_info:
+            service.split_slot(slot.id, time(11, 30))  # After end
+        assert "between slot start and end times" in str(exc_info.value)

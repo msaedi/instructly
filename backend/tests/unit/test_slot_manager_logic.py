@@ -5,7 +5,10 @@ Unit tests for SlotManager business logic.
 These tests document the business rules that should remain
 in the service layer after repository pattern implementation.
 
-UPDATED: Fixed for Work Stream #9 - Availability and bookings are independent layers.
+UPDATED FOR WORK STREAM #10: Single-table availability design.
+- Removed InstructorAvailability references
+- Updated to use instructor_id and date instead of availability_id
+- Fixed repository mocks to use correct repositories
 """
 
 from datetime import date, datetime, time, timedelta
@@ -15,7 +18,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictException, NotFoundException, ValidationException
-from app.models.availability import AvailabilitySlot, InstructorAvailability
+from app.models.availability import AvailabilitySlot
 from app.models.booking import BookingStatus
 from app.services.conflict_checker import ConflictChecker
 from app.services.slot_manager import SlotManager
@@ -33,8 +36,9 @@ class TestSlotManagerTimeValidation:
         # Create service
         service = SlotManager(mock_db, mock_conflict_checker)
 
-        # Mock the repository
+        # Mock both repositories
         service.repository = Mock()
+        service.availability_repository = Mock()
 
         return service
 
@@ -78,24 +82,20 @@ class TestSlotManagerTimeValidation:
 
     def test_slot_exists_check_logic(self, service):
         """Test slot existence checking logic."""
-        # Mock repository method
-        service.repository.slot_exists = Mock(return_value=True)
-
-        # The service now uses repository, so we test the business logic that calls it
-        # Since _slot_exists is removed, we test through create_slot which uses slot_exists
+        # Mock availability repository method (moved from slot manager repository)
+        service.availability_repository.slot_exists = Mock(return_value=True)
 
         # Mock other dependencies for create_slot
-        service.repository.get_availability_by_id = Mock(return_value=Mock(instructor_id=1, date=date.today()))
         service.conflict_checker.validate_time_range = Mock(return_value={"valid": True})
 
         # Test that duplicate slot raises ConflictException
         with pytest.raises(ConflictException) as exc_info:
-            service.create_slot(availability_id=1, start_time=time(9, 0), end_time=time(10, 0))
+            service.create_slot(instructor_id=1, target_date=date.today(), start_time=time(9, 0), end_time=time(10, 0))
 
         assert "already exists" in str(exc_info.value)
 
         # Verify repository method was called
-        service.repository.slot_exists.assert_called_with(1, time(9, 0), time(10, 0))
+        service.availability_repository.slot_exists.assert_called_with(1, date.today(), time(9, 0), time(10, 0))
 
     def test_slots_can_merge_logic(self, service):
         """Test slot merging logic."""
@@ -143,32 +143,30 @@ class TestSlotManagerCRUDLogic:
         # Create service
         service = SlotManager(mock_db, mock_conflict_checker)
 
-        # Mock the repository
+        # Mock both repositories
         service.repository = Mock()
+        service.availability_repository = Mock()
 
         return service
 
     def test_create_slot_business_rules(self, service):
         """Test business rules for slot creation."""
-        # Mock availability
-        mock_availability = Mock(spec=InstructorAvailability)
-        mock_availability.id = 1
-        mock_availability.instructor_id = 123
-        mock_availability.date = date.today()
-
-        service.repository.get_availability_by_id = Mock(return_value=mock_availability)
-
         # Mock time validation passes
         service.conflict_checker.validate_time_range.return_value = {"valid": True}
 
         # Mock slot doesn't exist
-        service.repository.slot_exists = Mock(return_value=False)
+        service.availability_repository.slot_exists = Mock(return_value=False)
 
         # Mock merge operation
         with patch.object(service, "merge_overlapping_slots") as mock_merge:
             # Mock repository create
             new_slot = Mock(spec=AvailabilitySlot)
             new_slot.id = 999
+            new_slot.instructor_id = 123
+            new_slot.date = date.today()
+            new_slot.start_time = time(9, 0)
+            new_slot.end_time = time(10, 0)
+
             service.repository.create = Mock(return_value=new_slot)
             service.repository.get_slot_by_id = Mock(return_value=new_slot)
 
@@ -177,26 +175,18 @@ class TestSlotManagerCRUDLogic:
 
             # Work Stream #9: validate_conflicts parameter is deprecated and ignored
             result = service.create_slot(
-                availability_id=1,
+                instructor_id=123,
+                target_date=date.today(),
                 start_time=time(9, 0),
                 end_time=time(10, 0),
                 validate_conflicts=True,  # Deprecated, ignored
                 auto_merge=True,
             )
 
-            # Verify merge was called (always merges now)
-            mock_merge.assert_called_once_with(1)
+            # Verify merge was called
+            mock_merge.assert_called_once_with(123, date.today())
 
             assert result == new_slot
-
-    def test_create_slot_without_availability(self, service):
-        """Test slot creation when availability doesn't exist."""
-        service.repository.get_availability_by_id = Mock(return_value=None)
-
-        with pytest.raises(NotFoundException) as exc_info:
-            service.create_slot(availability_id=999, start_time=time(9, 0), end_time=time(10, 0))
-
-        assert "Availability entry not found" in str(exc_info.value)
 
     def test_update_slot_business_rules(self, service):
         """Test business rules for slot update."""
@@ -205,7 +195,8 @@ class TestSlotManagerCRUDLogic:
         mock_slot.id = 1
         mock_slot.start_time = time(9, 0)
         mock_slot.end_time = time(10, 0)
-        mock_slot.availability = Mock(instructor_id=123, date=date.today())
+        mock_slot.instructor_id = 123
+        mock_slot.date = date.today()
 
         # Mock repository methods
         service.repository.get_slot_by_id = Mock(return_value=mock_slot)
@@ -227,14 +218,13 @@ class TestSlotManagerCRUDLogic:
         # Mock slot
         mock_slot = Mock(spec=AvailabilitySlot)
         mock_slot.id = 1
-        mock_slot.availability_id = 10
+        mock_slot.instructor_id = 123
+        mock_slot.date = date.today()
 
         # Mock repository methods
         service.repository.get_slot_by_id = Mock(return_value=mock_slot)
         service.repository.delete = Mock(return_value=True)
-        service.repository.count_slots_for_availability = Mock(return_value=2)  # Still has slots
 
-        service.db.flush = Mock()
         service.db.commit = Mock()
 
         # Work Stream #9: Can delete slots regardless of bookings
@@ -242,20 +232,6 @@ class TestSlotManagerCRUDLogic:
 
         assert result == True
         service.repository.delete.assert_called_once_with(1)
-
-        # Test when it's the last slot
-        mock_availability = Mock(spec=InstructorAvailability)
-        mock_availability.is_cleared = False
-
-        service.repository.get_slot_by_id = Mock(return_value=mock_slot)
-        service.repository.delete = Mock(return_value=True)
-        service.repository.count_slots_for_availability = Mock(return_value=0)  # No remaining slots
-        service.repository.get_availability_by_id = Mock(return_value=mock_availability)
-
-        result = service.delete_slot(1)
-
-        # Verify availability was marked as cleared
-        assert mock_availability.is_cleared == True
 
 
 class TestSlotManagerMergeLogic:
@@ -270,12 +246,13 @@ class TestSlotManagerMergeLogic:
         # Create service
         service = SlotManager(mock_db, mock_conflict_checker)
 
-        # Mock the repository
+        # Mock both repositories
         service.repository = Mock()
+        service.availability_repository = Mock()
 
         # Set up default return values to prevent Mock objects
-        service.repository.get_slots_by_availability_ordered = Mock(return_value=[])
-        service.repository.get_booked_slot_ids = Mock(return_value=set())
+        service.repository.get_slots_by_date_ordered.return_value = []
+        service.repository.get_booked_slot_ids.return_value = set()
 
         return service
 
@@ -298,7 +275,7 @@ class TestSlotManagerMergeLogic:
         slot3.end_time = time(12, 0)
 
         # Mock query returns ordered slots
-        service.repository.get_slots_by_availability_ordered = Mock(return_value=[slot1, slot2, slot3])
+        service.repository.get_slots_by_date_ordered.return_value = [slot1, slot2, slot3]
 
         # Work Stream #9: Always merge regardless of bookings
         # Mock can merge check
@@ -306,7 +283,7 @@ class TestSlotManagerMergeLogic:
             service.repository.delete = Mock()
             service.db.commit = Mock()
 
-            merged_count = service.merge_overlapping_slots(1)
+            merged_count = service.merge_overlapping_slots(123, date.today())
 
             # Should merge slot2 and slot3 into slot1
             assert merged_count == 2
@@ -328,14 +305,14 @@ class TestSlotManagerMergeLogic:
         slot2.start_time = time(11, 0)  # 1 hour gap
         slot2.end_time = time(12, 0)
 
-        service.repository.get_slots_by_availability_ordered = Mock(return_value=[slot1, slot2])
+        service.repository.get_slots_by_date_ordered.return_value = [slot1, slot2]
 
         # Mock can't merge due to gap
         with patch.object(service, "_slots_can_merge", return_value=False):
             service.repository.delete = Mock()
             service.db.commit = Mock()
 
-            merged_count = service.merge_overlapping_slots(1)
+            merged_count = service.merge_overlapping_slots(123, date.today())
 
             # Should not merge
             assert merged_count == 0
@@ -354,7 +331,7 @@ class TestSlotManagerMergeLogic:
         slot2.start_time = time(10, 0)
         slot2.end_time = time(11, 0)
 
-        service.repository.get_slots_by_availability_ordered = Mock(return_value=[slot1, slot2])
+        service.repository.get_slots_by_date_ordered.return_value = [slot1, slot2]
 
         # Work Stream #9: preserve_booked is deprecated, always merge adjacent slots
         with patch.object(service, "_slots_can_merge", return_value=True):
@@ -362,7 +339,7 @@ class TestSlotManagerMergeLogic:
             service.db.commit = Mock()
 
             # Even with preserve_booked=True, it should merge
-            merged_count = service.merge_overlapping_slots(1, preserve_booked=True)
+            merged_count = service.merge_overlapping_slots(123, date.today(), preserve_booked=True)
 
             # Should merge regardless
             assert merged_count == 1
@@ -381,8 +358,9 @@ class TestSlotManagerSplitLogic:
         # Create service
         service = SlotManager(mock_db, mock_conflict_checker)
 
-        # Mock the repository
+        # Mock both repositories
         service.repository = Mock()
+        service.availability_repository = Mock()
 
         return service
 
@@ -391,7 +369,8 @@ class TestSlotManagerSplitLogic:
         # Mock original slot
         original_slot = Mock(spec=AvailabilitySlot)
         original_slot.id = 1
-        original_slot.availability_id = 10
+        original_slot.instructor_id = 123
+        original_slot.date = date.today()
         original_slot.start_time = time(9, 0)
         original_slot.end_time = time(11, 0)
 
@@ -400,7 +379,8 @@ class TestSlotManagerSplitLogic:
         # Mock new slot creation
         new_slot = Mock(spec=AvailabilitySlot)
         new_slot.id = 2
-        new_slot.availability_id = 10
+        new_slot.instructor_id = 123
+        new_slot.date = date.today()
         new_slot.start_time = time(10, 0)
         new_slot.end_time = time(11, 0)
 
@@ -419,7 +399,9 @@ class TestSlotManagerSplitLogic:
         assert slot2 == new_slot
 
         # Verify new slot was created correctly
-        service.repository.create.assert_called_with(availability_id=10, start_time=split_time, end_time=time(11, 0))
+        service.repository.create.assert_called_with(
+            instructor_id=123, date=date.today(), start_time=split_time, end_time=time(11, 0)
+        )
 
     def test_split_slot_validation(self, service):
         """Test split validation only checks time boundaries."""
@@ -468,11 +450,12 @@ class TestSlotManagerGapAnalysis:
         # Create service
         service = SlotManager(mock_db, mock_conflict_checker)
 
-        # Mock the repository
+        # Mock both repositories
         service.repository = Mock()
+        service.availability_repository = Mock()
 
         # Set up default return values to prevent Mock objects
-        service.repository.get_slots_for_instructor_date = Mock(return_value=[])
+        service.repository.get_slots_for_instructor_date.return_value = []
 
         return service
 
@@ -494,7 +477,7 @@ class TestSlotManagerGapAnalysis:
         slot3.start_time = time(14, 0)  # 2 hour gap
         slot3.end_time = time(15, 0)
 
-        service.repository.get_slots_for_instructor_date = Mock(return_value=[slot1, slot2, slot3])
+        service.repository.get_slots_for_instructor_date.return_value = [slot1, slot2, slot3]
 
         gaps = service.find_gaps_in_availability(instructor_id=1, target_date=date.today(), min_gap_minutes=30)
 
@@ -527,7 +510,7 @@ class TestSlotManagerGapAnalysis:
         slot2.start_time = time(10, 0)  # 15 minute gap
         slot2.end_time = time(11, 0)
 
-        service.repository.get_slots_for_instructor_date = Mock(return_value=[slot1, slot2])
+        service.repository.get_slots_for_instructor_date.return_value = [slot1, slot2]
 
         # Should not find gap when minimum is 30 minutes
         gaps = service.find_gaps_in_availability(instructor_id=1, target_date=date.today(), min_gap_minutes=30)
@@ -553,14 +536,13 @@ class TestSlotManagerOptimization:
         # Create service
         service = SlotManager(mock_db, mock_conflict_checker)
 
-        # Mock the repository
+        # Mock both repositories
         service.repository = Mock()
+        service.availability_repository = Mock()
 
-        # The optimize_availability method might be calling get_slots_by_availability_ordered
-        # internally before checking booking status. Let's mock it to return an empty list
-        service.repository.get_slots_by_availability_ordered = Mock(return_value=[])
-        service.repository.get_slots_with_booking_status = Mock(return_value=[])
-        service.repository.get_availability_by_id = Mock(return_value=Mock(id=1))
+        # Set up default return values to prevent Mock objects
+        service.repository.get_slots_by_date_ordered.return_value = []
+        service.repository.get_slots_with_booking_status.return_value = []
 
         return service
 
@@ -577,11 +559,6 @@ class TestSlotManagerOptimization:
         slot2.start_time = time(14, 0)
         slot2.end_time = time(16, 0)  # 2 hours
 
-        # The optimize_availability method might first call get_slots_by_availability_ordered
-        # to get all slots, then check their booking status
-        all_slots = [slot1, slot2]
-        service.repository.get_slots_by_availability_ordered.return_value = all_slots
-
         # Mock repository to return slots with booking status
         # Return list of tuples: (slot, booking_status)
         slots_with_status = [
@@ -591,7 +568,9 @@ class TestSlotManagerOptimization:
         service.repository.get_slots_with_booking_status.return_value = slots_with_status
 
         # Get suggestions for 60-minute sessions
-        suggestions = service.optimize_availability(availability_id=1, target_duration_minutes=60)
+        suggestions = service.optimize_availability(
+            instructor_id=1, target_date=date.today(), target_duration_minutes=60
+        )
 
         assert len(suggestions) == 5  # 3 from slot1, 2 from slot2
 
@@ -628,10 +607,6 @@ class TestSlotManagerOptimization:
         slot2.start_time = time(14, 0)
         slot2.end_time = time(16, 0)
 
-        # Mock both methods like in the passing test
-        all_slots = [slot1, slot2]
-        service.repository.get_slots_by_availability_ordered.return_value = all_slots
-
         # Mock repository to return slots with booking status
         slots_with_status = [
             (slot1, BookingStatus.CONFIRMED),  # slot1 is booked - should be excluded
@@ -639,7 +614,9 @@ class TestSlotManagerOptimization:
         ]
         service.repository.get_slots_with_booking_status.return_value = slots_with_status
 
-        suggestions = service.optimize_availability(availability_id=1, target_duration_minutes=60)
+        suggestions = service.optimize_availability(
+            instructor_id=1, target_date=date.today(), target_duration_minutes=60
+        )
 
         # CORRECT EXPECTATION: Should only suggest times from unbooked slots
         # If this fails with 4 suggestions, there's a bug in the service
@@ -656,28 +633,24 @@ class TestSlotManagerOptimization:
         slot.start_time = time(9, 0)
         slot.end_time = time(11, 0)
 
-        # Mock get_slots_by_availability_ordered
-        all_slots = [slot]
-        service.repository.get_slots_by_availability_ordered.return_value = all_slots
-
         # Mock repository to return slot as available
         slots_with_status = [(slot, None)]
         service.repository.get_slots_with_booking_status.return_value = slots_with_status
 
         # Test 30-minute sessions
-        suggestions = service.optimize_availability(1, target_duration_minutes=30)
+        suggestions = service.optimize_availability(1, date.today(), target_duration_minutes=30)
         assert len(suggestions) == 4  # Four 30-minute slots
 
         # Test 45-minute sessions
-        suggestions = service.optimize_availability(1, target_duration_minutes=45)
+        suggestions = service.optimize_availability(1, date.today(), target_duration_minutes=45)
         assert len(suggestions) == 2  # Two 45-minute slots with 30 min left over
 
         # Test 90-minute sessions
-        suggestions = service.optimize_availability(1, target_duration_minutes=90)
+        suggestions = service.optimize_availability(1, date.today(), target_duration_minutes=90)
         assert len(suggestions) == 1  # One 90-minute slot with 30 min left over
 
         # Test duration longer than slot
-        suggestions = service.optimize_availability(1, target_duration_minutes=180)
+        suggestions = service.optimize_availability(1, date.today(), target_duration_minutes=180)
         assert len(suggestions) == 0  # No suggestions possible
 
 
@@ -693,13 +666,14 @@ class TestSlotManagerDataFormatting:
         # Create service
         service = SlotManager(mock_db, mock_conflict_checker)
 
-        # Mock the repository
+        # Mock both repositories
         service.repository = Mock()
+        service.availability_repository = Mock()
 
         # Set up default return values to prevent Mock objects
-        service.repository.get_slots_for_instructor_date = Mock(return_value=[])
-        service.repository.get_slots_with_booking_status = Mock(return_value=[])
-        service.repository.get_slots_by_availability_ordered = Mock(return_value=[])
+        service.repository.get_slots_for_instructor_date.return_value = []
+        service.repository.get_slots_with_booking_status.return_value = []
+        service.repository.get_slots_by_date_ordered.return_value = []
 
         return service
 
@@ -709,7 +683,7 @@ class TestSlotManagerDataFormatting:
         slot1 = Mock(id=1, start_time=time(9, 0), end_time=time(10, 0))
         slot2 = Mock(id=2, start_time=time(11, 30), end_time=time(12, 30))
 
-        service.repository.get_slots_for_instructor_date = Mock(return_value=[slot1, slot2])
+        service.repository.get_slots_for_instructor_date.return_value = [slot1, slot2]
 
         gaps = service.find_gaps_in_availability(1, date.today())
 
@@ -728,15 +702,11 @@ class TestSlotManagerDataFormatting:
         """Test how optimization suggestions are formatted."""
         slot = Mock(id=1, start_time=time(9, 0), end_time=time(10, 0))
 
-        # Mock get_slots_by_availability_ordered
-        all_slots = [slot]
-        service.repository.get_slots_by_availability_ordered.return_value = all_slots
-
         # Mock repository to return slot as available
         slots_with_status = [(slot, None)]
         service.repository.get_slots_with_booking_status.return_value = slots_with_status
 
-        suggestions = service.optimize_availability(1, target_duration_minutes=30)
+        suggestions = service.optimize_availability(1, date.today(), target_duration_minutes=30)
 
         # Verify format
         assert len(suggestions) == 2
@@ -767,36 +737,29 @@ class TestSlotManagerErrorHandling:
         # Create service
         service = SlotManager(mock_db, mock_conflict_checker)
 
-        # Mock the repository
+        # Mock both repositories
         service.repository = Mock()
+        service.availability_repository = Mock()
 
         return service
 
-    def test_handle_database_errors(self, service):
-        """Test handling of database errors."""
-        # Mock database error
-        service.repository.get_availability_by_id = Mock(side_effect=Exception("Database connection error"))
-
-        with pytest.raises(Exception) as exc_info:
-            service.create_slot(1, time(9, 0), time(10, 0))
-
-        assert "Database connection error" in str(exc_info.value)
-
     def test_handle_validation_errors(self, service):
         """Test proper validation error propagation."""
-        # Mock availability exists
-        service.repository.get_availability_by_id = Mock(return_value=Mock())
-
         # Test time alignment validation (happens first)
         with pytest.raises(ValidationException) as exc_info:
-            service.create_slot(1, time(9, 17), time(10, 0))  # Invalid minute
+            service.create_slot(
+                instructor_id=1,
+                target_date=date.today(),
+                start_time=time(9, 17),  # Invalid minute
+                end_time=time(10, 0),
+            )
         assert "must align to 15-minute blocks" in str(exc_info.value)
 
         # Test duration validation - mock conflict checker to return validation error
         service.conflict_checker.validate_time_range.return_value = {"valid": False, "reason": "Duration too short"}
 
         with pytest.raises(ValidationException) as exc_info:
-            service.create_slot(1, time(9, 0), time(9, 15))  # Valid alignment, but mocked as too short
+            service.create_slot(instructor_id=1, target_date=date.today(), start_time=time(9, 0), end_time=time(9, 15))
         assert "Duration too short" in str(exc_info.value)
 
     def test_handle_business_rule_violations(self, service):
@@ -824,13 +787,14 @@ class TestSlotManagerMissingCoverage:
         # Create service
         service = SlotManager(mock_db, mock_conflict_checker)
 
-        # Mock the repository
+        # Mock both repositories
         service.repository = Mock()
+        service.availability_repository = Mock()
 
         # Set up default return values to prevent Mock objects
-        service.repository.get_slots_by_availability_ordered = Mock(return_value=[])
-        service.repository.get_slots_with_booking_status = Mock(return_value=[])
-        service.repository.get_slots_for_instructor_date = Mock(return_value=[])
+        service.repository.get_slots_by_date_ordered.return_value = []
+        service.repository.get_slots_with_booking_status.return_value = []
+        service.repository.get_slots_for_instructor_date.return_value = []
 
         return service
 
@@ -841,7 +805,8 @@ class TestSlotManagerMissingCoverage:
         mock_slot.id = 1
         mock_slot.start_time = time(9, 0)
         mock_slot.end_time = time(10, 0)
-        mock_slot.availability = Mock(instructor_id=123, date=date.today())
+        mock_slot.instructor_id = 123
+        mock_slot.date = date.today()
 
         service.repository.get_slot_by_id = Mock(return_value=mock_slot)
         service.repository.update = Mock(return_value=mock_slot)
@@ -862,25 +827,25 @@ class TestSlotManagerMissingCoverage:
     def test_merge_slots_with_no_slots(self, service):
         """Test merge when no slots exist (covers early return)."""
         # Empty slots list
-        service.repository.get_slots_by_availability_ordered = Mock(return_value=[])
+        service.repository.get_slots_by_date_ordered.return_value = []
 
-        result = service.merge_overlapping_slots(availability_id=1)
+        result = service.merge_overlapping_slots(instructor_id=1, target_date=date.today())
 
         assert result == 0
 
     def test_merge_slots_with_single_slot(self, service):
         """Test merge with only one slot (covers early return)."""
         single_slot = Mock(spec=AvailabilitySlot)
-        service.repository.get_slots_by_availability_ordered = Mock(return_value=[single_slot])
+        service.repository.get_slots_by_date_ordered.return_value = [single_slot]
 
-        result = service.merge_overlapping_slots(availability_id=1)
+        result = service.merge_overlapping_slots(instructor_id=1, target_date=date.today())
 
         assert result == 0
 
     def test_find_gaps_with_no_slots(self, service):
         """Test finding gaps when no slots exist."""
         # No slots for the instructor/date
-        service.repository.get_slots_for_instructor_date = Mock(return_value=[])
+        service.repository.get_slots_for_instructor_date.return_value = []
 
         gaps = service.find_gaps_in_availability(instructor_id=1, target_date=date.today())
 
@@ -894,16 +859,14 @@ class TestSlotManagerMissingCoverage:
         small_slot.start_time = time(9, 0)
         small_slot.end_time = time(9, 30)  # Only 30 minutes
 
-        # Mock get_slots_by_availability_ordered
-        all_slots = [small_slot]
-        service.repository.get_slots_by_availability_ordered.return_value = all_slots
-
         # Mock repository to return slot as available
         slots_with_status = [(small_slot, None)]
         service.repository.get_slots_with_booking_status.return_value = slots_with_status
 
         # Request 60-minute optimization
-        suggestions = service.optimize_availability(availability_id=1, target_duration_minutes=60)
+        suggestions = service.optimize_availability(
+            instructor_id=1, target_date=date.today(), target_duration_minutes=60
+        )
 
         # Should have no suggestions since slot is too small
         assert len(suggestions) == 0
@@ -924,30 +887,6 @@ class TestSlotManagerMissingCoverage:
         can_merge = service._slots_can_merge(slot1, slot2)
         assert can_merge == True
 
-    def test_availability_not_cleared_flag_branch(self, service):
-        """Test branch where availability exists but is_cleared handling."""
-        # Mock slot
-        mock_slot = Mock(spec=AvailabilitySlot)
-        mock_slot.id = 1
-        mock_slot.availability_id = 10
-
-        mock_availability = Mock(spec=InstructorAvailability)
-        mock_availability.is_cleared = True  # Already cleared
-
-        service.repository.get_slot_by_id = Mock(return_value=mock_slot)
-        service.repository.delete = Mock(return_value=True)
-        service.repository.count_slots_for_availability = Mock(return_value=0)  # Last slot
-        service.repository.get_availability_by_id = Mock(return_value=mock_availability)
-
-        service.db.flush = Mock()
-        service.db.commit = Mock()
-
-        result = service.delete_slot(1)
-
-        assert result == True
-        # is_cleared was already True, should remain True
-        assert mock_availability.is_cleared == True
-
 
 class TestSlotManagerEdgeCases:
     """Additional edge case tests."""
@@ -961,12 +900,13 @@ class TestSlotManagerEdgeCases:
         # Create service
         service = SlotManager(mock_db, mock_conflict_checker)
 
-        # Mock the repository
+        # Mock both repositories
         service.repository = Mock()
+        service.availability_repository = Mock()
 
         # Set up default return values to prevent Mock objects
-        service.repository.get_slots_by_availability_ordered = Mock(return_value=[])
-        service.repository.get_slots_for_instructor_date = Mock(return_value=[])
+        service.repository.get_slots_by_date_ordered.return_value = []
+        service.repository.get_slots_for_instructor_date.return_value = []
 
         return service
 
@@ -983,13 +923,13 @@ class TestSlotManagerEdgeCases:
         slot2.start_time = time(10, 0)  # Starts before slot1 ends
         slot2.end_time = time(11, 0)
 
-        service.repository.get_slots_by_availability_ordered = Mock(return_value=[slot1, slot2])
+        service.repository.get_slots_by_date_ordered.return_value = [slot1, slot2]
 
         with patch.object(service, "_slots_can_merge", return_value=True):
             service.repository.delete = Mock()
             service.db.commit = Mock()
 
-            merged_count = service.merge_overlapping_slots(1)
+            merged_count = service.merge_overlapping_slots(1, date.today())
 
             assert merged_count == 1
             # slot1 should extend to slot2's end time
@@ -1001,7 +941,7 @@ class TestSlotManagerEdgeCases:
         single_slot.start_time = time(9, 0)
         single_slot.end_time = time(10, 0)
 
-        service.repository.get_slots_for_instructor_date = Mock(return_value=[single_slot])
+        service.repository.get_slots_for_instructor_date.return_value = [single_slot]
 
         gaps = service.find_gaps_in_availability(instructor_id=1, target_date=date.today())
 

@@ -4,6 +4,8 @@
 InstaInstru Project Overview Generator - X-Team Enhanced Version
 Provides a COMPLETE overview of the codebase, database, and project state.
 
+Updated for Work Stream #10 - Single-table availability design
+
 Usage: python scripts/project_overview.py [--json] [--check-types] [--check-logging]
 """
 
@@ -127,25 +129,33 @@ def analyze_database_schema() -> None:
     """Analyze and display database schema from models"""
     print_header("DETAILED DATABASE SCHEMA ANALYSIS", Colors.OKCYAN)
 
+    print(f"\n{Colors.WARNING}NOTE: Schema reflects Work Stream #10 - Single-table availability design{Colors.ENDC}")
+
     models_path = Path.cwd() / "backend" / "app" / "models"
     if not models_path.exists():
         print("  Models directory not found")
         return
 
-    # This is a simplified version - in the real implementation,
-    # you'd parse the SQLAlchemy models to extract schema info
-    # For now, keeping the existing hardcoded schema display
-
+    # Updated schema to reflect Work Stream #10 single-table design
     schemas = {
         "availability_slots": {
             "columns": [
                 ("id", "INTEGER", "NOT NULL", "PK"),
-                ("availability_id", "INTEGER", "NOT NULL", "FK"),
+                ("instructor_id", "INTEGER", "NOT NULL", "FK"),  # Added in WS10
+                ("date", "DATE", "NOT NULL", ""),  # Added in WS10
                 ("start_time", "TIME", "NOT NULL", ""),
                 ("end_time", "TIME", "NOT NULL", ""),
+                ("created_at", "TIMESTAMP", "NULL", ""),  # Added in WS10
+                ("updated_at", "TIMESTAMP", "NULL", ""),  # Added in WS10
             ],
-            "foreign_keys": ["availability_id -> instructor_availability.id"],
-            "indexes": ["idx_availability_slots_availability_id: (availability_id)"],
+            "foreign_keys": ["instructor_id -> users.id"],  # Changed in WS10
+            "indexes": [
+                "idx_availability_instructor_date: (instructor_id, date)",  # New in WS10
+                "idx_availability_date: (date)",  # New in WS10
+                "idx_availability_instructor_id: (instructor_id)",  # New in WS10
+                "unique_instructor_date_time_slot: (instructor_id, date, start_time, end_time) UNIQUE",  # New in WS10
+            ],
+            "notes": "Single-table design - no separate instructor_availability table (Work Stream #10)",
         },
         "blackout_dates": {
             "columns": [
@@ -168,7 +178,7 @@ def analyze_database_schema() -> None:
                 ("student_id", "INTEGER", "NOT NULL", "FK"),
                 ("instructor_id", "INTEGER", "NOT NULL", "FK"),
                 ("service_id", "INTEGER", "NOT NULL", "FK"),
-                ("availability_slot_id", "INTEGER", "NULL", "FK"),
+                ("availability_slot_id", "INTEGER", "NULL", ""),  # No FK after WS9
                 ("booking_date", "DATE", "NOT NULL", ""),
                 ("start_time", "TIME", "NOT NULL", ""),
                 ("end_time", "TIME", "NOT NULL", ""),
@@ -194,14 +204,14 @@ def analyze_database_schema() -> None:
                 "service_id -> services.id",
                 "student_id -> users.id",
                 "cancelled_by_id -> users.id",
-                "availability_slot_id -> availability_slots.id",
+                # "availability_slot_id -> availability_slots.id",  # REMOVED in WS9
                 "instructor_id -> users.id",
             ],
             "indexes": [
                 "idx_bookings_student_id: (student_id)",
                 "idx_bookings_upcoming: (booking_date, status)",
                 "idx_bookings_status: (status)",
-                "idx_bookings_availability_slot_id: (availability_slot_id)",
+                # "idx_bookings_availability_slot_id: (availability_slot_id)",  # REMOVED in WS9
                 "idx_bookings_instructor_date_status: (instructor_id, booking_date, status)",
                 "idx_bookings_date: (booking_date)",
                 "idx_bookings_instructor_id: (instructor_id)",
@@ -212,22 +222,9 @@ def analyze_database_schema() -> None:
                 "idx_bookings_date_status: (booking_date, status)",
                 "idx_bookings_created_at: (created_at)",
             ],
+            "notes": "No FK to availability_slots (Work Stream #9 - layer independence)",
         },
-        "instructor_availability": {
-            "columns": [
-                ("id", "INTEGER", "NOT NULL", "PK"),
-                ("instructor_id", "INTEGER", "NOT NULL", "FK"),
-                ("date", "DATE", "NOT NULL", ""),
-                ("is_cleared", "BOOLEAN", "NOT NULL", ""),
-                ("created_at", "TIMESTAMP", "NULL", ""),
-                ("updated_at", "TIMESTAMP", "NULL", ""),
-            ],
-            "foreign_keys": ["instructor_id -> users.id"],
-            "indexes": [
-                "idx_availability_date: (instructor_id, date)",
-                "idx_instructor_availability_instructor_date: (instructor_id, date)",
-            ],
-        },
+        # REMOVED instructor_availability table (Work Stream #10)
         "instructor_profiles": {
             "columns": [
                 ("id", "INTEGER", "NOT NULL", "PK"),
@@ -292,6 +289,13 @@ def analyze_database_schema() -> None:
         },
     }
 
+    # Note about removed table
+    print(f"\n{Colors.FAIL}📊 Table: instructor_availability - REMOVED in Work Stream #10{Colors.ENDC}")
+    print(
+        f"  {Colors.WARNING}This table has been removed as part of the single-table availability design.{Colors.ENDC}"
+    )
+    print(f"  {Colors.WARNING}All availability data is now stored directly in availability_slots table.{Colors.ENDC}")
+
     for table_name, table_info in schemas.items():
         print(f"\n{Colors.BOLD}📊 Table: {table_name}{Colors.ENDC}")
         print("  Columns:")
@@ -309,6 +313,16 @@ def analyze_database_schema() -> None:
             print("  Indexes:")
             for idx in table_info["indexes"]:
                 print(f"    • {idx}")
+
+        if "notes" in table_info:
+            print(f"  {Colors.WARNING}Notes: {table_info['notes']}{Colors.ENDC}")
+
+    # Summary of Work Stream changes
+    print(f"\n{Colors.OKGREEN}Work Stream #10 Summary:{Colors.ENDC}")
+    print("  • instructor_availability table: REMOVED")
+    print("  • availability_slots: Now includes instructor_id and date columns")
+    print("  • One-way relationships: Bookings → Slots (no FK constraint)")
+    print("  • Simpler queries: No more joins between availability tables")
 
 
 def analyze_migrations() -> None:
@@ -342,6 +356,10 @@ def analyze_migrations() -> None:
         for m in migrations:
             print(f"  • {m['revision']}: {m['message']}")
 
+    print(
+        f"\n{Colors.WARNING}Note: Migrations were re-squashed for Work Stream #10 to show ideal design path{Colors.ENDC}"
+    )
+
 
 def analyze_backend() -> None:
     """Analyze backend structure and endpoints"""
@@ -374,7 +392,10 @@ def analyze_backend() -> None:
                     # Extract model class names
                     models = re.findall(r"class (\w+)\(.*Base.*\):", content)
                     for model in models:
-                        print(f"    • Model: {model}")
+                        if model == "InstructorAvailability":
+                            print(f"    • Model: {model} {Colors.FAIL}[REMOVED in Work Stream #10]{Colors.ENDC}")
+                        else:
+                            print(f"    • Model: {model}")
 
 
 def analyze_frontend() -> None:
@@ -495,6 +516,26 @@ def analyze_todos() -> None:
         print(f"  • {fixme['file']}:{fixme['line']} - {content}")
 
 
+def print_work_stream_status() -> None:
+    """Print current Work Stream status"""
+    print_header("WORK STREAM STATUS", Colors.OKCYAN)
+
+    print(f"\n{Colors.OKGREEN}✅ Work Stream #10 Progress (Single-Table Availability):{Colors.ENDC}")
+    print("  Phase 1: Database Migrations - ✅ COMPLETE")
+    print("  Phase 2: Model Updates - ✅ COMPLETE")
+    print("  Phase 3: Schema Updates - ✅ COMPLETE")
+    print("  Phase 4: Repository Updates - ✅ COMPLETE")
+    print("  Phase 5: Service Updates - ✅ COMPLETE")
+    print("  Phase 6: Route Updates - ✅ COMPLETE")
+    print(f"  Phase 7: Test Updates - {Colors.WARNING}📋 IN PROGRESS{Colors.ENDC}")
+    print("  Phase 8: Seed Script Update - 📋 TODO")
+
+    print(f"\n{Colors.OKGREEN}✅ Work Stream #9 (Layer Independence):{Colors.ENDC}")
+    print("  • FK constraint removed between bookings and availability_slots")
+    print("  • Availability operations no longer check bookings")
+    print("  • True layer independence achieved")
+
+
 def print_feature_status() -> None:
     """Print current feature implementation status"""
     print_header("FEATURE IMPLEMENTATION STATUS", Colors.HEADER)
@@ -504,17 +545,23 @@ def print_feature_status() -> None:
         "User authentication (JWT-based)",
         "Instructor profile management",
         "Service offering system",
-        "Availability management (week-based UI)",
+        "Availability management (single-table design)",  # Updated
         "Instant booking system",
         "Password reset via email",
         "Production-ready logging (frontend)",
         "Centralized TypeScript types",
+        "Repository Pattern (100% implementation)",  # Added
+        "Layer independence (availability-booking separation)",  # Added
     ]
     for feature in completed:
         print(f"  • {feature}")
 
     print("\n🚧 In Progress:")
-    in_progress = ["Type refactoring across frontend", "Email notifications"]
+    in_progress = [
+        "Work Stream #10 - Phase 7 (Test updates)",
+        "Type refactoring across frontend",
+        "Email notifications",
+    ]
     for feature in in_progress:
         print(f"  • {feature}")
 
@@ -535,6 +582,7 @@ def print_env_vars() -> None:
         "RESEND_API_KEY - Email service API key",
         "SUPABASE_URL - Supabase project URL",
         "SUPABASE_ANON_KEY - Supabase anonymous key",
+        "REDIS_URL - Redis/DragonflyDB connection (redis://localhost:6379)",  # Added
     ]
     for var in backend_vars:
         print(f"  • {var}")
@@ -598,12 +646,13 @@ def print_project_stats() -> None:
 
     stats = {
         "Backend API endpoints": "~40",
-        "Database tables": "8",
+        "Database tables": "7",  # Updated from 8 to 7 (removed instructor_availability)
         "Frontend pages": "~15",
         "React components": "11",
         "TypeScript type files": "6",
         "Test status": test_info["status"],
         "Test coverage": test_info["coverage"],
+        "Code reduction (Work Stream #10)": "~1000+ lines removed",  # Added
     }
 
     for key, value in stats.items():
@@ -665,6 +714,9 @@ def main():
 
     # TODOs and FIXMEs
     analyze_todos()
+
+    # Work Stream Status
+    print_work_stream_status()
 
     # Feature status
     print_feature_status()
