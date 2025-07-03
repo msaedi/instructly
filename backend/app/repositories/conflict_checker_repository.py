@@ -278,7 +278,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             raise RepositoryException(f"Failed to check blackout: {str(e)}")
 
     # Instructor and Service Queries
-
+    # Single source for instructor profile queries across repositories
     def get_instructor_profile(self, instructor_id: int) -> Optional[InstructorProfile]:
         """
         Get instructor profile for validation checks.

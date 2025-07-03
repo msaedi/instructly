@@ -64,6 +64,8 @@ class BulkOperationService(BaseService):
         self.conflict_checker = conflict_checker or ConflictChecker(db)
         self.cache_service = cache_service
         self.repository = repository or RepositoryFactory.create_bulk_operation_repository(db)
+        self.availability_repository = RepositoryFactory.create_availability_repository(db)
+        self.week_operation_repository = RepositoryFactory.create_week_operation_repository(db)
 
     async def process_bulk_update(self, instructor_id: int, update_data: BulkUpdateRequest) -> Dict[str, Any]:
         """
@@ -290,7 +292,9 @@ class BulkOperationService(BaseService):
                 )
 
         # Check if slot already exists
-        if self.repository.slot_exists(instructor_id, operation.date, operation.start_time, operation.end_time):
+        if self.availability_repository.slot_exists(
+            instructor_id, operation.date, operation.start_time, operation.end_time
+        ):
             return OperationResult(
                 operation_index=operation_index,
                 action="add",
@@ -464,19 +468,19 @@ class BulkOperationService(BaseService):
         end_date = week_start + timedelta(days=6)
 
         # Use repository to get week slots
-        slots = self.repository.get_week_slots(instructor_id, week_start, end_date)
+        slots = self.week_operation_repository.get_week_slots(instructor_id, week_start, end_date)
 
         # Organize by date
         slots_by_date = {}
         for slot in slots:
-            date_str = slot["date"].isoformat()
+            date_str = slot.date.isoformat()
             if date_str not in slots_by_date:
                 slots_by_date[date_str] = []
             slots_by_date[date_str].append(
                 {
-                    "id": slot["id"],
-                    "start_time": slot["start_time"].strftime("%H:%M:%S"),
-                    "end_time": slot["end_time"].strftime("%H:%M:%S"),
+                    "id": slot.id,
+                    "start_time": slot.start_time.strftime("%H:%M:%S"),
+                    "end_time": slot.end_time.strftime("%H:%M:%S"),
                 }
             )
 

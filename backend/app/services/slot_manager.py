@@ -49,6 +49,7 @@ class SlotManager(BaseService):
         self.conflict_checker = conflict_checker or ConflictChecker(db)
         # Add repository - either use provided or create new
         self.repository = repository or RepositoryFactory.create_slot_manager_repository(db)
+        self.availability_repository = RepositoryFactory.create_availability_repository(db)
 
     def create_slot(
         self,
@@ -89,7 +90,7 @@ class SlotManager(BaseService):
             raise ValidationException(validation["reason"])
 
         # Check for duplicate slot
-        if self.repository.slot_exists(instructor_id, target_date, start_time, end_time):
+        if self.availability_repository.slot_exists(instructor_id, target_date, start_time, end_time):
             raise ConflictException("This exact time slot already exists")
 
         # Create the slot
@@ -395,7 +396,7 @@ class SlotManager(BaseService):
             List of suggested time slots that are FREE for booking
         """
         # Get all slots with their booking status
-        slots_with_status = self.repository.get_slots_with_booking_status_for_date(instructor_id, target_date)
+        slots_with_status = self.repository.get_slots_with_booking_status(instructor_id, target_date)
 
         # Filter out booked slots - we only want to suggest FREE times
         non_booked_slots = [slot for slot, status in slots_with_status if status is None]

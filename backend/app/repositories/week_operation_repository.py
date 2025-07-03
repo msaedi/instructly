@@ -1,24 +1,29 @@
 # backend/app/repositories/week_operation_repository.py
 """
-WeekOperation Repository for InstaInstru Platform
+WeekOperationRepository - Complex Multi-Date and Bulk Operations
 
-UPDATED FOR WORK STREAM #10: Single-table availability design.
+This repository handles bulk operations, week patterns, and complex multi-date
+queries. It complements AvailabilityRepository by handling operations that
+span multiple dates or require complex business logic.
 
-This repository now works with the simplified single-table design where
-AvailabilitySlot contains both date and time information. The complex
-two-table operations have been removed, resulting in MUCH simpler code.
+DO: Add methods for:
+- Week-based bulk operations
+- Pattern support queries
+- Complex operations involving multiple dates
+- Bulk creates/updates/deletes with special logic
 
-Key simplifications:
-- No more InstructorAvailability operations
-- No more empty entry cleanup
-- Direct slot queries without complex joins
-- No more two-step processes
+DO NOT: Add methods for:
+- Basic CRUD operations
+- Single slot operations
+- Blackout dates
+- Simple queries that AvailabilityRepository can handle
 """
 
 import logging
-from datetime import date, time
+from datetime import date
 from typing import Dict, List, Set
 
+from sqlalchemy import and_
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -256,6 +261,68 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error getting slots with status: {str(e)}")
             raise RepositoryException(f"Failed to get slots: {str(e)}")
 
+    def get_week_with_booking_status(self, instructor_id: int, start_date: date, end_date: date) -> List[Dict]:
+        """
+        Get week availability with booking status for each slot.
+
+        MOVED FROM AvailabilityRepository: This is a complex week query that
+        belongs in WeekOperationRepository.
+
+        Simplified join in single-table design.
+
+        Args:
+            instructor_id: The instructor ID
+            start_date: Start of range
+            end_date: End of range
+
+        Returns:
+            List of dicts with slot and booking information
+        """
+        try:
+            results = (
+                self.db.query(
+                    AvailabilitySlot.date,
+                    AvailabilitySlot.id.label("slot_id"),
+                    AvailabilitySlot.start_time,
+                    AvailabilitySlot.end_time,
+                    Booking.status.label("booking_status"),
+                    Booking.id.label("booking_id"),
+                )
+                .outerjoin(
+                    Booking,
+                    and_(
+                        AvailabilitySlot.id == Booking.availability_slot_id,
+                        Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                    ),
+                )
+                .filter(
+                    and_(
+                        AvailabilitySlot.instructor_id == instructor_id,
+                        AvailabilitySlot.date >= start_date,
+                        AvailabilitySlot.date <= end_date,
+                    )
+                )
+                .order_by(AvailabilitySlot.date, AvailabilitySlot.start_time)
+                .all()
+            )
+
+            # Convert to list of dicts
+            return [
+                {
+                    "date": row.date,
+                    "slot_id": row.slot_id,
+                    "start_time": row.start_time,
+                    "end_time": row.end_time,
+                    "booking_status": row.booking_status,
+                    "booking_id": row.booking_id,
+                }
+                for row in results
+            ]
+
+        except SQLAlchemyError as e:
+            self.logger.error(f"Error getting week with status: {str(e)}")
+            raise RepositoryException(f"Failed to get week status: {str(e)}")
+
     # Bulk Operations
 
     def bulk_create_slots(self, slots: List[Dict[str, any]]) -> int:
@@ -311,38 +378,6 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error bulk deleting slots: {str(e)}")
             raise RepositoryException(f"Failed to delete slots: {str(e)}")
 
-    def delete_slots_by_dates(self, instructor_id: int, dates: List[date]) -> int:
-        """
-        Delete all slots for specific dates.
-
-        Direct deletion in single-table design.
-
-        Args:
-            instructor_id: The instructor ID
-            dates: List of dates to clear
-
-        Returns:
-            Number of slots deleted
-        """
-        try:
-            if not dates:
-                return 0
-
-            result = (
-                self.db.query(AvailabilitySlot)
-                .filter(
-                    AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.date.in_(dates),
-                )
-                .delete(synchronize_session=False)
-            )
-            self.db.flush()
-            return result
-
-        except SQLAlchemyError as e:
-            self.logger.error(f"Error deleting slots by dates: {str(e)}")
-            raise RepositoryException(f"Failed to delete slots: {str(e)}")
-
     def delete_non_booked_slots(self, instructor_id: int, week_dates: List[date], booked_slot_ids: Set[int]) -> int:
         """
         Delete all non-booked slots from a week.
@@ -374,100 +409,3 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
         except SQLAlchemyError as e:
             self.logger.error(f"Error deleting non-booked slots: {str(e)}")
             raise RepositoryException(f"Failed to delete slots: {str(e)}")
-
-    # Validation Queries
-
-    def slot_exists(self, instructor_id: int, target_date: date, start_time: time, end_time: time) -> bool:
-        """
-        Check if a slot exists for the given time range.
-
-        Updated for single-table design with instructor_id and date.
-
-        Args:
-            instructor_id: The instructor ID
-            target_date: The date
-            start_time: Slot start time
-            end_time: Slot end time
-
-        Returns:
-            True if slot exists, False otherwise
-        """
-        try:
-            exists = (
-                self.db.query(AvailabilitySlot)
-                .filter(
-                    AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.date == target_date,
-                    AvailabilitySlot.start_time == start_time,
-                    AvailabilitySlot.end_time == end_time,
-                )
-                .first()
-                is not None
-            )
-            return exists
-
-        except SQLAlchemyError as e:
-            self.logger.error(f"Error checking slot existence: {str(e)}")
-            raise RepositoryException(f"Failed to check slot: {str(e)}")
-
-    def count_slots_for_date(self, instructor_id: int, target_date: date) -> int:
-        """
-        Count slots for a specific date.
-
-        Replaces count_slots_for_availability in single-table design.
-
-        Args:
-            instructor_id: The instructor ID
-            target_date: The date
-
-        Returns:
-            Number of slots
-        """
-        try:
-            return (
-                self.db.query(AvailabilitySlot)
-                .filter(
-                    AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.date == target_date,
-                )
-                .count()
-            )
-
-        except SQLAlchemyError as e:
-            self.logger.error(f"Error counting slots: {str(e)}")
-            raise RepositoryException(f"Failed to count slots: {str(e)}")
-
-    def check_time_conflicts(
-        self, date: date, time_ranges: List[Dict[str, time]], booked_ranges: List[Dict[str, time]]
-    ) -> List[Dict[str, any]]:
-        """
-        Check for time conflicts between ranges.
-
-        This is primarily business logic but included as it was documented
-        in the query patterns. Processes in memory rather than in database.
-
-        Args:
-            date: The date being checked (for context)
-            time_ranges: List of proposed time ranges
-            booked_ranges: List of existing booked ranges
-
-        Returns:
-            List of conflicts found
-        """
-        conflicts = []
-
-        for proposed in time_ranges:
-            for booked in booked_ranges:
-                # Check if ranges overlap
-                if proposed["start_time"] < booked["end_time"] and proposed["end_time"] > booked["start_time"]:
-                    conflicts.append(
-                        {
-                            "proposed_start": proposed["start_time"],
-                            "proposed_end": proposed["end_time"],
-                            "booked_start": booked["start_time"],
-                            "booked_end": booked["end_time"],
-                            "date": date,
-                        }
-                    )
-
-        return conflicts
