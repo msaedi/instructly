@@ -3,6 +3,7 @@
 Integration tests for BulkOperationService with real database.
 Tests actual service behavior and database interactions.
 
+UPDATED FOR WORK STREAM #10: Single-table availability design.
 FIXED: Updated for Work Stream #9 - Availability-booking layer separation.
 """
 
@@ -11,7 +12,7 @@ from datetime import date, time, timedelta
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models.availability import AvailabilitySlot, InstructorAvailability
+from app.models.availability import AvailabilitySlot
 from app.schemas.availability_window import BulkUpdateRequest, SlotOperation, TimeSlot, ValidateWeekRequest
 from app.services.bulk_operation_service import BulkOperationService
 
@@ -53,11 +54,10 @@ class TestBulkOperationServiceIntegration:
         assert result["skipped"] == 0
         assert len(result["results"]) == 3
 
-        # Verify slots were created
+        # Verify slots were created - FIXED: Direct query without join
         slots = (
             bulk_service.db.query(AvailabilitySlot)
-            .join(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id == test_instructor.id, InstructorAvailability.date == tomorrow)
+            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.date == tomorrow)
             .all()
         )
         assert len(slots) >= 2  # Was 3, but adjacent slots get merged
@@ -93,11 +93,10 @@ class TestBulkOperationServiceIntegration:
     @pytest.mark.asyncio
     async def test_bulk_remove_slots(self, bulk_service: BulkOperationService, test_instructor_with_availability):
         """Test bulk removal of slots."""
-        # Get some slots to remove
+        # Get some slots to remove - FIXED: Direct query
         slots = (
             bulk_service.db.query(AvailabilitySlot)
-            .join(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id == test_instructor_with_availability.id)
+            .filter(AvailabilitySlot.instructor_id == test_instructor_with_availability.id)
             .limit(2)
             .all()
         )
@@ -142,11 +141,10 @@ class TestBulkOperationServiceIntegration:
     @pytest.mark.asyncio
     async def test_bulk_update_slots(self, bulk_service: BulkOperationService, test_instructor_with_availability):
         """Test bulk update of slot times."""
-        # Get a slot without bookings
+        # Get a slot without bookings - FIXED: Direct query
         slot = (
             bulk_service.db.query(AvailabilitySlot)
-            .join(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id == test_instructor_with_availability.id)
+            .filter(AvailabilitySlot.instructor_id == test_instructor_with_availability.id)
             .first()
         )
 
@@ -179,11 +177,10 @@ class TestBulkOperationServiceIntegration:
         assert result["successful"] == 1
         assert result["results"][0].reason == "Validation passed - slot can be added"
 
-        # Verify no slot was actually created
+        # Verify no slot was actually created - FIXED: Direct query
         slots = (
             bulk_service.db.query(AvailabilitySlot)
-            .join(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id == test_instructor.id, InstructorAvailability.date == tomorrow)
+            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.date == tomorrow)
             .count()
         )
         assert slots == 0
@@ -205,11 +202,10 @@ class TestBulkOperationServiceIntegration:
         assert result["successful"] == 1
         assert result["failed"] == 1
 
-        # But since one succeeded, it should commit
+        # But since one succeeded, it should commit - FIXED: Direct query
         slots = (
             bulk_service.db.query(AvailabilitySlot)
-            .join(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id == test_instructor.id, InstructorAvailability.date == tomorrow)
+            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.date == tomorrow)
             .count()
         )
         assert slots == 1  # The successful operation was committed
@@ -304,11 +300,10 @@ class TestBulkOperationServiceIntegration:
 
         assert result["successful"] == 2
 
-        # Check if slots were merged (should be 1 slot from 9-11)
+        # Check if slots were merged (should be 1 slot from 9-11) - FIXED: Direct query
         slots = (
             bulk_service.db.query(AvailabilitySlot)
-            .join(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id == test_instructor.id, InstructorAvailability.date == tomorrow)
+            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.date == tomorrow)
             .all()
         )
 
@@ -320,11 +315,10 @@ class TestBulkOperationServiceIntegration:
     @pytest.mark.asyncio
     async def test_mixed_operations_batch(self, bulk_service: BulkOperationService, test_instructor_with_availability):
         """Test a batch with mixed operation types."""
-        # Get a slot to update and remove
+        # Get a slot to update and remove - FIXED: Direct query
         slots = (
             bulk_service.db.query(AvailabilitySlot)
-            .join(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id == test_instructor_with_availability.id)
+            .filter(AvailabilitySlot.instructor_id == test_instructor_with_availability.id)
             .limit(2)
             .all()
         )

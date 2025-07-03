@@ -3,8 +3,10 @@
 """
 Enhanced Database reset and seed script with soft delete testing.
 
-UPDATED for Work Stream #9: Bookings no longer reference availability_slot_id.
-Bookings are created as independent commitments with just time/date/instructor info.
+UPDATED for Work Stream #10: Single-table availability design.
+- No more InstructorAvailability table
+- AvailabilitySlot now contains instructor_id and date directly
+- Simplified slot creation process
 
 Features:
 - Creates past bookings with services that will be soft deleted
@@ -30,7 +32,7 @@ from sqlalchemy.orm import Session  # noqa: E402
 
 from app.auth import get_password_hash  # noqa: E402
 from app.core.config import settings  # noqa: E402
-from app.models.availability import AvailabilitySlot, BlackoutDate, InstructorAvailability  # noqa: E402
+from app.models.availability import AvailabilitySlot, BlackoutDate  # noqa: E402
 from app.models.booking import Booking, BookingStatus  # noqa: E402
 from app.models.instructor import InstructorProfile  # noqa: E402
 from app.models.password_reset import PasswordResetToken  # noqa: E402
@@ -160,27 +162,17 @@ def cleanup_database(session: Session) -> List[int]:
             )
         ).delete(synchronize_session=False)
 
-        # 2. Delete availability slots
-        subquery = (
-            session.query(InstructorAvailability.id)
-            .filter(InstructorAvailability.instructor_id.in_(user_ids_to_delete))
-            .subquery()
-        )
-        session.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id.in_(subquery)).delete(
+        # 2. Delete availability slots (now direct, no intermediate table)
+        session.query(AvailabilitySlot).filter(AvailabilitySlot.instructor_id.in_(user_ids_to_delete)).delete(
             synchronize_session=False
         )
 
-        # 3. Delete availability
-        session.query(InstructorAvailability).filter(
-            InstructorAvailability.instructor_id.in_(user_ids_to_delete)
-        ).delete(synchronize_session=False)
-
-        # 4. Delete blackout dates
+        # 3. Delete blackout dates
         session.query(BlackoutDate).filter(BlackoutDate.instructor_id.in_(user_ids_to_delete)).delete(
             synchronize_session=False
         )
 
-        # 5. Delete services
+        # 4. Delete services
         profile_subquery = (
             session.query(InstructorProfile.id).filter(InstructorProfile.user_id.in_(user_ids_to_delete)).subquery()
         )
@@ -188,17 +180,17 @@ def cleanup_database(session: Session) -> List[int]:
             synchronize_session=False
         )
 
-        # 6. Delete instructor profiles
+        # 5. Delete instructor profiles
         session.query(InstructorProfile).filter(InstructorProfile.user_id.in_(user_ids_to_delete)).delete(
             synchronize_session=False
         )
 
-        # 7. Delete password reset tokens
+        # 6. Delete password reset tokens
         session.query(PasswordResetToken).filter(PasswordResetToken.user_id.in_(user_ids_to_delete)).delete(
             synchronize_session=False
         )
 
-        # 8. Finally delete users
+        # 7. Finally delete users
         session.query(User).filter(User.id.in_(user_ids_to_delete)).delete(synchronize_session=False)
 
         session.commit()
@@ -280,7 +272,7 @@ def create_dummy_instructors(session: Session):
 
 
 def create_realistic_availability_with_past(session: Session, instructor_id: int):
-    """Create availability including past 2 weeks and future 3 weeks."""
+    """Create availability including past 2 weeks and future 3 weeks using single-table design."""
     today = date.today()
     start_date = today - timedelta(weeks=2)  # 2 weeks ago
     end_date = today + timedelta(weeks=3)  # 3 weeks in future
@@ -314,12 +306,7 @@ def create_realistic_availability_with_past(session: Session, instructor_id: int
             current_date += timedelta(days=1)
             continue
 
-        # Create availability entry
-        availability = InstructorAvailability(instructor_id=instructor_id, date=current_date, is_cleared=False)
-        session.add(availability)
-        session.flush()
-
-        # Add time slots based on pattern
+        # Add time slots based on pattern - SINGLE TABLE DESIGN
         for start_hour, end_hour in pattern:
             # Occasionally adjust times slightly for variety
             if random.random() < 0.3:
@@ -330,8 +317,10 @@ def create_realistic_availability_with_past(session: Session, instructor_id: int
             start_hour = max(8, min(20, start_hour))
             end_hour = max(start_hour + 1, min(21, end_hour))
 
+            # Create slot directly with instructor_id and date
             slot = AvailabilitySlot(
-                availability_id=availability.id,
+                instructor_id=instructor_id,
+                date=current_date,
                 start_time=time(start_hour, 0),
                 end_time=time(end_hour, 0),
             )
@@ -388,21 +377,20 @@ def create_sample_bookings_with_deprecated(session: Session):
             continue
 
         # Get instructor's typical schedule pattern (just for realistic booking times)
-        instructor_availabilities = (
-            session.query(InstructorAvailability)
+        instructor_slots = (
+            session.query(AvailabilitySlot)
             .filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                InstructorAvailability.date >= today - timedelta(weeks=2),
-                InstructorAvailability.date <= today + timedelta(weeks=3),
+                AvailabilitySlot.instructor_id == instructor_id,
+                AvailabilitySlot.date >= today - timedelta(weeks=2),
+                AvailabilitySlot.date <= today + timedelta(weeks=3),
             )
             .all()
         )
 
         # Extract typical time patterns from availability
         typical_times = []
-        for avail in instructor_availabilities[:5]:  # Sample a few days
-            for slot in avail.time_slots:
-                typical_times.append((slot.start_time, slot.end_time))
+        for slot in instructor_slots[:10]:  # Sample some slots
+            typical_times.append((slot.start_time, slot.end_time))
 
         if not typical_times:
             # Default times if no availability found
@@ -559,13 +547,12 @@ def test_layer_independence(session: Session):
     )
 
     if past_booking:
-        # Find availability slots for that instructor on that date
+        # Find availability slots for that instructor on that date (single-table query)
         slots = (
             session.query(AvailabilitySlot)
-            .join(InstructorAvailability)
             .filter(
-                InstructorAvailability.instructor_id == past_booking.instructor_id,
-                InstructorAvailability.date == past_booking.booking_date,
+                AvailabilitySlot.instructor_id == past_booking.instructor_id,
+                AvailabilitySlot.date == past_booking.booking_date,
             )
             .all()
         )
@@ -597,7 +584,8 @@ def test_layer_independence(session: Session):
 def main():
     """Main function."""
     logger.info("Starting enhanced database reset and seed process...")
-    logger.info("UPDATED: Implementing Work Stream #9 - Bookings independent of availability slots")
+    logger.info("UPDATED: Work Stream #10 - Single-table availability design")
+    logger.info("UPDATED: Work Stream #9 - Bookings independent of availability slots")
 
     engine = create_engine(settings.database_url, pool_pre_ping=True)
     session = Session(engine)
@@ -636,6 +624,11 @@ def main():
         # Count bookings with inactive services
         bookings_with_inactive = session.query(Booking).join(Service).filter(Service.is_active == False).count()
 
+        # Count availability slots
+        total_slots = session.query(AvailabilitySlot).count()
+        past_slots = session.query(AvailabilitySlot).filter(AvailabilitySlot.date < today).count()
+        future_slots = session.query(AvailabilitySlot).filter(AvailabilitySlot.date >= today).count()
+
         logger.info("\n" + "=" * 50)
         logger.info("Enhanced database reset complete!")
         logger.info(f"Total users: {total_users}")
@@ -648,6 +641,9 @@ def main():
         logger.info(f"  - Past bookings: {past_bookings}")
         logger.info(f"  - Future bookings: {future_bookings}")
         logger.info(f"  - Bookings with inactive services: {bookings_with_inactive}")
+        logger.info(f"\nTotal availability slots: {total_slots}")
+        logger.info(f"  - Past slots: {past_slots}")
+        logger.info(f"  - Future slots: {future_slots}")
 
         logger.info("\nTest credentials:")
         logger.info(f"  All passwords: {TEST_PASSWORD}")
@@ -663,10 +659,15 @@ def main():
         logger.info("  - Michael Rodriguez: 'Ukulele' service soft deleted")
         logger.info("  - James Kim: 'Java Programming' service soft deleted")
 
-        logger.info("\n🎯 ARCHITECTURAL CHANGE (Work Stream #9):")
+        logger.info("\n🎯 ARCHITECTURAL CHANGES:")
+        logger.info("  Work Stream #9:")
         logger.info("  - Bookings no longer reference availability_slot_id")
         logger.info("  - Bookings are independent commitments")
         logger.info("  - Availability can be modified without affecting bookings")
+        logger.info("\n  Work Stream #10:")
+        logger.info("  - Single-table availability design")
+        logger.info("  - No more InstructorAvailability table")
+        logger.info("  - AvailabilitySlot contains instructor_id and date directly")
 
     except Exception as e:
         logger.error(f"Error during database reset: {str(e)}")

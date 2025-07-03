@@ -3,6 +3,7 @@
 Unit tests for BulkOperationService business logic.
 Tests logic in isolation with mocked dependencies.
 
+UPDATED FOR WORK STREAM #10: Single-table availability design.
 FIXED: Updated for Work Stream #9 - Availability-booking layer separation.
 Tests no longer expect operations to fail due to booking conflicts.
 """
@@ -66,7 +67,43 @@ class TestBulkOperationLogic:
         return cache
 
     @pytest.fixture
-    def bulk_service(self, mock_db, mock_slot_manager, mock_conflict_checker, mock_cache_service):
+    def mock_availability_repository(self):
+        """Create mock availability repository."""
+        from unittest.mock import Mock
+
+        from app.repositories.availability_repository import AvailabilityRepository
+
+        mock_repo = Mock(spec=AvailabilityRepository)
+        # Set default return values
+        mock_repo.slot_exists = Mock(return_value=False)
+        mock_repo.create_slot = Mock()
+        mock_repo.get_slots_by_date = Mock(return_value=[])
+        mock_repo.find_time_conflicts = Mock(return_value=[])
+
+        return mock_repo
+
+    @pytest.fixture
+    def mock_week_operation_repository(self):
+        """Create mock week operation repository."""
+        from unittest.mock import Mock
+
+        from app.repositories.week_operation_repository import WeekOperationRepository
+
+        mock_repo = Mock(spec=WeekOperationRepository)
+        mock_repo.get_week_slots = Mock(return_value=[])
+
+        return mock_repo
+
+    @pytest.fixture
+    def bulk_service(
+        self,
+        mock_db,
+        mock_slot_manager,
+        mock_conflict_checker,
+        mock_cache_service,
+        mock_availability_repository,
+        mock_week_operation_repository,
+    ):
         """Create BulkOperationService with mocked dependencies."""
         service = BulkOperationService(
             db=mock_db,
@@ -75,21 +112,23 @@ class TestBulkOperationLogic:
             cache_service=mock_cache_service,
         )
 
-        # Mock the repository
+        # Mock the repositories
         from unittest.mock import Mock
 
         from app.repositories.bulk_operation_repository import BulkOperationRepository
 
         mock_repository = Mock(spec=BulkOperationRepository)
         service.repository = mock_repository
+        service.availability_repository = mock_availability_repository
+        service.week_operation_repository = mock_week_operation_repository
 
         # Set up default return values for commonly used methods
         mock_repository.get_slots_by_ids = Mock(return_value=[])
-        mock_repository.get_or_create_availability = Mock()
         mock_repository.has_bookings_on_date = Mock(return_value=False)
         mock_repository.get_slot_for_instructor = Mock(return_value=None)
         mock_repository.slot_has_active_booking = Mock(return_value=False)
-        mock_repository.get_booked_slot_ids = Mock(return_value=set())
+        mock_repository.get_unique_dates_from_operations = Mock(return_value=[])
+        mock_repository.bulk_create_slots = Mock(return_value=[])
 
         return service
 
@@ -141,10 +180,6 @@ class TestBulkOperationLogic:
             {"booking_id": 1, "start_time": "09:00", "end_time": "10:00"}
         ]
 
-        # Mock the availability and slot creation
-        mock_availability = Mock(id=1)
-        bulk_service.repository.get_or_create_availability.return_value = mock_availability
-
         # Mock successful slot creation - return a mock slot with id
         mock_slot = Mock(id=123)
         mock_slot_manager.create_slot.return_value = mock_slot
@@ -162,7 +197,12 @@ class TestBulkOperationLogic:
         assert result.slot_id == 123
         # Verify slot was created without conflict validation
         mock_slot_manager.create_slot.assert_called_once_with(
-            availability_id=1, start_time=time(9, 0), end_time=time(10, 0), validate_conflicts=False, auto_merge=True
+            instructor_id=1,
+            target_date=operation.date,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            validate_conflicts=False,
+            auto_merge=True,
         )
 
     @pytest.mark.asyncio
@@ -218,10 +258,6 @@ class TestBulkOperationLogic:
     @pytest.mark.asyncio
     async def test_validate_only_mode_behavior(self, bulk_service, mock_db, mock_conflict_checker):
         """Test that validate_only mode doesn't make changes."""
-        # Mock availability
-        mock_availability = Mock(id=1, instructor_id=1)
-        bulk_service.repository.get_or_create_availability.return_value = mock_availability
-
         operation = SlotOperation(
             action="add", date=date.today() + timedelta(days=1), start_time=time(9, 0), end_time=time(10, 0)
         )
@@ -376,7 +412,8 @@ class TestBulkOperationLogic:
         mock_slot = Mock()
         mock_slot.start_time = time(10, 0)
         mock_slot.end_time = time(11, 0)
-        mock_slot.availability = Mock(instructor_id=1, date=date.today())
+        mock_slot.instructor_id = 1
+        mock_slot.date = date.today()
 
         # Mock repository to return the slot
         bulk_service.repository.get_slot_for_instructor.return_value = mock_slot
@@ -390,8 +427,6 @@ class TestBulkOperationLogic:
 
         assert result.status == "failed"
         assert "End time must be after start time" in result.reason
-
-    # REMOVED: test_has_bookings_on_date - Method no longer exists in service
 
     @pytest.mark.asyncio
     async def test_error_handling_in_batch(self, bulk_service):
@@ -407,10 +442,6 @@ class TestBulkOperationLogic:
 
         # Mock repository for the remove operation (will fail because slot not found)
         bulk_service.repository.get_slot_for_instructor.return_value = None
-
-        # Mock repository for the add operation (will succeed)
-        mock_availability = Mock(id=1)
-        bulk_service.repository.get_or_create_availability.return_value = mock_availability
 
         # Mock second operation to succeed
         with patch.object(

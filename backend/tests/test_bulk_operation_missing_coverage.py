@@ -2,6 +2,8 @@
 """
 Tests targeting missing coverage lines in BulkOperationService.
 Focuses on edge cases and error conditions.
+
+UPDATED FOR WORK STREAM #10: Single-table availability design.
 """
 
 from datetime import date, datetime, time, timedelta
@@ -11,7 +13,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ValidationException
-from app.models.availability import AvailabilitySlot, InstructorAvailability
+from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking
 from app.schemas.availability_window import BulkUpdateRequest, SlotOperation, ValidateWeekRequest
 from app.services.bulk_operation_service import BulkOperationService
@@ -73,8 +75,7 @@ class TestBulkOperationMissingCoverage:
         # Get a slot to remove
         slot = (
             db.query(AvailabilitySlot)
-            .join(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id == test_instructor_with_availability.id)
+            .filter(AvailabilitySlot.instructor_id == test_instructor_with_availability.id)
             .first()
         )
 
@@ -110,11 +111,11 @@ class TestBulkOperationMissingCoverage:
             assert "Time alignment error" in result["results"][0].reason
 
     @pytest.mark.asyncio
-    async def test_availability_not_found_during_add(self, db: Session, test_instructor):
-        """Test handling when availability entry doesn't exist and needs creation."""
-        bulk_service = BulkOperationService(db)  # Add this line
+    async def test_slot_creation_for_future_date(self, db: Session, test_instructor):
+        """Test creating slots for dates far in the future."""
+        bulk_service = BulkOperationService(db)
 
-        # Use a date far in the future where no availability exists
+        # Use a date far in the future
         future_date = date.today() + timedelta(days=365)
 
         operations = [SlotOperation(action="add", date=future_date, start_time=time(9, 0), end_time=time(10, 0))]
@@ -122,18 +123,16 @@ class TestBulkOperationMissingCoverage:
         request = BulkUpdateRequest(operations=operations, validate_only=False)
         result = await bulk_service.process_bulk_update(test_instructor.id, request)
 
-        # Should create new availability
+        # Should create new slot directly
         assert result["successful"] == 1
 
-        # Verify availability was created
-        availability = (
-            db.query(InstructorAvailability)
-            .filter(
-                InstructorAvailability.instructor_id == test_instructor.id, InstructorAvailability.date == future_date
-            )
+        # Verify slot was created
+        slot = (
+            db.query(AvailabilitySlot)
+            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.date == future_date)
             .first()
         )
-        assert availability is not None
+        assert slot is not None
 
     @pytest.mark.asyncio
     async def test_remove_non_existent_slot(self, db: Session, test_instructor):
@@ -182,8 +181,7 @@ class TestBulkOperationMissingCoverage:
         # Get a slot from test_instructor_with_availability
         slot = (
             db.query(AvailabilitySlot)
-            .join(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id == test_instructor_with_availability.id)
+            .filter(AvailabilitySlot.instructor_id == test_instructor_with_availability.id)
             .first()
         )
 
@@ -236,14 +234,13 @@ class TestBulkOperationMissingCoverage:
     @pytest.mark.asyncio
     async def test_duplicate_slot_detection(self, db: Session, test_instructor_with_availability):
         """Test that duplicate slots are detected."""
-        # Get existing slot with future date
+        # Get existing slot
         tomorrow = date.today() + timedelta(days=1)
         slot = (
             db.query(AvailabilitySlot)
-            .join(InstructorAvailability)
             .filter(
-                InstructorAvailability.instructor_id == test_instructor_with_availability.id,
-                InstructorAvailability.date >= tomorrow,
+                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
+                AvailabilitySlot.date >= tomorrow,
             )
             .first()
         )
@@ -251,12 +248,8 @@ class TestBulkOperationMissingCoverage:
         if not slot:
             pytest.skip("No future slots available for testing")
 
-        availability = slot.availability
-
         # Try to add duplicate slot
-        operations = [
-            SlotOperation(action="add", date=availability.date, start_time=slot.start_time, end_time=slot.end_time)
-        ]
+        operations = [SlotOperation(action="add", date=slot.date, start_time=slot.start_time, end_time=slot.end_time)]
 
         request = BulkUpdateRequest(operations=operations, validate_only=False)
         bulk_service = BulkOperationService(db)
@@ -416,9 +409,7 @@ class TestBulkOperationMissingCoverage:
 
         # Mock existing slots - this is what _get_existing_week_slots returns
         existing_slots = {
-            test_date.isoformat(): [
-                {"id": 123, "start_time": "14:00:00", "end_time": "15:00:00"}  # String format  # String format
-            ]
+            test_date.isoformat(): [{"id": 123, "start_time": "14:00:00", "end_time": "15:00:00"}]  # String format
         }
 
         # Test the _generate_operations_from_states directly
