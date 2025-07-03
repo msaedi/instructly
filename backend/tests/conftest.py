@@ -2,6 +2,9 @@
 """
 Pytest configuration file.
 This file is automatically loaded by pytest and sets up the test environment.
+
+UPDATED FOR WORK STREAM #10: Single-table availability design.
+All fixtures now create AvailabilitySlot objects directly with instructor_id and date.
 """
 
 import os
@@ -23,7 +26,7 @@ from app.auth import get_password_hash
 from app.core.config import settings
 from app.database import Base, get_db
 from app.main import app
-from app.models.availability import AvailabilitySlot, InstructorAvailability
+from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service import Service
@@ -85,7 +88,6 @@ def db():
         # Delete in dependency order to avoid FK violations
         cleanup_db.query(Booking).delete()
         cleanup_db.query(AvailabilitySlot).delete()
-        cleanup_db.query(InstructorAvailability).delete()
         cleanup_db.query(Service).delete()
         cleanup_db.query(InstructorProfile).delete()
         cleanup_db.query(User).delete()
@@ -171,21 +173,25 @@ def test_instructor(db: Session, test_password: str) -> User:
 
 @pytest.fixture
 def test_instructor_with_availability(db: Session, test_instructor: User) -> User:
-    """Create a test instructor with availability for the next 7 days."""
+    """
+    Create a test instructor with availability for the next 7 days.
+
+    UPDATED: Creates slots directly with instructor_id and date.
+    """
     # Add availability for the next 7 days
     today = date.today()
 
     for i in range(7):
         target_date = today + timedelta(days=i)
 
-        availability = InstructorAvailability(instructor_id=test_instructor.id, date=target_date, is_cleared=False)
-        db.add(availability)
-        db.flush()
-
-        # Add time slots (9-12 and 14-17)
+        # Create time slots directly (9-12 and 14-17)
         slots = [
-            AvailabilitySlot(availability_id=availability.id, start_time=time(9, 0), end_time=time(12, 0)),
-            AvailabilitySlot(availability_id=availability.id, start_time=time(14, 0), end_time=time(17, 0)),
+            AvailabilitySlot(
+                instructor_id=test_instructor.id, date=target_date, start_time=time(9, 0), end_time=time(12, 0)
+            ),
+            AvailabilitySlot(
+                instructor_id=test_instructor.id, date=target_date, start_time=time(14, 0), end_time=time(17, 0)
+            ),
         ]
         for slot in slots:
             db.add(slot)
@@ -197,7 +203,11 @@ def test_instructor_with_availability(db: Session, test_instructor: User) -> Use
 
 @pytest.fixture
 def test_booking(db: Session, test_student: User, test_instructor_with_availability: User) -> Booking:
-    """Create a test booking for tomorrow."""
+    """
+    Create a test booking for tomorrow.
+
+    UPDATED: Queries slots directly without InstructorAvailability.
+    """
     tomorrow = date.today() + timedelta(days=1)
 
     # Get instructor's profile and service
@@ -207,17 +217,15 @@ def test_booking(db: Session, test_student: User, test_instructor_with_availabil
 
     service = db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
 
-    # Get an available slot for tomorrow
-    availability = (
-        db.query(InstructorAvailability)
+    # Get an available slot for tomorrow directly
+    slot = (
+        db.query(AvailabilitySlot)
         .filter(
-            InstructorAvailability.instructor_id == test_instructor_with_availability.id,
-            InstructorAvailability.date == tomorrow,
+            AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
+            AvailabilitySlot.date == tomorrow,
         )
         .first()
     )
-
-    slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == availability.id).first()
 
     # Create booking
     booking = Booking(
@@ -261,7 +269,11 @@ def auth_headers_instructor(test_instructor: User) -> dict:
 
 @pytest.fixture
 def test_instructor_with_bookings(db: Session, test_instructor_with_availability: User, test_student: User) -> User:
-    """Create a test instructor with services that have bookings."""
+    """
+    Create a test instructor with services that have bookings.
+
+    UPDATED: Queries slots directly without InstructorAvailability.
+    """
     # Get instructor's profile
     profile = (
         db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor_with_availability.id).first()
@@ -276,39 +288,36 @@ def test_instructor_with_bookings(db: Session, test_instructor_with_availability
     if not service:
         raise ValueError(f"No active service found for profile {profile.id}")
 
-    # Get tomorrow's availability
+    # Get tomorrow's slot directly
     tomorrow = date.today() + timedelta(days=1)
-    availability = (
-        db.query(InstructorAvailability)
+    slot = (
+        db.query(AvailabilitySlot)
         .filter(
-            InstructorAvailability.instructor_id == test_instructor_with_availability.id,
-            InstructorAvailability.date == tomorrow,
+            AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
+            AvailabilitySlot.date == tomorrow,
         )
         .first()
     )
 
-    if availability:
-        slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == availability.id).first()
-
-        if slot:
-            # Create a booking for this service
-            booking = Booking(
-                student_id=test_student.id,
-                instructor_id=test_instructor_with_availability.id,
-                service_id=service.id,
-                availability_slot_id=slot.id,
-                booking_date=tomorrow,
-                start_time=slot.start_time,
-                end_time=slot.end_time,
-                service_name=service.skill,
-                hourly_rate=service.hourly_rate,
-                total_price=service.hourly_rate * 3,  # 3 hour slot
-                duration_minutes=180,
-                status=BookingStatus.CONFIRMED,
-                meeting_location="Test Location",
-            )
-            db.add(booking)
-            db.flush()
+    if slot:
+        # Create a booking for this service
+        booking = Booking(
+            student_id=test_student.id,
+            instructor_id=test_instructor_with_availability.id,
+            service_id=service.id,
+            availability_slot_id=slot.id,
+            booking_date=tomorrow,
+            start_time=slot.start_time,
+            end_time=slot.end_time,
+            service_name=service.skill,
+            hourly_rate=service.hourly_rate,
+            total_price=service.hourly_rate * 3,  # 3 hour slot
+            duration_minutes=180,
+            status=BookingStatus.CONFIRMED,
+            meeting_location="Test Location",
+        )
+        db.add(booking)
+        db.flush()
 
     return test_instructor_with_availability
 

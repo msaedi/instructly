@@ -2,6 +2,8 @@
 """
 Test helper layer to provide a clean, simple API for availability tests.
 
+UPDATED FOR WORK STREAM #10: Single-table availability design.
+
 This abstracts away the complexity of the actual service APIs and provides
 the simple interface that tests expect, making tests more readable and maintainable.
 """
@@ -12,7 +14,7 @@ from typing import Any, Dict, List
 
 from sqlalchemy.orm import Session
 
-from app.models.availability import AvailabilitySlot, InstructorAvailability
+from app.models.availability import AvailabilitySlot
 from app.schemas.availability_window import SpecificDateAvailabilityCreate, WeekSpecificScheduleCreate
 from app.services.availability_service import AvailabilityService
 from app.services.bulk_operation_service import BulkOperationService
@@ -37,8 +39,7 @@ class AvailabilityTestHelper:
         """
         Set availability for a specific day with multiple slots.
 
-        This is the simple API that tests expect, wrapping the more complex
-        actual implementation.
+        UPDATED: Works directly with AvailabilitySlot objects.
 
         Args:
             instructor_id: The instructor ID
@@ -49,21 +50,20 @@ class AvailabilityTestHelper:
         Returns:
             Dict with the saved slots and success status
         """
-        # If clear_existing, first remove any existing availability for this date
+        # If clear_existing, first remove any existing slots for this date
         if clear_existing:
-            existing = (
-                self.db.query(InstructorAvailability)
+            existing_slots = (
+                self.db.query(AvailabilitySlot)
                 .filter(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date == date,
+                    AvailabilitySlot.instructor_id == instructor_id,
+                    AvailabilitySlot.date == date,
                 )
-                .first()
+                .all()
             )
 
-            if existing:
-                # Delete all slots for this availability
-                self.db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == existing.id).delete()
-                self.db.commit()
+            for slot in existing_slots:
+                self.db.delete(slot)
+            self.db.commit()
 
         # Add each slot using the actual API
         saved_slots = []
@@ -178,9 +178,9 @@ class AvailabilityTestHelper:
 
         Synchronous wrapper around the async service method.
         """
-        if hasattr(self.bulk_operation_service, "apply_pattern_to_date_range"):
+        if hasattr(self.week_operation_service, "apply_pattern_to_date_range"):
             result = asyncio.run(
-                self.bulk_operation_service.apply_pattern_to_date_range(
+                self.week_operation_service.apply_pattern_to_date_range(
                     instructor_id=instructor_id,
                     from_week_start=from_week_start,
                     start_date=start_date,

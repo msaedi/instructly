@@ -11,13 +11,15 @@ from functools import lru_cache
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
+from ...services.auth_service import AuthService
 from ...services.availability_service import AvailabilityService
 from ...services.booking_service import BookingService
 from ...services.bulk_operation_service import BulkOperationService
 from ...services.cache_service import CacheService, get_cache_service
 from ...services.conflict_checker import ConflictChecker
-from ...services.instructor_service import InstructorService  # Add this import
+from ...services.instructor_service import InstructorService
 from ...services.notification_service import NotificationService
+from ...services.password_reset_service import PasswordResetService
 from ...services.presentation_service import PresentationService
 from ...services.slot_manager import SlotManager
 from ...services.week_operation_service import WeekOperationService
@@ -186,3 +188,13 @@ def get_presentation_service(db: Session = Depends(get_db)) -> PresentationServi
         PresentationService instance
     """
     return PresentationService(db)
+
+
+def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
+    """Get AuthService instance."""
+    return AuthService(db)
+
+
+def get_password_reset_service(db: Session = Depends(get_db)) -> PasswordResetService:
+    """Get PasswordResetService instance."""
+    return PasswordResetService(db)

@@ -2,6 +2,7 @@
 """
 Fixed unit tests for AvailabilityService business logic.
 
+UPDATED FOR WORK STREAM #10: Single-table availability design.
 These tests work with the repository pattern implementation.
 """
 
@@ -12,7 +13,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictException, NotFoundException
-from app.models.availability import BlackoutDate, InstructorAvailability
+from app.models.availability import AvailabilitySlot, BlackoutDate
 from app.repositories.availability_repository import AvailabilityRepository
 from app.schemas.availability_window import SpecificDateAvailabilityCreate, WeekSpecificScheduleCreate
 from app.services.availability_service import AvailabilityService
@@ -92,17 +93,6 @@ class TestAvailabilityServiceBusinessLogic:
         assert len(result[tomorrow]) == 2  # Two slots for tomorrow
         assert len(result[day_after]) == 1  # One slot for day after
 
-    def test_conflicts_with_bookings(self, service):
-        """Test the _conflicts_with_bookings helper method."""
-        # Test time range conflict detection
-        booked_ranges = [(time(9, 0), time(11, 0))]
-
-        # Test overlapping range
-        assert service._conflicts_with_bookings(time(10, 0), time(12, 0), booked_ranges) == True
-
-        # Test non-overlapping range
-        assert service._conflicts_with_bookings(time(12, 0), time(14, 0), booked_ranges) == False
-
     def test_slot_exists_check(self, service):
         """Test slot existence checking via repository."""
         # Mock repository response
@@ -114,10 +104,6 @@ class TestAvailabilityServiceBusinessLogic:
         )
 
         # Mock the repository methods used
-        mock_availability = Mock(spec=InstructorAvailability)
-        mock_availability.id = 123
-        mock_availability.is_cleared = False
-        service.repository.get_or_create_availability.return_value = mock_availability
         service.repository.slot_exists.return_value = True
 
         # This should raise ConflictException due to slot existing
@@ -140,42 +126,56 @@ class TestAvailabilityServiceQueryHelpers:
 
         return service
 
-    def test_get_booked_slots(self, service):
-        """Test getting booked slots via repository."""
-        # Mock repository response
-        mock_booking = Mock()
-        mock_booking.availability_slot_id = 1
-        service.repository.get_booked_slots_in_range.return_value = [mock_booking]
+    def test_get_week_availability(self, service):
+        """Test getting week availability with single-table design."""
+        # Mock repository response - now returns AvailabilitySlot objects directly
+        mock_slot1 = Mock(spec=AvailabilitySlot)
+        mock_slot1.date = date.today()
+        mock_slot1.start_time = time(9, 0)
+        mock_slot1.end_time = time(10, 0)
 
-        # The service uses this internally in save operations
-        # Let's verify the repository method signature
-        service.repository.get_booked_slots_in_range(
+        mock_slot2 = Mock(spec=AvailabilitySlot)
+        mock_slot2.date = date.today()
+        mock_slot2.start_time = time(14, 0)
+        mock_slot2.end_time = time(15, 0)
+
+        service.repository.get_week_availability.return_value = [mock_slot1, mock_slot2]
+
+        # Call the service method
+        result = service.get_week_availability(instructor_id=123, start_date=date.today())
+
+        # Verify the result format
+        date_str = date.today().isoformat()
+        assert date_str in result
+        assert len(result[date_str]) == 2
+        assert result[date_str][0]["start_time"] == "09:00:00"
+        assert result[date_str][0]["end_time"] == "10:00:00"
+
+    def test_delete_slots_by_dates(self, service):
+        """Test deleting slots by dates via repository."""
+        # Mock repository response
+        service.repository.delete_slots_by_dates.return_value = 3
+
+        # Call the repository method
+        result = service.repository.delete_slots_by_dates(
+            instructor_id=123, dates=[date.today(), date.today() + timedelta(days=1)]
+        )
+
+        assert result == 3
+        service.repository.delete_slots_by_dates.assert_called_once()
+
+    def test_count_available_slots(self, service):
+        """Test counting available slots via repository."""
+        # Mock repository response
+        service.repository.count_available_slots.return_value = 5
+
+        # Call the repository method
+        result = service.repository.count_available_slots(
             instructor_id=123, start_date=date.today(), end_date=date.today() + timedelta(days=7)
         )
 
-        service.repository.get_booked_slots_in_range.assert_called_once()
-
-    def test_delete_non_booked_slots(self, service):
-        """Test deleting non-booked slots via repository."""
-        # Mock repository response
-        service.repository.delete_non_booked_slots.return_value = 3
-
-        # Call the repository method
-        result = service.repository.delete_non_booked_slots(availability_id=123, booked_slot_ids=[1, 2])
-
-        assert result == 3
-        service.repository.delete_non_booked_slots.assert_called_once_with(availability_id=123, booked_slot_ids=[1, 2])
-
-    def test_count_bookings_for_date(self, service):
-        """Test counting bookings via repository."""
-        # Mock repository response
-        service.repository.count_bookings_for_date.return_value = 2
-
-        # Call the repository method
-        result = service.repository.count_bookings_for_date(instructor_id=123, target_date=date.today())
-
-        assert result == 2
-        service.repository.count_bookings_for_date.assert_called_once()
+        assert result == 5
+        service.repository.count_available_slots.assert_called_once()
 
 
 class TestAvailabilityServiceCacheHandling:
@@ -217,14 +217,14 @@ class TestAvailabilityServiceCacheHandling:
         mock_repository = Mock(spec=AvailabilityRepository)
         service.repository = mock_repository
 
-        # Mock successful repository query
-        mock_availability = Mock(spec=InstructorAvailability)
-        mock_availability.date = date.today()
-        mock_availability.is_cleared = False
-        mock_availability.time_slots = []
+        # Mock successful repository query - now returns slots directly
+        mock_slot = Mock(spec=AvailabilitySlot)
+        mock_slot.date = date.today()
+        mock_slot.start_time = time(9, 0)
+        mock_slot.end_time = time(10, 0)
 
-        # Repository returns list of availability entries
-        service.repository.get_week_availability.return_value = [mock_availability]
+        # Repository returns list of slots
+        service.repository.get_week_availability.return_value = [mock_slot]
 
         # Should still work despite cache error
         result = service.get_week_availability(
@@ -275,11 +275,6 @@ class TestAvailabilityServiceErrorHandling:
     def test_duplicate_slot_detection(self, service):
         """Test duplicate slot detection via repository."""
         # Mock repository methods
-        mock_availability = Mock(spec=InstructorAvailability)
-        mock_availability.id = 123
-        mock_availability.is_cleared = False
-
-        service.repository.get_or_create_availability.return_value = mock_availability
         service.repository.slot_exists.return_value = True  # Slot already exists
 
         availability_data = SpecificDateAvailabilityCreate(
