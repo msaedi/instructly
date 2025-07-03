@@ -3,6 +3,7 @@
 Fixed integration tests for AvailabilityService database operations.
 
 These tests work with the actual service APIs and behavior.
+UPDATED FOR WORK STREAM #10: Single-table availability design.
 """
 
 from datetime import date, time, timedelta
@@ -11,7 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models.availability import AvailabilitySlot, InstructorAvailability
+from app.models.availability import AvailabilitySlot  # Removed InstructorAvailability
 from app.models.user import User
 from app.schemas.availability_window import (
     BlackoutDateCreate,
@@ -44,17 +45,17 @@ class TestAvailabilityServiceQueries:
         # Create test data
         monday = get_next_monday() - timedelta(days=date.today().weekday())
 
-        # Create availability for multiple days
+        # Create availability slots directly for multiple days
         for i in range(3):  # Mon, Tue, Wed
             day_date = monday + timedelta(days=i)
-            availability = InstructorAvailability(instructor_id=test_instructor.id, date=day_date, is_cleared=False)
-            db.add(availability)
-            db.flush()
 
-            # Add slots
+            # Add slots directly with instructor_id and date
             for hour in [9, 14]:
                 slot = AvailabilitySlot(
-                    availability_id=availability.id, start_time=time(hour, 0), end_time=time(hour + 2, 0)
+                    instructor_id=test_instructor.id,
+                    date=day_date,
+                    start_time=time(hour, 0),
+                    end_time=time(hour + 2, 0),
                 )
                 db.add(slot)
 
@@ -68,24 +69,17 @@ class TestAvailabilityServiceQueries:
         assert monday.isoformat() in result
         assert len(result[monday.isoformat()]) == 2  # 2 slots for Monday
 
-    def test_get_week_availability_with_cleared_days(self, db: Session, test_instructor: User):
-        """Test how cleared days are handled in queries."""
+    def test_get_week_availability_with_no_slots(self, db: Session, test_instructor: User):
+        """Test how days without slots are handled in queries."""
         service = AvailabilityService(db)
         monday = get_next_monday() - timedelta(days=date.today().weekday())
 
-        # Create a cleared day (properly)
-        availability = InstructorAvailability(
-            instructor_id=test_instructor.id, date=monday, is_cleared=True  # This day is cleared
-        )
-        db.add(availability)
-        db.flush()  # Get the ID first
-
-        # Don't add slots for cleared days
-        db.commit()
+        # Don't create any slots for this day
+        # (In the old design, we'd create InstructorAvailability with is_cleared=True)
 
         result = service.get_week_availability(instructor_id=test_instructor.id, start_date=monday)
 
-        # Cleared days should not appear in result
+        # Days without slots should not appear in result
         assert monday.isoformat() not in result
 
     @pytest.mark.asyncio
@@ -148,34 +142,32 @@ class TestAvailabilityServiceQueries:
         assert result["start_time"] == "10:00:00"
         assert result["end_time"] == "12:00:00"
 
-        # Verify in database
-        availability = (
-            db.query(InstructorAvailability)
-            .filter(
-                InstructorAvailability.instructor_id == test_instructor.id, InstructorAvailability.date == test_date
-            )
+        # Verify in database - query slots directly
+        slot = (
+            db.query(AvailabilitySlot)
+            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.date == test_date)
             .first()
         )
-        assert availability is not None
-        assert len(availability.time_slots) == 1
+        assert slot is not None
+        assert slot.start_time == time(10, 0)
+        assert slot.end_time == time(12, 0)
 
-    def test_get_all_availability_with_filters(self, db: Session, test_instructor_with_availability: User):
-        """Test query patterns with date range filters."""
+    def test_get_slots_by_date(self, db: Session, test_instructor_with_availability: User):
+        """Test repository method to get slots by date."""
         service = AvailabilityService(db)
 
-        # Test with date range
-        start_date = date.today()
-        end_date = date.today() + timedelta(days=3)
+        # Test with date range - using repository directly
+        today = date.today()
 
-        entries = service.get_all_availability(
-            instructor_id=test_instructor_with_availability.id, start_date=start_date, end_date=end_date
-        )
+        # Get slots for today
+        slots = service.repository.get_slots_by_date(test_instructor_with_availability.id, today)
 
-        # Verify query filters
-        for entry in entries:
-            assert entry.date >= start_date
-            assert entry.date <= end_date
-            assert entry.instructor_id == test_instructor_with_availability.id
+        # Verify we get AvailabilitySlot objects
+        if slots:
+            for slot in slots:
+                assert isinstance(slot, AvailabilitySlot)
+                assert slot.date == today
+                assert slot.instructor_id == test_instructor_with_availability.id
 
     def test_blackout_date_operations(self, db: Session, test_instructor: User):
         """Test blackout date query patterns."""
@@ -208,32 +200,42 @@ class TestAvailabilityServiceTransactions:
     """Test transaction handling in AvailabilityService."""
 
     @pytest.mark.asyncio
-    async def test_save_week_rollback_on_error(self, db: Session, test_instructor: User):
-        """Test that transactions rollback on error."""
+    async def test_save_week_with_clear_existing(self, db: Session, test_instructor: User):
+        """Test that clear_existing works with single-date deletion."""
         service = AvailabilityService(db)
         monday = get_next_monday() + timedelta(days=14)
 
-        # Count existing availabilities
-        count_before = (
-            db.query(InstructorAvailability).filter(InstructorAvailability.instructor_id == test_instructor.id).count()
-        )
+        # First, add some slots
+        for i in range(3):
+            slot = AvailabilitySlot(
+                instructor_id=test_instructor.id,
+                date=monday + timedelta(days=i),
+                start_time=time(9, 0),
+                end_time=time(10, 0),
+            )
+            db.add(slot)
+        db.commit()
 
-        # Create intentionally invalid data (this should fail at Pydantic level)
-        # Since Pydantic validates first, we need a different error source
-        # Let's use a database constraint violation instead
+        # Count existing slots for this instructor
+        count_before = db.query(AvailabilitySlot).filter(AvailabilitySlot.instructor_id == test_instructor.id).count()
 
-        # Simulate a database error by using invalid instructor_id
-        invalid_week_data = WeekSpecificScheduleCreate(
+        # Create new week data with clear_existing=True
+        week_data = WeekSpecificScheduleCreate(
             week_start=monday,
             clear_existing=True,
-            schedule=[{"date": monday, "start_time": time(9, 0), "end_time": time(12, 0)}],
+            schedule=[{"date": monday, "start_time": time(14, 0), "end_time": time(16, 0)}],
         )
 
-        # This should work fine since validation passes
-        result = await service.save_week_availability(instructor_id=test_instructor.id, week_data=invalid_week_data)
+        # This should clear existing and add new
+        result = await service.save_week_availability(instructor_id=test_instructor.id, week_data=week_data)
 
         # Verify it worked
         assert isinstance(result, dict)
+
+        # Check that old slots were cleared and new one added
+        monday_slots = service.repository.get_slots_by_date(test_instructor.id, monday)
+        assert len(monday_slots) == 1
+        assert monday_slots[0].start_time == time(14, 0)
 
     def test_concurrent_slot_creation(self, db: Session, test_instructor: User):
         """Test handling of concurrent slot creation."""
@@ -260,10 +262,7 @@ class TestAvailabilityServiceTransactions:
         # Document actual behavior: service allows overlapping slots
         slots = (
             db.query(AvailabilitySlot)
-            .join(InstructorAvailability)
-            .filter(
-                InstructorAvailability.instructor_id == test_instructor.id, InstructorAvailability.date == test_date
-            )
+            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.date == test_date)
             .all()
         )
 

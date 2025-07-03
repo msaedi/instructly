@@ -291,9 +291,9 @@ class BulkOperationService(BaseService):
                     reason="Cannot add availability for past time slots",
                 )
 
-        # Check if slot already exists
+        # Check if slot already exists - FIXED: Using target_date parameter
         if self.availability_repository.slot_exists(
-            instructor_id, operation.date, operation.start_time, operation.end_time
+            instructor_id, target_date=operation.date, start_time=operation.start_time, end_time=operation.end_time
         ):
             return OperationResult(
                 operation_index=operation_index,

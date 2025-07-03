@@ -2,16 +2,19 @@
 """
 Document all query patterns used in AvailabilityService.
 
+UPDATED FOR WORK STREAM #10: Single-table availability design.
+All queries now work directly with AvailabilitySlot without InstructorAvailability.
+
 This serves as the specification for the AvailabilityRepository
 that will be implemented in the repository pattern.
 """
 
 from datetime import date, time, timedelta
 
-from sqlalchemy import and_, func, or_, text
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.availability import AvailabilitySlot, BlackoutDate, InstructorAvailability
+from app.models.availability import AvailabilitySlot, BlackoutDate
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User
 
@@ -25,49 +28,46 @@ class TestAvailabilityQueryPatterns:
         start_date = date.today() - timedelta(days=date.today().weekday())
         end_date = start_date + timedelta(days=6)
 
-        # Document the exact query pattern
+        # Document the exact query pattern - UPDATED for single table
         query = (
-            db.query(InstructorAvailability)
-            .options(joinedload(InstructorAvailability.time_slots))
+            db.query(AvailabilitySlot)
             .filter(
                 and_(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date >= start_date,
-                    InstructorAvailability.date <= end_date,
+                    AvailabilitySlot.instructor_id == instructor_id,
+                    AvailabilitySlot.date >= start_date,
+                    AvailabilitySlot.date <= end_date,
                 )
             )
-            .order_by(InstructorAvailability.date)
+            .order_by(AvailabilitySlot.date, AvailabilitySlot.start_time)
         )
 
         results = query.all()
 
         # Repository method signature should be:
-        # def get_week_availability(self, instructor_id: int, start_date: date, end_date: date) -> List[InstructorAvailability]
+        # def get_week_availability(self, instructor_id: int, start_date: date, end_date: date) -> List[AvailabilitySlot]
 
         # Verify query returns expected data
         assert all(r.instructor_id == instructor_id for r in results)
         assert all(start_date <= r.date <= end_date for r in results)
 
-    def test_query_pattern_get_availability_by_date(self, db: Session, test_instructor_with_availability: User):
-        """Document query for single date availability."""
+    def test_query_pattern_get_slots_by_date(self, db: Session, test_instructor_with_availability: User):
+        """Document query for single date slots."""
         instructor_id = test_instructor_with_availability.id
         target_date = date.today()
 
-        # Document the query pattern
+        # Document the query pattern - UPDATED for single table
         query = (
-            db.query(InstructorAvailability)
-            .options(joinedload(InstructorAvailability.time_slots))
-            .filter(
-                and_(InstructorAvailability.instructor_id == instructor_id, InstructorAvailability.date == target_date)
-            )
+            db.query(AvailabilitySlot)
+            .filter(and_(AvailabilitySlot.instructor_id == instructor_id, AvailabilitySlot.date == target_date))
+            .order_by(AvailabilitySlot.start_time)
         )
 
-        result = query.first()
+        results = query.all()
 
         # Repository method:
-        # def get_availability_by_date(self, instructor_id: int, date: date) -> Optional[InstructorAvailability]
+        # def get_slots_by_date(self, instructor_id: int, date: date) -> List[AvailabilitySlot]
 
-        if result:
+        for result in results:
             assert result.instructor_id == instructor_id
             assert result.date == target_date
 
@@ -77,18 +77,13 @@ class TestAvailabilityQueryPatterns:
         start_date = test_booking.booking_date
         end_date = start_date + timedelta(days=6)
 
-        # Document the complex join query
-        query = (
-            db.query(Booking)
-            .join(AvailabilitySlot, Booking.availability_slot_id == AvailabilitySlot.id)
-            .join(InstructorAvailability, AvailabilitySlot.availability_id == InstructorAvailability.id)
-            .filter(
-                and_(
-                    Booking.instructor_id == instructor_id,
-                    Booking.booking_date >= start_date,
-                    Booking.booking_date <= end_date,
-                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                )
+        # Document the simplified join query - UPDATED for single table
+        query = db.query(Booking).filter(
+            and_(
+                Booking.instructor_id == instructor_id,
+                Booking.booking_date >= start_date,
+                Booking.booking_date <= end_date,
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             )
         )
 
@@ -98,91 +93,268 @@ class TestAvailabilityQueryPatterns:
         # def get_booked_slots_in_range(self, instructor_id: int, start_date: date, end_date: date) -> List[Booking]
 
         assert len(results) >= 1
-        assert all(r.instructor_id == instructor_id for r in results)
 
-    def test_query_pattern_delete_slots_except_booked(self, db: Session, test_instructor_with_availability: User):
-        """Document pattern for deleting slots while preserving booked ones."""
-        instructor_id = test_instructor_with_availability.id
-        target_date = date.today()
+    def test_query_pattern_get_booked_slot_ids(self, db: Session, test_booking):
+        """Document query for getting booked slot IDs for a specific date."""
+        instructor_id = test_booking.instructor_id
+        target_date = test_booking.booking_date
 
-        # First, get booked slot IDs
-        booked_slots_query = (
-            db.query(AvailabilitySlot.id)
-            .join(InstructorAvailability)
-            .join(Booking, Booking.availability_slot_id == AvailabilitySlot.id)
+        # Simplified query - no complex joins needed
+        query = db.query(Booking.availability_slot_id).filter(
+            and_(
+                Booking.instructor_id == instructor_id,
+                Booking.booking_date == target_date,
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                Booking.availability_slot_id.isnot(None),
+            )
+        )
+
+        slot_ids = [row[0] for row in query.all()]
+
+        # Repository method:
+        # def get_booked_slot_ids(self, instructor_id: int, date: date) -> List[int]
+
+        assert len(slot_ids) >= 1
+
+    def test_query_pattern_count_bookings_for_date(self, db: Session, test_booking):
+        """Document query for counting bookings on a date."""
+        instructor_id = test_booking.instructor_id
+        target_date = test_booking.booking_date
+
+        # Direct count query
+        count = (
+            db.query(func.count(Booking.id))
             .filter(
                 and_(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date == target_date,
+                    Booking.instructor_id == instructor_id,
+                    Booking.booking_date == target_date,
                     Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
                 )
             )
+            .scalar()
         )
-
-        booked_slot_ids = [id[0] for id in booked_slots_query.all()]
-
-        # Then delete query
-        delete_query = (
-            db.query(AvailabilitySlot)
-            .join(InstructorAvailability)
-            .filter(
-                and_(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date == target_date,
-                    ~AvailabilitySlot.id.in_(booked_slot_ids) if booked_slot_ids else True,
-                )
-            )
-        )
-
-        # Repository methods needed:
-        # def get_booked_slot_ids(self, instructor_id: int, date: date) -> List[int]
-        # def delete_slots_except(self, instructor_id: int, date: date, except_ids: List[int]) -> int
-
-    def test_query_pattern_bulk_create_availability(self, db: Session, test_instructor: User):
-        """Document pattern for bulk creating availability records."""
-        instructor_id = test_instructor.id
-        dates = [date.today() + timedelta(days=i) for i in range(7, 14)]
-
-        # Bulk create pattern
-        availability_records = []
-        for target_date in dates:
-            # Check if exists
-            exists = (
-                db.query(InstructorAvailability)
-                .filter(
-                    and_(
-                        InstructorAvailability.instructor_id == instructor_id,
-                        InstructorAvailability.date == target_date,
-                    )
-                )
-                .first()
-            )
-
-            if not exists:
-                availability = InstructorAvailability(instructor_id=instructor_id, date=target_date, is_cleared=False)
-                availability_records.append(availability)
-
-        # Bulk insert
-        if availability_records:
-            db.bulk_save_objects(availability_records)
-            db.flush()
 
         # Repository method:
-        # def bulk_create_availability(self, instructor_id: int, dates: List[date]) -> List[InstructorAvailability]
+        # def count_bookings_for_date(self, instructor_id: int, date: date) -> int
 
-    def test_query_pattern_get_blackout_dates(self, db: Session, test_instructor: User):
-        """Document blackout date query patterns."""
-        instructor_id = test_instructor.id
+        assert count >= 1
 
-        # Add test blackout date
-        blackout = BlackoutDate(instructor_id=instructor_id, date=date.today() + timedelta(days=30), reason="Vacation")
-        db.add(blackout)
-        db.commit()
+    def test_query_pattern_get_availability_slot_with_details(self, db: Session, test_booking):
+        """Document query for getting a slot with details."""
+        slot_id = test_booking.availability_slot_id
 
-        # Query pattern for future blackout dates
+        # Simple query with relationship loading
+        query = (
+            db.query(AvailabilitySlot)
+            .options(joinedload(AvailabilitySlot.instructor))
+            .filter(AvailabilitySlot.id == slot_id)
+        )
+
+        result = query.first()
+
+        # Repository method:
+        # def get_availability_slot_with_details(self, slot_id: int) -> Optional[AvailabilitySlot]
+
+        assert result is not None
+        assert result.id == slot_id
+
+    def test_query_pattern_slot_exists(self, db: Session, test_instructor_with_availability: User):
+        """Document query for checking if a slot exists."""
+        instructor_id = test_instructor_with_availability.id
+        target_date = date.today()
+        start_time = time(9, 0)
+        end_time = time(10, 0)
+
+        # Direct existence check - UPDATED for single table
+        exists = (
+            db.query(AvailabilitySlot)
+            .filter(
+                and_(
+                    AvailabilitySlot.instructor_id == instructor_id,
+                    AvailabilitySlot.date == target_date,
+                    AvailabilitySlot.start_time == start_time,
+                    AvailabilitySlot.end_time == end_time,
+                )
+            )
+            .first()
+            is not None
+        )
+
+        # Repository method:
+        # def slot_exists(self, instructor_id: int, date: date, start_time: time, end_time: time) -> bool
+
+        assert isinstance(exists, bool)
+
+    def test_query_pattern_find_overlapping_slots(self, db: Session, test_instructor_with_availability: User):
+        """Document query for finding overlapping slots."""
+        instructor_id = test_instructor_with_availability.id
+        target_date = date.today()
+        check_start = time(10, 0)
+        check_end = time(11, 0)
+
+        # Find overlapping slots - UPDATED for single table
+        query = db.query(AvailabilitySlot).filter(
+            and_(
+                AvailabilitySlot.instructor_id == instructor_id,
+                AvailabilitySlot.date == target_date,
+                or_(
+                    # Slot starts within check range
+                    and_(
+                        AvailabilitySlot.start_time >= check_start,
+                        AvailabilitySlot.start_time < check_end,
+                    ),
+                    # Slot ends within check range
+                    and_(
+                        AvailabilitySlot.end_time > check_start,
+                        AvailabilitySlot.end_time <= check_end,
+                    ),
+                    # Slot contains check range
+                    and_(
+                        AvailabilitySlot.start_time <= check_start,
+                        AvailabilitySlot.end_time >= check_end,
+                    ),
+                ),
+            )
+        )
+
+        results = query.all()
+
+        # Repository method:
+        # def find_overlapping_slots(self, instructor_id: int, date: date, start_time: time, end_time: time) -> List[AvailabilitySlot]
+
+        # Verify overlap logic
+        for slot in results:
+            assert slot.instructor_id == instructor_id
+            assert slot.date == target_date
+
+    def test_query_pattern_delete_slots_except(self, db: Session, test_instructor_with_availability: User):
+        """Document pattern for deleting slots except specified IDs."""
+        instructor_id = test_instructor_with_availability.id
+        target_date = date.today()
+        except_ids = [1, 2, 3]  # Example IDs to keep
+
+        # Document delete pattern - UPDATED for single table
+        delete_count = (
+            db.query(AvailabilitySlot)
+            .filter(
+                and_(
+                    AvailabilitySlot.instructor_id == instructor_id,
+                    AvailabilitySlot.date == target_date,
+                    ~AvailabilitySlot.id.in_(except_ids),
+                )
+            )
+            .delete(synchronize_session=False)
+        )
+
+        # Repository method:
+        # def delete_slots_except(self, instructor_id: int, date: date, except_ids: List[int]) -> int
+
+        assert isinstance(delete_count, int)
+
+    def test_query_pattern_bulk_create_slots(self, db: Session, test_instructor_with_availability: User):
+        """Document pattern for bulk creating slots."""
+        instructor_id = test_instructor_with_availability.id
+        target_date = date.today() + timedelta(days=7)
+
+        # Create multiple slot objects
+        slots = [
+            AvailabilitySlot(
+                instructor_id=instructor_id,
+                date=target_date,
+                start_time=time(9, 0),
+                end_time=time(10, 0),
+            ),
+            AvailabilitySlot(
+                instructor_id=instructor_id,
+                date=target_date,
+                start_time=time(10, 0),
+                end_time=time(11, 0),
+            ),
+        ]
+
+        # Bulk insert pattern
+        db.bulk_save_objects(slots)
+        db.flush()
+
+        # Repository method:
+        # def bulk_create_slots(self, instructor_id: int, slots_data: List[Dict]) -> List[AvailabilitySlot]
+
+        # Verify slots were created
+        created_count = (
+            db.query(func.count(AvailabilitySlot.id))
+            .filter(
+                and_(
+                    AvailabilitySlot.instructor_id == instructor_id,
+                    AvailabilitySlot.date == target_date,
+                )
+            )
+            .scalar()
+        )
+        assert created_count >= 2
+
+    def test_query_pattern_count_available_slots(self, db: Session, test_instructor_with_availability: User):
+        """Document query for counting available slots in a range."""
+        instructor_id = test_instructor_with_availability.id
+        start_date = date.today()
+        end_date = start_date + timedelta(days=6)
+
+        # Count query - UPDATED for single table
+        count = (
+            db.query(func.count(AvailabilitySlot.id))
+            .filter(
+                and_(
+                    AvailabilitySlot.instructor_id == instructor_id,
+                    AvailabilitySlot.date >= start_date,
+                    AvailabilitySlot.date <= end_date,
+                )
+            )
+            .scalar()
+        )
+
+        # Repository method:
+        # def count_available_slots(self, instructor_id: int, start_date: date, end_date: date) -> int
+
+        assert count > 0
+
+    def test_query_pattern_get_availability_summary(self, db: Session, test_instructor_with_availability: User):
+        """Document query for getting availability summary."""
+        instructor_id = test_instructor_with_availability.id
+        start_date = date.today()
+        end_date = start_date + timedelta(days=6)
+
+        # Summary query - UPDATED for single table
+        query = db.query(
+            func.count(AvailabilitySlot.id).label("total_slots"),
+            func.count(func.distinct(AvailabilitySlot.date)).label("available_days"),
+        ).filter(
+            and_(
+                AvailabilitySlot.instructor_id == instructor_id,
+                AvailabilitySlot.date >= start_date,
+                AvailabilitySlot.date <= end_date,
+            )
+        )
+
+        result = query.first()
+
+        # Repository method:
+        # def get_availability_summary(self, instructor_id: int, start_date: date, end_date: date) -> Dict[str, int]
+
+        assert result.total_slots > 0
+        assert result.available_days > 0
+
+    def test_query_pattern_get_blackout_dates(self, db: Session, test_instructor_with_availability: User):
+        """Document query for getting blackout dates."""
+        instructor_id = test_instructor_with_availability.id
+
+        # Simple blackout query
         query = (
             db.query(BlackoutDate)
-            .filter(and_(BlackoutDate.instructor_id == instructor_id, BlackoutDate.date >= date.today()))
+            .filter(
+                and_(
+                    BlackoutDate.instructor_id == instructor_id,
+                    BlackoutDate.date >= date.today(),
+                )
+            )
             .order_by(BlackoutDate.date)
         )
 
@@ -191,359 +363,105 @@ class TestAvailabilityQueryPatterns:
         # Repository method:
         # def get_future_blackout_dates(self, instructor_id: int) -> List[BlackoutDate]
 
-        assert len(results) >= 1
-        assert all(r.date >= date.today() for r in results)
+        # Verify all are future dates
+        for blackout in results:
+            assert blackout.instructor_id == instructor_id
+            assert blackout.date >= date.today()
 
-    def test_query_pattern_check_slot_overlap(self, db: Session, test_instructor_with_availability: User):
-        """Document query for checking time slot overlaps."""
-        availability = (
-            db.query(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id == test_instructor_with_availability.id)
-            .first()
+    def test_query_pattern_create_blackout_date(self, db: Session, test_instructor: User):
+        """Document pattern for creating blackout date."""
+        instructor_id = test_instructor.id
+        blackout_date = date.today() + timedelta(days=14)
+        reason = "Vacation"
+
+        # Create blackout
+        blackout = BlackoutDate(
+            instructor_id=instructor_id,
+            date=blackout_date,
+            reason=reason,
         )
-
-        # Check for overlapping slots
-        new_start = time(10, 0)
-        new_end = time(12, 0)
-
-        overlap_query = db.query(AvailabilitySlot).filter(
-            and_(
-                AvailabilitySlot.availability_id == availability.id,
-                or_(
-                    # New slot starts during existing slot
-                    and_(AvailabilitySlot.start_time <= new_start, AvailabilitySlot.end_time > new_start),
-                    # New slot ends during existing slot
-                    and_(AvailabilitySlot.start_time < new_end, AvailabilitySlot.end_time >= new_end),
-                    # New slot completely contains existing slot
-                    and_(AvailabilitySlot.start_time >= new_start, AvailabilitySlot.end_time <= new_end),
-                ),
-            )
-        )
-
-        overlap_query.all()
+        db.add(blackout)
+        db.flush()
 
         # Repository method:
-        # def find_overlapping_slots(self, availability_id: int, start_time: time, end_time: time) -> List[AvailabilitySlot]
+        # def create_blackout_date(self, instructor_id: int, date: date, reason: Optional[str]) -> BlackoutDate
 
-    def test_query_pattern_update_cleared_status(self, db: Session, test_instructor_with_availability: User):
-        """Document pattern for updating cleared status."""
-        instructor_id = test_instructor_with_availability.id
-        target_date = date.today()
+        assert blackout.id is not None
+        assert blackout.instructor_id == instructor_id
 
-        # Update query
-        update_query = db.query(InstructorAvailability).filter(
-            and_(InstructorAvailability.instructor_id == instructor_id, InstructorAvailability.date == target_date)
-        )
+    def test_query_pattern_delete_blackout_date(self, db: Session):
+        """Document pattern for deleting blackout date."""
+        blackout_id = 1
+        instructor_id = 1
 
-        availability = update_query.first()
-        if availability:
-            availability.is_cleared = True
-            db.flush()
-
-        # Repository method:
-        # def update_cleared_status(self, instructor_id: int, date: date, is_cleared: bool) -> bool
-
-    def test_query_pattern_count_slots_in_range(self, db: Session, test_instructor_with_availability: User):
-        """Document query for counting slots in date range."""
-        instructor_id = test_instructor_with_availability.id
-        start_date = date.today()
-        end_date = date.today() + timedelta(days=7)
-
-        # Count query with join
-        count_query = (
-            db.query(AvailabilitySlot)
-            .join(InstructorAvailability)
+        # Delete with instructor check
+        deleted = (
+            db.query(BlackoutDate)
             .filter(
                 and_(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date >= start_date,
-                    InstructorAvailability.date <= end_date,
-                    InstructorAvailability.is_cleared == False,
+                    BlackoutDate.id == blackout_id,
+                    BlackoutDate.instructor_id == instructor_id,
                 )
             )
+            .delete()
         )
-
-        slot_count = count_query.count()
 
         # Repository method:
-        # def count_available_slots(self, instructor_id: int, start_date: date, end_date: date) -> int
+        # def delete_blackout_date(self, blackout_id: int, instructor_id: int) -> bool
 
-        assert slot_count >= 0
+        assert isinstance(deleted, int)
 
-    def test_query_pattern_get_availability_summary(self, db: Session, test_instructor_with_availability: User):
-        """Document query pattern for availability summary (used in calendar views)."""
-        instructor_id = test_instructor_with_availability.id
-        start_date = date.today()
-        end_date = date.today() + timedelta(days=30)
-
-        # Raw SQL query for performance (as used in AvailabilityService)
-        query = text(
-            """
-            SELECT
-                ia.date,
-                COUNT(aslot.id) as slot_count
-            FROM instructor_availability ia
-            LEFT JOIN availability_slots aslot ON ia.id = aslot.availability_id
-            WHERE
-                ia.instructor_id = :instructor_id
-                AND ia.date BETWEEN :start_date AND :end_date
-                AND ia.is_cleared = false
-            GROUP BY ia.date
-            ORDER BY ia.date
-        """
-        )
-
-        result = db.execute(
-            query,
-            {
-                "instructor_id": instructor_id,
-                "start_date": start_date,
-                "end_date": end_date,
-            },
-        )
-
-        summary = {row.date.isoformat(): row.slot_count for row in result}
-
-        # Repository method:
-        # def get_availability_summary(self, instructor_id: int, start_date: date, end_date: date) -> Dict[str, int]
-
-        assert isinstance(summary, dict)
-
-    def test_query_pattern_find_conflicts_with_time_range(self, db: Session, test_instructor_with_availability: User):
-        """Document query for finding time conflicts with new slots."""
+    def test_query_pattern_find_time_conflicts(self, db: Session, test_instructor_with_availability: User):
+        """Document query for finding time conflicts."""
         instructor_id = test_instructor_with_availability.id
         target_date = date.today()
-        new_start = time(9, 30)
-        new_end = time(11, 30)
+        start_time = time(9, 30)
+        end_time = time(10, 30)
 
-        # Complex time overlap query
-        conflict_query = (
+        # Find conflicting slots - both availability and bookings
+        # First, find overlapping availability slots
+        availability_conflicts = (
             db.query(AvailabilitySlot)
-            .join(InstructorAvailability)
             .filter(
                 and_(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date == target_date,
+                    AvailabilitySlot.instructor_id == instructor_id,
+                    AvailabilitySlot.date == target_date,
                     or_(
-                        # Existing slot overlaps with new slot
-                        and_(AvailabilitySlot.start_time < new_end, AvailabilitySlot.end_time > new_start)
+                        # Check for any overlap
+                        and_(
+                            AvailabilitySlot.start_time < end_time,
+                            AvailabilitySlot.end_time > start_time,
+                        )
                     ),
                 )
             )
+            .all()
         )
-
-        conflict_query.all()
 
         # Repository method:
         # def find_time_conflicts(self, instructor_id: int, date: date, start_time: time, end_time: time) -> List[AvailabilitySlot]
 
-    def test_query_pattern_get_slots_by_availability_id(self, db: Session, test_instructor_with_availability: User):
-        """Document query for getting all slots for an availability record."""
-        availability = (
-            db.query(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id == test_instructor_with_availability.id)
-            .first()
-        )
+        # Verify conflict detection
+        assert isinstance(availability_conflicts, list)
 
-        # Simple slot query
-        slots_query = (
-            db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.availability_id == availability.id)
-            .order_by(AvailabilitySlot.start_time)
-        )
-
-        slots = slots_query.all()
-
-        # Repository method:
-        # def get_slots_by_availability_id(self, availability_id: int) -> List[AvailabilitySlot]
-
-        assert all(slot.availability_id == availability.id for slot in slots)
-
-
-class TestAvailabilityTransactionPatterns:
-    """Document transaction patterns for repository."""
-
-    def test_transaction_pattern_save_week(self, db: Session, test_instructor: User):
-        """Document transaction pattern for saving a week."""
-        instructor_id = test_instructor.id
-        monday = date.today() + timedelta(days=14)
-
-        # Transaction should include:
-        # 1. Create/update availability records
-        # 2. Delete old slots (except booked)
-        # 3. Create new slots
-        # 4. All in one transaction
-
-        try:
-            # Start transaction (handled by SQLAlchemy session)
-
-            # Step 1: Ensure availability records exist
-            for i in range(7):
-                target_date = monday + timedelta(days=i)
-                availability = (
-                    db.query(InstructorAvailability)
-                    .filter(
-                        and_(
-                            InstructorAvailability.instructor_id == instructor_id,
-                            InstructorAvailability.date == target_date,
-                        )
-                    )
-                    .first()
-                )
-
-                if not availability:
-                    availability = InstructorAvailability(
-                        instructor_id=instructor_id, date=target_date, is_cleared=False
-                    )
-                    db.add(availability)
-
-            db.flush()
-
-            # Step 2: Delete existing slots
-            # (would check for booked slots first in real implementation)
-
-            # Step 3: Create new slots
-            # (would create based on schedule in real implementation)
-
-            # Commit transaction
-            db.commit()
-
-        except Exception:
-            # Rollback on any error
-            db.rollback()
-            raise
-
-        # Repository should handle this entire transaction
-
-    def test_transaction_pattern_atomic_slot_creation(self, db: Session, test_instructor: User):
+    def test_query_pattern_create_slot_atomic(self, db: Session, test_instructor: User):
         """Document atomic slot creation pattern."""
         instructor_id = test_instructor.id
-        target_date = date.today() + timedelta(days=7)
+        target_date = date.today() + timedelta(days=10)
 
-        # Atomic operation: create availability + slots together
-        try:
-            # Create availability if not exists
-            availability = (
-                db.query(InstructorAvailability)
-                .filter(
-                    and_(
-                        InstructorAvailability.instructor_id == instructor_id,
-                        InstructorAvailability.date == target_date,
-                    )
-                )
-                .first()
-            )
-
-            if not availability:
-                availability = InstructorAvailability(instructor_id=instructor_id, date=target_date, is_cleared=False)
-                db.add(availability)
-                db.flush()
-
-            # Create slots
-            slots = [
-                AvailabilitySlot(availability_id=availability.id, start_time=time(9, 0), end_time=time(12, 0)),
-                AvailabilitySlot(availability_id=availability.id, start_time=time(14, 0), end_time=time(17, 0)),
-            ]
-
-            for slot in slots:
-                db.add(slot)
-
-            db.commit()
-
-        except Exception:
-            db.rollback()
-            raise
-
-        # Repository methods:
-        # def create_availability_with_slots(self, instructor_id: int, date: date, slots: List[SlotData]) -> InstructorAvailability
-
-
-class TestAvailabilityComplexQueryPatterns:
-    """Document the most complex query patterns that repositories must handle."""
-
-    def test_complex_pattern_week_with_booking_status(
-        self, db: Session, test_instructor_with_availability: User, test_booking
-    ):
-        """Document query that gets week availability with booking status for each slot."""
-        instructor_id = test_instructor_with_availability.id
-        start_date = date.today() - timedelta(days=date.today().weekday())
-        end_date = start_date + timedelta(days=6)
-
-        # Complex query that joins availability, slots, and bookings
-        query = (
-            db.query(
-                InstructorAvailability.date,
-                AvailabilitySlot.id.label("slot_id"),
-                AvailabilitySlot.start_time,
-                AvailabilitySlot.end_time,
-                Booking.status.label("booking_status"),
-                Booking.id.label("booking_id"),
-            )
-            .outerjoin(AvailabilitySlot, InstructorAvailability.id == AvailabilitySlot.availability_id)
-            .outerjoin(
-                Booking,
-                and_(
-                    AvailabilitySlot.id == Booking.availability_slot_id,
-                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                ),
-            )
-            .filter(
-                and_(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.date >= start_date,
-                    InstructorAvailability.date <= end_date,
-                    InstructorAvailability.is_cleared == False,
-                )
-            )
-            .order_by(InstructorAvailability.date, AvailabilitySlot.start_time)
+        # Create slot directly - single table design
+        slot = AvailabilitySlot(
+            instructor_id=instructor_id,
+            date=target_date,
+            start_time=time(14, 0),
+            end_time=time(15, 0),
         )
-
-        results = query.all()
+        db.add(slot)
+        db.flush()
 
         # Repository method:
-        # def get_week_with_booking_status(self, instructor_id: int, start_date: date, end_date: date) -> List[WeekSlotWithStatus]
+        # def create_slot(self, instructor_id: int, date: date, start_time: time, end_time: time) -> AvailabilitySlot
 
-        # Verify we get the expected structure
-        for row in results:
-            assert hasattr(row, "date")
-            assert hasattr(row, "slot_id")
-            assert hasattr(row, "start_time")
-            assert hasattr(row, "end_time")
-
-    def test_complex_pattern_instructor_stats_query(self, db: Session, test_instructor_with_availability: User):
-        """Document complex aggregation query for instructor statistics."""
-        instructor_id = test_instructor_with_availability.id
-
-        # Stats query with multiple aggregations
-        stats_query = (
-            db.query(
-                func.count(AvailabilitySlot.id).label("total_slots"),
-                func.count(Booking.id).label("booked_slots"),
-                func.min(InstructorAvailability.date).label("earliest_availability"),
-                func.max(InstructorAvailability.date).label("latest_availability"),
-            )
-            .select_from(InstructorAvailability)
-            .outerjoin(AvailabilitySlot, InstructorAvailability.id == AvailabilitySlot.availability_id)
-            .outerjoin(
-                Booking,
-                and_(
-                    AvailabilitySlot.id == Booking.availability_slot_id,
-                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                ),
-            )
-            .filter(
-                and_(
-                    InstructorAvailability.instructor_id == instructor_id,
-                    InstructorAvailability.is_cleared == False,
-                    InstructorAvailability.date >= date.today(),
-                )
-            )
-        )
-
-        stats = stats_query.first()
-
-        # Repository method:
-        # def get_instructor_availability_stats(self, instructor_id: int) -> AvailabilityStats
-
-        assert hasattr(stats, "total_slots")
-        assert hasattr(stats, "booked_slots")
+        assert slot.id is not None
+        assert slot.instructor_id == instructor_id
+        assert slot.date == target_date

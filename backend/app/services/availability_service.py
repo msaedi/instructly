@@ -359,10 +359,10 @@ class AvailabilityService(BaseService):
             ):
                 raise ConflictException("This time slot already exists")
 
-            # Create new slot
+            # Create new slot - FIXED: Using target_date parameter
             slot = self.repository.create_slot(
                 instructor_id=instructor_id,
-                date=availability_data.specific_date,
+                target_date=availability_data.specific_date,
                 start_time=availability_data.start_time,
                 end_time=availability_data.end_time,
             )

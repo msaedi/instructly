@@ -28,6 +28,7 @@ from ..utils.time_helpers import string_to_time
 from .base import BaseService
 
 if TYPE_CHECKING:
+    from ..repositories.availability_repository import AvailabilityRepository
     from ..repositories.week_operation_repository import WeekOperationRepository
     from .availability_service import AvailabilityService
     from .cache_service import CacheService
@@ -51,13 +52,17 @@ class WeekOperationService(BaseService):
         conflict_checker: Optional["ConflictChecker"] = None,
         cache_service: Optional["CacheService"] = None,
         repository: Optional["WeekOperationRepository"] = None,
+        availability_repository: Optional["AvailabilityRepository"] = None,  # ADDED
     ):
         """Initialize week operation service."""
         super().__init__(db, cache=cache_service)
         self.logger = logging.getLogger(__name__)
 
-        # Initialize repository
+        # Initialize repositories
         self.repository = repository or RepositoryFactory.create_week_operation_repository(db)
+        self.availability_repository = availability_repository or RepositoryFactory.create_availability_repository(
+            db
+        )  # ADDED
 
         # Lazy import to avoid circular dependencies
         if availability_service is None:
@@ -108,27 +113,29 @@ class WeekOperationService(BaseService):
             # Get target week dates
             target_week_dates = self.calculate_week_dates(to_week_start)
 
-            # Clear ALL existing slots from target week
-            deleted_count = self.repository.delete_slots_by_dates(instructor_id, target_week_dates)
+            # Clear ALL existing slots from target week - FIXED: Using availability_repository
+            deleted_count = self.availability_repository.delete_slots_by_dates(instructor_id, target_week_dates)
             self.logger.debug(f"Deleted {deleted_count} existing slots from target week")
 
             # Get source week slots
-            source_week_dates = self.calculate_week_dates(from_week_start)
-            source_slots = self.repository.get_week_slots(instructor_id, source_week_dates)
+            self.calculate_week_dates(from_week_start)
+            source_slots = self.repository.get_week_slots(
+                instructor_id, from_week_start, from_week_start + timedelta(days=6)
+            )
 
             # Prepare new slots with updated dates
             new_slots = []
             for slot in source_slots:
                 # Calculate the day offset
-                day_offset = (slot["date"] - from_week_start).days
+                day_offset = (slot.date - from_week_start).days
                 new_date = to_week_start + timedelta(days=day_offset)
 
                 new_slots.append(
                     {
                         "instructor_id": instructor_id,
                         "date": new_date,
-                        "start_time": slot["start_time"],
-                        "end_time": slot["end_time"],
+                        "start_time": slot.start_time,
+                        "end_time": slot.end_time,
                     }
                 )
 
@@ -206,8 +213,8 @@ class WeekOperationService(BaseService):
                 all_dates.append(current_date)
                 current_date += timedelta(days=1)
 
-            # Delete ALL existing slots in the date range
-            deleted_count = self.repository.delete_slots_by_dates(instructor_id, all_dates)
+            # Delete ALL existing slots in the date range - FIXED: Using availability_repository
+            deleted_count = self.availability_repository.delete_slots_by_dates(instructor_id, all_dates)
             self.logger.debug(f"Deleted {deleted_count} existing slots from date range")
 
             # Prepare new slots based on pattern
