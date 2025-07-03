@@ -4,6 +4,11 @@ Integration tests for WeekOperationService database operations.
 
 These tests verify actual database behavior including transactions,
 cascades, and complex multi-table operations.
+
+UPDATED FOR WORK STREAM #10: Single-table availability design.
+- No more InstructorAvailability table
+- Direct slot operations only
+- No cascade operations needed
 """
 
 from datetime import date, time, timedelta
@@ -12,7 +17,7 @@ from unittest.mock import Mock
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models.availability import AvailabilitySlot, InstructorAvailability
+from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.service import Service
 from app.models.user import User
@@ -40,14 +45,12 @@ class TestWeekOperationServiceTransactions:
         from_week = date(2025, 6, 16)  # Monday
         to_week = date(2025, 6, 23)  # Next Monday
 
-        # Create source week availability
+        # Create source week availability with single-table design
         for i in range(7):
             day_date = from_week + timedelta(days=i)
-            avail = InstructorAvailability(instructor_id=test_instructor.id, date=day_date, is_cleared=False)
-            db.add(avail)
-            db.flush()
-
-            slot = AvailabilitySlot(availability_id=avail.id, start_time=time(9, 0), end_time=time(10, 0))
+            slot = AvailabilitySlot(
+                instructor_id=test_instructor.id, date=day_date, start_time=time(9, 0), end_time=time(10, 0)
+            )
             db.add(slot)
 
         db.commit()
@@ -65,20 +68,22 @@ class TestWeekOperationServiceTransactions:
     async def test_copy_week_preserves_bookings(
         self, db: Session, service: WeekOperationService, test_instructor_with_availability: User, test_student: User
     ):
-        """Test that copy week preserves existing bookings."""
+        """Test that copy week with Work Stream #9 layer independence.
+
+        With layer independence, bookings exist independently of availability changes.
+        Copy week will create new slots, existing bookings remain untouched.
+        """
         instructor = test_instructor_with_availability
         from_week = date.today() - timedelta(days=date.today().weekday())  # This Monday
         to_week = from_week + timedelta(weeks=1)  # Next Monday
 
-        # Create a booking in target week
+        # Create a booking in target week (single-table design)
         target_date = to_week + timedelta(days=2)  # Wednesday
 
-        # First create availability for target
-        target_avail = InstructorAvailability(instructor_id=instructor.id, date=target_date, is_cleared=False)
-        db.add(target_avail)
-        db.flush()
-
-        target_slot = AvailabilitySlot(availability_id=target_avail.id, start_time=time(14, 0), end_time=time(15, 0))
+        # First create slot for target
+        target_slot = AvailabilitySlot(
+            instructor_id=instructor.id, date=target_date, start_time=time(14, 0), end_time=time(15, 0)
+        )
         db.add(target_slot)
         db.flush()
 
@@ -108,21 +113,17 @@ class TestWeekOperationServiceTransactions:
         # Disable cache for testing
         service.cache_service = None
 
-        # Copy week
-        result = await service.copy_week_availability(instructor.id, from_week, to_week)
+        # Copy week - with layer independence, all slots are created
+        await service.copy_week_availability(instructor.id, from_week, to_week)
 
-        # Verify booking still exists
+        # Verify booking still exists (layer independence)
         preserved_booking = db.query(Booking).filter(Booking.id == booking.id).first()
         assert preserved_booking is not None
         assert preserved_booking.status == BookingStatus.CONFIRMED
 
-        # Check metadata if present
-        if "_metadata" in result:
-            assert len(result["_metadata"]["dates_with_preserved_bookings"]) > 0
-
 
 class TestWeekOperationBulkOperations:
-    """Test bulk database operations."""
+    """Test bulk database operations with single-table design."""
 
     @pytest.fixture
     def service(self, db: Session):
@@ -134,17 +135,18 @@ class TestWeekOperationBulkOperations:
         self, db: Session, service: WeekOperationService, test_instructor: User
     ):
         """Test bulk operations in apply_pattern_to_date_range."""
-        # Create source pattern
+        # Create source pattern with single-table design
         pattern_week = date(2025, 6, 16)
         for i in range(3):  # Mon, Tue, Wed
             day_date = pattern_week + timedelta(days=i)
-            avail = InstructorAvailability(instructor_id=test_instructor.id, date=day_date, is_cleared=False)
-            db.add(avail)
-            db.flush()
-
             # Multiple slots per day
             for hour in [9, 11, 14]:
-                slot = AvailabilitySlot(availability_id=avail.id, start_time=time(hour, 0), end_time=time(hour + 1, 0))
+                slot = AvailabilitySlot(
+                    instructor_id=test_instructor.id,
+                    date=day_date,
+                    start_time=time(hour, 0),
+                    end_time=time(hour + 1, 0),
+                )
                 db.add(slot)
 
         db.commit()
@@ -159,53 +161,64 @@ class TestWeekOperationBulkOperations:
         result = await service.apply_pattern_to_date_range(test_instructor.id, pattern_week, start_date, end_date)
 
         # Verify bulk operations completed
-        assert result["dates_created"] + result["dates_modified"] > 0
+        assert result["dates_processed"] > 0
         assert result["slots_created"] > 0
 
-        # Verify data integrity
-        created_avails = (
-            db.query(InstructorAvailability)
+        # Verify data integrity with single-table design
+        created_slots = (
+            db.query(AvailabilitySlot)
             .filter(
-                InstructorAvailability.instructor_id == test_instructor.id,
-                InstructorAvailability.date >= start_date,
-                InstructorAvailability.date <= end_date,
+                AvailabilitySlot.instructor_id == test_instructor.id,
+                AvailabilitySlot.date >= start_date,
+                AvailabilitySlot.date <= end_date,
             )
             .all()
         )
 
-        assert len(created_avails) > 0
+        assert len(created_slots) > 0
 
     def test_bulk_create_slots_performance(self, db: Session, service: WeekOperationService, test_instructor: User):
-        """Test bulk slot creation performance."""
-        # Create availability entry
-        avail = InstructorAvailability(
-            instructor_id=test_instructor.id, date=date.today(), is_cleared=False  # Use fixture instead of hardcoded ID
-        )
-        db.add(avail)
-        db.flush()
-
+        """Test bulk slot creation performance with single-table design."""
         # Prepare bulk slot data
         slots_data = []
+        test_date = date.today() + timedelta(days=7)  # Future date
+
         for hour in range(8, 18):  # 8 AM to 5 PM
-            slots_data.append({"availability_id": avail.id, "start_time": time(hour, 0), "end_time": time(hour, 30)})
             slots_data.append(
-                {"availability_id": avail.id, "start_time": time(hour, 30), "end_time": time(hour + 1, 0)}
+                {
+                    "instructor_id": test_instructor.id,
+                    "date": test_date,
+                    "start_time": time(hour, 0),
+                    "end_time": time(hour, 30),
+                }
+            )
+            slots_data.append(
+                {
+                    "instructor_id": test_instructor.id,
+                    "date": test_date,
+                    "start_time": time(hour, 30),
+                    "end_time": time(hour + 1, 0),
+                }
             )
 
-        # Bulk create
-        created_count = service._bulk_create_slots(slots_data)
+        # Bulk create using repository
+        created_count = service.repository.bulk_create_slots(slots_data)
         db.commit()
 
         assert created_count == 20  # 10 hours * 2 slots per hour
 
-        # Verify all created
-        slots = db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == avail.id).all()
+        # Verify all created with single-table design
+        slots = (
+            db.query(AvailabilitySlot)
+            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.date == test_date)
+            .all()
+        )
 
         assert len(slots) == 20
 
 
-class TestWeekOperationConflictHandling:
-    """Test conflict handling during week operations."""
+class TestWeekOperationWithBookings:
+    """Test week operations with existing bookings (layer independence)."""
 
     @pytest.fixture
     def service(self, db: Session):
@@ -215,23 +228,25 @@ class TestWeekOperationConflictHandling:
         return WeekOperationService(db, availability_service, conflict_checker)
 
     @pytest.mark.asyncio
-    async def test_copy_week_with_conflicts(
+    async def test_copy_week_with_bookings(
         self, db: Session, service: WeekOperationService, test_instructor_with_availability: User, test_student: User
     ):
-        """Test copying week when target has conflicting bookings."""
+        """Test copying week when target has bookings.
+
+        With layer independence (Work Stream #9), all slots are copied
+        regardless of existing bookings.
+        """
         instructor = test_instructor_with_availability
         from_week = date.today() - timedelta(days=date.today().weekday())
         to_week = from_week + timedelta(weeks=1)
 
-        # Create overlapping booking in target week
+        # Create booking in target week with single-table design
         target_date = to_week + timedelta(days=1)  # Tuesday
 
-        # Create availability and slot
-        avail = InstructorAvailability(instructor_id=instructor.id, date=target_date, is_cleared=False)
-        db.add(avail)
-        db.flush()
-
-        slot = AvailabilitySlot(availability_id=avail.id, start_time=time(9, 0), end_time=time(11, 0))  # 2-hour slot
+        # Create slot
+        slot = AvailabilitySlot(
+            instructor_id=instructor.id, date=target_date, start_time=time(9, 0), end_time=time(11, 0)  # 2-hour slot
+        )
         db.add(slot)
         db.flush()
 
@@ -260,15 +275,14 @@ class TestWeekOperationConflictHandling:
         # Disable cache for testing
         service.cache_service = None
 
-        # Copy week - should skip conflicting slots
+        # Copy week - all slots created (layer independence)
         result = await service.copy_week_availability(instructor.id, from_week, to_week)
 
         # Verify booking preserved
         assert db.query(Booking).filter(Booking.id == booking.id).first() is not None
 
-        # Check if metadata reports conflicts
-        if "_metadata" in result:
-            assert result["_metadata"]["slots_skipped"] >= 0
+        # Slots are created regardless of bookings
+        assert result["_metadata"]["slots_created"] >= 0
 
 
 class TestWeekOperationDateCalculations:
@@ -290,7 +304,11 @@ class TestWeekOperationDateCalculations:
             assert week_dates[i] == week_dates[i - 1] + timedelta(days=1)
 
     def test_week_pattern_extraction(self, db: Session):
-        """Test extracting weekly patterns."""
+        """Test extracting weekly patterns.
+
+        UPDATED: With single-table design, days without slots don't appear in pattern.
+        This is correct behavior - empty days are not tracked.
+        """
         service = WeekOperationService(db)
 
         # Create mock week data
@@ -306,8 +324,7 @@ class TestWeekOperationDateCalculations:
 
         assert "Monday" in pattern
         assert "Tuesday" in pattern
-        assert "Wednesday" in pattern  # Empty days ARE included
-        assert len(pattern["Wednesday"]) == 0  # But the list is empty
+        assert "Wednesday" not in pattern  # Empty days NOT included - this is correct!
         assert "Thursday" in pattern
         assert len(pattern["Monday"]) == 1
         assert pattern["Monday"][0]["start_time"] == "09:00"
@@ -331,13 +348,15 @@ class TestWeekOperationCacheIntegration:
         # Disable cache to avoid warming strategy issues
         service = WeekOperationService(db, cache_service=None)
 
-        # Create minimal test data
+        # Create minimal test data with single-table design
         from_week = date(2025, 6, 16)
         to_week = date(2025, 6, 23)
 
         # Add source week data
-        avail = InstructorAvailability(instructor_id=test_instructor.id, date=from_week, is_cleared=False)
-        db.add(avail)
+        slot = AvailabilitySlot(
+            instructor_id=test_instructor.id, date=from_week, start_time=time(9, 0), end_time=time(10, 0)
+        )
+        db.add(slot)
         db.commit()
 
         # Execute copy
@@ -393,30 +412,54 @@ class TestWeekOperationErrorHandling:
         to_week = date(2025, 6, 25)  # Wednesday
 
         # Should log warnings but still process
-        result = await service.copy_week_availability(test_instructor.id, from_week, to_week)  # Use fixture
+        result = await service.copy_week_availability(test_instructor.id, from_week, to_week)
 
         # Operation should complete
         assert result is not None
 
     @pytest.mark.asyncio
-    async def test_apply_pattern_database_error_handling(self, db: Session, test_instructor: User):
-        """Test handling of database errors during apply pattern."""
+    async def test_apply_pattern_empty_source(self, db: Session, test_instructor: User):
+        """Test applying pattern from empty week."""
         service = WeekOperationService(db)
 
-        # Create pattern week
+        # Create empty pattern week
         pattern_week = date(2025, 6, 16)
-        avail = InstructorAvailability(instructor_id=test_instructor.id, date=pattern_week, is_cleared=False)
-        db.add(avail)
-        db.commit()
+        # No slots created
 
         # Disable cache
         service.cache_service = None
 
-        # The operation should handle errors gracefully
-        # Not expecting an exception anymore
+        # Apply empty pattern
         result = await service.apply_pattern_to_date_range(
             test_instructor.id, pattern_week, date(2025, 7, 1), date(2025, 7, 7)
         )
 
-        # Should complete
+        # Should complete with no slots created
         assert result is not None
+        assert result["slots_created"] == 0
+
+    @pytest.mark.asyncio
+    async def test_apply_pattern_large_range(self, db: Session, test_instructor: User):
+        """Test applying pattern to very large date range."""
+        service = WeekOperationService(db)
+
+        # Create simple pattern with single-table design
+        pattern_week = date(2025, 6, 16)
+        slot = AvailabilitySlot(
+            instructor_id=test_instructor.id, date=pattern_week, start_time=time(9, 0), end_time=time(10, 0)
+        )
+        db.add(slot)
+        db.commit()
+
+        # Apply to 3-month range
+        start_date = date(2025, 7, 1)
+        end_date = date(2025, 9, 30)
+
+        # Disable cache for performance
+        service.cache_service = None
+
+        result = await service.apply_pattern_to_date_range(test_instructor.id, pattern_week, start_date, end_date)
+
+        # Should handle large range
+        assert result is not None
+        assert result["dates_processed"] > 90  # ~92 days

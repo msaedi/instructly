@@ -3,6 +3,11 @@
 """
 Improved test script for week operations with better error handling.
 Updated to use the availability test helper.
+
+UPDATED FOR WORK STREAM #10: Single-table availability design.
+- Direct slot operations
+- No more InstructorAvailability
+- Simplified expectations
 """
 
 import time
@@ -67,7 +72,6 @@ def test_copy_week_with_validation(db: Session, test_instructor_with_availabilit
 
     if result.get("success"):
         print(f"\n   Results:")
-        print(f"   - Days created: {result.get('days_created', 0)}")
         print(f"   - Slots created: {result.get('slots_created', 0)}")
 
         # Verify the copy using helper
@@ -169,7 +173,7 @@ def test_apply_pattern_validation(db: Session, test_instructor_with_availability
         print(f"   Apply failed: {result.get('message', 'Unknown error')}")
 
 
-@pytest.mark.skip(reason="Flaky test - depends on specific cache timing behavior")
+@pytest.mark.skip(reason="Cache consistency test requires specific cache configuration")
 def test_cache_consistency(db: Session, test_instructor_with_availability: User):
     """Test that operations maintain cache consistency.
 
@@ -230,7 +234,7 @@ def test_cache_consistency(db: Session, test_instructor_with_availability: User)
 
 # Add pytest-style tests as well
 def test_week_operations_pytest(db: Session, test_instructor_with_availability: User):
-    """Pytest-compatible test for week operations."""
+    """Pytest-compatible test for week operations with single-table design."""
     helper = get_availability_helper(db)
 
     # Simple copy week test
@@ -253,3 +257,57 @@ def test_week_operations_pytest(db: Session, test_instructor_with_availability: 
     assert result is not None
     assert "success" in result
     assert result["success"] is True
+    # With single-table design, we track slots_created not days_created
+    assert "slots_created" in result or "total_slots_created" in result
+
+
+def test_pattern_application_pytest(db: Session, test_instructor_with_availability: User):
+    """Test pattern application with single-table design."""
+    helper = get_availability_helper(db)
+
+    # Setup pattern week
+    today = date.today()
+    pattern_monday = today + timedelta(days=(7 - today.weekday()) % 7 or 7)
+
+    # Create pattern
+    helper.set_day_availability(
+        instructor_id=test_instructor_with_availability.id,
+        date=pattern_monday,
+        slots=[{"start_time": "09:00:00", "end_time": "10:00:00"}, {"start_time": "14:00:00", "end_time": "16:00:00"}],
+    )
+
+    # Apply to future range
+    start_date = pattern_monday + timedelta(days=14)
+    end_date = start_date + timedelta(days=6)
+
+    result = helper.apply_week_pattern(
+        instructor_id=test_instructor_with_availability.id,
+        from_week_start=pattern_monday,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+    assert result is not None
+    assert result.get("success") is True
+    assert result.get("total_slots_created", 0) > 0
+
+
+def test_empty_week_copy(db: Session, test_instructor_with_availability: User):
+    """Test copying an empty week with single-table design."""
+    helper = get_availability_helper(db)
+
+    # Get two future weeks
+    today = date.today()
+    from_week = today + timedelta(days=(7 - today.weekday()) % 7 or 7)
+    to_week = from_week + timedelta(days=7)
+
+    # Don't create any slots in source week
+
+    # Copy empty week
+    result = helper.copy_week(
+        instructor_id=test_instructor_with_availability.id, from_week_start=from_week, to_week_start=to_week
+    )
+
+    assert result is not None
+    assert result.get("success") is True
+    assert result.get("slots_created", 0) == 0
