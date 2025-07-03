@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 # backend/scripts/reset_and_seed_database_enhanced.py
 """
-Enhanced Database reset and seed script with soft delete testing.
+Enhanced Database reset and seed script with clean architecture.
 
-UPDATED for Work Stream #10: Single-table availability design.
-- No more InstructorAvailability table
-- AvailabilitySlot now contains instructor_id and date directly
-- Simplified slot creation process
+UPDATED for Clean Architecture: Complete booking/availability separation.
+- Bookings are self-contained with all necessary data
+- No references between bookings and availability slots
+- Demonstrates layer independence
 
 Features:
-- Creates past bookings with services that will be soft deleted
-- Generates availability and bookings in past 2 weeks and future 3 weeks
-- Tests copy from previous week functionality
+- Creates realistic availability patterns
+- Generates bookings as independent commitments
+- Tests soft delete functionality
 - Creates realistic workload patterns
-- Bookings exist independently of availability slots
+- Demonstrates that bookings persist regardless of availability changes
 """
 
 import logging
@@ -62,7 +62,7 @@ NYC_AREAS = [
     "Queens - Astoria",
 ]
 
-# Instructor templates with services that will be soft deleted
+# Instructor templates with services
 INSTRUCTOR_TEMPLATES = [
     {
         "name": "Sarah Chen",
@@ -73,9 +73,10 @@ INSTRUCTOR_TEMPLATES = [
         "services": [
             {"skill": "Piano", "rate": 80, "desc": "Classical and jazz piano for all levels"},
             {"skill": "Music Theory", "rate": 70, "desc": "Comprehensive music theory and composition"},
+            {"skill": "Sight Reading", "rate": 60, "desc": "Sight reading practice sessions"},
         ],
-        # Service that will be soft deleted after creating past bookings
-        "deprecated_service": {"skill": "Sight Reading", "rate": 60, "desc": "Sight reading practice sessions"},
+        # Service that will be soft deleted after creating bookings
+        "service_to_soft_delete": "Sight Reading",
     },
     {
         "name": "Michael Rodriguez",
@@ -86,9 +87,9 @@ INSTRUCTOR_TEMPLATES = [
         "services": [
             {"skill": "Guitar", "rate": 75, "desc": "Electric and acoustic guitar lessons"},
             {"skill": "Bass Guitar", "rate": 75, "desc": "Bass guitar fundamentals and advanced techniques"},
+            {"skill": "Ukulele", "rate": 50, "desc": "Beginner ukulele lessons"},
         ],
-        # Service that will be soft deleted
-        "deprecated_service": {"skill": "Ukulele", "rate": 50, "desc": "Beginner ukulele lessons"},
+        "service_to_soft_delete": "Ukulele",
     },
     {
         "name": "Emily Watson",
@@ -100,7 +101,7 @@ INSTRUCTOR_TEMPLATES = [
             {"skill": "Math Tutoring", "rate": 90, "desc": "Algebra, Calculus, and Statistics"},
             {"skill": "SAT/ACT Prep", "rate": 100, "desc": "Comprehensive test preparation"},
         ],
-        "deprecated_service": None,  # Not all instructors need deprecated services
+        "service_to_soft_delete": None,  # Not all instructors need soft deleted services
     },
     {
         "name": "James Kim",
@@ -111,8 +112,9 @@ INSTRUCTOR_TEMPLATES = [
         "services": [
             {"skill": "Python Programming", "rate": 95, "desc": "From basics to advanced Python development"},
             {"skill": "Web Development", "rate": 100, "desc": "HTML, CSS, JavaScript, and React"},
+            {"skill": "Java Programming", "rate": 90, "desc": "Java fundamentals and OOP"},
         ],
-        "deprecated_service": {"skill": "Java Programming", "rate": 90, "desc": "Java fundamentals and OOP"},
+        "service_to_soft_delete": "Java Programming",
     },
 ]
 
@@ -162,7 +164,7 @@ def cleanup_database(session: Session) -> List[int]:
             )
         ).delete(synchronize_session=False)
 
-        # 2. Delete availability slots (now direct, no intermediate table)
+        # 2. Delete availability slots
         session.query(AvailabilitySlot).filter(AvailabilitySlot.instructor_id.in_(user_ids_to_delete)).delete(
             synchronize_session=False
         )
@@ -202,7 +204,7 @@ def cleanup_database(session: Session) -> List[int]:
 
 
 def create_dummy_instructors(session: Session):
-    """Create dummy instructors with realistic availability including past weeks."""
+    """Create dummy instructors with realistic availability patterns."""
     logger.info("Creating dummy instructors...")
 
     for template in INSTRUCTOR_TEMPLATES:
@@ -211,7 +213,7 @@ def create_dummy_instructors(session: Session):
             email=template["email"],
             full_name=template["name"],
             hashed_password=get_password_hash(TEST_PASSWORD),
-            role=UserRole.INSTRUCTOR,  # Now using VARCHAR, this will just be the string value
+            role=UserRole.INSTRUCTOR,
             is_active=True,
         )
         session.add(user)
@@ -229,42 +231,25 @@ def create_dummy_instructors(session: Session):
         session.add(profile)
         session.flush()
 
-        # Create services (including deprecated one if exists)
-        services_created = []
-
-        # Add regular services
+        # Create services
+        services_created = {}
         for svc in template["services"]:
             service = Service(
                 instructor_profile_id=profile.id,
                 skill=svc["skill"],
                 hourly_rate=svc["rate"],
                 description=svc["desc"],
-                is_active=True,  # Active services
+                is_active=True,
             )
             session.add(service)
             session.flush()
-            services_created.append(service)
+            services_created[svc["skill"]] = service
 
-        # Add deprecated service if exists
-        deprecated_service = None
-        if template.get("deprecated_service"):
-            svc = template["deprecated_service"]
-            deprecated_service = Service(
-                instructor_profile_id=profile.id,
-                skill=svc["skill"],
-                hourly_rate=svc["rate"],
-                description=svc["desc"],
-                is_active=True,  # Start as active, will be soft deleted later
-            )
-            session.add(deprecated_service)
-            session.flush()
-
-        # Create availability from 2 weeks ago to 3 weeks in future
+        # Create availability patterns
         create_realistic_availability_with_past(session, user.id)
 
         # Store for later processing
         template["_user_id"] = user.id
-        template["_deprecated_service_id"] = deprecated_service.id if deprecated_service else None
         template["_services"] = services_created
 
     session.commit()
@@ -272,7 +257,7 @@ def create_dummy_instructors(session: Session):
 
 
 def create_realistic_availability_with_past(session: Session, instructor_id: int):
-    """Create availability including past 2 weeks and future 3 weeks using single-table design."""
+    """Create availability patterns including past and future weeks."""
     today = date.today()
     start_date = today - timedelta(weeks=2)  # 2 weeks ago
     end_date = today + timedelta(weeks=3)  # 3 weeks in future
@@ -306,7 +291,7 @@ def create_realistic_availability_with_past(session: Session, instructor_id: int
             current_date += timedelta(days=1)
             continue
 
-        # Add time slots based on pattern - SINGLE TABLE DESIGN
+        # Add time slots based on pattern
         for start_hour, end_hour in pattern:
             # Occasionally adjust times slightly for variety
             if random.random() < 0.3:
@@ -317,7 +302,7 @@ def create_realistic_availability_with_past(session: Session, instructor_id: int
             start_hour = max(8, min(20, start_hour))
             end_hour = max(start_hour + 1, min(21, end_hour))
 
-            # Create slot directly with instructor_id and date
+            # Create slot with instructor_id and date
             slot = AvailabilitySlot(
                 instructor_id=instructor_id,
                 date=current_date,
@@ -338,7 +323,7 @@ def create_dummy_students(session: Session):
             email=template["email"],
             full_name=template["name"],
             hashed_password=get_password_hash(TEST_PASSWORD),
-            role=UserRole.STUDENT,  # Now using VARCHAR, this will just be the string value
+            role=UserRole.STUDENT,
             is_active=True,
         )
         session.add(user)
@@ -347,36 +332,32 @@ def create_dummy_students(session: Session):
     logger.info(f"Created {len(STUDENT_TEMPLATES)} students")
 
 
-def create_sample_bookings_with_deprecated(session: Session):
+def create_sample_bookings(session: Session):
     """
-    Create bookings including past bookings with services that will be soft deleted.
+    Create bookings as self-contained records.
 
-    UPDATED: Bookings are created independently without referencing availability_slot_id.
-    This implements the architectural principle that bookings are independent commitments.
+    Bookings store all necessary information directly and don't reference
+    availability slots. This demonstrates the clean architecture principle
+    that bookings are independent commitments.
     """
-    logger.info("Creating sample bookings (independent of availability slots)...")
+    logger.info("Creating sample bookings (self-contained records)...")
 
     students = session.query(User).filter(User.role == UserRole.STUDENT).all()
     today = date.today()
     bookings_created = 0
-    deprecated_bookings_created = 0
+    past_bookings_created = 0
 
     for template in INSTRUCTOR_TEMPLATES:
         if "_user_id" not in template:
             continue
 
         instructor_id = template["_user_id"]
-        deprecated_service_id = template.get("_deprecated_service_id")
-
-        # Get all services for this instructor
-        services = (
-            session.query(Service).join(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).all()
-        )
+        services = template.get("_services", {})
 
         if not services:
             continue
 
-        # Get instructor's typical schedule pattern (just for realistic booking times)
+        # Get instructor's typical time patterns from availability
         instructor_slots = (
             session.query(AvailabilitySlot)
             .filter(
@@ -387,7 +368,7 @@ def create_sample_bookings_with_deprecated(session: Session):
             .all()
         )
 
-        # Extract typical time patterns from availability
+        # Extract typical time patterns
         typical_times = []
         for slot in instructor_slots[:10]:  # Sample some slots
             typical_times.append((slot.start_time, slot.end_time))
@@ -396,12 +377,13 @@ def create_sample_bookings_with_deprecated(session: Session):
             # Default times if no availability found
             typical_times = [(time(9, 0), time(10, 0)), (time(14, 0), time(15, 0))]
 
-        # Create past bookings with deprecated service
-        if deprecated_service_id:
-            deprecated_service = session.query(Service).filter(Service.id == deprecated_service_id).first()
+        # Create past bookings with service that will be soft deleted
+        service_to_soft_delete = template.get("service_to_soft_delete")
+        if service_to_soft_delete and service_to_soft_delete in services:
+            service = services[service_to_soft_delete]
 
-            # Create 5 past bookings with deprecated service
-            for i in range(5):
+            # Create 3-5 past bookings with this service
+            for i in range(random.randint(3, 5)):
                 # Random date in the past 2 weeks
                 booking_date = today - timedelta(days=random.randint(7, 14))
 
@@ -417,27 +399,28 @@ def create_sample_bookings_with_deprecated(session: Session):
                 end_datetime = datetime.combine(date.today(), end_time)
                 duration_minutes = int((end_datetime - start_datetime).total_seconds() / 60)
 
+                # Create self-contained booking
                 booking = Booking(
                     student_id=student.id,
                     instructor_id=instructor_id,
-                    service_id=deprecated_service_id,
-                    availability_slot_id=None,  # UPDATED: No longer set
+                    service_id=service.id,
                     booking_date=booking_date,
                     start_time=start_time,
                     end_time=end_time,
-                    service_name=deprecated_service.skill,
-                    hourly_rate=deprecated_service.hourly_rate,
-                    total_price=Decimal(str(deprecated_service.hourly_rate * duration_minutes / 60)),
+                    service_name=service.skill,
+                    hourly_rate=service.hourly_rate,
+                    total_price=Decimal(str(service.hourly_rate * duration_minutes / 60)),
                     duration_minutes=duration_minutes,
-                    status=BookingStatus.COMPLETED,  # Past bookings are completed
+                    status=BookingStatus.COMPLETED,
                     location_type=random.choice(["student_home", "instructor_location", "neutral"]),
                     meeting_location=f"{random.choice(['Student home', 'Instructor studio', 'Local library'])}",
+                    student_note="Looking forward to the lesson!",
                     created_at=booking_date - timedelta(days=2),
                     confirmed_at=booking_date - timedelta(days=2),
                     completed_at=booking_date + timedelta(hours=duration_minutes / 60),
                 )
                 session.add(booking)
-                deprecated_bookings_created += 1
+                past_bookings_created += 1
 
         # Create regular bookings (past and future)
         # Generate dates from 2 weeks ago to 3 weeks future
@@ -455,21 +438,18 @@ def create_sample_bookings_with_deprecated(session: Session):
         for booking_date in dates_to_book:
             student = random.choice(students)
 
-            # Use only active services for regular bookings
-            active_services = [s for s in services if s.is_active and s.id != deprecated_service_id]
-            if not active_services:
+            # Pick a service (excluding the one to be soft deleted for future bookings)
+            available_services = [s for name, s in services.items() if s.is_active]
+            if booking_date >= today and service_to_soft_delete:
+                available_services = [s for name, s in services.items() if name != service_to_soft_delete]
+
+            if not available_services:
                 continue
 
-            service = random.choice(active_services)
+            service = random.choice(available_services)
 
-            # Choose random time from typical patterns
-            if typical_times:
-                start_time, end_time = random.choice(typical_times)
-            else:
-                # Generate random time if no pattern
-                start_hour = random.randint(9, 18)
-                start_time = time(start_hour, 0)
-                end_time = time(start_hour + random.randint(1, 2), 0)
+            # Choose time based on typical patterns
+            start_time, end_time = random.choice(typical_times)
 
             # Calculate duration
             start_datetime = datetime.combine(date.today(), start_time)
@@ -479,16 +459,14 @@ def create_sample_bookings_with_deprecated(session: Session):
             # Determine booking status based on date
             if booking_date < today:
                 status = BookingStatus.COMPLETED
-            elif booking_date == today:
-                status = BookingStatus.CONFIRMED
             else:
                 status = BookingStatus.CONFIRMED
 
+            # Create self-contained booking
             booking = Booking(
                 student_id=student.id,
                 instructor_id=instructor_id,
                 service_id=service.id,
-                availability_slot_id=None,  # UPDATED: No longer set
                 booking_date=booking_date,
                 start_time=start_time,
                 end_time=end_time,
@@ -499,6 +477,9 @@ def create_sample_bookings_with_deprecated(session: Session):
                 status=status,
                 location_type=random.choice(["student_home", "instructor_location", "neutral"]),
                 meeting_location=f"{random.choice(['Student home', 'Instructor studio', 'Local library'])}",
+                student_note=random.choice(
+                    ["Looking forward to the lesson!", "Please focus on fundamentals", "I've been practicing!", None]
+                ),
                 created_at=datetime.now() - timedelta(days=random.randint(1, 14)),
                 confirmed_at=datetime.now() - timedelta(days=random.randint(1, 14)),
                 completed_at=datetime.now() if status == BookingStatus.COMPLETED else None,
@@ -508,19 +489,20 @@ def create_sample_bookings_with_deprecated(session: Session):
 
     session.commit()
     logger.info(f"Created {bookings_created} regular bookings")
-    logger.info(f"Created {deprecated_bookings_created} bookings with services to be soft deleted")
-    logger.info("Note: Bookings are now independent of availability slots (Work Stream #9)")
+    logger.info(f"Created {past_bookings_created} past bookings with services to be soft deleted")
+    logger.info("All bookings are self-contained with complete information")
 
 
-def soft_delete_deprecated_services(session: Session):
-    """Soft delete the deprecated services that have bookings."""
-    logger.info("Soft deleting deprecated services...")
+def soft_delete_services(session: Session):
+    """Soft delete services that have bookings."""
+    logger.info("Soft deleting services with bookings...")
 
     soft_deleted_count = 0
 
     for template in INSTRUCTOR_TEMPLATES:
-        if "_deprecated_service_id" in template and template["_deprecated_service_id"]:
-            service = session.query(Service).filter(Service.id == template["_deprecated_service_id"]).first()
+        service_to_soft_delete = template.get("service_to_soft_delete")
+        if service_to_soft_delete and "_services" in template:
+            service = template["_services"].get(service_to_soft_delete)
 
             if service and service.is_active:
                 # Check if service has bookings
@@ -547,7 +529,7 @@ def test_layer_independence(session: Session):
     )
 
     if past_booking:
-        # Find availability slots for that instructor on that date (single-table query)
+        # Find availability slots for that instructor on that date
         slots = (
             session.query(AvailabilitySlot)
             .filter(
@@ -573,6 +555,9 @@ def test_layer_independence(session: Session):
             if booking_check:
                 logger.info("✅ SUCCESS: Booking persists after availability deletion!")
                 logger.info(f"   Booking {booking_check.id} still exists for {booking_check.service_name}")
+                logger.info(
+                    f"   Date: {booking_check.booking_date}, Time: {booking_check.start_time}-{booking_check.end_time}"
+                )
             else:
                 logger.error("❌ FAILURE: Booking was deleted with availability!")
         else:
@@ -584,8 +569,7 @@ def test_layer_independence(session: Session):
 def main():
     """Main function."""
     logger.info("Starting enhanced database reset and seed process...")
-    logger.info("UPDATED: Work Stream #10 - Single-table availability design")
-    logger.info("UPDATED: Work Stream #9 - Bookings independent of availability slots")
+    logger.info("CLEAN ARCHITECTURE: Complete booking/availability separation")
 
     engine = create_engine(settings.database_url, pool_pre_ping=True)
     session = Session(engine)
@@ -598,11 +582,11 @@ def main():
         create_dummy_instructors(session)
         create_dummy_students(session)
 
-        # Step 3: Create bookings (now independent of availability slots)
-        create_sample_bookings_with_deprecated(session)
+        # Step 3: Create bookings as self-contained records
+        create_sample_bookings(session)
 
-        # Step 4: Soft delete deprecated services
-        soft_delete_deprecated_services(session)
+        # Step 4: Soft delete services with bookings
+        soft_delete_services(session)
 
         # Step 5: Test layer independence
         test_layer_independence(session)
@@ -659,15 +643,12 @@ def main():
         logger.info("  - Michael Rodriguez: 'Ukulele' service soft deleted")
         logger.info("  - James Kim: 'Java Programming' service soft deleted")
 
-        logger.info("\n🎯 ARCHITECTURAL CHANGES:")
-        logger.info("  Work Stream #9:")
-        logger.info("  - Bookings no longer reference availability_slot_id")
-        logger.info("  - Bookings are independent commitments")
+        logger.info("\n🎯 CLEAN ARCHITECTURE PRINCIPLES:")
+        logger.info("  - Bookings are self-contained records")
+        logger.info("  - No references between bookings and availability slots")
+        logger.info("  - Bookings store all necessary data directly")
         logger.info("  - Availability can be modified without affecting bookings")
-        logger.info("\n  Work Stream #10:")
-        logger.info("  - Single-table availability design")
-        logger.info("  - No more InstructorAvailability table")
-        logger.info("  - AvailabilitySlot contains instructor_id and date directly")
+        logger.info("  - Demonstrates complete layer independence")
 
     except Exception as e:
         logger.error(f"Error during database reset: {str(e)}")

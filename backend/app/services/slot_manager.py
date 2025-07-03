@@ -2,19 +2,20 @@
 """
 Slot Manager Service for InstaInstru Platform
 
-UPDATED FOR WORK STREAM #10: Single-table availability design.
+UPDATED FOR CLEAN ARCHITECTURE: Pure CRUD operations for availability slots.
 
 Manages time slot operations including:
 - Creating, updating, and deleting slots
 - Merging overlapping slots
-- Slot validation and optimization
+- Slot validation
 - Time slot calculations
 
-All methods now use instructor_id + date instead of availability_id.
+This service is now purely focused on availability slot management.
+All booking-related logic has been moved to BookingService.
 """
 
 import logging
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
@@ -33,8 +34,9 @@ class SlotManager(BaseService):
     """
     Service for managing availability time slots.
 
-    Handles all slot-level operations and ensures data integrity
-    when manipulating time slots.
+    Handles all slot-level CRUD operations and ensures data integrity
+    when manipulating time slots. Pure availability management without
+    any booking concerns.
     """
 
     def __init__(
@@ -57,21 +59,19 @@ class SlotManager(BaseService):
         target_date: date,
         start_time: time,
         end_time: time,
-        validate_conflicts: bool = True,  # DEPRECATED - kept for backward compatibility
         auto_merge: bool = True,
     ) -> AvailabilitySlot:
         """
         Create a new availability slot.
 
-        UPDATED: Now uses instructor_id and date instead of availability_id.
-        No longer checks for booking conflicts (layer independence).
+        Pure CRUD operation for creating availability slots.
+        No booking validation needed.
 
         Args:
             instructor_id: The instructor ID
             target_date: The date for the slot
             start_time: Start time of the slot
             end_time: End time of the slot
-            validate_conflicts: DEPRECATED - ignored for layer independence
             auto_merge: Whether to merge with adjacent slots
 
         Returns:
@@ -98,7 +98,7 @@ class SlotManager(BaseService):
             instructor_id=instructor_id, date=target_date, start_time=start_time, end_time=end_time
         )
 
-        # Always merge if requested - don't check for bookings
+        # Always merge if requested
         if auto_merge:
             self.merge_overlapping_slots(instructor_id, target_date)
 
@@ -138,18 +138,16 @@ class SlotManager(BaseService):
         slot_id: int,
         start_time: Optional[time] = None,
         end_time: Optional[time] = None,
-        validate_conflicts: bool = True,  # DEPRECATED - kept for backward compatibility
     ) -> AvailabilitySlot:
         """
         Update an existing slot's times.
 
-        No longer checks for booking conflicts (layer independence).
+        Pure CRUD operation for updating slot times.
 
         Args:
             slot_id: The slot ID to update
             start_time: New start time (optional)
             end_time: New end time (optional)
-            validate_conflicts: DEPRECATED - ignored for layer independence
 
         Returns:
             Updated slot
@@ -181,16 +179,15 @@ class SlotManager(BaseService):
 
         return updated_slot
 
-    def delete_slot(self, slot_id: int, force: bool = False) -> bool:
+    def delete_slot(self, slot_id: int) -> bool:
         """
         Delete an availability slot.
 
-        UPDATED: Always allows deletion regardless of bookings.
-        Removed is_cleared logic since InstructorAvailability no longer exists.
+        Pure CRUD operation - deletes the slot regardless of bookings.
+        Bookings are independent and persist after slot deletion.
 
         Args:
             slot_id: The slot ID to delete
-            force: DEPRECATED - all deletions allowed for layer independence
 
         Returns:
             True if deleted successfully
@@ -211,17 +208,15 @@ class SlotManager(BaseService):
         self.logger.info(f"Deleted slot {slot_id}")
         return True
 
-    def merge_overlapping_slots(self, instructor_id: int, target_date: date, preserve_booked: bool = True) -> int:
+    def merge_overlapping_slots(self, instructor_id: int, target_date: date) -> int:
         """
         Merge overlapping or adjacent slots for a specific date.
 
-        UPDATED: Now uses instructor_id and date instead of availability_id.
-        Always merges overlapping slots regardless of bookings.
+        Pure availability operation - merges slots based on time adjacency only.
 
         Args:
             instructor_id: The instructor ID
             target_date: The date to merge slots on
-            preserve_booked: DEPRECATED - ignored for layer independence
 
         Returns:
             Number of slots merged
@@ -275,7 +270,7 @@ class SlotManager(BaseService):
         """
         Split a slot into two at the specified time.
 
-        Allows splitting regardless of bookings.
+        Pure availability operation.
 
         Args:
             slot_id: The slot ID to split
@@ -327,7 +322,7 @@ class SlotManager(BaseService):
         """
         Find gaps in availability that could be filled.
 
-        UPDATED: Method signature already uses instructor_id and date.
+        Pure availability analysis - identifies time gaps between slots.
 
         Args:
             instructor_id: The instructor ID
@@ -372,61 +367,18 @@ class SlotManager(BaseService):
 
         return gaps
 
-    def optimize_availability(
-        self, instructor_id: int, target_date: date, target_duration_minutes: int = 60
-    ) -> List[Dict[str, Any]]:
+    def get_slots_for_date(self, instructor_id: int, target_date: date) -> List[AvailabilitySlot]:
         """
-        Suggest optimal slot arrangements for a given duration.
-
-        UPDATED: Now uses instructor_id and date instead of availability_id.
-
-        This method finds FREE time slots that can accommodate bookings of the
-        specified duration. It MUST check existing bookings to avoid suggesting
-        already-booked times.
-
-        NOTE: This is NOT an availability CRUD operation. This is a booking
-        helper that needs to respect existing bookings.
+        Get all availability slots for an instructor on a date.
 
         Args:
             instructor_id: The instructor ID
-            target_date: The date to optimize
-            target_duration_minutes: Desired booking duration
+            target_date: The date
 
         Returns:
-            List of suggested time slots that are FREE for booking
+            List of availability slots
         """
-        # Get all slots with their booking status
-        slots_with_status = self.repository.get_slots_with_booking_status(instructor_id, target_date)
-
-        # Filter out booked slots - we only want to suggest FREE times
-        non_booked_slots = [slot for slot, status in slots_with_status if status is None]
-
-        suggestions = []
-
-        for slot in non_booked_slots:
-            # Calculate slot duration
-            start_dt = datetime.combine(date.today(), slot.start_time)
-            end_dt = datetime.combine(date.today(), slot.end_time)
-            slot_minutes = int((end_dt - start_dt).total_seconds() / 60)
-
-            # If slot is large enough, suggest divisions
-            if slot_minutes >= target_duration_minutes:
-                num_divisions = slot_minutes // target_duration_minutes
-
-                for i in range(num_divisions):
-                    suggested_start = start_dt + timedelta(minutes=i * target_duration_minutes)
-                    suggested_end = suggested_start + timedelta(minutes=target_duration_minutes)
-
-                    suggestions.append(
-                        {
-                            "start_time": suggested_start.time().isoformat(),
-                            "end_time": suggested_end.time().isoformat(),
-                            "duration_minutes": target_duration_minutes,
-                            "fits_in_slot_id": slot.id,
-                        }
-                    )
-
-        return suggestions
+        return self.repository.get_slots_for_instructor_date(instructor_id, target_date)
 
     # Private helper methods
 
@@ -434,7 +386,7 @@ class SlotManager(BaseService):
         """
         Check if two slots can be merged.
 
-        Only checks time adjacency, not bookings.
+        Only checks time adjacency.
         """
         # Calculate gap between slots
         gap_start = slot1.end_time

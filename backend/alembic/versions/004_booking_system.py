@@ -1,13 +1,18 @@
 # backend/alembic/versions/004_booking_system.py
-"""Booking system - Instant bookings and password reset
+"""Booking system - Self-contained bookings without availability references
 
 Revision ID: 004_booking_system
 Revises: 003_availability_system
 Create Date: 2024-12-21 00:00:03.000000
 
-This migration creates the booking system tables with instant booking
-support and password reset functionality. All columns are in their
-final form including location_type.
+This migration creates the booking system tables with self-contained bookings
+that do not reference availability slots. Bookings store all necessary
+information (instructor, date, times) directly, achieving complete layer
+independence between availability and bookings.
+
+Design principle: Bookings are commitments that exist independently of
+availability changes. This allows instructors to modify their availability
+without affecting existing bookings.
 """
 from typing import Sequence, Union
 
@@ -26,14 +31,14 @@ def upgrade() -> None:
     """Create booking and password reset tables."""
     print("Creating booking system tables...")
 
-    # Create bookings table with all final columns
+    # Create bookings table with self-contained design
     op.create_table(
         "bookings",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("student_id", sa.Integer(), nullable=False),
         sa.Column("instructor_id", sa.Integer(), nullable=False),
         sa.Column("service_id", sa.Integer(), nullable=False),
-        sa.Column("availability_slot_id", sa.Integer(), nullable=True),
+        # NO availability_slot_id - bookings are self-contained
         # Booking snapshot data
         sa.Column("booking_date", sa.Date(), nullable=False),
         sa.Column("start_time", sa.Time(), nullable=False),
@@ -44,7 +49,7 @@ def upgrade() -> None:
         sa.Column("duration_minutes", sa.Integer(), nullable=False),
         # Status
         sa.Column("status", sa.String(20), nullable=False, server_default="CONFIRMED"),
-        # Location details - including location_type from start
+        # Location details
         sa.Column("service_area", sa.String(), nullable=True),
         sa.Column("meeting_location", sa.Text(), nullable=True),
         sa.Column(
@@ -76,7 +81,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["service_id"], ["services.id"]),
         sa.ForeignKeyConstraint(["cancelled_by_id"], ["users.id"]),
         sa.PrimaryKeyConstraint("id"),
-        comment="Instant booking records between students and instructors",
+        comment="Self-contained booking records - no dependency on availability slots",
     )
 
     # Create all booking indexes
@@ -85,6 +90,13 @@ def upgrade() -> None:
     op.create_index("idx_bookings_date", "bookings", ["booking_date"])
     op.create_index("idx_bookings_status", "bookings", ["status"])
     op.create_index("idx_bookings_created_at", "bookings", ["created_at"])
+
+    # NEW: Index for time-based conflict checking
+    # This index optimizes queries that check for booking conflicts by time range
+    op.create_index(
+        "idx_bookings_instructor_datetime", "bookings", ["instructor_id", "booking_date", "start_time", "end_time"]
+    )
+
     op.create_index(
         "idx_bookings_instructor_date_status",
         "bookings",
@@ -131,10 +143,10 @@ def upgrade() -> None:
     op.create_index("idx_password_reset_tokens_user_id", "password_reset_tokens", ["user_id"])
 
     print("Booking system tables created successfully!")
-    print("- Created bookings table with instant booking defaults")
-    print("- Included location_type from start")
+    print("- Created bookings table with self-contained design")
+    print("- NO reference to availability_slots for complete layer independence")
+    print("- Added time-based conflict checking index")
     print("- Created password_reset_tokens table")
-    print("- Added all necessary check constraints")
 
 
 def downgrade() -> None:
@@ -155,6 +167,7 @@ def downgrade() -> None:
     op.drop_index("idx_bookings_service_id", table_name="bookings")
     op.drop_index("idx_bookings_student_status", table_name="bookings")
     op.drop_index("idx_bookings_instructor_date_status", table_name="bookings")
+    op.drop_index("idx_bookings_instructor_datetime", table_name="bookings")
     op.drop_index("idx_bookings_created_at", table_name="bookings")
     op.drop_index("idx_bookings_status", table_name="bookings")
     op.drop_index("idx_bookings_date", table_name="bookings")

@@ -8,7 +8,8 @@ booking, so bookings are immediately confirmed upon creation.
 
 Key Features:
 - Instant booking confirmation (no approval process)
-- Snapshot data preservation for historical accuracy
+- Self-contained bookings with all necessary data
+- Complete independence from availability slots
 - Comprehensive booking lifecycle management
 - Location type tracking for instructor convenience
 - Cancellation tracking with reason and actor
@@ -17,9 +18,11 @@ Database Table: bookings
 Primary Key: id
 Foreign Keys: student_id, instructor_id, service_id, cancelled_by_id
 
-UPDATED: Removed FK constraint from availability_slot_id per Work Stream #9
-- Bookings are independent commitments that exist regardless of availability changes
-- The availability_slot_id column remains for historical reference but has no FK constraint
+ARCHITECTURAL DESIGN:
+Bookings are self-contained records that store all necessary information
+(instructor, date, times) directly. This achieves complete layer independence
+between availability and bookings. Bookings are commitments that persist
+regardless of availability changes.
 """
 
 import logging
@@ -85,13 +88,11 @@ class Booking(Base):
     at the time of booking to maintain historical accuracy.
 
     Design Principles:
-    1. Snapshot Approach: Service details (name, rate) are copied at booking time
-       to preserve historical accuracy even if service details change later.
-    2. Instant Confirmation: Bookings are confirmed immediately upon creation.
-    3. Comprehensive Tracking: All state changes are tracked with timestamps.
-    4. Flexible Location: Supports various location types for different teaching scenarios.
-    5. UPDATED - Layer Independence: Bookings exist independently of availability slots.
-       The availability_slot_id is kept for historical reference but has no FK constraint.
+    1. Self-Contained: All booking data (instructor, date, times) stored directly
+    2. Snapshot Approach: Service details (name, rate) are copied at booking time
+    3. Instant Confirmation: Bookings are confirmed immediately upon creation
+    4. Comprehensive Tracking: All state changes are tracked with timestamps
+    5. Layer Independence: No references to availability slots
 
     Attributes:
         Core Fields:
@@ -99,12 +100,13 @@ class Booking(Base):
             student_id: The student who made the booking
             instructor_id: The instructor providing the service
             service_id: The service being booked
-            availability_slot_id: Reference to the slot that was booked (no FK constraint)
 
-        Snapshot Data (preserved for history):
+        Booking Data (self-contained):
             booking_date: Date of the lesson (YYYY-MM-DD)
             start_time: Start time of the lesson (HH:MM:SS)
             end_time: End time of the lesson (HH:MM:SS)
+
+        Snapshot Data (preserved for history):
             service_name: Name of service at booking time
             hourly_rate: Rate at booking time (Decimal)
             total_price: Total price calculated (Decimal)
@@ -146,16 +148,14 @@ class Booking(Base):
     instructor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
 
-    # UPDATED: No foreign key constraint - bookings are independent of availability changes
-    # This column is kept for historical reference but has no FK constraint
-    availability_slot_id = Column(Integer, nullable=True)
-
-    # Booking snapshot data - preserved for historical accuracy
-    booking_date = Column(Date, nullable=False, index=True)  # Indexed for query performance
+    # Self-contained booking data - NO reference to availability slots
+    booking_date = Column(Date, nullable=False, index=True)
     start_time = Column(Time, nullable=False)
     end_time = Column(Time, nullable=False)
-    service_name = Column(String, nullable=False)  # Snapshot of service name
-    hourly_rate = Column(Numeric(10, 2), nullable=False)  # Snapshot of rate
+
+    # Service snapshot data - preserved for historical accuracy
+    service_name = Column(String, nullable=False)
+    hourly_rate = Column(Numeric(10, 2), nullable=False)
     total_price = Column(Numeric(10, 2), nullable=False)
     duration_minutes = Column(Integer, nullable=False)
 
@@ -186,11 +186,6 @@ class Booking(Base):
     student = relationship("User", foreign_keys=[student_id], backref="student_bookings")
     instructor = relationship("User", foreign_keys=[instructor_id], backref="instructor_bookings")
     service = relationship("Service", backref="bookings")
-
-    # REMOVED: availability_slot relationship - no longer valid without FK constraint
-    # To check if a slot is booked, query the bookings table:
-    # SELECT * FROM bookings WHERE availability_slot_id = ? AND status IN ('CONFIRMED', 'COMPLETED')
-
     cancelled_by = relationship("User", foreign_keys=[cancelled_by_id])
 
     # Table constraints to ensure data integrity
@@ -227,7 +222,7 @@ class Booking(Base):
         return (
             f"<Booking {self.id}: student={self.student_id}, "
             f"instructor={self.instructor_id}, date={self.booking_date}, "
-            f"status={self.status}>"
+            f"time={self.start_time}-{self.end_time}, status={self.status}>"
         )
 
     def cancel(self, cancelled_by_user_id: int, reason: Optional[str] = None) -> None:

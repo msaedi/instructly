@@ -2,14 +2,16 @@
 """
 Booking Repository for InstaInstru Platform
 
+UPDATED FOR CLEAN ARCHITECTURE: Complete separation from availability slots.
+
 Implements all data access operations for booking management,
-based on the documented query patterns from strategic testing.
+with new methods for time-based queries without slot references.
 
 This repository handles:
 - Booking CRUD operations
 - User-specific booking queries (student/instructor)
+- Time-based conflict checking
 - Booking statistics and counting
-- Conflict checking
 - Date-based queries
 - Booking relationships eager loading
 """
@@ -32,7 +34,8 @@ class BookingRepository(BaseRepository[Booking]):
     """
     Repository for booking data access.
 
-    Implements all 11 documented query patterns from strategic testing.
+    Implements all booking queries using self-contained booking data
+    without any reference to availability slots.
     """
 
     def __init__(self, db: Session):
@@ -40,94 +43,238 @@ class BookingRepository(BaseRepository[Booking]):
         super().__init__(db, Booking)
         self.logger = logging.getLogger(__name__)
 
-    # Slot Booking Queries
+    # Time-based Booking Queries (NEW)
 
-    def get_booking_for_slot(self, slot_id: int, active_only: bool = True) -> Optional[Booking]:
-        """
-        Get booking for a specific availability slot.
-
-        Used to check if a slot is already booked.
-
-        Args:
-            slot_id: The availability slot ID
-            active_only: Whether to only return confirmed/completed bookings
-
-        Returns:
-            The booking if found, None otherwise
-        """
-        try:
-            query = self.db.query(Booking).filter(Booking.availability_slot_id == slot_id)
-
-            if active_only:
-                query = query.filter(Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]))
-
-            return query.first()
-        except Exception as e:
-            self.logger.error(f"Error getting booking for slot {slot_id}: {str(e)}")
-            raise RepositoryException(f"Failed to get booking for slot: {str(e)}")
-
-    # User Booking Queries
-
-    def get_bookings(
+    def get_bookings_by_time_range(
         self,
-        user_id: Optional[int] = None,
-        user_role: Optional[str] = None,
-        status: Optional[BookingStatus] = None,
-        date_start: Optional[date] = None,
-        date_end: Optional[date] = None,
-        skip: int = 0,
-        limit: int = 100,
+        instructor_id: int,
+        booking_date: date,
+        start_time: time,
+        end_time: time,
+        exclude_booking_id: Optional[int] = None,
     ) -> List[Booking]:
         """
-        Get bookings with flexible filtering and pagination.
+        Get bookings within a time range for conflict checking.
 
-        Generic method supporting various filter combinations.
+        Uses booking's own time fields for filtering.
 
         Args:
-            user_id: Filter by user ID
-            user_role: Role of the user (student/instructor)
-            status: Filter by booking status
-            date_start: Filter by date range start
-            date_end: Filter by date range end
-            skip: Number of records to skip
-            limit: Maximum records to return
+            instructor_id: The instructor ID
+            booking_date: The date to check
+            start_time: Range start time
+            end_time: Range end time
+            exclude_booking_id: Optional booking to exclude
 
         Returns:
-            List of bookings matching criteria
+            List of bookings in the time range
         """
         try:
-            query = self.db.query(Booking).options(
-                joinedload(Booking.student),
-                joinedload(Booking.instructor),
-                joinedload(Booking.service),
+            query = self.db.query(Booking).filter(
+                Booking.instructor_id == instructor_id,
+                Booking.booking_date == booking_date,
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                # Any overlap with the time range
+                Booking.start_time < end_time,
+                Booking.end_time > start_time,
             )
 
-            # Apply user filter based on role
-            if user_id and user_role:
-                if user_role == UserRole.STUDENT:
-                    query = query.filter(Booking.student_id == user_id)
-                elif user_role == UserRole.INSTRUCTOR:
-                    query = query.filter(Booking.instructor_id == user_id)
+            if exclude_booking_id:
+                query = query.filter(Booking.id != exclude_booking_id)
 
-            # Apply status filter
-            if status:
-                query = query.filter(Booking.status == status)
-
-            # Apply date range filter
-            if date_start:
-                query = query.filter(Booking.booking_date >= date_start)
-            if date_end:
-                query = query.filter(Booking.booking_date <= date_end)
-
-            # Order by date and time descending
-            query = query.order_by(Booking.booking_date.desc(), Booking.start_time.desc())
-
-            # Apply pagination
-            return query.offset(skip).limit(limit).all()
+            return query.all()
 
         except Exception as e:
-            self.logger.error(f"Error getting bookings: {str(e)}")
+            self.logger.error(f"Error getting bookings by time range: {str(e)}")
+            raise RepositoryException(f"Failed to get bookings by time: {str(e)}")
+
+    def check_time_conflict(
+        self,
+        instructor_id: int,
+        booking_date: date,
+        start_time: time,
+        end_time: time,
+        exclude_booking_id: Optional[int] = None,
+    ) -> bool:
+        """
+        Check if a time range has any booking conflicts.
+
+        Efficient boolean check for quick validation.
+
+        Args:
+            instructor_id: The instructor ID
+            booking_date: The date to check
+            start_time: Start time to check
+            end_time: End time to check
+            exclude_booking_id: Optional booking to exclude
+
+        Returns:
+            True if there are conflicts, False otherwise
+        """
+        try:
+            query = self.db.query(Booking).filter(
+                Booking.instructor_id == instructor_id,
+                Booking.booking_date == booking_date,
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                # Time overlap check
+                Booking.start_time < end_time,
+                Booking.end_time > start_time,
+            )
+
+            if exclude_booking_id:
+                query = query.filter(Booking.id != exclude_booking_id)
+
+            return query.first() is not None
+
+        except Exception as e:
+            self.logger.error(f"Error checking time conflict: {str(e)}")
+            raise RepositoryException(f"Failed to check conflict: {str(e)}")
+
+    def get_instructor_bookings_for_date(
+        self,
+        instructor_id: int,
+        target_date: date,
+        status_filter: Optional[List[BookingStatus]] = None,
+    ) -> List[Booking]:
+        """
+        Get all bookings for an instructor on a specific date.
+
+        Args:
+            instructor_id: The instructor ID
+            target_date: The date to query
+            status_filter: Optional list of statuses to filter
+
+        Returns:
+            List of bookings for the date
+        """
+        try:
+            query = self.db.query(Booking).filter(
+                Booking.instructor_id == instructor_id,
+                Booking.booking_date == target_date,
+            )
+
+            if status_filter:
+                query = query.filter(Booking.status.in_(status_filter))
+
+            return query.order_by(Booking.start_time).all()
+
+        except Exception as e:
+            self.logger.error(f"Error getting bookings for date: {str(e)}")
             raise RepositoryException(f"Failed to get bookings: {str(e)}")
+
+    def get_bookings_for_week(
+        self,
+        instructor_id: int,
+        week_dates: List[date],
+        status_filter: Optional[List[BookingStatus]] = None,
+    ) -> List[Booking]:
+        """
+        Get all bookings for an instructor for a week.
+
+        Args:
+            instructor_id: The instructor ID
+            week_dates: List of dates in the week
+            status_filter: Optional status filter
+
+        Returns:
+            List of bookings for the week
+        """
+        try:
+            query = self.db.query(Booking).filter(
+                Booking.instructor_id == instructor_id,
+                Booking.booking_date.in_(week_dates),
+            )
+
+            if status_filter:
+                query = query.filter(Booking.status.in_(status_filter))
+
+            return query.order_by(Booking.booking_date, Booking.start_time).all()
+
+        except Exception as e:
+            self.logger.error(f"Error getting bookings for week: {str(e)}")
+            raise RepositoryException(f"Failed to get weekly bookings: {str(e)}")
+
+    # Opportunity Finding (MOVED from SlotManagerRepository)
+
+    def find_booking_opportunities(
+        self,
+        available_slots: List[Dict[str, any]],
+        instructor_id: int,
+        target_date: date,
+        duration_minutes: int,
+    ) -> List[Dict[str, any]]:
+        """
+        Find booking opportunities within available time slots.
+
+        This method analyzes available slots and existing bookings
+        to find free time periods suitable for new bookings.
+
+        Args:
+            available_slots: List of available time slots
+            instructor_id: The instructor ID
+            target_date: The date to check
+            duration_minutes: Required duration for booking
+
+        Returns:
+            List of booking opportunities
+        """
+        try:
+            # Get all bookings for the date
+            existing_bookings = self.get_bookings_by_time_range(
+                instructor_id=instructor_id,
+                booking_date=target_date,
+                start_time=time(0, 0),  # Start of day
+                end_time=time(23, 59),  # End of day
+            )
+
+            opportunities = []
+
+            # Process each available slot
+            for slot in available_slots:
+                slot_start = slot["start_time"]
+                slot_end = slot["end_time"]
+
+                # Find opportunities within this slot
+                current_time = slot_start
+
+                while current_time < slot_end:
+                    # Calculate potential end time
+                    from datetime import datetime, timedelta
+
+                    start_dt = datetime.combine(date.today(), current_time)
+                    end_dt = start_dt + timedelta(minutes=duration_minutes)
+                    potential_end = end_dt.time()
+
+                    # Check if this exceeds slot boundary
+                    if potential_end > slot_end:
+                        break
+
+                    # Check for conflicts
+                    has_conflict = False
+                    for booking in existing_bookings:
+                        if current_time < booking.end_time and potential_end > booking.start_time:
+                            # Conflict found, skip to after this booking
+                            current_time = booking.end_time
+                            has_conflict = True
+                            break
+
+                    if not has_conflict:
+                        opportunities.append(
+                            {
+                                "start_time": current_time.isoformat(),
+                                "end_time": potential_end.isoformat(),
+                                "duration_minutes": duration_minutes,
+                                "available": True,
+                            }
+                        )
+                        current_time = potential_end
+
+            return opportunities
+
+        except Exception as e:
+            self.logger.error(f"Error finding opportunities: {str(e)}")
+            raise RepositoryException(f"Failed to find opportunities: {str(e)}")
+
+    # User Booking Queries (unchanged)
 
     def get_student_bookings(
         self,
@@ -215,7 +362,7 @@ class BookingRepository(BaseRepository[Booking]):
             self.logger.error(f"Error getting instructor bookings: {str(e)}")
             raise RepositoryException(f"Failed to get instructor bookings: {str(e)}")
 
-    # Detailed Booking Queries
+    # Detailed Booking Queries (unchanged)
 
     def get_booking_with_details(self, booking_id: int) -> Optional[Booking]:
         """
@@ -245,7 +392,7 @@ class BookingRepository(BaseRepository[Booking]):
             self.logger.error(f"Error getting booking details: {str(e)}")
             raise RepositoryException(f"Failed to get booking details: {str(e)}")
 
-    # Statistics Queries
+    # Statistics Queries (unchanged)
 
     def get_instructor_bookings_for_stats(self, instructor_id: int) -> List[Booking]:
         """
@@ -265,13 +412,13 @@ class BookingRepository(BaseRepository[Booking]):
             self.logger.error(f"Error getting instructor stats: {str(e)}")
             raise RepositoryException(f"Failed to get instructor statistics: {str(e)}")
 
-    # Date-based Queries
+    # Date-based Queries (simplified)
 
     def get_bookings_for_date(
         self, booking_date: date, status: Optional[BookingStatus] = None, with_relationships: bool = False
     ) -> List[Booking]:
         """
-        Get bookings for a specific date.
+        Get bookings for a specific date (system-wide).
 
         Used for reminder emails and daily views.
 
@@ -298,73 +445,7 @@ class BookingRepository(BaseRepository[Booking]):
             self.logger.error(f"Error getting bookings for date: {str(e)}")
             raise RepositoryException(f"Failed to get bookings for date: {str(e)}")
 
-    def get_upcoming_bookings(self, user_id: int, user_role: str) -> List[Booking]:
-        """
-        Get upcoming bookings for a user ordered by date/time.
-
-        Args:
-            user_id: The user's ID
-            user_role: The user's role (student/instructor)
-
-        Returns:
-            List of upcoming bookings ordered chronologically
-        """
-        try:
-            query = (
-                self.db.query(Booking)
-                .options(
-                    joinedload(Booking.instructor),
-                    joinedload(Booking.student),
-                    joinedload(Booking.service),
-                )
-                .filter(Booking.booking_date >= date.today(), Booking.status.in_([BookingStatus.CONFIRMED]))
-            )
-
-            if user_role == UserRole.STUDENT:
-                query = query.filter(Booking.student_id == user_id)
-            elif user_role == UserRole.INSTRUCTOR:
-                query = query.filter(Booking.instructor_id == user_id)
-
-            return query.order_by(Booking.booking_date, Booking.start_time).all()
-
-        except Exception as e:
-            self.logger.error(f"Error getting upcoming bookings: {str(e)}")
-            raise RepositoryException(f"Failed to get upcoming bookings: {str(e)}")
-
-    # Counting Queries
-
-    def count_bookings(
-        self,
-        instructor_id: Optional[int] = None,
-        student_id: Optional[int] = None,
-        status: Optional[BookingStatus] = None,
-    ) -> int:
-        """
-        Count bookings with optional filters.
-
-        Args:
-            instructor_id: Filter by instructor
-            student_id: Filter by student
-            status: Filter by status
-
-        Returns:
-            Number of bookings matching criteria
-        """
-        try:
-            query = self.db.query(Booking)
-
-            if instructor_id:
-                query = query.filter(Booking.instructor_id == instructor_id)
-            if student_id:
-                query = query.filter(Booking.student_id == student_id)
-            if status:
-                query = query.filter(Booking.status == status)
-
-            return query.count()
-
-        except Exception as e:
-            self.logger.error(f"Error counting bookings: {str(e)}")
-            raise RepositoryException(f"Failed to count bookings: {str(e)}")
+    # Counting Queries (unchanged)
 
     def count_bookings_by_status(self, user_id: int, user_role: str) -> Dict[str, int]:
         """
@@ -397,50 +478,6 @@ class BookingRepository(BaseRepository[Booking]):
         except Exception as e:
             self.logger.error(f"Error counting bookings by status: {str(e)}")
             raise RepositoryException(f"Failed to count bookings by status: {str(e)}")
-
-    # Conflict Checking
-
-    def check_booking_conflicts(
-        self,
-        instructor_id: int,
-        booking_date: date,
-        start_time: time,
-        end_time: time,
-        exclude_booking_id: Optional[int] = None,
-    ) -> List[Booking]:
-        """
-        Check for booking conflicts for an instructor.
-
-        Finds overlapping bookings on the same date.
-
-        Args:
-            instructor_id: The instructor to check
-            booking_date: The date to check
-            start_time: Proposed start time
-            end_time: Proposed end time
-            exclude_booking_id: Booking ID to exclude from check (for updates)
-
-        Returns:
-            List of conflicting bookings
-        """
-        try:
-            query = self.db.query(Booking).filter(
-                Booking.instructor_id == instructor_id,
-                Booking.booking_date == booking_date,
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                # Time overlap check
-                Booking.start_time < end_time,
-                Booking.end_time > start_time,
-            )
-
-            if exclude_booking_id:
-                query = query.filter(Booking.id != exclude_booking_id)
-
-            return query.all()
-
-        except Exception as e:
-            self.logger.error(f"Error checking booking conflicts: {str(e)}")
-            raise RepositoryException(f"Failed to check booking conflicts: {str(e)}")
 
     # Helper method overrides
 

@@ -2,16 +2,16 @@
 """
 Conflict Checker Service for InstaInstru Platform
 
-UPDATED FOR WORK STREAM #10: Single-table availability design.
+UPDATED FOR CLEAN ARCHITECTURE: Complete separation from availability slots.
 
 Handles all booking conflict detection and validation including:
 - Checking if time slots conflict with existing bookings
-- Validating availability windows
-- Finding available slots
-- Managing booking constraints
+- Validating booking constraints
+- Finding available times
+- Managing booking rules
 
-All slot references now use the single-table design where AvailabilitySlot
-contains instructor_id and date directly.
+All conflict checks now use booking's own fields (date, start_time, end_time)
+without any reference to availability slots.
 """
 
 import logging
@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from ..models.booking import Booking, BookingStatus
+from ..models.booking import BookingStatus
 from ..repositories import RepositoryFactory
 from ..repositories.conflict_checker_repository import ConflictCheckerRepository
 from .base import BaseService
@@ -30,10 +30,11 @@ logger = logging.getLogger(__name__)
 
 class ConflictChecker(BaseService):
     """
-    Service for checking booking conflicts and availability validation.
+    Service for checking booking conflicts and time validation.
 
     This service centralizes all conflict detection logic to ensure
-    consistent validation across the platform.
+    consistent validation across the platform. Works entirely with
+    booking data without referencing availability slots.
     """
 
     def __init__(self, db: Session, repository: Optional[ConflictCheckerRepository] = None):
@@ -54,33 +55,34 @@ class ConflictChecker(BaseService):
         check_date: date,
         start_time: time,
         end_time: time,
-        exclude_slot_id: Optional[int] = None,
+        exclude_booking_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """
         Check if a time range conflicts with existing bookings.
+
+        Uses booking's own time fields for conflict detection.
 
         Args:
             instructor_id: The instructor to check
             check_date: The date to check
             start_time: Start time of the range to check
             end_time: End time of the range to check
-            exclude_slot_id: Optional slot ID to exclude from check
+            exclude_booking_id: Optional booking ID to exclude from check
 
         Returns:
             List of conflicts with booking details
         """
-        bookings = self.repository.get_bookings_for_conflict_check(instructor_id, check_date, exclude_slot_id)
+        bookings = self.repository.get_bookings_for_conflict_check(instructor_id, check_date, exclude_booking_id)
 
         conflicts = []
         for booking in bookings:
-            slot = booking.availability_slot
-            # Check if time ranges overlap (business logic stays in service)
-            if start_time < slot.end_time and end_time > slot.start_time:
+            # Check time overlap using booking's own fields
+            if start_time < booking.end_time and end_time > booking.start_time:
                 conflicts.append(
                     {
                         "booking_id": booking.id,
-                        "start_time": str(slot.start_time),
-                        "end_time": str(slot.end_time),
+                        "start_time": str(booking.start_time),
+                        "end_time": str(booking.end_time),
                         "student_name": booking.student.full_name,
                         "service_name": booking.service_name,
                         "status": booking.status,
@@ -95,125 +97,96 @@ class ConflictChecker(BaseService):
 
         return conflicts
 
-    def check_slot_availability(self, slot_id: int, instructor_id: Optional[int] = None) -> Dict[str, Any]:
+    def check_time_conflicts(
+        self,
+        instructor_id: int,
+        booking_date: date,
+        start_time: time,
+        end_time: time,
+        exclude_booking_id: Optional[int] = None,
+    ) -> bool:
         """
-        Check if a specific slot is available for booking.
+        Check if a time range has any conflicts.
 
-        UPDATED: Slot now has instructor_id and date directly.
+        Simplified boolean check for quick validation.
 
         Args:
-            slot_id: The availability slot ID
-            instructor_id: Optional instructor ID for ownership check
+            instructor_id: The instructor to check
+            booking_date: The date to check
+            start_time: Start time of the range
+            end_time: End time of the range
+            exclude_booking_id: Optional booking ID to exclude
 
         Returns:
-            Dictionary with availability status and details
+            True if there are conflicts, False otherwise
         """
-        # Get the slot with relationships
-        slot = self.repository.get_slot_with_availability(slot_id)
+        conflicts = self.check_booking_conflicts(instructor_id, booking_date, start_time, end_time, exclude_booking_id)
+        return len(conflicts) > 0
 
-        if not slot:
-            return {"available": False, "reason": "Slot not found"}
-
-        # Check instructor ownership if specified
-        if instructor_id and slot.instructor_id != instructor_id:
-            return {
-                "available": False,
-                "reason": "Slot belongs to different instructor",
-            }
-
-        # Check if already booked by querying bookings table
-        booking = (
-            self.db.query(Booking)
-            .filter(
-                Booking.availability_slot_id == slot_id,
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-            )
-            .first()
-        )
-
-        if booking:
-            return {
-                "available": False,
-                "reason": "Slot is already booked",
-                "booking_status": booking.status,
-            }
-
-        # Check if slot is in the past
-        slot_datetime = datetime.combine(slot.date, slot.start_time)
-        if slot_datetime < datetime.now():
-            return {"available": False, "reason": "Slot is in the past"}
-
-        return {
-            "available": True,
-            "slot_info": {
-                "date": slot.date.isoformat(),
-                "start_time": slot.start_time.isoformat(),
-                "end_time": slot.end_time.isoformat(),
-                "instructor_id": slot.instructor_id,
-            },
-        }
-
-    def get_booked_slots_for_date(self, instructor_id: int, target_date: date) -> List[Dict[str, Any]]:
+    def get_booked_times_for_date(self, instructor_id: int, target_date: date) -> List[Dict[str, Any]]:
         """
-        Get all booked slots for an instructor on a specific date.
+        Get all booked time ranges for an instructor on a specific date.
+
+        Returns booking time information directly from bookings.
 
         Args:
             instructor_id: The instructor ID
             target_date: The date to check
 
         Returns:
-            List of booked slot details
+            List of booked time ranges
         """
-        booked_slots = self.repository.get_booked_slots_for_date(instructor_id, target_date)
+        bookings = self.repository.get_instructor_bookings_for_date(instructor_id, target_date)
 
         return [
             {
-                "slot_id": slot["id"],
-                "start_time": slot["start_time"].isoformat(),
-                "end_time": slot["end_time"].isoformat(),
-                "booking_id": slot["booking_id"],
-                "student_id": slot["student_id"],
-                "service_name": slot["service_name"],
-                "status": slot["status"],
+                "booking_id": booking.id,
+                "start_time": booking.start_time.isoformat(),
+                "end_time": booking.end_time.isoformat(),
+                "student_id": booking.student_id,
+                "service_name": booking.service_name,
+                "status": booking.status,
             }
-            for slot in booked_slots
+            for booking in bookings
+            if booking.status in [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
         ]
 
-    def get_booked_slots_for_week(self, instructor_id: int, week_start: date) -> Dict[str, List[Dict[str, Any]]]:
+    def get_booked_times_for_week(self, instructor_id: int, week_start: date) -> Dict[str, List[Dict[str, Any]]]:
         """
-        Get all booked slots for an instructor for a week.
+        Get all booked times for an instructor for a week.
 
         Args:
             instructor_id: The instructor ID
             week_start: Monday of the week
 
         Returns:
-            Dictionary mapping dates to booked slots
+            Dictionary mapping dates to booked times
         """
         week_dates = [week_start + timedelta(days=i) for i in range(7)]
+        bookings = self.repository.get_bookings_for_week(instructor_id, week_dates)
 
-        booked_slots = self.repository.get_booked_slots_for_week(instructor_id, week_dates)
+        # Group by date
+        times_by_date = {}
+        for booking in bookings:
+            if booking.status not in [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]:
+                continue
 
-        # Group by date (business logic)
-        slots_by_date = {}
-        for slot in booked_slots:
-            date_str = slot["date"].isoformat()
-            if date_str not in slots_by_date:
-                slots_by_date[date_str] = []
+            date_str = booking.booking_date.isoformat()
+            if date_str not in times_by_date:
+                times_by_date[date_str] = []
 
-            slots_by_date[date_str].append(
+            times_by_date[date_str].append(
                 {
-                    "slot_id": slot["id"],
-                    "start_time": slot["start_time"].isoformat(),
-                    "end_time": slot["end_time"].isoformat(),
-                    "booking_id": slot["booking_id"],
-                    "student_id": slot["student_id"],
-                    "service_name": slot["service_name"],
-                    "status": slot["status"],
+                    "booking_id": booking.id,
+                    "start_time": booking.start_time.isoformat(),
+                    "end_time": booking.end_time.isoformat(),
+                    "student_id": booking.student_id,
+                    "service_name": booking.service_name,
+                    "status": booking.status,
                 }
             )
 
-        return slots_by_date
+        return times_by_date
 
     def validate_time_range(
         self,
@@ -225,7 +198,7 @@ class ConflictChecker(BaseService):
         """
         Validate a time range for basic constraints.
 
-        Business logic - stays in service.
+        Business logic for time validation.
 
         Args:
             start_time: Start time
@@ -298,57 +271,6 @@ class ConflictChecker(BaseService):
             }
 
         return {"valid": True, "min_advance_hours": profile.min_advance_booking_hours}
-
-    def find_overlapping_slots(
-        self, instructor_id: int, target_date: date, start_time: time, end_time: time
-    ) -> List[Dict[str, Any]]:
-        """
-        Find all slots that overlap with a given time range.
-
-        Args:
-            instructor_id: The instructor ID
-            target_date: The date to check
-            start_time: Start time of the range
-            end_time: End time of the range
-
-        Returns:
-            List of overlapping slots
-        """
-        slots = self.repository.get_slots_for_date(instructor_id, target_date)
-
-        # Get all slot IDs first
-        slot_ids = [slot.id for slot in slots]
-
-        # Pre-fetch bookings for all slots in one query
-        booked_slot_ids = set()
-        if slot_ids:
-            from ..models.booking import Booking
-
-            bookings = (
-                self.db.query(Booking.availability_slot_id)
-                .filter(
-                    Booking.availability_slot_id.in_(slot_ids),
-                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                )
-                .all()
-            )
-            booked_slot_ids = {b[0] for b in bookings}
-
-        # Now check overlaps (business logic)
-        overlapping = []
-        for slot in slots:
-            # Check if slots overlap
-            if slot.start_time < end_time and slot.end_time > start_time:
-                overlapping.append(
-                    {
-                        "slot_id": slot.id,
-                        "start_time": slot.start_time.isoformat(),
-                        "end_time": slot.end_time.isoformat(),
-                        "has_booking": slot.id in booked_slot_ids,
-                    }
-                )
-
-        return overlapping
 
     def check_blackout_date(self, instructor_id: int, target_date: date) -> bool:
         """
@@ -445,3 +367,77 @@ class ConflictChecker(BaseService):
                 "has_blackout": self.check_blackout_date(instructor_id, booking_date),
             },
         }
+
+    def find_next_available_time(
+        self,
+        instructor_id: int,
+        target_date: date,
+        duration_minutes: int,
+        earliest_time: Optional[time] = None,
+        latest_time: Optional[time] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Find the next available time slot for booking.
+
+        Searches for gaps between existing bookings.
+
+        Args:
+            instructor_id: The instructor ID
+            target_date: The date to search
+            duration_minutes: Required duration
+            earliest_time: Earliest acceptable start time
+            latest_time: Latest acceptable end time
+
+        Returns:
+            Next available time slot or None if not found
+        """
+        # Default time bounds
+        if not earliest_time:
+            earliest_time = time(9, 0)  # 9 AM
+        if not latest_time:
+            latest_time = time(21, 0)  # 9 PM
+
+        # Get all bookings for the date
+        bookings = self.repository.get_instructor_bookings_for_date(instructor_id, target_date)
+
+        # Filter to confirmed/completed and sort by start time
+        active_bookings = sorted(
+            [b for b in bookings if b.status in [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]],
+            key=lambda b: b.start_time,
+        )
+
+        # Check if we can start at earliest_time
+        current_time = earliest_time
+
+        for booking in active_bookings:
+            # Calculate potential end time
+            start_dt = datetime.combine(date.today(), current_time)
+            end_dt = start_dt + timedelta(minutes=duration_minutes)
+            potential_end = end_dt.time()
+
+            # Check if this slot works (before the booking)
+            if potential_end <= booking.start_time and potential_end <= latest_time:
+                return {
+                    "start_time": current_time.isoformat(),
+                    "end_time": potential_end.isoformat(),
+                    "duration_minutes": duration_minutes,
+                    "available": True,
+                }
+
+            # Move current time to after this booking
+            current_time = booking.end_time
+
+        # Check if there's room after all bookings
+        start_dt = datetime.combine(date.today(), current_time)
+        end_dt = start_dt + timedelta(minutes=duration_minutes)
+        potential_end = end_dt.time()
+
+        if potential_end <= latest_time:
+            return {
+                "start_time": current_time.isoformat(),
+                "end_time": potential_end.isoformat(),
+                "duration_minutes": duration_minutes,
+                "available": True,
+            }
+
+        return None

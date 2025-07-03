@@ -2,26 +2,26 @@
 """
 Booking Service for InstaInstru Platform
 
-UPDATED FOR WORK STREAM #10: Single-table availability design.
+UPDATED FOR CLEAN ARCHITECTURE: Complete separation from availability slots.
 
 Handles all booking-related business logic including:
-- Creating instant bookings
+- Creating instant bookings using time ranges
+- Finding booking opportunities
 - Validating booking constraints
 - Managing booking lifecycle
 - Coordinating with other services
 
-All slot references now use the single-table design where AvailabilitySlot
-contains instructor_id and date directly.
+Bookings are now self-contained with all necessary data (instructor, date, times)
+and do not reference availability slots.
 """
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
 from ..core.exceptions import BusinessRuleException, ConflictException, NotFoundException, ValidationException
-from ..models.availability import AvailabilitySlot
 from ..models.booking import Booking, BookingStatus
 from ..models.instructor import InstructorProfile
 from ..models.service import Service
@@ -45,7 +45,7 @@ class BookingService(BaseService):
     Service layer for booking operations.
 
     Centralizes all booking business logic and coordinates
-    with other services like availability and notifications.
+    with other services. Now includes finding booking opportunities.
     """
 
     def __init__(self, db: Session, notification_service: Optional[NotificationService] = None, repository=None):
@@ -60,22 +60,18 @@ class BookingService(BaseService):
         super().__init__(db)
         self.notification_service = notification_service or NotificationService(db)
         self.repository = repository or RepositoryFactory.create_booking_repository(db)
-
-        # Create repositories for related services
-        # Note: In a complete implementation, these would be passed in or use a service locator
-        self.slot_repository = RepositoryFactory.create_slot_manager_repository(db)
         self.availability_repository = RepositoryFactory.create_availability_repository(db)
 
     async def create_booking(self, student: User, booking_data: BookingCreate) -> Booking:
         """
-        Create an instant booking.
+        Create an instant booking using time range.
 
-        This is the main booking creation flow with all validations
-        and business rules applied.
+        This creates a self-contained booking with all necessary data.
+        No longer requires or references availability slots.
 
         Args:
             student: The student creating the booking
-            booking_data: Booking creation data
+            booking_data: Booking creation data with date/time range
 
         Returns:
             Created booking instance
@@ -84,13 +80,16 @@ class BookingService(BaseService):
             ValidationException: If validation fails
             NotFoundException: If resources not found
             BusinessRuleException: If business rules violated
-            ConflictException: If slot already booked
+            ConflictException: If time slot already booked
         """
         # Log the operation
         self.log_operation(
             "create_booking",
             student_id=student.id,
-            slot_id=booking_data.availability_slot_id,
+            instructor_id=booking_data.instructor_id,
+            date=booking_data.booking_date,
+            start_time=booking_data.start_time,
+            end_time=booking_data.end_time,
             service_id=booking_data.service_id,
         )
 
@@ -99,30 +98,34 @@ class BookingService(BaseService):
             raise ValidationException("Only students can create bookings")
 
         with self.transaction():
-            # 1. Validate and load all required data
-            slot, service, instructor_profile = await self._validate_booking_data(booking_data)
+            # 1. Validate and load required data
+            service, instructor_profile = await self._validate_booking_data(booking_data)
 
-            # 2. Check slot availability using repository
-            existing_booking = self.repository.get_booking_for_slot(slot.id, active_only=True)
+            # 2. Check for time conflicts
+            existing_conflicts = self.repository.check_time_conflict(
+                instructor_id=booking_data.instructor_id,
+                booking_date=booking_data.booking_date,
+                start_time=booking_data.start_time,
+                end_time=booking_data.end_time,
+            )
 
-            if existing_booking:
-                raise ConflictException("This slot is already booked")
+            if existing_conflicts:
+                raise ConflictException("This time slot conflicts with an existing booking")
 
             # 3. Apply business rules
-            await self._apply_booking_rules(slot, service, instructor_profile, booking_data)
+            await self._apply_booking_rules(booking_data, service, instructor_profile)
 
             # 4. Calculate pricing
-            pricing = self._calculate_pricing(service, slot)
+            pricing = self._calculate_pricing(service, booking_data.start_time, booking_data.end_time)
 
-            # 5. Create the booking using repository
+            # 5. Create the booking with all data
             booking = self.repository.create(
                 student_id=student.id,
-                instructor_id=slot.instructor_id,  # Now directly from slot
+                instructor_id=booking_data.instructor_id,
                 service_id=service.id,
-                availability_slot_id=slot.id,
-                booking_date=slot.date,  # Now directly from slot
-                start_time=slot.start_time,
-                end_time=slot.end_time,
+                booking_date=booking_data.booking_date,
+                start_time=booking_data.start_time,
+                end_time=booking_data.end_time,
                 service_name=service.skill,
                 hourly_rate=service.hourly_rate,
                 total_price=pricing["total_price"],
@@ -152,6 +155,100 @@ class BookingService(BaseService):
 
             logger.info(f"Booking {booking.id} created successfully")
             return booking
+
+    async def find_booking_opportunities(
+        self,
+        instructor_id: int,
+        target_date: date,
+        target_duration_minutes: int = 60,
+        earliest_time: Optional[time] = None,
+        latest_time: Optional[time] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Find available time slots for booking based on instructor availability.
+
+        This method finds FREE time slots by checking instructor availability
+        and existing bookings. It suggests optimal times for bookings of the
+        specified duration.
+
+        Args:
+            instructor_id: The instructor ID
+            target_date: The date to check
+            target_duration_minutes: Desired booking duration
+            earliest_time: Earliest acceptable time (default 9 AM)
+            latest_time: Latest acceptable time (default 9 PM)
+
+        Returns:
+            List of available time slots for booking
+        """
+        # Set defaults
+        if not earliest_time:
+            earliest_time = time(9, 0)
+        if not latest_time:
+            latest_time = time(21, 0)
+
+        # Get instructor's availability slots for the date
+        availability_slots = self.availability_repository.get_slots_by_date(instructor_id, target_date)
+
+        # Get existing bookings for the date
+        existing_bookings = self.repository.get_bookings_by_time_range(
+            instructor_id=instructor_id,
+            booking_date=target_date,
+            start_time=earliest_time,
+            end_time=latest_time,
+        )
+
+        opportunities = []
+
+        # For each availability slot, find booking opportunities
+        for slot in availability_slots:
+            # Skip if slot is outside requested time range
+            if slot.end_time <= earliest_time or slot.start_time >= latest_time:
+                continue
+
+            # Adjust slot boundaries to requested time range
+            slot_start = max(slot.start_time, earliest_time)
+            slot_end = min(slot.end_time, latest_time)
+
+            # Find opportunities within this slot
+            current_time = slot_start
+
+            while current_time < slot_end:
+                # Calculate potential booking end time
+                start_dt = datetime.combine(date.today(), current_time)
+                end_dt = start_dt + timedelta(minutes=target_duration_minutes)
+                potential_end = end_dt.time()
+
+                # Check if this exceeds slot boundary
+                if potential_end > slot_end:
+                    break
+
+                # Check for conflicts with existing bookings
+                has_conflict = False
+                for booking in existing_bookings:
+                    if current_time < booking.end_time and potential_end > booking.start_time:
+                        # Conflict found, skip to after this booking
+                        current_time = booking.end_time
+                        has_conflict = True
+                        break
+
+                if not has_conflict:
+                    # This is a valid opportunity
+                    opportunities.append(
+                        {
+                            "start_time": current_time.isoformat(),
+                            "end_time": potential_end.isoformat(),
+                            "duration_minutes": target_duration_minutes,
+                            "available": True,
+                            "instructor_id": instructor_id,
+                            "date": target_date.isoformat(),
+                        }
+                    )
+
+                    # Move to next potential slot
+                    current_time = potential_end
+
+        return opportunities
 
     async def cancel_booking(self, booking_id: int, user: User, reason: Optional[str] = None) -> Booking:
         """
@@ -276,19 +373,9 @@ class BookingService(BaseService):
 
     # Private helper methods
 
-    async def _validate_booking_data(
-        self, booking_data: BookingCreate
-    ) -> tuple[AvailabilitySlot, Service, InstructorProfile]:
+    async def _validate_booking_data(self, booking_data: BookingCreate) -> tuple[Service, InstructorProfile]:
         """Validate and load all required data for booking."""
-        # Load availability slot using repository
-        slot = self.availability_repository.get_availability_slot_with_details(booking_data.availability_slot_id)
-
-        if not slot:
-            raise NotFoundException("Availability slot not found")
-
         # Load service - ONLY ACTIVE SERVICES
-        # Note: This should ideally use a ServiceRepository, but we'll use direct query for now
-        # In a complete implementation, this would be: service = self.service_repository.get_active_service_with_profile(booking_data.service_id)
         service = (
             self.db.query(Service)
             .filter(
@@ -300,12 +387,9 @@ class BookingService(BaseService):
         if not service:
             raise NotFoundException("Service not found or no longer available")
 
-        # Get instructor profile using instructor_id from slot
-        # Note: This should ideally use an InstructorRepository
+        # Get instructor profile
         instructor_profile = (
-            self.db.query(InstructorProfile)
-            .filter(InstructorProfile.user_id == slot.instructor_id)  # Now directly from slot
-            .first()
+            self.db.query(InstructorProfile).filter(InstructorProfile.user_id == booking_data.instructor_id).first()
         )
 
         if not instructor_profile:
@@ -315,18 +399,17 @@ class BookingService(BaseService):
         if service.instructor_profile_id != instructor_profile.id:
             raise ValidationException("Service does not belong to this instructor")
 
-        return slot, service, instructor_profile
+        return service, instructor_profile
 
     async def _apply_booking_rules(
         self,
-        slot: AvailabilitySlot,
+        booking_data: BookingCreate,
         service: Service,
         instructor_profile: InstructorProfile,
-        booking_data: BookingCreate,
     ) -> None:
         """Apply business rules for booking creation."""
         # Check minimum advance booking time
-        booking_datetime = datetime.combine(slot.date, slot.start_time)  # Now directly from slot
+        booking_datetime = datetime.combine(booking_data.booking_date, booking_data.start_time)
         min_booking_time = datetime.now() + timedelta(hours=instructor_profile.min_advance_booking_hours)
 
         if booking_datetime < min_booking_time:
@@ -354,11 +437,11 @@ class BookingService(BaseService):
             # Student cancellation
             logger.info(f"Student {user.id} cancelled booking {booking.id}")
 
-    def _calculate_pricing(self, service: Service, slot: AvailabilitySlot) -> Dict[str, Any]:
-        """Calculate booking pricing."""
+    def _calculate_pricing(self, service: Service, start_time: time, end_time: time) -> Dict[str, Any]:
+        """Calculate booking pricing based on time range."""
         # Calculate duration
-        start = datetime.combine(date.today(), slot.start_time)
-        end = datetime.combine(date.today(), slot.end_time)
+        start = datetime.combine(date.today(), start_time)
+        end = datetime.combine(date.today(), end_time)
         duration = end - start
         duration_minutes = int(duration.total_seconds() / 60)
 
@@ -495,31 +578,34 @@ class BookingService(BaseService):
         logger.info(f"Booking {booking_id} marked as completed")
         return booking
 
-    async def check_availability(self, slot_id: int, service_id: int) -> Dict[str, Any]:
+    async def check_availability(
+        self, instructor_id: int, booking_date: date, start_time: time, end_time: time, service_id: int
+    ) -> Dict[str, Any]:
         """
-        Check if a slot is available for booking.
+        Check if a time range is available for booking.
 
         Args:
-            slot_id: Availability slot ID
+            instructor_id: The instructor ID
+            booking_date: The date to check
+            start_time: Start time
+            end_time: End time
             service_id: Service ID
 
         Returns:
             Dictionary with availability status and details
         """
-        # Get the slot using repository
-        slot = self.availability_repository.get_availability_slot_with_details(slot_id)
+        # Check for conflicts
+        has_conflict = self.repository.check_time_conflict(
+            instructor_id=instructor_id,
+            booking_date=booking_date,
+            start_time=start_time,
+            end_time=end_time,
+        )
 
-        if not slot:
-            return {"available": False, "reason": "Slot not found"}
+        if has_conflict:
+            return {"available": False, "reason": "Time slot has conflicts with existing bookings"}
 
-        # Check if already booked using repository
-        existing_booking = self.repository.get_booking_for_slot(slot.id, active_only=True)
-
-        if existing_booking:
-            return {"available": False, "reason": "Slot is already booked"}
-
-        # Get service and instructor profile - ONLY ACTIVE SERVICES
-        # Note: This should use ServiceRepository in complete implementation
+        # Get service and instructor profile
         service = self.db.query(Service).filter(Service.id == service_id, Service.is_active == True).first()
 
         if not service:
@@ -531,7 +617,7 @@ class BookingService(BaseService):
         )
 
         # Check minimum advance booking
-        booking_datetime = datetime.combine(slot.date, slot.start_time)  # Now directly from slot
+        booking_datetime = datetime.combine(booking_date, start_time)
         min_booking_time = datetime.now() + timedelta(hours=instructor_profile.min_advance_booking_hours)
 
         if booking_datetime < min_booking_time:
@@ -543,11 +629,11 @@ class BookingService(BaseService):
 
         return {
             "available": True,
-            "slot_info": {
-                "date": slot.date.isoformat(),  # Now directly from slot
-                "start_time": slot.start_time.isoformat(),
-                "end_time": slot.end_time.isoformat(),
-                "instructor_id": slot.instructor_id,  # Now directly from slot
+            "time_info": {
+                "date": booking_date.isoformat(),
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+                "instructor_id": instructor_id,
             },
         }
 
