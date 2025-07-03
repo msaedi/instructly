@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from ..core.exceptions import ConflictException, NotFoundException, RepositoryException
+from ..core.exceptions import ConflictException, DomainException, NotFoundException, RepositoryException
 from ..models.availability import AvailabilitySlot, BlackoutDate
 from ..models.instructor import InstructorProfile
 from ..repositories.factory import RepositoryFactory
@@ -210,6 +210,47 @@ class AvailabilityService(BaseService):
                 self.logger.warning(f"Failed to cache week availability: {cache_error}")
 
         return week_schedule
+
+    def get_all_instructor_availability(
+        self, instructor_id: int, start_date: Optional[date] = None, end_date: Optional[date] = None
+    ) -> List[AvailabilitySlot]:
+        """
+        Get all availability slots for an instructor with optional date filtering.
+
+        Args:
+            instructor_id: The instructor's ID
+            start_date: Optional start date filter
+            end_date: Optional end date filter
+
+        Returns:
+            List of availability slots ordered by date and time
+        """
+        self.log_operation(
+            "get_all_instructor_availability",
+            instructor_id=instructor_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        try:
+            # Build query for slots directly
+            query = self.db.query(AvailabilitySlot).filter(AvailabilitySlot.instructor_id == instructor_id)
+
+            # Apply date filters if provided
+            if start_date:
+                query = query.filter(AvailabilitySlot.date >= start_date)
+            if end_date:
+                query = query.filter(AvailabilitySlot.date <= end_date)
+
+            # Order by date and time
+            slots = query.order_by(AvailabilitySlot.date, AvailabilitySlot.start_time).all()
+
+            self.logger.info(f"Retrieved {len(slots)} slots for instructor {instructor_id}")
+            return slots
+
+        except Exception as e:
+            self.logger.error(f"Error retrieving all availability: {str(e)}")
+            raise DomainException(f"Failed to retrieve availability: {str(e)}")
 
     async def save_week_availability(self, instructor_id: int, week_data: WeekSpecificScheduleCreate) -> Dict[str, Any]:
         """

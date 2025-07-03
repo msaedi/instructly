@@ -271,7 +271,6 @@ def get_all_availability(
     end_date: Optional[date] = Query(None),
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
-    db: Session = Depends(get_db),
 ):
     """
     Get all availability windows.
@@ -279,25 +278,17 @@ def get_all_availability(
     This endpoint returns a flat list of all availability slots.
     Optionally filter by date range.
 
-    UPDATED FOR WORK STREAM #10: Works directly with AvailabilitySlot objects.
+    UPDATED FOR WORK STREAM #10: Works with single-table design via service layer.
     """
     verify_instructor(current_user)
 
     try:
-        # Import AvailabilitySlot model
-        from ..models.availability import AvailabilitySlot
-
-        # Build query for slots directly
-        query = db.query(AvailabilitySlot).filter(AvailabilitySlot.instructor_id == current_user.id)
-
-        # Apply date filters if provided
-        if start_date:
-            query = query.filter(AvailabilitySlot.date >= start_date)
-        if end_date:
-            query = query.filter(AvailabilitySlot.date <= end_date)
-
-        # Order by date and time
-        slots = query.order_by(AvailabilitySlot.date, AvailabilitySlot.start_time).all()
+        # Get slots from service
+        slots = availability_service.get_all_instructor_availability(
+            instructor_id=current_user.id,
+            start_date=start_date,
+            end_date=end_date,
+        )
 
         # Convert to response format
         result = []

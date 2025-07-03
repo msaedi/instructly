@@ -1,0 +1,173 @@
+# backend/app/services/auth_service.py
+"""
+Authentication Service for InstaInstru Platform
+
+Handles user registration, authentication, and user retrieval operations.
+Follows the service layer pattern to keep business logic out of routes.
+"""
+
+import logging
+from typing import TYPE_CHECKING, Optional
+
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from ..auth import get_password_hash, verify_password
+from ..core.exceptions import ConflictException, NotFoundException, ValidationException
+from ..models.instructor import InstructorProfile
+from ..models.user import User, UserRole
+from .base import BaseService
+
+if TYPE_CHECKING:
+    from .cache_service import CacheService
+
+logger = logging.getLogger(__name__)
+
+
+class AuthService(BaseService):
+    """Service for handling authentication operations."""
+
+    def __init__(self, db: Session, cache_service: Optional["CacheService"] = None):
+        """Initialize authentication service."""
+        super().__init__(db, cache=cache_service)
+        self.logger = logging.getLogger(__name__)
+
+    def register_user(self, email: str, password: str, full_name: str, role: UserRole) -> User:
+        """
+        Register a new user.
+
+        Args:
+            email: User's email address
+            password: Plain text password (will be hashed)
+            full_name: User's full name
+            role: User role (student or instructor)
+
+        Returns:
+            Created user object
+
+        Raises:
+            ConflictException: If email already exists
+            ValidationException: If data is invalid
+        """
+        self.log_operation("register_user", email=email, role=role)
+
+        # Check if email already exists
+        existing_user = self.get_user_by_email(email)
+        if existing_user:
+            self.logger.warning(f"Registration failed - email already exists: {email}")
+            raise ConflictException("Email already registered")
+
+        # Hash the password
+        hashed_password = get_password_hash(password)
+
+        # Create user
+        user = User(
+            email=email,
+            hashed_password=hashed_password,
+            full_name=full_name,
+            role=role,
+        )
+
+        try:
+            with self.transaction():
+                self.db.add(user)
+                self.db.flush()  # Get the user ID
+
+                # If registering as instructor, create empty profile
+                if role == UserRole.INSTRUCTOR:
+                    instructor_profile = InstructorProfile(
+                        user_id=user.id,
+                        bio="",
+                        years_experience=0,
+                        areas_of_service="",
+                        min_advance_booking_hours=1,
+                        buffer_time_minutes=15,
+                    )
+                    self.db.add(instructor_profile)
+
+                self.logger.info(f"Successfully registered user: {email} with role: {role}")
+                return user
+
+        except IntegrityError as e:
+            self.logger.error(f"Integrity error registering user {email}: {str(e)}")
+            raise ConflictException("Email already registered")
+        except Exception as e:
+            self.logger.error(f"Error registering user {email}: {str(e)}")
+            raise ValidationException(f"Error creating user: {str(e)}")
+
+    def authenticate_user(self, email: str, password: str) -> Optional[User]:
+        """
+        Authenticate user by email and password.
+
+        Args:
+            email: User's email
+            password: Plain text password to verify
+
+        Returns:
+            User object if authentication successful, None otherwise
+        """
+        self.logger.info(f"Authentication attempt for user: {email}")
+
+        user = self.get_user_by_email(email)
+        if not user:
+            self.logger.warning(f"Authentication failed - user not found: {email}")
+            return None
+
+        if not verify_password(password, user.hashed_password):
+            self.logger.warning(f"Authentication failed - incorrect password: {email}")
+            return None
+
+        self.logger.info(f"Successful authentication for user: {email}")
+        return user
+
+    def get_user_by_email(self, email: str) -> Optional[User]:
+        """
+        Get user by email address.
+
+        Args:
+            email: User's email
+
+        Returns:
+            User object or None if not found
+        """
+        try:
+            return self.db.query(User).filter(User.email == email).first()
+        except Exception as e:
+            self.logger.error(f"Error getting user by email {email}: {str(e)}")
+            return None
+
+    def get_user_by_id(self, user_id: int) -> Optional[User]:
+        """
+        Get user by ID.
+
+        Args:
+            user_id: User's ID
+
+        Returns:
+            User object or None if not found
+        """
+        try:
+            return self.db.query(User).filter(User.id == user_id).first()
+        except Exception as e:
+            self.logger.error(f"Error getting user by ID {user_id}: {str(e)}")
+            return None
+
+    def get_current_user(self, email: str) -> User:
+        """
+        Get current user by email, raising exception if not found.
+
+        Args:
+            email: User's email from JWT token
+
+        Returns:
+            User object
+
+        Raises:
+            NotFoundException: If user not found
+        """
+        user = self.get_user_by_email(email)
+        if not user:
+            self.logger.error(f"Current user not found: {email}")
+            raise NotFoundException("User not found")
+
+        return user
