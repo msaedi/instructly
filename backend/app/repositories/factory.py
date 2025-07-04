@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from .booking_repository import BookingRepository
     from .bulk_operation_repository import BulkOperationRepository
     from .conflict_checker_repository import ConflictCheckerRepository
+    from .instructor_profile_repository import InstructorProfileRepository
     from .slot_manager_repository import SlotManagerRepository
     from .week_operation_repository import WeekOperationRepository
 
@@ -87,3 +88,10 @@ class RepositoryFactory:
         from .week_operation_repository import WeekOperationRepository
 
         return WeekOperationRepository(db)
+
+    @staticmethod
+    def create_instructor_profile_repository(db: Session) -> "InstructorProfileRepository":
+        """Create repository for instructor profile operations with optimized queries."""
+        from .instructor_profile_repository import InstructorProfileRepository
+
+        return InstructorProfileRepository(db)

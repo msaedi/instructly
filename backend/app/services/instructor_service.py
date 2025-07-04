@@ -47,8 +47,8 @@ class InstructorService(BaseService):
         super().__init__(db)
         self.cache_service = cache_service
 
-        # Initialize repositories using BaseRepository for each model
-        self.profile_repository = profile_repository or RepositoryFactory.create_base_repository(db, InstructorProfile)
+        # Initialize repositories - use specialized InstructorProfileRepository for optimized queries
+        self.profile_repository = profile_repository or RepositoryFactory.create_instructor_profile_repository(db)
         self.service_repository = service_repository or RepositoryFactory.create_base_repository(db, Service)
         self.user_repository = user_repository or RepositoryFactory.create_base_repository(db, User)
         self.booking_repository = booking_repository or RepositoryFactory.create_booking_repository(db)
@@ -56,6 +56,8 @@ class InstructorService(BaseService):
     def get_instructor_profile(self, user_id: int, include_inactive_services: bool = False) -> Dict:
         """
         Get instructor profile with proper service filtering.
+
+        OPTIMIZED: Uses eager loading to get all data in one query.
 
         Args:
             user_id: The user ID of the instructor
@@ -67,28 +69,24 @@ class InstructorService(BaseService):
         Raises:
             NotFoundException: If profile not found
         """
-        # Get profile
-        profile = self.profile_repository.find_one_by(user_id=user_id)
+        # Use optimized repository method that eager loads relationships
+        profile = self.profile_repository.get_by_user_id_with_details(
+            user_id=user_id, include_inactive_services=include_inactive_services
+        )
 
         if not profile:
             raise NotFoundException("Instructor profile not found")
 
-        # Manually load related data since repository doesn't support eager loading
-        # Get user
-        user = self.user_repository.get_by_id(user_id)
-
-        # Get services
-        all_services = self.service_repository.find_by(instructor_profile_id=profile.id)
-
-        # Attach to profile object for _profile_to_dict
-        profile.user = user
-        profile.services = all_services
-
+        # Everything is already loaded - no additional queries
         return self._profile_to_dict(profile, include_inactive_services)
 
     def get_all_instructors(self, skip: int = 0, limit: int = 100) -> List[Dict]:
         """
         Get all instructor profiles with active services only.
+
+        OPTIMIZED: Uses eager loading to prevent N+1 queries.
+        Previously: 1 + 2N queries (201 queries for 100 instructors)
+        Now: 1 query with joins
 
         Args:
             skip: Number of records to skip
@@ -97,19 +95,14 @@ class InstructorService(BaseService):
         Returns:
             List of instructor profile dictionaries
         """
-        # Get all profiles
-        profiles = self.profile_repository.get_all(skip=skip, limit=limit)
+        # Use the optimized repository method that eager loads relationships
+        profiles = self.profile_repository.get_all_with_details(
+            skip=skip, limit=limit, include_inactive_services=False  # Only active services
+        )
 
+        # Convert to dictionaries - no additional queries needed since everything is loaded
         result = []
         for profile in profiles:
-            # Load related data for each profile
-            user = self.user_repository.get_by_id(profile.user_id)
-            services = self.service_repository.find_by(instructor_profile_id=profile.id)
-
-            # Attach to profile
-            profile.user = user
-            profile.services = services
-
             result.append(self._profile_to_dict(profile))
 
         return result

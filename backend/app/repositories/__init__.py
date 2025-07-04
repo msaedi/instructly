@@ -15,6 +15,7 @@ Key Components:
 - BulkOperationRepository: Repository for bulk operations (13 methods)
 - BookingRepository: Repository for booking operations
 - WeekOperationRepository: Repository for week operations (15 methods)
+- InstructorProfileRepository: Repository for instructor profiles with eager loading
 
 Usage:
     from app.repositories import BaseRepository, RepositoryFactory
@@ -41,6 +42,7 @@ from .booking_repository import BookingRepository
 from .bulk_operation_repository import BulkOperationRepository
 from .conflict_checker_repository import ConflictCheckerRepository
 from .factory import RepositoryFactory
+from .instructor_profile_repository import InstructorProfileRepository
 from .slot_manager_repository import SlotManagerRepository
 from .week_operation_repository import WeekOperationRepository
 
@@ -54,6 +56,7 @@ __all__ = [
     "BulkOperationRepository",
     "BookingRepository",
     "WeekOperationRepository",
+    "InstructorProfileRepository",
 ]
 
 # Version info
