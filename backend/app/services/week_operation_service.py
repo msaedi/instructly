@@ -2,23 +2,17 @@
 """
 Week Operation Service for InstaInstru Platform
 
-UPDATED FOR WORK STREAM #10: Single-table availability design.
+Handles complex operations that work with entire weeks of availability data
+using the single-table design where AvailabilitySlots contain instructor_id
+and date directly.
 
-This service has been significantly simplified by removing the concept of
-InstructorAvailability entries. Now works directly with AvailabilitySlots
-that contain instructor_id and date.
-
-Key changes:
-- No more get_or_create_availability - just create slots directly
-- No more is_cleared flag - absence of slots means cleared
-- No more "empty entry" management
-- Simplified bulk operations
+Note: Some methods are async because they perform cache warming operations
+that include rate limiting and retry logic with exponential backoff.
 """
 
 import logging
-import time as time_module
-from datetime import date, time, timedelta
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from datetime import date, timedelta
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -52,7 +46,7 @@ class WeekOperationService(BaseService):
         conflict_checker: Optional["ConflictChecker"] = None,
         cache_service: Optional["CacheService"] = None,
         repository: Optional["WeekOperationRepository"] = None,
-        availability_repository: Optional["AvailabilityRepository"] = None,  # ADDED
+        availability_repository: Optional["AvailabilityRepository"] = None,
     ):
         """Initialize week operation service."""
         super().__init__(db, cache=cache_service)
@@ -60,9 +54,7 @@ class WeekOperationService(BaseService):
 
         # Initialize repositories
         self.repository = repository or RepositoryFactory.create_week_operation_repository(db)
-        self.availability_repository = availability_repository or RepositoryFactory.create_availability_repository(
-            db
-        )  # ADDED
+        self.availability_repository = availability_repository or RepositoryFactory.create_availability_repository(db)
 
         # Lazy import to avoid circular dependencies
         if availability_service is None:
@@ -85,8 +77,10 @@ class WeekOperationService(BaseService):
         """
         Copy availability from one week to another.
 
-        SIMPLIFIED: Just copies slots directly without dealing with
-        InstructorAvailability entries.
+        Copies slots directly without dealing with InstructorAvailability entries.
+
+        This method is async because it performs cache warming operations that
+        include rate limiting and retry logic.
 
         Args:
             instructor_id: The instructor ID
@@ -113,12 +107,11 @@ class WeekOperationService(BaseService):
             # Get target week dates
             target_week_dates = self.calculate_week_dates(to_week_start)
 
-            # Clear ALL existing slots from target week - FIXED: Using availability_repository
+            # Clear ALL existing slots from target week
             deleted_count = self.availability_repository.delete_slots_by_dates(instructor_id, target_week_dates)
             self.logger.debug(f"Deleted {deleted_count} existing slots from target week")
 
             # Get source week slots
-            self.calculate_week_dates(from_week_start)
             source_slots = self.repository.get_week_slots(
                 instructor_id, from_week_start, from_week_start + timedelta(days=6)
             )
@@ -154,6 +147,7 @@ class WeekOperationService(BaseService):
             from .cache_strategies import CacheWarmingStrategy
 
             warmer = CacheWarmingStrategy(self.cache_service, self.db)
+            # warm_with_verification is async - uses asyncio.sleep for rate limiting
             result = await warmer.warm_with_verification(
                 instructor_id,
                 to_week_start,
@@ -181,7 +175,10 @@ class WeekOperationService(BaseService):
         """
         Apply a week's pattern to a date range.
 
-        SIMPLIFIED: Works directly with slots, no InstructorAvailability entries.
+        Works directly with slots, no InstructorAvailability entries.
+
+        This method is async because it performs cache warming operations that
+        include rate limiting and retry logic.
 
         Args:
             instructor_id: The instructor ID
@@ -213,7 +210,7 @@ class WeekOperationService(BaseService):
                 all_dates.append(current_date)
                 current_date += timedelta(days=1)
 
-            # Delete ALL existing slots in the date range - FIXED: Using availability_repository
+            # Delete ALL existing slots in the date range
             deleted_count = self.availability_repository.delete_slots_by_dates(instructor_id, all_dates)
             self.logger.debug(f"Deleted {deleted_count} existing slots from date range")
 
@@ -273,6 +270,7 @@ class WeekOperationService(BaseService):
                 current += timedelta(days=7)
 
             for week_start in affected_weeks:
+                # warm_with_verification is async - uses asyncio.sleep for rate limiting
                 await warmer.warm_with_verification(instructor_id, week_start, expected_slot_count=None)
 
             self.logger.info(f"Warmed cache for {len(affected_weeks)} affected weeks")
@@ -330,94 +328,3 @@ class WeekOperationService(BaseService):
 
         self.logger.debug(f"Extracted pattern with availability for days: {list(pattern.keys())}")
         return pattern
-
-    def get_cached_week_pattern(
-        self, instructor_id: int, week_start: date, cache_ttl: int = 3600
-    ) -> Dict[str, List[Dict[str, Any]]]:
-        """
-        Get week pattern with caching support.
-
-        Args:
-            instructor_id: The instructor ID
-            week_start: Monday of the week
-            cache_ttl: Cache time-to-live in seconds
-
-        Returns:
-            Cached or fresh week pattern
-        """
-        start_time = time_module.time()
-
-        cache_key = f"week_pattern:{instructor_id}:{week_start.isoformat()}"
-
-        # Try cache first
-        if self.cache:
-            cached = self.cache.get(cache_key)
-            if cached:
-                self.logger.debug(f"Week pattern cache hit for {week_start}")
-                elapsed = time_module.time() - start_time
-                self._record_metric("pattern_extraction", elapsed, success=True)
-                return cached
-
-        # Get fresh data
-        week_availability = self.availability_service.get_week_availability(instructor_id, week_start)
-        pattern = self._extract_week_pattern(week_availability, week_start)
-
-        # Cache the result
-        if self.cache:
-            self.cache.set(cache_key, pattern, ttl=cache_ttl)
-
-        elapsed = time_module.time() - start_time
-        self._record_metric("pattern_extraction", elapsed, success=True)
-
-        return pattern
-
-    def add_performance_logging(self) -> None:
-        """Add detailed performance logging to track slow operations."""
-        metrics = self.get_metrics()
-
-        for operation, data in metrics.items():
-            if data["avg_time"] > 1.0:  # Operations taking > 1 second
-                self.logger.warning(
-                    f"Slow operation detected: {operation} "
-                    f"avg_time={data['avg_time']:.2f}s "
-                    f"count={data['count']}"
-                )
-
-    async def apply_pattern_with_progress(
-        self,
-        instructor_id: int,
-        from_week_start: date,
-        start_date: date,
-        end_date: date,
-        progress_callback: Optional[Callable[[int, int], None]] = None,
-    ) -> Dict[str, Any]:
-        """
-        Apply pattern with progress callback for UI updates.
-
-        SIMPLIFIED: No longer tracks individual day operations since we do
-        bulk operations now.
-
-        Args:
-            instructor_id: The instructor ID
-            from_week_start: Source week Monday
-            start_date: Start of range
-            end_date: End of range
-            progress_callback: Optional callback(current, total) for progress
-
-        Returns:
-            Operation result
-        """
-        total_days = (end_date - start_date).days + 1
-
-        # Notify start
-        if progress_callback:
-            progress_callback(0, total_days)
-
-        # Apply the pattern
-        result = await self.apply_pattern_to_date_range(instructor_id, from_week_start, start_date, end_date)
-
-        # Notify completion
-        if progress_callback:
-            progress_callback(total_days, total_days)
-
-        return result
