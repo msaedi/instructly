@@ -2,8 +2,6 @@
 """
 Conflict Checker Service for InstaInstru Platform
 
-UPDATED FOR CLEAN ARCHITECTURE: Complete separation from availability slots.
-
 Handles all booking conflict detection and validation including:
 - Checking if time slots conflict with existing bookings
 - Validating booking constraints

@@ -217,7 +217,6 @@ class CacheService(BaseService):
                     health_check_interval=30,
                     # Connection pooling
                     max_connections=50,
-                    connection_pool_class=redis.BlockingConnectionPool,
                 )
                 # Test connection
                 self.redis.ping()

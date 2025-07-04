@@ -9,7 +9,7 @@ Handles bulk availability operations including:
 - Week validation and preview
 
 All operations work directly with AvailabilitySlot objects
-using instructor_id + date in the single-table design.
+using instructor_id + date.
 """
 
 import logging
@@ -44,7 +44,7 @@ class BulkOperationService(BaseService):
     Service for handling bulk availability operations.
 
     Provides transactional bulk updates with validation
-    and rollback capabilities using the single-table design.
+    and rollback capabilities.
     """
 
     def __init__(

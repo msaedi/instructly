@@ -2,8 +2,6 @@
 """
 Slot Manager Service for InstaInstru Platform
 
-UPDATED FOR CLEAN ARCHITECTURE: Pure CRUD operations for availability slots.
-
 Manages time slot operations including:
 - Creating, updating, and deleting slots
 - Merging overlapping slots

@@ -2,9 +2,7 @@
 """
 Availability Service for InstaInstru Platform
 
-This service handles all availability-related business logic using the
-single-table availability design where AvailabilitySlots contain
-instructor_id and date directly.
+This service handles all availability-related business logic.
 """
 
 import logging
@@ -34,7 +32,7 @@ class AvailabilityService(BaseService):
     """
     Service layer for availability operations.
 
-    Works directly with AvailabilitySlot objects in the single-table design.
+    Works directly with AvailabilitySlot objects.
     """
 
     def __init__(
