@@ -17,11 +17,14 @@ DO NOT: Add methods for:
 - Pattern applications
 - Complex bulk operations with business logic
 - Methods that coordinate multiple operations
+
+Methods removed for clean architecture:
+- get_booked_slot_ids() → Use get_booked_time_ranges() for time-based queries
 """
 
 import logging
 from datetime import date, time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import and_, func, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -144,38 +147,38 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error getting booked slots: {str(e)}")
             raise RepositoryException(f"Failed to get booked slots: {str(e)}")
 
-    def get_booked_slot_ids(self, instructor_id: int, target_date: date) -> List[int]:
+    def get_booked_time_ranges(self, instructor_id: int, target_date: date) -> List[Tuple[time, time]]:
         """
-        Get IDs of slots that have bookings on a specific date.
+        Get time ranges that have bookings on a specific date.
 
-        Used to preserve booked slots during updates.
+        UPDATED: Replaces get_booked_slot_ids() since we no longer have slot IDs in bookings.
+        Returns the actual booked time ranges instead.
 
         Args:
             instructor_id: The instructor ID
             target_date: The date to check
 
         Returns:
-            List of slot IDs that have bookings
+            List of (start_time, end_time) tuples for booked times
         """
         try:
             results = (
-                self.db.query(Booking.availability_slot_id)
+                self.db.query(Booking.start_time, Booking.end_time)
                 .filter(
                     and_(
                         Booking.instructor_id == instructor_id,
                         Booking.booking_date == target_date,
                         Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                        Booking.availability_slot_id.isnot(None),
                     )
                 )
                 .all()
             )
 
-            return [id[0] for id in results if id[0] is not None]
+            return [(start, end) for start, end in results]
 
         except SQLAlchemyError as e:
-            self.logger.error(f"Error getting booked slot IDs: {str(e)}")
-            raise RepositoryException(f"Failed to get booked slots: {str(e)}")
+            self.logger.error(f"Error getting booked time ranges: {str(e)}")
+            raise RepositoryException(f"Failed to get booked times: {str(e)}")
 
     def count_bookings_for_date(self, instructor_id: int, target_date: date) -> int:
         """
@@ -503,7 +506,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
         """
         Get aggregated statistics for instructor availability.
 
-        Simplified queries in single-table design.
+        UPDATED: Uses time-based overlap for counting booked slots instead of FK join.
 
         Args:
             instructor_id: The instructor ID
@@ -512,19 +515,47 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             Dict with availability statistics
         """
         try:
-            stats = (
+            # Get total slots for future dates
+            future_slots = (
+                self.db.query(func.count(AvailabilitySlot.id))
+                .filter(
+                    and_(
+                        AvailabilitySlot.instructor_id == instructor_id,
+                        AvailabilitySlot.date >= date.today(),
+                    )
+                )
+                .scalar()
+            ) or 0
+
+            # Get count of slots that have overlapping bookings
+            # This is more complex without direct FK, but maintains independence
+            booked_slots_query = text(
+                """
+                SELECT COUNT(DISTINCT s.id) as booked_count
+                FROM availability_slots s
+                WHERE s.instructor_id = :instructor_id
+                  AND s.date >= :today
+                  AND EXISTS (
+                      SELECT 1 FROM bookings b
+                      WHERE b.instructor_id = s.instructor_id
+                        AND b.booking_date = s.date
+                        AND b.start_time < s.end_time
+                        AND b.end_time > s.start_time
+                        AND b.status IN ('CONFIRMED', 'COMPLETED')
+                  )
+                """
+            )
+
+            booked_count_result = self.db.execute(
+                booked_slots_query, {"instructor_id": instructor_id, "today": date.today()}
+            ).fetchone()
+            booked_count = booked_count_result.booked_count if booked_count_result else 0
+
+            # Get date range
+            date_stats = (
                 self.db.query(
-                    func.count(AvailabilitySlot.id).label("total_slots"),
-                    func.count(Booking.id).label("booked_slots"),
                     func.min(AvailabilitySlot.date).label("earliest_availability"),
                     func.max(AvailabilitySlot.date).label("latest_availability"),
-                )
-                .outerjoin(
-                    Booking,
-                    and_(
-                        AvailabilitySlot.id == Booking.availability_slot_id,
-                        Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                    ),
                 )
                 .filter(
                     and_(
@@ -536,11 +567,11 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             )
 
             return {
-                "total_slots": stats.total_slots or 0,
-                "booked_slots": stats.booked_slots or 0,
-                "earliest_availability": stats.earliest_availability,
-                "latest_availability": stats.latest_availability,
-                "utilization_rate": ((stats.booked_slots / stats.total_slots * 100) if stats.total_slots > 0 else 0),
+                "total_slots": future_slots,
+                "booked_slots": booked_count,
+                "earliest_availability": date_stats.earliest_availability if date_stats else None,
+                "latest_availability": date_stats.latest_availability if date_stats else None,
+                "utilization_rate": ((booked_count / future_slots * 100) if future_slots > 0 else 0),
             }
 
         except SQLAlchemyError as e:

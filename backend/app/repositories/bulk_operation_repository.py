@@ -21,6 +21,7 @@ Methods removed:
 - get_instructor_profile() → Use ConflictCheckerRepository
 - get_week_slots() → Use WeekOperationRepository
 - get_booked_slot_ids() → Use SlotManagerRepository
+- slot_has_active_booking() → REMOVED (violates clean architecture)
 
 For single slot CRUD operations, use AvailabilityRepository.
 """
@@ -29,6 +30,7 @@ import logging
 from datetime import date, time
 from typing import Dict, List, Optional, Tuple
 
+from sqlalchemy import and_
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -84,38 +86,12 @@ class BulkOperationRepository(BaseRepository[AvailabilitySlot]):
 
     # Booking Validation
 
-    def slot_has_active_booking(self, slot_id: int) -> bool:
-        """
-        Check if a specific slot has active bookings.
-
-        Used to validate if slot can be removed/updated in bulk operations.
-
-        Args:
-            slot_id: The slot ID to check
-
-        Returns:
-            True if slot has active bookings, False otherwise
-        """
-        try:
-            booking = (
-                self.db.query(Booking)
-                .filter(
-                    Booking.availability_slot_id == slot_id,
-                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                )
-                .first()
-            )
-            return booking is not None
-
-        except SQLAlchemyError as e:
-            self.logger.error(f"Error checking slot booking: {str(e)}")
-            raise RepositoryException(f"Failed to check slot booking: {str(e)}")
-
     def has_bookings_on_date(self, instructor_id: int, target_date: date) -> bool:
         """
-        Check if any slots on a date have bookings.
+        Check if instructor has any bookings on a specific date.
 
-        Used to validate if date can be cleared in bulk operations.
+        UPDATED: Simplified to check bookings directly without slot join.
+        This aligns with clean architecture where bookings exist independently.
 
         Args:
             instructor_id: The instructor ID
@@ -127,11 +103,12 @@ class BulkOperationRepository(BaseRepository[AvailabilitySlot]):
         try:
             count = (
                 self.db.query(Booking)
-                .join(AvailabilitySlot, Booking.availability_slot_id == AvailabilitySlot.id)
                 .filter(
-                    AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.date == target_date,
-                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                    and_(
+                        Booking.instructor_id == instructor_id,
+                        Booking.booking_date == target_date,
+                        Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                    )
                 )
                 .count()
             )
