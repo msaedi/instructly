@@ -206,7 +206,8 @@ def test_booking(db: Session, test_student: User, test_instructor_with_availabil
     """
     Create a test booking for tomorrow.
 
-    UPDATED: Queries slots directly without InstructorAvailability.
+    UPDATED: Creates bookings without any reference to availability_slot_id,
+    following the clean architecture from Session v56.
     """
     tomorrow = date.today() + timedelta(days=1)
 
@@ -217,29 +218,19 @@ def test_booking(db: Session, test_student: User, test_instructor_with_availabil
 
     service = db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
 
-    # Get an available slot for tomorrow directly
-    slot = (
-        db.query(AvailabilitySlot)
-        .filter(
-            AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-            AvailabilitySlot.date == tomorrow,
-        )
-        .first()
-    )
-
-    # Create booking
+    # Create booking with self-contained time data (no slot reference!)
     booking = Booking(
         student_id=test_student.id,
         instructor_id=test_instructor_with_availability.id,
         service_id=service.id,
-        availability_slot_id=slot.id,
+        # NO availability_slot_id - this field no longer exists!
         booking_date=tomorrow,
-        start_time=slot.start_time,
-        end_time=slot.end_time,
+        start_time=time(9, 0),  # Self-contained time
+        end_time=time(12, 0),  # Self-contained time
         service_name=service.skill,
         hourly_rate=service.hourly_rate,
-        total_price=service.hourly_rate * ((slot.end_time.hour - slot.start_time.hour)),
-        duration_minutes=(slot.end_time.hour - slot.start_time.hour) * 60,
+        total_price=service.hourly_rate * 3,  # 3 hour booking
+        duration_minutes=180,
         status=BookingStatus.CONFIRMED,
         meeting_location="Test Location",
         service_area="Manhattan",
@@ -272,7 +263,7 @@ def test_instructor_with_bookings(db: Session, test_instructor_with_availability
     """
     Create a test instructor with services that have bookings.
 
-    UPDATED: Queries slots directly without InstructorAvailability.
+    UPDATED: Creates bookings without any reference to availability slots.
     """
     # Get instructor's profile
     profile = (
@@ -288,36 +279,26 @@ def test_instructor_with_bookings(db: Session, test_instructor_with_availability
     if not service:
         raise ValueError(f"No active service found for profile {profile.id}")
 
-    # Get tomorrow's slot directly
+    # Create a booking for tomorrow (self-contained, no slot reference)
     tomorrow = date.today() + timedelta(days=1)
-    slot = (
-        db.query(AvailabilitySlot)
-        .filter(
-            AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-            AvailabilitySlot.date == tomorrow,
-        )
-        .first()
-    )
 
-    if slot:
-        # Create a booking for this service
-        booking = Booking(
-            student_id=test_student.id,
-            instructor_id=test_instructor_with_availability.id,
-            service_id=service.id,
-            availability_slot_id=slot.id,
-            booking_date=tomorrow,
-            start_time=slot.start_time,
-            end_time=slot.end_time,
-            service_name=service.skill,
-            hourly_rate=service.hourly_rate,
-            total_price=service.hourly_rate * 3,  # 3 hour slot
-            duration_minutes=180,
-            status=BookingStatus.CONFIRMED,
-            meeting_location="Test Location",
-        )
-        db.add(booking)
-        db.flush()
+    booking = Booking(
+        student_id=test_student.id,
+        instructor_id=test_instructor_with_availability.id,
+        service_id=service.id,
+        # NO availability_slot_id!
+        booking_date=tomorrow,
+        start_time=time(9, 0),  # Direct time specification
+        end_time=time(12, 0),  # Direct time specification
+        service_name=service.skill,
+        hourly_rate=service.hourly_rate,
+        total_price=service.hourly_rate * 3,  # 3 hour booking
+        duration_minutes=180,
+        status=BookingStatus.CONFIRMED,
+        meeting_location="Test Location",
+    )
+    db.add(booking)
+    db.flush()
 
     return test_instructor_with_availability
 

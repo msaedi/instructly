@@ -2,27 +2,13 @@
 """
 Booking model for InstaInstru platform.
 
-This module defines the Booking model which represents a confirmed lesson
-booking between a student and an instructor. The platform uses instant
-booking, so bookings are immediately confirmed upon creation.
+Represents instant bookings between students and instructors.
+Bookings are self-contained records with all necessary information,
+achieving complete independence from availability slots.
 
-Key Features:
-- Instant booking confirmation (no approval process)
-- Self-contained bookings with all necessary data
-- Complete independence from availability slots
-- Comprehensive booking lifecycle management
-- Location type tracking for instructor convenience
-- Cancellation tracking with reason and actor
-
-Database Table: bookings
-Primary Key: id
-Foreign Keys: student_id, instructor_id, service_id, cancelled_by_id
-
-ARCHITECTURAL DESIGN:
-Bookings are self-contained records that store all necessary information
-(instructor, date, times) directly. This achieves complete layer independence
-between availability and bookings. Bookings are commitments that persist
-regardless of availability changes.
+Architecture: Bookings store instructor, date, and time data directly.
+This allows bookings to persist as commitments regardless of
+availability changes ("Rug and Person" principle).
 """
 
 import logging
@@ -40,39 +26,17 @@ logger = logging.getLogger(__name__)
 
 
 class BookingStatus(str, Enum):
-    """
-    Enum for booking statuses throughout the booking lifecycle.
-
-    Note: Since we use instant booking, PENDING should rarely be used.
-    All bookings start as CONFIRMED.
-
-    Values:
-        PENDING: Reserved for future use (e.g., if approval flow is added)
-        CONFIRMED: Default status - booking is immediately confirmed
-        COMPLETED: Lesson has been completed successfully
-        CANCELLED: Booking was cancelled by student or instructor
-        NO_SHOW: Student didn't show up for the lesson
-    """
+    """Booking lifecycle statuses."""
 
     PENDING = "PENDING"  # Reserved for future use
-    CONFIRMED = "CONFIRMED"  # Default - booking is confirmed
-    COMPLETED = "COMPLETED"  # Lesson has been completed
-    CANCELLED = "CANCELLED"  # Booking was cancelled
-    NO_SHOW = "NO_SHOW"  # Student didn't show up
+    CONFIRMED = "CONFIRMED"  # Default - instant booking
+    COMPLETED = "COMPLETED"  # Lesson completed
+    CANCELLED = "CANCELLED"  # Booking cancelled
+    NO_SHOW = "NO_SHOW"  # Student didn't attend
 
 
 class LocationType(str, Enum):
-    """
-    Enum for booking location types.
-
-    Helps instructors quickly understand where they need to go
-    and helps with logistics planning.
-
-    Values:
-        STUDENT_HOME: Lesson will be at student's home/location
-        INSTRUCTOR_LOCATION: Lesson will be at instructor's studio/location
-        NEUTRAL: Lesson will be at a neutral location (e.g., park, library)
-    """
+    """Where the lesson will take place."""
 
     STUDENT_HOME = "student_home"
     INSTRUCTOR_LOCATION = "instructor_location"
@@ -81,61 +45,11 @@ class LocationType(str, Enum):
 
 class Booking(Base):
     """
-    Model representing a booking between a student and instructor.
+    Self-contained booking record between student and instructor.
 
-    This model handles instant bookings - when a student books a time slot,
-    it's immediately confirmed. The booking captures all relevant information
-    at the time of booking to maintain historical accuracy.
-
-    Design Principles:
-    1. Self-Contained: All booking data (instructor, date, times) stored directly
-    2. Snapshot Approach: Service details (name, rate) are copied at booking time
-    3. Instant Confirmation: Bookings are confirmed immediately upon creation
-    4. Comprehensive Tracking: All state changes are tracked with timestamps
-    5. Layer Independence: No references to availability slots
-
-    Attributes:
-        Core Fields:
-            id: Primary key
-            student_id: The student who made the booking
-            instructor_id: The instructor providing the service
-            service_id: The service being booked
-
-        Booking Data (self-contained):
-            booking_date: Date of the lesson (YYYY-MM-DD)
-            start_time: Start time of the lesson (HH:MM:SS)
-            end_time: End time of the lesson (HH:MM:SS)
-
-        Snapshot Data (preserved for history):
-            service_name: Name of service at booking time
-            hourly_rate: Rate at booking time (Decimal)
-            total_price: Total price calculated (Decimal)
-            duration_minutes: Duration in minutes (Integer)
-
-        Booking Details:
-            status: Current booking status (BookingStatus enum)
-            service_area: NYC area where service is provided
-            location_type: Type of location (LocationType enum)
-            meeting_location: Specific location/address details
-            student_note: Note from student at booking
-            instructor_note: Note from instructor (can be added later)
-
-        Timestamps:
-            created_at: When booking was made
-            updated_at: When booking was last modified
-            confirmed_at: When booking was confirmed (same as created for instant)
-            completed_at: When lesson was completed
-            cancelled_at: When booking was cancelled (if applicable)
-
-        Cancellation Info:
-            cancelled_by_id: User ID who cancelled the booking
-            cancellation_reason: Reason for cancellation
-
-    Relationships:
-        student: User who made the booking
-        instructor: User providing the service
-        service: Service being provided
-        cancelled_by: User who cancelled (if cancelled)
+    Design: Bookings are instant (confirmed immediately) and store all
+    necessary data directly, with no dependency on availability slots.
+    Service details are snapshotted at booking time for historical accuracy.
     """
 
     __tablename__ = "bookings"
@@ -143,42 +57,38 @@ class Booking(Base):
     # Primary key
     id = Column(Integer, primary_key=True, index=True)
 
-    # Foreign keys
+    # Core relationships
     student_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     instructor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
 
-    # Self-contained booking data - NO reference to availability slots
+    # Self-contained booking data
     booking_date = Column(Date, nullable=False, index=True)
     start_time = Column(Time, nullable=False)
     end_time = Column(Time, nullable=False)
 
-    # Service snapshot data - preserved for historical accuracy
+    # Service snapshot (preserved for history)
     service_name = Column(String, nullable=False)
     hourly_rate = Column(Numeric(10, 2), nullable=False)
     total_price = Column(Numeric(10, 2), nullable=False)
     duration_minutes = Column(Integer, nullable=False)
 
-    # Status with check constraint
+    # Booking details
     status = Column(String(20), nullable=False, default=BookingStatus.CONFIRMED, index=True)
-
-    # Location details
-    service_area = Column(String, nullable=True)  # e.g., "Manhattan, Brooklyn"
+    service_area = Column(String, nullable=True)
     location_type = Column(String(50), nullable=True, default=LocationType.NEUTRAL)
-    meeting_location = Column(Text, nullable=True)  # Detailed address/instructions
+    meeting_location = Column(Text, nullable=True)
+    student_note = Column(Text, nullable=True)
+    instructor_note = Column(Text, nullable=True)
 
-    # Communication
-    student_note = Column(Text, nullable=True)  # Note provided during booking
-    instructor_note = Column(Text, nullable=True)  # Instructor can add notes later
-
-    # Timestamps - all timezone-aware
+    # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    confirmed_at = Column(DateTime(timezone=True), server_default=func.now())  # Instant booking
+    confirmed_at = Column(DateTime(timezone=True), server_default=func.now())
     completed_at = Column(DateTime(timezone=True), nullable=True)
     cancelled_at = Column(DateTime(timezone=True), nullable=True)
 
-    # Cancellation details
+    # Cancellation tracking
     cancelled_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     cancellation_reason = Column(Text, nullable=True)
 
@@ -188,7 +98,7 @@ class Booking(Base):
     service = relationship("Service", backref="bookings")
     cancelled_by = relationship("User", foreign_keys=[cancelled_by_id])
 
-    # Table constraints to ensure data integrity
+    # Data integrity constraints
     __table_args__ = (
         CheckConstraint(
             "status IN ('PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW')",
@@ -205,14 +115,8 @@ class Booking(Base):
     )
 
     def __init__(self, **kwargs):
-        """
-        Initialize booking with instant confirmation.
-
-        Sets default status to CONFIRMED if not provided,
-        supporting the instant booking workflow.
-        """
+        """Initialize with instant confirmation by default."""
         super().__init__(**kwargs)
-        # Default to CONFIRMED for instant booking
         if not self.status:
             self.status = BookingStatus.CONFIRMED
         logger.info(f"Creating booking for student {self.student_id} with instructor {self.instructor_id}")
@@ -226,18 +130,7 @@ class Booking(Base):
         )
 
     def cancel(self, cancelled_by_user_id: int, reason: Optional[str] = None) -> None:
-        """
-        Cancel this booking.
-
-        Args:
-            cancelled_by_user_id: ID of the user cancelling the booking
-            reason: Optional cancellation reason
-
-        Side Effects:
-            - Updates status to CANCELLED
-            - Sets cancelled_at timestamp
-            - Records who cancelled and why
-        """
+        """Cancel this booking."""
         self.status = BookingStatus.CANCELLED
         self.cancelled_at = datetime.utcnow()
         self.cancelled_by_id = cancelled_by_user_id
@@ -245,100 +138,51 @@ class Booking(Base):
         logger.info(f"Booking {self.id} cancelled by user {cancelled_by_user_id}")
 
     def complete(self) -> None:
-        """
-        Mark this booking as completed.
-
-        Should be called after the lesson has been successfully delivered.
-
-        Side Effects:
-            - Updates status to COMPLETED
-            - Sets completed_at timestamp
-        """
+        """Mark booking as completed."""
         self.status = BookingStatus.COMPLETED
         self.completed_at = datetime.utcnow()
         logger.info(f"Booking {self.id} marked as completed")
 
     def mark_no_show(self) -> None:
-        """
-        Mark this booking as a no-show.
-
-        Should be called when the student doesn't attend the scheduled lesson.
-
-        Side Effects:
-            - Updates status to NO_SHOW
-        """
+        """Mark booking as no-show."""
         self.status = BookingStatus.NO_SHOW
         logger.info(f"Booking {self.id} marked as no-show")
 
     @property
     def is_cancellable(self) -> bool:
-        """
-        Check if booking can still be cancelled.
-
-        Returns:
-            bool: True if booking is in a cancellable state (CONFIRMED or PENDING)
-        """
+        """Check if booking can be cancelled."""
         return self.status in [BookingStatus.CONFIRMED, BookingStatus.PENDING]
 
     @property
     def is_upcoming(self) -> bool:
-        """
-        Check if booking is in the future.
-
-        Returns:
-            bool: True if booking date is in the future and status is CONFIRMED
-        """
+        """Check if booking is in the future."""
         from datetime import date
 
         return self.booking_date > date.today() and self.status == BookingStatus.CONFIRMED
 
     @property
     def is_past(self) -> bool:
-        """
-        Check if booking is in the past.
-
-        Returns:
-            bool: True if booking date has passed
-        """
+        """Check if booking date has passed."""
         from datetime import date
 
         return self.booking_date < date.today()
 
     @property
     def location_type_display(self) -> str:
-        """
-        Get display-friendly location type.
-
-        Returns:
-            str: Human-readable location type
-        """
-        if self.location_type == LocationType.STUDENT_HOME:
-            return "Student's Home"
-        elif self.location_type == LocationType.INSTRUCTOR_LOCATION:
-            return "Instructor's Location"
-        else:
-            return "Neutral Location"
+        """Get human-readable location type."""
+        return {
+            LocationType.STUDENT_HOME: "Student's Home",
+            LocationType.INSTRUCTOR_LOCATION: "Instructor's Location",
+            LocationType.NEUTRAL: "Neutral Location",
+        }.get(self.location_type, "Neutral Location")
 
     @property
     def can_be_modified_by(self, user_id: int) -> bool:
-        """
-        Check if a user can modify this booking.
-
-        Args:
-            user_id: ID of the user attempting modification
-
-        Returns:
-            bool: True if user is either the student or instructor
-        """
+        """Check if user can modify this booking."""
         return user_id in [self.student_id, self.instructor_id]
 
     def to_dict(self) -> dict:
-        """
-        Convert booking to dictionary for API responses.
-
-        Returns:
-            dict: Booking data suitable for JSON serialization
-        """
+        """Convert to dictionary for API responses."""
         return {
             "id": self.id,
             "student_id": self.student_id,
