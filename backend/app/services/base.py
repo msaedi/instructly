@@ -7,9 +7,11 @@ Provides common functionality for all service classes including:
 - Logging
 - Cache integration
 - Error handling
+- Performance monitoring
 """
 
 import logging
+import time
 from contextlib import contextmanager
 from functools import wraps
 from typing import TYPE_CHECKING, Callable, Optional
@@ -35,6 +37,7 @@ class BaseService:
     - Caching
     - Logging
     - Transaction handling
+    - Performance monitoring
     """
 
     def __init__(self, db: Session, cache: Optional["CacheService"] = None):
@@ -48,6 +51,7 @@ class BaseService:
         self.db = db
         self.cache = cache
         self.logger = logging.getLogger(self.__class__.__name__)
+        self._metrics = {}  # Initialize metrics tracking
 
     @contextmanager
     def transaction(self):
@@ -131,4 +135,47 @@ class BaseService:
             operation: Operation name
             **context: Additional context to log
         """
+        # Also record metric for this operation
+        start_time = getattr(self, "_operation_start_time", None)
+        if start_time:
+            elapsed = time.time() - start_time
+            self._record_metric(operation, elapsed, success=True)
+            delattr(self, "_operation_start_time")
+        else:
+            # Start timing if not already started
+            self._operation_start_time = time.time()
+
         self.logger.info(f"Operation: {operation}", extra={"operation": operation, **context})
+
+    def _record_metric(self, operation: str, elapsed: float, success: bool) -> None:
+        """Record performance metrics."""
+        if operation not in self._metrics:
+            self._metrics[operation] = {
+                "count": 0,
+                "total_time": 0,
+                "success_count": 0,
+                "failure_count": 0,
+            }
+
+        self._metrics[operation]["count"] += 1
+        self._metrics[operation]["total_time"] += elapsed
+        if success:
+            self._metrics[operation]["success_count"] += 1
+        else:
+            self._metrics[operation]["failure_count"] += 1
+
+        # Log slow operations
+        if elapsed > 1.0:  # More than 1 second
+            self.logger.warning(f"Slow operation detected: {operation} took {elapsed:.2f}s")
+
+    def get_metrics(self) -> dict:
+        """Get performance metrics for this service."""
+        return {
+            operation: {
+                "count": data["count"],
+                "avg_time": data["total_time"] / data["count"] if data["count"] > 0 else 0,
+                "success_rate": data["success_count"] / data["count"] if data["count"] > 0 else 0,
+                "total_time": data["total_time"],
+            }
+            for operation, data in self._metrics.items()
+        }

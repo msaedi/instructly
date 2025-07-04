@@ -365,7 +365,7 @@ async def get_week_booked_slots(
     verify_instructor(current_user)
 
     try:
-        booked_slots_by_date = conflict_checker.get_booked_slots_for_week(
+        booked_slots_by_date = conflict_checker.get_booked_times_for_week(
             instructor_id=current_user.id, week_start=start_date
         )
 
