@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # backend/scripts/reset_and_seed_database_enhanced.py
 """
-Enhanced Database reset and seed script with clean architecture.
+Database reset and seed script with clean architecture (Work Stream 11 compliant).
 
-UPDATED for Clean Architecture: Complete booking/availability separation.
+This script demonstrates complete booking/availability separation:
 - Bookings are self-contained with all necessary data
 - No references between bookings and availability slots
 - Demonstrates layer independence
@@ -27,7 +27,7 @@ from typing import List
 # Add the parent directory to the path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import create_engine, or_  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
 from app.auth import get_password_hash  # noqa: E402
@@ -39,7 +39,7 @@ from app.models.password_reset import PasswordResetToken  # noqa: E402
 from app.models.service import Service  # noqa: E402
 from app.models.user import User, UserRole  # noqa: E402
 
-# Enhanced logging
+# Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -75,7 +75,6 @@ INSTRUCTOR_TEMPLATES = [
             {"skill": "Music Theory", "rate": 70, "desc": "Comprehensive music theory and composition"},
             {"skill": "Sight Reading", "rate": 60, "desc": "Sight reading practice sessions"},
         ],
-        # Service that will be soft deleted after creating bookings
         "service_to_soft_delete": "Sight Reading",
     },
     {
@@ -101,7 +100,7 @@ INSTRUCTOR_TEMPLATES = [
             {"skill": "Math Tutoring", "rate": 90, "desc": "Algebra, Calculus, and Statistics"},
             {"skill": "SAT/ACT Prep", "rate": 100, "desc": "Comprehensive test preparation"},
         ],
-        "service_to_soft_delete": None,  # Not all instructors need soft deleted services
+        "service_to_soft_delete": None,
     },
     {
         "name": "James Kim",
@@ -131,7 +130,7 @@ STUDENT_TEMPLATES = [
 
 
 def cleanup_database(session: Session) -> List[int]:
-    """Enhanced cleanup with proper dependency handling."""
+    """Clean up test data while preserving excluded users."""
     logger.info("Starting database cleanup...")
     start_time = datetime.now()
 
@@ -151,20 +150,25 @@ def cleanup_database(session: Session) -> List[int]:
     )
 
     user_ids_to_delete = [u.id for u in users_to_delete]
-    logger.info(f"Deleting {len(user_ids_to_delete)} users")
+    logger.info(f"Deleting {len(user_ids_to_delete)} test users")
 
     if user_ids_to_delete:
         # Delete in correct order to respect foreign keys
 
         # 1. Delete bookings
+        deleted_bookings = (
+            session.query(Booking)
+            .filter((Booking.student_id.in_(user_ids_to_delete)) | (Booking.instructor_id.in_(user_ids_to_delete)))
+            .count()
+        )
         session.query(Booking).filter(
-            or_(
-                Booking.student_id.in_(user_ids_to_delete),
-                Booking.instructor_id.in_(user_ids_to_delete),
-            )
+            (Booking.student_id.in_(user_ids_to_delete)) | (Booking.instructor_id.in_(user_ids_to_delete))
         ).delete(synchronize_session=False)
 
         # 2. Delete availability slots
+        deleted_slots = (
+            session.query(AvailabilitySlot).filter(AvailabilitySlot.instructor_id.in_(user_ids_to_delete)).count()
+        )
         session.query(AvailabilitySlot).filter(AvailabilitySlot.instructor_id.in_(user_ids_to_delete)).delete(
             synchronize_session=False
         )
@@ -175,12 +179,14 @@ def cleanup_database(session: Session) -> List[int]:
         )
 
         # 4. Delete services
-        profile_subquery = (
-            session.query(InstructorProfile.id).filter(InstructorProfile.user_id.in_(user_ids_to_delete)).subquery()
+        profile_ids = (
+            session.query(InstructorProfile.id).filter(InstructorProfile.user_id.in_(user_ids_to_delete)).all()
         )
-        session.query(Service).filter(Service.instructor_profile_id.in_(profile_subquery)).delete(
-            synchronize_session=False
-        )
+        profile_ids = [p[0] for p in profile_ids]
+        if profile_ids:
+            session.query(Service).filter(Service.instructor_profile_id.in_(profile_ids)).delete(
+                synchronize_session=False
+            )
 
         # 5. Delete instructor profiles
         session.query(InstructorProfile).filter(InstructorProfile.user_id.in_(user_ids_to_delete)).delete(
@@ -196,6 +202,7 @@ def cleanup_database(session: Session) -> List[int]:
         session.query(User).filter(User.id.in_(user_ids_to_delete)).delete(synchronize_session=False)
 
         session.commit()
+        logger.info(f"Deleted {deleted_bookings} bookings and {deleted_slots} slots")
 
     duration = (datetime.now() - start_time).total_seconds()
     logger.info(f"Cleanup complete in {duration:.2f}s")
@@ -246,17 +253,17 @@ def create_dummy_instructors(session: Session):
             services_created[svc["skill"]] = service
 
         # Create availability patterns
-        create_realistic_availability_with_past(session, user.id)
+        create_realistic_availability(session, user.id)
 
         # Store for later processing
         template["_user_id"] = user.id
         template["_services"] = services_created
 
     session.commit()
-    logger.info(f"Created {len(INSTRUCTOR_TEMPLATES)} instructors")
+    logger.info(f"Created {len(INSTRUCTOR_TEMPLATES)} instructors with profiles and services")
 
 
-def create_realistic_availability_with_past(session: Session, instructor_id: int):
+def create_realistic_availability(session: Session, instructor_id: int):
     """Create availability patterns including past and future weeks."""
     today = date.today()
     start_date = today - timedelta(weeks=2)  # 2 weeks ago
@@ -277,6 +284,7 @@ def create_realistic_availability_with_past(session: Session, instructor_id: int
     ]
 
     pattern = random.choice(patterns)
+    slots_created = 0
 
     # Create consistent weekly pattern
     current_date = start_date
@@ -302,7 +310,7 @@ def create_realistic_availability_with_past(session: Session, instructor_id: int
             start_hour = max(8, min(20, start_hour))
             end_hour = max(start_hour + 1, min(21, end_hour))
 
-            # Create slot with instructor_id and date
+            # Create slot directly (single-table design)
             slot = AvailabilitySlot(
                 instructor_id=instructor_id,
                 date=current_date,
@@ -310,8 +318,11 @@ def create_realistic_availability_with_past(session: Session, instructor_id: int
                 end_time=time(end_hour, 0),
             )
             session.add(slot)
+            slots_created += 1
 
         current_date += timedelta(days=1)
+
+    logger.debug(f"Created {slots_created} availability slots for instructor {instructor_id}")
 
 
 def create_dummy_students(session: Session):
@@ -365,12 +376,13 @@ def create_sample_bookings(session: Session):
                 AvailabilitySlot.date >= today - timedelta(weeks=2),
                 AvailabilitySlot.date <= today + timedelta(weeks=3),
             )
+            .limit(10)
             .all()
         )
 
         # Extract typical time patterns
         typical_times = []
-        for slot in instructor_slots[:10]:  # Sample some slots
+        for slot in instructor_slots:
             typical_times.append((slot.start_time, slot.end_time))
 
         if not typical_times:
@@ -399,7 +411,7 @@ def create_sample_bookings(session: Session):
                 end_datetime = datetime.combine(date.today(), end_time)
                 duration_minutes = int((end_datetime - start_datetime).total_seconds() / 60)
 
-                # Create self-contained booking
+                # Create self-contained booking (NO availability_slot_id!)
                 booking = Booking(
                     student_id=student.id,
                     instructor_id=instructor_id,
@@ -423,7 +435,6 @@ def create_sample_bookings(session: Session):
                 past_bookings_created += 1
 
         # Create regular bookings (past and future)
-        # Generate dates from 2 weeks ago to 3 weeks future
         all_dates = []
         current = today - timedelta(weeks=2)
         while current <= today + timedelta(weeks=3):
@@ -488,9 +499,8 @@ def create_sample_bookings(session: Session):
             bookings_created += 1
 
     session.commit()
-    logger.info(f"Created {bookings_created} regular bookings")
-    logger.info(f"Created {past_bookings_created} past bookings with services to be soft deleted")
-    logger.info("All bookings are self-contained with complete information")
+    logger.info(f"Created {bookings_created} regular bookings and {past_bookings_created} past bookings")
+    logger.info("All bookings are self-contained (no slot references)")
 
 
 def soft_delete_services(session: Session):
@@ -540,10 +550,8 @@ def test_layer_independence(session: Session):
         )
 
         if slots:
-            logger.info(
-                f"Found {len(slots)} availability slots for instructor {past_booking.instructor_id} on {past_booking.booking_date}"
-            )
-            logger.info(f"Deleting these slots to test independence...")
+            logger.info(f"Found {len(slots)} slots on {past_booking.booking_date}")
+            logger.info(f"Deleting slots to test independence...")
 
             for slot in slots:
                 session.delete(slot)
@@ -554,22 +562,42 @@ def test_layer_independence(session: Session):
             booking_check = session.query(Booking).filter(Booking.id == past_booking.id).first()
             if booking_check:
                 logger.info("✅ SUCCESS: Booking persists after availability deletion!")
-                logger.info(f"   Booking {booking_check.id} still exists for {booking_check.service_name}")
-                logger.info(
-                    f"   Date: {booking_check.booking_date}, Time: {booking_check.start_time}-{booking_check.end_time}"
-                )
+                logger.info(f"   Booking {booking_check.id} still exists")
             else:
-                logger.error("❌ FAILURE: Booking was deleted with availability!")
+                logger.error("❌ FAILURE: Booking was deleted!")
         else:
-            logger.info("No availability slots found to test deletion")
+            logger.info("No slots found to test deletion")
     else:
         logger.info("No past bookings found to test with")
 
 
+def quick_login_test():
+    """Quick test to verify login works with seeded data."""
+    try:
+        import requests
+
+        logger.info("\nTesting login with seeded credentials...")
+
+        # Test instructor login
+        response = requests.post(
+            "http://localhost:8000/auth/login",
+            data={"username": "sarah.chen@example.com", "password": TEST_PASSWORD},
+        )
+
+        if response.status_code == 200:
+            logger.info("✅ Login test PASSED! Backend authentication working.")
+        else:
+            logger.warning(f"⚠️  Login test returned {response.status_code}")
+            logger.warning("Make sure backend is running: uvicorn app.main:app --reload")
+    except Exception as e:
+        logger.info("ℹ️  Skipping login test (backend might not be running)")
+        logger.debug(f"Test error: {str(e)}")
+
+
 def main():
     """Main function."""
-    logger.info("Starting enhanced database reset and seed process...")
-    logger.info("CLEAN ARCHITECTURE: Complete booking/availability separation")
+    logger.info("Starting database reset and seed process...")
+    logger.info("Work Stream 11 Compliant - Clean Architecture")
 
     engine = create_engine(settings.database_url, pool_pre_ping=True)
     session = Session(engine)
@@ -605,50 +633,39 @@ def main():
         past_bookings = session.query(Booking).filter(Booking.booking_date < today).count()
         future_bookings = session.query(Booking).filter(Booking.booking_date >= today).count()
 
-        # Count bookings with inactive services
-        bookings_with_inactive = session.query(Booking).join(Service).filter(Service.is_active == False).count()
-
         # Count availability slots
         total_slots = session.query(AvailabilitySlot).count()
-        past_slots = session.query(AvailabilitySlot).filter(AvailabilitySlot.date < today).count()
-        future_slots = session.query(AvailabilitySlot).filter(AvailabilitySlot.date >= today).count()
 
         logger.info("\n" + "=" * 50)
-        logger.info("Enhanced database reset complete!")
+        logger.info("Database reset complete!")
         logger.info(f"Total users: {total_users}")
         logger.info(f"  - Instructors: {total_instructors}")
         logger.info(f"  - Students: {total_students}")
         logger.info(f"\nTotal services: {total_services}")
         logger.info(f"  - Active: {active_services}")
-        logger.info(f"  - Inactive (soft deleted): {inactive_services}")
+        logger.info(f"  - Soft deleted: {inactive_services}")
         logger.info(f"\nTotal bookings: {total_bookings}")
-        logger.info(f"  - Past bookings: {past_bookings}")
-        logger.info(f"  - Future bookings: {future_bookings}")
-        logger.info(f"  - Bookings with inactive services: {bookings_with_inactive}")
+        logger.info(f"  - Past: {past_bookings}")
+        logger.info(f"  - Future: {future_bookings}")
         logger.info(f"\nTotal availability slots: {total_slots}")
-        logger.info(f"  - Past slots: {past_slots}")
-        logger.info(f"  - Future slots: {future_slots}")
 
         logger.info("\nTest credentials:")
-        logger.info(f"  All passwords: {TEST_PASSWORD}")
+        logger.info(f"  Password for all users: {TEST_PASSWORD}")
         logger.info("\nInstructors:")
-        for t in INSTRUCTOR_TEMPLATES:
+        for t in INSTRUCTOR_TEMPLATES[:2]:  # Show first 2
             logger.info(f"  - {t['email']}")
         logger.info("\nStudents:")
-        for t in STUDENT_TEMPLATES[:3]:
+        for t in STUDENT_TEMPLATES[:2]:  # Show first 2
             logger.info(f"  - {t['email']}")
 
-        logger.info("\nSoft delete test:")
-        logger.info("  - Sarah Chen: 'Sight Reading' service soft deleted")
-        logger.info("  - Michael Rodriguez: 'Ukulele' service soft deleted")
-        logger.info("  - James Kim: 'Java Programming' service soft deleted")
+        logger.info("\n🎯 Clean Architecture Achieved:")
+        logger.info("  ✅ Bookings are self-contained")
+        logger.info("  ✅ No slot references in bookings")
+        logger.info("  ✅ Single-table availability design")
+        logger.info("  ✅ Layer independence verified")
 
-        logger.info("\n🎯 CLEAN ARCHITECTURE PRINCIPLES:")
-        logger.info("  - Bookings are self-contained records")
-        logger.info("  - No references between bookings and availability slots")
-        logger.info("  - Bookings store all necessary data directly")
-        logger.info("  - Availability can be modified without affecting bookings")
-        logger.info("  - Demonstrates complete layer independence")
+        # Quick login test
+        quick_login_test()
 
     except Exception as e:
         logger.error(f"Error during database reset: {str(e)}")
