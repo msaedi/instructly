@@ -1,68 +1,46 @@
+# backend/app/schemas/availability_window.py
 """
 Availability window schemas for InstaInstru platform.
 
-This module contains schemas specifically for the availability windows API endpoints.
-It handles the week-based availability management interface.
-
-Note: References to RecurringAvailability have been removed as part of the
-refactoring to use only date-specific availability.
+Clean Architecture: Focused on date-specific availability management.
+No recurring patterns, no is_available fields, no legacy enums.
+Slots exist = available. That's it.
 """
 
 import datetime
 from datetime import date
-from enum import Enum
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .base import StandardizedModel
 
-# Type aliases for annotations
+# Type aliases for clarity
 DateType = datetime.date
 TimeType = datetime.time
 DateTimeType = datetime.datetime
 
-# Type definitions
-WeekSchedule = Dict[str, List["TimeSlot"]]  # Maps date strings to lists of time slots
-
 
 class TimeSlot(BaseModel):
-    """Time slot for availability"""
+    """Time slot for availability - simplified without is_available."""
 
     start_time: TimeType
     end_time: TimeType
-    is_available: bool = True
 
 
-class DayOfWeekEnum(str, Enum):
-    """Enumeration for days of the week."""
-
-    MONDAY = "monday"
-    TUESDAY = "tuesday"
-    WEDNESDAY = "wednesday"
-    THURSDAY = "thursday"
-    FRIDAY = "friday"
-    SATURDAY = "saturday"
-    SUNDAY = "sunday"
-
-
-# Base schemas
 class AvailabilityWindowBase(BaseModel):
     """Base schema for availability windows."""
 
     start_time: TimeType
     end_time: TimeType
-    is_available: bool = True
 
     @field_validator("end_time")
+    @classmethod
     def validate_time_order(cls, v, info):
         """Ensure end time is after start time."""
-        if info.data and "start_time" in info.data and info.data["start_time"] and v <= info.data["start_time"]:
+        if info.data.get("start_time") and v <= info.data["start_time"]:
             raise ValueError("End time must be after start time")
         return v
-
-
-# REMOVED: RecurringAvailabilityCreate - no longer needed
 
 
 class SpecificDateAvailabilityCreate(AvailabilityWindowBase):
@@ -71,6 +49,7 @@ class SpecificDateAvailabilityCreate(AvailabilityWindowBase):
     specific_date: DateType
 
     @field_validator("specific_date")
+    @classmethod
     def validate_future_date(cls, v):
         """Prevent setting availability for past dates."""
         if v < date.today():
@@ -83,36 +62,31 @@ class AvailabilityWindowUpdate(BaseModel):
 
     start_time: Optional[TimeType] = None
     end_time: Optional[TimeType] = None
-    is_available: Optional[TimeType] = None
 
     @field_validator("end_time")
+    @classmethod
     def validate_time_order(cls, v, info):
         """Ensure end time is after start time if both provided."""
-        if v and info.data and "start_time" in info.data and info.data["start_time"] and v <= info.data["start_time"]:
+        if v and info.data.get("start_time") and v <= info.data["start_time"]:
             raise ValueError("End time must be after start time")
         return v
 
 
 class AvailabilityWindowResponse(StandardizedModel):
-    """Response schema for availability windows."""
+    """
+    Response schema for availability windows.
+    Clean Architecture: Only meaningful fields for single-table design.
+    """
 
     id: int
     instructor_id: int
-    day_of_week: Optional[DayOfWeekEnum] = None  # Always None now
-    specific_date: Optional[DateType] = None
-    is_recurring: bool  # Always False now
-    start_time: TimeType  # Add these from base
+    specific_date: DateType
+    start_time: TimeType
     end_time: TimeType
-    is_available: bool = True
 
     model_config = ConfigDict(from_attributes=True)
 
 
-# REMOVED: WeeklyScheduleCreate - no longer needed
-# REMOVED: WeeklyScheduleResponse - no longer needed
-
-
-# Blackout dates
 class BlackoutDateCreate(BaseModel):
     """Schema for creating a blackout date."""
 
@@ -120,6 +94,7 @@ class BlackoutDateCreate(BaseModel):
     reason: Optional[str] = Field(None, max_length=255)
 
     @field_validator("date")
+    @classmethod
     def validate_future_date(cls, v):
         """Prevent creating blackout dates in the past."""
         if v < date.today():
@@ -127,35 +102,35 @@ class BlackoutDateCreate(BaseModel):
         return v
 
 
-class BlackoutDateResponse(StandardizedModel):  # Changed from BaseModel
+class BlackoutDateResponse(StandardizedModel):
     """Response schema for blackout dates."""
 
     id: int
     instructor_id: int
     date: DateType
     reason: Optional[str] = None
-    created_at: DateTimeType  # Changed from str to datetime
+    created_at: DateTimeType
 
     model_config = ConfigDict(from_attributes=True)
 
 
-# Week-specific operations
 class DateTimeSlot(BaseModel):
     """Schema for a time slot on a specific date."""
 
     date: DateType
     start_time: TimeType
     end_time: TimeType
-    is_available: bool = True
 
     @field_validator("end_time")
+    @classmethod
     def validate_time_order(cls, v, info):
         """Ensure end time is after start time."""
-        if info.data and "start_time" in info.data and info.data["start_time"] and v <= info.data["start_time"]:
+        if info.data.get("start_time") and v <= info.data["start_time"]:
             raise ValueError("End time must be after start time")
         return v
 
     @field_validator("date")
+    @classmethod
     def validate_not_past(cls, v):
         """Prevent creating slots for past dates."""
         if v < date.today():
@@ -177,6 +152,7 @@ class WeekSpecificScheduleCreate(BaseModel):
     )
 
     @field_validator("week_start")
+    @classmethod
     def validate_monday(cls, v):
         """Ensure week start is a Monday if provided."""
         if v and v.weekday() != 0:
@@ -207,9 +183,10 @@ class CopyWeekRequest(BaseModel):
         return v
 
     @field_validator("to_week_start")
+    @classmethod
     def validate_different_weeks(cls, v, info):
         """Ensure we're not copying to the same week."""
-        if info.data and "from_week_start" in info.data and v == info.data["from_week_start"]:
+        if info.data.get("from_week_start") and v == info.data["from_week_start"]:
             raise ValueError("Cannot copy to the same week")
         return v
 
@@ -222,6 +199,7 @@ class ApplyToDateRangeRequest(BaseModel):
     end_date: DateType
 
     @field_validator("from_week_start")
+    @classmethod
     def validate_monday(cls, v):
         """Ensure source week starts on Monday."""
         if v.weekday() != 0:
@@ -229,9 +207,10 @@ class ApplyToDateRangeRequest(BaseModel):
         return v
 
     @field_validator("end_date")
+    @classmethod
     def validate_date_range(cls, v, info):
         """Validate the date range."""
-        if info.data and "start_date" in info.data:
+        if info.data.get("start_date"):
             if v < info.data["start_date"]:
                 raise ValueError("End date must be after start date")
             # Enforce 1-year maximum range
@@ -243,6 +222,7 @@ class ApplyToDateRangeRequest(BaseModel):
         return v
 
     @field_validator("start_date")
+    @classmethod
     def validate_future_date(cls, v):
         """Ensure we're not applying to past dates."""
         if v < date.today():
@@ -263,13 +243,15 @@ class SlotOperation(BaseModel):
     slot_id: Optional[int] = None
 
     @field_validator("end_time")
+    @classmethod
     def validate_time_order(cls, v, info):
         """Ensure end time is after start time for add/update."""
-        if v and info.data and "start_time" in info.data and info.data["start_time"] and v <= info.data["start_time"]:
+        if v and info.data.get("start_time") and v <= info.data["start_time"]:
             raise ValueError("End time must be after start time")
         return v
 
     @field_validator("date")
+    @classmethod
     def validate_required_for_add(cls, v, info):
         if info.data.get("action") == "add" and not v:
             raise ValueError("date is required for add operations")
@@ -339,6 +321,6 @@ class WeekValidationResponse(BaseModel):
 class ValidateWeekRequest(BaseModel):
     """Request to validate week changes"""
 
-    current_week: WeekSchedule  # What's currently shown in UI
-    saved_week: WeekSchedule  # What's saved in database
+    current_week: Dict[str, List[TimeSlot]]  # What's currently shown in UI
+    saved_week: Dict[str, List[TimeSlot]]  # What's saved in database
     week_start: DateType

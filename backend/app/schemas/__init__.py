@@ -1,43 +1,61 @@
+# backend/app/schemas/__init__.py
 """
 Pydantic schemas for InstaInstru platform.
 
-This module exports all request/response schemas used in the API.
-Schemas are organized by functionality for better maintainability.
+Clean Architecture: Exports only schemas that match our new architecture.
+No legacy patterns, no dead code, no backward compatibility.
 """
 
-# Availability schemas
-from .availability import DateTimeSlot  # Legacy, kept for API compatibility
+# Availability schemas - Clean single-table design
 from .availability import (
-    ApplyToDateRangeRequest,
-    AvailabilityQuery,
     AvailabilitySlot,
     AvailabilitySlotBase,
     AvailabilitySlotCreate,
-    CopyWeekRequest,
-    WeekScheduleCreate,
+    AvailabilitySlotResponse,
+    AvailabilitySlotUpdate,
 )
 
-# Availability window schemas
+# Availability window schemas - Date-specific operations
 from .availability_window import (
+    ApplyToDateRangeRequest,
     AvailabilityWindowBase,
     AvailabilityWindowResponse,
     AvailabilityWindowUpdate,
     BlackoutDateCreate,
     BlackoutDateResponse,
-    DayOfWeekEnum,
+    BulkUpdateRequest,
+    BulkUpdateResponse,
+    CopyWeekRequest,
+    DateTimeSlot,
+    OperationResult,
+    SlotOperation,
     SpecificDateAvailabilityCreate,
+    TimeSlot,
+    ValidateWeekRequest,
+    ValidationSlotDetail,
+    ValidationSummary,
     WeekSpecificScheduleCreate,
+    WeekValidationResponse,
 )
+
+# Booking schemas - Self-contained bookings
 from .booking import (
     AvailabilityCheckRequest,
     AvailabilityCheckResponse,
+    BookingBase,
     BookingCancel,
     BookingCreate,
     BookingListResponse,
+    BookingOpportunity,
     BookingResponse,
     BookingStatsResponse,
     BookingStatus,
     BookingUpdate,
+    FindBookingOpportunitiesRequest,
+    FindBookingOpportunitiesResponse,
+    InstructorInfo,
+    ServiceInfo,
+    StudentInfo,
     UpcomingBookingResponse,
 )
 
@@ -73,16 +91,13 @@ __all__ = [
     "ServiceBase",
     "ServiceCreate",
     "ServiceResponse",
-    # Availability schemas
+    # Availability schemas - Clean single-table
     "AvailabilitySlotBase",
     "AvailabilitySlotCreate",
+    "AvailabilitySlotUpdate",
     "AvailabilitySlot",
-    "DateTimeSlot",
-    "WeekScheduleCreate",
-    "CopyWeekRequest",
-    "ApplyToDateRangeRequest",
-    "AvailabilityQuery",
-    # Availability window schemas
+    "AvailabilitySlotResponse",
+    # Availability window schemas - Date operations
     "AvailabilityWindowBase",
     "AvailabilityWindowUpdate",
     "AvailabilityWindowResponse",
@@ -90,20 +105,38 @@ __all__ = [
     "WeekSpecificScheduleCreate",
     "BlackoutDateCreate",
     "BlackoutDateResponse",
-    "DayOfWeekEnum",
+    "CopyWeekRequest",
+    "ApplyToDateRangeRequest",
+    "DateTimeSlot",
+    "TimeSlot",
+    "SlotOperation",
+    "BulkUpdateRequest",
+    "BulkUpdateResponse",
+    "OperationResult",
+    "ValidateWeekRequest",
+    "WeekValidationResponse",
+    "ValidationSummary",
+    "ValidationSlotDetail",
     # Password reset schemas
     "PasswordResetRequest",
     "PasswordResetConfirm",
     "PasswordResetResponse",
-    # Booking schemas
+    # Booking schemas - Self-contained
     "BookingCreate",
     "BookingUpdate",
     "BookingCancel",
+    "BookingBase",
     "BookingResponse",
     "BookingListResponse",
+    "StudentInfo",
+    "InstructorInfo",
+    "ServiceInfo",
     "AvailabilityCheckRequest",
     "AvailabilityCheckResponse",
     "BookingStatsResponse",
     "UpcomingBookingResponse",
     "BookingStatus",
+    "FindBookingOpportunitiesRequest",
+    "FindBookingOpportunitiesResponse",
+    "BookingOpportunity",
 ]
