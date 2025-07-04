@@ -1,15 +1,36 @@
 # backend/app/routes/instructors.py
+"""
+Instructor routes for InstaInstru platform.
+
+VERIFIED CLEAN - No changes needed.
+This file properly uses schemas and has no legacy patterns.
+No availability slot or booking references.
+
+Key Features:
+    - Instructor profile management (CRUD operations)
+    - Service offerings with soft delete support
+    - Profile listing for student discovery
+    - Role-based access control
+    - Cache integration for performance
+    - Areas of service management
+    - Experience and bio information
+
+Router Endpoints:
+    GET / - List all instructor profiles with active services
+    POST /profile - Create a new instructor profile
+    GET /profile - Get current instructor's profile
+    PUT /profile - Update instructor profile
+    DELETE /profile - Delete profile and revert to student role
+    GET /{instructor_id} - Get specific instructor's profile
+"""
 
 import logging
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 
-# Use the centralized auth dependency
 from ..api.dependencies.auth import get_current_active_user
 from ..api.dependencies.services import get_cache_service_dep, get_instructor_service
-from ..database import get_db
 from ..models.user import User, UserRole
 from ..schemas.instructor import InstructorProfileCreate, InstructorProfileResponse, InstructorProfileUpdate
 from ..services.cache_service import CacheService
@@ -75,7 +96,6 @@ async def update_profile(
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
     cache_service: CacheService = Depends(get_cache_service_dep),
-    db: Session = Depends(get_db),
 ):
     """Update instructor profile with soft delete support."""
     if current_user.role != UserRole.INSTRUCTOR:
@@ -102,7 +122,6 @@ async def delete_instructor_profile(
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
     cache_service: CacheService = Depends(get_cache_service_dep),
-    db: Session = Depends(get_db),
 ):
     """Delete instructor profile and revert to student role."""
     if current_user.role != UserRole.INSTRUCTOR:

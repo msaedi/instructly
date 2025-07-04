@@ -62,6 +62,7 @@ class AvailabilityWindowUpdate(BaseModel):
 
     start_time: Optional[TimeType] = None
     end_time: Optional[TimeType] = None
+    model_config = ConfigDict(extra="forbid")
 
     @field_validator("end_time")
     @classmethod

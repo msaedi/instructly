@@ -1,20 +1,46 @@
 # backend/app/routes/bookings.py
 """
-Booking routes for InstaInstru platform - Refactored with Service Layer.
+Booking routes for InstaInstru platform - Clean Architecture Implementation.
 
-This module now acts as a thin controller, delegating business logic
-to the BookingService while handling HTTP-specific concerns.
+COMPLETELY REWRITTEN for time-based bookings without slot references.
+All legacy patterns removed. No backward compatibility.
+
+Key Changes:
+- Bookings created with instructor_id, date, and time range
+- No availability_slot_id references
+- Proper schema serialization (no manual response building)
+- Removed dead code and unused endpoints
+
+Key Features:
+    - Instant booking with time-based creation
+    - Self-contained bookings (no slot dependencies)
+    - Booking lifecycle management (create, cancel, complete)
+    - Availability checking using time ranges
+    - Booking statistics for instructors
+    - Preview and full details endpoints
+    - Pagination support for listing bookings
+
+Router Endpoints:
+    GET /{booking_id}/preview - Quick preview for calendar display
+    GET /{booking_id} - Full booking details
+    POST / - Create instant booking with time range
+    GET / - List bookings with filters and pagination
+    GET /upcoming - Dashboard widget for upcoming bookings
+    GET /stats - Instructor booking statistics
+    PATCH /{booking_id} - Update booking (instructor notes/location)
+    POST /{booking_id}/cancel - Cancel a booking
+    POST /{booking_id}/complete - Mark booking as completed
+    POST /check-availability - Check if time range is available
+    POST /send-reminders - Admin endpoint for reminder emails
 """
 
 import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
 
 from ..api.dependencies import get_booking_service, get_current_active_user
 from ..core.exceptions import DomainException, NotFoundException, ValidationException
-from ..database import get_db
 from ..models.booking import BookingStatus
 from ..models.user import User, UserRole
 from ..schemas.booking import (
@@ -39,8 +65,6 @@ def handle_domain_exception(exc: DomainException):
     """Convert domain exceptions to HTTP exceptions."""
     if hasattr(exc, "to_http_exception"):
         raise exc.to_http_exception()
-
-    # Default handling
     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
 
 
@@ -49,20 +73,18 @@ async def get_booking_preview(
     booking_id: int,
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
-    db: Session = Depends(get_db),
 ):
     """
     Get preview information for a booking.
 
-    This endpoint provides quick preview data for the calendar view.
+    Clean implementation - returns only meaningful data.
     """
     try:
         booking = booking_service.get_booking_for_user(booking_id, current_user)
-
         if not booking:
             raise NotFoundException("Booking not found")
 
-        # Return preview data
+        # Return clean preview data
         return {
             "booking_id": booking.id,
             "student_name": booking.student.full_name,
@@ -84,7 +106,7 @@ async def get_booking_preview(
         handle_domain_exception(e)
 
 
-@router.get("/{booking_id}")
+@router.get("/{booking_id}", response_model=BookingResponse)
 async def get_booking_details(
     booking_id: int,
     current_user: User = Depends(get_current_active_user),
@@ -93,7 +115,6 @@ async def get_booking_details(
     """Get full booking details."""
     try:
         booking = booking_service.get_booking_for_user(booking_id, current_user)
-
         if not booking:
             raise NotFoundException("Booking not found")
 
@@ -109,11 +130,14 @@ async def create_booking(
     booking_service: BookingService = Depends(get_booking_service),
 ):
     """
-    Create an instant booking.
+    Create an instant booking with time-based information.
 
-    Students can book any available slot. The booking is immediately confirmed.
+    CLEAN ARCHITECTURE: Uses instructor_id, date, and time range.
+    No slot references. Bookings are self-contained.
     """
     try:
+        # The schema now enforces the correct format with extra='forbid'
+        # BookingCreate has: instructor_id, service_id, booking_date, start_time, end_time, etc.
         booking = await booking_service.create_booking(student=current_user, booking_data=booking_data)
 
         return BookingResponse.from_orm(booking)
@@ -130,9 +154,8 @@ async def get_bookings(
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
 ):
-    """Get bookings for the current user."""
+    """Get bookings for the current user with pagination."""
     try:
-        # Get bookings from service
         bookings = booking_service.get_bookings_for_user(user=current_user, status=status, upcoming_only=upcoming_only)
 
         # Apply pagination
@@ -161,20 +184,8 @@ async def get_upcoming_bookings(
             limit=limit,
         )
 
-        # Transform to response format
-        return [
-            UpcomingBookingResponse(
-                id=b.id,
-                booking_date=b.booking_date,
-                start_time=b.start_time,
-                end_time=b.end_time,
-                service_name=b.service_name,
-                student_name=b.student.full_name,
-                instructor_name=b.instructor.full_name,
-                meeting_location=b.meeting_location,
-            )
-            for b in bookings
-        ]
+        # Use schema for clean response
+        return [UpcomingBookingResponse.from_orm(b) for b in bookings]
     except DomainException as e:
         handle_domain_exception(e)
 
@@ -190,7 +201,6 @@ async def get_booking_stats(
             raise ValidationException("Only instructors can view booking stats")
 
         stats = booking_service.get_booking_stats_for_instructor(current_user.id)
-
         return BookingStatsResponse(**stats)
     except DomainException as e:
         handle_domain_exception(e)
@@ -206,7 +216,6 @@ async def update_booking(
     """Update booking details (instructor only)."""
     try:
         booking = booking_service.update_booking(booking_id=booking_id, user=current_user, update_data=update_data)
-
         return BookingResponse.from_orm(booking)
     except DomainException as e:
         handle_domain_exception(e)
@@ -224,7 +233,6 @@ async def cancel_booking(
         booking = await booking_service.cancel_booking(
             booking_id=booking_id, user=current_user, reason=cancel_data.reason
         )
-
         return BookingResponse.from_orm(booking)
     except DomainException as e:
         handle_domain_exception(e)
@@ -239,7 +247,6 @@ async def complete_booking(
     """Mark a booking as completed (instructor only)."""
     try:
         booking = booking_service.complete_booking(booking_id=booking_id, instructor=current_user)
-
         return BookingResponse.from_orm(booking)
     except DomainException as e:
         handle_domain_exception(e)
@@ -251,10 +258,20 @@ async def check_availability(
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
 ):
-    """Check if a slot is available for booking."""
+    """
+    Check if a time range is available for booking.
+
+    CLEAN ARCHITECTURE: Uses time-based checking.
+    No slot references. Direct time conflict checking.
+    """
     try:
+        # AvailabilityCheckRequest now has: instructor_id, booking_date, start_time, end_time, service_id
         result = await booking_service.check_availability(
-            slot_id=check_data.availability_slot_id, service_id=check_data.service_id
+            instructor_id=check_data.instructor_id,
+            booking_date=check_data.booking_date,
+            start_time=check_data.start_time,
+            end_time=check_data.end_time,
+            service_id=check_data.service_id,
         )
 
         return AvailabilityCheckResponse(**result)
@@ -262,7 +279,7 @@ async def check_availability(
         handle_domain_exception(e)
 
 
-# Admin/system endpoints (keep for now, but should move to separate admin routes)
+# Admin endpoint - consider moving to separate admin routes in future
 @router.post("/send-reminders", status_code=status.HTTP_200_OK)
 async def send_reminder_emails(
     current_user: User = Depends(get_current_active_user),
@@ -271,9 +288,9 @@ async def send_reminder_emails(
     """
     Send 24-hour reminder emails for tomorrow's bookings.
 
-    This endpoint should be called by a scheduled job/cron.
+    Should be called by scheduled job/cron.
     """
-    # For now, restrict to a specific admin email
+    # Simple admin check - improve in future
     if current_user.email != "admin@instainstru.com":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -282,7 +299,6 @@ async def send_reminder_emails(
 
     try:
         count = await booking_service.send_booking_reminders()
-
         return {
             "status": "success",
             "reminders_sent": count,

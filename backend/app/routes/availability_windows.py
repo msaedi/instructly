@@ -1,16 +1,25 @@
 # backend/app/routes/availability_windows.py
 """
-Availability management routes for InstaInstru.
+Availability management routes for InstaInstru - Clean Architecture Implementation.
 
-This module provides API endpoints for instructors to manage their availability.
-All business logic has been extracted to service layers for better separation
-of concerns and testability.
+COMPLETELY REWRITTEN without legacy patterns.
+All manual response building removed. Clean schema serialization only.
+
+Key Changes:
+- No more is_available, is_recurring, day_of_week in responses
+- Proper schema serialization using AvailabilityWindowResponse
+- Removed dead code and legacy patterns
+- Clean separation of concerns
 
 Key Features:
     - Week-based availability viewing and editing
     - Copy availability from one week to another
     - Apply patterns to date ranges
+    - Specific date availability management
+    - Bulk operations for efficiency
     - Blackout date management for vacations
+    - Validation before applying changes
+    - Cache warming for performance
 
 Router Endpoints:
     GET /week - Get availability for a specific week
@@ -34,11 +43,8 @@ from datetime import date
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
 
 from ..api.dependencies.auth import get_current_active_user
-
-# Service imports
 from ..api.dependencies.services import (
     get_availability_service,
     get_bulk_operation_service,
@@ -50,7 +56,6 @@ from ..api.dependencies.services import (
 )
 from ..core.constants import ERROR_INSTRUCTOR_ONLY
 from ..core.exceptions import DomainException
-from ..database import get_db
 from ..models.user import User, UserRole
 from ..schemas.availability_window import (
     ApplyToDateRangeRequest,
@@ -80,18 +85,7 @@ router = APIRouter(prefix="/instructors/availability-windows", tags=["availabili
 
 
 def verify_instructor(current_user: User) -> User:
-    """
-    Verify the current user is an instructor.
-
-    Args:
-        current_user: The authenticated user
-
-    Returns:
-        User: The verified instructor user
-
-    Raises:
-        HTTPException: If user is not an instructor
-    """
+    """Verify the current user is an instructor."""
     if current_user.role != UserRole.INSTRUCTOR:
         logger.warning(f"Non-instructor user {current_user.email} attempted to access instructor-only endpoint")
         raise HTTPException(status_code=403, detail=ERROR_INSTRUCTOR_ONLY)
@@ -107,16 +101,7 @@ async def get_week_availability(
     """
     Get availability for a specific week.
 
-    This endpoint returns a week view of availability, showing time slots for each day
-    based on the instructor's saved availability.
-
-    Args:
-        start_date: The Monday of the week to retrieve
-        current_user: The authenticated user (must be an instructor)
-        availability_service: The availability service instance
-
-    Returns:
-        Dict mapping date strings to time slot lists
+    Returns clean data structure without legacy fields.
     """
     verify_instructor(current_user)
 
@@ -135,28 +120,20 @@ async def save_week_availability(
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
     cache_service: CacheService = Depends(get_cache_service_dep),
-    db: Session = Depends(get_db),
 ):
     """
     Save availability for specific dates in a week.
 
-    This endpoint allows instructors to set their availability for specific dates,
-    completely replacing any existing availability for those dates while preserving
-    booked slots.
-
-    The response includes the updated availability data, ensuring the frontend
-    always has fresh data without needing a separate fetch.
+    Clean implementation with proper cache warming.
     """
     verify_instructor(current_user)
 
     try:
-        # Inject cache service into availability service if not already there
+        # Inject cache service if needed
         if not availability_service.cache_service and cache_service:
             availability_service.cache_service = cache_service
 
         result = await availability_service.save_week_availability(instructor_id=current_user.id, week_data=week_data)
-
-        # The result now contains fresh data from the cache warming strategy
         return result
 
     except DomainException as e:
@@ -172,19 +149,11 @@ async def copy_week_availability(
     current_user: User = Depends(get_current_active_user),
     week_operation_service: WeekOperationService = Depends(get_week_operation_service),
     cache_service: CacheService = Depends(get_cache_service_dep),
-    db: Session = Depends(get_db),
 ):
-    """
-    Copy availability from one week to another while preserving existing bookings.
-
-    This endpoint provides a quick way to duplicate an entire week's availability
-    pattern to another week. Booked slots from the source week become available
-    slots in the target week.
-    """
+    """Copy availability from one week to another."""
     verify_instructor(current_user)
 
     try:
-        # Ensure week operation service has cache service
         if not week_operation_service.cache_service and cache_service:
             week_operation_service.cache_service = cache_service
 
@@ -193,7 +162,6 @@ async def copy_week_availability(
             from_week_start=copy_data.from_week_start,
             to_week_start=copy_data.to_week_start,
         )
-
         return result
     except DomainException as e:
         raise e.to_http_exception()
@@ -208,18 +176,11 @@ async def apply_to_date_range(
     current_user: User = Depends(get_current_active_user),
     week_operation_service: WeekOperationService = Depends(get_week_operation_service),
     cache_service: CacheService = Depends(get_cache_service_dep),
-    db: Session = Depends(get_db),
 ):
-    """
-    Apply a week's pattern to a date range while preserving all existing bookings.
-
-    This endpoint takes a source week's availability pattern and applies it
-    repeatedly to all weeks within the specified date range.
-    """
+    """Apply a week's pattern to a date range."""
     verify_instructor(current_user)
 
     try:
-        # Ensure week operation service has cache service
         if not week_operation_service.cache_service and cache_service:
             week_operation_service.cache_service = cache_service
 
@@ -229,7 +190,6 @@ async def apply_to_date_range(
             start_date=apply_data.start_date,
             end_date=apply_data.end_date,
         )
-
         return result
     except DomainException as e:
         raise e.to_http_exception()
@@ -243,12 +203,11 @@ def add_specific_date_availability(
     availability_data: SpecificDateAvailabilityCreate,
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
-    db: Session = Depends(get_db),
 ):
     """
-    Add availability for a specific date (one-time).
+    Add availability for a specific date.
 
-    This creates a date-specific availability entry.
+    Returns clean response using schema.
     """
     verify_instructor(current_user)
 
@@ -257,7 +216,15 @@ def add_specific_date_availability(
             instructor_id=current_user.id, availability_data=availability_data
         )
 
-        return result
+        # Service returns a dict, convert to proper response
+        # The service should be updated to return the model directly
+        return AvailabilityWindowResponse(
+            id=result["id"],
+            instructor_id=result["instructor_id"],
+            specific_date=result["specific_date"],
+            start_time=result["start_time"],
+            end_time=result["end_time"],
+        )
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:
@@ -275,38 +242,32 @@ def get_all_availability(
     """
     Get all availability windows.
 
-    This endpoint returns a flat list of all availability slots.
-    Optionally filter by date range.
-
-    UPDATED FOR WORK STREAM #10: Works with single-table design via service layer.
+    CLEAN ARCHITECTURE: Returns only meaningful fields.
+    No legacy patterns.
     """
     verify_instructor(current_user)
 
     try:
-        # Get slots from service
         slots = availability_service.get_all_instructor_availability(
             instructor_id=current_user.id,
             start_date=start_date,
             end_date=end_date,
         )
 
-        # Convert to response format
+        # FIX: Map model fields to schema fields correctly
         result = []
         for slot in slots:
             result.append(
-                {
-                    "id": slot.id,
-                    "instructor_id": slot.instructor_id,
-                    "specific_date": slot.date,
-                    "start_time": slot.start_time.isoformat(),
-                    "end_time": slot.end_time.isoformat(),
-                    "is_available": True,
-                    "is_recurring": False,
-                    "day_of_week": None,
-                }
+                AvailabilityWindowResponse(
+                    id=slot.id,
+                    instructor_id=slot.instructor_id,
+                    specific_date=slot.date,  # Map 'date' to 'specific_date'
+                    start_time=slot.start_time,
+                    end_time=slot.end_time,
+                )
             )
-
         return result
+
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:
@@ -319,23 +280,14 @@ async def bulk_update_availability(
     update_data: BulkUpdateRequest,
     current_user: User = Depends(get_current_active_user),
     bulk_operation_service: BulkOperationService = Depends(get_bulk_operation_service),
-    db: Session = Depends(get_db),
 ):
-    """
-    Bulk update availability slots.
-
-    This endpoint allows multiple operations in a single transaction:
-    - Add new slots (with automatic overlap merging)
-    - Remove specific slots (only if not booked)
-    - Update existing slots (respecting bookings)
-    """
+    """Bulk update availability slots."""
     verify_instructor(current_user)
 
     try:
         result = await bulk_operation_service.process_bulk_update(
             instructor_id=current_user.id, update_data=update_data
         )
-
         return BulkUpdateResponse(**result)
     except DomainException as e:
         raise e.to_http_exception()
@@ -350,41 +302,32 @@ def update_availability_window(
     update_data: AvailabilityWindowUpdate,
     current_user: User = Depends(get_current_active_user),
     slot_manager: SlotManager = Depends(get_slot_manager),
-    db: Session = Depends(get_db),
 ):
     """
     Update an availability time slot.
 
-    UPDATED FOR WORK STREAM #10: Works directly with AvailabilitySlot properties.
-
-    Args:
-        window_id: The ID of the slot to update
-        update_data: The fields to update
-        current_user: The authenticated instructor
-        slot_manager: The slot manager service
+    CLEAN ARCHITECTURE: Returns proper schema response.
+    No manual response building.
     """
     verify_instructor(current_user)
 
     try:
-        # Update the slot
+        # Update the slot - note that AvailabilityWindowUpdate only has start_time and end_time
         updated_slot = slot_manager.update_slot(
             slot_id=window_id,
             start_time=update_data.start_time,
             end_time=update_data.end_time,
-            validate_conflicts=True,
         )
 
-        # Return in expected format - now accessing properties directly from slot
-        return {
-            "id": updated_slot.id,
-            "instructor_id": updated_slot.instructor_id,
-            "specific_date": updated_slot.date,
-            "start_time": updated_slot.start_time.isoformat(),
-            "end_time": updated_slot.end_time.isoformat(),
-            "is_available": update_data.is_available if update_data.is_available is not None else True,
-            "is_recurring": False,
-            "day_of_week": None,
-        }
+        # FIX: Map model fields to schema fields correctly
+        return AvailabilityWindowResponse(
+            id=updated_slot.id,
+            instructor_id=updated_slot.instructor_id,
+            specific_date=updated_slot.date,  # Map 'date' to 'specific_date'
+            start_time=updated_slot.start_time,
+            end_time=updated_slot.end_time,
+        )
+
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:
@@ -397,21 +340,12 @@ def delete_availability_window(
     window_id: int,
     current_user: User = Depends(get_current_active_user),
     slot_manager: SlotManager = Depends(get_slot_manager),
-    db: Session = Depends(get_db),
 ):
-    """
-    Delete an availability time slot.
-
-    Args:
-        window_id: The ID of the slot to delete
-        current_user: The authenticated instructor
-        slot_manager: The slot manager service
-    """
+    """Delete an availability time slot."""
     verify_instructor(current_user)
 
     try:
-        slot_manager.delete_slot(slot_id=window_id, force=False)
-
+        slot_manager.delete_slot(slot_id=window_id)
         return {"message": "Availability time slot deleted"}
     except DomainException as e:
         raise e.to_http_exception()
@@ -427,20 +361,15 @@ async def get_week_booked_slots(
     conflict_checker: ConflictChecker = Depends(get_conflict_checker),
     presentation_service: PresentationService = Depends(get_presentation_service),
 ):
-    """
-    Get all booked slots for a week with enhanced preview information.
-
-    Returns booking details formatted for calendar preview display.
-    """
+    """Get all booked slots for a week with preview information."""
     verify_instructor(current_user)
 
     try:
-        # Get booked slots from service
         booked_slots_by_date = conflict_checker.get_booked_slots_for_week(
             instructor_id=current_user.id, week_start=start_date
         )
 
-        # Format for frontend display using presentation service
+        # Format for frontend display
         formatted_slots = presentation_service.format_booked_slots_from_service_data(booked_slots_by_date)
 
         return {"booked_slots": formatted_slots}
@@ -458,12 +387,7 @@ async def validate_week_changes(
     current_user: User = Depends(get_current_active_user),
     bulk_operation_service: BulkOperationService = Depends(get_bulk_operation_service),
 ):
-    """
-    Validate planned changes to week availability without applying them.
-
-    This endpoint allows the frontend to preview what would happen if changes
-    were saved, including identifying any conflicts with existing bookings.
-    """
+    """Validate planned changes to week availability."""
     verify_instructor(current_user)
 
     try:
@@ -484,15 +408,12 @@ def get_blackout_dates(
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
 ):
-    """
-    Get instructor's blackout dates.
-
-    Returns all future blackout dates (vacation/unavailable days) for the instructor.
-    """
+    """Get instructor's blackout dates."""
     verify_instructor(current_user)
 
     try:
-        return availability_service.get_blackout_dates(instructor_id=current_user.id)
+        blackout_dates = availability_service.get_blackout_dates(instructor_id=current_user.id)
+        return [BlackoutDateResponse.from_orm(bd) for bd in blackout_dates]
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:
@@ -505,20 +426,13 @@ def add_blackout_date(
     blackout_data: BlackoutDateCreate,
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
-    db: Session = Depends(get_db),
 ):
-    """
-    Add a blackout date (vacation/unavailable).
-
-    Blackout dates prevent any bookings on that date regardless of
-    availability settings.
-    """
+    """Add a blackout date (vacation/unavailable)."""
     verify_instructor(current_user)
 
     try:
         result = availability_service.add_blackout_date(instructor_id=current_user.id, blackout_data=blackout_data)
-
-        return result
+        return BlackoutDateResponse.from_orm(result)
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:
@@ -531,21 +445,12 @@ def delete_blackout_date(
     blackout_id: int,
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
-    db: Session = Depends(get_db),
 ):
-    """
-    Delete a blackout date.
-
-    Args:
-        blackout_id: The ID of the blackout date to delete
-        current_user: The authenticated instructor
-        availability_service: The availability service
-    """
+    """Delete a blackout date."""
     verify_instructor(current_user)
 
     try:
         availability_service.delete_blackout_date(instructor_id=current_user.id, blackout_id=blackout_id)
-
         return {"message": "Blackout date deleted"}
     except DomainException as e:
         raise e.to_http_exception()
