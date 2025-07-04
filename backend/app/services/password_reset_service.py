@@ -18,6 +18,7 @@ from ..core.config import settings
 from ..core.exceptions import ValidationException
 from ..models.password_reset import PasswordResetToken
 from ..models.user import User
+from ..repositories.factory import RepositoryFactory
 from ..services.email import email_service
 from .base import BaseService
 
@@ -34,10 +35,16 @@ class PasswordResetService(BaseService):
         self,
         db: Session,
         cache_service: Optional["CacheService"] = None,
+        user_repository=None,
+        token_repository=None,
     ):
         """Initialize password reset service."""
         super().__init__(db, cache=cache_service)
         self.logger = logging.getLogger(__name__)
+
+        # Initialize repositories using BaseRepository
+        self.user_repository = user_repository or RepositoryFactory.create_base_repository(db, User)
+        self.token_repository = token_repository or RepositoryFactory.create_base_repository(db, PasswordResetToken)
 
     async def request_password_reset(self, email: str) -> bool:
         """
@@ -54,7 +61,7 @@ class PasswordResetService(BaseService):
         self.log_operation("request_password_reset", email=email)
 
         # Find user by email
-        user = self.db.query(User).filter(User.email == email).first()
+        user = self.user_repository.find_one_by(email=email)
 
         if user:
             try:
@@ -97,7 +104,7 @@ class PasswordResetService(BaseService):
         Returns:
             Tuple of (is_valid, masked_email)
         """
-        reset_token = self.db.query(PasswordResetToken).filter(PasswordResetToken.token == token).first()
+        reset_token = self.token_repository.find_one_by(token=token)
 
         if not reset_token:
             return (False, None)
@@ -111,7 +118,7 @@ class PasswordResetService(BaseService):
             return (False, None)
 
         # Get user for email masking
-        user = self.db.query(User).filter(User.id == reset_token.user_id).first()
+        user = self.user_repository.get_by_id(reset_token.user_id)
         if not user:
             return (False, None)
 
@@ -141,7 +148,7 @@ class PasswordResetService(BaseService):
         self.logger.info(f"Password reset confirmation attempted with token: {token[:8]}...")
 
         # Find the token
-        reset_token = self.db.query(PasswordResetToken).filter(PasswordResetToken.token == token).first()
+        reset_token = self.token_repository.find_one_by(token=token)
 
         if not reset_token:
             self.logger.warning(f"Invalid password reset token: {token[:8]}...")
@@ -158,7 +165,7 @@ class PasswordResetService(BaseService):
             raise ValidationException("This reset link has expired")
 
         # Get the user
-        user = self.db.query(User).filter(User.id == reset_token.user_id).first()
+        user = self.user_repository.get_by_id(reset_token.user_id)
         if not user:
             self.logger.error(f"User not found for reset token: {reset_token.user_id}")
             raise ValidationException("Invalid reset token")
@@ -166,10 +173,10 @@ class PasswordResetService(BaseService):
         try:
             with self.transaction():
                 # Update password
-                user.hashed_password = get_password_hash(new_password)
+                self.user_repository.update(user.id, hashed_password=get_password_hash(new_password))
 
                 # Mark token as used
-                reset_token.used = True
+                self.token_repository.update(reset_token.id, used=True)
 
                 # Send confirmation email
                 await email_service.send_password_reset_confirmation(
@@ -197,13 +204,12 @@ class PasswordResetService(BaseService):
         token = secrets.token_urlsafe(32)
         expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
 
-        reset_token = PasswordResetToken(
+        reset_token = self.token_repository.create(
             user_id=user_id,
             token=token,
             expires_at=expires_at,
+            used=False,
         )
-        self.db.add(reset_token)
-        self.db.flush()
 
         return token
 
@@ -214,8 +220,11 @@ class PasswordResetService(BaseService):
         Args:
             user_id: User ID
         """
-        self.db.query(PasswordResetToken).filter(
-            PasswordResetToken.user_id == user_id,
-            PasswordResetToken.used == False,
-        ).update({"used": True})
+        # Get all unused tokens for this user
+        unused_tokens = self.token_repository.find_by(user_id=user_id, used=False)
+
+        # Update each token to mark as used
+        for token in unused_tokens:
+            self.token_repository.update(token.id, used=True)
+
         self.db.flush()

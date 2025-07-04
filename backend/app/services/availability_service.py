@@ -2,17 +2,9 @@
 """
 Availability Service for InstaInstru Platform
 
-UPDATED FOR WORK STREAM #10: Single-table availability design.
-
-This service has been significantly simplified by removing the concept of
-InstructorAvailability entries. Now works directly with AvailabilitySlots
-that contain instructor_id and date.
-
-Key changes:
-- No more InstructorAvailability model references
-- No more is_cleared flag - absence of slots means cleared
-- Direct slot queries using instructor_id and date
-- Simplified data structures
+This service handles all availability-related business logic using the
+single-table availability design where AvailabilitySlots contain
+instructor_id and date directly.
 """
 
 import logging
@@ -21,9 +13,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from ..core.exceptions import ConflictException, DomainException, NotFoundException, RepositoryException
+from ..core.exceptions import ConflictException, NotFoundException, RepositoryException
 from ..models.availability import AvailabilitySlot, BlackoutDate
-from ..models.instructor import InstructorProfile
 from ..repositories.factory import RepositoryFactory
 from ..schemas.availability_window import BlackoutDateCreate, SpecificDateAvailabilityCreate, WeekSpecificScheduleCreate
 from ..utils.time_helpers import time_to_string
@@ -32,6 +23,8 @@ from .base import BaseService
 # TYPE_CHECKING import to avoid circular dependencies
 if TYPE_CHECKING:
     from ..repositories.availability_repository import AvailabilityRepository
+    from ..repositories.bulk_operation_repository import BulkOperationRepository
+    from ..repositories.conflict_checker_repository import ConflictCheckerRepository
     from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
@@ -49,25 +42,21 @@ class AvailabilityService(BaseService):
         db: Session,
         cache_service: Optional["CacheService"] = None,
         repository: Optional["AvailabilityRepository"] = None,
+        bulk_repository: Optional["BulkOperationRepository"] = None,
+        conflict_repository: Optional["ConflictCheckerRepository"] = None,
     ):
-        """Initialize availability service with optional cache and repository."""
+        """Initialize availability service with optional cache and repositories."""
         super().__init__(db, cache=cache_service)
-        self.logger = logging.getLogger(__name__)
         self.cache_service = cache_service
 
-        # Initialize repository
+        # Initialize repositories
         self.repository = repository or RepositoryFactory.create_availability_repository(db)
-
-        if cache_service:
-            self.logger.info("AvailabilityService initialized WITH cache service")
-        else:
-            self.logger.warning("AvailabilityService initialized WITHOUT cache service")
+        self.bulk_repository = bulk_repository or RepositoryFactory.create_bulk_operation_repository(db)
+        self.conflict_repository = conflict_repository or RepositoryFactory.create_conflict_checker_repository(db)
 
     def get_availability_for_date(self, instructor_id: int, target_date: date) -> Optional[Dict[str, Any]]:
         """
         Get availability for a specific date.
-
-        SIMPLIFIED: Queries slots directly by instructor_id and date.
 
         Args:
             instructor_id: The instructor ID
@@ -84,13 +73,13 @@ class AvailabilityService(BaseService):
                 if cached is not None:
                     return cached
             except Exception as cache_error:
-                self.logger.warning(f"Cache error for date availability: {cache_error}. Falling back to database.")
+                logger.warning(f"Cache error for date availability: {cache_error}")
 
         # Query slots directly
         try:
             slots = self.repository.get_slots_by_date(instructor_id, target_date)
         except RepositoryException as e:
-            self.logger.error(f"Repository error getting availability: {e}")
+            logger.error(f"Repository error getting availability: {e}")
             return None
 
         if not slots:
@@ -113,15 +102,13 @@ class AvailabilityService(BaseService):
             try:
                 self.cache_service.set(cache_key, result, tier="warm")
             except Exception as cache_error:
-                self.logger.warning(f"Failed to cache date availability: {cache_error}")
+                logger.warning(f"Failed to cache date availability: {cache_error}")
 
         return result
 
     def get_availability_summary(self, instructor_id: int, start_date: date, end_date: date) -> Dict[str, int]:
         """
         Get summary of availability (slot counts) for date range.
-
-        SIMPLIFIED: Counts slots directly without InstructorAvailability.
 
         Args:
             instructor_id: The instructor ID
@@ -134,14 +121,12 @@ class AvailabilityService(BaseService):
         try:
             return self.repository.get_availability_summary(instructor_id, start_date, end_date)
         except RepositoryException as e:
-            self.logger.error(f"Error getting availability summary: {e}")
+            logger.error(f"Error getting availability summary: {e}")
             return {}
 
     def get_week_availability(self, instructor_id: int, start_date: date) -> Dict[str, List[Dict[str, Any]]]:
         """
         Get availability for a specific week.
-
-        SIMPLIFIED: Returns slots grouped by date, no is_cleared concept.
 
         Args:
             instructor_id: The instructor's user ID
@@ -157,33 +142,20 @@ class AvailabilityService(BaseService):
             try:
                 cached_data = self.cache_service.get_week_availability(instructor_id, start_date)
                 if cached_data is not None:
-                    self.logger.info(f"CACHE HIT for week availability: instructor={instructor_id}, start={start_date}")
                     return cached_data
-                else:
-                    self.logger.info(
-                        f"CACHE MISS for week availability: instructor={instructor_id}, start={start_date}"
-                    )
             except Exception as cache_error:
-                self.logger.warning(f"Cache error for week availability: {cache_error}. Falling back to database.")
+                logger.warning(f"Cache error for week availability: {cache_error}")
 
         # Calculate week dates (Monday to Sunday)
         week_dates = self._calculate_week_dates(start_date)
         end_date = week_dates[-1]
 
         # Get all slots for the week
-        import time as time_module
-
-        start_time = time_module.time()
-
         try:
             all_slots = self.repository.get_week_availability(instructor_id, start_date, end_date)
         except RepositoryException as e:
-            self.logger.error(f"Error getting week availability: {e}")
+            logger.error(f"Error getting week availability: {e}")
             return {}
-
-        query_time = (time_module.time() - start_time) * 1000
-        self.logger.info(f"Database query took {query_time:.2f}ms")
-        self.logger.debug(f"Found {len(all_slots)} slots for the week")
 
         # Group slots by date
         week_schedule = {}
@@ -204,10 +176,9 @@ class AvailabilityService(BaseService):
         # Cache the result
         if self.cache_service:
             try:
-                success = self.cache_service.cache_week_availability(instructor_id, start_date, week_schedule)
-                self.logger.info(f"Cached week availability: success={success}")
+                self.cache_service.cache_week_availability(instructor_id, start_date, week_schedule)
             except Exception as cache_error:
-                self.logger.warning(f"Failed to cache week availability: {cache_error}")
+                logger.warning(f"Failed to cache week availability: {cache_error}")
 
         return week_schedule
 
@@ -233,30 +204,23 @@ class AvailabilityService(BaseService):
         )
 
         try:
-            # Build query for slots directly
-            query = self.db.query(AvailabilitySlot).filter(AvailabilitySlot.instructor_id == instructor_id)
+            # Use repository method for date range queries
+            # If no dates provided, use a large range
+            if not start_date:
+                start_date = date.today()
+            if not end_date:
+                end_date = date.today() + timedelta(days=365)  # One year ahead
 
-            # Apply date filters if provided
-            if start_date:
-                query = query.filter(AvailabilitySlot.date >= start_date)
-            if end_date:
-                query = query.filter(AvailabilitySlot.date <= end_date)
-
-            # Order by date and time
-            slots = query.order_by(AvailabilitySlot.date, AvailabilitySlot.start_time).all()
-
-            self.logger.info(f"Retrieved {len(slots)} slots for instructor {instructor_id}")
+            slots = self.repository.get_week_availability(instructor_id, start_date, end_date)
             return slots
 
-        except Exception as e:
-            self.logger.error(f"Error retrieving all availability: {str(e)}")
-            raise DomainException(f"Failed to retrieve availability: {str(e)}")
+        except RepositoryException as e:
+            logger.error(f"Error retrieving all availability: {str(e)}")
+            raise
 
     async def save_week_availability(self, instructor_id: int, week_data: WeekSpecificScheduleCreate) -> Dict[str, Any]:
         """
         Save availability for specific dates in a week.
-
-        SIMPLIFIED: Works directly with slots, no InstructorAvailability entries.
 
         Args:
             instructor_id: The instructor's user ID
@@ -279,44 +243,39 @@ class AvailabilityService(BaseService):
         # Group schedule by date
         schedule_by_date = self._group_schedule_by_date(week_data.schedule)
 
-        # Count expected slots
-        expected_slot_count = sum(len(slots) for slots in schedule_by_date.values())
-
         with self.transaction():
             # If clearing existing, delete all slots for the week
             if week_data.clear_existing:
                 deleted_count = self.repository.delete_slots_by_dates(instructor_id, week_dates)
-                self.logger.info(f"Deleted {deleted_count} existing slots")
+                logger.info(f"Deleted {deleted_count} existing slots")
 
             # Process each date with new slots
-            slots_created = 0
+            slots_to_create = []
             for week_date in week_dates:
                 # Skip past dates
                 if week_date < date.today():
                     continue
 
                 if week_date in schedule_by_date:
-                    # Create new slots for this date
-                    new_slots = []
+                    # Prepare slots for bulk creation
                     for slot in schedule_by_date[week_date]:
                         # Check if slot already exists
                         if not self.repository.slot_exists(
                             instructor_id, target_date=week_date, start_time=slot.start_time, end_time=slot.end_time
                         ):
-                            new_slots.append(
-                                AvailabilitySlot(
-                                    instructor_id=instructor_id,
-                                    date=week_date,
-                                    start_time=slot.start_time,
-                                    end_time=slot.end_time,
-                                )
+                            slots_to_create.append(
+                                {
+                                    "instructor_id": instructor_id,
+                                    "date": week_date,
+                                    "start_time": slot.start_time,
+                                    "end_time": slot.end_time,
+                                }
                             )
 
-                    if new_slots:
-                        self.db.add_all(new_slots)
-                        slots_created += len(new_slots)
-
-            self.logger.info(f"Created {slots_created} new slots")
+            # Bulk create all slots at once
+            if slots_to_create:
+                created_slots = self.bulk_repository.bulk_create_slots(slots_to_create)
+                logger.info(f"Created {len(created_slots)} new slots")
 
         # Ensure SQLAlchemy session is fresh
         self.db.expire_all()
@@ -328,10 +287,10 @@ class AvailabilityService(BaseService):
 
                 warmer = CacheWarmingStrategy(self.cache_service, self.db)
                 updated_availability = await warmer.warm_with_verification(
-                    instructor_id, monday, expected_slot_count=expected_slot_count
+                    instructor_id, monday, expected_slot_count=len(slots_to_create)
                 )
             except ImportError:
-                self.logger.warning("Cache strategies not available, using direct fetch")
+                logger.warning("Cache strategies not available, using direct fetch")
                 self._invalidate_availability_caches(instructor_id, week_dates)
                 updated_availability = self.get_week_availability(instructor_id, monday)
         else:
@@ -344,8 +303,6 @@ class AvailabilityService(BaseService):
     ) -> Dict[str, Any]:
         """
         Add availability for a specific date.
-
-        SIMPLIFIED: Creates slot directly without InstructorAvailability.
 
         Args:
             instructor_id: The instructor's user ID
@@ -364,7 +321,7 @@ class AvailabilityService(BaseService):
             ):
                 raise ConflictException("This time slot already exists")
 
-            # Create new slot - FIXED: Using target_date parameter
+            # Create new slot
             slot = self.repository.create_slot(
                 instructor_id=instructor_id,
                 target_date=availability_data.specific_date,
@@ -390,8 +347,6 @@ class AvailabilityService(BaseService):
         """
         Get instructor's future blackout dates.
 
-        NOTE: Blackout dates remain unchanged in single-table design.
-
         Args:
             instructor_id: The instructor's user ID
 
@@ -401,14 +356,12 @@ class AvailabilityService(BaseService):
         try:
             return self.repository.get_future_blackout_dates(instructor_id)
         except RepositoryException as e:
-            self.logger.error(f"Error getting blackout dates: {e}")
+            logger.error(f"Error getting blackout dates: {e}")
             return []
 
     def add_blackout_date(self, instructor_id: int, blackout_data: BlackoutDateCreate) -> BlackoutDate:
         """
         Add a blackout date for an instructor.
-
-        NOTE: Blackout dates remain unchanged in single-table design.
 
         Args:
             instructor_id: The instructor's user ID
@@ -435,8 +388,6 @@ class AvailabilityService(BaseService):
         """
         Delete a blackout date.
 
-        NOTE: Blackout dates remain unchanged in single-table design.
-
         Args:
             instructor_id: The instructor's user ID
             blackout_id: The blackout date ID
@@ -451,19 +402,10 @@ class AvailabilityService(BaseService):
             self.db.commit()
             return True
         except RepositoryException as e:
-            self.logger.error(f"Error deleting blackout date: {e}")
+            logger.error(f"Error deleting blackout date: {e}")
             raise
 
     # Private helper methods
-
-    def _get_instructor_profile(self, instructor_id: int) -> InstructorProfile:
-        """Get instructor profile or raise exception."""
-        profile = self.db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).first()
-
-        if not profile:
-            raise NotFoundException("Instructor profile not found")
-
-        return profile
 
     def _calculate_week_dates(self, monday: date) -> List[date]:
         """Calculate all dates for a week starting from Monday."""
@@ -488,7 +430,7 @@ class AvailabilityService(BaseService):
         for slot in schedule:
             # Skip past dates
             if slot.date < date.today():
-                self.logger.warning(f"Skipping past date: {slot.date}")
+                logger.warning(f"Skipping past date: {slot.date}")
                 continue
 
             if slot.date not in schedule_by_date:

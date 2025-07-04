@@ -9,13 +9,13 @@ profile management, service updates with soft delete, and data transformations.
 import logging
 from typing import Dict, List, Optional, Set
 
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from ..core.exceptions import BusinessRuleException, NotFoundException
-from ..models.booking import Booking
 from ..models.instructor import InstructorProfile
 from ..models.service import Service
 from ..models.user import User, UserRole
+from ..repositories.factory import RepositoryFactory
 from ..schemas.instructor import InstructorProfileCreate, InstructorProfileUpdate, ServiceCreate
 from .base import BaseService
 from .cache_service import CacheService
@@ -34,10 +34,24 @@ class InstructorService(BaseService):
     - Data transformation for API responses
     """
 
-    def __init__(self, db: Session, cache_service: Optional[CacheService] = None):
-        """Initialize instructor service with database and cache."""
+    def __init__(
+        self,
+        db: Session,
+        cache_service: Optional[CacheService] = None,
+        profile_repository=None,
+        service_repository=None,
+        user_repository=None,
+        booking_repository=None,
+    ):
+        """Initialize instructor service with database, cache, and repositories."""
         super().__init__(db)
         self.cache_service = cache_service
+
+        # Initialize repositories using BaseRepository for each model
+        self.profile_repository = profile_repository or RepositoryFactory.create_base_repository(db, InstructorProfile)
+        self.service_repository = service_repository or RepositoryFactory.create_base_repository(db, Service)
+        self.user_repository = user_repository or RepositoryFactory.create_base_repository(db, User)
+        self.booking_repository = booking_repository or RepositoryFactory.create_booking_repository(db)
 
     def get_instructor_profile(self, user_id: int, include_inactive_services: bool = False) -> Dict:
         """
@@ -53,15 +67,22 @@ class InstructorService(BaseService):
         Raises:
             NotFoundException: If profile not found
         """
-        profile = (
-            self.db.query(InstructorProfile)
-            .options(joinedload(InstructorProfile.user), joinedload(InstructorProfile.services))
-            .filter(InstructorProfile.user_id == user_id)
-            .first()
-        )
+        # Get profile
+        profile = self.profile_repository.find_one_by(user_id=user_id)
 
         if not profile:
             raise NotFoundException("Instructor profile not found")
+
+        # Manually load related data since repository doesn't support eager loading
+        # Get user
+        user = self.user_repository.get_by_id(user_id)
+
+        # Get services
+        all_services = self.service_repository.find_by(instructor_profile_id=profile.id)
+
+        # Attach to profile object for _profile_to_dict
+        profile.user = user
+        profile.services = all_services
 
         return self._profile_to_dict(profile, include_inactive_services)
 
@@ -76,15 +97,22 @@ class InstructorService(BaseService):
         Returns:
             List of instructor profile dictionaries
         """
-        profiles = (
-            self.db.query(InstructorProfile)
-            .options(joinedload(InstructorProfile.user), joinedload(InstructorProfile.services))
-            .offset(skip)
-            .limit(limit)
-            .all()
-        )
+        # Get all profiles
+        profiles = self.profile_repository.get_all(skip=skip, limit=limit)
 
-        return [self._profile_to_dict(p) for p in profiles]
+        result = []
+        for profile in profiles:
+            # Load related data for each profile
+            user = self.user_repository.get_by_id(profile.user_id)
+            services = self.service_repository.find_by(instructor_profile_id=profile.id)
+
+            # Attach to profile
+            profile.user = user
+            profile.services = services
+
+            result.append(self._profile_to_dict(profile))
+
+        return result
 
     def create_instructor_profile(self, user: User, profile_data: InstructorProfileCreate) -> Dict:
         """
@@ -101,7 +129,7 @@ class InstructorService(BaseService):
             BusinessRuleException: If profile already exists
         """
         # Check if profile already exists
-        existing = self.db.query(InstructorProfile).filter(InstructorProfile.user_id == user.id).first()
+        existing = self.profile_repository.exists(user_id=user.id)
 
         if existing:
             raise BusinessRuleException("Instructor profile already exists")
@@ -109,22 +137,30 @@ class InstructorService(BaseService):
         with self.transaction():
             # Create profile
             profile_dict = profile_data.model_dump(exclude={"services"})
-            profile = InstructorProfile(user_id=user.id, **profile_dict)
-            self.db.add(profile)
-            self.db.flush()
+            profile_dict["user_id"] = user.id
+            profile = self.profile_repository.create(**profile_dict)
 
-            # Create services
+            # Create services using bulk create
+            services_data = []
             for service_data in profile_data.services:
-                service = Service(instructor_profile_id=profile.id, **service_data.model_dump())
-                self.db.add(service)
+                service_dict = service_data.model_dump()
+                service_dict["instructor_profile_id"] = profile.id
+                services_data.append(service_dict)
+
+            if services_data:
+                services = self.service_repository.bulk_create(services_data)
+            else:
+                services = []
 
             # Update user role
-            user.role = UserRole.INSTRUCTOR
+            self.user_repository.update(user.id, role=UserRole.INSTRUCTOR)
 
             self.db.commit()
 
-            # Refresh to get all relationships
-            self.db.refresh(profile)
+            # Load user for response
+            user = self.user_repository.get_by_id(user.id)
+            profile.user = user
+            profile.services = services
 
             logger.info(f"Created instructor profile for user {user.id}")
 
@@ -144,7 +180,7 @@ class InstructorService(BaseService):
         Raises:
             NotFoundException: If profile not found
         """
-        profile = self.db.query(InstructorProfile).filter(InstructorProfile.user_id == user_id).first()
+        profile = self.profile_repository.find_one_by(user_id=user_id)
 
         if not profile:
             raise NotFoundException("Instructor profile not found")
@@ -152,8 +188,8 @@ class InstructorService(BaseService):
         with self.transaction():
             # Update basic fields
             basic_updates = update_data.model_dump(exclude={"services"}, exclude_unset=True)
-            for field, value in basic_updates.items():
-                setattr(profile, field, value)
+            if basic_updates:
+                self.profile_repository.update(profile.id, **basic_updates)
 
             # Handle service updates if provided
             if update_data.services is not None:
@@ -180,36 +216,28 @@ class InstructorService(BaseService):
         Raises:
             NotFoundException: If profile not found
         """
-        profile = self.db.query(InstructorProfile).filter(InstructorProfile.user_id == user_id).first()
+        profile = self.profile_repository.find_one_by(user_id=user_id)
 
         if not profile:
             raise NotFoundException("Instructor profile not found")
 
         with self.transaction():
-            # IMPORTANT: Handle services BEFORE deleting profile
-            # to avoid cascade issues
-
-            # Get all services (need to load them before profile deletion)
-            services = list(profile.services)
+            # Get all services for this profile
+            services = self.service_repository.find_by(instructor_profile_id=profile.id)
 
             # Soft delete all active services
             for service in services:
                 if service.is_active:
-                    service.deactivate()
-                    # Explicitly update to ensure it's saved
-                    self.db.add(service)
+                    self.service_repository.update(service.id, is_active=False)
 
             # Flush to ensure services are updated
             self.db.flush()
 
-            # Now we can safely delete the profile
-            # Services will remain in the database (soft deleted)
-            self.db.delete(profile)
+            # Now delete the profile
+            self.profile_repository.delete(profile.id)
 
             # Revert user role
-            user = self.db.query(User).filter(User.id == user_id).first()
-            if user:
-                user.role = UserRole.STUDENT
+            self.user_repository.update(user_id, role=UserRole.STUDENT)
 
             self.db.commit()
 
@@ -230,7 +258,7 @@ class InstructorService(BaseService):
             services_data: List of service updates
         """
         # Get all existing services (including inactive)
-        existing_services = self.db.query(Service).filter(Service.instructor_profile_id == profile_id).all()
+        existing_services = self.service_repository.find_by(instructor_profile_id=profile_id)
 
         # Create lookup map
         services_by_skill = {service.skill.lower(): service for service in existing_services}
@@ -247,35 +275,38 @@ class InstructorService(BaseService):
                 # Update existing service
                 existing_service = services_by_skill[skill_lower]
 
+                # Prepare updates
+                updates = service_data.model_dump()
+
                 # Reactivate if needed
                 if not existing_service.is_active:
-                    existing_service.activate()
+                    updates["is_active"] = True
                     logger.info(f"Reactivated service: {existing_service.skill}")
 
-                # Update fields
-                for field, value in service_data.model_dump().items():
-                    setattr(existing_service, field, value)
+                # Update service
+                self.service_repository.update(existing_service.id, **updates)
             else:
                 # Create new service
-                new_service = Service(instructor_profile_id=profile_id, **service_data.model_dump())
-                self.db.add(new_service)
+                service_dict = service_data.model_dump()
+                service_dict["instructor_profile_id"] = profile_id
+                self.service_repository.create(**service_dict)
                 logger.info(f"Created new service: {service_data.skill}")
 
         # Handle removed services (only process active ones)
         for skill_lower, service in services_by_skill.items():
             if skill_lower not in updated_skills and service.is_active:
-                # Check for bookings
-                has_bookings = self.db.query(Booking).filter(Booking.service_id == service.id).first() is not None
+                # Check for bookings using BookingRepository
+                has_bookings = self.booking_repository.exists(service_id=service.id)
 
                 if has_bookings:
                     # Soft delete
-                    service.deactivate()
+                    self.service_repository.update(service.id, is_active=False)
                     logger.info(
                         f"Soft deleted service '{service.skill}' (ID: {service.id}) " f"- has existing bookings"
                     )
                 else:
                     # Hard delete
-                    self.db.delete(service)
+                    self.service_repository.delete(service.id)
                     logger.info(f"Hard deleted service '{service.skill}' (ID: {service.id}) " f"- no bookings")
 
     def _profile_to_dict(self, profile: InstructorProfile, include_inactive_services: bool = False) -> Dict:
@@ -289,8 +320,14 @@ class InstructorService(BaseService):
         Returns:
             Dictionary representation of profile
         """
-        # Get services based on filter
-        services = profile.services if include_inactive_services else profile.active_services
+        # Filter services based on include_inactive_services
+        if hasattr(profile, "services"):
+            if include_inactive_services:
+                services = profile.services
+            else:
+                services = [s for s in profile.services if s.is_active]
+        else:
+            services = []
 
         return {
             "id": profile.id,
@@ -302,7 +339,9 @@ class InstructorService(BaseService):
             "buffer_time_minutes": profile.buffer_time_minutes,
             "created_at": profile.created_at,
             "updated_at": profile.updated_at,
-            "user": {"full_name": profile.user.full_name, "email": profile.user.email},
+            "user": {"full_name": profile.user.full_name, "email": profile.user.email}
+            if hasattr(profile, "user") and profile.user
+            else None,
             "services": [
                 {
                     "id": service.id,
@@ -310,7 +349,7 @@ class InstructorService(BaseService):
                     "hourly_rate": service.hourly_rate,
                     "description": service.description,
                     "duration_override": service.duration_override,
-                    "duration": service.duration,
+                    "duration": service.duration if hasattr(service, "duration") else 60,
                     "is_active": service.is_active,
                 }
                 for service in sorted(services, key=lambda s: s.skill)

@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from ..models.booking import Booking
+from ..repositories.factory import RepositoryFactory
 from .base import BaseService
 
 logger = logging.getLogger(__name__)
@@ -63,6 +64,7 @@ class PresentationService(BaseService):
         """Initialize presentation service."""
         super().__init__(db)
         self.logger = logging.getLogger(__name__)
+        self.booking_repository = RepositoryFactory.create_booking_repository(db)
 
     def format_student_name_for_privacy(self, full_name: Optional[str]) -> Dict[str, str]:
         """
@@ -181,7 +183,7 @@ class PresentationService(BaseService):
         for date_str, slots in booked_slots_by_date.items():
             for slot in slots:
                 # Get the full booking details
-                booking = self.db.query(Booking).filter(Booking.id == slot["booking_id"]).first()
+                booking = self.booking_repository.get_by_id(slot["booking_id"])
 
                 if booking:
                     formatted_slot = self.format_booked_slot_for_display(

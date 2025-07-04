@@ -2,16 +2,14 @@
 """
 Bulk Operation Service for InstaInstru Platform
 
-UPDATED FOR WORK STREAM #10: Single-table availability design.
-
 Handles bulk availability operations including:
 - Multiple slot operations in a single transaction
 - Validation of bulk changes
 - Batch processing with rollback capability
 - Week validation and preview
 
-All operations now work directly with AvailabilitySlot objects
-using instructor_id + date instead of availability_id.
+All operations work directly with AvailabilitySlot objects
+using instructor_id + date in the single-table design.
 """
 
 import logging
@@ -152,7 +150,6 @@ class BulkOperationService(BaseService):
             # If we had remove operations but no dates, invalidate the entire week's cache
             if successful > 0 and len(affected_dates) == 0:
                 # Get the current week's dates and invalidate all of them
-                # This is a broader invalidation but ensures consistency
                 if self.cache_service:
                     self.cache_service.delete_pattern(f"*{instructor_id}*")
                     self.logger.info(f"Invalidated all cache for instructor {instructor_id} due to remove operations")
@@ -260,7 +257,7 @@ class BulkOperationService(BaseService):
         """
         Process add slot operation.
 
-        UPDATED: Creates slot directly without InstructorAvailability.
+        Creates slot directly without any conflict validation.
         """
         # Validate required fields
         if not all([operation.date, operation.start_time, operation.end_time]):
@@ -291,7 +288,7 @@ class BulkOperationService(BaseService):
                     reason="Cannot add availability for past time slots",
                 )
 
-        # Check if slot already exists - FIXED: Using target_date parameter
+        # Check if slot already exists
         if self.availability_repository.slot_exists(
             instructor_id, target_date=operation.date, start_time=operation.start_time, end_time=operation.end_time
         ):
@@ -318,7 +315,6 @@ class BulkOperationService(BaseService):
                 target_date=operation.date,
                 start_time=operation.start_time,
                 end_time=operation.end_time,
-                validate_conflicts=False,  # Layer independence
                 auto_merge=True,
             )
 
@@ -446,7 +442,6 @@ class BulkOperationService(BaseService):
                 slot_id=operation.slot_id,
                 start_time=new_start,
                 end_time=new_end,
-                validate_conflicts=False,  # Layer independence
             )
 
             return OperationResult(

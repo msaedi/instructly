@@ -2,17 +2,12 @@
 """
 Booking Service for InstaInstru Platform
 
-UPDATED FOR CLEAN ARCHITECTURE: Complete separation from availability slots.
-
 Handles all booking-related business logic including:
 - Creating instant bookings using time ranges
 - Finding booking opportunities
 - Validating booking constraints
 - Managing booking lifecycle
 - Coordinating with other services
-
-Bookings are now self-contained with all necessary data (instructor, date, times)
-and do not reference availability slots.
 """
 
 import logging
@@ -31,12 +26,6 @@ from ..schemas.booking import BookingCreate, BookingUpdate
 from .base import BaseService
 from .notification_service import NotificationService
 
-# Import BookingConflictException if it exists, otherwise use ConflictException
-try:
-    from ..core.exceptions import BookingConflictException
-except ImportError:
-    BookingConflictException = ConflictException
-
 logger = logging.getLogger(__name__)
 
 
@@ -45,10 +34,16 @@ class BookingService(BaseService):
     Service layer for booking operations.
 
     Centralizes all booking business logic and coordinates
-    with other services. Now includes finding booking opportunities.
+    with other services.
     """
 
-    def __init__(self, db: Session, notification_service: Optional[NotificationService] = None, repository=None):
+    def __init__(
+        self,
+        db: Session,
+        notification_service: Optional[NotificationService] = None,
+        repository=None,
+        conflict_checker_repository=None,
+    ):
         """
         Initialize booking service.
 
@@ -56,18 +51,19 @@ class BookingService(BaseService):
             db: Database session
             notification_service: Optional notification service instance
             repository: Optional BookingRepository instance
+            conflict_checker_repository: Optional ConflictCheckerRepository instance
         """
         super().__init__(db)
         self.notification_service = notification_service or NotificationService(db)
         self.repository = repository or RepositoryFactory.create_booking_repository(db)
         self.availability_repository = RepositoryFactory.create_availability_repository(db)
+        self.conflict_checker_repository = (
+            conflict_checker_repository or RepositoryFactory.create_conflict_checker_repository(db)
+        )
 
     async def create_booking(self, student: User, booking_data: BookingCreate) -> Booking:
         """
         Create an instant booking using time range.
-
-        This creates a self-contained booking with all necessary data.
-        No longer requires or references availability slots.
 
         Args:
             student: The student creating the booking
@@ -82,7 +78,6 @@ class BookingService(BaseService):
             BusinessRuleException: If business rules violated
             ConflictException: If time slot already booked
         """
-        # Log the operation
         self.log_operation(
             "create_booking",
             student_id=student.id,
@@ -118,7 +113,7 @@ class BookingService(BaseService):
             # 4. Calculate pricing
             pricing = self._calculate_pricing(service, booking_data.start_time, booking_data.end_time)
 
-            # 5. Create the booking with all data
+            # 5. Create the booking
             booking = self.repository.create(
                 student_id=student.id,
                 instructor_id=booking_data.instructor_id,
@@ -130,7 +125,7 @@ class BookingService(BaseService):
                 hourly_rate=service.hourly_rate,
                 total_price=pricing["total_price"],
                 duration_minutes=pricing["duration_minutes"],
-                status=BookingStatus.CONFIRMED,  # Instant booking!
+                status=BookingStatus.CONFIRMED,
                 service_area=instructor_profile.areas_of_service,
                 meeting_location=booking_data.meeting_location,
                 location_type=booking_data.location_type,
@@ -143,17 +138,15 @@ class BookingService(BaseService):
             # 7. Load relationships for response
             booking = self.repository.get_booking_with_details(booking.id)
 
-            # 8. Send notifications (async, don't fail booking if this fails)
+            # 8. Send notifications
             try:
                 await self.notification_service.send_booking_confirmation(booking)
             except Exception as e:
                 logger.error(f"Failed to send booking confirmation: {str(e)}")
-                # Don't fail the booking, but log for retry
 
             # 9. Invalidate relevant caches
             self._invalidate_booking_caches(booking)
 
-            logger.info(f"Booking {booking.id} created successfully")
             return booking
 
     async def find_booking_opportunities(
@@ -166,10 +159,6 @@ class BookingService(BaseService):
     ) -> List[Dict[str, Any]]:
         """
         Find available time slots for booking based on instructor availability.
-
-        This method finds FREE time slots by checking instructor availability
-        and existing bookings. It suggests optimal times for bookings of the
-        specified duration.
 
         Args:
             instructor_id: The instructor ID
@@ -321,7 +310,6 @@ class BookingService(BaseService):
         Returns:
             List of bookings
         """
-        # Use repository methods based on user role
         if user.role == UserRole.STUDENT:
             return self.repository.get_student_bookings(
                 student_id=user.id, status=status, upcoming_only=upcoming_only, limit=limit
@@ -375,23 +363,13 @@ class BookingService(BaseService):
 
     async def _validate_booking_data(self, booking_data: BookingCreate) -> tuple[Service, InstructorProfile]:
         """Validate and load all required data for booking."""
-        # Load service - ONLY ACTIVE SERVICES
-        service = (
-            self.db.query(Service)
-            .filter(
-                Service.id == booking_data.service_id, Service.is_active == True  # Only allow booking active services
-            )
-            .first()
-        )
-
+        # Use repositories instead of direct queries
+        service = self.conflict_checker_repository.get_active_service(booking_data.service_id)
         if not service:
             raise NotFoundException("Service not found or no longer available")
 
         # Get instructor profile
-        instructor_profile = (
-            self.db.query(InstructorProfile).filter(InstructorProfile.user_id == booking_data.instructor_id).first()
-        )
-
+        instructor_profile = self.conflict_checker_repository.get_instructor_profile(booking_data.instructor_id)
         if not instructor_profile:
             raise NotFoundException("Instructor profile not found")
 
@@ -417,25 +395,15 @@ class BookingService(BaseService):
                 f"Bookings must be made at least {instructor_profile.min_advance_booking_hours} hours in advance"
             )
 
-        # Additional business rules can be added here
-
     async def _apply_cancellation_rules(self, booking: Booking, user: User) -> None:
         """Apply business rules for cancellation."""
         # Check cancellation deadline
         booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
-        cancellation_deadline = booking_datetime - timedelta(hours=2)  # 2 hour policy
+        cancellation_deadline = booking_datetime - timedelta(hours=2)
 
         if datetime.now() > cancellation_deadline:
             # Log late cancellation but allow it
             logger.warning(f"Late cancellation for booking {booking.id} by user {user.id}")
-
-        # Additional rules based on who's cancelling
-        if user.id == booking.instructor_id:
-            # Instructor cancellation - might affect their rating
-            logger.info(f"Instructor {user.id} cancelled booking {booking.id}")
-        else:
-            # Student cancellation
-            logger.info(f"Student {user.id} cancelled booking {booking.id}")
 
     def _calculate_pricing(self, service: Service, start_time: time, end_time: time) -> Dict[str, Any]:
         """Calculate booking pricing based on time range."""
@@ -575,7 +543,6 @@ class BookingService(BaseService):
 
         self._invalidate_booking_caches(booking)
 
-        logger.info(f"Booking {booking_id} marked as completed")
         return booking
 
     async def check_availability(
@@ -605,16 +572,13 @@ class BookingService(BaseService):
         if has_conflict:
             return {"available": False, "reason": "Time slot has conflicts with existing bookings"}
 
-        # Get service and instructor profile
-        service = self.db.query(Service).filter(Service.id == service_id, Service.is_active == True).first()
-
+        # Get service and instructor profile using repositories
+        service = self.conflict_checker_repository.get_active_service(service_id)
         if not service:
             return {"available": False, "reason": "Service not found or no longer available"}
 
         # Get instructor profile
-        instructor_profile = (
-            self.db.query(InstructorProfile).filter(InstructorProfile.id == service.instructor_profile_id).first()
-        )
+        instructor_profile = self.conflict_checker_repository.get_instructor_profile(instructor_id)
 
         # Check minimum advance booking
         booking_datetime = datetime.combine(booking_date, start_time)
@@ -649,8 +613,6 @@ class BookingService(BaseService):
         bookings = self.repository.get_bookings_for_date(
             booking_date=tomorrow, status=BookingStatus.CONFIRMED, with_relationships=True
         )
-
-        logger.info(f"Found {len(bookings)} bookings for tomorrow")
 
         sent_count = 0
         for booking in bookings:

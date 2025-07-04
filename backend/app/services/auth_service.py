@@ -16,6 +16,7 @@ from ..auth import get_password_hash, verify_password
 from ..core.exceptions import ConflictException, NotFoundException, ValidationException
 from ..models.instructor import InstructorProfile
 from ..models.user import User, UserRole
+from ..repositories.factory import RepositoryFactory
 from .base import BaseService
 
 if TYPE_CHECKING:
@@ -27,10 +28,22 @@ logger = logging.getLogger(__name__)
 class AuthService(BaseService):
     """Service for handling authentication operations."""
 
-    def __init__(self, db: Session, cache_service: Optional["CacheService"] = None):
+    def __init__(
+        self,
+        db: Session,
+        cache_service: Optional["CacheService"] = None,
+        user_repository=None,
+        instructor_repository=None,
+    ):
         """Initialize authentication service."""
         super().__init__(db, cache=cache_service)
         self.logger = logging.getLogger(__name__)
+
+        # Initialize repositories using BaseRepository pattern
+        self.user_repository = user_repository or RepositoryFactory.create_base_repository(db, User)
+        self.instructor_repository = instructor_repository or RepositoryFactory.create_base_repository(
+            db, InstructorProfile
+        )
 
     def register_user(self, email: str, password: str, full_name: str, role: UserRole) -> User:
         """
@@ -60,22 +73,16 @@ class AuthService(BaseService):
         # Hash the password
         hashed_password = get_password_hash(password)
 
-        # Create user
-        user = User(
-            email=email,
-            hashed_password=hashed_password,
-            full_name=full_name,
-            role=role,
-        )
-
         try:
             with self.transaction():
-                self.db.add(user)
-                self.db.flush()  # Get the user ID
+                # Create user using repository
+                user = self.user_repository.create(
+                    email=email, hashed_password=hashed_password, full_name=full_name, role=role
+                )
 
                 # If registering as instructor, create empty profile
                 if role == UserRole.INSTRUCTOR:
-                    instructor_profile = InstructorProfile(
+                    instructor_profile = self.instructor_repository.create(
                         user_id=user.id,
                         bio="",
                         years_experience=0,
@@ -83,7 +90,6 @@ class AuthService(BaseService):
                         min_advance_booking_hours=1,
                         buffer_time_minutes=15,
                     )
-                    self.db.add(instructor_profile)
 
                 self.logger.info(f"Successfully registered user: {email} with role: {role}")
                 return user
@@ -131,7 +137,7 @@ class AuthService(BaseService):
             User object or None if not found
         """
         try:
-            return self.db.query(User).filter(User.email == email).first()
+            return self.user_repository.find_one_by(email=email)
         except Exception as e:
             self.logger.error(f"Error getting user by email {email}: {str(e)}")
             return None
@@ -147,7 +153,7 @@ class AuthService(BaseService):
             User object or None if not found
         """
         try:
-            return self.db.query(User).filter(User.id == user_id).first()
+            return self.user_repository.get_by_id(user_id)
         except Exception as e:
             self.logger.error(f"Error getting user by ID {user_id}: {str(e)}")
             return None
