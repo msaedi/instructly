@@ -115,10 +115,9 @@ class BlackoutDateResponse(StandardizedModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class DateTimeSlot(BaseModel):
-    """Schema for a time slot on a specific date."""
+class TimeRange(BaseModel):
+    """Simple time range for schedule entries."""
 
-    date: DateType
     start_time: TimeType
     end_time: TimeType
 
@@ -130,19 +129,11 @@ class DateTimeSlot(BaseModel):
             raise ValueError("End time must be after start time")
         return v
 
-    @field_validator("date")
-    @classmethod
-    def validate_not_past(cls, v):
-        """Prevent creating slots for past dates."""
-        if v < date.today():
-            raise ValueError("Cannot create availability for past dates")
-        return v
-
 
 class WeekSpecificScheduleCreate(BaseModel):
     """Schema for creating schedule for specific dates."""
 
-    schedule: List[DateTimeSlot]
+    schedule: List[Dict[str, Any]]  # Each item: {"date": "2025-07-15", "start_time": "09:00", "end_time": "10:00"}
     clear_existing: bool = Field(
         default=True,
         description="Whether to clear existing entries for the week before saving",
@@ -158,6 +149,17 @@ class WeekSpecificScheduleCreate(BaseModel):
         """Ensure week start is a Monday if provided."""
         if v and v.weekday() != 0:
             raise ValueError("Week start must be a Monday")
+        return v
+
+    @field_validator("schedule")
+    @classmethod
+    def validate_schedule_items(cls, v):
+        """Validate each schedule item has required fields."""
+        for item in v:
+            if not isinstance(item, dict):
+                raise ValueError("Schedule items must be dictionaries")
+            if "date" not in item or "start_time" not in item or "end_time" not in item:
+                raise ValueError("Each schedule item must have date, start_time, and end_time")
         return v
 
 

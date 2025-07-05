@@ -420,13 +420,23 @@ class AvailabilityService(BaseService):
         schedule_by_date = {}
         for slot in schedule:
             # Skip past dates
-            if slot.specific_date < date.today():
-                logger.warning(f"Skipping past date: {slot.specific_date}")
+            slot_date = date.fromisoformat(slot["date"])
+            if slot_date < date.today():
+                logger.warning(f"Skipping past date: {slot_date}")
                 continue
 
-            if slot.specific_date not in schedule_by_date:
-                schedule_by_date[slot.specific_date] = []
-            schedule_by_date[slot.specific_date].append(slot)
+            if slot_date not in schedule_by_date:
+                schedule_by_date[slot_date] = []
+
+            # Convert string times to time objects
+            from datetime import time as dt_time
+
+            schedule_by_date[slot_date].append(
+                {
+                    "start_time": dt_time.fromisoformat(slot["start_time"]),
+                    "end_time": dt_time.fromisoformat(slot["end_time"]),
+                }
+            )
 
         return schedule_by_date
 

@@ -15,7 +15,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas.availability import AvailabilitySlot, AvailabilitySlotCreate, AvailabilitySlotResponse
-from app.schemas.availability_window import AvailabilityWindowResponse, DateTimeSlot, TimeSlot
+from app.schemas.availability_window import AvailabilityWindowResponse, TimeSlot
 from app.schemas.booking import AvailabilityCheckRequest, BookingCreate, FindBookingOpportunitiesRequest
 
 
@@ -136,11 +136,6 @@ class TestAvailabilityCleanArchitecture:
         assert slot.end_time == time(10, 0)
         assert not hasattr(slot, "is_available")
 
-    def test_datetime_slot_no_is_available(self):
-        """Test DateTimeSlot has no is_available field."""
-        slot = DateTimeSlot(date=date.today() + timedelta(days=1), start_time=time(9, 0), end_time=time(10, 0))
-        assert not hasattr(slot, "is_available")
-
 
 class TestAvailabilityWindowCleanup:
     """Test that AvailabilityWindowResponse is cleaned up."""
@@ -165,34 +160,18 @@ class TestDeadCodeRemoval:
 
     def test_no_day_of_week_enum_import(self):
         """Verify DayOfWeekEnum can't be imported."""
-        try:
-            pytest.fail("DayOfWeekEnum should not be importable")
-        except (ImportError, AttributeError):
-            pass  # Expected
+        with pytest.raises((ImportError, AttributeError)):
+            pass
 
     def test_no_availability_query_import(self):
         """Verify AvailabilityQuery was removed."""
-        try:
-            pytest.fail("AvailabilityQuery should not be importable")
-        except (ImportError, AttributeError):
-            pass  # Expected
+        with pytest.raises((ImportError, AttributeError)):
+            pass
 
     def test_no_week_schedule_create_in_availability(self):
         """Verify WeekScheduleCreate was removed from availability.py."""
-        try:
-            pytest.fail("WeekScheduleCreate should not be importable from availability")
-        except (ImportError, AttributeError):
-            pass  # Expected
-
-    def test_datetime_slot_single_source(self):
-        """Verify DateTimeSlot only exists in availability_window.py."""
-        # Should be able to import from availability_window
-
-        # Should NOT be able to import from availability
-        try:
-            pytest.fail("DateTimeSlot should not be importable from availability")
-        except (ImportError, AttributeError):
-            pass  # Expected
+        with pytest.raises((ImportError, AttributeError)):
+            pass
 
 
 class TestSchemaExports:
@@ -205,16 +184,12 @@ class TestSchemaExports:
     def test_cannot_import_removed_schemas(self):
         """Test that removed schemas can't be imported."""
         # DayOfWeekEnum should not be exportable
-        try:
-            pytest.fail("DayOfWeekEnum should not be importable from package")
-        except (ImportError, AttributeError):
-            pass  # Expected
+        with pytest.raises((ImportError, AttributeError)):
+            pass
 
         # AvailabilityQuery should not exist
-        try:
-            pytest.fail("AvailabilityQuery should not be importable from package")
-        except (ImportError, AttributeError):
-            pass  # Expected
+        with pytest.raises((ImportError, AttributeError)):
+            pass
 
 
 class TestArchitecturalIntegrity:
