@@ -12,11 +12,20 @@ All fixtures now create AvailabilitySlot objects directly with instructor_id and
 
 import os
 import sys
-from datetime import date, time, timedelta
+
+# CRITICAL: Set testing mode BEFORE any app imports!
+os.environ["is_testing"] = "true"
 
 # Add the backend directory to Python path so imports work
 backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, backend_dir)
+
+# NOW we can set the settings
+from app.core.config import settings
+
+settings.is_testing = True
+
+from datetime import date, time, timedelta
 
 import pytest
 from fastapi.testclient import TestClient

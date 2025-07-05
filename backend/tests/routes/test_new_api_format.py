@@ -18,6 +18,7 @@ To run these tests:
 from datetime import date, timedelta
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 
@@ -357,3 +358,32 @@ def test_full_booking_flow_clean_architecture(
     assert booking["end_time"] == "11:00:00"
 
     print("✅ Full booking flow works with clean architecture!")
+
+
+def test_debug_database_connections(client, db, auth_headers_student):
+    """Debug test to see which databases are being used"""
+    from app.core.config import settings
+    from app.database import SessionLocal, engine
+
+    print(f"\n=== DATABASE DEBUG ===")
+    print(f"settings.is_testing: {settings.is_testing}")
+    print(f"settings.database_url: {settings.database_url}")
+    print(f"settings.get_database_url(): {settings.get_database_url()}")
+    print(f"Engine URL: {engine.url}")
+
+    # Check what database the session is using
+    session = SessionLocal()
+    result = session.execute(text("SELECT current_database()"))
+    current_db = result.scalar()
+    print(f"Session database: {current_db}")
+    session.close()
+
+    # Make a simple API call
+    response = client.get("/health")
+    print(f"Health check response: {response.status_code}")
+
+    # Try to get current user
+    response = client.get("/me", headers=auth_headers_student)
+    print(f"Get current user: {response.status_code}")
+    if response.status_code != 200:
+        print(f"Response: {response.json()}")

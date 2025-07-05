@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # Create engine with connection pooling
 engine = create_engine(
-    settings.database_url,
+    settings.get_database_url(),
     # Connection pool settings
     poolclass=QueuePool,
     pool_size=20,  # Number of persistent connections
