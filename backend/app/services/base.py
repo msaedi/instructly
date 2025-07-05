@@ -14,7 +14,7 @@ import logging
 import time
 from contextlib import contextmanager
 from functools import wraps
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -40,6 +40,9 @@ class BaseService:
     - Performance monitoring
     """
 
+    # Class-level metrics storage
+    _class_metrics = {}
+
     def __init__(self, db: Session, cache: Optional["CacheService"] = None):
         """
         Initialize base service.
@@ -51,7 +54,6 @@ class BaseService:
         self.db = db
         self.cache = cache
         self.logger = logging.getLogger(self.__class__.__name__)
-        self._metrics = {}  # Initialize metrics tracking
 
     @contextmanager
     def transaction(self):
@@ -94,6 +96,88 @@ class BaseService:
 
         return wrapper
 
+    @staticmethod
+    def measure_operation(operation_name: str) -> Callable:
+        """
+        Decorator to measure operation performance.
+
+        Usage:
+            @BaseService.measure_operation("create_booking")
+            def create_booking(self, data):
+                # Method implementation
+
+        Args:
+            operation_name: Name of the operation for metrics
+
+        Returns:
+            Decorator function
+        """
+
+        def decorator(func: Callable) -> Callable:
+            # Store the operation name on the function for later use
+            func._operation_name = operation_name
+            func._is_measured = True
+
+            @wraps(func)
+            def wrapper(self, *args, **kwargs):
+                # Now we have access to self!
+                if not hasattr(self, "_metrics"):
+                    # Initialize metrics if this is called on a non-BaseService instance
+                    self._metrics = {}
+
+                start_time = time.time()
+                success = False
+
+                try:
+                    result = func(self, *args, **kwargs)
+                    success = True
+                    return result
+                except Exception:
+                    success = False
+                    raise
+                finally:
+                    elapsed = time.time() - start_time
+                    if hasattr(self, "_record_metric"):
+                        self._record_metric(operation_name, elapsed, success)
+
+                    # Log slow operations
+                    if elapsed > 1.0 and hasattr(self, "logger"):
+                        self.logger.warning(f"Slow operation detected: {operation_name} took {elapsed:.2f}s")
+
+            return wrapper
+
+        return decorator
+
+    @contextmanager
+    def measure_operation_context(self, operation_name: str):
+        """
+        Context manager to measure operation performance.
+
+        Usage:
+            with self.measure_operation_context("complex_operation"):
+                # Do work here
+                pass
+
+        Args:
+            operation_name: Name of the operation for metrics
+        """
+        start_time = time.time()
+        success = False
+
+        try:
+            yield
+            success = True
+        except Exception:
+            success = False
+            raise
+        finally:
+            elapsed = time.time() - start_time
+            self._record_metric(operation_name, elapsed, success)
+
+            # Log slow operations
+            if elapsed > 1.0:
+                self.logger.warning(f"Slow operation detected: {operation_name} took {elapsed:.2f}s")
+
     def invalidate_cache(self, *keys: str) -> None:
         """
         Invalidate specific cache keys.
@@ -131,51 +215,86 @@ class BaseService:
         """
         Log an operation with context.
 
+        Note: This method now only logs, it doesn't handle metrics.
+        Use @measure_operation decorator or measure_operation_context for timing.
+
         Args:
             operation: Operation name
             **context: Additional context to log
         """
-        # Also record metric for this operation
-        start_time = getattr(self, "_operation_start_time", None)
-        if start_time:
-            elapsed = time.time() - start_time
-            self._record_metric(operation, elapsed, success=True)
-            delattr(self, "_operation_start_time")
-        else:
-            # Start timing if not already started
-            self._operation_start_time = time.time()
-
         self.logger.info(f"Operation: {operation}", extra={"operation": operation, **context})
 
     def _record_metric(self, operation: str, elapsed: float, success: bool) -> None:
-        """Record performance metrics."""
-        if operation not in self._metrics:
-            self._metrics[operation] = {
+        """
+        Record performance metrics.
+
+        Args:
+            operation: Operation name
+            elapsed: Time taken in seconds
+            success: Whether operation succeeded
+        """
+        class_name = self.__class__.__name__
+        if class_name not in BaseService._class_metrics:
+            BaseService._class_metrics[class_name] = {}
+
+        metrics = BaseService._class_metrics[class_name]
+
+        if operation not in metrics:
+            metrics[operation] = {
                 "count": 0,
-                "total_time": 0,
+                "total_time": 0.0,
                 "success_count": 0,
                 "failure_count": 0,
+                "min_time": float("inf"),
+                "max_time": 0.0,
             }
 
-        self._metrics[operation]["count"] += 1
-        self._metrics[operation]["total_time"] += elapsed
+        metric_data = metrics[operation]
+        metric_data["count"] += 1
+        metric_data["total_time"] += elapsed
+        metric_data["min_time"] = min(metric_data["min_time"], elapsed)
+        metric_data["max_time"] = max(metric_data["max_time"], elapsed)
+
         if success:
-            self._metrics[operation]["success_count"] += 1
+            metric_data["success_count"] += 1
         else:
-            self._metrics[operation]["failure_count"] += 1
+            metric_data["failure_count"] += 1
 
-        # Log slow operations
-        if elapsed > 1.0:  # More than 1 second
-            self.logger.warning(f"Slow operation detected: {operation} took {elapsed:.2f}s")
+    def get_metrics(self) -> Dict[str, Any]:
+        """
+        Get performance metrics for this service.
 
-    def get_metrics(self) -> dict:
-        """Get performance metrics for this service."""
-        return {
-            operation: {
-                "count": data["count"],
-                "avg_time": data["total_time"] / data["count"] if data["count"] > 0 else 0,
-                "success_rate": data["success_count"] / data["count"] if data["count"] > 0 else 0,
+        Returns:
+            Dictionary with metrics for each measured operation
+        """
+        class_name = self.__class__.__name__
+        if class_name not in BaseService._class_metrics:
+            return {}
+
+        result = {}
+        metrics = BaseService._class_metrics[class_name]
+
+        for operation, data in metrics.items():
+            count = data["count"]
+            if count == 0:
+                continue
+
+            result[operation] = {
+                "count": count,
+                "avg_time": data["total_time"] / count,
+                "min_time": data["min_time"],
+                "max_time": data["max_time"],
                 "total_time": data["total_time"],
+                "success_rate": data["success_count"] / count,
+                "success_count": data["success_count"],
+                "failure_count": data["failure_count"],
             }
-            for operation, data in self._metrics.items()
-        }
+
+        return result
+
+    def reset_metrics(self) -> None:
+        """Reset all metrics for this service."""
+        class_name = self.__class__.__name__
+        if class_name in BaseService._class_metrics:
+            BaseService._class_metrics[class_name].clear()
+        self.logger.info(f"Metrics reset for {class_name}")

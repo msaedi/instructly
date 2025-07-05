@@ -122,6 +122,7 @@ class AvailabilityService(BaseService):
             logger.error(f"Error getting availability summary: {e}")
             return {}
 
+    @BaseService.measure_operation("get_week_availability")
     def get_week_availability(self, instructor_id: int, start_date: date) -> Dict[str, List[Dict[str, Any]]]:
         """
         Get availability for a specific week.

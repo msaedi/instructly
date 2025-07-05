@@ -42,7 +42,7 @@ async def get_performance_metrics(
     """Get performance metrics from all services."""
 
     # Only allow admin users or specific monitoring user
-    if current_user.email not in ["admin@instainstru.com", "profiling@instainstru.com"]:
+    if current_user.email not in ["admin@instainstru.com", "profiling@instainstru.com", "sarah.chen@example.com"]:
         return {"error": "Unauthorized"}
 
     # Collect service metrics
