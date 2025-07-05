@@ -212,19 +212,12 @@ def add_specific_date_availability(
     verify_instructor(current_user)
 
     try:
-        result = availability_service.add_specific_date_availability(
+        slot = availability_service.add_specific_date_availability(
             instructor_id=current_user.id, availability_data=availability_data
         )
 
-        # Service returns a dict, convert to proper response
-        # The service should be updated to return the model directly
-        return AvailabilityWindowResponse(
-            id=result["id"],
-            instructor_id=result["instructor_id"],
-            specific_date=result["specific_date"],
-            start_time=result["start_time"],
-            end_time=result["end_time"],
-        )
+        # Pydantic v2 way - use model_validate instead of from_orm
+        return AvailabilityWindowResponse.model_validate(slot)
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:

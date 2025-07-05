@@ -332,15 +332,7 @@ class AvailabilityService(BaseService):
             # Invalidate cache
             self._invalidate_availability_caches(instructor_id, [availability_data.specific_date])
 
-            return {
-                "id": slot.id,
-                "instructor_id": instructor_id,
-                "specific_date": slot.specific_date,
-                "start_time": time_to_string(slot.start_time),
-                "end_time": time_to_string(slot.end_time),
-                "is_available": True,
-                "is_recurring": False,
-            }
+            return slot  # Just return the model object
 
     def get_blackout_dates(self, instructor_id: int) -> List[BlackoutDate]:
         """
