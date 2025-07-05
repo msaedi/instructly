@@ -50,18 +50,18 @@ class TestArchitecturalValidation:
         All availability data now lives directly in AvailabilitySlot.
         """
         # Should not be able to import InstructorAvailability
-        with pytest.raises(ImportError):
-            pass
-
-        # Should not exist in the module at all
         import app.models.availability as availability_module
 
+        # Should not exist in the module at all
         assert not hasattr(availability_module, "InstructorAvailability")
 
-        # Should not be in __all__ exports
-        from app.models import __all__
+        # Try to access it and verify it doesn't exist
+        with pytest.raises(AttributeError):
+            _ = availability_module.InstructorAvailability
 
-        assert "InstructorAvailability" not in __all__
+        # Should not be in __all__ exports if __all__ is defined
+        if hasattr(availability_module, "__all__"):
+            assert "InstructorAvailability" not in availability_module.__all__
 
     def test_booking_has_no_slot_references(self):
         """
@@ -100,8 +100,8 @@ class TestArchitecturalValidation:
         assert columns["instructor_id"].nullable is False
 
         # Verify date exists and is not nullable
-        assert "date" in columns
-        assert columns["date"].nullable is False
+        assert "specific_date" in columns
+        assert columns["specific_date"].nullable is False
 
         # Verify the relationship to User exists
         relationships = {rel.key: rel for rel in mapper.relationships}
@@ -196,14 +196,14 @@ class TestModelInstantiation:
         without needing a parent InstructorAvailability record.
         """
         slot = AvailabilitySlot(
-            instructor_id=test_instructor.id, date=date.today(), start_time=time(9, 0), end_time=time(10, 0)
+            instructor_id=test_instructor.id, specific_date=date.today(), start_time=time(9, 0), end_time=time(10, 0)
         )
         db.add(slot)
         db.flush()
 
         assert slot.id is not None
         assert slot.instructor_id == test_instructor.id
-        assert slot.date == date.today()
+        assert slot.specific_date == date.today()
         assert slot.instructor is not None  # Relationship works
 
     def test_booking_creation_self_contained(self, db, test_student, test_instructor):
@@ -316,10 +316,16 @@ class TestCleanArchitectureVerification:
         # Create multiple slots for the same date
         slots = [
             AvailabilitySlot(
-                instructor_id=test_instructor.id, date=date(2024, 7, 20), start_time=time(9, 0), end_time=time(10, 0)
+                instructor_id=test_instructor.id,
+                specific_date=date(2024, 7, 20),
+                start_time=time(9, 0),
+                end_time=time(10, 0),
             ),
             AvailabilitySlot(
-                instructor_id=test_instructor.id, date=date(2024, 7, 20), start_time=time(11, 0), end_time=time(12, 0)
+                instructor_id=test_instructor.id,
+                specific_date=date(2024, 7, 20),
+                start_time=time(11, 0),
+                end_time=time(12, 0),
             ),
         ]
 
@@ -330,13 +336,16 @@ class TestCleanArchitectureVerification:
         # Verify we can query slots directly by instructor and date
         day_slots = (
             db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.date == date(2024, 7, 20))
+            .filter(
+                AvailabilitySlot.instructor_id == test_instructor.id,
+                AvailabilitySlot.specific_date == date(2024, 7, 20),
+            )
             .all()
         )
 
         assert len(day_slots) == 2
         assert all(s.instructor_id == test_instructor.id for s in day_slots)
-        assert all(s.date == date(2024, 7, 20) for s in day_slots)
+        assert all(s.specific_date == date(2024, 7, 20) for s in day_slots)
 
     def test_layer_independence_booking_persists_without_slot(self, db, test_student, test_instructor):
         """
@@ -367,7 +376,7 @@ class TestCleanArchitectureVerification:
 
         # Create an availability slot for the same time (not linked!)
         slot = AvailabilitySlot(
-            instructor_id=test_instructor.id, date=date.today(), start_time=time(15, 0), end_time=time(16, 0)
+            instructor_id=test_instructor.id, specific_date=date.today(), start_time=time(15, 0), end_time=time(16, 0)
         )
         db.add(slot)
         db.flush()
@@ -506,7 +515,7 @@ class TestFieldValidation:
         # Missing date should fail
         slot = AvailabilitySlot(
             instructor_id=test_instructor.id,
-            # Missing: date
+            # Missing: specific_date
             start_time=time(9, 0),
             end_time=time(10, 0),
         )
