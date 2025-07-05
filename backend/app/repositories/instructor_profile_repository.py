@@ -43,13 +43,16 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         This method solves the N+1 query problem by loading all related
         data in a single query with joins.
 
+        Note: This method returns ALL services regardless of the include_inactive_services
+        parameter. The service layer should handle filtering when converting to DTOs.
+
         Args:
             skip: Number of records to skip
             limit: Maximum number of records to return
-            include_inactive_services: Whether to include inactive services
+            include_inactive_services: DEPRECATED - kept for compatibility but ignored
 
         Returns:
-            List of InstructorProfile objects with relationships loaded
+            List of InstructorProfile objects with all relationships loaded
         """
         try:
             query = (
@@ -61,12 +64,8 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
 
             profiles = query.all()
 
-            # If we need to filter services after loading (to use the ORM relationships)
-            if not include_inactive_services:
-                for profile in profiles:
-                    # This doesn't cause additional queries since services are already loaded
-                    profile.services = [s for s in profile.services if s.is_active]
-
+            # Return profiles with all services loaded
+            # Let the service layer handle filtering
             return profiles
 
         except Exception as e:
@@ -79,12 +78,15 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         """
         Get a single instructor profile by user_id with all relationships loaded.
 
+        Note: This method returns ALL services regardless of the include_inactive_services
+        parameter. The service layer should handle filtering when converting to DTOs.
+
         Args:
             user_id: The user ID
-            include_inactive_services: Whether to include inactive services
+            include_inactive_services: DEPRECATED - kept for compatibility but ignored
 
         Returns:
-            InstructorProfile with relationships loaded, or None if not found
+            InstructorProfile with all relationships loaded, or None if not found
         """
         try:
             profile = (
@@ -94,10 +96,8 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 .first()
             )
 
-            if profile and not include_inactive_services:
-                # Filter services without additional queries
-                profile.services = [s for s in profile.services if s.is_active]
-
+            # Return profile with all services loaded
+            # Let the service layer handle filtering
             return profile
 
         except Exception as e:
