@@ -38,14 +38,14 @@ def upgrade() -> None:
     op.create_index(
         "idx_availability_week_lookup",
         "availability_slots",
-        ["instructor_id", "date", "start_time"],
+        ["instructor_id", "specific_date", "start_time"],
     )
 
     # Partial index for future dates (common query)
     op.create_index(
         "idx_availability_future",
         "availability_slots",
-        ["instructor_id", "date"],
+        ["instructor_id", "specific_date"],
     )
 
     # Partial index for upcoming bookings (confirmed only)

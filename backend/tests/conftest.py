@@ -1,7 +1,10 @@
 # backend/tests/conftest.py
 """
-Pytest configuration file.
+Pytest configuration file with PRODUCTION DATABASE PROTECTION.
 This file is automatically loaded by pytest and sets up the test environment.
+
+CRITICAL: This file now includes safety checks to prevent accidental
+production database usage during tests.
 
 UPDATED FOR WORK STREAM #10: Single-table availability design.
 All fixtures now create AvailabilitySlot objects directly with instructor_id and date.
@@ -17,7 +20,7 @@ sys.path.insert(0, backend_dir)
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.auth import get_password_hash
@@ -32,11 +35,116 @@ from app.models.instructor import InstructorProfile
 from app.models.service import Service
 from app.models.user import User, UserRole
 
-# Create a test engine with proper transaction handling
+# ============================================================================
+# PRODUCTION DATABASE PROTECTION
+# ============================================================================
+
+
+def _validate_test_database_url(database_url: str) -> None:
+    """
+    Validate that we're not using a production database for tests.
+
+    Raises:
+        RuntimeError: If the database URL appears to be a production database
+    """
+    if not database_url:
+        raise RuntimeError("No database URL configured for tests!")
+
+    # Check against known production database providers
+    production_indicators = [
+        "supabase.com",
+        "supabase.co",
+        "amazonaws.com",
+        "cloud.google.com",
+        "database.azure.com",
+        "elephantsql.com",
+        "bit.io",
+        "neon.tech",
+        "railway.app",
+        "render.com",
+        "aiven.io",
+    ]
+
+    url_lower = database_url.lower()
+
+    for indicator in production_indicators:
+        if indicator in url_lower:
+            raise RuntimeError(
+                f"\n\n" + "=" * 60 + "\n"
+                f"CRITICAL ERROR: ATTEMPTING TO RUN TESTS ON PRODUCTION DATABASE!\n"
+                f"=" * 60 + "\n"
+                f"Database URL contains production indicator: '{indicator}'\n"
+                f"URL: {database_url[:30]}...\n\n"
+                f"Tests are configured to WIPE THE DATABASE after each test.\n"
+                f"Running tests on production would DELETE ALL YOUR DATA!\n\n"
+                f"To fix this:\n"
+                f"1. Set TEST_DATABASE_URL to a local test database\n"
+                f"2. Never use production database URLs for testing\n"
+                f"3. Example: TEST_DATABASE_URL=postgresql://localhost/instainstru_test\n"
+                f"=" * 60 + "\n"
+            )
+
+    # Warn if database doesn't have 'test' in the name
+    test_indicators = ["test", "testing", "_test", "-test"]
+    has_test_indicator = any(indicator in url_lower for indicator in test_indicators)
+
+    if not has_test_indicator:
+        print(
+            f"\n⚠️  WARNING: Test database URL doesn't contain 'test' in its name.\n"
+            f"   Consider using a clearly named test database to avoid confusion.\n"
+            f"   Current: {database_url[:50]}...\n"
+        )
+
+
+# ============================================================================
+# TEST DATABASE CONFIGURATION
+# ============================================================================
+
+# Force testing mode (lowercase to match settings)
+os.environ["is_testing"] = "true"
+settings.is_testing = True
+
+# Get test database URL (lowercase to match settings)
+TEST_DATABASE_URL = os.getenv("test_database_url", settings.test_database_url)
+
+if not TEST_DATABASE_URL:
+    # Try to use a default local test database if none configured
+    TEST_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/instainstru_test"
+    print(
+        f"\n⚠️  No test_database_url configured. Using default: {TEST_DATABASE_URL}\n"
+        f"   Set test_database_url in your .env file for custom configuration.\n"
+    )
+
+# CRITICAL: Validate we're not using production
+_validate_test_database_url(TEST_DATABASE_URL)
+
+# Create test engine with the validated test database URL
 test_engine = create_engine(
-    settings.database_url,
+    TEST_DATABASE_URL,
     poolclass=None,  # Disable pooling for tests
 )
+
+# Verify we can connect and it's safe
+try:
+    with test_engine.connect() as conn:
+        result = conn.execute(text("SELECT current_database()"))
+        db_name = result.scalar()
+        print(f"\n✅ Connected to test database: {db_name}")
+
+        # Extra safety: check table count
+        result = conn.execute(text("SELECT COUNT(*) FROM information_schema.tables " "WHERE table_schema = 'public'"))
+        table_count = result.scalar()
+
+        if table_count > 20:  # Rough heuristic - test DB shouldn't have many tables initially
+            response = input(
+                f"\n⚠️  WARNING: Database '{db_name}' has {table_count} tables.\n"
+                f"   This seems like a lot for a test database.\n"
+                f"   Are you SURE this is a test database? (yes/no): "
+            )
+            if response.lower() != "yes":
+                raise RuntimeError("Test run aborted for safety.")
+except Exception as e:
+    raise RuntimeError(f"Failed to connect to test database: {e}")
 
 # Create test session factory
 TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
@@ -69,7 +177,13 @@ def db():
     """
     Create a new database session for each test.
     This version works with TestClient.
+
+    SAFETY: Only runs on validated test databases.
     """
+    # Extra safety check before creating tables
+    if settings.is_production_database(TEST_DATABASE_URL):
+        raise RuntimeError("CRITICAL: Refusing to create tables in what appears to be a production database!")
+
     # Create tables
     Base.metadata.create_all(bind=test_engine)
 
@@ -83,8 +197,13 @@ def db():
     session.close()
 
     # Clean all test data after each test
+    # SAFETY: We've already validated this is a test database
     cleanup_db = TestSessionLocal()
     try:
+        # Log what we're doing for transparency
+        if os.getenv("PYTEST_VERBOSE"):
+            print("\n🧹 Cleaning up test data...")
+
         # Delete in dependency order to avoid FK violations
         cleanup_db.query(Booking).delete()
         cleanup_db.query(AvailabilitySlot).delete()
@@ -92,10 +211,16 @@ def db():
         cleanup_db.query(InstructorProfile).delete()
         cleanup_db.query(User).delete()
         cleanup_db.commit()
-    except Exception:
+    except Exception as e:
+        print(f"\n⚠️  Error during test cleanup: {e}")
         cleanup_db.rollback()
     finally:
         cleanup_db.close()
+
+
+# ============================================================================
+# TEST FIXTURES (unchanged from original)
+# ============================================================================
 
 
 @pytest.fixture

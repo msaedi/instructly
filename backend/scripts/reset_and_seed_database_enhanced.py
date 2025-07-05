@@ -1,22 +1,41 @@
 #!/usr/bin/env python3
 # backend/scripts/reset_and_seed_database_enhanced.py
 """
-Database reset and seed script with clean architecture (Work Stream 11 compliant).
+Database reset and seed script with PRODUCTION SAFETY CHECKS.
 
-This script demonstrates complete booking/availability separation:
-- Bookings are self-contained with all necessary data
-- No references between bookings and availability slots
-- Demonstrates layer independence
+This script now includes protection against accidentally running on production databases.
+It will only run on databases that appear to be for development/testing.
+
+USAGE OPTIONS:
+==============
+| Command | Database | Use Case |
+|---------|----------|----------|
+| USE_TEST_DATABASE=true python scripts/rreset_and_seed_database_enhanced.py | Local test DB | Safe local testing |
+| ALLOW_SEED_PRODUCTION=true python scripts/rreset_and_seed_database_enhanced.py | Production (Supabase) | Pre-launch seeding (asks yes/no) |
+| FORCE_ALLOW_RESET=true python scripts/rreset_and_seed_database_enhanced.py | Production (Supabase) | Emergency reset (requires typing confirmation) |
+| python scripts/rreset_and_seed_database_enhanced.py | BLOCKED! | Safety error - no accidental usage |
+
+Examples:
+---------
+# For local development testing:
+USE_TEST_DATABASE=true python scripts/rreset_and_seed_database_enhanced.py
+
+# For seeding Supabase before going live:
+ALLOW_SEED_PRODUCTION=true python scripts/rreset_and_seed_database_enhanced.py
+
+# For emergency production reset (DANGEROUS):
+FORCE_ALLOW_RESET=true python scripts/rreset_and_seed_database_enhanced.py
 
 Features:
+- Safety checks prevent production database usage
 - Creates realistic availability patterns
 - Generates bookings as independent commitments
 - Tests soft delete functionality
 - Creates realistic workload patterns
-- Demonstrates that bookings persist regardless of availability changes
 """
 
 import logging
+import os
 import random
 import sys
 from datetime import date, datetime, time, timedelta
@@ -42,6 +61,70 @@ from app.models.user import User, UserRole  # noqa: E402
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# SAFETY CHECK - PREVENT PRODUCTION DATABASE USAGE
+# ============================================================================
+def validate_safe_database_url(database_url: str) -> None:
+    """
+    Validate that we're not using a production database.
+
+    Raises:
+        RuntimeError: If the database URL appears to be production
+    """
+    if not database_url:
+        raise RuntimeError("No database URL provided!")
+
+    # Known production indicators
+    production_indicators = [
+        "supabase.com",
+        "supabase.co",
+        "amazonaws.com",
+        "cloud.google.com",
+        "database.azure.com",
+        "elephantsql.com",
+        "bit.io",
+        "neon.tech",
+        "railway.app",
+        "render.com",
+        "aiven.io",
+    ]
+
+    url_lower = database_url.lower()
+
+    for indicator in production_indicators:
+        if indicator in url_lower:
+            raise RuntimeError(
+                f"\n\n" + "=" * 60 + "\n"
+                f"SAFETY ERROR: REFUSING TO RUN ON PRODUCTION DATABASE!\n"
+                f"=" * 60 + "\n"
+                f"Database URL contains production indicator: '{indicator}'\n\n"
+                f"This script DELETES DATA and should only run on local/test databases.\n\n"
+                f"To use this script:\n"
+                f"1. Use a local development database\n"
+                f"2. Or set FORCE_ALLOW_RESET=true if you REALLY know what you're doing\n"
+                f"   (This is EXTREMELY DANGEROUS for production databases!)\n"
+                f"=" * 60 + "\n"
+            )
+
+    # Warn if database doesn't have common dev/test indicators
+    dev_indicators = ["localhost", "127.0.0.1", "test", "dev", "local"]
+    has_dev_indicator = any(indicator in url_lower for indicator in dev_indicators)
+
+    if not has_dev_indicator:
+        logger.warning(
+            "\n⚠️  WARNING: Database URL doesn't contain common development indicators.\n"
+            "   Make sure this is really a development database!\n"
+        )
+        response = input("Are you SURE this is a development database? (yes/no): ")
+        if response.lower() != "yes":
+            raise RuntimeError("Script cancelled for safety.")
+
+
+# ============================================================================
+# ORIGINAL SCRIPT CONTENT (with safety check added)
+# ============================================================================
 
 # Configuration
 EXCLUDE_FROM_CLEANUP = [
@@ -595,11 +678,80 @@ def quick_login_test():
 
 
 def main():
-    """Main function."""
+    """Main function with safety checks."""
     logger.info("Starting database reset and seed process...")
     logger.info("Work Stream 11 Compliant - Clean Architecture")
 
-    engine = create_engine(settings.database_url, pool_pre_ping=True)
+    # Show usage hint if no environment variables set
+    if not any(
+        os.getenv(var, "").lower() == "true"
+        for var in ["USE_TEST_DATABASE", "ALLOW_SEED_PRODUCTION", "FORCE_ALLOW_RESET"]
+    ):
+        logger.info("ℹ️  Running with default settings (will check for production database)")
+        logger.info("   See script header or use --help for usage options")
+
+    # ============================================================================
+    # SAFETY CHECK - THIS IS THE KEY ADDITION
+    # ============================================================================
+    # Determine which database to use
+    if os.getenv("USE_TEST_DATABASE", "").lower() == "true":
+        # Use test database if explicitly requested
+        database_url = settings.test_database_url or settings.get_database_url()
+        logger.info("Using TEST database as requested")
+    else:
+        # Use production settings by default
+        database_url = settings.database_url
+
+    # Validate it's safe to proceed
+    try:
+        validate_safe_database_url(database_url)
+    except RuntimeError as e:
+        # Check for override options
+        if os.getenv("FORCE_ALLOW_RESET", "").lower() == "true":
+            logger.error(
+                "\n" + "!" * 60 + "\n"
+                "!!! FORCE_ALLOW_RESET is set - BYPASSING SAFETY CHECKS !!!\n"
+                "!!! This is EXTREMELY DANGEROUS for production data   !!!\n"
+                "!" * 60 + "\n"
+            )
+            response = input("Type 'DELETE PRODUCTION DATA' to proceed: ")
+            if response != "DELETE PRODUCTION DATA":
+                logger.error("Confirmation failed. Exiting.")
+                sys.exit(1)
+        elif os.getenv("ALLOW_SEED_PRODUCTION", "").lower() == "true":
+            # More convenient for pre-launch development
+            logger.warning(
+                "\n" + "=" * 60 + "\n"
+                "⚠️  ALLOW_SEED_PRODUCTION is set\n"
+                "=" * 60 + "\n"
+                "This will reset and seed what appears to be a production database.\n"
+                "Only use this before going live!\n"
+                "=" * 60 + "\n"
+            )
+            response = input("Proceed with seeding production database? (yes/no): ")
+            if response.lower() != "yes":
+                logger.info("Seed cancelled.")
+                sys.exit(0)
+        else:
+            logger.error(str(e))
+            logger.info(
+                "\nTo seed this database, use one of these options:\n"
+                "=" * 70 + "\n"
+                "| Command Flag              | Database Used    | Use Case                    |\n"
+                "|---------------------------|------------------|-----------------------------|\n"
+                "| USE_TEST_DATABASE=true    | Local test DB    | Safe local testing          |\n"
+                "| ALLOW_SEED_PRODUCTION=true| Production       | Pre-launch seeding (yes/no) |\n"
+                "| FORCE_ALLOW_RESET=true    | Production       | Emergency (type confirm)    |\n"
+                "| (no flags)                | BLOCKED!         | Safety error                |\n"
+                "=" * 70 + "\n\n"
+                "Examples:\n"
+                "  USE_TEST_DATABASE=true python scripts/rreset_and_seed_database_enhanced.py\n"
+                "  ALLOW_SEED_PRODUCTION=true python scripts/rreset_and_seed_database_enhanced.py\n"
+            )
+            sys.exit(1)
+
+    # Connect to database
+    engine = create_engine(database_url, pool_pre_ping=True)
     session = Session(engine)
 
     try:
@@ -676,4 +828,9 @@ def main():
 
 
 if __name__ == "__main__":
+    # Check for help flag
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print(__doc__)
+        sys.exit(0)
+
     main()

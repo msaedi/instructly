@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from pydantic import ConfigDict, SecretStr
+from pydantic import ConfigDict, SecretStr, field_validator
 from pydantic_settings import BaseSettings
 
 logger = logging.getLogger(__name__)
@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     database_url: str
 
+    # Test database configuration
+    test_database_url: str = ""  # Must be explicitly set for tests
+    is_testing: bool = False  # Set to True when running tests
+
     # Email settings
     resend_api_key: str = ""
     from_email: str = "noreply@instainstru.com"
@@ -38,12 +42,77 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
     cache_ttl: int = 3600  # 1 hour in seconds
 
+    # Production database protection
+    production_database_indicators: list[str] = [
+        "supabase.com",
+        "supabase.co",
+        "amazonaws.com",
+        "cloud.google.com",
+        "database.azure.com",
+        "elephantsql.com",
+        "bit.io",
+        "neon.tech",
+        "railway.app",
+        "render.com",
+        "aiven.io",
+    ]
+
     # Use ConfigDict instead of Config class (Pydantic V2 style)
     model_config = ConfigDict(
         env_file=".env" if not os.getenv("CI") else None,
         case_sensitive=False,  # Changed to False - allows SECRET_KEY to match secret_key
         extra="ignore",
     )
+
+    @field_validator("test_database_url")
+    @classmethod
+    def validate_test_database(cls, v: str, info) -> str:
+        """Ensure test database is not a production database."""
+        if not v:
+            return v
+
+        # Get the list of production indicators from the values
+        prod_indicators = info.data.get("production_database_indicators", [])
+
+        # Check if test database URL contains any production indicators
+        for indicator in prod_indicators:
+            if indicator in v.lower():
+                raise ValueError(
+                    f"Test database URL contains production indicator '{indicator}'. "
+                    f"Tests must not use production databases!"
+                )
+
+        # Ensure test database has clear test indicators
+        test_indicators = ["test", "testing", "_test", "-test"]
+        has_test_indicator = any(indicator in v.lower() for indicator in test_indicators)
+
+        if not has_test_indicator:
+            logger.warning(
+                "Test database URL doesn't contain 'test' in its name. " "Consider using a clearly named test database."
+            )
+
+        return v
+
+    def get_database_url(self) -> str:
+        """Get the appropriate database URL based on context."""
+        # If we're explicitly in testing mode and have a test database URL
+        if self.is_testing and self.test_database_url:
+            return self.test_database_url
+
+        # If we're testing but no test database is configured
+        if self.is_testing:
+            raise ValueError(
+                "Testing mode is enabled but TEST_DATABASE_URL is not configured. "
+                "Please set TEST_DATABASE_URL in your environment."
+            )
+
+        # Production mode - return normal database URL
+        return self.database_url
+
+    def is_production_database(self, url: str = None) -> bool:
+        """Check if a database URL appears to be a production database."""
+        check_url = url or self.database_url
+        return any(indicator in check_url.lower() for indicator in self.production_database_indicators)
 
 
 settings = Settings()
