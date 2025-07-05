@@ -31,7 +31,7 @@ def upgrade() -> None:
         "availability_slots",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("instructor_id", sa.Integer(), nullable=False),
-        sa.Column("date", sa.Date(), nullable=False),
+        sa.Column("specific_date", sa.Date(), nullable=False),
         sa.Column("start_time", sa.Time(), nullable=False),
         sa.Column("end_time", sa.Time(), nullable=False),
         sa.Column(
@@ -59,12 +59,12 @@ def upgrade() -> None:
     op.create_index(
         "idx_availability_instructor_date",
         "availability_slots",
-        ["instructor_id", "date"],
+        ["instructor_id", "specific_date"],
     )
     op.create_index(
         "idx_availability_date",
         "availability_slots",
-        ["date"],
+        ["specific_date"],
     )
     op.create_index(
         "idx_availability_instructor_id",
@@ -76,7 +76,7 @@ def upgrade() -> None:
     op.create_index(
         "unique_instructor_date_time_slot",
         "availability_slots",
-        ["instructor_id", "date", "start_time", "end_time"],
+        ["instructor_id", "specific_date", "start_time", "end_time"],
         unique=True,
     )
 

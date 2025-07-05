@@ -54,7 +54,7 @@ class AvailabilitySlot(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    date = Column(Date, nullable=False)
+    specific_date = Column(Date, nullable=False)
     start_time = Column(Time, nullable=False)
     end_time = Column(Time, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -65,14 +65,16 @@ class AvailabilitySlot(Base):
 
     # Indexes for performance
     __table_args__ = (
-        Index("idx_availability_instructor_date", "instructor_id", "date"),
-        Index("idx_availability_date", "date"),
+        Index("idx_availability_instructor_date", "instructor_id", "specific_date"),
+        Index("idx_availability_date", "specific_date"),
         Index("idx_availability_instructor_id", "instructor_id"),
-        Index("unique_instructor_date_time_slot", "instructor_id", "date", "start_time", "end_time", unique=True),
+        Index(
+            "unique_instructor_date_time_slot", "instructor_id", "specific_date", "start_time", "end_time", unique=True
+        ),
     )
 
     def __repr__(self):
-        return f"<AvailabilitySlot {self.date} {self.start_time}-{self.end_time}>"
+        return f"<AvailabilitySlot {self.specific_date} {self.start_time}-{self.end_time}>"
 
 
 class BlackoutDate(Base):

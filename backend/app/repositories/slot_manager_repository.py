@@ -89,7 +89,7 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
                 self.db.query(AvailabilitySlot)
                 .filter(
                     AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.date == target_date,
+                    AvailabilitySlot.specific_date == target_date,
                 )
                 .order_by(AvailabilitySlot.start_time)
                 .all()
@@ -146,7 +146,7 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
                 self.db.query(AvailabilitySlot)
                 .filter(
                     AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.date == target_date,
+                    AvailabilitySlot.specific_date == target_date,
                 )
                 .count()
             )
@@ -171,10 +171,10 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
                 self.db.query(AvailabilitySlot)
                 .filter(
                     AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.date >= start_date,
-                    AvailabilitySlot.date <= end_date,
+                    AvailabilitySlot.specific_date >= start_date,
+                    AvailabilitySlot.specific_date <= end_date,
                 )
-                .order_by(AvailabilitySlot.date, AvailabilitySlot.start_time)
+                .order_by(AvailabilitySlot.specific_date, AvailabilitySlot.start_time)
                 .all()
             )
         except SQLAlchemyError as e:
@@ -197,7 +197,7 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
                 self.db.query(AvailabilitySlot)
                 .filter(
                     AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.date == target_date,
+                    AvailabilitySlot.specific_date == target_date,
                 )
                 .delete()
             )

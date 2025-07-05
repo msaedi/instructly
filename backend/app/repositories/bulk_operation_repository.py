@@ -130,13 +130,13 @@ class BulkOperationRepository(BaseRepository[AvailabilitySlot]):
             slot_ids: List of slot IDs to retrieve
 
         Returns:
-            List of tuples (slot_id, date, start_time, end_time)
+            List of tuples (slot_id, specific_date, start_time, end_time)
         """
         try:
             results = (
                 self.db.query(
                     AvailabilitySlot.id,
-                    AvailabilitySlot.date,
+                    AvailabilitySlot.specific_date,
                     AvailabilitySlot.start_time,
                     AvailabilitySlot.end_time,
                 )
@@ -144,7 +144,7 @@ class BulkOperationRepository(BaseRepository[AvailabilitySlot]):
                 .all()
             )
 
-            return [(row.id, row.date, row.start_time, row.end_time) for row in results]
+            return [(row.id, row.specific_date, row.start_time, row.end_time) for row in results]
 
         except SQLAlchemyError as e:
             self.logger.error(f"Error getting slots by IDs: {str(e)}")
@@ -167,16 +167,16 @@ class BulkOperationRepository(BaseRepository[AvailabilitySlot]):
         """
         try:
             results = (
-                self.db.query(AvailabilitySlot.date)
+                self.db.query(AvailabilitySlot.specific_date)
                 .filter(
                     AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.date.in_(operation_dates),
+                    AvailabilitySlot.specific_date.in_(operation_dates),
                 )
                 .distinct()
                 .all()
             )
 
-            return [row.date for row in results]
+            return [row.specific_date for row in results]
 
         except SQLAlchemyError as e:
             self.logger.error(f"Error getting unique dates: {str(e)}")
@@ -192,7 +192,7 @@ class BulkOperationRepository(BaseRepository[AvailabilitySlot]):
         in a single database transaction.
 
         Args:
-            slots: List of slot data dictionaries with instructor_id, date, start_time, end_time
+            slots: List of slot data dictionaries with instructor_id, specific_date, start_time, end_time
 
         Returns:
             List of created AvailabilitySlot objects

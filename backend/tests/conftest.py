@@ -187,10 +187,13 @@ def test_instructor_with_availability(db: Session, test_instructor: User) -> Use
         # Create time slots directly (9-12 and 14-17)
         slots = [
             AvailabilitySlot(
-                instructor_id=test_instructor.id, date=target_date, start_time=time(9, 0), end_time=time(12, 0)
+                instructor_id=test_instructor.id, specific_date=target_date, start_time=time(9, 0), end_time=time(12, 0)
             ),
             AvailabilitySlot(
-                instructor_id=test_instructor.id, date=target_date, start_time=time(14, 0), end_time=time(17, 0)
+                instructor_id=test_instructor.id,
+                specific_date=target_date,
+                start_time=time(14, 0),
+                end_time=time(17, 0),
             ),
         ]
         for slot in slots:

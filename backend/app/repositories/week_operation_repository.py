@@ -43,7 +43,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
     Repository for week operation data access.
 
     Works with the single-table design where AvailabilitySlot
-    contains instructor_id, date, start_time, and end_time.
+    contains instructor_id, specific_date, start_time, and end_time.
     """
 
     def __init__(self, db: Session):
@@ -187,10 +187,10 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
                 self.db.query(AvailabilitySlot)
                 .filter(
                     AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.date >= start_date,
-                    AvailabilitySlot.date <= end_date,
+                    AvailabilitySlot.specific_date >= start_date,
+                    AvailabilitySlot.specific_date <= end_date,
                 )
-                .order_by(AvailabilitySlot.date, AvailabilitySlot.start_time)
+                .order_by(AvailabilitySlot.specific_date, AvailabilitySlot.start_time)
                 .all()
             )
         except SQLAlchemyError as e:
@@ -217,7 +217,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
                 self.db.query(AvailabilitySlot)
                 .filter(
                     AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.date == target_date,
+                    AvailabilitySlot.specific_date == target_date,
                 )
                 .all()
             )
@@ -278,7 +278,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
             query = text(
                 """
                 SELECT
-                    s.date,
+                    s.specific_date,
                     s.id as slot_id,
                     s.start_time,
                     s.end_time,
@@ -286,7 +286,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
                         WHEN EXISTS (
                             SELECT 1 FROM bookings b
                             WHERE b.instructor_id = s.instructor_id
-                              AND b.booking_date = s.date
+                              AND b.booking_date = s.specific_date
                               AND b.start_time < s.end_time
                               AND b.end_time > s.start_time
                               AND b.status IN ('CONFIRMED', 'COMPLETED')
@@ -296,7 +296,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
                     (
                         SELECT b.id FROM bookings b
                         WHERE b.instructor_id = s.instructor_id
-                          AND b.booking_date = s.date
+                          AND b.booking_date = s.specific_date
                           AND b.start_time < s.end_time
                           AND b.end_time > s.start_time
                           AND b.status IN ('CONFIRMED', 'COMPLETED')
@@ -304,8 +304,8 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
                     ) as booking_id
                 FROM availability_slots s
                 WHERE s.instructor_id = :instructor_id
-                  AND s.date BETWEEN :start_date AND :end_date
-                ORDER BY s.date, s.start_time
+                  AND s.specific_date BETWEEN :start_date AND :end_date
+                ORDER BY s.specific_date, s.start_time
                 """
             )
 
@@ -321,7 +321,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
             # Convert to list of dicts
             return [
                 {
-                    "date": row.date,
+                    "date": row.specific_date,
                     "slot_id": row.slot_id,
                     "start_time": row.start_time,
                     "end_time": row.end_time,
@@ -342,7 +342,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
         Bulk create slots using high-performance bulk_insert_mappings.
 
         Args:
-            slots: List of slot dictionaries with instructor_id, date, start_time, end_time
+            slots: List of slot dictionaries with instructor_id, specific_date, start_time, end_time
 
         Returns:
             Number of slots created
@@ -414,11 +414,11 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
                     """
                     DELETE FROM availability_slots s
                     WHERE s.instructor_id = :instructor_id
-                      AND s.date = ANY(:week_dates)
+                      AND s.specific_date = ANY(:week_dates)
                       AND NOT EXISTS (
                           SELECT 1 FROM bookings b
                           WHERE b.instructor_id = s.instructor_id
-                            AND b.booking_date = s.date
+                            AND b.booking_date = s.specific_date
                             AND b.start_time < s.end_time
                             AND b.end_time > s.start_time
                             AND b.status IN ('CONFIRMED', 'COMPLETED')
@@ -439,7 +439,7 @@ class WeekOperationRepository(BaseRepository[AvailabilitySlot]):
                     self.db.query(AvailabilitySlot)
                     .filter(
                         AvailabilitySlot.instructor_id == instructor_id,
-                        AvailabilitySlot.date.in_(week_dates),
+                        AvailabilitySlot.specific_date.in_(week_dates),
                     )
                     .delete(synchronize_session=False)
                 )

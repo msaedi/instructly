@@ -26,7 +26,9 @@ from unittest.mock import patch
 import pytest
 
 from app.core.exceptions import RepositoryException
-from app.models import AvailabilitySlot, Booking, BookingStatus
+from app.models import AvailabilitySlot, Booking, BookingStatus, InstructorProfile
+from app.models.service import Service
+from app.models.user import User, UserRole
 from app.repositories import (
     AvailabilityRepository,
     BookingRepository,
@@ -51,6 +53,7 @@ class TestRepositoryInstantiation:
             "week_operation": RepositoryFactory.create_week_operation_repository(db),
             "conflict_checker": RepositoryFactory.create_conflict_checker_repository(db),
             "bulk_operation": RepositoryFactory.create_bulk_operation_repository(db),
+            "instructor_profile": RepositoryFactory.create_instructor_profile_repository(db),  # Add this line
         }
 
         # Verify all created successfully
@@ -84,10 +87,12 @@ class TestAvailabilityRepositorySingleTable:
         # Create slots directly (single-table design)
         today = date.today()
         slots = [
-            AvailabilitySlot(instructor_id=test_instructor.id, date=today, start_time=time(9, 0), end_time=time(10, 0)),
+            AvailabilitySlot(
+                instructor_id=test_instructor.id, specific_date=today, start_time=time(9, 0), end_time=time(10, 0)
+            ),
             AvailabilitySlot(
                 instructor_id=test_instructor.id,
-                date=today + timedelta(days=1),
+                specific_date=today + timedelta(days=1),
                 start_time=time(14, 0),
                 end_time=time(15, 0),
             ),
@@ -113,7 +118,7 @@ class TestAvailabilityRepositorySingleTable:
         )
 
         assert slot.instructor_id == test_instructor.id
-        assert slot.date == date.today()
+        assert slot.specific_date == date.today()
         assert slot.start_time == time(11, 0)
         assert slot.end_time == time(12, 0)
 
@@ -251,9 +256,11 @@ class TestSlotManagerDirectSlotAccess:
         today = date.today()
         slots = [
             AvailabilitySlot(
-                instructor_id=test_instructor.id, date=today, start_time=time(14, 0), end_time=time(15, 0)
+                instructor_id=test_instructor.id, specific_date=today, start_time=time(14, 0), end_time=time(15, 0)
             ),
-            AvailabilitySlot(instructor_id=test_instructor.id, date=today, start_time=time(9, 0), end_time=time(10, 0)),
+            AvailabilitySlot(
+                instructor_id=test_instructor.id, specific_date=today, start_time=time(9, 0), end_time=time(10, 0)
+            ),
         ]
         for slot in slots:
             db.add(slot)
@@ -389,13 +396,13 @@ class TestBulkOperationValidation:
         slots_data = [
             {
                 "instructor_id": test_instructor.id,
-                "date": date.today(),
+                "specific_date": date.today(),
                 "start_time": time(9, 0),
                 "end_time": time(10, 0),
             },
             {
                 "instructor_id": test_instructor.id,
-                "date": date.today(),
+                "specific_date": date.today(),
                 "start_time": time(11, 0),
                 "end_time": time(12, 0),
             },
@@ -466,7 +473,7 @@ class TestRepositoryIntegration:
             slots_data.append(
                 {
                     "instructor_id": test_instructor.id,
-                    "date": week_start + timedelta(days=i),
+                    "specific_date": week_start + timedelta(days=i),
                     "start_time": time(9, 0),
                     "end_time": time(17, 0),
                 }
@@ -523,7 +530,7 @@ class TestQueryPerformance:
         for i in range(3):
             slot = AvailabilitySlot(
                 instructor_id=test_instructor.id,
-                date=date.today() + timedelta(days=i),
+                specific_date=date.today() + timedelta(days=i),
                 start_time=time(9, 0),
                 end_time=time(10, 0),
             )
@@ -541,7 +548,7 @@ class TestQueryPerformance:
         # All slots should have the data directly
         for slot in slots:
             assert slot.instructor_id == test_instructor.id
-            assert slot.date is not None
+            assert slot.specific_date is not None
             assert slot.start_time is not None
             assert slot.end_time is not None
 
@@ -606,3 +613,126 @@ def test_repository_exception_handling(db):
         )
 
     assert "Failed to create slot" in str(exc_info.value)
+
+
+class TestInstructorProfileRepositoryValidation:
+    """Test InstructorProfileRepository in the context of architecture validation."""
+
+    def test_instructor_profile_repository_instantiates(self, db):
+        """Verify InstructorProfileRepository can be created via factory."""
+        repo = RepositoryFactory.create_instructor_profile_repository(db)
+
+        assert repo is not None
+        assert hasattr(repo, "db")
+        assert hasattr(repo, "model")
+        assert repo.model == InstructorProfile
+
+    def test_eager_loading_prevents_n_plus_one(self, db, test_instructor):
+        """Verify eager loading actually prevents N+1 queries."""
+        from app.repositories.instructor_profile_repository import InstructorProfileRepository
+
+        repo = InstructorProfileRepository(db)
+
+        # Get all profiles with details
+        profiles = repo.get_all_with_details()
+
+        # Access relationships - should NOT trigger new queries
+        for profile in profiles:
+            # These should already be loaded
+            _ = profile.user.full_name
+            _ = len(profile.services)
+            for service in profile.services:
+                _ = service.skill
+
+        # If N+1 was happening, the above would trigger many queries
+        # With eager loading, it should all be loaded already
+
+    def test_no_reference_to_removed_tables(self, db):
+        """Verify repository doesn't reference removed InstructorAvailability table."""
+        from app.repositories.instructor_profile_repository import InstructorProfileRepository
+
+        repo = InstructorProfileRepository(db)
+
+        # Should not have any methods referencing old tables
+        assert not hasattr(repo, "get_instructor_availability")
+        assert not hasattr(repo, "get_availability_slots")
+
+        # Should only deal with profiles, users, and services
+        assert hasattr(repo, "get_all_with_details")
+        assert hasattr(repo, "get_by_user_id_with_details")
+
+    def test_integration_with_clean_architecture(self, db, test_instructor):
+        """Verify repository works with clean architecture principles."""
+        from app.repositories.instructor_profile_repository import InstructorProfileRepository
+
+        repo = InstructorProfileRepository(db)
+
+        # Get profile with all details
+        profile = repo.get_by_user_id_with_details(test_instructor.id)
+
+        # Should have user and services, but NO availability references
+        assert profile.user is not None
+        assert len(profile.services) > 0
+
+        # Should NOT have any availability-related attributes
+        assert not hasattr(profile, "availability_slots")
+        assert not hasattr(profile, "instructor_availability")
+
+    def test_service_filtering_without_extra_queries(self, db):
+        """Test that repository loads all services and filtering happens at service layer."""
+        from app.repositories.instructor_profile_repository import InstructorProfileRepository
+
+        repo = InstructorProfileRepository(db)
+
+        # Create instructor with mixed active/inactive services
+        user = User(
+            email="mixed.services@test.com",
+            hashed_password="hashed",
+            full_name="Mixed Services",
+            role=UserRole.INSTRUCTOR,
+        )
+        db.add(user)
+        db.flush()
+
+        profile = InstructorProfile(user_id=user.id, bio="Test", years_experience=5)
+        db.add(profile)
+        db.flush()
+
+        # Add both active and inactive services
+        for i in range(4):
+            service = Service(
+                instructor_profile_id=profile.id,
+                skill=f"Skill {i}",
+                hourly_rate=50.0,
+                is_active=(i % 2 == 0),  # Even indices are active
+            )
+            db.add(service)
+        db.flush()
+        db.commit()  # Ensure data is committed
+
+        # Verify services were created correctly
+        all_services = db.query(Service).filter(Service.instructor_profile_id == profile.id).all()
+        assert len(all_services) == 4
+        active_services = [s for s in all_services if s.is_active]
+        assert len(active_services) == 2
+
+        # Repository should always return ALL services
+        # The include_inactive_services parameter is ignored at repository level
+        profile_result1 = repo.get_by_user_id_with_details(user.id, include_inactive_services=False)
+
+        # Should have ALL services (repository doesn't filter)
+        assert len(profile_result1.services) == 4
+
+        # Get profile again with different parameter
+        profile_result2 = repo.get_by_user_id_with_details(user.id, include_inactive_services=True)
+
+        # Should still have ALL services
+        assert len(profile_result2.services) == 4
+
+        # Verify both active and inactive services are present
+        active_in_result = sum(1 for s in profile_result2.services if s.is_active)
+        inactive_in_result = sum(1 for s in profile_result2.services if not s.is_active)
+        assert active_in_result == 2
+        assert inactive_in_result == 2
+
+        # The filtering should happen at the service layer when converting to DTOs

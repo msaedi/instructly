@@ -43,7 +43,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
     Repository for availability management data access.
 
     Works with the single-table design where AvailabilitySlot
-    contains instructor_id, date, start_time, and end_time.
+    contains instructor_id, specific_date, start_time, and end_time.
     """
 
     def __init__(self, db: Session):
@@ -73,11 +73,11 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                 .filter(
                     and_(
                         AvailabilitySlot.instructor_id == instructor_id,
-                        AvailabilitySlot.date >= start_date,
-                        AvailabilitySlot.date <= end_date,
+                        AvailabilitySlot.specific_date >= start_date,
+                        AvailabilitySlot.specific_date <= end_date,
                     )
                 )
-                .order_by(AvailabilitySlot.date, AvailabilitySlot.start_time)
+                .order_by(AvailabilitySlot.specific_date, AvailabilitySlot.start_time)
                 .all()
             )
         except SQLAlchemyError as e:
@@ -103,7 +103,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                 .filter(
                     and_(
                         AvailabilitySlot.instructor_id == instructor_id,
-                        AvailabilitySlot.date == target_date,
+                        AvailabilitySlot.specific_date == target_date,
                     )
                 )
                 .order_by(AvailabilitySlot.start_time)
@@ -216,7 +216,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
         Get an availability slot by ID.
 
         In single-table design, the slot contains all needed information
-        (instructor_id, date, times) so no relationship loading needed.
+        (instructor_id, specific_date, times) so no relationship loading needed.
 
         Args:
             slot_id: The availability slot ID
@@ -234,7 +234,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
         """
         Check if an exact slot already exists.
 
-        Updated for single-table design with instructor_id and date parameters.
+        Updated for single-table design with instructor_id and specific_date parameters.
 
         Args:
             instructor_id: The instructor ID
@@ -251,7 +251,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                 .filter(
                     and_(
                         AvailabilitySlot.instructor_id == instructor_id,
-                        AvailabilitySlot.date == target_date,
+                        AvailabilitySlot.specific_date == target_date,
                         AvailabilitySlot.start_time == start_time,
                         AvailabilitySlot.end_time == end_time,
                     )
@@ -286,7 +286,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                 .filter(
                     and_(
                         AvailabilitySlot.instructor_id == instructor_id,
-                        AvailabilitySlot.date == target_date,
+                        AvailabilitySlot.specific_date == target_date,
                         # Time overlap check
                         AvailabilitySlot.start_time < end_time,
                         AvailabilitySlot.end_time > start_time,
@@ -319,7 +319,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
         try:
             slot = AvailabilitySlot(
                 instructor_id=instructor_id,
-                date=target_date,
+                specific_date=target_date,
                 start_time=start_time,
                 end_time=end_time,
             )
@@ -354,7 +354,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             query = self.db.query(AvailabilitySlot).filter(
                 and_(
                     AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.date == target_date,
+                    AvailabilitySlot.specific_date == target_date,
                 )
             )
 
@@ -388,7 +388,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                 .filter(
                     and_(
                         AvailabilitySlot.instructor_id == instructor_id,
-                        AvailabilitySlot.date == target_date,
+                        AvailabilitySlot.specific_date == target_date,
                     )
                 )
                 .delete(synchronize_session=False)
@@ -420,7 +420,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                 self.db.query(AvailabilitySlot)
                 .filter(
                     AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.date.in_(dates),
+                    AvailabilitySlot.specific_date.in_(dates),
                 )
                 .delete(synchronize_session=False)
             )
@@ -453,8 +453,8 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                 .filter(
                     and_(
                         AvailabilitySlot.instructor_id == instructor_id,
-                        AvailabilitySlot.date >= start_date,
-                        AvailabilitySlot.date <= end_date,
+                        AvailabilitySlot.specific_date >= start_date,
+                        AvailabilitySlot.specific_date <= end_date,
                     )
                 )
                 .count()
@@ -481,14 +481,14 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             query = text(
                 """
                 SELECT
-                    date,
+                    specific_date,
                     COUNT(*) as slot_count
                 FROM availability_slots
                 WHERE
                     instructor_id = :instructor_id
-                    AND date BETWEEN :start_date AND :end_date
-                GROUP BY date
-                ORDER BY date
+                    AND specific_date BETWEEN :start_date AND :end_date
+                GROUP BY specific_date
+                ORDER BY specific_date
             """
             )
 
@@ -496,7 +496,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                 query, {"instructor_id": instructor_id, "start_date": start_date, "end_date": end_date}
             )
 
-            return {row.date.isoformat(): row.slot_count for row in result}
+            return {row.specific_date.isoformat(): row.slot_count for row in result}
 
         except SQLAlchemyError as e:
             self.logger.error(f"Error getting summary: {str(e)}")
@@ -521,7 +521,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                 .filter(
                     and_(
                         AvailabilitySlot.instructor_id == instructor_id,
-                        AvailabilitySlot.date >= date.today(),
+                        AvailabilitySlot.specific_date >= date.today(),
                     )
                 )
                 .scalar()
@@ -534,11 +534,11 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                 SELECT COUNT(DISTINCT s.id) as booked_count
                 FROM availability_slots s
                 WHERE s.instructor_id = :instructor_id
-                  AND s.date >= :today
+                  AND s.specific_date >= :today
                   AND EXISTS (
                       SELECT 1 FROM bookings b
                       WHERE b.instructor_id = s.instructor_id
-                        AND b.booking_date = s.date
+                        AND b.booking_date = s.specific_date
                         AND b.start_time < s.end_time
                         AND b.end_time > s.start_time
                         AND b.status IN ('CONFIRMED', 'COMPLETED')
@@ -554,13 +554,13 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             # Get date range
             date_stats = (
                 self.db.query(
-                    func.min(AvailabilitySlot.date).label("earliest_availability"),
-                    func.max(AvailabilitySlot.date).label("latest_availability"),
+                    func.min(AvailabilitySlot.specific_date).label("earliest_availability"),
+                    func.max(AvailabilitySlot.specific_date).label("latest_availability"),
                 )
                 .filter(
                     and_(
                         AvailabilitySlot.instructor_id == instructor_id,
-                        AvailabilitySlot.date >= date.today(),
+                        AvailabilitySlot.specific_date >= date.today(),
                     )
                 )
                 .first()

@@ -313,7 +313,7 @@ def create_realistic_availability(session: Session, instructor_id: int):
             # Create slot directly (single-table design)
             slot = AvailabilitySlot(
                 instructor_id=instructor_id,
-                date=current_date,
+                specific_date=current_date,
                 start_time=time(start_hour, 0),
                 end_time=time(end_hour, 0),
             )
@@ -373,8 +373,8 @@ def create_sample_bookings(session: Session):
             session.query(AvailabilitySlot)
             .filter(
                 AvailabilitySlot.instructor_id == instructor_id,
-                AvailabilitySlot.date >= today - timedelta(weeks=2),
-                AvailabilitySlot.date <= today + timedelta(weeks=3),
+                AvailabilitySlot.specific_date >= today - timedelta(weeks=2),
+                AvailabilitySlot.specific_date <= today + timedelta(weeks=3),
             )
             .limit(10)
             .all()
@@ -544,7 +544,7 @@ def test_layer_independence(session: Session):
             session.query(AvailabilitySlot)
             .filter(
                 AvailabilitySlot.instructor_id == past_booking.instructor_id,
-                AvailabilitySlot.date == past_booking.booking_date,
+                AvailabilitySlot.specific_date == past_booking.booking_date,
             )
             .all()
         )
