@@ -261,7 +261,7 @@ def get_all_availability(
                 AvailabilityWindowResponse(
                     id=slot.id,
                     instructor_id=slot.instructor_id,
-                    specific_date=slot.date,  # Map 'date' to 'specific_date'
+                    specific_date=slot.specific_date,
                     start_time=slot.start_time,
                     end_time=slot.end_time,
                 )
@@ -323,7 +323,7 @@ def update_availability_window(
         return AvailabilityWindowResponse(
             id=updated_slot.id,
             instructor_id=updated_slot.instructor_id,
-            specific_date=updated_slot.date,  # Map 'date' to 'specific_date'
+            specific_date=updated_slot.specific_date,
             start_time=updated_slot.start_time,
             end_time=updated_slot.end_time,
         )

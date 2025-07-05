@@ -93,7 +93,7 @@ class SlotManager(BaseService):
 
         # Create the slot
         new_slot = self.repository.create(
-            instructor_id=instructor_id, date=target_date, start_time=start_time, end_time=end_time
+            instructor_id=instructor_id, specific_date=target_date, start_time=start_time, end_time=end_time
         )
 
         # Always merge if requested
@@ -294,7 +294,7 @@ class SlotManager(BaseService):
         # Create second slot
         second_slot = self.repository.create(
             instructor_id=slot.instructor_id,
-            date=slot.date,
+            specific_date=slot.specific_date,
             start_time=split_time,
             end_time=slot.end_time,
         )

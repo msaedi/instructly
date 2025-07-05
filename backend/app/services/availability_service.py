@@ -159,7 +159,7 @@ class AvailabilityService(BaseService):
         # Group slots by date
         week_schedule = {}
         for slot in all_slots:
-            date_str = slot.date.isoformat()
+            date_str = slot.specific_date.isoformat()
 
             if date_str not in week_schedule:
                 week_schedule[date_str] = []
@@ -265,7 +265,7 @@ class AvailabilityService(BaseService):
                             slots_to_create.append(
                                 {
                                     "instructor_id": instructor_id,
-                                    "date": week_date,
+                                    "specific_date": week_date,
                                     "start_time": slot.start_time,
                                     "end_time": slot.end_time,
                                 }
@@ -335,7 +335,7 @@ class AvailabilityService(BaseService):
             return {
                 "id": slot.id,
                 "instructor_id": instructor_id,
-                "specific_date": slot.date,
+                "specific_date": slot.specific_date,
                 "start_time": time_to_string(slot.start_time),
                 "end_time": time_to_string(slot.end_time),
                 "is_available": True,
@@ -416,7 +416,7 @@ class AvailabilityService(BaseService):
             return week_data.week_start
         elif week_data.schedule:
             # Get Monday from the first date in schedule
-            first_date = min(slot.date for slot in week_data.schedule)
+            first_date = min(slot.specific_date for slot in week_data.schedule)
             return first_date - timedelta(days=first_date.weekday())
         else:
             # Fallback to current week
@@ -428,13 +428,13 @@ class AvailabilityService(BaseService):
         schedule_by_date = {}
         for slot in schedule:
             # Skip past dates
-            if slot.date < date.today():
-                logger.warning(f"Skipping past date: {slot.date}")
+            if slot.specific_date < date.today():
+                logger.warning(f"Skipping past date: {slot.specific_date}")
                 continue
 
-            if slot.date not in schedule_by_date:
-                schedule_by_date[slot.date] = []
-            schedule_by_date[slot.date].append(slot)
+            if slot.specific_date not in schedule_by_date:
+                schedule_by_date[slot.specific_date] = []
+            schedule_by_date[slot.specific_date].append(slot)
 
         return schedule_by_date
 

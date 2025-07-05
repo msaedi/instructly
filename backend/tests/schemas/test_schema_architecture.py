@@ -113,7 +113,7 @@ class TestAvailabilityCleanArchitecture:
     def test_no_is_available_in_slot_response(self):
         """Verify is_available has been removed from slot schemas."""
         slot = AvailabilitySlotResponse(
-            id=1, instructor_id=1, date=date.today(), start_time=time(9, 0), end_time=time(10, 0)
+            id=1, instructor_id=1, specific_date=date.today(), start_time=time(9, 0), end_time=time(10, 0)
         )
         # Should not have is_available - slot exists means available
         assert not hasattr(slot, "is_available")
@@ -121,11 +121,11 @@ class TestAvailabilityCleanArchitecture:
     def test_availability_slot_single_table_design(self):
         """Test that AvailabilitySlot reflects single-table design."""
         slot = AvailabilitySlotCreate(
-            instructor_id=1, date=date.today() + timedelta(days=1), start_time=time(9, 0), end_time=time(10, 0)
+            instructor_id=1, specific_date=date.today() + timedelta(days=1), start_time=time(9, 0), end_time=time(10, 0)
         )
         # Should have instructor_id and date (single-table design)
         assert slot.instructor_id == 1
-        assert slot.date == date.today() + timedelta(days=1)
+        assert slot.specific_date == date.today() + timedelta(days=1)
         # Should not have availability_id (no InstructorAvailability table)
         assert not hasattr(slot, "availability_id")
 
@@ -231,9 +231,11 @@ class TestArchitecturalIntegrity:
     def test_schemas_reflect_single_table_design(self):
         """Test that schemas reflect single-table availability design."""
         # AvailabilitySlot should have instructor_id and date
-        slot = AvailabilitySlot(id=1, instructor_id=1, date=date.today(), start_time=time(9, 0), end_time=time(10, 0))
+        slot = AvailabilitySlot(
+            id=1, instructor_id=1, specific_date=date.today(), start_time=time(9, 0), end_time=time(10, 0)
+        )
         assert slot.instructor_id == 1
-        assert slot.date == date.today()
+        assert slot.specific_date == date.today()
 
     def test_clean_separation_of_concerns(self):
         """Test that booking and availability schemas are independent."""

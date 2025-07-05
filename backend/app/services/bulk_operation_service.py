@@ -468,7 +468,7 @@ class BulkOperationService(BaseService):
         # Organize by date
         slots_by_date = {}
         for slot in slots:
-            date_str = slot.date.isoformat()
+            date_str = slot.specific_date.isoformat()
             if date_str not in slots_by_date:
                 slots_by_date[date_str] = []
             slots_by_date[date_str].append(

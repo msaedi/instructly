@@ -120,13 +120,13 @@ class WeekOperationService(BaseService):
             new_slots = []
             for slot in source_slots:
                 # Calculate the day offset
-                day_offset = (slot.date - from_week_start).days
+                day_offset = (slot.specific_date - from_week_start).days
                 new_date = to_week_start + timedelta(days=day_offset)
 
                 new_slots.append(
                     {
                         "instructor_id": instructor_id,
-                        "date": new_date,
+                        "specific_date": new_date,
                         "start_time": slot.start_time,
                         "end_time": slot.end_time,
                     }
@@ -233,7 +233,7 @@ class WeekOperationService(BaseService):
                         new_slots.append(
                             {
                                 "instructor_id": instructor_id,
-                                "date": current_date,
+                                "specific_date": current_date,
                                 "start_time": slot_start,
                                 "end_time": slot_end,
                             }
