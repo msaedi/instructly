@@ -9,6 +9,7 @@ Ensures:
 4. Dead code cannot be imported
 """
 
+import importlib
 from datetime import date, time, timedelta
 
 import pytest
@@ -161,17 +162,17 @@ class TestDeadCodeRemoval:
     def test_no_day_of_week_enum_import(self):
         """Verify DayOfWeekEnum can't be imported."""
         with pytest.raises((ImportError, AttributeError)):
-            pass
+            importlib.import_module("app.schemas.availability_window").DayOfWeekEnum
 
     def test_no_availability_query_import(self):
         """Verify AvailabilityQuery was removed."""
         with pytest.raises((ImportError, AttributeError)):
-            pass
+            importlib.import_module("app.schemas.availability").AvailabilityQuery
 
     def test_no_week_schedule_create_in_availability(self):
         """Verify WeekScheduleCreate was removed from availability.py."""
         with pytest.raises((ImportError, AttributeError)):
-            pass
+            importlib.import_module("app.schemas.availability").WeekScheduleCreate
 
 
 class TestSchemaExports:
@@ -185,11 +186,11 @@ class TestSchemaExports:
         """Test that removed schemas can't be imported."""
         # DayOfWeekEnum should not be exportable
         with pytest.raises((ImportError, AttributeError)):
-            pass
+            importlib.import_module("app.schemas").DayOfWeekEnum
 
         # AvailabilityQuery should not exist
         with pytest.raises((ImportError, AttributeError)):
-            pass
+            importlib.import_module("app.schemas").AvailabilityQuery
 
 
 class TestArchitecturalIntegrity:
