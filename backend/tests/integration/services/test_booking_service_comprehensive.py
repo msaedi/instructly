@@ -8,6 +8,8 @@ This test suite aims to improve coverage from 24% to >80% by testing:
 - Booking retrieval
 - Validation logic
 - Edge cases and error handling
+
+UPDATED FOR WORK STREAM #10: Single-table availability design.
 """
 
 from datetime import date, datetime, time, timedelta
@@ -18,7 +20,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import BusinessRuleException, ConflictException, NotFoundException, ValidationException
-from app.models.availability import AvailabilitySlot, InstructorAvailability
+from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service import Service
@@ -57,17 +59,16 @@ class TestBookingServiceCreation:
         print(f"Duration override: {service.duration_override}")
         print(f"Service ID: {service.id}")
 
-        # Get an available slot for tomorrow
+        # Get an available slot for tomorrow directly (single-table design)
         tomorrow = date.today() + timedelta(days=1)
-        availability = (
-            db.query(InstructorAvailability)
+        slot = (
+            db.query(AvailabilitySlot)
             .filter(
-                InstructorAvailability.instructor_id == test_instructor_with_availability.id,
-                InstructorAvailability.date == tomorrow,
+                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
+                AvailabilitySlot.date == tomorrow,
             )
             .first()
         )
-        slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == availability.id).first()
 
         print(f"Slot: {slot.start_time} to {slot.end_time}")
         slot_duration = (slot.end_time.hour - slot.start_time.hour) * 60
@@ -130,35 +131,19 @@ class TestBookingServiceCreation:
         booking_service = BookingService(db, mock_notification_service)
         # Get a real slot for testing
         tomorrow = date.today() + timedelta(days=1)
-        availability = (
-            db.query(InstructorAvailability)
-            .filter(
-                InstructorAvailability.instructor_id == test_instructor_with_inactive_service.id,
-                InstructorAvailability.date == tomorrow,
-            )
-            .first()
+
+        # Create a slot directly (single-table design)
+        slot = AvailabilitySlot(
+            instructor_id=test_instructor_with_inactive_service.id,
+            date=tomorrow,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
         )
-
-        # If no availability, create one
-        if not availability:
-            availability = InstructorAvailability(
-                instructor_id=test_instructor_with_inactive_service.id, date=tomorrow, is_cleared=False
-            )
-            db.add(availability)
-            db.flush()
-
-            # Add a slot
-            slot = AvailabilitySlot(availability_id=availability.id, start_time=time(9, 0), end_time=time(10, 0))
-            db.add(slot)
-            db.flush()
-        else:
-            # Get first slot
-            slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == availability.id).first()
+        db.add(slot)
+        db.flush()
 
         # Now use real slot ID
-        booking_data = BookingCreate(
-            availability_slot_id=slot.id, service_id=service.id, location_type="neutral"  # Real slot ID
-        )
+        booking_data = BookingCreate(availability_slot_id=slot.id, service_id=service.id, location_type="neutral")
 
         with pytest.raises(NotFoundException, match="Service not found or no longer available"):
             await booking_service.create_booking(test_student, booking_data)
@@ -214,17 +199,16 @@ class TestBookingServiceCreation:
         profile.min_advance_booking_hours = 48  # 2 days
         db.commit()
 
-        # Try to book tomorrow (less than 48 hours)
+        # Try to book tomorrow (less than 48 hours) - query slot directly
         tomorrow = date.today() + timedelta(days=1)
-        availability = (
-            db.query(InstructorAvailability)
+        slot = (
+            db.query(AvailabilitySlot)
             .filter(
-                InstructorAvailability.instructor_id == test_instructor_with_availability.id,
-                InstructorAvailability.date == tomorrow,
+                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
+                AvailabilitySlot.date == tomorrow,
             )
             .first()
         )
-        slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == availability.id).first()
 
         service = (
             db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
@@ -483,17 +467,16 @@ class TestBookingServiceAvailabilityCheck:
         self, db: Session, test_instructor_with_availability: User, mock_notification_service: Mock
     ):
         """Test checking availability for valid slot."""
-        # Get an available slot
+        # Get an available slot directly (single-table design)
         tomorrow = date.today() + timedelta(days=1)
-        availability = (
-            db.query(InstructorAvailability)
+        slot = (
+            db.query(AvailabilitySlot)
             .filter(
-                InstructorAvailability.instructor_id == test_instructor_with_availability.id,
-                InstructorAvailability.date == tomorrow,
+                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
+                AvailabilitySlot.date == tomorrow,
             )
             .first()
         )
-        slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == availability.id).first()
 
         profile = (
             db.query(InstructorProfile)

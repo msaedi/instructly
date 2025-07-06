@@ -4,6 +4,11 @@ Integration tests for service soft delete functionality.
 
 Tests the complete flow of soft/hard delete for instructor services
 including booking preservation and reactivation.
+
+UPDATED FOR WORK STREAM #10: Single-table availability design
+- Removed InstructorAvailability imports and usage
+- AvailabilitySlot now has instructor_id and date directly
+- Service soft delete logic remains unchanged
 """
 
 from datetime import date, time, timedelta
@@ -11,7 +16,7 @@ from datetime import date, time, timedelta
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models.availability import AvailabilitySlot, InstructorAvailability
+from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.service import Service
 from app.models.user import User, UserRole
@@ -51,40 +56,36 @@ class TestSoftDeleteServices:
 
         # If no bookings exist, create one to ensure the test is valid
         if booking_count == 0:
-            # Get tomorrow's availability
+            # Create an availability slot directly (single-table design)
             tomorrow = date.today() + timedelta(days=1)
-            availability = (
-                db.query(InstructorAvailability)
-                .filter(
-                    InstructorAvailability.instructor_id == test_instructor_with_bookings.id,
-                    InstructorAvailability.date == tomorrow,
-                )
-                .first()
+            slot = AvailabilitySlot(
+                instructor_id=test_instructor_with_bookings.id,
+                date=tomorrow,
+                start_time=time(9, 0),
+                end_time=time(12, 0),
             )
+            db.add(slot)
+            db.flush()
 
-            if availability:
-                slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == availability.id).first()
-
-                if slot:
-                    # Create a booking
-                    booking = Booking(
-                        student_id=test_student.id,
-                        instructor_id=test_instructor_with_bookings.id,
-                        service_id=service_with_bookings["id"],
-                        availability_slot_id=slot.id,
-                        booking_date=tomorrow,
-                        start_time=slot.start_time,
-                        end_time=slot.end_time,
-                        service_name=service_with_bookings["skill"],
-                        hourly_rate=service_with_bookings["hourly_rate"],
-                        total_price=service_with_bookings["hourly_rate"] * 3,
-                        duration_minutes=180,
-                        status=BookingStatus.CONFIRMED,
-                        meeting_location="Test Location",
-                    )
-                    db.add(booking)
-                    db.commit()
-                    booking_count = 1
+            # Create a booking
+            booking = Booking(
+                student_id=test_student.id,
+                instructor_id=test_instructor_with_bookings.id,
+                service_id=service_with_bookings["id"],
+                availability_slot_id=slot.id,
+                booking_date=tomorrow,
+                start_time=slot.start_time,
+                end_time=slot.end_time,
+                service_name=service_with_bookings["skill"],
+                hourly_rate=service_with_bookings["hourly_rate"],
+                total_price=service_with_bookings["hourly_rate"] * 3,
+                duration_minutes=180,
+                status=BookingStatus.CONFIRMED,
+                meeting_location="Test Location",
+            )
+            db.add(booking)
+            db.commit()
+            booking_count = 1
 
         assert booking_count > 0, "Test needs at least one booking to be valid"
 
@@ -214,29 +215,12 @@ class TestSoftDeleteServices:
             # Try to book the now-inactive service
             inactive_service_id = active_services[1]["id"]
 
-            # Create a future availability slot (check if it exists first)
+            # Create a future availability slot directly (single-table design)
             future_date = date.today() + timedelta(days=7)  # Use 7 days to avoid conflicts
 
-            # Check if availability already exists
-            existing_availability = (
-                db.query(InstructorAvailability)
-                .filter(
-                    InstructorAvailability.instructor_id == test_instructor.id,
-                    InstructorAvailability.date == future_date,
-                )
-                .first()
+            slot = AvailabilitySlot(
+                instructor_id=test_instructor.id, date=future_date, start_time=time(14, 0), end_time=time(15, 0)
             )
-
-            if not existing_availability:
-                availability = InstructorAvailability(
-                    instructor_id=test_instructor.id, date=future_date, is_cleared=False
-                )
-                db.add(availability)
-                db.flush()
-            else:
-                availability = existing_availability
-
-            slot = AvailabilitySlot(availability_id=availability.id, start_time=time(14, 0), end_time=time(15, 0))
             db.add(slot)
             db.commit()
 

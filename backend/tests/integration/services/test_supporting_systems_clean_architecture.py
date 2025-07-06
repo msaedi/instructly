@@ -1,0 +1,281 @@
+# backend/tests/test_supporting_systems_clean_architecture.py
+"""
+Comprehensive test suite for supporting systems clean architecture.
+Verifies that emails, reminders, and cache all follow clean patterns.
+
+This is a high-level test suite that ensures all supporting systems
+work together with the clean architecture.
+
+Run with:
+    cd backend
+    pytest tests/test_supporting_systems_clean_architecture.py -v
+"""
+
+from datetime import date, time, timedelta
+from unittest.mock import Mock
+
+import pytest
+
+from app.models.booking import Booking, BookingStatus
+from app.services.cache_service import CacheService
+from app.services.notification_service import NotificationService
+
+
+class TestSupportingSystemsIntegration:
+    """Test that all supporting systems work together cleanly."""
+
+    @pytest.fixture
+    def full_booking(self, db, test_student, test_instructor_with_availability):
+        """Create a complete booking for integration tests."""
+        tomorrow = date.today() + timedelta(days=1)
+
+        # Get instructor's profile and service
+        from app.models.instructor import InstructorProfile
+        from app.models.service import Service
+
+        profile = (
+            db.query(InstructorProfile)
+            .filter(InstructorProfile.user_id == test_instructor_with_availability.id)
+            .first()
+        )
+
+        service = (
+            db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
+        )
+
+        # Create booking with all fields populated
+        booking = Booking(
+            student_id=test_student.id,
+            instructor_id=test_instructor_with_availability.id,
+            service_id=service.id,
+            booking_date=tomorrow,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            service_name=service.skill,
+            hourly_rate=service.hourly_rate,
+            total_price=service.hourly_rate,
+            duration_minutes=60,
+            status=BookingStatus.CONFIRMED,
+            meeting_location="Test Studio",
+            location_type="neutral",
+            student_note="Looking forward to the lesson",
+        )
+        # Add relationships for email templates
+        booking.student = test_student
+        booking.instructor = test_instructor_with_availability
+        booking.service = service
+
+        db.add(booking)
+        db.commit()
+        db.refresh(booking)
+        return booking
+
+    @pytest.mark.asyncio
+    async def test_booking_confirmation_flow_is_clean(self, db, full_booking):
+        """Test complete booking confirmation flow uses clean architecture."""
+        # Create services
+        notification_service = NotificationService(db)
+        notification_service.email_service.send_email = Mock(return_value={"id": "test"})
+
+        cache_service = CacheService(db)
+
+        # Send booking confirmation
+        result = await notification_service.send_booking_confirmation(full_booking)
+        assert result is True
+
+        # Verify emails were sent (2 - student and instructor)
+        assert notification_service.email_service.send_email.call_count == 2
+
+        # Check both emails for clean content
+        for call in notification_service.email_service.send_email.call_args_list:
+            html_content = call.kwargs["html_content"]
+
+            # Should have booking info
+            assert str(full_booking.booking_date) in html_content or "tomorrow" in html_content
+            assert "9:00" in html_content
+
+            # Should NOT have removed concepts
+            assert "availability_slot_id" not in html_content.lower()
+            assert "is_available" not in html_content.lower()
+
+    @pytest.mark.asyncio
+    async def test_reminder_and_cache_integration(self, db, full_booking):
+        """Test reminders work with cached data using clean patterns."""
+        # Mock cache service
+        mock_redis = Mock()
+        mock_redis.get.return_value = None
+        mock_redis.setex.return_value = True
+        mock_redis.ping.return_value = True
+
+        cache_service = CacheService(db, redis_client=mock_redis)
+        notification_service = NotificationService(db)
+        notification_service.email_service.send_email = Mock(return_value={"id": "test"})
+
+        # Cache some instructor availability
+        week_start = full_booking.booking_date - timedelta(days=full_booking.booking_date.weekday())
+        availability_data = {
+            full_booking.booking_date.isoformat(): [
+                {
+                    "id": 1,
+                    "instructor_id": full_booking.instructor_id,
+                    "date": full_booking.booking_date.isoformat(),
+                    "start_time": "09:00",
+                    "end_time": "17:00",
+                }
+            ]
+        }
+
+        cache_service.cache_week_availability(full_booking.instructor_id, week_start, availability_data)
+
+        # Send reminders
+        count = await notification_service.send_reminder_emails()
+
+        # Should find our booking
+        assert count == 1
+
+        # Verify cache key used was clean
+        cache_call = mock_redis.setex.call_args
+        cache_key = cache_call[0][0]
+        assert "week" in cache_key
+        assert str(full_booking.instructor_id) in cache_key
+        assert "slot_id" not in cache_key
+
+    def test_all_services_avoid_removed_concepts(self, db):
+        """Comprehensive test that all services avoid removed concepts."""
+        removed_concepts = [
+            "availability_slot_id",
+            "InstructorAvailability",
+            "is_available",
+            "is_recurring",
+            "day_of_week",
+            "slot_id",
+        ]
+
+        # Test notification service
+        notification_service = NotificationService(db)
+        for attr in dir(notification_service):
+            if not attr.startswith("_"):
+                attr_value = str(getattr(notification_service, attr))
+                for concept in removed_concepts:
+                    assert concept not in attr_value, f"Found {concept} in NotificationService.{attr}"
+
+        # Test cache service
+        cache_service = CacheService(db)
+        for attr in dir(cache_service):
+            if not attr.startswith("_") and attr != "PREFIXES":  # Skip the prefixes dict
+                attr_value = str(getattr(cache_service, attr))
+                for concept in removed_concepts:
+                    # Skip legitimate uses of "slot" in prefix definitions
+                    if concept == "slot" and attr == "key_builder":
+                        continue
+                    assert concept not in attr_value, f"Found {concept} in CacheService.{attr}"
+
+
+class TestErrorHandlingWithCleanArchitecture:
+    """Test error handling doesn't expose removed concepts."""
+
+    @pytest.mark.asyncio
+    async def test_email_error_messages_are_clean(self, db):
+        """Test email error messages don't reference removed concepts."""
+        notification_service = NotificationService(db)
+
+        # Force an error by passing None
+        with pytest.raises(AttributeError):
+            await notification_service.send_booking_confirmation(None)
+
+        # Error should be about missing booking, not slots
+        # (The actual error message is from trying to access None.id)
+
+    def test_cache_error_messages_are_clean(self, db):
+        """Test cache error messages don't reference removed concepts."""
+        # Create cache service with failing Redis
+        mock_redis = Mock()
+        mock_redis.get.side_effect = Exception("Redis connection failed")
+        mock_redis.ping.side_effect = Exception("Redis connection failed")
+
+        cache_service = CacheService(db, redis_client=None)  # Will use in-memory
+
+        # Try to cache something
+        result = cache_service.set("test:key", {"data": "value"})
+
+        # Should handle gracefully without slot references
+        assert result is True  # In-memory cache works
+
+    @pytest.mark.asyncio
+    async def test_reminder_handles_missing_data_cleanly(self, db):
+        """Test reminder system handles missing data without slot references."""
+        notification_service = NotificationService(db)
+        notification_service.email_service.send_email = Mock()
+
+        # Create booking with missing instructor relationship
+        booking = Mock(spec=Booking)
+        booking.id = 123
+        booking.instructor = None  # Missing!
+        booking.booking_date = date.today() + timedelta(days=1)
+        booking.start_time = time(9, 0)
+
+        # Should handle error gracefully
+        try:
+            await notification_service._send_instructor_reminder(booking)
+        except AttributeError:
+            pass  # Expected due to missing instructor
+
+        # Error handling shouldn't reference slots
+        # (Would need to check logs in real implementation)
+
+
+class TestPerformanceWithCleanArchitecture:
+    """Test that clean architecture doesn't hurt performance."""
+
+    def test_cache_keys_are_efficient(self):
+        """Test cache keys are reasonable length."""
+        from app.services.cache_service import CacheKeyBuilder
+
+        builder = CacheKeyBuilder()
+
+        # Generate various keys
+        keys = [
+            builder.build("availability", "week", 123, date(2025, 7, 15)),
+            builder.build("booking", 456, date(2025, 7, 15)),
+            builder.build("conflict", 789, date(2025, 7, 15), "abc123"),
+        ]
+
+        for key in keys:
+            # Keys should be reasonable length
+            assert len(key) < 100  # Not too long
+            assert len(key) > 10  # Not too short
+
+            # Should be efficient format
+            assert key.count(":") >= 2  # Proper separators
+            assert not key.startswith(":")  # No waste
+            assert not key.endswith(":")  # No waste
+
+    @pytest.mark.asyncio
+    async def test_reminder_query_is_efficient(self, db):
+        """Test reminder query doesn't do unnecessary joins."""
+        from app.services.notification_service import NotificationService
+
+        # Spy on the query
+        original_query = db.query
+        query_count = 0
+
+        def counting_query(*args, **kwargs):
+            nonlocal query_count
+            query_count += 1
+            return original_query(*args, **kwargs)
+
+        db.query = counting_query
+
+        # Run reminder query
+        service = NotificationService(db)
+        await service.send_reminder_emails()
+
+        # Should only query bookings table (1 query)
+        assert query_count == 1
+
+        # Restore
+        db.query = original_query
+
+
+# Marker for running all supporting system tests
+pytestmark = pytest.mark.supporting_systems

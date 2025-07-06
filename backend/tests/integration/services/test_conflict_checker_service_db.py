@@ -1,13 +1,18 @@
 # backend/tests/integration/test_conflict_checker_service_db.py
 """
 Fixed integration tests for ConflictChecker database operations.
+
+UPDATED FOR WORK STREAM #10: Single-table availability design.
+- All InstructorAvailability references removed
+- Slots created directly with instructor_id and date
+- No more is_cleared checks
 """
 
 from datetime import date, time, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.models.availability import AvailabilitySlot, BlackoutDate, InstructorAvailability
+from app.models.availability import AvailabilitySlot, BlackoutDate
 from app.models.booking import Booking, BookingStatus
 from app.models.service import Service
 from app.models.user import User
@@ -50,21 +55,15 @@ class TestConflictCheckerDatabaseOperations:
         """Test slot availability checking with real data."""
         service = ConflictChecker(db)
 
-        # Create a new availability in the future to ensure it's not in the past
-        from datetime import date, timedelta
-
+        # Create a new slot in the future to ensure it's not in the past
         future_date = date.today() + timedelta(days=7)
 
-        # Create new availability
-        new_availability = InstructorAvailability(
-            instructor_id=test_instructor_with_availability.id, date=future_date, is_cleared=False
-        )
-        db.add(new_availability)
-        db.commit()
-
-        # Create an available slot
+        # Create slot directly (single-table design)
         available_slot = AvailabilitySlot(
-            availability_id=new_availability.id, start_time=time(10, 0), end_time=time(11, 0)
+            instructor_id=test_instructor_with_availability.id,
+            date=future_date,
+            start_time=time(10, 0),
+            end_time=time(11, 0),
         )
         db.add(available_slot)
         db.commit()
@@ -89,7 +88,10 @@ class TestConflictCheckerDatabaseOperations:
 
         # Test 3: Create a booked slot and verify it's not available
         booked_slot = AvailabilitySlot(
-            availability_id=new_availability.id, start_time=time(14, 0), end_time=time(15, 0)
+            instructor_id=test_instructor_with_availability.id,
+            date=future_date,
+            start_time=time(14, 0),
+            end_time=time(15, 0),
         )
         db.add(booked_slot)
         db.commit()
@@ -227,19 +229,17 @@ class TestConflictCheckerDatabaseOperations:
         """Test finding overlapping slots with real data."""
         service = ConflictChecker(db)
 
-        # Get a date with availability
-        availability = (
-            db.query(InstructorAvailability)
+        # Get a date with availability - direct query on slots
+        slot = (
+            db.query(AvailabilitySlot)
             .filter(
-                InstructorAvailability.instructor_id == test_instructor_with_availability.id,
-                InstructorAvailability.is_cleared == False,
+                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
             )
             .first()
         )
 
-        if availability and availability.time_slots:
-            slot = availability.time_slots[0]
-            target_date = availability.date
+        if slot:
+            target_date = slot.date
 
             # Test overlapping with existing slot
             overlapping = service.find_overlapping_slots(

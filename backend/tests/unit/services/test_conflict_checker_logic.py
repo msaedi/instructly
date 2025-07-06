@@ -1,6 +1,11 @@
 # backend/tests/unit/test_conflict_checker_logic.py
 """
 Updated unit tests for ConflictChecker business logic with repository mocking.
+
+UPDATED FOR WORK STREAM #10: Single-table availability design.
+- Removed InstructorAvailability references from mocks
+- Updated slot mocks to include instructor_id and date
+- Simplified mock patterns for single-table queries
 """
 
 from datetime import date, datetime, time, timedelta
@@ -9,7 +14,7 @@ from unittest.mock import Mock
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models.availability import AvailabilitySlot, BlackoutDate, InstructorAvailability
+from app.models.availability import AvailabilitySlot, BlackoutDate
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service import Service
@@ -37,10 +42,12 @@ class TestConflictCheckerDataTransformation:
         mock_booking.service_name = "Piano Lessons"
         mock_booking.status = BookingStatus.CONFIRMED
 
-        # Mock slot
+        # Mock slot with instructor_id and date
         mock_slot = Mock(spec=AvailabilitySlot)
         mock_slot.start_time = time(10, 0)
         mock_slot.end_time = time(11, 0)
+        mock_slot.instructor_id = 1
+        mock_slot.date = date.today()
         mock_booking.availability_slot = mock_slot
 
         # Mock student
@@ -96,16 +103,13 @@ class TestConflictCheckerDataTransformation:
 
     def test_slot_availability_response_formatting(self, service):
         """Test slot availability response formatting logic."""
-        # Mock available slot
+        # Mock available slot with single-table fields
         mock_slot = Mock(spec=AvailabilitySlot)
         mock_slot.id = 123
         mock_slot.start_time = time(9, 0)
         mock_slot.end_time = time(10, 0)
-
-        mock_availability = Mock(spec=InstructorAvailability)
-        mock_availability.date = date.today() + timedelta(days=1)
-        mock_availability.instructor_id = 1
-        mock_slot.availability = mock_availability
+        mock_slot.instructor_id = 1
+        mock_slot.date = date.today() + timedelta(days=1)
 
         service.repository.get_slot_with_availability.return_value = mock_slot
 
@@ -443,16 +447,13 @@ class TestConflictCheckerValidationRules:
 
     def test_slot_availability_logic_without_database(self, service):
         """Test slot availability checking logic."""
-        # Create mock slot with availability
+        # Create mock slot with single-table fields
         mock_slot = Mock(spec=AvailabilitySlot)
         mock_slot.id = 1
         mock_slot.start_time = time(10, 0)
         mock_slot.end_time = time(11, 0)
-
-        mock_availability = Mock(spec=InstructorAvailability)
-        mock_availability.instructor_id = 1
-        mock_availability.date = date.today() + timedelta(days=1)
-        mock_slot.availability = mock_availability
+        mock_slot.instructor_id = 1
+        mock_slot.date = date.today() + timedelta(days=1)
 
         service.repository.get_slot_with_availability.return_value = mock_slot
 
@@ -471,11 +472,8 @@ class TestConflictCheckerValidationRules:
         mock_slot = Mock(spec=AvailabilitySlot)
         mock_slot.id = 1
         mock_slot.start_time = time(10, 0)
-
-        mock_availability = Mock(spec=InstructorAvailability)
-        mock_availability.instructor_id = 1
-        mock_availability.date = date.today() - timedelta(days=1)  # Yesterday
-        mock_slot.availability = mock_availability
+        mock_slot.instructor_id = 1
+        mock_slot.date = date.today() - timedelta(days=1)  # Yesterday
 
         service.repository.get_slot_with_availability.return_value = mock_slot
 
@@ -565,7 +563,7 @@ class TestConflictCheckerValidationRules:
 
     def test_find_overlapping_slots_algorithm(self, service):
         """Test the algorithm for finding overlapping slots."""
-        # Create mock slots
+        # Create mock slots with single-table fields
         mock_slots = [
             self._create_mock_slot(1, time(9, 0), time(10, 0)),
             self._create_mock_slot(2, time(10, 0), time(11, 0)),
@@ -649,12 +647,13 @@ class TestConflictCheckerValidationRules:
         return booking
 
     def _create_mock_slot(self, slot_id: int, start: time, end: time) -> Mock:
-        """Create a mock availability slot."""
+        """Create a mock availability slot with single-table fields."""
         slot = Mock(spec=AvailabilitySlot)
         slot.id = slot_id
         slot.start_time = start
         slot.end_time = end
-        # Don't set booking_id - it doesn't exist!
+        slot.instructor_id = 1
+        slot.date = date.today()
         return slot
 
 

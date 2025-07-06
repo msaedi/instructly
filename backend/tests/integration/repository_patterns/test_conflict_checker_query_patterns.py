@@ -4,6 +4,9 @@ Document all query patterns used in ConflictChecker.
 
 This serves as the specification for the ConflictCheckerRepository
 that will be implemented in the repository pattern.
+
+UPDATED FOR WORK STREAM #10: Single-table availability design.
+All queries now work directly with AvailabilitySlot without InstructorAvailability.
 """
 
 from datetime import date, time, timedelta
@@ -11,7 +14,7 @@ from datetime import date, time, timedelta
 from sqlalchemy import and_
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.availability import AvailabilitySlot, BlackoutDate, InstructorAvailability
+from app.models.availability import AvailabilitySlot, BlackoutDate
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service import Service
@@ -24,23 +27,20 @@ class TestConflictCheckerQueryPatterns:
     def test_query_pattern_check_booking_conflicts(
         self, db: Session, test_instructor_with_availability: User, test_booking
     ):
-        """Document the complex JOIN query for booking conflicts."""
+        """Document the simplified JOIN query for booking conflicts."""
         instructor_id = test_instructor_with_availability.id
         check_date = test_booking.booking_date
         time(10, 0)
         time(12, 0)
 
         # Document the exact query pattern used in check_booking_conflicts
+        # SIMPLIFIED: Now joins Booking → AvailabilitySlot directly
         query = (
             db.query(Booking)
             .join(AvailabilitySlot, Booking.availability_slot_id == AvailabilitySlot.id)
-            .join(
-                InstructorAvailability,
-                AvailabilitySlot.availability_id == InstructorAvailability.id,
-            )
             .filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                Booking.booking_date == check_date,
+                AvailabilitySlot.instructor_id == instructor_id,
+                AvailabilitySlot.date == check_date,
                 Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             )
         )
@@ -51,7 +51,7 @@ class TestConflictCheckerQueryPatterns:
         # def get_bookings_for_conflict_check(self, instructor_id: int, check_date: date,
         #                                    exclude_slot_id: Optional[int] = None) -> List[Booking]
 
-        # Verify the complex JOIN works
+        # Verify the simplified JOIN works
         assert len(bookings) >= 0
         for booking in bookings:
             assert booking.instructor_id == instructor_id
@@ -60,20 +60,20 @@ class TestConflictCheckerQueryPatterns:
 
     def test_query_pattern_check_slot_availability(self, db: Session, test_instructor_with_availability: User):
         """Document query pattern for slot availability checking."""
-        # Get a slot ID
-        availability = (
-            db.query(InstructorAvailability)
-            .filter(InstructorAvailability.instructor_id == test_instructor_with_availability.id)
+        # Get a slot directly (no InstructorAvailability)
+        slot = (
+            db.query(AvailabilitySlot)
+            .filter(AvailabilitySlot.instructor_id == test_instructor_with_availability.id)
             .first()
         )
 
-        if availability and availability.time_slots:
-            slot_id = availability.time_slots[0].id
+        if slot:
+            slot_id = slot.id
 
-            # Document the query pattern
+            # Document the query pattern - now loads instructor directly
             slot = (
                 db.query(AvailabilitySlot)
-                .options(joinedload(AvailabilitySlot.availability))
+                .options(joinedload(AvailabilitySlot.instructor))
                 .filter(AvailabilitySlot.id == slot_id)
                 .first()
             )
@@ -82,8 +82,8 @@ class TestConflictCheckerQueryPatterns:
             # def get_slot_with_availability(self, slot_id: int) -> Optional[AvailabilitySlot]
 
             assert slot is not None
-            assert slot.availability is not None
-            assert slot.availability.instructor_id == test_instructor_with_availability.id
+            assert slot.instructor_id == test_instructor_with_availability.id
+            assert slot.instructor is not None
 
     def test_query_pattern_get_booked_slots_for_date(
         self, db: Session, test_instructor_with_availability: User, test_booking
@@ -92,7 +92,7 @@ class TestConflictCheckerQueryPatterns:
         instructor_id = test_instructor_with_availability.id
         target_date = test_booking.booking_date
 
-        # Document the complex query with multiple JOINs and field selection
+        # Document the simplified query with direct slot access
         booked_slots = (
             db.query(
                 AvailabilitySlot.id,
@@ -104,13 +104,9 @@ class TestConflictCheckerQueryPatterns:
                 Booking.status,
             )
             .join(Booking, AvailabilitySlot.id == Booking.availability_slot_id)
-            .join(
-                InstructorAvailability,
-                AvailabilitySlot.availability_id == InstructorAvailability.id,
-            )
             .filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                InstructorAvailability.date == target_date,
+                AvailabilitySlot.instructor_id == instructor_id,
+                AvailabilitySlot.date == target_date,
                 Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             )
             .all()
@@ -133,10 +129,10 @@ class TestConflictCheckerQueryPatterns:
         week_start = test_booking.booking_date - timedelta(days=test_booking.booking_date.weekday())
         week_dates = [week_start + timedelta(days=i) for i in range(7)]
 
-        # Document the week-based query pattern
+        # Document the week-based query pattern - now uses slot date directly
         booked_slots = (
             db.query(
-                InstructorAvailability.date,
+                AvailabilitySlot.date,
                 AvailabilitySlot.id,
                 AvailabilitySlot.start_time,
                 AvailabilitySlot.end_time,
@@ -145,17 +141,13 @@ class TestConflictCheckerQueryPatterns:
                 Booking.service_name,
                 Booking.status,
             )
-            .join(
-                AvailabilitySlot,
-                InstructorAvailability.id == AvailabilitySlot.availability_id,
-            )
             .join(Booking, AvailabilitySlot.id == Booking.availability_slot_id)
             .filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                InstructorAvailability.date.in_(week_dates),
+                AvailabilitySlot.instructor_id == instructor_id,
+                AvailabilitySlot.date.in_(week_dates),
                 Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             )
-            .order_by(InstructorAvailability.date, AvailabilitySlot.start_time)
+            .order_by(AvailabilitySlot.date, AvailabilitySlot.start_time)
             .all()
         )
 
@@ -174,13 +166,12 @@ class TestConflictCheckerQueryPatterns:
         start_time = time(10, 0)
         end_time = time(12, 0)
 
-        # Document the overlapping slots query
+        # Document the direct slot query (no join needed)
         slots = (
             db.query(AvailabilitySlot)
-            .join(InstructorAvailability)
             .filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                InstructorAvailability.date == target_date,
+                AvailabilitySlot.instructor_id == instructor_id,
+                AvailabilitySlot.date == target_date,
             )
             .all()
         )
@@ -206,7 +197,7 @@ class TestConflictCheckerQueryPatterns:
         db.add(blackout)
         db.commit()
 
-        # Document the query pattern
+        # Document the query pattern (unchanged - already direct)
         blackout_check = (
             db.query(BlackoutDate)
             .filter(
@@ -226,7 +217,7 @@ class TestConflictCheckerQueryPatterns:
         """Document query pattern for instructor profile validation."""
         instructor_id = test_instructor.id
 
-        # Document the instructor profile query
+        # Document the instructor profile query (unchanged)
         profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).first()
 
         # Repository method:
@@ -248,7 +239,7 @@ class TestConflictCheckerQueryPatterns:
         if service:
             service_id = service.id
 
-            # Document the service validation query
+            # Document the service validation query (unchanged)
             service_check = db.query(Service).filter(Service.id == service_id, Service.is_active == True).first()
 
             # Repository method:
@@ -264,10 +255,10 @@ class TestConflictCheckerQueryPatterns:
         # Document the pattern for getting all data needed for validation
         # This shows what repositories will need to provide efficiently
 
-        # 1. Get instructor profile
+        # 1. Get instructor profile (unchanged)
         profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).first()
 
-        # 2. Get blackout dates for date range
+        # 2. Get blackout dates for date range (unchanged)
         date_range_start = date.today()
         date_range_end = date.today() + timedelta(days=7)
 
@@ -279,13 +270,12 @@ class TestConflictCheckerQueryPatterns:
             .all()
         )
 
-        # 3. Get existing bookings for conflict checking
+        # 3. Get existing bookings for conflict checking - SIMPLIFIED
         existing_bookings = (
             db.query(Booking)
             .join(AvailabilitySlot, Booking.availability_slot_id == AvailabilitySlot.id)
-            .join(InstructorAvailability, AvailabilitySlot.availability_id == InstructorAvailability.id)
             .filter(
-                InstructorAvailability.instructor_id == instructor_id,
+                AvailabilitySlot.instructor_id == instructor_id,
                 Booking.booking_date.between(date_range_start, date_range_end),
                 Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             )
@@ -313,19 +303,15 @@ class TestConflictCheckerComplexQueries:
         start_date = date.today()
         end_date = date.today() + timedelta(days=7)
 
-        # Complex query that gets availability, bookings, and blackouts in one operation
-        # This type of query would be optimized in repository layer
-
+        # SIMPLIFIED: Now queries directly from AvailabilitySlot
         from sqlalchemy import func
 
         summary = (
             db.query(
-                InstructorAvailability.date,
+                AvailabilitySlot.date,
                 func.count(AvailabilitySlot.id).label("total_slots"),
                 func.count(Booking.id).label("booked_slots"),
-                func.count(BlackoutDate.id).label("blackout_count"),
             )
-            .outerjoin(AvailabilitySlot, InstructorAvailability.id == AvailabilitySlot.availability_id)
             .outerjoin(
                 Booking,
                 and_(
@@ -333,15 +319,11 @@ class TestConflictCheckerComplexQueries:
                     Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
                 ),
             )
-            .outerjoin(
-                BlackoutDate,
-                and_(BlackoutDate.instructor_id == instructor_id, BlackoutDate.date == InstructorAvailability.date),
-            )
             .filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                InstructorAvailability.date.between(start_date, end_date),
+                AvailabilitySlot.instructor_id == instructor_id,
+                AvailabilitySlot.date.between(start_date, end_date),
             )
-            .group_by(InstructorAvailability.date)
+            .group_by(AvailabilitySlot.date)
             .all()
         )
 
@@ -360,7 +342,7 @@ class TestConflictCheckerComplexQueries:
         instructor_id = test_instructor_with_availability.id
         check_date = test_booking.booking_date
 
-        # Advanced query that gets conflicts with full student and service details
+        # SIMPLIFIED: Removed InstructorAvailability join
         conflicts = (
             db.query(
                 Booking.id,
@@ -375,10 +357,9 @@ class TestConflictCheckerComplexQueries:
             .join(User, Booking.student_id == User.id)
             .join(Service, Booking.service_id == Service.id)
             .join(AvailabilitySlot, Booking.availability_slot_id == AvailabilitySlot.id)
-            .join(InstructorAvailability, AvailabilitySlot.availability_id == InstructorAvailability.id)
             .filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                Booking.booking_date == check_date,
+                AvailabilitySlot.instructor_id == instructor_id,
+                AvailabilitySlot.date == check_date,
                 Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             )
             .all()
@@ -396,19 +377,18 @@ class TestConflictCheckerComplexQueries:
         """Document query for checking slot utilization efficiency."""
         instructor_id = test_instructor_with_availability.id
 
-        # Query to analyze slot utilization - useful for instructor dashboard
+        # Query to analyze slot utilization - SIMPLIFIED
         from sqlalchemy import case, func
 
         utilization = (
             db.query(
-                InstructorAvailability.date,
+                AvailabilitySlot.date,
                 func.count(AvailabilitySlot.id).label("available_slots"),
                 func.sum(case((Booking.id.isnot(None), 1), else_=0)).label("booked_slots"),
                 func.avg(func.extract("epoch", AvailabilitySlot.end_time - AvailabilitySlot.start_time) / 3600).label(
                     "avg_slot_duration_hours"
                 ),
             )
-            .outerjoin(AvailabilitySlot, InstructorAvailability.id == AvailabilitySlot.availability_id)
             .outerjoin(
                 Booking,
                 and_(
@@ -417,10 +397,10 @@ class TestConflictCheckerComplexQueries:
                 ),
             )
             .filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                InstructorAvailability.date >= date.today() - timedelta(days=30),
+                AvailabilitySlot.instructor_id == instructor_id,
+                AvailabilitySlot.date >= date.today() - timedelta(days=30),
             )
-            .group_by(InstructorAvailability.date)
+            .group_by(AvailabilitySlot.date)
             .all()
         )
 

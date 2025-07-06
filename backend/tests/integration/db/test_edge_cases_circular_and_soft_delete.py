@@ -7,6 +7,11 @@ This test suite verifies:
 2. Soft delete functionality for services
 3. Data integrity and cascade behaviors
 4. Edge cases that could break the system
+
+UPDATED FOR WORK STREAM #10: Single-table availability design
+- No more InstructorAvailability table
+- AvailabilitySlot has instructor_id and date directly
+- Focus on Service soft delete (availability has no soft delete)
 """
 
 from datetime import date, datetime, time, timedelta
@@ -15,7 +20,7 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models.availability import AvailabilitySlot, InstructorAvailability
+from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service import Service
@@ -64,14 +69,13 @@ class TestCircularDependencyEdgeCases:
 
     def test_cascade_delete_availability_slot(self, db: Session, instructor_user: User, student_user: User):
         """Test that we CAN delete slots that have associated bookings (layer independence)."""
-        # Create availability and slot
-        availability = InstructorAvailability(
-            instructor_id=instructor_user.id, date=date.today() + timedelta(days=1), is_cleared=False
+        # Create slot directly (single-table design)
+        slot = AvailabilitySlot(
+            instructor_id=instructor_user.id,
+            date=date.today() + timedelta(days=1),
+            start_time=time(10, 0),
+            end_time=time(11, 0),
         )
-        db.add(availability)
-        db.flush()
-
-        slot = AvailabilitySlot(availability_id=availability.id, start_time=time(10, 0), end_time=time(11, 0))
         db.add(slot)
         db.flush()
 
@@ -82,7 +86,7 @@ class TestCircularDependencyEdgeCases:
             instructor_id=instructor_user.id,
             service_id=service.id,
             availability_slot_id=slot.id,
-            booking_date=availability.date,
+            booking_date=slot.date,
             start_time=slot.start_time,
             end_time=slot.end_time,
             service_name=service.skill,
@@ -109,21 +113,25 @@ class TestCircularDependencyEdgeCases:
         assert booking_after is not None
         assert booking_after.availability_slot_id == slot_id  # Still references the deleted slot
         assert booking_after.status == BookingStatus.CONFIRMED  # Status unchanged
-        assert booking_after.booking_date == availability.date
+        assert booking_after.booking_date == date.today() + timedelta(days=1)
         assert booking_after.start_time == time(10, 0)
         assert booking_after.end_time == time(11, 0)
 
-    def test_cascade_delete_instructor_availability(self, db: Session, instructor_user: User, student_user: User):
-        """Test cascade behavior when deleting instructor availability - bookings persist independently."""
-        # Create availability with slots
-        availability = InstructorAvailability(
-            instructor_id=instructor_user.id, date=date.today() + timedelta(days=1), is_cleared=False
+    def test_cascade_delete_instructor_slots(self, db: Session, instructor_user: User, student_user: User):
+        """Test cascade behavior when deleting instructor - slots are deleted but bookings persist."""
+        # Create slots directly
+        slot1 = AvailabilitySlot(
+            instructor_id=instructor_user.id,
+            date=date.today() + timedelta(days=1),
+            start_time=time(10, 0),
+            end_time=time(11, 0),
         )
-        db.add(availability)
-        db.flush()
-
-        slot1 = AvailabilitySlot(availability_id=availability.id, start_time=time(10, 0), end_time=time(11, 0))
-        slot2 = AvailabilitySlot(availability_id=availability.id, start_time=time(11, 0), end_time=time(12, 0))
+        slot2 = AvailabilitySlot(
+            instructor_id=instructor_user.id,
+            date=date.today() + timedelta(days=1),
+            start_time=time(11, 0),
+            end_time=time(12, 0),
+        )
         db.add_all([slot1, slot2])
         db.flush()
 
@@ -134,7 +142,7 @@ class TestCircularDependencyEdgeCases:
             instructor_id=instructor_user.id,
             service_id=service.id,
             availability_slot_id=slot1.id,
-            booking_date=availability.date,
+            booking_date=slot1.date,
             start_time=slot1.start_time,
             end_time=slot1.end_time,
             service_name=service.skill,
@@ -149,16 +157,16 @@ class TestCircularDependencyEdgeCases:
         slot1_id = slot1.id
         slot2_id = slot2.id
         booking_id = booking.id
-        availability_id = availability.id
+        instructor_id = instructor_user.id
 
-        # Now we CAN delete availability directly (cascades to slots)
-        db.delete(availability)
+        # Delete instructor (this should cascade to slots)
+        db.delete(instructor_user)
         db.commit()
 
-        # Verify availability is deleted
-        assert db.query(InstructorAvailability).filter(InstructorAvailability.id == availability_id).first() is None
+        # Verify instructor is deleted
+        assert db.query(User).filter(User.id == instructor_id).first() is None
 
-        # Verify slots are deleted (cascade still works for availability->slots)
+        # Verify slots are deleted (cascade from instructor)
         assert db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot1_id).first() is None
         assert db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot2_id).first() is None
 
@@ -167,19 +175,18 @@ class TestCircularDependencyEdgeCases:
         assert booking_after is not None
         assert booking_after.availability_slot_id == slot1_id  # Still references the deleted slot
         assert booking_after.status == BookingStatus.CONFIRMED  # Not cancelled
-        assert booking_after.instructor_id == instructor_user.id
+        assert booking_after.instructor_id == instructor_id
         assert booking_after.booking_date == date.today() + timedelta(days=1)
 
     def test_no_reverse_relationship_from_slot(self, db: Session, instructor_user: User):
         """Verify that availability slots don't have a booking relationship."""
-        # Create availability and slot
-        availability = InstructorAvailability(
-            instructor_id=instructor_user.id, date=date.today() + timedelta(days=1), is_cleared=False
+        # Create slot directly
+        slot = AvailabilitySlot(
+            instructor_id=instructor_user.id,
+            date=date.today() + timedelta(days=1),
+            start_time=time(10, 0),
+            end_time=time(11, 0),
         )
-        db.add(availability)
-        db.flush()
-
-        slot = AvailabilitySlot(availability_id=availability.id, start_time=time(10, 0), end_time=time(11, 0))
         db.add(slot)
         db.commit()
 
@@ -189,14 +196,13 @@ class TestCircularDependencyEdgeCases:
 
     def test_query_bookings_for_slot(self, db: Session, instructor_user: User, student_user: User):
         """Test querying bookings for a specific slot."""
-        # Create slot
-        availability = InstructorAvailability(
-            instructor_id=instructor_user.id, date=date.today() + timedelta(days=1), is_cleared=False
+        # Create slot directly
+        slot = AvailabilitySlot(
+            instructor_id=instructor_user.id,
+            date=date.today() + timedelta(days=1),
+            start_time=time(10, 0),
+            end_time=time(11, 0),
         )
-        db.add(availability)
-        db.flush()
-
-        slot = AvailabilitySlot(availability_id=availability.id, start_time=time(10, 0), end_time=time(11, 0))
         db.add(slot)
         db.flush()
 
@@ -208,7 +214,7 @@ class TestCircularDependencyEdgeCases:
             instructor_id=instructor_user.id,
             service_id=service.id,
             availability_slot_id=slot.id,
-            booking_date=availability.date,
+            booking_date=slot.date,
             start_time=slot.start_time,
             end_time=slot.end_time,
             service_name=service.skill,
@@ -223,7 +229,7 @@ class TestCircularDependencyEdgeCases:
             instructor_id=instructor_user.id,
             service_id=service.id,
             availability_slot_id=slot.id,
-            booking_date=availability.date,
+            booking_date=slot.date,
             start_time=slot.start_time,
             end_time=slot.end_time,
             service_name=service.skill,
@@ -409,14 +415,13 @@ class TestSoftDeleteEdgeCases:
         service.is_active = False
         db.commit()
 
-        # Create availability
-        availability = InstructorAvailability(
-            instructor_id=instructor.id, date=date.today() + timedelta(days=1), is_cleared=False
+        # Create availability slot directly
+        slot = AvailabilitySlot(
+            instructor_id=instructor.id,
+            date=date.today() + timedelta(days=1),
+            start_time=time(10, 0),
+            end_time=time(11, 0),
         )
-        db.add(availability)
-        db.flush()
-
-        slot = AvailabilitySlot(availability_id=availability.id, start_time=time(10, 0), end_time=time(11, 0))
         db.add(slot)
         db.commit()
 

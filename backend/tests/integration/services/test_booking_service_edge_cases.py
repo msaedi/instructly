@@ -7,6 +7,8 @@ This test suite covers:
 - Edge cases in statistics
 - Booking reminders functionality
 - Various filter combinations
+
+UPDATED FOR WORK STREAM #10: Single-table availability design.
 """
 
 import logging
@@ -17,7 +19,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import BusinessRuleException, NotFoundException, ValidationException
-from app.models.availability import AvailabilitySlot, InstructorAvailability
+from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service import Service
@@ -49,15 +51,15 @@ class TestBookingServiceErrorHandling:
         )
 
         tomorrow = date.today() + timedelta(days=1)
-        availability = (
-            db.query(InstructorAvailability)
+        # Get slot directly (single-table design)
+        slot = (
+            db.query(AvailabilitySlot)
             .filter(
-                InstructorAvailability.instructor_id == test_instructor_with_availability.id,
-                InstructorAvailability.date == tomorrow,
+                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
+                AvailabilitySlot.date == tomorrow,
             )
             .first()
         )
-        slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == availability.id).first()
 
         booking_service = BookingService(db, mock_notification_service)
         booking_data = BookingCreate(
@@ -334,17 +336,16 @@ class TestBookingServiceAvailabilityEdgeCases:
         self, db: Session, test_instructor_with_availability: User, mock_notification_service: Mock
     ):
         """Test checking availability with non-existent service."""
-        # Get a valid slot
+        # Get a valid slot directly (single-table design)
         tomorrow = date.today() + timedelta(days=1)
-        availability = (
-            db.query(InstructorAvailability)
+        slot = (
+            db.query(AvailabilitySlot)
             .filter(
-                InstructorAvailability.instructor_id == test_instructor_with_availability.id,
-                InstructorAvailability.date == tomorrow,
+                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
+                AvailabilitySlot.date == tomorrow,
             )
             .first()
         )
-        slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == availability.id).first()
 
         booking_service = BookingService(db, mock_notification_service)
         result = await booking_service.check_availability(slot_id=slot.id, service_id=99999)  # Non-existent

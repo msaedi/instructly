@@ -4,6 +4,8 @@ Unit tests for BookingService business logic with repository pattern.
 
 These tests mock all dependencies (repository, notification service, etc.)
 to test the business logic in isolation.
+
+UPDATED FOR WORK STREAM #10: Single-table availability design.
 """
 
 from datetime import date, datetime, time, timedelta
@@ -14,7 +16,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import BusinessRuleException, ConflictException, NotFoundException, ValidationException
-from app.models.availability import AvailabilitySlot, InstructorAvailability
+from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service import Service
@@ -134,17 +136,13 @@ class TestBookingServiceUnit:
 
     @pytest.fixture
     def mock_slot(self):
-        """Create a mock availability slot."""
+        """Create a mock availability slot with single-table design."""
         slot = Mock(spec=AvailabilitySlot)
         slot.id = 1
+        slot.instructor_id = 2  # Same as mock_instructor.id
+        slot.date = date.today() + timedelta(days=2)
         slot.start_time = time(14, 0)
         slot.end_time = time(15, 0)
-
-        # Mock the availability relationship
-        availability = Mock(spec=InstructorAvailability)
-        availability.instructor_id = 2  # Same as mock_instructor.id
-        availability.date = date.today() + timedelta(days=2)
-        slot.availability = availability
 
         return slot
 
@@ -274,7 +272,7 @@ class TestBookingServiceUnit:
         booking_data = BookingCreate(availability_slot_id=1, service_id=1, location_type="neutral")
 
         # Debug: Print the initial values
-        print(f"mock_slot.availability.instructor_id: {mock_slot.availability.instructor_id}")
+        print(f"mock_slot.instructor_id: {mock_slot.instructor_id}")
         print(f"mock_service.instructor_profile_id: {mock_service.instructor_profile_id}")
         print(f"mock_instructor_profile.id: {mock_instructor_profile.id}")
         print(f"mock_instructor_profile.user_id: {mock_instructor_profile.user_id}")
@@ -304,7 +302,7 @@ class TestBookingServiceUnit:
         booking_data = BookingCreate(availability_slot_id=1, service_id=1, location_type="neutral")
 
         # Set slot to be too soon
-        mock_slot.availability.date = date.today()
+        mock_slot.date = date.today()
         mock_slot.start_time = (datetime.now() + timedelta(hours=1)).time()
 
         # Make sure the service's instructor_profile_id matches the profile
