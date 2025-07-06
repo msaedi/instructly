@@ -155,7 +155,7 @@ export default function AvailabilityPage(): React.ReactElement {
       const isCurrentlyAvailable = daySlots.some((slot) => {
         const startHour = parseInt(slot.start_time.split(':')[0]);
         const endHour = parseInt(slot.end_time.split(':')[0]);
-        return hour >= startHour && hour < endHour && slot.is_available;
+        return hour >= startHour && hour < endHour;
       });
 
       logger.info('Toggling time slot', {
@@ -358,7 +358,7 @@ export default function AvailabilityPage(): React.ReactElement {
       weekSchedule[date]?.some((slot) => {
         const startHour = parseInt(slot.start_time.split(':')[0]);
         const endHour = parseInt(slot.end_time.split(':')[0]);
-        return hour >= startHour && hour < endHour && slot.is_available;
+        return hour >= startHour && hour < endHour;
       }) || false;
 
     const booking = getBookingForSlot(date, hour);
@@ -395,7 +395,7 @@ export default function AvailabilityPage(): React.ReactElement {
       weekSchedule[date]?.some((slot) => {
         const startHour = parseInt(slot.start_time.split(':')[0]);
         const endHour = parseInt(slot.end_time.split(':')[0]);
-        return hour >= startHour && hour < endHour && slot.is_available;
+        return hour >= startHour && hour < endHour;
       }) || false;
 
     const booking = getBookingForSlot(date, hour);
