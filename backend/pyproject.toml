@@ -106,4 +106,5 @@ markers = [
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
     "requires_cache: marks tests that require cache to be running",
+    "supporting_systems: marks tests for supporting systems",
 ]

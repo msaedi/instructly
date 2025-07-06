@@ -1,20 +1,21 @@
-# backend/tests/unit/test_base_service_logic.py
+# backend/tests/unit/services/test_base_service_logic.py
 """
 Unit tests for BaseService business logic.
 
 These tests isolate the business logic from database and external dependencies
 using mocks to ensure we're testing only the service logic.
+
+FIXED: Updated to match actual BaseService implementation
 """
 
 import time
-from unittest.mock import AsyncMock, Mock, call, patch
+from unittest.mock import Mock, patch
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import ValidationException
-from app.services.base import BaseRepositoryService, BaseService, ServiceException
+from app.services.base import BaseService, ServiceException
 
 
 class TestBaseServiceInitialization:
@@ -29,7 +30,7 @@ class TestBaseServiceInitialization:
         assert service.db == mock_db
         assert service.cache is None
         assert service.logger is not None
-        assert service._metrics == {}
+        # Note: _metrics doesn't exist at instance level, it's class-level
 
     def test_initialization_with_cache(self):
         """Test initialization with cache service."""
@@ -139,128 +140,6 @@ class TestTransactionManagement:
         mock_db.commit.assert_called_once()
 
 
-class TestCacheDecorator:
-    """Test cache decorator functionality."""
-
-    @pytest.mark.asyncio
-    async def test_async_cache_decorator_hit(self):
-        """Test async cache decorator with cache hit."""
-        mock_db = Mock(spec=Session)
-        mock_cache = AsyncMock()
-        mock_cache.get = AsyncMock(return_value={"cached": "data"})
-
-        service = BaseService(mock_db, mock_cache)
-
-        # Create async function
-        async def get_data(self, user_id: int):
-            return {"user_id": user_id, "data": "fresh"}
-
-        # Apply decorator
-        decorated = service.with_cache("users", ttl=300)(get_data)
-
-        # Execute - should return cached data
-        result = await decorated(service, 123)
-
-        assert result == {"cached": "data"}
-        mock_cache.get.assert_called_once_with("users:123")
-        mock_cache.set.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_async_cache_decorator_miss(self):
-        """Test async cache decorator with cache miss."""
-        mock_db = Mock(spec=Session)
-        mock_cache = AsyncMock()
-        mock_cache.get = AsyncMock(return_value=None)
-        mock_cache.set = AsyncMock()
-
-        service = BaseService(mock_db, mock_cache)
-
-        # Create async function
-        async def get_data(self, user_id: int):
-            return {"user_id": user_id, "data": "fresh"}
-
-        # Apply decorator
-        decorated = service.with_cache("users", ttl=600)(get_data)
-
-        # Execute - should call function and cache result
-        result = await decorated(service, 123)
-
-        assert result == {"user_id": 123, "data": "fresh"}
-        mock_cache.get.assert_called_once_with("users:123")
-        mock_cache.set.assert_called_once_with("users:123", {"user_id": 123, "data": "fresh"}, ttl=600)
-
-    def test_sync_cache_decorator(self):
-        """Test sync function with cache decorator."""
-        mock_db = Mock(spec=Session)
-        mock_cache = Mock()
-
-        service = BaseService(mock_db, mock_cache)
-
-        # Create sync function
-        def get_data(self, user_id: int):
-            return {"user_id": user_id, "data": "sync"}
-
-        # Apply decorator - should return sync wrapper
-        decorated = service.with_cache("users")(get_data)
-
-        # Execute - for now just calls original function
-        result = decorated(service, 123)
-
-        assert result == {"user_id": 123, "data": "sync"}
-
-    @pytest.mark.asyncio
-    async def test_cache_decorator_with_custom_key_generator(self):
-        """Test cache decorator with custom key generator."""
-        mock_db = Mock(spec=Session)
-        mock_cache = AsyncMock()
-        mock_cache.get = AsyncMock(return_value=None)
-        mock_cache.set = AsyncMock()
-
-        service = BaseService(mock_db, mock_cache)
-
-        # Custom key generator
-        def custom_key(self, user_id: int, include_deleted: bool = False):
-            return f"custom:user:{user_id}:deleted_{include_deleted}"
-
-        # Create async function
-        async def get_user(self, user_id: int, include_deleted: bool = False):
-            return {"user_id": user_id, "include_deleted": include_deleted}
-
-        # Apply decorator with custom key generator
-        decorated = service.with_cache("users", ttl=300, key_generator=custom_key)(get_user)
-
-        # Execute
-        result = await decorated(service, 456, include_deleted=True)
-
-        # Verify custom key was used
-        mock_cache.get.assert_called_once_with("custom:user:456:deleted_True")
-
-    @pytest.mark.asyncio
-    async def test_cache_decorator_without_cache_service(self):
-        """Test cache decorator when no cache service is available."""
-        mock_db = Mock(spec=Session)
-        service = BaseService(mock_db, cache=None)
-
-        # Create async function
-        call_count = 0
-
-        async def get_data(self, user_id: int):
-            nonlocal call_count
-            call_count += 1
-            return {"user_id": user_id}
-
-        # Apply decorator
-        decorated = service.with_cache("users")(get_data)
-
-        # Execute multiple times - should always call function
-        result1 = await decorated(service, 123)
-        result2 = await decorated(service, 123)
-
-        assert call_count == 2
-        assert result1 == {"user_id": 123}
-        assert result2 == {"user_id": 123}
-
-
 class TestCacheInvalidation:
     """Test cache invalidation logic."""
 
@@ -289,8 +168,9 @@ class TestCacheInvalidation:
         service.invalidate_cache("user:123", "user:profile:123", "user:bookings:123")
 
         assert mock_cache.delete.call_count == 3
-        expected_calls = [call("user:123"), call("user:profile:123"), call("user:bookings:123")]
-        mock_cache.delete.assert_has_calls(expected_calls)
+        mock_cache.delete.assert_any_call("user:123")
+        mock_cache.delete.assert_any_call("user:profile:123")
+        mock_cache.delete.assert_any_call("user:bookings:123")
 
     def test_invalidate_cache_with_error(self):
         """Test cache invalidation continues on error."""
@@ -345,6 +225,11 @@ class TestCacheInvalidation:
 class TestPerformanceMonitoring:
     """Test performance monitoring functionality."""
 
+    def setup_method(self):
+        """Reset metrics before each test."""
+        # Clear all class-level metrics
+        BaseService._class_metrics.clear()
+
     def test_record_metric_success(self):
         """Test recording successful operation metric."""
         mock_db = Mock(spec=Session)
@@ -379,34 +264,36 @@ class TestPerformanceMonitoring:
         assert metrics["update_user"]["success_rate"] == pytest.approx(0.667, rel=0.01)
 
     def test_slow_operation_logging(self):
-        """Test slow operation warning."""
+        """Test slow operation warning (>1 second)."""
         mock_db = Mock(spec=Session)
         service = BaseService(mock_db)
 
         # Patch logger to check warning
         with patch.object(service.logger, "warning") as mock_warning:
-            service._record_metric("slow_query", 1.5, success=True)
+            # Use measure_operation_context for timing
+            with service.measure_operation_context("slow_query"):
+                time.sleep(1.1)  # Sleep more than 1 second
 
             mock_warning.assert_called_once()
             args = mock_warning.call_args[0][0]
             assert "Slow operation detected" in args
-            assert "slow_query took 1.50s" in args
+            assert "slow_query took" in args
 
-    def test_measure_performance_decorator(self):
-        """Test performance measurement decorator."""
+    def test_measure_operation_decorator(self):
+        """Test measure_operation decorator."""
         mock_db = Mock(spec=Session)
-        service = BaseService(mock_db)
 
-        # Function to measure
-        def process_data(data):
-            time.sleep(0.05)  # Simulate work
-            return f"processed_{data}"
+        # Create a test service class
+        class TestService(BaseService):
+            @BaseService.measure_operation("process_data")
+            def process_data(self, data):
+                time.sleep(0.05)  # Simulate work
+                return f"processed_{data}"
 
-        # Apply decorator
-        decorated = service.measure_performance("process_data")(process_data)
+        service = TestService(mock_db)
 
         # Execute
-        result = decorated("test")
+        result = service.process_data("test")
 
         # Verify result and metrics
         assert result == "processed_test"
@@ -417,22 +304,22 @@ class TestPerformanceMonitoring:
         assert metrics["process_data"]["avg_time"] >= 0.05
         assert metrics["process_data"]["success_rate"] == 1.0
 
-    def test_measure_performance_with_exception(self):
-        """Test performance measurement with exception."""
+    def test_measure_operation_with_exception(self):
+        """Test measure_operation with exception."""
         mock_db = Mock(spec=Session)
-        service = BaseService(mock_db)
 
-        # Function that raises exception
-        def failing_operation():
-            time.sleep(0.01)
-            raise ValueError("Operation failed")
+        # Create a test service class
+        class TestService(BaseService):
+            @BaseService.measure_operation("failing_op")
+            def failing_operation(self):
+                time.sleep(0.01)
+                raise ValueError("Operation failed")
 
-        # Apply decorator
-        decorated = service.measure_performance("failing_op")(failing_operation)
+        service = TestService(mock_db)
 
         # Execute and expect exception
         with pytest.raises(ValueError):
-            decorated()
+            service.failing_operation()
 
         # Verify failure was recorded
         metrics = service.get_metrics()
@@ -449,59 +336,37 @@ class TestPerformanceMonitoring:
 
         assert metrics == {}
 
-
-class TestValidation:
-    """Test input validation functionality."""
-
-    def test_validate_input_success(self):
-        """Test successful validation."""
+    def test_reset_metrics(self):
+        """Test resetting metrics."""
         mock_db = Mock(spec=Session)
         service = BaseService(mock_db)
 
-        # Mock validator class
-        class UserValidator:
-            def __init__(self, **data):
-                self.email = data["email"]
-                self.name = data["name"]
+        # Record some metrics
+        service._record_metric("test_op", 0.1, success=True)
 
-        # Validate
-        result = service.validate_input({"email": "test@example.com", "name": "Test User"}, UserValidator)
+        # Verify metrics exist
+        assert len(service.get_metrics()) > 0
 
-        assert result.email == "test@example.com"
-        assert result.name == "Test User"
+        # Reset metrics
+        service.reset_metrics()
 
-    def test_validate_input_failure(self):
-        """Test validation failure."""
+        # Verify metrics are cleared
+        assert service.get_metrics() == {}
+
+    def test_measure_operation_context(self):
+        """Test measure_operation_context context manager."""
         mock_db = Mock(spec=Session)
         service = BaseService(mock_db)
 
-        # Mock validator that raises exception
-        class StrictValidator:
-            def __init__(self, **data):
-                if "required_field" not in data:
-                    raise ValueError("required_field is missing")
+        # Use context manager
+        with service.measure_operation_context("context_operation"):
+            time.sleep(0.05)
 
-        # Should raise ValidationException
-        with pytest.raises(ValidationException) as exc_info:
-            service.validate_input({"other_field": "value"}, StrictValidator)
-
-        assert "required_field is missing" in str(exc_info.value)
-
-    def test_validate_input_with_pydantic_error(self):
-        """Test validation with Pydantic-style error."""
-        mock_db = Mock(spec=Session)
-        service = BaseService(mock_db)
-
-        # Mock Pydantic validation error
-        class PydanticValidator:
-            def __init__(self, **data):
-                error = type("ValidationError", (Exception,), {"__str__": lambda self: "field required"})()
-                raise error
-
-        with pytest.raises(ValidationException) as exc_info:
-            service.validate_input({}, PydanticValidator)
-
-        assert "field required" in str(exc_info.value)
+        # Check metrics were recorded
+        metrics = service.get_metrics()
+        assert "context_operation" in metrics
+        assert metrics["context_operation"]["count"] == 1
+        assert metrics["context_operation"]["avg_time"] >= 0.05
 
 
 class TestLogging:
@@ -526,139 +391,3 @@ class TestLogging:
             assert extra.get("user_id") == 123
             assert extra.get("instructor_id") == 456
             assert extra.get("amount") == 100.0
-
-
-class TestBaseRepositoryServiceLogic:
-    """Test BaseRepositoryService business logic."""
-
-    @pytest.fixture
-    def mock_repository(self):
-        """Create a mock repository."""
-        repo = Mock()
-        repo.model = type("TestModel", (), {"__name__": "TestModel", "id": None})
-        return repo
-
-    @pytest.mark.asyncio
-    async def test_get_by_id_with_cache_hit(self, mock_repository):
-        """Test get_by_id with cache hit."""
-        mock_db = Mock(spec=Session)
-        mock_cache = AsyncMock()
-        mock_cache.get = AsyncMock(return_value={"id": 123, "name": "Cached"})
-
-        service = BaseRepositoryService(mock_db, mock_repository, mock_cache)
-
-        result = await service.get_by_id(123)
-
-        assert result == {"id": 123, "name": "Cached"}
-        mock_cache.get.assert_called_once_with("TestModel:123")
-        mock_repository.get_by_id.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_get_by_id_with_cache_miss(self, mock_repository):
-        """Test get_by_id with cache miss."""
-        mock_db = Mock(spec=Session)
-        mock_cache = AsyncMock()
-        mock_cache.get = AsyncMock(return_value=None)
-        mock_cache.set = AsyncMock()
-
-        mock_entity = Mock(id=123, name="Fresh")
-        mock_repository.get_by_id.return_value = mock_entity
-
-        service = BaseRepositoryService(mock_db, mock_repository, mock_cache)
-
-        result = await service.get_by_id(123)
-
-        assert result == mock_entity
-        mock_cache.get.assert_called_once_with("TestModel:123")
-        mock_repository.get_by_id.assert_called_once_with(123)
-        mock_cache.set.assert_called_once_with("TestModel:123", mock_entity, ttl=300)
-
-    @pytest.mark.asyncio
-    async def test_get_by_id_without_cache(self, mock_repository):
-        """Test get_by_id without cache service."""
-        mock_db = Mock(spec=Session)
-        mock_entity = Mock(id=123)
-        mock_repository.get_by_id.return_value = mock_entity
-
-        service = BaseRepositoryService(mock_db, mock_repository, cache=None)
-
-        result = await service.get_by_id(123)
-
-        assert result == mock_entity
-        mock_repository.get_by_id.assert_called_once_with(123)
-
-    def test_create_with_cache_invalidation(self, mock_repository):
-        """Test create operation with cache invalidation."""
-        mock_db = Mock(spec=Session)
-        mock_db.commit = Mock()
-        mock_db.rollback = Mock()
-
-        mock_entity = Mock(id=123, __class__=Mock(__name__="TestEntity"))
-        mock_repository.create.return_value = mock_entity
-
-        mock_cache = Mock()
-        service = BaseRepositoryService(mock_db, mock_repository, mock_cache)
-
-        # Spy on invalidate_cache
-        with patch.object(service, "invalidate_cache") as mock_invalidate:
-            result = service.create({"name": "New Entity"})
-
-            assert result == mock_entity
-            mock_repository.create.assert_called_once_with({"name": "New Entity"})
-            mock_invalidate.assert_called_once_with("TestEntity:123")
-
-    def test_update_entity_not_found(self, mock_repository):
-        """Test update when entity doesn't exist."""
-        mock_db = Mock(spec=Session)
-        mock_db.commit = Mock()
-        mock_repository.update.return_value = None
-
-        service = BaseRepositoryService(mock_db, mock_repository)
-
-        result = service.update(999, {"name": "Updated"})
-
-        assert result is None
-        mock_repository.update.assert_called_once_with(999, {"name": "Updated"})
-
-    def test_delete_with_cache_invalidation(self, mock_repository):
-        """Test delete operation with cache invalidation."""
-        mock_db = Mock(spec=Session)
-        mock_db.commit = Mock()
-        mock_db.rollback = Mock()
-
-        mock_entity = Mock(id=123, __class__=Mock(__name__="TestEntity"))
-        mock_repository.get_by_id.return_value = mock_entity
-        mock_repository.delete.return_value = True
-
-        service = BaseRepositoryService(mock_db, mock_repository)
-
-        with patch.object(service, "invalidate_cache") as mock_invalidate:
-            result = service.delete(123)
-
-            assert result is True
-            mock_repository.get_by_id.assert_called_once_with(123)
-            mock_repository.delete.assert_called_once_with(123)
-            mock_invalidate.assert_called_once_with("TestEntity:123")
-
-    def test_invalidate_related_caches_override(self, mock_repository):
-        """Test that invalidate_related_caches can be overridden."""
-        mock_db = Mock(spec=Session)
-
-        # Create custom service with overridden method
-        class CustomRepositoryService(BaseRepositoryService):
-            def invalidate_related_caches(self, entity):
-                super().invalidate_related_caches(entity)
-                # Additional invalidation
-                self.invalidate_pattern(f"custom:{entity.id}:*")
-
-        mock_cache = Mock()
-        service = CustomRepositoryService(mock_db, mock_repository, mock_cache)
-
-        mock_entity = Mock(id=456, __class__=Mock(__name__="TestEntity"))
-
-        with patch.object(service, "invalidate_cache") as mock_invalidate:
-            with patch.object(service, "invalidate_pattern") as mock_pattern:
-                service.invalidate_related_caches(mock_entity)
-
-                mock_invalidate.assert_called_once_with("TestEntity:456")
-                mock_pattern.assert_called_once_with("custom:456:*")

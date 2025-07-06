@@ -1,13 +1,13 @@
-# backend/tests/test_specific_week.py
+# backend/tests/integration/api/test_specific_week.py
 """
-Test the endpoint with a specific week that has bookings - converted to proper pytest
+Test the endpoint with a specific week that has bookings - fixed for time-based booking
 """
 from datetime import date, time, timedelta
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.models.availability import AvailabilitySlot, InstructorAvailability
+from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service import Service
@@ -33,14 +33,7 @@ def test_week_with_known_bookings(
 
     service = db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
 
-    # Create availability for test date
-    availability = InstructorAvailability(
-        instructor_id=test_instructor_with_availability.id, date=test_date, is_cleared=False
-    )
-    db.add(availability)
-    db.flush()
-
-    # Create multiple slots
+    # Create multiple slots directly (single-table design)
     slots_data = [
         {"start": time(9, 0), "end": time(10, 0)},
         {"start": time(10, 0), "end": time(11, 0)},
@@ -50,20 +43,23 @@ def test_week_with_known_bookings(
     slots = []
     for slot_info in slots_data:
         slot = AvailabilitySlot(
-            availability_id=availability.id, start_time=slot_info["start"], end_time=slot_info["end"]
+            instructor_id=test_instructor_with_availability.id,
+            specific_date=test_date,
+            start_time=slot_info["start"],
+            end_time=slot_info["end"],
         )
         db.add(slot)
         slots.append(slot)
 
     db.flush()
 
-    # Create bookings for 2 of the 3 slots with CORRECT location_type values
+    # Create bookings for 2 of the 3 slots with time-based pattern
     for i in range(2):
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor_with_availability.id,
             service_id=service.id,
-            availability_slot_id=slots[i].id,
+            # availability_slot_id completely removed from architecture
             booking_date=test_date,
             start_time=slots[i].start_time,
             end_time=slots[i].end_time,

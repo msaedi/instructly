@@ -1,13 +1,13 @@
-# backend/tests/test_booked_slots_endpoint.py
+# backend/tests/integration/api/test_booked_slots_endpoint.py
 """
-Test the enhanced booked slots endpoint - fixed version with commit
+Test the enhanced booked slots endpoint - fixed version with time-based booking
 """
 from datetime import date, time, timedelta
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.models.availability import AvailabilitySlot, InstructorAvailability
+from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service import Service
@@ -30,9 +30,6 @@ def test_booked_slots_endpoint(
 ):
     """Test the booked slots endpoint with proper test infrastructure."""
 
-    # IMPORTANT: Commit the test data so the API endpoint can see it
-    # db.commit()
-
     # First, create a booking for this week to ensure we have data
     monday = get_monday_of_current_week()
 
@@ -43,36 +40,35 @@ def test_booked_slots_endpoint(
 
     service = db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
 
-    # Get or create availability for Monday
-    availability = (
-        db.query(InstructorAvailability)
+    # Get or create availability slot for Monday (single-table design)
+    slot = (
+        db.query(AvailabilitySlot)
         .filter(
-            InstructorAvailability.instructor_id == test_instructor_with_availability.id,
-            InstructorAvailability.date == monday,
+            AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
+            AvailabilitySlot.specific_date == monday,
+            AvailabilitySlot.start_time == time(9, 0),
+            AvailabilitySlot.end_time == time(10, 0),
         )
         .first()
     )
 
-    if not availability:
-        availability = InstructorAvailability(
-            instructor_id=test_instructor_with_availability.id, date=monday, is_cleared=False
+    if not slot:
+        # Create slot directly (no InstructorAvailability table)
+        slot = AvailabilitySlot(
+            instructor_id=test_instructor_with_availability.id,
+            specific_date=monday,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
         )
-        db.add(availability)
-        db.flush()
-
-        # Add a slot
-        slot = AvailabilitySlot(availability_id=availability.id, start_time=time(9, 0), end_time=time(10, 0))
         db.add(slot)
         db.flush()
-    else:
-        slot = db.query(AvailabilitySlot).filter(AvailabilitySlot.availability_id == availability.id).first()
 
-    # Create booking with CORRECT location_type values
+    # Create booking with time-based pattern (no availability_slot_id in new architecture)
     booking = Booking(
         student_id=test_student.id,
         instructor_id=test_instructor_with_availability.id,
         service_id=service.id,
-        availability_slot_id=slot.id,
+        # availability_slot_id completely removed from architecture
         booking_date=monday,
         start_time=slot.start_time,
         end_time=slot.end_time,
@@ -86,7 +82,7 @@ def test_booked_slots_endpoint(
         meeting_location="123 Test St",
     )
     db.add(booking)
-    db.commit()  # Commit the booking too
+    db.commit()
 
     # Now test the endpoint
     response = client.get(
@@ -135,9 +131,6 @@ def test_booked_slots_endpoint_empty_week(
     client: TestClient, db: Session, test_instructor: User, auth_headers_instructor: dict
 ):
     """Test the endpoint with no bookings."""
-
-    # IMPORTANT: Commit the test data
-    # db.commit()
 
     # Get a week far in the future that won't have bookings
     future_monday = date.today() + timedelta(days=365)
