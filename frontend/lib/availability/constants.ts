@@ -44,11 +44,11 @@ export const PRESET_SCHEDULES: Record<string, PresetSchedule> = {
    * Weekends off
    */
   weekday_9_to_5: {
-    monday: [{ start_time: '09:00:00', end_time: '17:00:00', is_available: true }],
-    tuesday: [{ start_time: '09:00:00', end_time: '17:00:00', is_available: true }],
-    wednesday: [{ start_time: '09:00:00', end_time: '17:00:00', is_available: true }],
-    thursday: [{ start_time: '09:00:00', end_time: '17:00:00', is_available: true }],
-    friday: [{ start_time: '09:00:00', end_time: '17:00:00', is_available: true }],
+    monday: [{ start_time: '09:00:00', end_time: '17:00:00' }],
+    tuesday: [{ start_time: '09:00:00', end_time: '17:00:00' }],
+    wednesday: [{ start_time: '09:00:00', end_time: '17:00:00' }],
+    thursday: [{ start_time: '09:00:00', end_time: '17:00:00' }],
+    friday: [{ start_time: '09:00:00', end_time: '17:00:00' }],
     saturday: [],
     sunday: [],
   },
@@ -58,13 +58,13 @@ export const PRESET_SCHEDULES: Record<string, PresetSchedule> = {
    * Good for instructors who prefer morning sessions
    */
   mornings_only: {
-    monday: [{ start_time: '08:00:00', end_time: '12:00:00', is_available: true }],
-    tuesday: [{ start_time: '08:00:00', end_time: '12:00:00', is_available: true }],
-    wednesday: [{ start_time: '08:00:00', end_time: '12:00:00', is_available: true }],
-    thursday: [{ start_time: '08:00:00', end_time: '12:00:00', is_available: true }],
-    friday: [{ start_time: '08:00:00', end_time: '12:00:00', is_available: true }],
-    saturday: [{ start_time: '08:00:00', end_time: '12:00:00', is_available: true }],
-    sunday: [{ start_time: '08:00:00', end_time: '12:00:00', is_available: true }],
+    monday: [{ start_time: '08:00:00', end_time: '12:00:00' }],
+    tuesday: [{ start_time: '08:00:00', end_time: '12:00:00' }],
+    wednesday: [{ start_time: '08:00:00', end_time: '12:00:00' }],
+    thursday: [{ start_time: '08:00:00', end_time: '12:00:00' }],
+    friday: [{ start_time: '08:00:00', end_time: '12:00:00' }],
+    saturday: [{ start_time: '08:00:00', end_time: '12:00:00' }],
+    sunday: [{ start_time: '08:00:00', end_time: '12:00:00' }],
   },
 
   /**
@@ -72,13 +72,13 @@ export const PRESET_SCHEDULES: Record<string, PresetSchedule> = {
    * Good for instructors with day jobs
    */
   evenings_only: {
-    monday: [{ start_time: '17:00:00', end_time: '21:00:00', is_available: true }],
-    tuesday: [{ start_time: '17:00:00', end_time: '21:00:00', is_available: true }],
-    wednesday: [{ start_time: '17:00:00', end_time: '21:00:00', is_available: true }],
-    thursday: [{ start_time: '17:00:00', end_time: '21:00:00', is_available: true }],
-    friday: [{ start_time: '17:00:00', end_time: '21:00:00', is_available: true }],
-    saturday: [],
-    sunday: [],
+    monday: [{ start_time: '17:00:00', end_time: '21:00:00' }],
+    tuesday: [{ start_time: '17:00:00', end_time: '21:00:00' }],
+    wednesday: [{ start_time: '17:00:00', end_time: '21:00:00' }],
+    thursday: [{ start_time: '17:00:00', end_time: '21:00:00' }],
+    friday: [{ start_time: '17:00:00', end_time: '21:00:00' }],
+    saturday: [{ start_time: '17:00:00', end_time: '21:00:00' }],
+    sunday: [{ start_time: '17:00:00', end_time: '21:00:00' }],
   },
 
   /**
@@ -91,8 +91,8 @@ export const PRESET_SCHEDULES: Record<string, PresetSchedule> = {
     wednesday: [],
     thursday: [],
     friday: [],
-    saturday: [{ start_time: '09:00:00', end_time: '17:00:00', is_available: true }],
-    sunday: [{ start_time: '09:00:00', end_time: '17:00:00', is_available: true }],
+    saturday: [{ start_time: '09:00:00', end_time: '17:00:00' }],
+    sunday: [{ start_time: '09:00:00', end_time: '17:00:00' }],
   },
 };
 

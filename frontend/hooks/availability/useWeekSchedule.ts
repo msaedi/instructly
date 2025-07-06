@@ -138,8 +138,7 @@ export function useWeekSchedule(
         if (
           !saved ||
           current.start_time !== saved.start_time ||
-          current.end_time !== saved.end_time ||
-          current.is_available !== saved.is_available
+          current.end_time !== saved.end_time
         ) {
           return true;
         }
