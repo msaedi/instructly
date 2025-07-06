@@ -6,31 +6,18 @@ import {
   BookingListResponse,
   AvailabilityCheckResponse,
   BookingPreview,
+  BookingCreate,
+  AvailabilityCheckRequest,
 } from '@/types/booking';
 
 /**
  * Bookings API Client
  *
- * This module provides a centralized interface for all booking-related API calls,
- * including creating bookings, checking availability, managing booking lifecycle,
- * and fetching booking statistics.
+ * Updated for time-based booking system without slot IDs.
+ * All booking operations now use instructor_id + date + time range.
  *
  * @module bookingsApi
  */
-
-/**
- * Request payload for creating a new booking
- */
-export interface BookingCreateRequest {
-  /** ID of the instructor to book */
-  instructor_id: number;
-  /** ID of the service being booked */
-  service_id: number;
-  /** ID of the availability slot to book */
-  availability_slot_id: number;
-  /** Optional notes from the student */
-  notes?: string;
-}
 
 /**
  * Filters for querying bookings
@@ -44,16 +31,6 @@ export interface BookingFilters {
   page?: number;
   /** Number of items per page */
   per_page?: number;
-}
-
-/**
- * Request payload for checking slot availability
- */
-export interface AvailabilityCheckRequest {
-  /** ID of the availability slot to check */
-  availability_slot_id: number;
-  /** ID of the service to check against */
-  service_id: number;
 }
 
 /**
@@ -91,24 +68,30 @@ export interface BookingStatsResponse {
  */
 export const bookingsApi = {
   /**
-   * Check if a slot is available before booking
+   * Check if a time range is available before booking
    *
-   * @param data - Availability check request data
+   * @param data - Availability check request data with time range
    * @returns Promise with availability status
    * @throws Error if the check fails
    *
    * @example
    * ```ts
    * const isAvailable = await bookingsApi.checkAvailability({
-   *   availability_slot_id: 123,
-   *   service_id: 456
+   *   instructor_id: 123,
+   *   service_id: 456,
+   *   booking_date: "2025-07-15",
+   *   start_time: "09:00",
+   *   end_time: "10:00"
    * });
    * ```
    */
   checkAvailability: async (data: AvailabilityCheckRequest): Promise<AvailabilityCheckResponse> => {
-    logger.info('Checking slot availability', {
-      slotId: data.availability_slot_id,
+    logger.info('Checking time range availability', {
+      instructorId: data.instructor_id,
       serviceId: data.service_id,
+      date: data.booking_date,
+      startTime: data.start_time,
+      endTime: data.end_time,
     });
 
     const response = await fetchWithAuth('/bookings/check-availability', {
@@ -122,7 +105,8 @@ export const bookingsApi = {
     if (!response.ok) {
       const error = await response.json();
       logger.error('Availability check failed', undefined, {
-        slotId: data.availability_slot_id,
+        instructorId: data.instructor_id,
+        date: data.booking_date,
         error,
       });
       throw new Error(error.detail || 'Failed to check availability');
@@ -130,16 +114,17 @@ export const bookingsApi = {
 
     const result = await response.json();
     logger.debug('Availability check successful', {
-      slotId: data.availability_slot_id,
+      instructorId: data.instructor_id,
       available: result.available,
+      reason: result.reason,
     });
     return result;
   },
 
   /**
-   * Create an instant booking
+   * Create an instant booking with time-based information
    *
-   * @param data - Booking creation request data
+   * @param data - Booking creation request data with time range
    * @returns Promise with the created booking
    * @throws Error if booking creation fails
    *
@@ -148,17 +133,21 @@ export const bookingsApi = {
    * const booking = await bookingsApi.createBooking({
    *   instructor_id: 123,
    *   service_id: 456,
-   *   availability_slot_id: 789,
-   *   notes: 'First time student'
+   *   booking_date: "2025-07-15",
+   *   start_time: "09:00",
+   *   end_time: "10:00",
+   *   student_note: 'First time student'
    * });
    * ```
    */
-  createBooking: async (data: BookingCreateRequest): Promise<Booking> => {
-    logger.info('Creating booking', {
+  createBooking: async (data: BookingCreate): Promise<Booking> => {
+    logger.info('Creating time-based booking', {
       instructorId: data.instructor_id,
       serviceId: data.service_id,
-      slotId: data.availability_slot_id,
-      hasNotes: !!data.notes,
+      date: data.booking_date,
+      startTime: data.start_time,
+      endTime: data.end_time,
+      hasNotes: !!data.student_note,
     });
 
     const response = await fetchWithAuth('/bookings/', {
@@ -173,7 +162,8 @@ export const bookingsApi = {
       const error = await response.json();
       logger.error('Booking creation failed', undefined, {
         instructorId: data.instructor_id,
-        slotId: data.availability_slot_id,
+        date: data.booking_date,
+        time: `${data.start_time}-${data.end_time}`,
         error,
       });
       throw new Error(error.detail || 'Failed to create booking');
@@ -183,6 +173,8 @@ export const bookingsApi = {
     logger.info('Booking created successfully', {
       bookingId: booking.id,
       status: booking.status,
+      date: booking.booking_date,
+      time: `${booking.start_time}-${booking.end_time}`,
     });
     return booking;
   },
@@ -574,7 +566,6 @@ export const availabilityApi = {
     logger.debug('Available slots fetched', {
       instructorId,
       date,
-      availableCount: slots.filter((s: any) => s.is_available).length,
       totalCount: slots.length,
     });
     return slots;

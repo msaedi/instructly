@@ -3,15 +3,6 @@ import React from 'react';
 import { logger } from '@/lib/logger';
 
 /**
- * TimeSlot interface for availability ranges
- */
-interface TimeSlot {
-  start_time: string;
-  end_time: string;
-  is_available: boolean;
-}
-
-/**
  * DateInfo interface for week dates
  */
 interface DateInfo {

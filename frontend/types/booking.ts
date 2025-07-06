@@ -10,7 +10,7 @@ export interface Booking {
   student_id: number;
   instructor_id: number;
   service_id: number;
-  availability_slot_id: number;
+  // REMOVED: availability_slot_id - no longer exists in backend
 
   // Date and time fields
   booking_date: string; // ISO date string (YYYY-MM-DD)
@@ -29,7 +29,7 @@ export interface Booking {
   meeting_location?: string;
   location_type?: LocationType;
 
-  // Notes - REMOVE 'notes?' and use these instead
+  // Notes
   student_note?: string;
   instructor_note?: string;
 
@@ -45,11 +45,11 @@ export interface Booking {
   cancelled_by_id?: number;
   cancellation_reason?: string;
 
-  // Relations (populated in detailed views) - KEEP THESE!
+  // Relations (populated in detailed views)
   student?: User;
   instructor?: User;
   service?: Service;
-  availability_slot?: AvailabilitySlot;
+  // REMOVED: availability_slot relation
 }
 
 // User type for relations
@@ -90,32 +90,18 @@ export interface InstructorProfile {
   services?: Service[];
 }
 
-// Availability slot
+// Single-table availability slot (Work Stream #10)
 export interface AvailabilitySlot {
   id: number;
-  availability_id: number;
+  instructor_id: number; // Direct reference, no availability_id
+  date: string; // YYYY-MM-DD
   start_time: string; // HH:MM:SS
   end_time: string; // HH:MM:SS
-  booking_id?: number; // If booked, references the booking
   created_at: string;
   updated_at: string;
-
-  // Computed/joined fields
-  is_available?: boolean;
-  date?: string; // From parent availability
 }
 
-// Instructor availability (date level)
-export interface InstructorAvailability {
-  id: number;
-  instructor_id: number;
-  date: string; // YYYY-MM-DD
-  created_at: string;
-  updated_at: string;
-
-  // Relations
-  slots?: AvailabilitySlot[];
-}
+// REMOVED: InstructorAvailability type - table no longer exists in backend
 
 // Blackout date
 export interface BlackoutDate {
@@ -140,24 +126,28 @@ export interface AvailabilityResponse {
   instructor_id: number;
   start_date: string;
   end_date: string;
-  availabilities: InstructorAvailability[];
+  availabilities: AvailabilitySlot[]; // Direct slots, no wrapper
   blackout_dates: BlackoutDate[];
 }
 
-// Form/UI specific types
-export interface BookingFormData {
+// NEW: Time-based booking creation
+export interface BookingCreate {
   instructor_id: number;
   service_id: number;
-  availability_slot_id: number;
-  notes?: string;
+  booking_date: string; // ISO date: "2025-07-15"
+  start_time: string; // 24hr format: "09:00"
+  end_time: string; // 24hr format: "10:00"
+  student_note?: string;
+  meeting_location?: string;
+  location_type?: LocationType;
 }
 
+// Form/UI specific types
 export interface TimeSlot {
   id: number;
+  date: string;
   start_time: string;
   end_time: string;
-  is_available: boolean;
-  date: string;
 }
 
 // Booking creation response
@@ -166,13 +156,25 @@ export interface BookingCreateResponse {
   message: string;
 }
 
-// Availability check response
+// NEW: Time-based availability check
+export interface AvailabilityCheckRequest {
+  instructor_id: number;
+  service_id: number;
+  booking_date: string; // ISO date
+  start_time: string; // 24hr format
+  end_time: string; // 24hr format
+}
+
 export interface AvailabilityCheckResponse {
   available: boolean;
-  slot: AvailabilitySlot;
-  service: Service;
-  total_price: number;
-  duration_minutes: number;
+  reason?: string;
+  time_info?: {
+    date: string;
+    start_time: string;
+    end_time: string;
+    instructor_id: number;
+  };
+  min_advance_hours?: number;
 }
 
 export interface BookedSlotPreview {
@@ -190,15 +192,6 @@ export interface BookedSlotPreview {
 
 export interface BookedSlotsResponse {
   booked_slots: BookedSlotPreview[];
-}
-
-// Update the BookingCreate interface:
-export interface BookingCreate {
-  availability_slot_id: number;
-  service_id: number;
-  student_note?: string;
-  meeting_location?: string;
-  location_type?: LocationType;
 }
 
 export interface BookingPreview {
@@ -248,20 +241,6 @@ export const getLocationTypeIcon = (locationType: LocationType): string => {
 };
 
 /**
- * Request payload for creating a new booking
- */
-export interface BookingCreateRequest {
-  /** ID of the instructor to book */
-  instructor_id: number;
-  /** ID of the service being booked */
-  service_id: number;
-  /** ID of the availability slot to book */
-  availability_slot_id: number;
-  /** Optional notes from the student */
-  notes?: string;
-}
-
-/**
  * Filters for querying bookings
  */
 export interface BookingFilters {
@@ -273,16 +252,6 @@ export interface BookingFilters {
   page?: number;
   /** Number of items per page */
   per_page?: number;
-}
-
-/**
- * Request payload for checking slot availability
- */
-export interface AvailabilityCheckRequest {
-  /** ID of the availability slot to check */
-  availability_slot_id: number;
-  /** ID of the service to check against */
-  service_id: number;
 }
 
 /**
@@ -339,10 +308,4 @@ export interface AvailabilitySlotResponse {
   start_time: string;
   /** End time */
   end_time: string;
-  /** Whether the slot is available */
-  is_available: boolean;
-  /** Whether the slot is booked */
-  is_booked?: boolean;
-  /** Booking ID if booked */
-  booking_id?: number;
 }

@@ -285,9 +285,6 @@ export interface TimeSlot {
 
   /** End time in HH:MM:SS format */
   end_time: string;
-
-  /** Whether the slot is available for booking */
-  is_available: boolean;
 }
 
 /**
@@ -299,11 +296,11 @@ export interface TimeSlot {
  * ```ts
  * const weekSchedule: WeekSchedule = {
  *   '2025-06-15': [
- *     { start_time: '09:00:00', end_time: '10:00:00', is_available: true },
- *     { start_time: '10:00:00', end_time: '11:00:00', is_available: false }
+ *     { start_time: '09:00:00', end_time: '10:00:00'},
+ *     { start_time: '10:00:00', end_time: '11:00:00'}
  *   ],
  *   '2025-06-16': [
- *     { start_time: '14:00:00', end_time: '15:00:00', is_available: true }
+ *     { start_time: '14:00:00', end_time: '15:00:00'}
  *   ]
  * };
  * ```
@@ -375,8 +372,8 @@ export interface WeekDateInfo {
  * @example
  * ```ts
  * const weekdaySchedule: PresetSchedule = {
- *   monday: [{ start_time: '09:00:00', end_time: '17:00:00', is_available: true }],
- *   tuesday: [{ start_time: '09:00:00', end_time: '17:00:00', is_available: true }],
+ *   monday: [{ start_time: '09:00:00', end_time: '17:00:00'}],
+ *   tuesday: [{ start_time: '09:00:00', end_time: '17:00:00'}],
  *   // ... other days
  * };
  * ```

@@ -7,6 +7,8 @@
  * including booking checks, slot merging, and time range operations.
  * These functions ensure business rules are properly enforced.
  *
+ * UPDATED: Removed is_available concept - if slot exists, it's available
+ *
  * @module availability/slotHelpers
  */
 
@@ -53,16 +55,16 @@ export function isSlotBooked(
 }
 
 /**
- * Check if a time slot is within any availability range
+ * Check if a time slot exists for a given hour
  *
  * @param date - Date in YYYY-MM-DD format
  * @param hour - Hour of the day (0-23)
  * @param schedule - Week schedule object
- * @returns true if the hour falls within an available slot
+ * @returns true if a slot exists for this hour (existence = availability)
  *
  * @example
  * ```ts
- * // If schedule has 9:00-12:00 available on this date
+ * // If schedule has 9:00-12:00 slot on this date
  * isHourInTimeRange('2025-06-15', 10, schedule) // true
  * isHourInTimeRange('2025-06-15', 13, schedule) // false
  * ```
@@ -70,10 +72,11 @@ export function isSlotBooked(
 export function isHourInTimeRange(date: string, hour: number, schedule: WeekSchedule): boolean {
   const daySlots = schedule[date] || [];
 
+  // If slot exists for this hour, it's available
   const inRange = daySlots.some((range) => {
     const startHour = parseInt(range.start_time.split(':')[0]);
     const endHour = parseInt(range.end_time.split(':')[0]);
-    return hour >= startHour && hour < endHour && range.is_available;
+    return hour >= startHour && hour < endHour;
   });
 
   logger.debug('Checked if hour is in time range', {
@@ -132,9 +135,9 @@ export function getBookingForSlot(
  *
  * @example
  * ```ts
- * // Input: [9-10 available], [10-11 available], [11-12 available]
- * // With no bookings: Returns [9-12 available]
- * // With booking at 10-11: Returns [9-10 available], [10-11 available], [11-12 available]
+ * // Input: [9-10], [10-11], [11-12]
+ * // With no bookings: Returns [9-12]
+ * // With booking at 10-11: Returns [9-10], [10-11], [11-12]
  * ```
  */
 export function mergeAdjacentSlots(
@@ -170,11 +173,8 @@ export function mergeAdjacentSlots(
       }
     }
 
-    // Check if we can merge
-    const canMerge =
-      current.end_time === next.start_time &&
-      current.is_available === next.is_available &&
-      !hasBookingBetween;
+    // Check if we can merge (all slots are available now, just check adjacency)
+    const canMerge = current.end_time === next.start_time && !hasBookingBetween;
 
     if (canMerge) {
       // Extend current slot
@@ -278,14 +278,13 @@ export function splitSlotAtHour(slot: TimeSlot, hour: number): TimeSlot[] {
   // Before the hour
   if (hour > startHour) {
     splits.push({
-      ...slot,
+      start_time: slot.start_time,
       end_time: `${hour.toString().padStart(2, '0')}:00:00`,
     });
   }
 
   // The hour itself
   splits.push({
-    ...slot,
     start_time: `${hour.toString().padStart(2, '0')}:00:00`,
     end_time: `${(hour + 1).toString().padStart(2, '0')}:00:00`,
   });
@@ -293,8 +292,8 @@ export function splitSlotAtHour(slot: TimeSlot, hour: number): TimeSlot[] {
   // After the hour
   if (hour + 1 < endHour) {
     splits.push({
-      ...slot,
       start_time: `${(hour + 1).toString().padStart(2, '0')}:00:00`,
+      end_time: slot.end_time,
     });
   }
 
@@ -305,14 +304,12 @@ export function splitSlotAtHour(slot: TimeSlot, hour: number): TimeSlot[] {
  * Create a new time slot for a single hour
  *
  * @param hour - Hour of the day (0-23)
- * @param isAvailable - Whether the slot should be available
- * @returns TimeSlot object
+ * @returns TimeSlot object (always available)
  */
-export function createHourSlot(hour: number, isAvailable: boolean = true): TimeSlot {
+export function createHourSlot(hour: number): TimeSlot {
   return {
     start_time: `${hour.toString().padStart(2, '0')}:00:00`,
     end_time: `${(hour + 1).toString().padStart(2, '0')}:00:00`,
-    is_available: isAvailable,
   };
 }
 
