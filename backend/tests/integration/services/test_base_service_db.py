@@ -1,4 +1,4 @@
-# backend/tests/integration/test_base_service_db.py
+# backend/tests/integration/services/test_base_service_db.py
 """
 Integration tests for BaseService database operations.
 
@@ -12,11 +12,11 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import ValidationException
+from app.core.exceptions import ServiceException
 from app.models.instructor import InstructorProfile
 from app.models.service import Service
 from app.models.user import User
-from app.services.base import BaseRepositoryService, BaseService, ServiceException
+from app.services.base import BaseService
 from app.services.cache_service import CacheService
 
 
@@ -243,30 +243,57 @@ class TestBaseServicePerformanceMonitoring:
         """Test slow operation warning logging."""
         service = BaseService(db)
 
-        # Record slow operation (>1 second)
+        # Use the context manager with an actual slow operation
         with caplog.at_level("WARNING"):
-            service._record_metric("slow_query", 1.5, success=True)
+            with service.measure_operation_context("slow_query"):
+                import time
 
-        # Verify warning was logged
-        assert "Slow operation detected" in caplog.text
-        assert "slow_query took 1.50s" in caplog.text
+                time.sleep(1.1)  # Sleep for more than 1 second to trigger warning
 
-    def test_performance_decorator_usage(self, db: Session):
-        """Test measure_performance decorator pattern."""
+        # Verify warning was logged with correct format
+        warning_found = any(
+            "Slow operation detected: slow_query took" in record.message
+            for record in caplog.records
+            if record.levelname == "WARNING"
+        )
+
+        assert (
+            warning_found
+        ), f"Expected slow operation warning not found. Captured logs: {[(r.levelname, r.message) for r in caplog.records]}"
+
+    def test_measure_operation_context_usage(self, db: Session):
+        """Test measure_operation_context context manager."""
         service = BaseService(db)
 
-        # Create a test function
-        def slow_operation():
+        # Use context manager for measurement
+        with service.measure_operation_context("context_operation"):
+            import time
+
+            time.sleep(0.05)
+            result = "context_result"
+
+        # Verify metrics were recorded
+        metrics = service.get_metrics()
+        assert "context_operation" in metrics
+        assert metrics["context_operation"]["count"] == 1
+        assert metrics["context_operation"]["avg_time"] >= 0.05
+        assert metrics["context_operation"]["success_rate"] == 1.0
+        """Test measure_operation decorator pattern."""
+        service = BaseService(db)
+
+        # Create a test method and bind it to the service instance
+        @BaseService.measure_operation("test_operation")
+        def slow_operation(self):
             import time
 
             time.sleep(0.1)
             return "result"
 
-        # Apply decorator
-        decorated = service.measure_performance("test_operation")(slow_operation)
+        # Bind the method to the service instance
+        bound_method = slow_operation.__get__(service, BaseService)
 
         # Execute
-        result = decorated()
+        result = bound_method()
 
         # Verify result and metrics
         assert result == "result"
@@ -277,118 +304,28 @@ class TestBaseServicePerformanceMonitoring:
 
 
 class TestBaseServiceValidation:
-    """Test input validation functionality."""
+    """Test validation functionality has been removed from BaseService."""
 
-    def test_successful_validation(self, db: Session):
-        """Test successful input validation."""
+    def test_validation_removed(self, db: Session):
+        """Verify that validate_input method no longer exists."""
         service = BaseService(db)
 
-        # Mock Pydantic model
-        class TestModel:
-            def __init__(self, **data):
-                self.name = data.get("name")
-                self.age = data.get("age")
-                if not self.name:
-                    raise ValueError("name is required")
+        # Confirm the method doesn't exist
+        assert not hasattr(service, "validate_input")
 
-        # Validate valid data
-        result = service.validate_input({"name": "Test", "age": 25}, TestModel)
-
-        assert result.name == "Test"
-        assert result.age == 25
-
-    def test_validation_error(self, db: Session):
-        """Test validation error handling."""
-        service = BaseService(db)
-
-        # Mock Pydantic model that raises error
-        class TestModel:
-            def __init__(self, **data):
-                raise ValueError("Invalid data: missing required field")
-
-        # Should raise ValidationException
-        with pytest.raises(ValidationException) as exc_info:
-            service.validate_input({"invalid": "data"}, TestModel)
-
-        assert "Invalid data" in str(exc_info.value)
-
-    def test_logging_operations(self, db: Session, caplog):
-        """Test operation logging."""
+    def test_logging_operations_still_works(self, db: Session, caplog):
+        """Test that operation logging still functions."""
         service = BaseService(db)
 
         # Log operation
         with caplog.at_level("INFO"):
             service.log_operation("create_booking", user_id=123, instructor_id=456, status="confirmed")
 
-        # Verify log entry
-        assert "Operation: create_booking" in caplog.text
+        # Verify log entry exists
+        log_found = False
+        for record in caplog.records:
+            if "Operation: create_booking" in record.message:
+                log_found = True
+                break
 
-
-class TestBaseRepositoryService:
-    """Test BaseRepositoryService functionality."""
-
-    @pytest.fixture
-    def mock_repository(self):
-        """Create a mock repository."""
-        repo = Mock()
-        repo.model = type("TestModel", (), {"__name__": "TestModel", "id": None})
-        return repo
-
-    def test_create_with_transaction(self, db: Session, mock_repository):
-        """Test create operation with transaction."""
-        mock_entity = Mock(id=123, __class__=Mock(__name__="TestEntity"))
-        mock_repository.create.return_value = mock_entity
-
-        service = BaseRepositoryService(db, mock_repository)
-
-        # Create entity
-        result = service.create({"name": "Test"})
-
-        # Verify repository was called
-        mock_repository.create.assert_called_once_with({"name": "Test"})
-        assert result == mock_entity
-
-    def test_update_with_cache_invalidation(self, db: Session, mock_repository):
-        """Test update with cache invalidation."""
-        mock_entity = Mock(id=123, __class__=Mock(__name__="TestEntity"))
-        mock_repository.update.return_value = mock_entity
-
-        mock_cache = Mock()
-        service = BaseRepositoryService(db, mock_repository, mock_cache)
-
-        # Update entity
-        result = service.update(123, {"name": "Updated"})
-
-        # Verify update and cache invalidation
-        mock_repository.update.assert_called_once_with(123, {"name": "Updated"})
-        assert result == mock_entity
-
-    def test_delete_with_cache_invalidation(self, db: Session, mock_repository):
-        """Test delete with cache invalidation."""
-        mock_entity = Mock(id=123, __class__=Mock(__name__="TestEntity"))
-        mock_repository.get_by_id.return_value = mock_entity
-        mock_repository.delete.return_value = True
-
-        service = BaseRepositoryService(db, mock_repository)
-
-        # Delete entity
-        result = service.delete(123)
-
-        # Verify operations
-        mock_repository.get_by_id.assert_called_once_with(123)
-        mock_repository.delete.assert_called_once_with(123)
-        assert result is True
-
-    def test_delete_nonexistent_entity(self, db: Session, mock_repository):
-        """Test deleting non-existent entity."""
-        mock_repository.get_by_id.return_value = None
-
-        service = BaseRepositoryService(db, mock_repository)
-
-        # Try to delete
-        result = service.delete(999)
-
-        # Should return False without calling delete
-        mock_repository.get_by_id.assert_called_once_with(999)
-        mock_repository.delete.assert_not_called()
-        assert result is False
+        assert log_found

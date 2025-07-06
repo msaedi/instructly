@@ -1,4 +1,4 @@
-# backend/tests/unit/test_booking_service_logic.py
+# backend/tests/unit/services/test_booking_service_logic.py
 """
 Unit tests for BookingService business logic with repository pattern.
 
@@ -6,6 +6,7 @@ These tests mock all dependencies (repository, notification service, etc.)
 to test the business logic in isolation.
 
 UPDATED FOR WORK STREAM #10: Single-table availability design.
+UPDATED FOR WORK STREAM #11: Time-based booking (no slot IDs).
 """
 
 from datetime import date, datetime, time, timedelta
@@ -58,37 +59,33 @@ class TestBookingServiceUnit:
         """Create a mock booking repository."""
         repository = Mock(spec=BookingRepository)
         # Set default return values for common methods
-        repository.get_booking_for_slot.return_value = None
+        repository.check_time_conflict.return_value = []  # No conflicts by default
+        repository.get_bookings_by_time_range.return_value = []  # No existing bookings
         repository.create.return_value = Mock(spec=Booking, id=1)
         repository.get_booking_with_details.return_value = None
         repository.update.return_value = None
-        return repository
-
-    @pytest.fixture
-    def mock_slot_repository(self):
-        """Create a mock slot manager repository."""
-        repository = Mock()
+        repository.get_student_bookings.return_value = []
+        repository.get_instructor_bookings.return_value = []
+        repository.get_instructor_bookings_for_stats.return_value = []
+        repository.get_bookings_for_date.return_value = []
         return repository
 
     @pytest.fixture
     def mock_availability_repository(self):
         """Create a mock availability repository."""
         repository = Mock()
-        repository.get_availability_slot_with_details.return_value = None
+        repository.get_slots_by_date.return_value = []
         return repository
 
     @pytest.fixture
-    def booking_service(
-        self, mock_db, mock_notification_service, mock_repository, mock_slot_repository, mock_availability_repository
-    ):
+    def booking_service(self, mock_db, mock_notification_service, mock_repository, mock_availability_repository):
         """Create BookingService with mocked dependencies."""
         service = BookingService(mock_db, mock_notification_service, mock_repository)
         # Mock the transaction context manager
         service.transaction = MagicMock()
         service.transaction.return_value.__enter__ = Mock()
         service.transaction.return_value.__exit__ = Mock(return_value=None)
-        # Replace the other repositories
-        service.slot_repository = mock_slot_repository
+        # Replace the repository
         service.availability_repository = mock_availability_repository
         return service
 
@@ -140,21 +137,19 @@ class TestBookingServiceUnit:
         slot = Mock(spec=AvailabilitySlot)
         slot.id = 1
         slot.instructor_id = 2  # Same as mock_instructor.id
-        slot.date = date.today() + timedelta(days=2)
+        slot.specific_date = date.today() + timedelta(days=2)
         slot.start_time = time(14, 0)
         slot.end_time = time(15, 0)
-
         return slot
 
     @pytest.fixture
-    def mock_booking(self, mock_student, mock_instructor, mock_service, mock_slot):
+    def mock_booking(self, mock_student, mock_instructor, mock_service):
         """Create a mock booking."""
         booking = Mock(spec=Booking)
         booking.id = 1
         booking.student_id = mock_student.id
         booking.instructor_id = mock_instructor.id
         booking.service_id = mock_service.id
-        booking.availability_slot_id = mock_slot.id
         booking.booking_date = date.today() + timedelta(days=2)
         booking.start_time = time(14, 0)
         booking.end_time = time(15, 0)
@@ -171,7 +166,6 @@ class TestBookingServiceUnit:
         booking.student = mock_student
         booking.instructor = mock_instructor
         booking.service = mock_service
-        booking.availability_slot = mock_slot
 
         # Mock methods
         booking.cancel = Mock()
@@ -187,26 +181,23 @@ class TestBookingServiceUnit:
         mock_student,
         mock_instructor,
         mock_service,
-        mock_slot,
         mock_instructor_profile,
         mock_booking,
     ):
         """Test successful booking creation."""
-        # Setup mocks
+        # Setup booking data with time-based fields
         booking_data = BookingCreate(
-            availability_slot_id=1,
+            instructor_id=mock_instructor.id,
             service_id=1,
-            location_type="neutral",
+            booking_date=date.today() + timedelta(days=2),
+            start_time=time(14, 0),
+            end_time=time(15, 0),
             meeting_location="Online",
             student_note="Looking forward to it!",
         )
 
-        # Make sure the service's instructor_profile_id matches the profile
-        mock_service.instructor_profile_id = mock_instructor_profile.id
-
         # Mock repository responses
-        booking_service.availability_repository.get_availability_slot_with_details.return_value = mock_slot
-        booking_service.repository.get_booking_for_slot.return_value = None  # No existing booking
+        booking_service.repository.check_time_conflict.return_value = []  # No conflicts
 
         # Mock the service and instructor profile queries (still direct DB queries in the service)
         mock_db.query.return_value.filter.return_value.first.side_effect = [
@@ -224,8 +215,7 @@ class TestBookingServiceUnit:
 
         # Assertions
         assert result == mock_booking
-        booking_service.availability_repository.get_availability_slot_with_details.assert_called_once_with(1)
-        booking_service.repository.get_booking_for_slot.assert_called_once_with(1, active_only=True)
+        booking_service.repository.check_time_conflict.assert_called_once()
         booking_service.repository.create.assert_called_once()
         mock_db.commit.assert_called()
         booking_service.notification_service.send_booking_confirmation.assert_called_once()
@@ -233,30 +223,30 @@ class TestBookingServiceUnit:
     @pytest.mark.asyncio
     async def test_create_booking_instructor_role_fails(self, booking_service, mock_instructor):
         """Test that instructors cannot create bookings."""
-        booking_data = BookingCreate(availability_slot_id=1, service_id=1, location_type="neutral")
+        booking_data = BookingCreate(
+            instructor_id=2,
+            service_id=1,
+            booking_date=date.today() + timedelta(days=2),
+            start_time=time(14, 0),
+            end_time=time(15, 0),
+        )
 
         with pytest.raises(ValidationException, match="Only students can create bookings"):
             await booking_service.create_booking(mock_instructor, booking_data)
 
     @pytest.mark.asyncio
-    async def test_create_booking_slot_not_found(self, booking_service, mock_db, mock_student):
-        """Test booking creation fails when slot not found."""
-        booking_data = BookingCreate(availability_slot_id=999, service_id=1, location_type="neutral")
-
-        # Mock slot not found
-        booking_service.availability_repository.get_availability_slot_with_details.return_value = None
-
-        with pytest.raises(NotFoundException, match="Availability slot not found"):
-            await booking_service.create_booking(mock_student, booking_data)
-
-    @pytest.mark.asyncio
-    async def test_create_booking_service_inactive(self, booking_service, mock_db, mock_student, mock_slot):
+    async def test_create_booking_service_inactive(self, booking_service, mock_db, mock_student):
         """Test booking creation fails with inactive service."""
-        booking_data = BookingCreate(availability_slot_id=1, service_id=1, location_type="neutral")
+        booking_data = BookingCreate(
+            instructor_id=2,
+            service_id=1,
+            booking_date=date.today() + timedelta(days=2),
+            start_time=time(14, 0),
+            end_time=time(15, 0),
+        )
 
         # Mock repository responses
-        booking_service.availability_repository.get_availability_slot_with_details.return_value = mock_slot
-        booking_service.repository.get_booking_for_slot.return_value = None
+        booking_service.repository.check_time_conflict.return_value = []
 
         # Mock service not found (inactive)
         mock_db.query.return_value.filter.return_value.first.return_value = None
@@ -265,52 +255,43 @@ class TestBookingServiceUnit:
             await booking_service.create_booking(mock_student, booking_data)
 
     @pytest.mark.asyncio
-    async def test_create_booking_slot_already_booked(
-        self, booking_service, mock_db, mock_student, mock_slot, mock_booking, mock_service, mock_instructor_profile
+    async def test_create_booking_time_conflict(
+        self, booking_service, mock_db, mock_student, mock_booking, mock_service, mock_instructor_profile
     ):
-        """Test booking creation fails when slot already booked."""
-        booking_data = BookingCreate(availability_slot_id=1, service_id=1, location_type="neutral")
-
-        # Debug: Print the initial values
-        print(f"mock_slot.instructor_id: {mock_slot.instructor_id}")
-        print(f"mock_service.instructor_profile_id: {mock_service.instructor_profile_id}")
-        print(f"mock_instructor_profile.id: {mock_instructor_profile.id}")
-        print(f"mock_instructor_profile.user_id: {mock_instructor_profile.user_id}")
+        """Test booking creation fails when time conflicts with existing booking."""
+        booking_data = BookingCreate(
+            instructor_id=2,
+            service_id=1,
+            booking_date=date.today() + timedelta(days=2),
+            start_time=time(14, 0),
+            end_time=time(15, 0),
+        )
 
         # Mock repository responses
-        booking_service.availability_repository.get_availability_slot_with_details.return_value = mock_slot
-        booking_service.repository.get_booking_for_slot.return_value = mock_booking  # Slot is booked!
+        booking_service.repository.check_time_conflict.return_value = [mock_booking]  # Has conflicts!
 
-        # Create separate mocks for the two queries to ensure they return the right objects
-        service_query_mock = Mock()
-        service_query_mock.filter.return_value.first.return_value = mock_service
+        # Mock the service and instructor profile queries
+        mock_db.query.return_value.filter.return_value.first.side_effect = [mock_service, mock_instructor_profile]
 
-        profile_query_mock = Mock()
-        profile_query_mock.filter.return_value.first.return_value = mock_instructor_profile
-
-        # Set up the query mock to return different mocks for each call
-        mock_db.query.side_effect = [service_query_mock, profile_query_mock]
-
-        with pytest.raises(ConflictException, match="This slot is already booked"):
+        with pytest.raises(ConflictException, match="This time slot conflicts with an existing booking"):
             await booking_service.create_booking(mock_student, booking_data)
 
     @pytest.mark.asyncio
     async def test_create_booking_minimum_advance_hours(
-        self, booking_service, mock_db, mock_student, mock_service, mock_slot, mock_instructor_profile
+        self, booking_service, mock_db, mock_student, mock_service, mock_instructor_profile
     ):
         """Test minimum advance booking hours validation."""
-        booking_data = BookingCreate(availability_slot_id=1, service_id=1, location_type="neutral")
-
-        # Set slot to be too soon
-        mock_slot.date = date.today()
-        mock_slot.start_time = (datetime.now() + timedelta(hours=1)).time()
-
-        # Make sure the service's instructor_profile_id matches the profile
-        mock_service.instructor_profile_id = mock_instructor_profile.id
+        # Set booking to be too soon
+        booking_data = BookingCreate(
+            instructor_id=2,
+            service_id=1,
+            booking_date=date.today(),
+            start_time=(datetime.now() + timedelta(hours=1)).time(),
+            end_time=(datetime.now() + timedelta(hours=2)).time(),
+        )
 
         # Mock repository responses
-        booking_service.availability_repository.get_availability_slot_with_details.return_value = mock_slot
-        booking_service.repository.get_booking_for_slot.return_value = None
+        booking_service.repository.check_time_conflict.return_value = []
 
         # Mock the service and instructor profile queries
         mock_db.query.return_value.filter.return_value.first.side_effect = [mock_service, mock_instructor_profile]
@@ -479,35 +460,6 @@ class TestBookingServiceUnit:
             booking_service.complete_booking(1, wrong_instructor)
 
     @pytest.mark.asyncio
-    async def test_check_availability_success(
-        self, booking_service, mock_db, mock_slot, mock_service, mock_instructor_profile
-    ):
-        """Test checking availability for available slot."""
-        # Mock repository responses
-        booking_service.availability_repository.get_availability_slot_with_details.return_value = mock_slot
-        booking_service.repository.get_booking_for_slot.return_value = None  # No booking exists
-
-        # Mock service and instructor profile queries
-        mock_db.query.return_value.filter.return_value.first.side_effect = [mock_service, mock_instructor_profile]
-
-        result = await booking_service.check_availability(slot_id=1, service_id=1)
-
-        assert result["available"] is True
-        assert "slot_info" in result
-
-    @pytest.mark.asyncio
-    async def test_check_availability_slot_booked(self, booking_service, mock_slot, mock_booking):
-        """Test checking availability for booked slot."""
-        # Mock repository responses
-        booking_service.availability_repository.get_availability_slot_with_details.return_value = mock_slot
-        booking_service.repository.get_booking_for_slot.return_value = mock_booking  # Slot is booked
-
-        result = await booking_service.check_availability(slot_id=1, service_id=1)
-
-        assert result["available"] is False
-        assert result["reason"] == "Slot is already booked"
-
-    @pytest.mark.asyncio
     async def test_send_booking_reminders_success(self, booking_service, mock_notification_service):
         """Test sending booking reminders."""
         # Create tomorrow's booking
@@ -547,12 +499,12 @@ class TestBookingServiceUnit:
         service.hourly_rate = 50.0
         service.duration_override = None
 
-        slot = Mock()
-        slot.start_time = time(14, 0)
-        slot.end_time = time(15, 30)  # 1.5 hours
+        # Calculate for 1.5 hours
+        start_time = time(14, 0)
+        end_time = time(15, 30)
 
         with patch.object(booking_service, "db"):
-            pricing = booking_service._calculate_pricing(service, slot)
+            pricing = booking_service._calculate_pricing(service, start_time, end_time)
 
         assert pricing["duration_minutes"] == 90
         assert pricing["total_price"] == 75.0  # 1.5 * 50
@@ -564,12 +516,11 @@ class TestBookingServiceUnit:
         service.hourly_rate = 60.0
         service.duration_override = 45  # 45 minute lessons
 
-        slot = Mock()
-        slot.start_time = time(14, 0)
-        slot.end_time = time(15, 0)  # Slot is 1 hour but service overrides
+        start_time = time(14, 0)
+        end_time = time(15, 0)  # Time range is 1 hour but service overrides
 
         with patch.object(booking_service, "db"):
-            pricing = booking_service._calculate_pricing(service, slot)
+            pricing = booking_service._calculate_pricing(service, start_time, end_time)
 
         assert pricing["duration_minutes"] == 45
         assert pricing["total_price"] == 45.0  # 0.75 * 60

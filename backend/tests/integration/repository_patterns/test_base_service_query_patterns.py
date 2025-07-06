@@ -1,4 +1,4 @@
-# backend/tests/integration/test_base_service_query_patterns.py
+# backend/tests/integration/repository_patterns/test_base_service_query_patterns.py
 """
 Document all database and cache patterns used in BaseService.
 
@@ -6,13 +6,13 @@ This serves as the specification for the BaseRepository
 that will be implemented in the repository pattern.
 """
 
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.services.base import BaseRepositoryService, BaseService
+from app.services.base import BaseService
 from app.services.cache_service import CacheService
 
 
@@ -121,89 +121,6 @@ class TestBaseServiceCachePatterns:
         # 1. Key generation from method arguments
         # 2. TTL configuration
         # 3. Conditional caching based on results
-
-
-class TestBaseRepositoryServicePatterns:
-    """Document patterns for repository-based services."""
-
-    def test_repository_get_by_id_pattern(self):
-        """Document get by ID pattern with caching."""
-        mock_db = Mock(spec=Session)
-        mock_repository = Mock()
-        mock_cache = AsyncMock()
-
-        # Mock repository model
-        mock_model = type("TestModel", (), {"__name__": "TestModel"})
-        mock_repository.model = mock_model
-
-        BaseRepositoryService(mock_db, mock_repository, mock_cache)
-
-        # Pattern for get_by_id:
-        # 1. Check cache with key "ModelName:id"
-        # 2. If miss, query repository
-        # 3. Cache result with TTL
-
-        # Repository interface needs:
-        # - model property for cache key generation
-        # - get_by_id(id) method
-
-    def test_repository_create_pattern(self):
-        """Document create pattern with cache invalidation."""
-        mock_db = Mock(spec=Session)
-        mock_repository = Mock()
-        mock_cache = Mock()
-
-        BaseRepositoryService(mock_db, mock_repository, mock_cache)
-
-        # Pattern for create:
-        # 1. Begin transaction
-        # 2. Create via repository
-        # 3. Invalidate related caches
-        # 4. Commit transaction
-
-        # Repository interface needs:
-        # - create(data) method
-        # - Access to created entity for cache invalidation
-
-    def test_repository_update_pattern(self):
-        """Document update pattern with cache invalidation."""
-        mock_db = Mock(spec=Session)
-        mock_repository = Mock()
-        mock_repository.get_by_id = Mock(return_value=Mock(id=123))
-        mock_repository.update = Mock(return_value=Mock(id=123))
-
-        BaseRepositoryService(mock_db, mock_repository)
-
-        # Pattern for update:
-        # 1. Begin transaction
-        # 2. Update via repository
-        # 3. Invalidate entity cache and related caches
-        # 4. Commit transaction
-
-        # Repository interface needs:
-        # - update(id, data) method
-        # - Return updated entity
-
-    def test_repository_delete_pattern(self):
-        """Document delete pattern with cache invalidation."""
-        mock_db = Mock(spec=Session)
-        mock_repository = Mock()
-        mock_entity = Mock(id=123, __class__=Mock(__name__="TestEntity"))
-        mock_repository.get_by_id = Mock(return_value=mock_entity)
-        mock_repository.delete = Mock(return_value=True)
-
-        BaseRepositoryService(mock_db, mock_repository)
-
-        # Pattern for delete:
-        # 1. Begin transaction
-        # 2. Get entity (for cache invalidation)
-        # 3. Delete via repository
-        # 4. Invalidate all related caches
-        # 5. Commit transaction
-
-        # Repository interface needs:
-        # - delete(id) method returning bool
-        # - get_by_id for pre-delete cache handling
 
 
 class TestBaseServicePerformancePatterns:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# backend/scripts/test_performance.py
+# backend/tests/performance/test_performance.py
 """
 Performance test script for InstaInstru availability operations.
 Tests the optimized apply_pattern_to_date_range function.
@@ -9,17 +9,15 @@ import asyncio
 import os
 import sys
 import time
-from datetime import date
-from datetime import time as datetime_time
-from datetime import timedelta
+from datetime import date, timedelta
 
 # Add parent directory to path so we can import app modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.database import get_db
-from app.models.availability import InstructorAvailability
+from app.models.availability import AvailabilitySlot
 from app.models.instructor import InstructorProfile
-from app.schemas.availability_window import DateTimeSlot, WeekSpecificScheduleCreate
+from app.schemas.availability_window import WeekSpecificScheduleCreate
 from app.services.availability_service import AvailabilityService
 from app.services.conflict_checker import ConflictChecker
 from app.services.week_operation_service import WeekOperationService
@@ -57,33 +55,33 @@ async def test_apply_pattern_performance():
         # Clear any existing availability for the test dates to avoid conflicts
         print("\n🧹 Clearing test date ranges...")
 
-        # Clear source week
+        # Clear source week (using AvailabilitySlot directly)
         existing_source = (
-            db.query(InstructorAvailability)
+            db.query(AvailabilitySlot)
             .filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                InstructorAvailability.date >= from_week_start,
-                InstructorAvailability.date < from_week_start + timedelta(days=7),
+                AvailabilitySlot.instructor_id == instructor_id,
+                AvailabilitySlot.specific_date >= from_week_start,
+                AvailabilitySlot.specific_date < from_week_start + timedelta(days=7),
             )
             .all()
         )
 
-        for entry in existing_source:
-            db.delete(entry)
+        for slot in existing_source:
+            db.delete(slot)
 
         # Clear target range
         existing_target = (
-            db.query(InstructorAvailability)
+            db.query(AvailabilitySlot)
             .filter(
-                InstructorAvailability.instructor_id == instructor_id,
-                InstructorAvailability.date >= start_date,
-                InstructorAvailability.date <= end_date,
+                AvailabilitySlot.instructor_id == instructor_id,
+                AvailabilitySlot.specific_date >= start_date,
+                AvailabilitySlot.specific_date <= end_date,
             )
             .all()
         )
 
-        for entry in existing_target:
-            db.delete(entry)
+        for slot in existing_target:
+            db.delete(slot)
 
         db.commit()
         print("✅ Test ranges cleared")
@@ -92,21 +90,22 @@ async def test_apply_pattern_performance():
         print("\n📝 Setting up test data...")
 
         # Create a sample week pattern (Monday to Friday, 2 slots per day)
+        # Using simple dictionaries instead of DateTimeSlot objects
         test_slots = []
         for day_offset in range(5):  # Monday to Friday
             slot_date = from_week_start + timedelta(days=day_offset)
             test_slots.extend(
                 [
-                    DateTimeSlot(
-                        date=slot_date,
-                        start_time=datetime_time(9, 0),
-                        end_time=datetime_time(12, 0),
-                    ),
-                    DateTimeSlot(
-                        date=slot_date,
-                        start_time=datetime_time(14, 0),
-                        end_time=datetime_time(17, 0),
-                    ),
+                    {
+                        "date": slot_date.isoformat(),
+                        "start_time": "09:00",
+                        "end_time": "12:00",
+                    },
+                    {
+                        "date": slot_date.isoformat(),
+                        "start_time": "14:00",
+                        "end_time": "17:00",
+                    },
                 ]
             )
 
