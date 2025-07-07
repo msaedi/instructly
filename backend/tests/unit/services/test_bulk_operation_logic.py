@@ -1,4 +1,4 @@
-# backend/tests/unit/test_bulk_operation_logic.py
+# backend/tests/unit/services/test_bulk_operation_logic.py
 """
 Unit tests for BulkOperationService business logic.
 Tests logic in isolation with mocked dependencies.
@@ -195,13 +195,12 @@ class TestBulkOperationLogic:
         # FIXED: Should succeed regardless of conflicts
         assert result.status == "success"
         assert result.slot_id == 123
-        # Verify slot was created without conflict validation
+        # FIXED: Updated to match actual implementation - no validate_conflicts parameter
         mock_slot_manager.create_slot.assert_called_once_with(
             instructor_id=1,
             target_date=operation.date,
             start_time=time(9, 0),
             end_time=time(10, 0),
-            validate_conflicts=False,
             auto_merge=True,
         )
 
