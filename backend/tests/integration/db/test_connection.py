@@ -1,8 +1,9 @@
-# backend/tests/test_connection.py
+# backend/tests/integration/db/test_connection.py
 """
 Test database connection.
-"""
 
+UPDATED FOR WORK STREAM #10: Removed instructor_availability table check.
+"""
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -13,7 +14,7 @@ from app.core.config import settings
 
 def test_database_connection():
     """Test that we can connect to the database."""
-    database_url = settings.database_url
+    database_url = settings.test_database_url if hasattr(settings, "test_database_url") else settings.database_url
 
     if not database_url:
         pytest.skip("DATABASE_URL not set")
@@ -41,8 +42,11 @@ def test_database_connection():
 
 
 def test_database_tables_exist():
-    """Test that all required tables exist."""
-    database_url = settings.database_url
+    """Test that all required tables exist.
+
+    UPDATED: Removed instructor_availability table (Work Stream #10).
+    """
+    database_url = settings.test_database_url if hasattr(settings, "test_database_url") else settings.database_url
 
     if not database_url:
         pytest.skip("DATABASE_URL not set")
@@ -53,7 +57,7 @@ def test_database_tables_exist():
         "users",
         "instructor_profiles",
         "services",
-        "instructor_availability",
+        # "instructor_availability",  # REMOVED in Work Stream #10
         "availability_slots",
         "blackout_dates",
         "bookings",
@@ -82,7 +86,7 @@ def test_database_tables_exist():
 
 def test_database_performance():
     """Test basic database performance."""
-    database_url = settings.database_url
+    database_url = settings.test_database_url if hasattr(settings, "test_database_url") else settings.database_url
 
     if not database_url:
         pytest.skip("DATABASE_URL not set")

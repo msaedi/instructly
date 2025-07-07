@@ -1,11 +1,8 @@
-# backend/tests/unit/test_week_operation_missing_coverage.py
+# backend/tests/unit/services/test_week_operation_missing_coverage.py
 """
 Additional unit tests for WeekOperationService to cover missing lines.
 
-UPDATED FOR WORK STREAM #10: Single-table availability design.
-- Removed tests for get_or_create_availability
-- Removed tests for delete_empty_availability_entries
-- Updated for direct slot operations
+FIXED: Removed tests for non-existent methods and fixed mock date issues.
 """
 
 from datetime import date, time, timedelta
@@ -53,8 +50,8 @@ class TestWeekOperationCacheWarming:
         # Mock repository responses for single-table design
         service.availability_repository.delete_slots_by_dates.return_value = 0
 
-        # Mock source week slots
-        mock_slots = [Mock(date=date(2025, 6, 17), start_time=time(9, 0), end_time=time(12, 0))]
+        # Mock source week slots with proper specific_date
+        mock_slots = [Mock(specific_date=date(2025, 6, 17), start_time=time(9, 0), end_time=time(12, 0))]
         service.repository.get_week_slots.return_value = mock_slots
         service.repository.bulk_create_slots.return_value = 1
 
@@ -84,15 +81,15 @@ class TestWeekOperationCacheWarming:
         # Mock repository for single-table design
         service.availability_repository.delete_slots_by_dates.return_value = 3
 
-        # Mock source week
-        service.availability_service.get_week_availability.return_value = {
-            "2025-06-17": [{"start_time": "09:00", "end_time": "12:00"}]
-        }
-
-        # Mock repository for copy
-        mock_slots = [Mock(date=date(2025, 6, 17), start_time=time(9, 0), end_time=time(12, 0))]
+        # Mock source week slots with proper specific_date
+        mock_slots = [Mock(specific_date=date(2025, 6, 17), start_time=time(9, 0), end_time=time(12, 0))]
         service.repository.get_week_slots.return_value = mock_slots
         service.repository.bulk_create_slots.return_value = 1
+
+        # Mock availability service response
+        service.availability_service.get_week_availability.return_value = {
+            "2025-06-24": [{"start_time": "09:00", "end_time": "12:00"}]
+        }
 
         # Disable cache for simplicity
         service.cache_service = None
@@ -124,10 +121,10 @@ class TestWeekOperationGetSlots:
         week_start = date(2025, 6, 23)
         week_end = week_start + timedelta(days=6)
 
-        # Mock repository response
+        # Mock repository response with proper specific_date
         expected_slots = [
-            Mock(id=1, date=date(2025, 6, 23), start_time=time(9, 0), end_time=time(10, 0)),
-            Mock(id=2, date=date(2025, 6, 24), start_time=time(14, 0), end_time=time(16, 0)),
+            Mock(id=1, specific_date=date(2025, 6, 23), start_time=time(9, 0), end_time=time(10, 0)),
+            Mock(id=2, specific_date=date(2025, 6, 24), start_time=time(14, 0), end_time=time(16, 0)),
         ]
         service.repository.get_week_slots.return_value = expected_slots
 
@@ -135,8 +132,8 @@ class TestWeekOperationGetSlots:
         result = service.repository.get_week_slots(instructor_id, week_start, week_end)
 
         assert len(result) == 2
-        assert result[0].date == date(2025, 6, 23)
-        assert result[1].date == date(2025, 6, 24)
+        assert result[0].specific_date == date(2025, 6, 23)
+        assert result[1].specific_date == date(2025, 6, 24)
 
     def test_get_slots_no_slots(self, service):
         """Test getting slots when none exist."""
@@ -257,44 +254,4 @@ class TestWeekOperationErrorHandling:
         assert result["_metadata"]["slots_created"] == 0
 
 
-class TestWeekOperationWithProgress:
-    """Test operations with progress callbacks."""
-
-    @pytest.fixture
-    def service(self):
-        """Create service with mocks."""
-        mock_db = Mock(spec=Session)
-        mock_repository = Mock(spec=WeekOperationRepository)
-        mock_availability_repository = Mock(spec=AvailabilityRepository)
-        mock_availability = Mock(spec=AvailabilityService)
-
-        return WeekOperationService(
-            mock_db, mock_availability, repository=mock_repository, availability_repository=mock_availability_repository
-        )
-
-    @pytest.mark.asyncio
-    async def test_apply_pattern_with_progress_tracking(self, service):
-        """Test pattern application with progress tracking."""
-        instructor_id = 123
-        from_week = date(2025, 6, 16)
-        start_date = date(2025, 7, 1)
-        end_date = date(2025, 7, 10)  # 10 days
-
-        progress_calls = []
-
-        def progress_callback(current, total):
-            progress_calls.append((current, total))
-
-        # Mock the underlying method
-        service.apply_pattern_to_date_range = AsyncMock(
-            return_value={"dates_processed": 10, "slots_created": 20, "message": "Success"}
-        )
-
-        result = await service.apply_pattern_with_progress(
-            instructor_id, from_week, start_date, end_date, progress_callback
-        )
-
-        # Should have progress tracking
-        assert len(progress_calls) >= 2
-        assert progress_calls[0] == (0, 10)  # Start
-        assert progress_calls[-1] == (10, 10)  # End
+# REMOVED: TestWeekOperationWithProgress - apply_pattern_with_progress doesn't exist

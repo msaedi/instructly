@@ -56,7 +56,7 @@ class AvailabilityTestHelper:
                 self.db.query(AvailabilitySlot)
                 .filter(
                     AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.date == date,
+                    AvailabilitySlot.specific_date == date,
                 )
                 .all()
             )
