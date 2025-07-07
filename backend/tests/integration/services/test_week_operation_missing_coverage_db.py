@@ -1,4 +1,4 @@
-# backend/tests/integration/test_week_operation_missing_coverage_db.py
+# backend/tests/integration/services/test_week_operation_missing_coverage_db.py
 """
 Additional integration tests for WeekOperationService to increase coverage.
 
@@ -9,6 +9,7 @@ UPDATED FOR WORK STREAM #10: Single-table availability design.
 - Direct slot operations only
 - Simplified test expectations
 - No concept of "empty days" in patterns
+- Fixed to use specific_date instead of date
 """
 
 from datetime import date, time, timedelta
@@ -47,7 +48,10 @@ class TestWeekOperationCacheWarmingIntegration:
         for i in range(3):  # Mon, Tue, Wed
             slot_date = pattern_week + timedelta(days=i)
             slot = AvailabilitySlot(
-                instructor_id=test_instructor.id, date=slot_date, start_time=time(9, 0), end_time=time(10, 0)
+                instructor_id=test_instructor.id,
+                specific_date=slot_date,  # Fixed: use specific_date
+                start_time=time(9, 0),
+                end_time=time(10, 0),
             )
             db.add(slot)
 
@@ -85,7 +89,7 @@ class TestWeekOperationCacheWarmingIntegration:
             if i < 5:  # Add slots for weekdays only
                 slot = AvailabilitySlot(
                     instructor_id=test_instructor.id,
-                    date=from_week + timedelta(days=i),
+                    specific_date=from_week + timedelta(days=i),  # Fixed: use specific_date
                     start_time=time(9 + i, 0),
                     end_time=time(10 + i, 0),
                 )
@@ -120,7 +124,10 @@ class TestWeekOperationEdgeCases:
         # Create pattern with single-table design
         pattern_week = date.today()
         slot = AvailabilitySlot(
-            instructor_id=test_instructor.id, date=pattern_week, start_time=time(9, 0), end_time=time(10, 0)
+            instructor_id=test_instructor.id,
+            specific_date=pattern_week,  # Fixed: use specific_date
+            start_time=time(9, 0),
+            end_time=time(10, 0),
         )
         db.add(slot)
         db.commit()
@@ -143,7 +150,10 @@ class TestWeekOperationEdgeCases:
         # Create week with single-table design
         week_start = date(2025, 6, 16)
         slot = AvailabilitySlot(
-            instructor_id=test_instructor.id, date=week_start, start_time=time(9, 0), end_time=time(10, 0)
+            instructor_id=test_instructor.id,
+            specific_date=week_start,  # Fixed: use specific_date
+            start_time=time(9, 0),
+            end_time=time(10, 0),
         )
         db.add(slot)
         db.commit()
@@ -189,7 +199,10 @@ class TestWeekOperationEdgeCases:
         for i in range(7):
             pattern_date = pattern_week + timedelta(days=i)
             pattern_slot = AvailabilitySlot(
-                instructor_id=instructor.id, date=pattern_date, start_time=time(9, 0), end_time=time(10, 0)
+                instructor_id=instructor.id,
+                specific_date=pattern_date,  # Fixed: use specific_date
+                start_time=time(9, 0),
+                end_time=time(10, 0),
             )
             db.add(pattern_slot)
         db.commit()
@@ -207,7 +220,10 @@ class TestWeekOperationEdgeCases:
 
             # Create slot
             target_slot = AvailabilitySlot(
-                instructor_id=instructor.id, date=target_date, start_time=time(9, 0), end_time=time(10, 0)
+                instructor_id=instructor.id,
+                specific_date=target_date,  # Fixed: use specific_date
+                start_time=time(9, 0),
+                end_time=time(10, 0),
             )
             db.add(target_slot)
             db.flush()
@@ -264,7 +280,10 @@ class TestWeekOperationComplexPatterns:
         # Multiple slots in pattern for the correct day
         for hour in [9, 11, 14, 16]:
             slot = AvailabilitySlot(
-                instructor_id=instructor.id, date=pattern_date, start_time=time(hour, 0), end_time=time(hour + 1, 0)
+                instructor_id=instructor.id,
+                specific_date=pattern_date,  # Fixed: use specific_date
+                start_time=time(hour, 0),
+                end_time=time(hour + 1, 0),
             )
             db.add(slot)
 
@@ -284,7 +303,10 @@ class TestWeekOperationComplexPatterns:
         # Create simple pattern
         pattern_week = date(2025, 6, 16)
         pattern_slot = AvailabilitySlot(
-            instructor_id=test_instructor.id, date=pattern_week, start_time=time(9, 0), end_time=time(10, 0)
+            instructor_id=test_instructor.id,
+            specific_date=pattern_week,  # Fixed: use specific_date
+            start_time=time(9, 0),
+            end_time=time(10, 0),
         )
         db.add(pattern_slot)
         db.commit()
@@ -321,7 +343,7 @@ class TestWeekOperationBulkOperations:
             for hour in [9, 11, 14]:
                 slot = AvailabilitySlot(
                     instructor_id=test_instructor.id,
-                    date=day_date,
+                    specific_date=day_date,  # Fixed: use specific_date
                     start_time=time(hour, 0),
                     end_time=time(hour + 1, 0),
                 )
@@ -347,8 +369,8 @@ class TestWeekOperationBulkOperations:
             db.query(AvailabilitySlot)
             .filter(
                 AvailabilitySlot.instructor_id == test_instructor.id,
-                AvailabilitySlot.date >= start_date,
-                AvailabilitySlot.date <= end_date,
+                AvailabilitySlot.specific_date >= start_date,  # Fixed: use specific_date
+                AvailabilitySlot.specific_date <= end_date,  # Fixed: use specific_date
             )
             .all()
         )
@@ -363,7 +385,7 @@ class TestWeekOperationBulkOperations:
             slots_data.append(
                 {
                     "instructor_id": test_instructor.id,
-                    "date": date.today(),
+                    "specific_date": date.today(),  # Fixed: use specific_date
                     "start_time": time(hour, 0),
                     "end_time": time(hour, 30),
                 }
@@ -371,7 +393,7 @@ class TestWeekOperationBulkOperations:
             slots_data.append(
                 {
                     "instructor_id": test_instructor.id,
-                    "date": date.today(),
+                    "specific_date": date.today(),  # Fixed: use specific_date
                     "start_time": time(hour, 30),
                     "end_time": time(hour + 1, 0),
                 }
@@ -386,7 +408,10 @@ class TestWeekOperationBulkOperations:
         # Verify all created
         slots = (
             db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.date == date.today())
+            .filter(
+                AvailabilitySlot.instructor_id == test_instructor.id,
+                AvailabilitySlot.specific_date == date.today(),  # Fixed: use specific_date
+            )
             .all()
         )
 
@@ -462,7 +487,10 @@ class TestWeekOperationCacheIntegration:
 
         # Add source week data
         slot = AvailabilitySlot(
-            instructor_id=test_instructor.id, date=from_week, start_time=time(9, 0), end_time=time(10, 0)
+            instructor_id=test_instructor.id,
+            specific_date=from_week,  # Fixed: use specific_date
+            start_time=time(9, 0),
+            end_time=time(10, 0),
         )
         db.add(slot)
         db.commit()
@@ -533,7 +561,10 @@ class TestWeekOperationErrorHandling:
         # Create pattern week with single-table design
         pattern_week = date(2025, 6, 16)
         slot = AvailabilitySlot(
-            instructor_id=test_instructor.id, date=pattern_week, start_time=time(9, 0), end_time=time(10, 0)
+            instructor_id=test_instructor.id,
+            specific_date=pattern_week,  # Fixed: use specific_date
+            start_time=time(9, 0),
+            end_time=time(10, 0),
         )
         db.add(slot)
         db.commit()

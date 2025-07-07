@@ -1,9 +1,12 @@
-# backend/tests/integration/test_availability_query_patterns.py
+# backend/tests/integration/repository_patterns/test_availability_query_patterns.py
 """
 Document all query patterns used in AvailabilityService.
 
 UPDATED FOR WORK STREAM #10: Single-table availability design.
 All queries now work directly with AvailabilitySlot without InstructorAvailability.
+
+UPDATED FOR WORK STREAM #9: Layer independence.
+Booking no longer has availability_slot_id attribute.
 
 This serves as the specification for the AvailabilityRepository
 that will be implemented in the repository pattern.
@@ -34,11 +37,11 @@ class TestAvailabilityQueryPatterns:
             .filter(
                 and_(
                     AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.date >= start_date,
-                    AvailabilitySlot.date <= end_date,
+                    AvailabilitySlot.specific_date >= start_date,
+                    AvailabilitySlot.specific_date <= end_date,
                 )
             )
-            .order_by(AvailabilitySlot.date, AvailabilitySlot.start_time)
+            .order_by(AvailabilitySlot.specific_date, AvailabilitySlot.start_time)
         )
 
         results = query.all()
@@ -48,7 +51,7 @@ class TestAvailabilityQueryPatterns:
 
         # Verify query returns expected data
         assert all(r.instructor_id == instructor_id for r in results)
-        assert all(start_date <= r.date <= end_date for r in results)
+        assert all(start_date <= r.specific_date <= end_date for r in results)
 
     def test_query_pattern_get_slots_by_date(self, db: Session, test_instructor_with_availability: User):
         """Document query for single date slots."""
@@ -58,7 +61,9 @@ class TestAvailabilityQueryPatterns:
         # Document the query pattern - UPDATED for single table
         query = (
             db.query(AvailabilitySlot)
-            .filter(and_(AvailabilitySlot.instructor_id == instructor_id, AvailabilitySlot.date == target_date))
+            .filter(
+                and_(AvailabilitySlot.instructor_id == instructor_id, AvailabilitySlot.specific_date == target_date)
+            )
             .order_by(AvailabilitySlot.start_time)
         )
 
@@ -69,15 +74,15 @@ class TestAvailabilityQueryPatterns:
 
         for result in results:
             assert result.instructor_id == instructor_id
-            assert result.date == target_date
+            assert result.specific_date == target_date
 
-    def test_query_pattern_find_booked_slots_in_range(self, db: Session, test_booking):
+    def test_query_pattern_get_booked_slots_in_range(self, db: Session, test_booking):
         """Document query for finding booked slots in date range."""
         instructor_id = test_booking.instructor_id
         start_date = test_booking.booking_date
         end_date = start_date + timedelta(days=6)
 
-        # Document the simplified join query - UPDATED for single table
+        # Document the simplified query - bookings are now time-based
         query = db.query(Booking).filter(
             and_(
                 Booking.instructor_id == instructor_id,
@@ -95,26 +100,25 @@ class TestAvailabilityQueryPatterns:
         assert len(results) >= 1
 
     def test_query_pattern_get_booked_slot_ids(self, db: Session, test_booking):
-        """Document query for getting booked slot IDs for a specific date."""
+        """Document query for getting booked time ranges for a specific date."""
         instructor_id = test_booking.instructor_id
         target_date = test_booking.booking_date
 
-        # Simplified query - no complex joins needed
-        query = db.query(Booking.availability_slot_id).filter(
+        # Per Work Stream #9, bookings don't have slot IDs - query by time instead
+        query = db.query(Booking.start_time, Booking.end_time).filter(
             and_(
                 Booking.instructor_id == instructor_id,
                 Booking.booking_date == target_date,
                 Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                Booking.availability_slot_id.isnot(None),
             )
         )
 
-        slot_ids = [row[0] for row in query.all()]
+        time_ranges = query.all()
 
         # Repository method:
-        # def get_booked_slot_ids(self, instructor_id: int, date: date) -> List[int]
+        # def get_booked_time_ranges(self, instructor_id: int, date: date) -> List[Tuple[time, time]]
 
-        assert len(slot_ids) >= 1
+        assert len(time_ranges) >= 1
 
     def test_query_pattern_count_bookings_for_date(self, db: Session, test_booking):
         """Document query for counting bookings on a date."""
@@ -139,24 +143,34 @@ class TestAvailabilityQueryPatterns:
 
         assert count >= 1
 
-    def test_query_pattern_get_availability_slot_with_details(self, db: Session, test_booking):
+    def test_query_pattern_get_availability_slot_with_details(
+        self, db: Session, test_instructor_with_availability: User
+    ):
         """Document query for getting a slot with details."""
-        slot_id = test_booking.availability_slot_id
-
-        # Simple query with relationship loading
-        query = (
+        # Get a real slot first
+        slot = (
             db.query(AvailabilitySlot)
-            .options(joinedload(AvailabilitySlot.instructor))
-            .filter(AvailabilitySlot.id == slot_id)
+            .filter(AvailabilitySlot.instructor_id == test_instructor_with_availability.id)
+            .first()
         )
 
-        result = query.first()
+        if slot:
+            slot_id = slot.id
 
-        # Repository method:
-        # def get_availability_slot_with_details(self, slot_id: int) -> Optional[AvailabilitySlot]
+            # Simple query with relationship loading
+            query = (
+                db.query(AvailabilitySlot)
+                .options(joinedload(AvailabilitySlot.instructor))
+                .filter(AvailabilitySlot.id == slot_id)
+            )
 
-        assert result is not None
-        assert result.id == slot_id
+            result = query.first()
+
+            # Repository method:
+            # def get_availability_slot_with_details(self, slot_id: int) -> Optional[AvailabilitySlot]
+
+            assert result is not None
+            assert result.id == slot_id
 
     def test_query_pattern_slot_exists(self, db: Session, test_instructor_with_availability: User):
         """Document query for checking if a slot exists."""
@@ -171,7 +185,7 @@ class TestAvailabilityQueryPatterns:
             .filter(
                 and_(
                     AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.date == target_date,
+                    AvailabilitySlot.specific_date == target_date,
                     AvailabilitySlot.start_time == start_time,
                     AvailabilitySlot.end_time == end_time,
                 )
@@ -196,7 +210,7 @@ class TestAvailabilityQueryPatterns:
         query = db.query(AvailabilitySlot).filter(
             and_(
                 AvailabilitySlot.instructor_id == instructor_id,
-                AvailabilitySlot.date == target_date,
+                AvailabilitySlot.specific_date == target_date,
                 or_(
                     # Slot starts within check range
                     and_(
@@ -225,7 +239,7 @@ class TestAvailabilityQueryPatterns:
         # Verify overlap logic
         for slot in results:
             assert slot.instructor_id == instructor_id
-            assert slot.date == target_date
+            assert slot.specific_date == target_date
 
     def test_query_pattern_delete_slots_except(self, db: Session, test_instructor_with_availability: User):
         """Document pattern for deleting slots except specified IDs."""
@@ -239,7 +253,7 @@ class TestAvailabilityQueryPatterns:
             .filter(
                 and_(
                     AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.date == target_date,
+                    AvailabilitySlot.specific_date == target_date,
                     ~AvailabilitySlot.id.in_(except_ids),
                 )
             )
@@ -260,13 +274,13 @@ class TestAvailabilityQueryPatterns:
         slots = [
             AvailabilitySlot(
                 instructor_id=instructor_id,
-                date=target_date,
+                specific_date=target_date,
                 start_time=time(9, 0),
                 end_time=time(10, 0),
             ),
             AvailabilitySlot(
                 instructor_id=instructor_id,
-                date=target_date,
+                specific_date=target_date,
                 start_time=time(10, 0),
                 end_time=time(11, 0),
             ),
@@ -285,7 +299,7 @@ class TestAvailabilityQueryPatterns:
             .filter(
                 and_(
                     AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.date == target_date,
+                    AvailabilitySlot.specific_date == target_date,
                 )
             )
             .scalar()
@@ -304,8 +318,8 @@ class TestAvailabilityQueryPatterns:
             .filter(
                 and_(
                     AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.date >= start_date,
-                    AvailabilitySlot.date <= end_date,
+                    AvailabilitySlot.specific_date >= start_date,
+                    AvailabilitySlot.specific_date <= end_date,
                 )
             )
             .scalar()
@@ -325,12 +339,12 @@ class TestAvailabilityQueryPatterns:
         # Summary query - UPDATED for single table
         query = db.query(
             func.count(AvailabilitySlot.id).label("total_slots"),
-            func.count(func.distinct(AvailabilitySlot.date)).label("available_days"),
+            func.count(func.distinct(AvailabilitySlot.specific_date)).label("available_days"),
         ).filter(
             and_(
                 AvailabilitySlot.instructor_id == instructor_id,
-                AvailabilitySlot.date >= start_date,
-                AvailabilitySlot.date <= end_date,
+                AvailabilitySlot.specific_date >= start_date,
+                AvailabilitySlot.specific_date <= end_date,
             )
         )
 
@@ -425,7 +439,7 @@ class TestAvailabilityQueryPatterns:
             .filter(
                 and_(
                     AvailabilitySlot.instructor_id == instructor_id,
-                    AvailabilitySlot.date == target_date,
+                    AvailabilitySlot.specific_date == target_date,
                     or_(
                         # Check for any overlap
                         and_(
@@ -452,7 +466,7 @@ class TestAvailabilityQueryPatterns:
         # Create slot directly - single table design
         slot = AvailabilitySlot(
             instructor_id=instructor_id,
-            date=target_date,
+            specific_date=target_date,
             start_time=time(14, 0),
             end_time=time(15, 0),
         )
@@ -464,4 +478,4 @@ class TestAvailabilityQueryPatterns:
 
         assert slot.id is not None
         assert slot.instructor_id == instructor_id
-        assert slot.date == target_date
+        assert slot.specific_date == target_date

@@ -134,7 +134,7 @@ class ConflictChecker(BaseService):
         Returns:
             List of booked time ranges
         """
-        bookings = self.repository.get_instructor_bookings_for_date(instructor_id, target_date)
+        bookings = self.repository.get_bookings_for_date(instructor_id, target_date)
 
         return [
             {
@@ -396,7 +396,7 @@ class ConflictChecker(BaseService):
             latest_time = time(21, 0)  # 9 PM
 
         # Get all bookings for the date
-        bookings = self.repository.get_instructor_bookings_for_date(instructor_id, target_date)
+        bookings = self.repository.get_bookings_for_date(instructor_id, target_date)
 
         # Filter to confirmed/completed and sort by start time
         active_bookings = sorted(

@@ -1,4 +1,4 @@
-# backend/tests/integration/test_conflict_checker_service_db.py
+# backend/tests/integration/services/test_conflict_checker_service_db.py
 """
 Fixed integration tests for ConflictChecker database operations.
 
@@ -13,8 +13,7 @@ from datetime import date, time, timedelta
 from sqlalchemy.orm import Session
 
 from app.models.availability import AvailabilitySlot, BlackoutDate
-from app.models.booking import Booking, BookingStatus
-from app.models.service import Service
+from app.models.booking import Booking
 from app.models.user import User
 from app.services.conflict_checker import ConflictChecker
 
@@ -51,115 +50,31 @@ class TestConflictCheckerDatabaseOperations:
 
         assert len(no_conflicts) == 0
 
-    def test_check_slot_availability_integration(self, db: Session, test_instructor_with_availability: User):
-        """Test slot availability checking with real data."""
-        service = ConflictChecker(db)
-
-        # Create a new slot in the future to ensure it's not in the past
-        future_date = date.today() + timedelta(days=7)
-
-        # Create slot directly (single-table design)
-        available_slot = AvailabilitySlot(
-            instructor_id=test_instructor_with_availability.id,
-            date=future_date,
-            start_time=time(10, 0),
-            end_time=time(11, 0),
-        )
-        db.add(available_slot)
-        db.commit()
-
-        # Test 1: Available slot should be available
-        result = service.check_slot_availability(
-            slot_id=available_slot.id, instructor_id=test_instructor_with_availability.id
-        )
-
-        assert result["available"] == True
-        assert "slot_info" in result
-        assert result["slot_info"]["instructor_id"] == test_instructor_with_availability.id
-        assert result["slot_info"]["date"] == future_date.isoformat()
-
-        # Test 2: Wrong instructor should fail
-        wrong_instructor_result = service.check_slot_availability(
-            slot_id=available_slot.id, instructor_id=999  # Non-existent instructor
-        )
-
-        assert wrong_instructor_result["available"] == False
-        assert "different instructor" in wrong_instructor_result["reason"]
-
-        # Test 3: Create a booked slot and verify it's not available
-        booked_slot = AvailabilitySlot(
-            instructor_id=test_instructor_with_availability.id,
-            date=future_date,
-            start_time=time(14, 0),
-            end_time=time(15, 0),
-        )
-        db.add(booked_slot)
-        db.commit()
-
-        # Create a booking for this slot
-        booking = Booking(
-            student_id=test_instructor_with_availability.id,  # Using instructor as student for test
-            instructor_id=test_instructor_with_availability.id,
-            service_id=db.query(Service)
-            .filter(Service.instructor_profile_id == test_instructor_with_availability.instructor_profile.id)
-            .first()
-            .id,
-            availability_slot_id=booked_slot.id,
-            booking_date=future_date,
-            start_time=booked_slot.start_time,
-            end_time=booked_slot.end_time,
-            service_name="Test Service",
-            hourly_rate=50.00,
-            total_price=50.00,
-            duration_minutes=60,
-            status=BookingStatus.CONFIRMED,
-            location_type="student_home",
-        )
-        db.add(booking)
-        db.commit()
-
-        # Test that booked slot is not available
-        booked_result = service.check_slot_availability(
-            slot_id=booked_slot.id, instructor_id=test_instructor_with_availability.id
-        )
-
-        assert booked_result["available"] == False
-        assert "already booked" in booked_result["reason"]
-        assert booked_result["booking_status"] == BookingStatus.CONFIRMED
-
-        # Test 4: Non-existent slot
-        non_existent_result = service.check_slot_availability(
-            slot_id=99999, instructor_id=test_instructor_with_availability.id
-        )
-
-        assert non_existent_result["available"] == False
-        assert "not found" in non_existent_result["reason"]
-
-    def test_get_booked_slots_for_date_integration(
+    def test_get_booked_times_for_date_integration(
         self, db: Session, test_instructor_with_availability: User, test_booking
     ):
         """Test getting booked slots for a specific date."""
         service = ConflictChecker(db)
 
-        booked_slots = service.get_booked_slots_for_date(
+        booked_times = service.get_booked_times_for_date(
             instructor_id=test_instructor_with_availability.id, target_date=test_booking.booking_date
         )
 
         # Should find our test booking
-        assert len(booked_slots) == 1
-        assert booked_slots[0]["booking_id"] == test_booking.id
-        assert booked_slots[0]["student_id"] == test_booking.student_id
-        assert booked_slots[0]["service_name"] == test_booking.service_name
+        assert len(booked_times) == 1
+        assert booked_times[0]["booking_id"] == test_booking.id
+        assert booked_times[0]["student_id"] == test_booking.student_id
+        assert booked_times[0]["service_name"] == test_booking.service_name
 
         # Test date with no bookings
         empty_date = date.today() + timedelta(days=30)
-        empty_slots = service.get_booked_slots_for_date(
+        empty_times = service.get_booked_times_for_date(
             instructor_id=test_instructor_with_availability.id, target_date=empty_date
         )
 
-        assert len(empty_slots) == 0
+        assert len(empty_times) == 0
 
-    def test_get_booked_slots_for_week_integration(
+    def test_get_booked_times_for_week_integration(
         self, db: Session, test_instructor_with_availability: User, test_booking
     ):
         """Test getting booked slots for a week."""
@@ -169,15 +84,15 @@ class TestConflictCheckerDatabaseOperations:
         booking_date = test_booking.booking_date
         week_start = booking_date - timedelta(days=booking_date.weekday())
 
-        week_slots = service.get_booked_slots_for_week(
+        week_times = service.get_booked_times_for_week(
             instructor_id=test_instructor_with_availability.id, week_start=week_start
         )
 
         # Should have data for the booking date
         booking_date_str = booking_date.isoformat()
-        assert booking_date_str in week_slots
-        assert len(week_slots[booking_date_str]) == 1
-        assert week_slots[booking_date_str][0]["booking_id"] == test_booking.id
+        assert booking_date_str in week_times
+        assert len(week_times[booking_date_str]) == 1
+        assert week_times[booking_date_str][0]["booking_id"] == test_booking.id
 
     def test_validate_time_range_integration(self, db: Session):
         """Test time range validation logic."""
@@ -224,47 +139,6 @@ class TestConflictCheckerDatabaseOperations:
 
         # Past bookings should be invalid due to being in the past
         assert past_result["valid"] == False
-
-    def test_find_overlapping_slots_integration(self, db: Session, test_instructor_with_availability: User):
-        """Test finding overlapping slots with real data."""
-        service = ConflictChecker(db)
-
-        # Get a date with availability - direct query on slots
-        slot = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-            )
-            .first()
-        )
-
-        if slot:
-            target_date = slot.date
-
-            # Test overlapping with existing slot
-            overlapping = service.find_overlapping_slots(
-                instructor_id=test_instructor_with_availability.id,
-                target_date=target_date,
-                start_time=slot.start_time,
-                end_time=slot.end_time,
-            )
-
-            # Should find the overlapping slot
-            assert len(overlapping) >= 1
-            found_slot = next((s for s in overlapping if s["slot_id"] == slot.id), None)
-            assert found_slot is not None
-
-            # Test non-overlapping time
-            non_overlapping = service.find_overlapping_slots(
-                instructor_id=test_instructor_with_availability.id,
-                target_date=target_date,
-                start_time=time(23, 0),
-                end_time=time(23, 30),
-            )
-
-            # Should find no overlaps with late night time
-            overlapping_ids = [s["slot_id"] for s in non_overlapping]
-            assert slot.id not in overlapping_ids
 
     def test_check_blackout_date_integration(self, db: Session, test_instructor: User):
         """Test blackout date checking with real data."""
@@ -360,7 +234,7 @@ class TestConflictCheckerTransactionBoundaries:
             end_time=time(10, 0),
         )
 
-        service.get_booked_slots_for_week(
+        service.get_booked_times_for_week(
             instructor_id=test_instructor_with_availability.id,
             week_start=date.today() - timedelta(days=date.today().weekday()),
         )
@@ -402,16 +276,6 @@ class TestConflictCheckerErrorConditions:
 
         assert advance_result["valid"] == False
         assert "not found" in advance_result["reason"]
-
-    def test_nonexistent_slot_handling(self, db: Session):
-        """Test handling of nonexistent slot IDs."""
-        service = ConflictChecker(db)
-
-        # Test with nonexistent slot
-        availability_result = service.check_slot_availability(slot_id=99999, instructor_id=1)  # Nonexistent
-
-        assert availability_result["available"] == False
-        assert "not found" in availability_result["reason"]
 
     def test_edge_case_time_ranges(self, db: Session):
         """Test edge cases in time range validation."""
