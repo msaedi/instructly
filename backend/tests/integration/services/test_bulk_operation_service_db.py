@@ -13,6 +13,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.models.availability import AvailabilitySlot
+from app.models.booking import Booking
 from app.schemas.availability_window import BulkUpdateRequest, SlotOperation, TimeSlot, ValidateWeekRequest
 from app.services.bulk_operation_service import BulkOperationService
 
@@ -54,10 +55,10 @@ class TestBulkOperationServiceIntegration:
         assert result["skipped"] == 0
         assert len(result["results"]) == 3
 
-        # Verify slots were created - FIXED: Direct query without join
+        # Verify slots were created - FIXED: Use specific_date
         slots = (
             bulk_service.db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.date == tomorrow)
+            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.specific_date == tomorrow)
             .all()
         )
         assert len(slots) >= 2  # Was 3, but adjacent slots get merged
@@ -116,12 +117,33 @@ class TestBulkOperationServiceIntegration:
         assert remaining == 0
 
     @pytest.mark.asyncio
-    async def test_bulk_remove_with_bookings(self, bulk_service: BulkOperationService, test_booking):
+    async def test_bulk_remove_with_bookings(self, bulk_service: BulkOperationService, test_booking, db: Session):
         """Test that slots with bookings CAN be removed with new architecture."""
-        # FIXED: With Work Stream #9, we ALLOW removal of slots with bookings
-        slot_id = test_booking.availability_slot_id
+        # FIXED: With Work Stream #9, bookings don't have availability_slot_id
+        # Instead, find a slot that overlaps with the booking time
+        slot = (
+            db.query(AvailabilitySlot)
+            .filter(
+                AvailabilitySlot.instructor_id == test_booking.instructor_id,
+                AvailabilitySlot.specific_date == test_booking.booking_date,
+                AvailabilitySlot.start_time <= test_booking.start_time,
+                AvailabilitySlot.end_time >= test_booking.end_time,
+            )
+            .first()
+        )
 
-        operations = [SlotOperation(action="remove", slot_id=slot_id)]
+        if not slot:
+            # Create a slot that overlaps with the booking
+            slot = AvailabilitySlot(
+                instructor_id=test_booking.instructor_id,
+                specific_date=test_booking.booking_date,
+                start_time=test_booking.start_time,
+                end_time=test_booking.end_time,
+            )
+            db.add(slot)
+            db.commit()
+
+        operations = [SlotOperation(action="remove", slot_id=slot.id)]
         request = BulkUpdateRequest(operations=operations, validate_only=False)
 
         result = await bulk_service.process_bulk_update(test_booking.instructor_id, request)
@@ -131,11 +153,11 @@ class TestBulkOperationServiceIntegration:
         assert result["failed"] == 0
 
         # Verify slot was actually removed
-        remaining = bulk_service.db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot_id).count()
+        remaining = bulk_service.db.query(AvailabilitySlot).filter(AvailabilitySlot.id == slot.id).count()
         assert remaining == 0
 
         # But booking should still exist (layer independence)
-        booking_exists = bulk_service.db.query(test_booking.__class__).filter_by(id=test_booking.id).first()
+        booking_exists = bulk_service.db.query(Booking).filter_by(id=test_booking.id).first()
         assert booking_exists is not None
 
     @pytest.mark.asyncio
@@ -177,10 +199,10 @@ class TestBulkOperationServiceIntegration:
         assert result["successful"] == 1
         assert result["results"][0].reason == "Validation passed - slot can be added"
 
-        # Verify no slot was actually created - FIXED: Direct query
+        # Verify no slot was actually created - FIXED: Use specific_date
         slots = (
             bulk_service.db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.date == tomorrow)
+            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.specific_date == tomorrow)
             .count()
         )
         assert slots == 0
@@ -202,10 +224,10 @@ class TestBulkOperationServiceIntegration:
         assert result["successful"] == 1
         assert result["failed"] == 1
 
-        # But since one succeeded, it should commit - FIXED: Direct query
+        # But since one succeeded, it should commit - FIXED: Use specific_date
         slots = (
             bulk_service.db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.date == tomorrow)
+            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.specific_date == tomorrow)
             .count()
         )
         assert slots == 1  # The successful operation was committed
@@ -300,10 +322,10 @@ class TestBulkOperationServiceIntegration:
 
         assert result["successful"] == 2
 
-        # Check if slots were merged (should be 1 slot from 9-11) - FIXED: Direct query
+        # Check if slots were merged (should be 1 slot from 9-11) - FIXED: Use specific_date
         slots = (
             bulk_service.db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.date == tomorrow)
+            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.specific_date == tomorrow)
             .all()
         )
 
