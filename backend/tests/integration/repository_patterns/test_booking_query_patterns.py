@@ -1,12 +1,15 @@
-# backend/tests/integration/test_booking_query_patterns.py
+# backend/tests/integration/repository_patterns/test_booking_query_patterns.py
 """
 Document all query patterns used in BookingService.
 
 This serves as the specification for the BookingRepository
 that will be implemented in the repository pattern.
 
-UPDATED: Fixed tests to match Work Stream #9 - Removed availability_slot relationship
-from joinedload calls since the relationship no longer exists.
+UPDATED FOR WORK STREAM #9: Layer independence
+- Removed all references to availability_slot_id
+- Removed test_query_pattern_get_availability_slot (belongs in AvailabilityRepository)
+- Bookings are now completely independent of slots
+- Time-based queries instead of slot-based
 """
 
 from datetime import date, time, timedelta
@@ -14,7 +17,6 @@ from datetime import date, time, timedelta
 import pytest
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service import Service
@@ -56,22 +58,33 @@ def test_service(db: Session, test_instructor: User) -> Service:
 class TestBookingQueryPatterns:
     """Document every query pattern that needs repository implementation."""
 
-    def test_query_pattern_check_slot_booking(self, db: Session, test_booking: Booking):
-        """Document query for checking if a slot has existing booking."""
-        slot_id = test_booking.availability_slot_id
+    def test_query_pattern_check_time_booking(self, db: Session, test_booking: Booking):
+        """Document query for checking if a time has existing booking.
 
-        # Document the exact query pattern
+        UPDATED: Work Stream #9 - Check by time, not by slot_id
+        """
+        # Get booking details for the check
+        instructor_id = test_booking.instructor_id
+        booking_date = test_booking.booking_date
+        start_time = test_booking.start_time
+        end_time = test_booking.end_time
+
+        # Document the exact query pattern - check by time overlap
         existing_booking = (
             db.query(Booking)
             .filter(
-                Booking.availability_slot_id == slot_id,
+                Booking.instructor_id == instructor_id,
+                Booking.booking_date == booking_date,
+                Booking.start_time < end_time,
+                Booking.end_time > start_time,
                 Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             )
             .first()
         )
 
         # Repository method signature:
-        # def get_booking_for_slot(self, slot_id: int, active_only: bool = True) -> Optional[Booking]
+        # def get_booking_for_time(self, instructor_id: int, booking_date: date,
+        #                         start_time: time, end_time: time, active_only: bool = True) -> Optional[Booking]
 
         if existing_booking:
             assert hasattr(existing_booking, "status")
@@ -119,7 +132,6 @@ class TestBookingQueryPatterns:
         """Document query for getting a single booking with all relationships.
 
         FIXED: Removed joinedload for availability_slot relationship which no longer exists.
-        If slot details are needed, they should be fetched separately.
         """
         booking_id = test_booking.id
 
@@ -130,7 +142,7 @@ class TestBookingQueryPatterns:
                 joinedload(Booking.student),
                 joinedload(Booking.instructor),
                 joinedload(Booking.service).joinedload(Service.instructor_profile),
-                # REMOVED: joinedload(Booking.availability_slot).joinedload(AvailabilitySlot.availability)
+                # REMOVED: joinedload(Booking.availability_slot)
                 joinedload(Booking.cancelled_by),
             )
             .filter(Booking.id == booking_id)
@@ -160,27 +172,11 @@ class TestBookingQueryPatterns:
         for booking in bookings:
             assert booking.instructor_id == instructor_id
 
-    def test_query_pattern_get_availability_slot(self, db: Session, test_booking: Booking):
-        """Document query for loading availability slot with relationships."""
-        slot_id = test_booking.availability_slot_id
-
-        # Document the exact query pattern
-        slot = (
-            db.query(AvailabilitySlot)
-            .options(joinedload(AvailabilitySlot.availability))
-            .filter(AvailabilitySlot.id == slot_id)
-            .first()
-        )
-
-        # Repository method signature:
-        # def get_availability_slot_with_details(self, slot_id: int) -> Optional[AvailabilitySlot]
-
-        assert slot is not None
-        assert slot.id == slot_id
-        assert slot.availability is not None
-
     def test_query_pattern_get_active_service(self, db: Session, test_service: Service):
-        """Document query for loading active service with instructor profile."""
+        """Document query for loading active service with instructor profile.
+
+        NOTE: This actually belongs in ServiceRepository, not BookingRepository
+        """
         service_id = test_service.id
 
         # Document the exact query pattern
@@ -193,6 +189,7 @@ class TestBookingQueryPatterns:
 
         # Repository method signature:
         # def get_active_service_with_profile(self, service_id: int) -> Optional[Service]
+        # NOTE: This should be in ServiceRepository, not BookingRepository
 
         if service:
             assert service.is_active is True
@@ -246,7 +243,7 @@ class TestBookingQueryPatterns:
         bookings = query.all()
 
         # Repository method signature:
-        # def get_upcoming_bookings(self, user_id: int, user_role: str) -> List[Booking]
+        # def get_upcoming_bookings(self, user_id: int, user_role: str, limit: int = None) -> List[Booking]
 
         # Verify ordering
         for i in range(1, len(bookings)):
@@ -273,22 +270,12 @@ class TestBookingQueryPatterns:
         )
 
         # Repository method signatures:
-        # def count_bookings(self, instructor_id: int = None, student_id: int = None,
-        #                   status: BookingStatus = None) -> int
-        # def count_bookings_by_status(self, user_id: int, user_role: str) -> Dict[str, int]
+        # def count_bookings_for_instructor(self, instructor_id: int, status: BookingStatus = None) -> int
 
         assert total_count >= 0
         assert confirmed_count >= 0
         assert completed_count >= 0
         assert total_count >= confirmed_count + completed_count
-
-    def test_query_pattern_bulk_operations(self, db: Session):
-        """Document patterns for bulk operations if any."""
-        # BookingService doesn't seem to have bulk operations
-        # But we should support bulk create for future features
-
-        # Repository method signature (future):
-        # def bulk_create_bookings(self, bookings: List[Dict]) -> List[Booking]
 
     def test_query_pattern_check_conflicts(self, db: Session, test_instructor: User):
         """Document query for checking booking conflicts."""
@@ -360,7 +347,8 @@ class TestBookingQueryPatterns:
         Summary of all BookingRepository methods needed based on query patterns:
 
         BOOKING-SPECIFIC METHODS:
-        1. get_booking_for_slot(slot_id: int, active_only: bool = True) -> Optional[Booking]
+        1. get_booking_for_time(instructor_id: int, booking_date: date,
+                               start_time: time, end_time: time, active_only: bool = True) -> Optional[Booking]
         2. get_bookings(user_id: int = None, user_role: str = None, status: BookingStatus = None,
                        date_start: date = None, date_end: date = None, skip: int = 0, limit: int = 100) -> List[Booking]
         3. get_student_bookings(student_id: int, status: BookingStatus = None,
@@ -371,22 +359,20 @@ class TestBookingQueryPatterns:
         6. get_instructor_bookings_for_stats(instructor_id: int) -> List[Booking]
         7. get_bookings_for_date(booking_date: date, status: BookingStatus = None,
                                with_relationships: bool = False) -> List[Booking]
-        8. get_upcoming_bookings(user_id: int, user_role: str) -> List[Booking]
-        9. count_bookings(instructor_id: int = None, student_id: int = None,
-                         status: BookingStatus = None) -> int
-        10. count_bookings_by_status(user_id: int, user_role: str) -> Dict[str, int]
-        11. check_booking_conflicts(instructor_id: int, booking_date: date, start_time: time,
+        8. get_upcoming_bookings(limit: int = None) -> List[Booking]
+        9. count_bookings_for_instructor(instructor_id: int, status: BookingStatus = None) -> int
+        10. check_booking_conflicts(instructor_id: int, booking_date: date, start_time: time,
                                    end_time: time, exclude_booking_id: int = None) -> List[Booking]
+        11. booking_exists_for_slot(slot_id: int) -> bool  # For backward compatibility checks
 
         METHODS THAT BELONG IN OTHER REPOSITORIES:
-        - get_availability_slot_with_details() -> Should be in AvailabilityRepository
-        - get_active_service_with_profile() -> Should be in SlotManagerRepository or ServiceRepository
+        - get_active_service_with_profile() -> Should be in ServiceRepository
 
         Plus standard CRUD operations from BaseRepository:
         - create(booking_data) with transaction support
         - update(booking_id, update_data)
         - Standard find/count/exists methods
 
-        NOTE: After Work Stream #9, Booking no longer has availability_slot relationship.
-        The availability_slot_id column exists for historical reference but has no FK constraint.
+        NOTE: After Work Stream #9, Booking is completely independent of AvailabilitySlot.
+        All queries should be time-based rather than slot-based.
         """
