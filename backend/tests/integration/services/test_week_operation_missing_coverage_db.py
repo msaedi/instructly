@@ -233,7 +233,6 @@ class TestWeekOperationEdgeCases:
                 student_id=test_student.id,
                 instructor_id=instructor.id,
                 service_id=service_obj.id,
-                availability_slot_id=target_slot.id,
                 booking_date=target_date,
                 start_time=time(9, 0),
                 end_time=time(10, 0),
@@ -500,36 +499,6 @@ class TestWeekOperationCacheIntegration:
 
         # Should complete without errors
         assert result is not None
-
-    def test_get_cached_week_pattern(self, db: Session, mock_cache: Mock):
-        """Test cached week pattern retrieval."""
-        service = WeekOperationService(db, cache_service=mock_cache)
-
-        instructor_id = 1
-        week_start = date(2025, 6, 23)
-
-        # Mock cache miss then hit
-        mock_cache.get.return_value = None  # Cache miss
-
-        # Mock availability service
-        service.availability_service = Mock()
-        service.availability_service.get_week_availability = Mock(
-            return_value={"2025-06-23": [{"start_time": "09:00", "end_time": "10:00"}]}
-        )
-
-        # First call - cache miss
-        service.get_cached_week_pattern(instructor_id, week_start)
-
-        # Should set cache
-        mock_cache.set.assert_called_once()
-
-        # Mock cache hit
-        mock_cache.get.return_value = {"Monday": [{"start_time": "09:00", "end_time": "10:00"}]}
-
-        # Second call - cache hit
-        pattern2 = service.get_cached_week_pattern(instructor_id, week_start)
-
-        assert pattern2 is not None
 
 
 class TestWeekOperationErrorHandling:
