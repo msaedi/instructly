@@ -49,7 +49,6 @@ class TimeSlotResponse(TypedDict):
 
     start_time: str
     end_time: str
-    is_available: bool
 
 
 class AvailabilityService(BaseService):
@@ -113,7 +112,6 @@ class AvailabilityService(BaseService):
                 TimeSlotResponse(
                     start_time=time_to_string(slot.start_time),
                     end_time=time_to_string(slot.end_time),
-                    is_available=True,
                 )
                 for slot in slots
             ],
@@ -192,7 +190,6 @@ class AvailabilityService(BaseService):
                 TimeSlotResponse(
                     start_time=time_to_string(slot.start_time),
                     end_time=time_to_string(slot.end_time),
-                    is_available=True,
                 )
             )
 
