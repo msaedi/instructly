@@ -219,7 +219,7 @@ class NotificationService:
                                 <td style="padding: 8px 0; color: #6B7280;">Location:</td>
                                 <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{booking.location_type_display}</td>
                             </tr>
-                            {'''<tr>
+                            {f'''<tr>
                                 <td style="padding: 8px 0; color: #6B7280;">Address:</td>
                                 <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{booking.meeting_location}</td>
                             </tr>''' if booking.meeting_location else ''}
@@ -345,7 +345,7 @@ class NotificationService:
                                 <td style="padding: 8px 0; color: #6B7280;">Location:</td>
                                 <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{booking.location_type_display}</td>
                             </tr>
-                            {'''<tr>
+                            {f'''<tr>
                                 <td style="padding: 8px 0; color: #6B7280;">Student Note:</td>
                                 <td style="padding: 8px 0; color: #1F2937; font-style: italic;">"{booking.student_note}"</td>
                             </tr>''' if booking.student_note else ''}

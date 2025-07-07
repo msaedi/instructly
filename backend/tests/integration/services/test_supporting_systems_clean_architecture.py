@@ -4,6 +4,9 @@ Comprehensive test suite for supporting systems clean architecture.
 Verifies that emails, reminders, and cache all follow clean patterns.
 
 Fixed for time-based booking architecture.
+UPDATED: Fixed test expectations to check for actual values, not placeholders.
+FIXED: Using booking.student.full_name instead of undefined test_student
+FIXED: Changed assertion to expect "Test Studio" instead of placeholder bug
 """
 
 from datetime import date, time, timedelta
@@ -83,19 +86,31 @@ class TestSupportingSystemsIntegration:
         assert notification_service.email_service.send_email.call_count == 2
 
         # Check both emails for clean content
-        for call in notification_service.email_service.send_email.call_args_list:
+        for i, call in enumerate(notification_service.email_service.send_email.call_args_list):
             html_content = call.kwargs["html_content"]
+            to_email = call.kwargs["to_email"]
 
-            # Should have booking info - check for template placeholders or actual values
-            # The template uses {formatted_date} and {formatted_time} placeholders
-            assert "{formatted_date}" in html_content or "{formatted_time}" in html_content
-            # Or check for actual booking data placeholders
-            assert "{booking.service_name}" in html_content or full_booking.service_name in html_content
-            assert "9:00" in html_content or "{booking." in html_content
+            # Should have actual booking info (not placeholders)
+            assert full_booking.service_name in html_content  # "Test Piano"
+            assert "9:00 AM" in html_content  # Actual formatted time
+            assert "Tuesday" in html_content  # Part of the formatted date
+
+            # Check for the student and instructor names (FIXED: using booking object)
+            assert full_booking.student.full_name in html_content or full_booking.instructor.full_name in html_content
+
+            # FIXED: Only check for meeting location in student email (it's not shown in instructor email)
+            if to_email == full_booking.student.email:
+                assert "Test Studio" in html_content  # The actual meeting location in student email
 
             # Should NOT have removed concepts
             assert "availability_slot_id" not in html_content.lower()
             assert "is_available" not in html_content.lower()
+
+            # Should NOT have placeholders
+            assert "{formatted_date}" not in html_content
+            assert "{formatted_time}" not in html_content
+            assert "{booking.service_name}" not in html_content
+            assert "{booking.meeting_location}" not in html_content  # FIXED: No more placeholder bug!
 
     @pytest.mark.asyncio
     async def test_reminder_and_cache_integration(self, db, full_booking):
