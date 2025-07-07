@@ -71,6 +71,12 @@ from .instructor import (
 
 # Password reset schemas
 from .password_reset import PasswordResetConfirm, PasswordResetRequest, PasswordResetResponse
+from .public_availability import (
+    PublicAvailabilityQuery,
+    PublicDayAvailability,
+    PublicInstructorAvailability,
+    PublicTimeSlot,
+)
 
 # User and authentication schemas
 from .user import Token, UserCreate, UserLogin, UserResponse, UserRole
@@ -137,4 +143,9 @@ __all__ = [
     "FindBookingOpportunitiesRequest",
     "FindBookingOpportunitiesResponse",
     "BookingOpportunity",
+    # Public availability schemas
+    "PublicTimeSlot",
+    "PublicDayAvailability",
+    "PublicInstructorAvailability",
+    "PublicAvailabilityQuery",
 ]

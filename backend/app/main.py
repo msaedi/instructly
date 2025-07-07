@@ -9,7 +9,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from .core.constants import ALLOWED_ORIGINS, API_DESCRIPTION, API_TITLE, API_VERSION, BRAND_NAME
 from .middleware.monitoring import MonitoringMiddleware
 from .middleware.timing import TimingMiddleware
-from .routes import auth, availability_windows, bookings, instructors, metrics, password_reset
+from .routes import auth, availability_windows, bookings, instructors, metrics, password_reset, public
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -77,6 +77,7 @@ app.include_router(availability_windows.router)
 app.include_router(password_reset.router)
 app.include_router(bookings.router)
 app.include_router(metrics.router)
+app.include_router(public.router)
 
 
 @app.get("/")
