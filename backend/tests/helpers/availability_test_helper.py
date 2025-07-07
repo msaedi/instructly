@@ -19,6 +19,7 @@ from app.schemas.availability_window import SpecificDateAvailabilityCreate, Week
 from app.services.availability_service import AvailabilityService
 from app.services.bulk_operation_service import BulkOperationService
 from app.services.week_operation_service import WeekOperationService
+from app.utils.time_helpers import time_to_string
 
 
 class AvailabilityTestHelper:
@@ -83,11 +84,21 @@ class AvailabilityTestHelper:
                 specific_date=date, start_time=start_time, end_time=end_time
             )
 
+            # FIX: add_specific_date_availability returns an AvailabilitySlot object, not a dict
             result = self.availability_service.add_specific_date_availability(
                 instructor_id=instructor_id, availability_data=availability_data
             )
 
-            saved_slots.append({"start_time": result["start_time"], "end_time": result["end_time"]})
+            # Handle both object and dict responses (for compatibility)
+            if isinstance(result, AvailabilitySlot):
+                saved_slots.append(
+                    {"start_time": time_to_string(result.start_time), "end_time": time_to_string(result.end_time)}
+                )
+            elif isinstance(result, dict):
+                saved_slots.append({"start_time": result.get("start_time"), "end_time": result.get("end_time")})
+            else:
+                # If result is something else, try to extract the times
+                saved_slots.append({"start_time": time_to_string(start_time), "end_time": time_to_string(end_time)})
 
         return {"success": True, "date": date.isoformat(), "slots": saved_slots}
 
