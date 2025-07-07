@@ -18,6 +18,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
+from ..core.constants import BRAND_NAME
 from ..models.booking import Booking
 from ..models.user import User
 from ..services.email import email_service
@@ -165,11 +166,11 @@ class NotificationService:
 
             # Format booking time
             booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
-            booking_datetime.strftime("%A, %B %d, %Y")
+            formatted_date = booking_datetime.strftime("%A, %B %d, %Y")  # FIXED: Now properly assigned
             formatted_time = booking_datetime.strftime("%-I:%M %p")
 
-            # Build email content
-            html_content = """
+            # Build email content - FIXED: Now using f-string
+            html_content = f"""
             <!DOCTYPE html>
             <html>
             <head>
@@ -292,11 +293,11 @@ class NotificationService:
 
             # Format booking time
             booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
-            booking_datetime.strftime("%A, %B %d, %Y")
+            formatted_date = booking_datetime.strftime("%A, %B %d, %Y")  # FIXED: Now properly assigned
             formatted_time = booking_datetime.strftime("%-I:%M %p")
 
-            # Build email content
-            html_content = """
+            # Build email content - FIXED: Now using f-string
+            html_content = f"""
             <!DOCTYPE html>
             <html>
             <head>
@@ -403,10 +404,11 @@ class NotificationService:
             subject = f"Booking Cancelled: {booking.service_name}"
 
             booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
-            booking_datetime.strftime("%A, %B %d, %Y")
+            formatted_date = booking_datetime.strftime("%A, %B %d, %Y")  # FIXED: Now properly assigned
             formatted_time = booking_datetime.strftime("%-I:%M %p")
 
-            html_content = """
+            # FIXED: Now using f-string
+            html_content = f"""
             <!DOCTYPE html>
             <html>
             <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -477,10 +479,11 @@ class NotificationService:
             subject = f"Booking Cancelled: {booking.service_name}"
 
             booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
-            booking_datetime.strftime("%A, %B %d, %Y")
+            formatted_date = booking_datetime.strftime("%A, %B %d, %Y")  # FIXED: Now properly assigned
             formatted_time = booking_datetime.strftime("%-I:%M %p")
 
-            html_content = """
+            # FIXED: Now using f-string
+            html_content = f"""
             <!DOCTYPE html>
             <html>
             <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -544,12 +547,19 @@ class NotificationService:
         try:
             subject = f"Cancellation Confirmed: {booking.service_name}"
 
-            html_content = """
+            # Format booking time for the confirmation
+            booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+            formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
+            formatted_time = booking_datetime.strftime("%-I:%M %p")
+
+            # FIXED: Now using f-string and including booking details
+            html_content = f"""
             <!DOCTYPE html>
             <html>
             <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
                 <div style="background-color: #6B7280; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
                     <h1 style="color: white; margin: 0;">{BRAND_NAME}</h1>
+                    <p style="color: #E5E7EB; margin: 10px 0 0 0;">Cancellation Confirmed</p>
                 </div>
 
                 <div style="background-color: #f8f9fa; padding: 40px; border-radius: 0 0 10px 10px;">
@@ -558,6 +568,14 @@ class NotificationService:
                     <p>Hi {booking.student.full_name},</p>
 
                     <p>Your booking has been successfully cancelled.</p>
+
+                    <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #E5E7EB;">
+                        <h3 style="color: #1F2937; margin-top: 0;">Cancelled Booking Details</h3>
+                        <p><strong>Service:</strong> {booking.service_name}</p>
+                        <p><strong>Instructor:</strong> {booking.instructor.full_name}</p>
+                        <p><strong>Date:</strong> {formatted_date}</p>
+                        <p><strong>Time:</strong> {formatted_time}</p>
+                    </div>
 
                     <p>We hope to see you again soon!</p>
 
@@ -591,8 +609,68 @@ class NotificationService:
 
     async def _send_instructor_cancellation_confirmation(self, booking: Booking) -> bool:
         """Send cancellation confirmation to instructor after they cancel."""
-        # Similar to student confirmation
-        return await self._send_student_cancellation_confirmation(booking)
+        try:
+            subject = f"Cancellation Confirmed: {booking.service_name}"
+
+            # Format booking time for the confirmation
+            booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+            formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
+            formatted_time = booking_datetime.strftime("%-I:%M %p")
+
+            # Instructor-specific cancellation confirmation
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background-color: #6B7280; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+                    <h1 style="color: white; margin: 0;">{BRAND_NAME}</h1>
+                    <p style="color: #E5E7EB; margin: 10px 0 0 0;">Cancellation Confirmed</p>
+                </div>
+
+                <div style="background-color: #f8f9fa; padding: 40px; border-radius: 0 0 10px 10px;">
+                    <h2 style="color: #1F2937;">Cancellation Confirmed</h2>
+
+                    <p>Hi {booking.instructor.full_name},</p>
+
+                    <p>Your booking has been successfully cancelled.</p>
+
+                    <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #E5E7EB;">
+                        <h3 style="color: #1F2937; margin-top: 0;">Cancelled Booking Details</h3>
+                        <p><strong>Service:</strong> {booking.service_name}</p>
+                        <p><strong>Student:</strong> {booking.student.full_name}</p>
+                        <p><strong>Date:</strong> {formatted_date}</p>
+                        <p><strong>Time:</strong> {formatted_time}</p>
+                    </div>
+
+                    <p>Your time slot is now available for other bookings.</p>
+
+                    <div style="text-align: center; margin: 30px 0;">
+                        <a href="{self.frontend_url}/dashboard/instructor"
+                           style="background-color: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                            View Dashboard
+                        </a>
+                    </div>
+
+                    <p style="margin-top: 30px;">
+                        Best regards,<br>
+                        The {BRAND_NAME} Team
+                    </p>
+                </div>
+            </body>
+            </html>
+            """
+
+            response = self.email_service.send_email(
+                to_email=booking.instructor.email,
+                subject=subject,
+                html_content=html_content,
+            )
+
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to send instructor cancellation confirmation: {str(e)}")
+            return False
 
     async def _send_student_reminder(self, booking: Booking) -> bool:
         """Send 24-hour reminder to student."""
@@ -602,7 +680,8 @@ class NotificationService:
             booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
             formatted_time = booking_datetime.strftime("%-I:%M %p")
 
-            html_content = """
+            # FIXED: Now using f-string
+            html_content = f"""
             <!DOCTYPE html>
             <html>
             <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -668,7 +747,8 @@ class NotificationService:
             booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
             formatted_time = booking_datetime.strftime("%-I:%M %p")
 
-            html_content = """
+            # FIXED: Now using f-string
+            html_content = f"""
             <!DOCTYPE html>
             <html>
             <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
