@@ -11,9 +11,19 @@ from datetime import date, time, timedelta
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.availability import AvailabilitySlot
 from app.models.instructor import InstructorProfile
 from app.models.service import Service
+
+
+@pytest.fixture
+def full_detail_settings(monkeypatch):
+    """Ensure tests use full detail level and 30 days default."""
+    monkeypatch.setattr(settings, "public_availability_detail_level", "full")
+    monkeypatch.setattr(settings, "public_availability_days", 30)
+    monkeypatch.setattr(settings, "public_availability_show_instructor_name", True)
+    monkeypatch.setattr(settings, "public_availability_cache_ttl", 300)
 
 
 class TestPublicAvailabilityIntegration:
@@ -21,7 +31,14 @@ class TestPublicAvailabilityIntegration:
 
     @pytest.mark.asyncio
     async def test_full_availability_flow(
-        self, client, db: Session, test_instructor, test_student, auth_headers_instructor, auth_headers_student
+        self,
+        client,
+        db: Session,
+        test_instructor,
+        test_student,
+        auth_headers_instructor,
+        auth_headers_student,
+        full_detail_settings,
     ):
         """Test complete flow: create availability, book some, view public."""
         instructor_id = test_instructor.id
@@ -112,7 +129,9 @@ class TestPublicAvailabilityIntegration:
         assert available_slots[2]["end_time"] == "17:00"
 
     @pytest.mark.asyncio
-    async def test_blackout_date_integration(self, client, db: Session, test_instructor, auth_headers_instructor):
+    async def test_blackout_date_integration(
+        self, client, db: Session, test_instructor, auth_headers_instructor, full_detail_settings
+    ):
         """Test that blackout dates are properly reflected in public view."""
         instructor_id = test_instructor.id
         next_week = date.today() + timedelta(days=7)
@@ -153,7 +172,14 @@ class TestPublicAvailabilityIntegration:
 
     @pytest.mark.asyncio
     async def test_cache_invalidation_on_booking(
-        self, client, db: Session, test_instructor, test_student, auth_headers_instructor, auth_headers_student
+        self,
+        client,
+        db: Session,
+        test_instructor,
+        test_student,
+        auth_headers_instructor,
+        auth_headers_student,
+        full_detail_settings,
     ):
         """Test that cache is properly invalidated when bookings are made."""
         instructor_id = test_instructor.id
@@ -211,15 +237,16 @@ class TestPublicAvailabilityIntegration:
         # Slot should now be unavailable
         assert result2["total_available_slots"] == 0
 
-    def test_performance_with_many_slots(self, client, db: Session, test_instructor):
+    def test_performance_with_many_slots(self, client, db: Session, test_instructor, full_detail_settings):
         """Test endpoint performance with many availability slots."""
         instructor_id = test_instructor.id
 
-        # Create 30 days of availability with multiple slots per day
+        # Create slots for the configured number of days
         start_date = date.today()
         slots_created = 0
+        days_to_create = min(30, settings.public_availability_days)  # Create up to configured days
 
-        for day_offset in range(30):
+        for day_offset in range(days_to_create):
             current_date = start_date + timedelta(days=day_offset)
 
             # Create 8 one-hour slots per day (9am-5pm)
@@ -240,9 +267,13 @@ class TestPublicAvailabilityIntegration:
 
         start_time = timer.time()
 
+        # Request the full configured range
         response = client.get(
             f"/api/public/instructors/{instructor_id}/availability",
-            params={"start_date": start_date.isoformat(), "end_date": (start_date + timedelta(days=29)).isoformat()},
+            params={
+                "start_date": start_date.isoformat(),
+                "end_date": (start_date + timedelta(days=days_to_create - 1)).isoformat(),
+            },
         )
 
         end_time = timer.time()
@@ -254,21 +285,25 @@ class TestPublicAvailabilityIntegration:
         assert response.status_code == 200
         result = response.json()
 
-        # Verify all slots are returned
-        assert result["total_available_slots"] == slots_created
+        # Verify all slots are returned up to the configured limit
+        # The endpoint will cap at public_availability_days even if more are requested
+        expected_slots = days_to_create * 8  # 8 slots per day
+        assert result["total_available_slots"] == expected_slots
 
         # Performance check - should be reasonably fast even with many slots
-        assert request_time < 1.0  # Should complete in under 1 second
+        assert request_time < 1.0, f"Initial request too slow: {request_time:.3f}s"
 
         # Second request should be much faster due to cache
         start_time2 = timer.time()
         response2 = client.get(
             f"/api/public/instructors/{instructor_id}/availability",
-            params={"start_date": start_date.isoformat(), "end_date": (start_date + timedelta(days=29)).isoformat()},
+            params={
+                "start_date": start_date.isoformat(),
+                "end_date": (start_date + timedelta(days=days_to_create - 1)).isoformat(),
+            },
         )
         end_time2 = timer.time()
         cached_request_time = end_time2 - start_time2
 
         assert response2.status_code == 200
-        assert request_time < 1.0, f"Initial request too slow: {request_time:.3f}s"
         assert cached_request_time < 1.0, f"Cached request too slow: {cached_request_time:.3f}s"

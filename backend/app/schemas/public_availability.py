@@ -8,7 +8,7 @@ No internal IDs or implementation details are exposed.
 """
 
 from datetime import date
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -108,3 +108,45 @@ class PublicAvailabilityQuery(BaseModel):
         if not self.end_date:
             return 30
         return (self.end_date - self.start_date).days + 1
+
+
+class PublicAvailabilityMinimal(BaseModel):
+    """Minimal availability info - just yes/no."""
+
+    instructor_id: int
+    instructor_name: str
+    has_availability: bool
+    earliest_available_date: Optional[str] = None
+    timezone: str = Field(default="America/New_York")
+
+
+class PublicAvailabilitySummary(BaseModel):
+    """Summary availability - time ranges without specific slots."""
+
+    instructor_id: int
+    instructor_name: str
+    availability_summary: Dict[str, Dict[str, Union[str, bool, float]]]
+    timezone: str = Field(default="America/New_York")
+    total_available_days: int
+    detail_level: Literal["summary"] = "summary"
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "instructor_id": 123,
+                "instructor_name": "Sarah Chen",
+                "availability_summary": {
+                    "2025-07-15": {
+                        "date": "2025-07-15",
+                        "morning_available": True,
+                        "afternoon_available": False,
+                        "evening_available": True,
+                        "total_hours": 4.5,
+                    }
+                },
+                "timezone": "America/New_York",
+                "total_available_days": 5,
+                "detail_level": "summary",
+            }
+        }
+    )

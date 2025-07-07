@@ -16,10 +16,34 @@ import pytest
 from fastapi import status
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.availability import AvailabilitySlot, BlackoutDate
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service import Service
+
+
+@pytest.fixture
+def full_detail_settings(monkeypatch):
+    """Ensure tests use full detail level and 30 days default."""
+    monkeypatch.setattr(settings, "public_availability_detail_level", "full")
+    monkeypatch.setattr(settings, "public_availability_days", 30)
+    monkeypatch.setattr(settings, "public_availability_show_instructor_name", True)
+    monkeypatch.setattr(settings, "public_availability_cache_ttl", 300)
+
+
+@pytest.fixture
+def minimal_detail_settings(monkeypatch):
+    """Configure minimal detail level for specific tests."""
+    monkeypatch.setattr(settings, "public_availability_detail_level", "minimal")
+    monkeypatch.setattr(settings, "public_availability_days", 30)
+
+
+@pytest.fixture
+def summary_detail_settings(monkeypatch):
+    """Configure summary detail level for specific tests."""
+    monkeypatch.setattr(settings, "public_availability_detail_level", "summary")
+    monkeypatch.setattr(settings, "public_availability_days", 30)
 
 
 class TestPublicAvailability:
@@ -91,7 +115,7 @@ class TestPublicAvailability:
 
         return {"instructor": instructor, "slots": slots, "booking": booking, "blackout": blackout, "service": service}
 
-    def test_get_public_availability_no_auth_required(self, public_client, test_instructor):
+    def test_get_public_availability_no_auth_required(self, public_client, test_instructor, full_detail_settings):
         """Test that public endpoint doesn't require authentication."""
         response = public_client.get(
             f"/api/public/instructors/{test_instructor.id}/availability",
@@ -101,7 +125,9 @@ class TestPublicAvailability:
         # Should work without auth headers (200 or 404 if route not registered)
         assert response.status_code in [200, 404]
 
-    def test_get_public_availability_success(self, public_client, db, mock_instructor_with_availability):
+    def test_get_public_availability_success(
+        self, public_client, db, mock_instructor_with_availability, full_detail_settings
+    ):
         """Test successful retrieval of public availability."""
         data = mock_instructor_with_availability
         instructor = data["instructor"]
@@ -157,7 +183,7 @@ class TestPublicAvailability:
         assert result["total_available_slots"] == 3
         assert result["earliest_available_date"] == today_str
 
-    def test_get_public_availability_instructor_not_found(self, public_client):
+    def test_get_public_availability_instructor_not_found(self, public_client, full_detail_settings):
         """Test 404 when instructor doesn't exist."""
         response = public_client.get(
             "/api/public/instructors/99999/availability", params={"start_date": date.today().isoformat()}
@@ -169,7 +195,7 @@ class TestPublicAvailability:
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_get_public_availability_invalid_date_range(self, public_client, test_instructor):
+    def test_get_public_availability_invalid_date_range(self, public_client, test_instructor, full_detail_settings):
         """Test validation of date parameters."""
         # Past start date
         response = public_client.get(
@@ -202,8 +228,8 @@ class TestPublicAvailability:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "90 days" in response.json()["detail"]
 
-    def test_get_public_availability_default_end_date(self, public_client, test_instructor):
-        """Test that end_date defaults to 30 days if not provided."""
+    def test_get_public_availability_default_end_date(self, public_client, test_instructor, full_detail_settings):
+        """Test that end_date defaults to configured days if not provided."""
         response = public_client.get(
             f"/api/public/instructors/{test_instructor.id}/availability",
             params={"start_date": date.today().isoformat()},
@@ -215,11 +241,11 @@ class TestPublicAvailability:
         assert response.status_code == status.HTTP_200_OK
         result = response.json()
 
-        # Should have 31 days (today + 30)
-        assert len(result["availability_by_date"]) == 31
+        # Should have 30 days (based on public_availability_days setting)
+        assert len(result["availability_by_date"]) == 30
 
     def test_get_public_availability_excludes_cancelled_bookings(
-        self, public_client, db, test_instructor, test_student
+        self, public_client, db, test_instructor, test_student, full_detail_settings
     ):
         """Test that cancelled bookings don't affect availability."""
         today = date.today()
@@ -270,7 +296,7 @@ class TestPublicAvailability:
         assert len(today_slots) == 1
         assert today_slots[0]["start_time"] == "09:00"
 
-    def test_get_public_availability_caching(self, public_client, test_instructor):
+    def test_get_public_availability_caching(self, public_client, test_instructor, full_detail_settings):
         """Test that endpoint works with or without caching."""
         # Just test the endpoint works - caching is optional
         response = public_client.get(
@@ -293,7 +319,7 @@ class TestPublicAvailability:
         # Both responses should be identical
         assert response.json() == response2.json()
 
-    def test_get_next_available_slot(self, public_client, db, test_instructor, test_student):
+    def test_get_next_available_slot(self, public_client, db, test_instructor, test_student, full_detail_settings):
         """Test finding next available slot."""
         today = date.today()
 
@@ -355,7 +381,7 @@ class TestPublicAvailability:
         assert result["start_time"] == "09:00:00"
         assert result["duration_minutes"] == 60
 
-    def test_get_next_available_slot_not_found(self, public_client, test_instructor):
+    def test_get_next_available_slot_not_found(self, public_client, test_instructor, full_detail_settings):
         """Test when no available slot exists."""
         # No slots created
         response = public_client.get(
@@ -371,7 +397,9 @@ class TestPublicAvailability:
         assert result["found"] is False
         assert "No available slots" in result["message"]
 
-    def test_public_availability_partial_slot_booking(self, public_client, db, test_instructor, test_student):
+    def test_public_availability_partial_slot_booking(
+        self, public_client, db, test_instructor, test_student, full_detail_settings
+    ):
         """Test that partially booked slots are excluded entirely."""
         today = date.today()
 
@@ -419,3 +447,79 @@ class TestPublicAvailability:
         # The entire 2-hour slot should be excluded
         today_slots = result["availability_by_date"][today.isoformat()]["available_slots"]
         assert len(today_slots) == 0
+
+    def test_minimal_detail_level(self, public_client, db, test_instructor, minimal_detail_settings):
+        """Test minimal detail level response."""
+        today = date.today()
+
+        # Create a slot
+        slot = AvailabilitySlot(
+            instructor_id=test_instructor.id, specific_date=today, start_time=time(9, 0), end_time=time(10, 0)
+        )
+        db.add(slot)
+        db.commit()
+
+        response = public_client.get(
+            f"/api/public/instructors/{test_instructor.id}/availability",
+            params={"start_date": today.isoformat()},
+        )
+
+        if response.status_code == 404:
+            pytest.skip("Public routes not registered in main.py")
+
+        assert response.status_code == status.HTTP_200_OK
+        result = response.json()
+
+        # Should have minimal fields only
+        assert "instructor_id" in result
+        assert "instructor_name" in result
+        assert "has_availability" in result
+        assert result["has_availability"] is True
+        assert "earliest_available_date" in result
+        assert result["earliest_available_date"] == today.isoformat()
+        assert "availability_by_date" not in result  # No detailed slots
+
+    def test_summary_detail_level(self, public_client, db, test_instructor, summary_detail_settings):
+        """Test summary detail level response."""
+        today = date.today()
+
+        # Create morning and afternoon slots
+        slots = [
+            AvailabilitySlot(
+                instructor_id=test_instructor.id,
+                specific_date=today,
+                start_time=time(9, 0),
+                end_time=time(11, 0),  # 2 hours
+            ),
+            AvailabilitySlot(
+                instructor_id=test_instructor.id,
+                specific_date=today,
+                start_time=time(14, 0),
+                end_time=time(16, 0),  # 2 hours
+            ),
+        ]
+
+        for slot in slots:
+            db.add(slot)
+        db.commit()
+
+        response = public_client.get(
+            f"/api/public/instructors/{test_instructor.id}/availability",
+            params={"start_date": today.isoformat(), "end_date": today.isoformat()},
+        )
+
+        if response.status_code == 404:
+            pytest.skip("Public routes not registered in main.py")
+
+        assert response.status_code == status.HTTP_200_OK
+        result = response.json()
+
+        # Should have summary fields
+        assert "availability_summary" in result
+        assert result["detail_level"] == "summary"
+
+        today_summary = result["availability_summary"][today.isoformat()]
+        assert today_summary["morning_available"] is True
+        assert today_summary["afternoon_available"] is True
+        assert today_summary["evening_available"] is False
+        assert today_summary["total_hours"] == 4.0  # 2 + 2 hours

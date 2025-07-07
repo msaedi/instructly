@@ -2,9 +2,10 @@
 import logging
 import os
 from pathlib import Path
+from typing import Literal
 
 from dotenv import load_dotenv
-from pydantic import ConfigDict, SecretStr, field_validator
+from pydantic import ConfigDict, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,26 @@ class Settings(BaseSettings):
         env_file=".env" if not os.getenv("CI") else None,
         case_sensitive=False,  # Changed to False - allows SECRET_KEY to match secret_key
         extra="ignore",
+    )
+
+    # Public API Configuration
+    public_availability_days: int = Field(
+        default=30,
+        description="Maximum number of days to show in public availability",
+        ge=1,  # Greater than or equal to 1
+        le=90,  # Less than or equal to 90
+    )
+
+    public_availability_detail_level: Literal["full", "summary", "minimal"] = Field(
+        default="full", description="Level of detail to show in public availability endpoints"
+    )
+
+    public_availability_show_instructor_name: bool = Field(
+        default=True, description="Whether to show instructor names in public endpoints"
+    )
+
+    public_availability_cache_ttl: int = Field(
+        default=300, description="Cache TTL in seconds for public availability data"  # 5 minutes
     )
 
     @field_validator("test_database_url")
