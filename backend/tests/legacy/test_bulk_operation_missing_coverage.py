@@ -1,9 +1,10 @@
-# backend/tests/test_bulk_operation_missing_coverage.py
+# backend/tests/legacy/test_bulk_operation_missing_coverage.py
 """
 Tests targeting missing coverage lines in BulkOperationService.
 Focuses on edge cases and error conditions.
 
 UPDATED FOR WORK STREAM #10: Single-table availability design.
+UPDATED FOR WORK STREAM #9: Layer independence - no FK between bookings and slots.
 """
 
 from datetime import date, datetime, time, timedelta
@@ -126,10 +127,13 @@ class TestBulkOperationMissingCoverage:
         # Should create new slot directly
         assert result["successful"] == 1
 
-        # Verify slot was created
+        # Verify slot was created - fixed field name
         slot = (
             db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.date == future_date)
+            .filter(
+                AvailabilitySlot.instructor_id == test_instructor.id,
+                AvailabilitySlot.specific_date == future_date,  # Fixed: date → specific_date
+            )
             .first()
         )
         assert slot is not None
@@ -240,7 +244,7 @@ class TestBulkOperationMissingCoverage:
             db.query(AvailabilitySlot)
             .filter(
                 AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-                AvailabilitySlot.date >= tomorrow,
+                AvailabilitySlot.specific_date >= tomorrow,  # Fixed: date → specific_date
             )
             .first()
         )
@@ -248,8 +252,15 @@ class TestBulkOperationMissingCoverage:
         if not slot:
             pytest.skip("No future slots available for testing")
 
-        # Try to add duplicate slot
-        operations = [SlotOperation(action="add", date=slot.date, start_time=slot.start_time, end_time=slot.end_time)]
+        # Try to add duplicate slot - fixed field names
+        operations = [
+            SlotOperation(
+                action="add",
+                date=slot.specific_date,  # Fixed: slot.date → slot.specific_date
+                start_time=slot.start_time,
+                end_time=slot.end_time,
+            )
+        ]
 
         request = BulkUpdateRequest(operations=operations, validate_only=False)
         bulk_service = BulkOperationService(db)
@@ -261,9 +272,31 @@ class TestBulkOperationMissingCoverage:
     @pytest.mark.asyncio
     async def test_force_delete_with_booking(self, db: Session, test_booking):
         """Test force delete behavior with bookings."""
-        slot_id = test_booking.availability_slot_id
+        # Work Stream #9: Bookings no longer have availability_slot_id
+        # We need to find a slot that matches the booking's time
+        slot = (
+            db.query(AvailabilitySlot)
+            .filter(
+                AvailabilitySlot.instructor_id == test_booking.instructor_id,
+                AvailabilitySlot.specific_date == test_booking.booking_date,
+                AvailabilitySlot.start_time <= test_booking.start_time,
+                AvailabilitySlot.end_time >= test_booking.end_time,
+            )
+            .first()
+        )
 
-        operations = [SlotOperation(action="remove", slot_id=slot_id)]
+        if not slot:
+            # Create a slot that overlaps with the booking for testing
+            slot = AvailabilitySlot(
+                instructor_id=test_booking.instructor_id,
+                specific_date=test_booking.booking_date,
+                start_time=test_booking.start_time,
+                end_time=test_booking.end_time,
+            )
+            db.add(slot)
+            db.commit()
+
+        operations = [SlotOperation(action="remove", slot_id=slot.id)]
 
         request = BulkUpdateRequest(operations=operations, validate_only=False)
         bulk_service = BulkOperationService(db)
