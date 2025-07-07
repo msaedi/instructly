@@ -219,40 +219,47 @@ class TestBaseServicePerformanceMonitoring:
         """Test performance metric recording."""
         service = BaseService(db)
 
+        # Use unique operation names to avoid conflicts
+        create_op = "test_create_user_metric"
+        update_op = "test_update_user_metric"
+
         # Record some metrics
-        service._record_metric("create_user", 0.150, success=True)
-        service._record_metric("create_user", 0.200, success=True)
-        service._record_metric("create_user", 0.500, success=False)
-        service._record_metric("update_user", 0.100, success=True)
+        service._record_metric(create_op, 0.150, success=True)
+        service._record_metric(create_op, 0.200, success=True)
+        service._record_metric(create_op, 0.500, success=False)
+        service._record_metric(update_op, 0.100, success=True)
 
         # Get metrics
         metrics = service.get_metrics()
 
         # Verify create_user metrics
-        assert metrics["create_user"]["count"] == 3
-        assert metrics["create_user"]["avg_time"] == pytest.approx(0.283, rel=0.01)
-        assert metrics["create_user"]["success_rate"] == pytest.approx(0.667, rel=0.01)
-        assert metrics["create_user"]["total_time"] == 0.850
+        assert metrics[create_op]["count"] == 3
+        assert metrics[create_op]["avg_time"] == pytest.approx(0.283, rel=0.01)
+        assert metrics[create_op]["success_rate"] == pytest.approx(0.667, rel=0.01)
+        assert metrics[create_op]["total_time"] == 0.850
 
         # Verify update_user metrics
-        assert metrics["update_user"]["count"] == 1
-        assert metrics["update_user"]["avg_time"] == 0.100
-        assert metrics["update_user"]["success_rate"] == 1.0
+        assert metrics[update_op]["count"] == 1
+        assert metrics[update_op]["avg_time"] == 0.100
+        assert metrics[update_op]["success_rate"] == 1.0
 
     def test_slow_operation_warning(self, db: Session, caplog):
         """Test slow operation warning logging."""
         service = BaseService(db)
 
+        # Use unique operation name
+        slow_op_name = "test_slow_query_unique"
+
         # Use the context manager with an actual slow operation
         with caplog.at_level("WARNING"):
-            with service.measure_operation_context("slow_query"):
+            with service.measure_operation_context(slow_op_name):
                 import time
 
                 time.sleep(1.1)  # Sleep for more than 1 second to trigger warning
 
         # Verify warning was logged with correct format
         warning_found = any(
-            "Slow operation detected: slow_query took" in record.message
+            f"Slow operation detected: {slow_op_name} took" in record.message
             for record in caplog.records
             if record.levelname == "WARNING"
         )
@@ -265,24 +272,31 @@ class TestBaseServicePerformanceMonitoring:
         """Test measure_operation_context context manager."""
         service = BaseService(db)
 
+        # Use a unique operation name to avoid conflicts with other tests
+        unique_op_name = "test_context_operation_unique"
+
         # Use context manager for measurement
-        with service.measure_operation_context("context_operation"):
+        with service.measure_operation_context(unique_op_name):
             import time
 
             time.sleep(0.05)
-            result = "context_result"
 
         # Verify metrics were recorded
         metrics = service.get_metrics()
-        assert "context_operation" in metrics
-        assert metrics["context_operation"]["count"] == 1
-        assert metrics["context_operation"]["avg_time"] >= 0.05
-        assert metrics["context_operation"]["success_rate"] == 1.0
+        assert unique_op_name in metrics
+        assert metrics[unique_op_name]["count"] == 1
+        assert metrics[unique_op_name]["avg_time"] >= 0.05
+        assert metrics[unique_op_name]["success_rate"] == 1.0
+
+    def test_measure_operation_decorator(self, db: Session):
         """Test measure_operation decorator pattern."""
         service = BaseService(db)
 
+        # Use unique operation name to avoid conflicts
+        unique_decorator_op = "test_decorator_operation_unique"
+
         # Create a test method and bind it to the service instance
-        @BaseService.measure_operation("test_operation")
+        @BaseService.measure_operation(unique_decorator_op)
         def slow_operation(self):
             import time
 
@@ -298,9 +312,9 @@ class TestBaseServicePerformanceMonitoring:
         # Verify result and metrics
         assert result == "result"
         metrics = service.get_metrics()
-        assert "test_operation" in metrics
-        assert metrics["test_operation"]["count"] == 1
-        assert metrics["test_operation"]["avg_time"] >= 0.1
+        assert unique_decorator_op in metrics
+        assert metrics[unique_decorator_op]["count"] == 1
+        assert metrics[unique_decorator_op]["avg_time"] >= 0.1
 
 
 class TestBaseServiceValidation:
