@@ -1,13 +1,19 @@
-# backend/tests/unit/test_availability_service_logic.py
+# backend/tests/unit/services/test_availability_service_logic.py
 """
 Fixed unit tests for AvailabilityService business logic.
 
 UPDATED FOR WORK STREAM #10: Single-table availability design.
 These tests work with the repository pattern implementation.
+
+FIXES:
+- Updated field names from 'date' to 'specific_date'
+- Fixed mock object configuration for proper date handling
+- Fixed _group_schedule_by_date test to use dictionaries instead of Mocks
+- Removed expectations of is_available field (now properly removed from service)
 """
 
 from datetime import date, time, timedelta
-from unittest.mock import Mock
+from unittest.mock import Mock, PropertyMock
 
 import pytest
 from sqlalchemy.orm import Session
@@ -81,11 +87,17 @@ class TestAvailabilityServiceBusinessLogic:
 
     def test_group_schedule_by_date(self, service):
         """Test the _group_schedule_by_date helper method."""
-        # Create mock schedule items
+        # Create mock schedule items with proper date attribute
         tomorrow = date.today() + timedelta(days=1)
         day_after = date.today() + timedelta(days=2)
 
-        schedule = [Mock(date=tomorrow), Mock(date=tomorrow), Mock(date=day_after)]  # Two slots for same day
+        # Create dictionary items that match what the method expects
+        # Based on the service code, it expects dicts with 'date' key as string
+        schedule = [
+            {"date": tomorrow.isoformat(), "start_time": "09:00", "end_time": "10:00"},
+            {"date": tomorrow.isoformat(), "start_time": "14:00", "end_time": "15:00"},
+            {"date": day_after.isoformat(), "start_time": "09:00", "end_time": "10:00"},
+        ]
 
         result = service._group_schedule_by_date(schedule)
 
@@ -102,9 +114,6 @@ class TestAvailabilityServiceBusinessLogic:
         availability_data = SpecificDateAvailabilityCreate(
             specific_date=date.today() + timedelta(days=1), start_time=time(9, 0), end_time=time(10, 0)
         )
-
-        # Mock the repository methods used
-        service.repository.slot_exists.return_value = True
 
         # This should raise ConflictException due to slot existing
         with pytest.raises(ConflictException, match="This time slot already exists"):
@@ -129,27 +138,36 @@ class TestAvailabilityServiceQueryHelpers:
     def test_get_week_availability(self, service):
         """Test getting week availability with single-table design."""
         # Mock repository response - now returns AvailabilitySlot objects directly
+        test_date = date.today()
+
+        # Create properly configured mock slots
         mock_slot1 = Mock(spec=AvailabilitySlot)
-        mock_slot1.date = date.today()
+        mock_slot1.specific_date = test_date  # Fixed: date -> specific_date
         mock_slot1.start_time = time(9, 0)
         mock_slot1.end_time = time(10, 0)
+        # Configure the mock to return proper isoformat
+        type(mock_slot1).specific_date = PropertyMock(return_value=test_date)
 
         mock_slot2 = Mock(spec=AvailabilitySlot)
-        mock_slot2.date = date.today()
+        mock_slot2.specific_date = test_date  # Fixed: date -> specific_date
         mock_slot2.start_time = time(14, 0)
         mock_slot2.end_time = time(15, 0)
+        # Configure the mock to return proper isoformat
+        type(mock_slot2).specific_date = PropertyMock(return_value=test_date)
 
         service.repository.get_week_availability.return_value = [mock_slot1, mock_slot2]
 
         # Call the service method
-        result = service.get_week_availability(instructor_id=123, start_date=date.today())
+        result = service.get_week_availability(instructor_id=123, start_date=test_date)
 
         # Verify the result format
-        date_str = date.today().isoformat()
+        date_str = test_date.isoformat()
         assert date_str in result
         assert len(result[date_str]) == 2
         assert result[date_str][0]["start_time"] == "09:00:00"
         assert result[date_str][0]["end_time"] == "10:00:00"
+        # Verify is_available is NOT in the response (Work Stream #10)
+        assert "is_available" not in result[date_str][0]
 
     def test_delete_slots_by_dates(self, service):
         """Test deleting slots by dates via repository."""
@@ -218,10 +236,13 @@ class TestAvailabilityServiceCacheHandling:
         service.repository = mock_repository
 
         # Mock successful repository query - now returns slots directly
+        test_date = date.today()
         mock_slot = Mock(spec=AvailabilitySlot)
-        mock_slot.date = date.today()
+        mock_slot.specific_date = test_date  # Fixed: date -> specific_date
         mock_slot.start_time = time(9, 0)
         mock_slot.end_time = time(10, 0)
+        # Configure the mock properly
+        type(mock_slot).specific_date = PropertyMock(return_value=test_date)
 
         # Repository returns list of slots
         service.repository.get_week_availability.return_value = [mock_slot]
@@ -284,3 +305,56 @@ class TestAvailabilityServiceErrorHandling:
         # Should raise ConflictException due to duplicate slot
         with pytest.raises(ConflictException, match="This time slot already exists"):
             service.add_specific_date_availability(instructor_id=123, availability_data=availability_data)
+
+
+class TestAvailabilityServiceNoBackwardCompatibility:
+    """Test that the service follows Work Stream #10 - no backward compatibility."""
+
+    @pytest.fixture
+    def service(self):
+        """Create service with mocked repository."""
+        db = Mock(spec=Session)
+        service = AvailabilityService(db)
+
+        # Mock the repository
+        mock_repository = Mock(spec=AvailabilityRepository)
+        service.repository = mock_repository
+
+        return service
+
+    def test_no_is_available_in_responses(self, service):
+        """Test that responses don't include the removed is_available field."""
+        # Mock repository response
+        test_date = date.today()
+        mock_slot = Mock(spec=AvailabilitySlot)
+        mock_slot.specific_date = test_date
+        mock_slot.start_time = time(9, 0)
+        mock_slot.end_time = time(10, 0)
+        type(mock_slot).specific_date = PropertyMock(return_value=test_date)
+
+        service.repository.get_week_availability.return_value = [mock_slot]
+
+        result = service.get_week_availability(instructor_id=123, start_date=test_date)
+
+        # Check that is_available is NOT in the response
+        for date_slots in result.values():
+            for slot in date_slots:
+                assert "is_available" not in slot, "is_available field should not be in response (Work Stream #10)"
+
+    def test_get_availability_for_date_no_is_available(self, service):
+        """Test that get_availability_for_date doesn't return is_available."""
+        # Mock repository response
+        test_date = date.today()
+        mock_slot = Mock(spec=AvailabilitySlot)
+        mock_slot.specific_date = test_date
+        mock_slot.start_time = time(9, 0)
+        mock_slot.end_time = time(10, 0)
+
+        service.repository.get_slots_by_date.return_value = [mock_slot]
+
+        result = service.get_availability_for_date(instructor_id=123, target_date=test_date)
+
+        # Check the slots in the response
+        assert "slots" in result
+        for slot in result["slots"]:
+            assert "is_available" not in slot, "is_available field should not be in response (Work Stream #10)"
