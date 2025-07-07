@@ -1,4 +1,4 @@
-# backend/tests/integration/test_booking_service_edge_cases.py
+# backend/tests/integration/services/test_booking_service_edge_cases.py
 """
 Additional edge case tests for BookingService to achieve >90% coverage.
 
@@ -9,6 +9,7 @@ This test suite covers:
 - Various filter combinations
 
 UPDATED FOR WORK STREAM #10: Single-table availability design.
+UPDATED FOR WORK STREAM #9: Layer independence - time-based booking.
 """
 
 import logging
@@ -51,19 +52,27 @@ class TestBookingServiceErrorHandling:
         )
 
         tomorrow = date.today() + timedelta(days=1)
-        # Get slot directly (single-table design)
+        # Get slot directly (single-table design) - FIXED: date → specific_date
         slot = (
             db.query(AvailabilitySlot)
             .filter(
                 AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-                AvailabilitySlot.date == tomorrow,
+                AvailabilitySlot.specific_date == tomorrow,  # FIXED: date → specific_date
             )
             .first()
         )
 
         booking_service = BookingService(db, mock_notification_service)
+
+        # FIXED: Use time-based booking (Work Stream #9)
         booking_data = BookingCreate(
-            availability_slot_id=slot.id, service_id=service.id, location_type="neutral", meeting_location="Online"
+            instructor_id=test_instructor_with_availability.id,
+            booking_date=tomorrow,
+            start_time=slot.start_time,
+            end_time=slot.end_time,
+            service_id=service.id,
+            location_type="neutral",
+            meeting_location="Online",
         )
 
         # Should succeed despite notification failure
@@ -324,31 +333,48 @@ class TestBookingServiceAvailabilityEdgeCases:
 
     @pytest.mark.asyncio
     async def test_check_availability_slot_not_found(self, db: Session, mock_notification_service: Mock):
-        """Test checking availability for non-existent slot."""
+        """Test checking availability for non-existent time slot."""
         booking_service = BookingService(db, mock_notification_service)
-        result = await booking_service.check_availability(slot_id=99999, service_id=1)  # Non-existent
+
+        # FIXED: Use time-based check_availability method
+        result = await booking_service.check_availability(
+            instructor_id=99999,  # Non-existent instructor
+            booking_date=date.today() + timedelta(days=1),
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            service_id=1,
+        )
 
         assert result["available"] is False
-        assert result["reason"] == "Slot not found"
+        assert "not found" in result["reason"].lower() or "instructor" in result["reason"].lower()
 
     @pytest.mark.asyncio
     async def test_check_availability_service_not_found(
         self, db: Session, test_instructor_with_availability: User, mock_notification_service: Mock
     ):
         """Test checking availability with non-existent service."""
-        # Get a valid slot directly (single-table design)
         tomorrow = date.today() + timedelta(days=1)
+
+        # Get a valid slot to know the available times - FIXED: date → specific_date
         slot = (
             db.query(AvailabilitySlot)
             .filter(
                 AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-                AvailabilitySlot.date == tomorrow,
+                AvailabilitySlot.specific_date == tomorrow,  # FIXED: date → specific_date
             )
             .first()
         )
 
         booking_service = BookingService(db, mock_notification_service)
-        result = await booking_service.check_availability(slot_id=slot.id, service_id=99999)  # Non-existent
+
+        # FIXED: Use time-based check_availability method
+        result = await booking_service.check_availability(
+            instructor_id=test_instructor_with_availability.id,
+            booking_date=tomorrow,
+            start_time=slot.start_time if slot else time(9, 0),
+            end_time=slot.end_time if slot else time(10, 0),
+            service_id=99999,  # Non-existent service
+        )
 
         assert result["available"] is False
         assert result["reason"] == "Service not found or no longer available"
