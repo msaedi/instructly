@@ -1,4 +1,4 @@
-# backend/tests/integration/test_week_operation_query_patterns.py
+# backend/tests/integration/repository_patterns/test_week_operation_query_patterns.py
 """
 Document all database query patterns used in WeekOperationService.
 
@@ -9,6 +9,10 @@ UPDATED FOR WORK STREAM #10: Single-table availability design.
 - No more InstructorAvailability queries
 - Direct slot operations only
 - Simplified query patterns
+
+UPDATED FOR WORK STREAM #9: Layer independence
+- Bookings no longer reference slots
+- Time-based operations instead of slot-based
 """
 
 from datetime import date, time, timedelta
@@ -64,8 +68,8 @@ class TestWeekOperationQueryPatterns:
 
         # Simple query pattern:
         # - Filter by instructor_id
-        # - Filter by date range
-        # - Order by date and start_time
+        # - Filter by specific_date range (not date)
+        # - Order by specific_date and start_time
         # - No joins needed!
 
         assert isinstance(result, list)
@@ -79,8 +83,18 @@ class TestWeekOperationQueryPatterns:
         Uses bulk_insert_mappings for performance.
         """
         slots_data = [
-            {"instructor_id": 1, "date": date(2025, 6, 23), "start_time": time(9, 0), "end_time": time(10, 0)},
-            {"instructor_id": 1, "date": date(2025, 6, 23), "start_time": time(10, 0), "end_time": time(11, 0)},
+            {
+                "instructor_id": 1,
+                "specific_date": date(2025, 6, 23),  # FIXED: date → specific_date
+                "start_time": time(9, 0),
+                "end_time": time(10, 0),
+            },
+            {
+                "instructor_id": 1,
+                "specific_date": date(2025, 6, 23),  # FIXED: date → specific_date
+                "start_time": time(10, 0),
+                "end_time": time(11, 0),
+            },
         ]
 
         # Pattern uses bulk_insert_mappings for best performance
@@ -97,7 +111,7 @@ class TestWeekOperationQueryPatterns:
         """
         # Pattern for bulk delete:
         # DELETE FROM availability_slots
-        # WHERE instructor_id = ? AND date IN (?, ?, ?)
+        # WHERE instructor_id = ? AND specific_date IN (?, ?, ?)
 
     def test_get_week_bookings_pattern(self, db: Session, repository: WeekOperationRepository):
         """Document pattern for getting bookings in a week.
@@ -105,7 +119,7 @@ class TestWeekOperationQueryPatterns:
         Repository method signature:
         def get_week_bookings_with_slots(instructor_id: int, week_dates: List[date]) -> Dict
 
-        With single-table design, this queries bookings directly without complex joins.
+        UPDATED: Work Stream #9 - Returns time ranges, not slot IDs
         """
         instructor_id = 1
         week_dates = [date(2025, 6, 23) + timedelta(days=i) for i in range(7)]
@@ -116,10 +130,10 @@ class TestWeekOperationQueryPatterns:
         # - Query bookings table directly
         # - Filter by instructor_id and dates
         # - Filter by status (CONFIRMED, COMPLETED)
-        # - No need to join through InstructorAvailability!
+        # - Return time ranges, not slot IDs
 
         assert isinstance(result, dict)
-        assert "booked_slot_ids" in result
+        # FIXED: No more booked_slot_ids - bookings are independent of slots
         assert "booked_time_ranges_by_date" in result
         assert "total_bookings" in result
 
@@ -129,7 +143,7 @@ class TestWeekOperationQueryPatterns:
         Repository method signature:
         def get_bookings_in_date_range(instructor_id: int, start_date: date, end_date: date) -> Dict
 
-        Direct query on bookings table.
+        UPDATED: Work Stream #9 - Returns bookings by date, not slot IDs
         """
         instructor_id = 1
         start_date = date(2025, 6, 1)
@@ -144,7 +158,7 @@ class TestWeekOperationQueryPatterns:
         # - Grouping by date
 
         assert "bookings_by_date" in result
-        assert "booked_slot_ids" in result
+        # FIXED: No more booked_slot_ids - bookings are independent
         assert "total_bookings" in result
 
     def test_get_slots_with_booking_status_pattern(self, db: Session, repository: WeekOperationRepository):
@@ -153,7 +167,7 @@ class TestWeekOperationQueryPatterns:
         Repository method signature:
         def get_slots_with_booking_status(instructor_id: int, target_date: date) -> List[Dict]
 
-        Two-step query: get slots, then check bookings.
+        UPDATED: Checks time overlaps, not slot IDs
         """
         instructor_id = 1
         target_date = date(2025, 6, 23)
@@ -162,8 +176,9 @@ class TestWeekOperationQueryPatterns:
 
         # Pattern:
         # 1. Get all slots for the date from availability_slots
-        # 2. Get booked slot IDs from bookings table
-        # 3. Return slot info with is_booked flag
+        # 2. Get bookings for the same date/instructor
+        # 3. Check time overlaps to determine if slot has booking
+        # 4. Return slot info with is_booked flag
 
         assert isinstance(result, list)
         if result:
@@ -179,6 +194,7 @@ class TestWeekOperationQueryPatterns:
         def bulk_delete_slots(slot_ids: List[int]) -> int
 
         Uses IN clause for efficient deletion.
+        Note: Still uses slot IDs for direct slot operations
         """
         # Pattern uses IN clause for bulk delete
         # DELETE FROM availability_slots WHERE id IN (?, ?, ?)
@@ -189,15 +205,17 @@ class TestWeekOperationQueryPatterns:
         """Document pattern for deleting non-booked slots.
 
         Repository method signature:
-        def delete_non_booked_slots(instructor_id: int, week_dates: List[date], booked_slot_ids: Set[int]) -> int
+        def delete_non_booked_slots(instructor_id: int, week_dates: List[date], booked_times: Dict[date, List[Dict]]) -> int
 
-        Deletes slots NOT in the booked set.
+        UPDATED: Uses time ranges to determine which slots to keep
         """
         # Pattern:
-        # DELETE FROM availability_slots
-        # WHERE instructor_id = ?
-        # AND date IN (?, ?, ?)
-        # AND id NOT IN (?, ?, ?)  # if booked_slot_ids provided
+        # 1. Get all slots for instructor/dates
+        # 2. For each slot, check if its time overlaps with any booked time
+        # 3. Delete slots that don't overlap with bookings
+        #
+        # This is more complex after Work Stream #9 since we can't just
+        # use slot IDs, but maintains the same functionality
 
     def test_simple_slot_queries_pattern(self, db: Session, service: WeekOperationService):
         """Document simple slot query patterns.
@@ -208,10 +226,10 @@ class TestWeekOperationQueryPatterns:
         - Better performance
         """
         # Examples of simplified queries:
-        # 1. Get slots by instructor and date - simple WHERE clause
+        # 1. Get slots by instructor and specific_date - simple WHERE clause
         # 2. Count slots - simple COUNT query
         # 3. Check slot exists - simple EXISTS query
-        # 4. Delete by date - simple DELETE with date filter
+        # 4. Delete by specific_date - simple DELETE with date filter
 
     def test_week_pattern_extraction_pattern(self, db: Session, service: WeekOperationService):
         """Document how week patterns are extracted from availability data.
@@ -235,3 +253,21 @@ class TestWeekOperationQueryPatterns:
         # - Cascade delete from availability to slots
         # - Managing empty availability entries
         # - Two-step create operations
+
+    def test_time_based_booking_queries(self, db: Session, repository: WeekOperationRepository):
+        """Document time-based booking query patterns.
+
+        Work Stream #9 means all booking queries are time-based:
+        - No slot_id references
+        - Check overlaps by comparing times
+        - Return time ranges instead of slot IDs
+        """
+        # Example patterns:
+        # 1. Find bookings overlapping with time range:
+        #    WHERE booking_date = ? AND start_time < ? AND end_time > ?
+        #
+        # 2. Group bookings by time:
+        #    Return {"09:00-10:00": booking_count, ...}
+        #
+        # 3. Check if time is booked:
+        #    EXISTS query with time overlap check
