@@ -1,4 +1,4 @@
-# backend/tests/integration/test_soft_delete_services.py
+# backend/tests/integration/db/test_soft_delete_services.py
 """
 Integration tests for service soft delete functionality.
 
@@ -7,8 +7,12 @@ including booking preservation and reactivation.
 
 UPDATED FOR WORK STREAM #10: Single-table availability design
 - Removed InstructorAvailability imports and usage
-- AvailabilitySlot now has instructor_id and date directly
+- AvailabilitySlot now has instructor_id and specific_date directly
 - Service soft delete logic remains unchanged
+
+UPDATED FOR WORK STREAM #9: Layer independence
+- Bookings no longer reference availability_slot_id
+- Bookings use time-based creation
 """
 
 from datetime import date, time, timedelta
@@ -56,30 +60,46 @@ class TestSoftDeleteServices:
 
         # If no bookings exist, create one to ensure the test is valid
         if booking_count == 0:
-            # Create an availability slot directly (single-table design)
+            # First try to find an existing slot from the fixture
             tomorrow = date.today() + timedelta(days=1)
-            slot = AvailabilitySlot(
-                instructor_id=test_instructor_with_bookings.id,
-                date=tomorrow,
-                start_time=time(9, 0),
-                end_time=time(12, 0),
+            existing_slot = (
+                db.query(AvailabilitySlot)
+                .filter(
+                    AvailabilitySlot.instructor_id == test_instructor_with_bookings.id,
+                    AvailabilitySlot.specific_date >= date.today(),
+                )
+                .first()
             )
-            db.add(slot)
-            db.flush()
 
-            # Create a booking
+            if existing_slot:
+                # Use the existing slot
+                slot = existing_slot
+                booking_date = existing_slot.specific_date
+            else:
+                # Create a new slot with unique times to avoid conflicts
+                slot = AvailabilitySlot(
+                    instructor_id=test_instructor_with_bookings.id,
+                    specific_date=tomorrow,
+                    start_time=time(13, 0),  # Use afternoon time to avoid conflicts
+                    end_time=time(16, 0),
+                )
+                db.add(slot)
+                db.flush()
+                booking_date = tomorrow
+
+            # Create a booking - using time-based booking (no availability_slot_id)
             booking = Booking(
                 student_id=test_student.id,
                 instructor_id=test_instructor_with_bookings.id,
                 service_id=service_with_bookings["id"],
-                availability_slot_id=slot.id,
-                booking_date=tomorrow,
+                # NO availability_slot_id - removed in Work Stream #9
+                booking_date=booking_date,
                 start_time=slot.start_time,
                 end_time=slot.end_time,
                 service_name=service_with_bookings["skill"],
                 hourly_rate=service_with_bookings["hourly_rate"],
-                total_price=service_with_bookings["hourly_rate"] * 3,
-                duration_minutes=180,
+                total_price=service_with_bookings["hourly_rate"] * ((slot.end_time.hour - slot.start_time.hour) or 1),
+                duration_minutes=(slot.end_time.hour - slot.start_time.hour) * 60,
                 status=BookingStatus.CONFIRMED,
                 meeting_location="Test Location",
             )
@@ -219,15 +239,23 @@ class TestSoftDeleteServices:
             future_date = date.today() + timedelta(days=7)  # Use 7 days to avoid conflicts
 
             slot = AvailabilitySlot(
-                instructor_id=test_instructor.id, date=future_date, start_time=time(14, 0), end_time=time(15, 0)
+                instructor_id=test_instructor.id,
+                specific_date=future_date,  # FIXED: date → specific_date
+                start_time=time(14, 0),
+                end_time=time(15, 0),
             )
             db.add(slot)
             db.commit()
 
-            # Try to book with inactive service
+            # Try to book with inactive service - FIXED: time-based booking
             with pytest.raises(Exception) as exc_info:
                 booking_data = BookingCreate(
-                    availability_slot_id=slot.id, service_id=inactive_service_id, meeting_location="Test location"
+                    instructor_id=test_instructor.id,
+                    booking_date=future_date,
+                    start_time=slot.start_time,
+                    end_time=slot.end_time,
+                    service_id=inactive_service_id,
+                    meeting_location="Test location",
                 )
                 await booking_service.create_booking(test_student, booking_data)
 
