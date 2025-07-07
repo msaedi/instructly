@@ -6,8 +6,8 @@ This service handles all availability-related business logic.
 """
 
 import logging
-from datetime import date, timedelta
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from datetime import date, time, timedelta
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict
 
 from sqlalchemy.orm import Session
 
@@ -26,6 +26,30 @@ if TYPE_CHECKING:
     from .cache_service import CacheService
 
 logger = logging.getLogger(__name__)
+
+
+# Type definitions for better type safety
+class ScheduleSlotInput(TypedDict):
+    """Input format for schedule slots from API."""
+
+    date: str
+    start_time: str
+    end_time: str
+
+
+class ProcessedSlot(TypedDict):
+    """Internal format after processing schedule slots."""
+
+    start_time: time
+    end_time: time
+
+
+class TimeSlotResponse(TypedDict):
+    """Response format for time slots."""
+
+    start_time: str
+    end_time: str
+    is_available: bool
 
 
 class AvailabilityService(BaseService):
@@ -86,11 +110,11 @@ class AvailabilityService(BaseService):
         result = {
             "date": target_date.isoformat(),
             "slots": [
-                {
-                    "start_time": time_to_string(slot.start_time),
-                    "end_time": time_to_string(slot.end_time),
-                    "is_available": True,
-                }
+                TimeSlotResponse(
+                    start_time=time_to_string(slot.start_time),
+                    end_time=time_to_string(slot.end_time),
+                    is_available=True,
+                )
                 for slot in slots
             ],
         }
@@ -123,7 +147,7 @@ class AvailabilityService(BaseService):
             return {}
 
     @BaseService.measure_operation("get_week_availability")
-    def get_week_availability(self, instructor_id: int, start_date: date) -> Dict[str, List[Dict[str, Any]]]:
+    def get_week_availability(self, instructor_id: int, start_date: date) -> Dict[str, List[TimeSlotResponse]]:
         """
         Get availability for a specific week.
 
@@ -157,7 +181,7 @@ class AvailabilityService(BaseService):
             return {}
 
         # Group slots by date
-        week_schedule = {}
+        week_schedule: Dict[str, List[TimeSlotResponse]] = {}
         for slot in all_slots:
             date_str = slot.specific_date.isoformat()
 
@@ -165,11 +189,11 @@ class AvailabilityService(BaseService):
                 week_schedule[date_str] = []
 
             week_schedule[date_str].append(
-                {
-                    "start_time": time_to_string(slot.start_time),
-                    "end_time": time_to_string(slot.end_time),
-                    "is_available": True,
-                }
+                TimeSlotResponse(
+                    start_time=time_to_string(slot.start_time),
+                    end_time=time_to_string(slot.end_time),
+                    is_available=True,
+                )
             )
 
         # Cache the result
@@ -258,16 +282,19 @@ class AvailabilityService(BaseService):
                 if week_date in schedule_by_date:
                     # Prepare slots for bulk creation
                     for slot in schedule_by_date[week_date]:
-                        # Check if slot already exists
+                        # Check if slot already exists - FIX: Use dictionary access
                         if not self.repository.slot_exists(
-                            instructor_id, target_date=week_date, start_time=slot.start_time, end_time=slot.end_time
+                            instructor_id,
+                            target_date=week_date,
+                            start_time=slot["start_time"],
+                            end_time=slot["end_time"],
                         ):
                             slots_to_create.append(
                                 {
                                     "instructor_id": instructor_id,
                                     "specific_date": week_date,
-                                    "start_time": slot.start_time,
-                                    "end_time": slot.end_time,
+                                    "start_time": slot["start_time"],
+                                    "end_time": slot["end_time"],
                                 }
                             )
 
@@ -415,9 +442,18 @@ class AvailabilityService(BaseService):
             today = date.today()
             return today - timedelta(days=today.weekday())
 
-    def _group_schedule_by_date(self, schedule: List[Any]) -> Dict[date, List[Any]]:
-        """Group schedule entries by date."""
-        schedule_by_date = {}
+    def _group_schedule_by_date(self, schedule: List[Dict[str, str]]) -> Dict[date, List[ProcessedSlot]]:
+        """
+        Group schedule entries by date.
+
+        Args:
+            schedule: List of schedule slot dictionaries with date, start_time, end_time as strings
+
+        Returns:
+            Dictionary mapping dates to lists of ProcessedSlot dictionaries
+        """
+        schedule_by_date: Dict[date, List[ProcessedSlot]] = {}
+
         for slot in schedule:
             # Skip past dates
             slot_date = date.fromisoformat(slot["date"])
@@ -432,10 +468,10 @@ class AvailabilityService(BaseService):
             from datetime import time as dt_time
 
             schedule_by_date[slot_date].append(
-                {
-                    "start_time": dt_time.fromisoformat(slot["start_time"]),
-                    "end_time": dt_time.fromisoformat(slot["end_time"]),
-                }
+                ProcessedSlot(
+                    start_time=dt_time.fromisoformat(slot["start_time"]),
+                    end_time=dt_time.fromisoformat(slot["end_time"]),
+                )
             )
 
         return schedule_by_date

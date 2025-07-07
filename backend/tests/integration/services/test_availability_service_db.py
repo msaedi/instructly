@@ -1,4 +1,4 @@
-# backend/tests/integration/test_availability_service_db.py
+# backend/tests/integration/services/test_availability_service_db.py
 """
 Fixed integration tests for AvailabilityService database operations.
 
@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 from sqlalchemy.orm import Session
 
-from app.models.availability import AvailabilitySlot  # Removed InstructorAvailability
+from app.models.availability import AvailabilitySlot
 from app.models.user import User
 from app.schemas.availability_window import (
     BlackoutDateCreate,
@@ -49,11 +49,11 @@ class TestAvailabilityServiceQueries:
         for i in range(3):  # Mon, Tue, Wed
             day_date = monday + timedelta(days=i)
 
-            # Add slots directly with instructor_id and date
+            # Add slots directly with instructor_id and specific_date
             for hour in [9, 14]:
                 slot = AvailabilitySlot(
                     instructor_id=test_instructor.id,
-                    date=day_date,
+                    specific_date=day_date,  # Changed from date to specific_date
                     start_time=time(hour, 0),
                     end_time=time(hour + 2, 0),
                 )
@@ -88,13 +88,21 @@ class TestAvailabilityServiceQueries:
         service = AvailabilityService(db)
         monday = get_next_monday()  # Future Monday
 
-        # Create week data with proper schema format
+        # Create week data with proper schema format - dates must be strings
         week_data = WeekSpecificScheduleCreate(
             week_start=monday,
             clear_existing=True,
             schedule=[
-                {"date": monday, "start_time": time(9, 0), "end_time": time(12, 0)},
-                {"date": monday + timedelta(days=1), "start_time": time(14, 0), "end_time": time(17, 0)},
+                {
+                    "date": monday.isoformat(),  # Convert to string
+                    "start_time": "09:00:00",  # Times must be strings too
+                    "end_time": "12:00:00",
+                },
+                {
+                    "date": (monday + timedelta(days=1)).isoformat(),  # Convert to string
+                    "start_time": "14:00:00",
+                    "end_time": "17:00:00",
+                },
             ],
         )
 
@@ -137,15 +145,18 @@ class TestAvailabilityServiceQueries:
             instructor_id=test_instructor.id, availability_data=availability_data
         )
 
-        # Verify the return format
-        assert result["specific_date"] == test_date
-        assert result["start_time"] == "10:00:00"
-        assert result["end_time"] == "12:00:00"
+        # The service likely returns an AvailabilitySlot object, not a dict
+        assert result.specific_date == test_date
+        assert result.start_time == time(10, 0)
+        assert result.end_time == time(12, 0)
 
         # Verify in database - query slots directly
         slot = (
             db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.date == test_date)
+            .filter(
+                AvailabilitySlot.instructor_id == test_instructor.id,
+                AvailabilitySlot.specific_date == test_date,  # Changed from date to specific_date
+            )
             .first()
         )
         assert slot is not None
@@ -166,7 +177,7 @@ class TestAvailabilityServiceQueries:
         if slots:
             for slot in slots:
                 assert isinstance(slot, AvailabilitySlot)
-                assert slot.date == today
+                assert slot.specific_date == today  # Changed from date to specific_date
                 assert slot.instructor_id == test_instructor_with_availability.id
 
     def test_blackout_date_operations(self, db: Session, test_instructor: User):
@@ -209,7 +220,7 @@ class TestAvailabilityServiceTransactions:
         for i in range(3):
             slot = AvailabilitySlot(
                 instructor_id=test_instructor.id,
-                date=monday + timedelta(days=i),
+                specific_date=monday + timedelta(days=i),  # Changed from date to specific_date
                 start_time=time(9, 0),
                 end_time=time(10, 0),
             )
@@ -223,7 +234,13 @@ class TestAvailabilityServiceTransactions:
         week_data = WeekSpecificScheduleCreate(
             week_start=monday,
             clear_existing=True,
-            schedule=[{"date": monday, "start_time": time(14, 0), "end_time": time(16, 0)}],
+            schedule=[
+                {
+                    "date": monday.isoformat(),  # Convert to string
+                    "start_time": "14:00:00",  # Times must be strings too
+                    "end_time": "16:00:00",
+                }
+            ],
         )
 
         # This should clear existing and add new
@@ -250,19 +267,22 @@ class TestAvailabilityServiceTransactions:
         )
 
         # Add first slot
-        service.add_specific_date_availability(instructor_id=test_instructor.id, availability_data=slot1)
+        result1 = service.add_specific_date_availability(instructor_id=test_instructor.id, availability_data=slot1)
 
         # Adding overlapping slot should work (service allows overlaps)
-        result = service.add_specific_date_availability(instructor_id=test_instructor.id, availability_data=slot2)
+        result2 = service.add_specific_date_availability(instructor_id=test_instructor.id, availability_data=slot2)
 
-        # Verify second slot was added
-        assert result["start_time"] == "10:00:00"
-        assert result["end_time"] == "12:00:00"
+        # Verify second slot was added (assuming service returns AvailabilitySlot object)
+        assert result2.start_time == time(10, 0)
+        assert result2.end_time == time(12, 0)
 
         # Document actual behavior: service allows overlapping slots
         slots = (
             db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.date == test_date)
+            .filter(
+                AvailabilitySlot.instructor_id == test_instructor.id,
+                AvailabilitySlot.specific_date == test_date,  # Changed from date to specific_date
+            )
             .all()
         )
 
