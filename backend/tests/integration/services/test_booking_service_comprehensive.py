@@ -1,15 +1,15 @@
-# backend/tests/integration/test_booking_service_comprehensive.py
+# backend/tests/integration/services/test_booking_service_comprehensive.py
 """
 Comprehensive tests for BookingService covering all major functionality.
 
 This test suite aims to improve coverage from 24% to >80% by testing:
 - Booking creation flow
 - Booking cancellation
-- Booking retrieval
 - Validation logic
 - Edge cases and error handling
 
 UPDATED FOR WORK STREAM #10: Single-table availability design.
+UPDATED FOR WORK STREAM #9: Layer independence - time-based booking.
 """
 
 from datetime import date, datetime, time, timedelta
@@ -37,7 +37,7 @@ class TestBookingServiceCreation:
     async def test_create_booking_success(
         self, db: Session, test_instructor_with_availability: User, test_student: User, mock_notification_service: Mock
     ):
-        """Test successful booking creation."""
+        """Test successful booking creation with time-based booking."""
         # Get instructor's profile and service
         profile = (
             db.query(InstructorProfile)
@@ -65,7 +65,7 @@ class TestBookingServiceCreation:
             db.query(AvailabilitySlot)
             .filter(
                 AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-                AvailabilitySlot.date == tomorrow,
+                AvailabilitySlot.specific_date == tomorrow,  # Fixed: use specific_date
             )
             .first()
         )
@@ -74,11 +74,14 @@ class TestBookingServiceCreation:
         slot_duration = (slot.end_time.hour - slot.start_time.hour) * 60
         print(f"Slot duration (simple calc): {slot_duration} minutes")
 
-        # Create booking
+        # Create booking with time-based approach (Work Stream #9)
         booking_service = BookingService(db, mock_notification_service)
         booking_data = BookingCreate(
-            availability_slot_id=slot.id,
+            instructor_id=test_instructor_with_availability.id,
             service_id=service.id,
+            booking_date=tomorrow,
+            start_time=slot.start_time,
+            end_time=slot.end_time,
             location_type="neutral",
             meeting_location="Online",
             student_note="Looking forward to the lesson!",
@@ -91,7 +94,7 @@ class TestBookingServiceCreation:
         assert booking.student_id == test_student.id
         assert booking.instructor_id == test_instructor_with_availability.id
         assert booking.service_id == service.id
-        assert booking.availability_slot_id == slot.id
+        # Can't check availability_slot_id - no longer exists
         assert booking.status == BookingStatus.CONFIRMED
         print(f"Debug: Slot time: {slot.start_time} to {slot.end_time}")
         print(f"Debug: Service: {service.skill}, Rate: ${service.hourly_rate}")
@@ -135,15 +138,22 @@ class TestBookingServiceCreation:
         # Create a slot directly (single-table design)
         slot = AvailabilitySlot(
             instructor_id=test_instructor_with_inactive_service.id,
-            date=tomorrow,
+            specific_date=tomorrow,  # Fixed: use specific_date
             start_time=time(9, 0),
             end_time=time(10, 0),
         )
         db.add(slot)
         db.flush()
 
-        # Now use real slot ID
-        booking_data = BookingCreate(availability_slot_id=slot.id, service_id=service.id, location_type="neutral")
+        # Now use time-based booking
+        booking_data = BookingCreate(
+            instructor_id=test_instructor_with_inactive_service.id,
+            service_id=service.id,
+            booking_date=tomorrow,
+            start_time=slot.start_time,
+            end_time=slot.end_time,
+            location_type="neutral",
+        )
 
         with pytest.raises(NotFoundException, match="Service not found or no longer available"):
             await booking_service.create_booking(test_student, booking_data)
@@ -152,7 +162,7 @@ class TestBookingServiceCreation:
     async def test_create_booking_slot_already_booked(
         self, db: Session, test_booking: Booking, test_student: User, mock_notification_service: Mock
     ):
-        """Test booking creation fails when slot is already booked."""
+        """Test booking creation fails when time slot is already booked."""
         # Create another student
         another_student = User(
             email="another.student@example.com",
@@ -163,15 +173,18 @@ class TestBookingServiceCreation:
         db.add(another_student)
         db.commit()
 
-        # Try to book the same slot
+        # Try to book the same time slot
         booking_service = BookingService(db, mock_notification_service)
         booking_data = BookingCreate(
-            availability_slot_id=test_booking.availability_slot_id,
+            instructor_id=test_booking.instructor_id,
             service_id=test_booking.service_id,
+            booking_date=test_booking.booking_date,
+            start_time=test_booking.start_time,
+            end_time=test_booking.end_time,
             location_type="neutral",
         )
 
-        with pytest.raises(ConflictException, match="This slot is already booked"):
+        with pytest.raises(ConflictException, match="time slot conflicts"):
             await booking_service.create_booking(another_student, booking_data)
 
     @pytest.mark.asyncio
@@ -180,7 +193,14 @@ class TestBookingServiceCreation:
     ):
         """Test that only students can create bookings."""
         booking_service = BookingService(db, mock_notification_service)
-        booking_data = BookingCreate(availability_slot_id=1, service_id=1, location_type="neutral")
+        booking_data = BookingCreate(
+            instructor_id=1,
+            service_id=1,
+            booking_date=date.today() + timedelta(days=1),
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            location_type="neutral",
+        )
 
         with pytest.raises(ValidationException, match="Only students can create bookings"):
             await booking_service.create_booking(test_instructor, booking_data)
@@ -205,7 +225,7 @@ class TestBookingServiceCreation:
             db.query(AvailabilitySlot)
             .filter(
                 AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-                AvailabilitySlot.date == tomorrow,
+                AvailabilitySlot.specific_date == tomorrow,  # Fixed: use specific_date
             )
             .first()
         )
@@ -215,7 +235,14 @@ class TestBookingServiceCreation:
         )
 
         booking_service = BookingService(db, mock_notification_service)
-        booking_data = BookingCreate(availability_slot_id=slot.id, service_id=service.id, location_type="neutral")
+        booking_data = BookingCreate(
+            instructor_id=test_instructor_with_availability.id,
+            service_id=service.id,
+            booking_date=tomorrow,
+            start_time=slot.start_time,
+            end_time=slot.end_time,
+            location_type="neutral",
+        )
 
         with pytest.raises(BusinessRuleException, match="at least 48 hours in advance"):
             await booking_service.create_booking(test_student, booking_data)
@@ -466,14 +493,14 @@ class TestBookingServiceAvailabilityCheck:
     async def test_check_availability_success(
         self, db: Session, test_instructor_with_availability: User, mock_notification_service: Mock
     ):
-        """Test checking availability for valid slot."""
+        """Test checking availability for valid time slot."""
         # Get an available slot directly (single-table design)
         tomorrow = date.today() + timedelta(days=1)
         slot = (
             db.query(AvailabilitySlot)
             .filter(
                 AvailabilitySlot.instructor_id == test_instructor_with_availability.id,
-                AvailabilitySlot.date == tomorrow,
+                AvailabilitySlot.specific_date == tomorrow,  # Fixed: use specific_date
             )
             .first()
         )
@@ -488,21 +515,36 @@ class TestBookingServiceAvailabilityCheck:
         )
 
         booking_service = BookingService(db, mock_notification_service)
-        result = await booking_service.check_availability(slot.id, service.id)
+
+        # check_availability now takes time-based parameters
+        result = await booking_service.check_availability(
+            instructor_id=test_instructor_with_availability.id,
+            service_id=service.id,
+            booking_date=tomorrow,
+            start_time=slot.start_time,
+            end_time=slot.end_time,
+        )
 
         assert result["available"] is True
-        assert "slot_info" in result
 
     @pytest.mark.asyncio
     async def test_check_availability_slot_booked(
         self, db: Session, test_booking: Booking, mock_notification_service: Mock
     ):
-        """Test checking availability for booked slot."""
+        """Test checking availability for booked time slot."""
         booking_service = BookingService(db, mock_notification_service)
-        result = await booking_service.check_availability(test_booking.availability_slot_id, test_booking.service_id)
+
+        # Use time-based check
+        result = await booking_service.check_availability(
+            instructor_id=test_booking.instructor_id,
+            service_id=test_booking.service_id,
+            booking_date=test_booking.booking_date,
+            start_time=test_booking.start_time,
+            end_time=test_booking.end_time,
+        )
 
         assert result["available"] is False
-        assert result["reason"] == "Slot is already booked"
+        assert "conflicts" in result.get("reason", "").lower()
 
 
 # Fixtures
