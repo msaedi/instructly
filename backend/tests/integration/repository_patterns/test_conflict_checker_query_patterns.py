@@ -1,20 +1,21 @@
-# backend/tests/integration/test_conflict_checker_query_patterns.py
+# backend/tests/integration/repository_patterns/test_conflict_checker_query_patterns.py
 """
 Document all query patterns used in ConflictChecker.
 
 This serves as the specification for the ConflictCheckerRepository
 that will be implemented in the repository pattern.
 
-UPDATED FOR WORK STREAM #10: Single-table availability design.
-All queries now work directly with AvailabilitySlot without InstructorAvailability.
+UPDATED FOR CLEAN ARCHITECTURE: All conflict checking now uses Booking's
+own fields (booking_date, start_time, end_time) without any reference to
+availability slots. This reflects the complete separation of layers.
 """
 
-from datetime import date, time, timedelta
+from datetime import date, timedelta
 
-from sqlalchemy import and_
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.availability import AvailabilitySlot, BlackoutDate
+from app.models.availability import BlackoutDate
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service import Service
@@ -25,22 +26,19 @@ class TestConflictCheckerQueryPatterns:
     """Document every query pattern that needs repository implementation."""
 
     def test_query_pattern_check_booking_conflicts(
-        self, db: Session, test_instructor_with_availability: User, test_booking
+        self, db: Session, test_instructor_with_availability: User, test_booking: Booking
     ):
-        """Document the simplified JOIN query for booking conflicts."""
+        """Document the query pattern for booking conflicts using booking fields directly."""
         instructor_id = test_instructor_with_availability.id
         check_date = test_booking.booking_date
-        time(10, 0)
-        time(12, 0)
 
-        # Document the exact query pattern used in check_booking_conflicts
-        # SIMPLIFIED: Now joins Booking → AvailabilitySlot directly
+        # Document the exact query pattern - NO SLOT JOINS
         query = (
             db.query(Booking)
-            .join(AvailabilitySlot, Booking.availability_slot_id == AvailabilitySlot.id)
+            .options(joinedload(Booking.student), joinedload(Booking.instructor))
             .filter(
-                AvailabilitySlot.instructor_id == instructor_id,
-                AvailabilitySlot.date == check_date,
+                Booking.instructor_id == instructor_id,
+                Booking.booking_date == check_date,
                 Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             )
         )
@@ -49,143 +47,75 @@ class TestConflictCheckerQueryPatterns:
 
         # Repository method signature:
         # def get_bookings_for_conflict_check(self, instructor_id: int, check_date: date,
-        #                                    exclude_slot_id: Optional[int] = None) -> List[Booking]
+        #                                    exclude_booking_id: Optional[int] = None) -> List[Booking]
 
-        # Verify the simplified JOIN works
+        # Verify the query works without slot references
         assert len(bookings) >= 0
         for booking in bookings:
             assert booking.instructor_id == instructor_id
             assert booking.booking_date == check_date
             assert booking.status in [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
+            # These fields exist directly on booking now
+            assert hasattr(booking, "start_time")
+            assert hasattr(booking, "end_time")
 
-    def test_query_pattern_check_slot_availability(self, db: Session, test_instructor_with_availability: User):
-        """Document query pattern for slot availability checking."""
-        # Get a slot directly (no InstructorAvailability)
-        slot = (
-            db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == test_instructor_with_availability.id)
-            .first()
-        )
-
-        if slot:
-            slot_id = slot.id
-
-            # Document the query pattern - now loads instructor directly
-            slot = (
-                db.query(AvailabilitySlot)
-                .options(joinedload(AvailabilitySlot.instructor))
-                .filter(AvailabilitySlot.id == slot_id)
-                .first()
-            )
-
-            # Repository method:
-            # def get_slot_with_availability(self, slot_id: int) -> Optional[AvailabilitySlot]
-
-            assert slot is not None
-            assert slot.instructor_id == test_instructor_with_availability.id
-            assert slot.instructor is not None
-
-    def test_query_pattern_get_booked_slots_for_date(
-        self, db: Session, test_instructor_with_availability: User, test_booking
+    def test_query_pattern_get_bookings_for_date(
+        self, db: Session, test_instructor_with_availability: User, test_booking: Booking
     ):
-        """Document query pattern for getting booked slots on a specific date."""
+        """Document query pattern for getting bookings on a specific date."""
         instructor_id = test_instructor_with_availability.id
         target_date = test_booking.booking_date
 
-        # Document the simplified query with direct slot access
-        booked_slots = (
-            db.query(
-                AvailabilitySlot.id,
-                AvailabilitySlot.start_time,
-                AvailabilitySlot.end_time,
-                Booking.id.label("booking_id"),
-                Booking.student_id,
-                Booking.service_name,
-                Booking.status,
-            )
-            .join(Booking, AvailabilitySlot.id == Booking.availability_slot_id)
+        # Direct query on bookings table - no slot references
+        bookings = (
+            db.query(Booking)
             .filter(
-                AvailabilitySlot.instructor_id == instructor_id,
-                AvailabilitySlot.date == target_date,
+                Booking.instructor_id == instructor_id,
+                Booking.booking_date == target_date,
                 Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             )
+            .order_by(Booking.start_time)
             .all()
         )
 
         # Repository method:
-        # def get_booked_slots_for_date(self, instructor_id: int, target_date: date) -> List[BookedSlotData]
+        # def get_bookings_for_date(self, instructor_id: int, target_date: date) -> List[Booking]
 
-        assert len(booked_slots) >= 1  # We have test_booking
-        for slot in booked_slots:
-            assert hasattr(slot, "id")
-            assert hasattr(slot, "booking_id")
-            assert hasattr(slot, "student_id")
+        assert len(bookings) >= 1  # We have test_booking
+        for booking in bookings:
+            assert booking.instructor_id == instructor_id
+            assert booking.booking_date == target_date
+            # Booking has its own time fields
+            assert hasattr(booking, "start_time")
+            assert hasattr(booking, "end_time")
 
-    def test_query_pattern_get_booked_slots_for_week(
-        self, db: Session, test_instructor_with_availability: User, test_booking
+    def test_query_pattern_get_bookings_for_week(
+        self, db: Session, test_instructor_with_availability: User, test_booking: Booking
     ):
-        """Document query pattern for weekly booked slots."""
+        """Document query pattern for weekly bookings."""
         instructor_id = test_instructor_with_availability.id
         week_start = test_booking.booking_date - timedelta(days=test_booking.booking_date.weekday())
         week_dates = [week_start + timedelta(days=i) for i in range(7)]
 
-        # Document the week-based query pattern - now uses slot date directly
-        booked_slots = (
-            db.query(
-                AvailabilitySlot.date,
-                AvailabilitySlot.id,
-                AvailabilitySlot.start_time,
-                AvailabilitySlot.end_time,
-                Booking.id.label("booking_id"),
-                Booking.student_id,
-                Booking.service_name,
-                Booking.status,
-            )
-            .join(Booking, AvailabilitySlot.id == Booking.availability_slot_id)
+        # Direct query on bookings - no slot joins
+        bookings = (
+            db.query(Booking)
             .filter(
-                AvailabilitySlot.instructor_id == instructor_id,
-                AvailabilitySlot.date.in_(week_dates),
+                Booking.instructor_id == instructor_id,
+                Booking.booking_date.in_(week_dates),
                 Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             )
-            .order_by(AvailabilitySlot.date, AvailabilitySlot.start_time)
+            .order_by(Booking.booking_date, Booking.start_time)
             .all()
         )
 
         # Repository method:
-        # def get_booked_slots_for_week(self, instructor_id: int, week_dates: List[date]) -> List[WeeklyBookedSlotData]
+        # def get_bookings_for_week(self, instructor_id: int, week_dates: List[date]) -> List[Booking]
 
-        assert len(booked_slots) >= 1
-        for slot in booked_slots:
-            assert hasattr(slot, "date")
-            assert slot.date in week_dates
-
-    def test_query_pattern_find_overlapping_slots(self, db: Session, test_instructor_with_availability: User):
-        """Document query pattern for finding overlapping slots."""
-        instructor_id = test_instructor_with_availability.id
-        target_date = date.today()
-        start_time = time(10, 0)
-        end_time = time(12, 0)
-
-        # Document the direct slot query (no join needed)
-        slots = (
-            db.query(AvailabilitySlot)
-            .filter(
-                AvailabilitySlot.instructor_id == instructor_id,
-                AvailabilitySlot.date == target_date,
-            )
-            .all()
-        )
-
-        # Repository method:
-        # def get_slots_for_date(self, instructor_id: int, target_date: date) -> List[AvailabilitySlot]
-
-        # Document the overlap logic (business logic that stays in service)
-        overlapping = []
-        for slot in slots:
-            if slot.start_time < end_time and slot.end_time > start_time:
-                overlapping.append(slot)
-
-        # This demonstrates the separation: query in repository, overlap logic in service
+        assert len(bookings) >= 1
+        for booking in bookings:
+            assert booking.booking_date in week_dates
+            assert booking.instructor_id == instructor_id
 
     def test_query_pattern_check_blackout_date(self, db: Session, test_instructor: User):
         """Document query pattern for blackout date checking."""
@@ -197,13 +127,10 @@ class TestConflictCheckerQueryPatterns:
         db.add(blackout)
         db.commit()
 
-        # Document the query pattern (unchanged - already direct)
+        # Document the query pattern (unchanged)
         blackout_check = (
             db.query(BlackoutDate)
-            .filter(
-                BlackoutDate.instructor_id == instructor_id,
-                BlackoutDate.date == target_date,
-            )
+            .filter(BlackoutDate.instructor_id == instructor_id, BlackoutDate.date == target_date)
             .first()
         )
 
@@ -252,9 +179,6 @@ class TestConflictCheckerQueryPatterns:
         """Document combined query patterns for comprehensive validation."""
         instructor_id = test_instructor_with_availability.id
 
-        # Document the pattern for getting all data needed for validation
-        # This shows what repositories will need to provide efficiently
-
         # 1. Get instructor profile (unchanged)
         profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).first()
 
@@ -270,12 +194,11 @@ class TestConflictCheckerQueryPatterns:
             .all()
         )
 
-        # 3. Get existing bookings for conflict checking - SIMPLIFIED
+        # 3. Get existing bookings for conflict checking - NO SLOT JOINS
         existing_bookings = (
             db.query(Booking)
-            .join(AvailabilitySlot, Booking.availability_slot_id == AvailabilitySlot.id)
             .filter(
-                AvailabilitySlot.instructor_id == instructor_id,
+                Booking.instructor_id == instructor_id,
                 Booking.booking_date.between(date_range_start, date_range_end),
                 Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             )
@@ -295,54 +218,44 @@ class TestConflictCheckerQueryPatterns:
 class TestConflictCheckerComplexQueries:
     """Document the most complex query patterns for repository optimization."""
 
-    def test_complex_pattern_instructor_availability_summary(
-        self, db: Session, test_instructor_with_availability: User
-    ):
-        """Document query for getting comprehensive instructor availability status."""
+    def test_complex_pattern_instructor_booking_summary(self, db: Session, test_instructor_with_availability: User):
+        """Document query for getting comprehensive instructor booking summary."""
         instructor_id = test_instructor_with_availability.id
         start_date = date.today()
         end_date = date.today() + timedelta(days=7)
 
-        # SIMPLIFIED: Now queries directly from AvailabilitySlot
-        from sqlalchemy import func
-
+        # Query bookings directly without slot references
         summary = (
             db.query(
-                AvailabilitySlot.date,
-                func.count(AvailabilitySlot.id).label("total_slots"),
-                func.count(Booking.id).label("booked_slots"),
-            )
-            .outerjoin(
-                Booking,
-                and_(
-                    AvailabilitySlot.id == Booking.availability_slot_id,
-                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                ),
+                Booking.booking_date,
+                func.count(Booking.id).label("total_bookings"),
+                func.sum(Booking.duration_minutes).label("total_minutes_booked"),
             )
             .filter(
-                AvailabilitySlot.instructor_id == instructor_id,
-                AvailabilitySlot.date.between(start_date, end_date),
+                Booking.instructor_id == instructor_id,
+                Booking.booking_date.between(start_date, end_date),
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             )
-            .group_by(AvailabilitySlot.date)
+            .group_by(Booking.booking_date)
             .all()
         )
 
         # Repository method:
-        # def get_instructor_availability_summary(self, instructor_id: int, start: date, end: date) -> List[AvailabilitySummary]
+        # def get_instructor_booking_summary(self, instructor_id: int, start: date, end: date) -> List[BookingSummary]
 
         for row in summary:
-            assert hasattr(row, "date")
-            assert hasattr(row, "total_slots")
-            assert hasattr(row, "booked_slots")
+            assert hasattr(row, "booking_date")
+            assert hasattr(row, "total_bookings")
+            assert hasattr(row, "total_minutes_booked")
 
     def test_complex_pattern_conflict_detection_with_details(
-        self, db: Session, test_instructor_with_availability: User, test_booking
+        self, db: Session, test_instructor_with_availability: User, test_booking: Booking
     ):
         """Document advanced conflict detection query with full booking details."""
         instructor_id = test_instructor_with_availability.id
         check_date = test_booking.booking_date
 
-        # SIMPLIFIED: Removed InstructorAvailability join
+        # Direct booking query with related data - NO SLOT JOINS
         conflicts = (
             db.query(
                 Booking.id,
@@ -350,16 +263,15 @@ class TestConflictCheckerComplexQueries:
                 Booking.end_time,
                 Booking.service_name,
                 Booking.status,
+                Booking.duration_minutes,
                 User.full_name.label("student_name"),
                 Service.skill.label("service_skill"),
-                AvailabilitySlot.id.label("slot_id"),
             )
             .join(User, Booking.student_id == User.id)
             .join(Service, Booking.service_id == Service.id)
-            .join(AvailabilitySlot, Booking.availability_slot_id == AvailabilitySlot.id)
             .filter(
-                AvailabilitySlot.instructor_id == instructor_id,
-                AvailabilitySlot.date == check_date,
+                Booking.instructor_id == instructor_id,
+                Booking.booking_date == check_date,
                 Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             )
             .all()
@@ -371,42 +283,64 @@ class TestConflictCheckerComplexQueries:
         for conflict in conflicts:
             assert hasattr(conflict, "student_name")
             assert hasattr(conflict, "service_skill")
-            assert hasattr(conflict, "slot_id")
+            assert hasattr(conflict, "start_time")
+            assert hasattr(conflict, "end_time")
 
-    def test_complex_pattern_time_slot_efficiency_check(self, db: Session, test_instructor_with_availability: User):
-        """Document query for checking slot utilization efficiency."""
+    def test_complex_pattern_time_utilization_check(self, db: Session, test_instructor_with_availability: User):
+        """Document query for checking time utilization efficiency."""
         instructor_id = test_instructor_with_availability.id
 
-        # Query to analyze slot utilization - SIMPLIFIED
-        from sqlalchemy import case, func
-
+        # Query to analyze time utilization based on bookings only
         utilization = (
             db.query(
-                AvailabilitySlot.date,
-                func.count(AvailabilitySlot.id).label("available_slots"),
-                func.sum(case((Booking.id.isnot(None), 1), else_=0)).label("booked_slots"),
-                func.avg(func.extract("epoch", AvailabilitySlot.end_time - AvailabilitySlot.start_time) / 3600).label(
-                    "avg_slot_duration_hours"
-                ),
-            )
-            .outerjoin(
-                Booking,
-                and_(
-                    AvailabilitySlot.id == Booking.availability_slot_id,
-                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
-                ),
+                Booking.booking_date,
+                func.count(Booking.id).label("total_bookings"),
+                func.sum(Booking.duration_minutes).label("total_minutes_booked"),
+                func.min(Booking.start_time).label("earliest_booking"),
+                func.max(Booking.end_time).label("latest_booking"),
             )
             .filter(
-                AvailabilitySlot.instructor_id == instructor_id,
-                AvailabilitySlot.date >= date.today() - timedelta(days=30),
+                Booking.instructor_id == instructor_id,
+                Booking.booking_date >= date.today() - timedelta(days=30),
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
             )
-            .group_by(AvailabilitySlot.date)
+            .group_by(Booking.booking_date)
             .all()
         )
 
         # Repository method:
-        # def get_slot_utilization_stats(self, instructor_id: int, days_back: int = 30) -> List[UtilizationStats]
+        # def get_time_utilization_stats(self, instructor_id: int, days_back: int = 30) -> List[UtilizationStats]
 
         for util in utilization:
-            assert hasattr(util, "available_slots")
-            assert hasattr(util, "booked_slots")
+            assert hasattr(util, "total_bookings")
+            assert hasattr(util, "total_minutes_booked")
+            assert hasattr(util, "earliest_booking")
+            assert hasattr(util, "latest_booking")
+
+    def test_query_pattern_instructor_bookings_for_date(self, db: Session, test_instructor_with_availability: User):
+        """Document the exact query pattern used by the repository."""
+        instructor_id = test_instructor_with_availability.id
+        target_date = date.today()
+
+        # This matches the actual repository method
+        bookings = (
+            db.query(Booking)
+            .filter(
+                Booking.instructor_id == instructor_id,
+                Booking.booking_date == target_date,
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+            )
+            .order_by(Booking.start_time)
+            .all()
+        )
+
+        # Repository method:
+        # def get_instructor_bookings_for_date(self, instructor_id: int, target_date: date) -> List[Booking]
+
+        # Verify the bookings have all needed fields
+        for booking in bookings:
+            assert booking.instructor_id == instructor_id
+            assert booking.booking_date == target_date
+            assert hasattr(booking, "start_time")
+            assert hasattr(booking, "end_time")
+            assert hasattr(booking, "status")
