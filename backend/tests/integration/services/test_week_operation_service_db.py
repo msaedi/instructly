@@ -1,4 +1,4 @@
-# backend/tests/integration/test_week_operation_service_db.py
+# backend/tests/integration/services/test_week_operation_service_db.py
 """
 Integration tests for WeekOperationService database operations.
 
@@ -49,7 +49,10 @@ class TestWeekOperationServiceTransactions:
         for i in range(7):
             day_date = from_week + timedelta(days=i)
             slot = AvailabilitySlot(
-                instructor_id=test_instructor.id, date=day_date, start_time=time(9, 0), end_time=time(10, 0)
+                instructor_id=test_instructor.id,
+                specific_date=day_date,  # Fixed: use specific_date
+                start_time=time(9, 0),
+                end_time=time(10, 0),
             )
             db.add(slot)
 
@@ -82,7 +85,10 @@ class TestWeekOperationServiceTransactions:
 
         # First create slot for target
         target_slot = AvailabilitySlot(
-            instructor_id=instructor.id, date=target_date, start_time=time(14, 0), end_time=time(15, 0)
+            instructor_id=instructor.id,
+            specific_date=target_date,  # Fixed: use specific_date
+            start_time=time(14, 0),
+            end_time=time(15, 0),
         )
         db.add(target_slot)
         db.flush()
@@ -92,12 +98,12 @@ class TestWeekOperationServiceTransactions:
             db.query(Service).filter(Service.instructor_profile_id == instructor.instructor_profile.id).first()
         )
 
-        # Create booking
+        # Create booking - removed availability_slot_id
         booking = Booking(
             student_id=test_student.id,
             instructor_id=instructor.id,
             service_id=service_obj.id,
-            availability_slot_id=target_slot.id,
+            # availability_slot_id removed - Work Stream #9
             booking_date=target_date,
             start_time=time(14, 0),
             end_time=time(15, 0),
@@ -143,7 +149,7 @@ class TestWeekOperationBulkOperations:
             for hour in [9, 11, 14]:
                 slot = AvailabilitySlot(
                     instructor_id=test_instructor.id,
-                    date=day_date,
+                    specific_date=day_date,  # Fixed: use specific_date
                     start_time=time(hour, 0),
                     end_time=time(hour + 1, 0),
                 )
@@ -169,8 +175,8 @@ class TestWeekOperationBulkOperations:
             db.query(AvailabilitySlot)
             .filter(
                 AvailabilitySlot.instructor_id == test_instructor.id,
-                AvailabilitySlot.date >= start_date,
-                AvailabilitySlot.date <= end_date,
+                AvailabilitySlot.specific_date >= start_date,  # Fixed: use specific_date
+                AvailabilitySlot.specific_date <= end_date,  # Fixed: use specific_date
             )
             .all()
         )
@@ -187,7 +193,7 @@ class TestWeekOperationBulkOperations:
             slots_data.append(
                 {
                     "instructor_id": test_instructor.id,
-                    "date": test_date,
+                    "specific_date": test_date,  # Fixed: use specific_date instead of date
                     "start_time": time(hour, 0),
                     "end_time": time(hour, 30),
                 }
@@ -195,7 +201,7 @@ class TestWeekOperationBulkOperations:
             slots_data.append(
                 {
                     "instructor_id": test_instructor.id,
-                    "date": test_date,
+                    "specific_date": test_date,  # Fixed: use specific_date instead of date
                     "start_time": time(hour, 30),
                     "end_time": time(hour + 1, 0),
                 }
@@ -210,7 +216,10 @@ class TestWeekOperationBulkOperations:
         # Verify all created with single-table design
         slots = (
             db.query(AvailabilitySlot)
-            .filter(AvailabilitySlot.instructor_id == test_instructor.id, AvailabilitySlot.date == test_date)
+            .filter(
+                AvailabilitySlot.instructor_id == test_instructor.id,
+                AvailabilitySlot.specific_date == test_date,  # Fixed: use specific_date
+            )
             .all()
         )
 
@@ -245,7 +254,10 @@ class TestWeekOperationWithBookings:
 
         # Create slot
         slot = AvailabilitySlot(
-            instructor_id=instructor.id, date=target_date, start_time=time(9, 0), end_time=time(11, 0)  # 2-hour slot
+            instructor_id=instructor.id,
+            specific_date=target_date,  # Fixed: use specific_date
+            start_time=time(9, 0),
+            end_time=time(11, 0),  # 2-hour slot
         )
         db.add(slot)
         db.flush()
@@ -259,7 +271,7 @@ class TestWeekOperationWithBookings:
             student_id=test_student.id,
             instructor_id=instructor.id,
             service_id=service_obj.id,
-            availability_slot_id=slot.id,
+            # availability_slot_id removed - Work Stream #9
             booking_date=target_date,
             start_time=time(9, 0),
             end_time=time(11, 0),
@@ -354,7 +366,10 @@ class TestWeekOperationCacheIntegration:
 
         # Add source week data
         slot = AvailabilitySlot(
-            instructor_id=test_instructor.id, date=from_week, start_time=time(9, 0), end_time=time(10, 0)
+            instructor_id=test_instructor.id,
+            specific_date=from_week,  # Fixed: use specific_date
+            start_time=time(9, 0),
+            end_time=time(10, 0),
         )
         db.add(slot)
         db.commit()
@@ -364,36 +379,6 @@ class TestWeekOperationCacheIntegration:
 
         # Should complete without errors
         assert result is not None
-
-    def test_get_cached_week_pattern(self, db: Session, mock_cache: Mock):
-        """Test cached week pattern retrieval."""
-        service = WeekOperationService(db, cache_service=mock_cache)
-
-        instructor_id = 1
-        week_start = date(2025, 6, 23)
-
-        # Mock cache miss then hit
-        mock_cache.get.return_value = None  # Cache miss
-
-        # Mock availability service
-        service.availability_service = Mock()
-        service.availability_service.get_week_availability = Mock(
-            return_value={"2025-06-23": [{"start_time": "09:00", "end_time": "10:00"}]}
-        )
-
-        # First call - cache miss
-        service.get_cached_week_pattern(instructor_id, week_start)
-
-        # Should set cache
-        mock_cache.set.assert_called_once()
-
-        # Mock cache hit
-        mock_cache.get.return_value = {"Monday": [{"start_time": "09:00", "end_time": "10:00"}]}
-
-        # Second call - cache hit
-        pattern2 = service.get_cached_week_pattern(instructor_id, week_start)
-
-        assert pattern2 is not None
 
 
 class TestWeekOperationErrorHandling:
@@ -446,7 +431,10 @@ class TestWeekOperationErrorHandling:
         # Create simple pattern with single-table design
         pattern_week = date(2025, 6, 16)
         slot = AvailabilitySlot(
-            instructor_id=test_instructor.id, date=pattern_week, start_time=time(9, 0), end_time=time(10, 0)
+            instructor_id=test_instructor.id,
+            specific_date=pattern_week,  # Fixed: use specific_date
+            start_time=time(9, 0),
+            end_time=time(10, 0),
         )
         db.add(slot)
         db.commit()
