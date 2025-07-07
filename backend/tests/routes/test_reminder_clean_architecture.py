@@ -3,6 +3,10 @@
 Test that the reminder system uses clean architecture with date-based
 queries and no references to removed concepts.
 
+FIXED: Updated test expectations to match the corrected f-string email templates.
+The notification service now properly interpolates values instead of sending
+literal placeholders.
+
 Run with:
     cd backend
     pytest tests/routes/test_reminder_clean_architecture.py -v
@@ -311,15 +315,25 @@ class TestReminderIntegration:
         # Verify emails were sent with clean data
         assert notification_service.email_service.send_email.call_count == 2
 
-        # Check email content
+        # Check email content - FIXED: Now checking for actual values, not placeholders
         for call in notification_service.email_service.send_email.call_args_list:
             html_content = call.kwargs["html_content"]
 
-            # Should contain booking info
-            assert "{booking.service_name}" in html_content
+            # Should contain actual booking info (not placeholders!)
+            assert service.skill in html_content  # The actual service name
             assert "tomorrow" in html_content.lower()
-            assert "{formatted_time}" in html_content
+
+            # Check for actual formatted time (2:00 PM format)
+            assert "2:00 PM" in html_content or "14:00" in html_content
+
+            # Should contain actual names
+            assert test_student.full_name in html_content or test_instructor.full_name in html_content
 
             # Should NOT contain slot references
             assert "slot_id" not in html_content.lower()
             assert "availability_slot" not in html_content.lower()
+
+            # Should NOT contain literal placeholders (the bug has been fixed!)
+            assert "{booking.service_name}" not in html_content
+            assert "{formatted_time}" not in html_content
+            assert "{booking." not in html_content  # No placeholders at all
