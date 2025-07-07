@@ -1,16 +1,18 @@
-# backend/tests/services/test_cache_clean_architecture.py
+# backend/tests/integration/services/test_cache_clean_architecture.py
 """
 Test that the cache system uses clean architecture with business concept
 keys and no references to removed concepts.
 
-FIXED VERSION - Addresses test failures:
+FIXED VERSION - Addresses all test failures:
 1. Fixed cache prefix expectations
 2. Fixed patch paths for imports
 3. Removed incompatible Redis parameters
+4. Fixed date field references (date -> specific_date)
+5. Fixed AvailabilityService patch paths
 
 Run with:
     cd backend
-    pytest tests/services/test_cache_clean_architecture.py -v
+    pytest tests/integration/services/test_cache_clean_architecture.py -v
 """
 
 from datetime import date, time
@@ -83,7 +85,7 @@ class TestCacheKeyPatterns:
         # Test data that might be hashed
         clean_data = {
             "instructor_id": 123,
-            "date": "2025-07-15",
+            "specific_date": "2025-07-15",  # Fixed: date -> specific_date
             "start_time": "09:00",
             "end_time": "10:00",
         }
@@ -129,7 +131,7 @@ class TestCacheDataStructures:
                 {
                     "id": 1,
                     "instructor_id": instructor_id,
-                    "date": "2025-07-14",
+                    "specific_date": "2025-07-14",  # Fixed: date -> specific_date
                     "start_time": "09:00",
                     "end_time": "12:00",
                 }
@@ -138,7 +140,7 @@ class TestCacheDataStructures:
                 {
                     "id": 2,
                     "instructor_id": instructor_id,
-                    "date": "2025-07-15",
+                    "specific_date": "2025-07-15",  # Fixed: date -> specific_date
                     "start_time": "14:00",
                     "end_time": "17:00",
                 }
@@ -259,26 +261,23 @@ class TestCacheWarmingStrategies:
         # Create warming strategy
         strategy = CacheWarmingStrategy(mock_cache, db)
 
-        # FIXED: Patch the actual import location inside the method
-        with patch.object(strategy, "db") as mock_db:
-            # Mock the availability service that will be created
+        # FIXED: Patch AvailabilityService at its source location
+        with patch("app.services.availability_service.AvailabilityService") as mock_service_class:
+            # Mock the availability service
             mock_service = Mock()
             mock_service.get_week_availability.return_value = {
                 "2025-07-14": [{"id": 1, "start_time": "09:00", "end_time": "10:00"}]
             }
+            mock_service_class.return_value = mock_service
 
-            # Patch where AvailabilityService is imported inside the method
-            with patch("app.services.cache_strategies.AvailabilityService") as mock_service_class:
-                mock_service_class.return_value = mock_service
+            # Warm cache
+            result = await strategy.warm_with_verification(
+                instructor_id=123, week_start=date(2025, 7, 14), expected_slot_count=1
+            )
 
-                # Warm cache
-                result = await strategy.warm_with_verification(
-                    instructor_id=123, week_start=date(2025, 7, 14), expected_slot_count=1
-                )
-
-                # Verify it used service layer
-                mock_service_class.assert_called_with(strategy.db, None)  # No cache passed
-                mock_service.get_week_availability.assert_called_with(123, date(2025, 7, 14))
+            # Verify it used service layer
+            mock_service_class.assert_called_with(strategy.db, None)  # No cache passed
+            mock_service.get_week_availability.assert_called_with(123, date(2025, 7, 14))
 
     @pytest.mark.asyncio
     async def test_cache_warming_handles_clean_data(self, db):
@@ -294,7 +293,7 @@ class TestCacheWarmingStrategies:
                 {
                     "id": 1,
                     "instructor_id": 123,
-                    "date": "2025-07-14",
+                    "specific_date": "2025-07-14",  # Fixed: date -> specific_date
                     "start_time": "09:00",
                     "end_time": "12:00",
                     # NO availability_slot_id
@@ -303,8 +302,8 @@ class TestCacheWarmingStrategies:
             ]
         }
 
-        # FIXED: Patch at the correct import location
-        with patch("app.services.cache_strategies.AvailabilityService") as mock_service_class:
+        # FIXED: Patch at the source location
+        with patch("app.services.availability_service.AvailabilityService") as mock_service_class:
             mock_service = Mock()
             mock_service.get_week_availability.return_value = clean_data
             mock_service_class.return_value = mock_service
