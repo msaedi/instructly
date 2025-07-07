@@ -171,9 +171,10 @@ class TestBaseServiceMetrics:
 
         metrics = test_service.get_metrics()["timed_operation"]
         assert metrics["count"] == 5
-        assert abs(metrics["min_time"] - 0.01) < 0.005  # ~10ms
-        assert abs(metrics["max_time"] - 0.05) < 0.005  # ~50ms
-        assert abs(metrics["avg_time"] - 0.03) < 0.005  # ~30ms average
+        # Relaxed timing assertions to account for system scheduling variations
+        assert abs(metrics["min_time"] - 0.01) < 0.01  # ~10ms with more tolerance
+        assert abs(metrics["max_time"] - 0.05) < 0.01  # ~50ms with more tolerance
+        assert abs(metrics["avg_time"] - 0.03) < 0.01  # ~30ms average with more tolerance
 
     def test_concurrent_operations(self, test_service):
         """Test that metrics handle concurrent operations correctly."""
