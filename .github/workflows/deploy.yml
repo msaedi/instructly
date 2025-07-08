@@ -13,10 +13,15 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Deploy to Vercel
-        run: |
-          npx vercel --prod --token=${{ secrets.VERCEL_TOKEN }} --yes --build-env VERCEL_ROOT_DIRECTORY=frontend
+      - name: Pull Vercel Environment Information
+        run: npx vercel pull --yes --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Vercel
+        run: |
+          npx vercel --prod --prebuilt --token=${{ secrets.VERCEL_TOKEN }} --yes
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
