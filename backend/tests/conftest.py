@@ -15,6 +15,7 @@ import sys
 
 # CRITICAL: Set testing mode BEFORE any app imports!
 os.environ["is_testing"] = "true"
+os.environ["rate_limit_enabled"] = "false"
 
 # Add the backend directory to Python path so imports work
 backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -24,6 +25,7 @@ sys.path.insert(0, backend_dir)
 from app.core.config import settings
 
 settings.is_testing = True
+settings.rate_limit_enabled = False
 
 from datetime import date, time, timedelta
 

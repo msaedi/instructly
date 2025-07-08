@@ -33,6 +33,29 @@ from app.middleware.rate_limiter import (
 from app.services.cache_service import CacheService
 
 
+@pytest.fixture
+def enable_rate_limiting():
+    """Enable rate limiting for tests that specifically need to test rate limiting."""
+    original_value = settings.rate_limit_enabled
+    settings.rate_limit_enabled = True
+    yield
+    settings.rate_limit_enabled = original_value
+
+
+@pytest.fixture
+def clear_rate_limits():
+    """Clear rate limit cache before rate limit tests."""
+    from app.services.cache_service import get_cache_service
+
+    cache = get_cache_service()
+    if cache and cache.redis:
+        # Clear all rate limit keys
+        for key in cache.redis.scan_iter(match="rate_limit:*"):
+            cache.redis.delete(key)
+    yield
+
+
+@pytest.mark.usefixtures("enable_rate_limiting", "clear_rate_limits")
 class TestRateLimiter:
     """Test the core RateLimiter class."""
 
@@ -363,6 +386,7 @@ class TestRateLimitAdmin:
         assert stats["top_limited"][0]["requests"] == 10  # Sorted by count
 
 
+@pytest.mark.usefixtures("enable_rate_limiting", "clear_rate_limits")
 class TestIntegration:
     """Integration tests with real cache."""
 
