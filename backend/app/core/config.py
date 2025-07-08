@@ -85,6 +85,28 @@ class Settings(BaseSettings):
         default=300, description="Cache TTL in seconds for public availability data"  # 5 minutes
     )
 
+    # Rate Limiting Configuration
+    rate_limit_enabled: bool = Field(default=True, description="Enable rate limiting (disable for testing)")
+
+    rate_limit_general_per_minute: int = Field(default=100, description="General API rate limit per minute per IP")
+
+    rate_limit_auth_per_minute: int = Field(default=5, description="Authentication attempts per minute per IP")
+
+    rate_limit_password_reset_per_hour: int = Field(default=3, description="Password reset requests per hour per email")
+
+    rate_limit_password_reset_ip_per_hour: int = Field(
+        default=10, description="Password reset requests per hour per IP"
+    )
+
+    rate_limit_register_per_hour: int = Field(default=10, description="Registration attempts per hour per IP")
+
+    rate_limit_booking_per_minute: int = Field(default=20, description="Booking requests per minute per user")
+
+    rate_limit_expensive_per_minute: int = Field(default=10, description="Expensive operations per minute per user")
+
+    # Rate limit bypass for testing
+    rate_limit_bypass_token: str = Field(default="", description="Token to bypass rate limiting (for load testing)")
+
     @field_validator("test_database_url")
     @classmethod
     def validate_test_database(cls, v: str, info) -> str:

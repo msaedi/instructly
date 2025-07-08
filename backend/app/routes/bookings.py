@@ -37,10 +37,12 @@ Router Endpoints:
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from ..api.dependencies import get_booking_service, get_current_active_user
+from ..core.config import settings
 from ..core.exceptions import DomainException, NotFoundException, ValidationException
+from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ..models.booking import BookingStatus
 from ..models.user import User, UserRole
 from ..schemas.booking import (
@@ -124,7 +126,13 @@ async def get_booking_details(
 
 
 @router.post("/", response_model=BookingResponse, status_code=status.HTTP_201_CREATED)
+@rate_limit(
+    f"{settings.rate_limit_booking_per_minute}/minute",
+    key_type=RateLimitKeyType.USER,
+    error_message="Too many booking attempts. Please wait a moment and try again.",
+)
 async def create_booking(
+    request: Request,  # ADD THIS for rate limiting
     booking_data: BookingCreate,
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
@@ -134,6 +142,8 @@ async def create_booking(
 
     CLEAN ARCHITECTURE: Uses instructor_id, date, and time range.
     No slot references. Bookings are self-contained.
+
+    Rate limited per user to prevent booking spam.
     """
     try:
         # The schema now enforces the correct format with extra='forbid'
@@ -253,7 +263,11 @@ async def complete_booking(
 
 
 @router.post("/check-availability", response_model=AvailabilityCheckResponse)
+@rate_limit(
+    "30/minute", key_type=RateLimitKeyType.USER, error_message="Too many availability checks. Please slow down."
+)
 async def check_availability(
+    request: Request,  # ADD THIS for rate limiting
     check_data: AvailabilityCheckRequest,
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
@@ -263,6 +277,8 @@ async def check_availability(
 
     CLEAN ARCHITECTURE: Uses time-based checking.
     No slot references. Direct time conflict checking.
+
+    Rate limited to prevent abuse of expensive availability checks.
     """
     try:
         # AvailabilityCheckRequest now has: instructor_id, booking_date, start_time, end_time, service_id
@@ -281,7 +297,11 @@ async def check_availability(
 
 # Admin endpoint - consider moving to separate admin routes in future
 @router.post("/send-reminders", status_code=status.HTTP_200_OK)
+@rate_limit(
+    "1/hour", key_type=RateLimitKeyType.IP, error_message="Reminder emails can only be triggered once per hour."
+)
 async def send_reminder_emails(
+    request: Request,  # ADD THIS for rate limiting
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
 ):
@@ -289,6 +309,7 @@ async def send_reminder_emails(
     Send 24-hour reminder emails for tomorrow's bookings.
 
     Should be called by scheduled job/cron.
+    Rate limited to prevent email spam.
     """
     # Simple admin check - improve in future
     if current_user.email != "admin@instainstru.com":

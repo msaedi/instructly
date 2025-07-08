@@ -4,18 +4,21 @@ Authentication routes for InstaInstru platform.
 
 This module provides thin controller endpoints for authentication,
 delegating all business logic to the AuthService.
+
+UPDATED: Added rate limiting to protect against brute force attacks.
 """
 
 import logging
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from ..api.dependencies.services import get_auth_service
 from ..auth import create_access_token, get_current_user
 from ..core.config import settings
 from ..core.exceptions import ConflictException, NotFoundException
+from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ..schemas import Token, UserCreate, UserResponse
 from ..services.auth_service import AuthService
 
@@ -25,12 +28,20 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def register(
+@rate_limit(
+    f"{settings.rate_limit_register_per_hour}/hour",
+    key_type=RateLimitKeyType.IP,
+    error_message="Too many registration attempts. Please try again later.",
+)
+async def register(
+    request: Request,  # Add this for rate limiting
     user: UserCreate,
     auth_service: AuthService = Depends(get_auth_service),
 ):
     """
     Register a new user.
+
+    Rate limited to prevent spam registrations.
 
     Args:
         user: User creation data
@@ -40,7 +51,7 @@ def register(
         UserResponse: The created user
 
     Raises:
-        HTTPException: If email already registered
+        HTTPException: If email already registered or rate limit exceeded
     """
     try:
         db_user = auth_service.register_user(
@@ -64,12 +75,20 @@ def register(
 
 
 @router.post("/login", response_model=Token)
+@rate_limit(
+    f"{settings.rate_limit_auth_per_minute}/minute",
+    key_type=RateLimitKeyType.IP,
+    error_message="Too many login attempts. Please try again later.",
+)
 async def login(
+    request: Request,  # Add this for rate limiting
     form_data: OAuth2PasswordRequestForm = Depends(),
     auth_service: AuthService = Depends(get_auth_service),
 ):
     """
     Login with username (email) and password.
+
+    Rate limited to prevent brute force attacks.
 
     Args:
         form_data: OAuth2 form with username and password
@@ -79,7 +98,7 @@ async def login(
         Token: Access token and token type
 
     Raises:
-        HTTPException: If credentials are invalid
+        HTTPException: If credentials are invalid or rate limit exceeded
     """
     user = auth_service.authenticate_user(
         email=form_data.username,
@@ -110,6 +129,8 @@ async def read_users_me(
 ):
     """
     Get current user information.
+
+    No additional rate limiting as this requires authentication.
 
     Args:
         current_user: Current user email from JWT

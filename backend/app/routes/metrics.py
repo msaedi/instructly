@@ -5,12 +5,14 @@ Simple metrics endpoint for performance monitoring.
 This gives us immediate visibility without Prometheus complexity.
 """
 
+from datetime import datetime
+
 import psutil
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..api.dependencies.auth import get_current_user
+from ..api.dependencies.auth import get_current_active_user, get_current_user
 from ..api.dependencies.services import (
     get_availability_service,
     get_booking_service,
@@ -18,6 +20,7 @@ from ..api.dependencies.services import (
     get_conflict_checker,
 )
 from ..database import get_db, get_db_pool_status
+from ..middleware.rate_limiter import RateLimitAdmin, RateLimitKeyType, rate_limit
 from ..models.user import User
 from ..services.cache_service import CacheService
 
@@ -147,3 +150,72 @@ async def reset_cache_stats(
         return {"status": "Cache stats reset"}
 
     return {"error": "Cache service not available"}
+
+
+@router.get("/rate-limits")
+def get_rate_limit_stats(
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Get current rate limit statistics.
+
+    Shows:
+    - Total rate limit keys
+    - Breakdown by endpoint/type
+    - Top limited clients
+
+    Requires authentication.
+    """
+    return RateLimitAdmin.get_rate_limit_stats()
+
+
+@router.post("/rate-limits/reset")
+def reset_rate_limits(
+    pattern: str = Query(..., description="Pattern to match (e.g., 'email_*', 'ip_192.168.*')"),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Reset rate limits matching a pattern.
+
+    Useful for:
+    - Unblocking legitimate users
+    - Testing
+    - Emergency response
+
+    Requires admin privileges.
+    """
+    # Simple admin check - improve in production
+    if current_user.email not in ["admin@instainstru.com", "support@instainstru.com"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only administrators can reset rate limits")
+
+    count = RateLimitAdmin.reset_all_limits(pattern)
+
+    return {
+        "status": "success",
+        "pattern": pattern,
+        "limits_reset": count,
+        "message": f"Reset {count} rate limits matching pattern '{pattern}'",
+    }
+
+
+@router.get("/rate-limits/test")
+@rate_limit("3/minute", key_type=RateLimitKeyType.IP)
+async def test_rate_limit(
+    request: Request,  # Add this for rate limiting
+    requests: int = Query(default=5, ge=1, le=20, description="Number of requests to simulate"),
+):
+    """
+    Test endpoint to verify rate limiting is working.
+
+    This endpoint has a low rate limit for testing purposes.
+    Try making multiple requests to see rate limiting in action.
+    """
+    return {
+        "message": "Rate limit test successful",
+        "timestamp": datetime.now().isoformat(),
+        "note": "This endpoint is rate limited to 3 requests per minute",
+    }
+
+
+# Apply rate limit to the test endpoint
+test_rate_limit = rate_limit("3/minute", key_type=RateLimitKeyType.IP)(test_rate_limit)

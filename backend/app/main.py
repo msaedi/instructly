@@ -8,6 +8,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 from .core.constants import ALLOWED_ORIGINS, API_DESCRIPTION, API_TITLE, API_VERSION, BRAND_NAME
 from .middleware.monitoring import MonitoringMiddleware
+from .middleware.rate_limiter import RateLimitMiddleware
 from .middleware.timing import TimingMiddleware
 from .routes import auth, availability_windows, bookings, instructors, metrics, password_reset, public
 
@@ -29,6 +30,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"{BRAND_NAME} API starting up...")
     logger.info(f"Allowed origins: {ALLOWED_ORIGINS}")
     logger.info("GZip compression enabled for responses > 500 bytes")
+    logger.info("Rate limiting enabled for DDoS and brute force protection")
 
     # Here you can add any startup logic like:
     # - Warming up caches
@@ -54,9 +56,11 @@ app = FastAPI(
     lifespan=lifespan,  # Use the new lifespan handler
 )
 
-# Add timing middleware FIRST (before other middleware)
+# Add middleware in the correct order (reverse order of execution)
+# Rate limiting should be early in the chain to block bad requests quickly
 app.add_middleware(TimingMiddleware)
 app.add_middleware(MonitoringMiddleware)
+app.add_middleware(RateLimitMiddleware)  # Added rate limiting
 
 # CORS middleware configuration
 app.add_middleware(
