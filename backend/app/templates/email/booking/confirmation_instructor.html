@@ -1,0 +1,78 @@
+<!-- backend/app/templates/email/booking/confirmation_instructor.html -->
+{% extends "email/base.html" %}
+
+{% block title %}New Booking: {{ booking.service_name }} with {{ booking.student.full_name }}{% endblock %}
+
+{% block header_colors %}
+{%- set header_bg_color = '#10B981' -%}
+{%- set header_text_color = '#D1FAE5' -%}
+{% endblock %}
+
+{% block header_subtitle %}You have a new booking!{% endblock %}
+
+{% block content %}
+<h2 style="color: #1F2937; margin-bottom: 20px;">New Booking Alert</h2>
+
+<p style="color: #4B5563; font-size: 16px;">Hi {{ booking.instructor.full_name }},</p>
+
+<p style="color: #4B5563;">You have a new confirmed booking!</p>
+
+<div style="background-color: white; padding: 25px; border-radius: 8px; margin: 25px 0; border: 1px solid #E5E7EB;">
+    <h3 style="color: #1F2937; margin-top: 0; margin-bottom: 15px;">Booking Details</h3>
+
+    <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 8px 0; color: #6B7280;">Student:</td>
+            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{{ booking.student.full_name }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #6B7280;">Service:</td>
+            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{{ booking.service_name }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #6B7280;">Date:</td>
+            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{{ formatted_date }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #6B7280;">Time:</td>
+            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{{ formatted_time }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #6B7280;">Duration:</td>
+            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{{ booking.duration_minutes }} minutes</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #6B7280;">Location:</td>
+            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{{ booking.location_type_display }}</td>
+        </tr>
+        {% if booking.student_note %}
+        <tr>
+            <td style="padding: 8px 0; color: #6B7280;">Student Note:</td>
+            <td style="padding: 8px 0; color: #1F2937; font-style: italic;">"{{ booking.student_note }}"</td>
+        </tr>
+        {% endif %}
+        <tr>
+            <td style="padding: 8px 0; color: #6B7280;">Earnings:</td>
+            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">${{ "%.2f"|format(booking.total_price) }}</td>
+        </tr>
+    </table>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ frontend_url }}/dashboard/instructor/bookings/{{ booking.id }}"
+       style="background-color: #10B981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
+        View Full Details
+    </a>
+</div>
+
+<hr style="border: none; border-top: 1px solid #E5E7EB; margin: 30px 0;">
+
+<p style="color: #6B7280; font-size: 14px;">
+    This booking has been automatically confirmed. The student has been notified.
+</p>
+
+<p style="color: #4B5563; margin-top: 30px;">
+    Happy teaching!<br>
+    The {{ brand_name }} Team
+</p>
+{% endblock %}

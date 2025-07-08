@@ -1,0 +1,60 @@
+{% extends "email/base.html" %}
+
+{% block title %}Welcome to {{ brand_name }}!{% endblock %}
+
+{% block header_subtitle %}Welcome aboard!{% endblock %}
+
+{% block content %}
+<h2 style="color: #1F2937; margin-bottom: 20px;">Welcome to {{ brand_name }}!</h2>
+
+<p style="color: #4B5563; font-size: 16px;">Hi {{ user.full_name }},</p>
+
+<p style="color: #4B5563;">We're thrilled to have you join our community of
+{% if user.role == 'instructor' %}talented instructors{% else %}eager learners{% endif %}!</p>
+
+{% if user.role == 'instructor' %}
+<div style="background-color: #ECFDF5; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #D1FAE5;">
+    <h3 style="color: #065F46; margin-top: 0;">Getting Started as an Instructor</h3>
+    <ol style="color: #047857;">
+        <li>Complete your profile</li>
+        <li>Add your services and pricing</li>
+        <li>Set your availability</li>
+        <li>Start accepting bookings!</li>
+    </ol>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ frontend_url }}/dashboard/instructor/profile"
+       style="background-color: #10B981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
+        Complete Your Profile
+    </a>
+</div>
+{% else %}
+<div style="background-color: #EFF6FF; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #DBEAFE;">
+    <h3 style="color: #1E3A8A; margin-top: 0;">Ready to Learn?</h3>
+    <p style="color: #1E40AF;">Browse our talented instructors and book your first lesson today!</p>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ frontend_url }}/instructors"
+       style="background-color: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
+        Find an Instructor
+    </a>
+</div>
+{% endif %}
+
+<hr style="border: none; border-top: 1px solid #E5E7EB; margin: 30px 0;">
+
+<div style="background-color: #F3F4F6; padding: 15px; border-radius: 6px;">
+    <h4 style="color: #374151; margin-top: 0;">Need Help?</h4>
+    <p style="color: #6B7280; margin: 0;">
+        Check out our <a href="{{ frontend_url }}/help" style="color: #4F46E5;">Help Center</a>
+        or reply to this email if you have any questions.
+    </p>
+</div>
+
+<p style="color: #4B5563; margin-top: 30px;">
+    Welcome again, and happy learning!<br>
+    The {{ brand_name }} Team
+</p>
+{% endblock %}

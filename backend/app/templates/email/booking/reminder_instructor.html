@@ -1,0 +1,40 @@
+<!-- backend/app/templates/email/booking/reminder_instructor.html -->
+{% extends "email/base.html" %}
+
+{% block title %}Reminder: {{ booking.service_name }} Tomorrow{% endblock %}
+
+{% block header_color %}#8B5CF6{% endblock %}
+{% block header_subtitle_color %}#EDE9FE{% endblock %}
+{% block header_subtitle %}Teaching Reminder{% endblock %}
+
+{% block content %}
+<h2 style="color: #1F2937;">You have a lesson tomorrow!</h2>
+
+<p>Hi {{ booking.instructor.full_name }},</p>
+
+<p>This is a reminder about your upcoming lesson.</p>
+
+<div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #E5E7EB;">
+    <h3 style="color: #1F2937; margin-top: 0;">Tomorrow's Lesson</h3>
+    <p><strong>Student:</strong> {{ booking.student.full_name }}</p>
+    <p><strong>Service:</strong> {{ booking.service_name }}</p>
+    <p><strong>Time:</strong> {{ formatted_time }}</p>
+    <p><strong>Duration:</strong> {{ booking.duration_minutes }} minutes</p>
+    <p><strong>Location:</strong> {{ booking.location_type_display }}</p>
+    {% if booking.student_note %}
+    <p><strong>Student Note:</strong> "{{ booking.student_note }}"</p>
+    {% endif %}
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ frontend_url }}/dashboard/instructor/bookings/{{ booking.id }}"
+       style="background-color: #8B5CF6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">
+        View Full Details
+    </a>
+</div>
+
+<p style="margin-top: 30px;">
+    Have a great lesson!<br>
+    The {{ brand_name }} Team
+</p>
+{% endblock %}

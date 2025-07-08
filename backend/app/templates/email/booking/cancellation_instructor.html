@@ -1,0 +1,45 @@
+<!-- backend/app/templates/email/booking/cancellation_instructor.html -->
+{% extends "email/base.html" %}
+
+{% block title %}Booking Cancelled: {{ booking.service_name }}{% endblock %}
+
+{% block header_color %}#F59E0B{% endblock %}
+{% block header_subtitle_color %}#FEF3C7{% endblock %}
+{% block header_subtitle %}Booking Cancelled{% endblock %}
+
+{% block content %}
+<h2 style="color: #1F2937;">Booking Cancellation</h2>
+
+<p>Hi {{ booking.instructor.full_name }},</p>
+
+<p>Your upcoming lesson has been cancelled by the student.</p>
+
+<div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #E5E7EB;">
+    <h3 style="color: #1F2937; margin-top: 0;">Cancelled Booking Details</h3>
+    <p><strong>Student:</strong> {{ booking.student.full_name }}</p>
+    <p><strong>Service:</strong> {{ booking.service_name }}</p>
+    <p><strong>Date:</strong> {{ formatted_date }}</p>
+    <p><strong>Time:</strong> {{ formatted_time }}</p>
+    {% if reason %}
+    <p><strong>Reason:</strong> {{ reason }}</p>
+    {% endif %}
+</div>
+
+<div style="background-color: #FEF3C7; padding: 15px; border-radius: 6px;">
+    <p style="color: #92400E; margin: 0;">
+        Your time slot has been automatically freed up and is now available for other students to book.
+    </p>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ frontend_url }}/dashboard/instructor"
+       style="background-color: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">
+        View Dashboard
+    </a>
+</div>
+
+<p style="margin-top: 30px;">
+    Best regards,<br>
+    The {{ brand_name }} Team
+</p>
+{% endblock %}

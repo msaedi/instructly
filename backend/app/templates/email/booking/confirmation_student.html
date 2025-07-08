@@ -1,0 +1,84 @@
+<!-- backend/app/templates/email/booking/confirmation_student.html -->
+{% extends "email/base.html" %}
+
+{% block title %}Booking Confirmed: {{ booking.service_name }} with {{ booking.instructor.full_name }}{% endblock %}
+
+{% block header_subtitle %}Your lesson is confirmed!{% endblock %}
+
+{% block content %}
+<h2 style="color: #1F2937; margin-bottom: 20px;">Booking Confirmation</h2>
+
+<p style="color: #4B5563; font-size: 16px;">Hi {{ booking.student.full_name }},</p>
+
+<p style="color: #4B5563;">Great news! Your lesson has been confirmed.</p>
+
+<div style="background-color: white; padding: 25px; border-radius: 8px; margin: 25px 0; border: 1px solid #E5E7EB;">
+    <h3 style="color: #1F2937; margin-top: 0; margin-bottom: 15px;">Booking Details</h3>
+
+    <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 8px 0; color: #6B7280;">Service:</td>
+            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{{ booking.service_name }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #6B7280;">Instructor:</td>
+            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{{ booking.instructor.full_name }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #6B7280;">Date:</td>
+            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{{ formatted_date }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #6B7280;">Time:</td>
+            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{{ formatted_time }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #6B7280;">Duration:</td>
+            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{{ booking.duration_minutes }} minutes</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #6B7280;">Location:</td>
+            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{{ booking.location_type_display }}</td>
+        </tr>
+        {% if booking.meeting_location %}
+        <tr>
+            <td style="padding: 8px 0; color: #6B7280;">Address:</td>
+            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{{ booking.meeting_location }}</td>
+        </tr>
+        {% endif %}
+        <tr>
+            <td style="padding: 8px 0; color: #6B7280;">Total Price:</td>
+            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">${{ "%.2f"|format(booking.total_price) }}</td>
+        </tr>
+    </table>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ frontend_url }}/dashboard/student/bookings"
+       style="background-color: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
+        View Booking Details
+    </a>
+</div>
+
+<div style="background-color: #FEF3C7; padding: 15px; border-radius: 6px; margin: 20px 0;">
+    <p style="color: #92400E; margin: 0; font-size: 14px;">
+        <strong>Reminder:</strong> We'll send you a reminder email 24 hours before your lesson.
+    </p>
+</div>
+
+<hr style="border: none; border-top: 1px solid #E5E7EB; margin: 30px 0;">
+
+<p style="color: #6B7280; font-size: 14px;">
+    Need to make changes? You can manage your booking from your dashboard.
+    Please note our cancellation policy.
+</p>
+
+<p style="color: #6B7280; font-size: 14px;">
+    If you have any questions, please don't hesitate to contact us.
+</p>
+
+<p style="color: #4B5563; margin-top: 30px;">
+    Best regards,<br>
+    The {{ brand_name }} Team
+</p>
+{% endblock %}

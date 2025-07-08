@@ -1,0 +1,49 @@
+<!-- backend/app/templates/email/booking/cancellation_student.html -->
+{% extends "email/base.html" %}
+
+{% block title %}Booking Cancelled: {{ booking.service_name }}{% endblock %}
+
+{% block header_color %}#EF4444{% endblock %}
+{% block header_subtitle_color %}#FEE2E2{% endblock %}
+{% block header_subtitle %}Booking Cancelled{% endblock %}
+
+{% block content %}
+<h2 style="color: #1F2937;">Booking Cancellation</h2>
+
+<p>Hi {{ booking.student.full_name }},</p>
+
+<p>We're sorry to inform you that your upcoming lesson has been cancelled by the instructor.</p>
+
+<div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #E5E7EB;">
+    <h3 style="color: #1F2937; margin-top: 0;">Cancelled Booking Details</h3>
+    <p><strong>Service:</strong> {{ booking.service_name }}</p>
+    <p><strong>Instructor:</strong> {{ booking.instructor.full_name }}</p>
+    <p><strong>Date:</strong> {{ formatted_date }}</p>
+    <p><strong>Time:</strong> {{ formatted_time }}</p>
+    {% if reason %}
+    <p><strong>Reason:</strong> {{ reason }}</p>
+    {% endif %}
+</div>
+
+<div style="background-color: #DBEAFE; padding: 15px; border-radius: 6px; margin: 20px 0;">
+    <p style="color: #1E40AF; margin: 0;">
+        <strong>What's Next?</strong> You can search for another instructor and book a new lesson at your convenience.
+    </p>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ frontend_url }}/instructors"
+       style="background-color: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">
+        Find Another Instructor
+    </a>
+</div>
+
+<p style="color: #6B7280; font-size: 14px;">
+    We apologize for any inconvenience. If you have questions, please contact our support team.
+</p>
+
+<p style="margin-top: 30px;">
+    Best regards,<br>
+    The {{ brand_name }} Team
+</p>
+{% endblock %}

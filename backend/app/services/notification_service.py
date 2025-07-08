@@ -1,14 +1,10 @@
-# backend/app/services/notification_service.py
+# backend/app/services/notification_service_refactored.py
 """
-Notification Service for InstaInstru Platform
+Notification Service for InstaInstru Platform (Template-based version)
 
-Handles all platform notifications including:
-- Booking confirmations
-- Cancellation notices
-- Reminder emails
-- General notifications
-
-This service acts as the central hub for all communication with users.
+Handles all platform notifications using Jinja2 templates instead of
+embedded HTML strings. This refactored version extracts all HTML to
+external templates for better maintainability.
 """
 
 import logging
@@ -18,20 +14,20 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
-from ..core.constants import BRAND_NAME
 from ..models.booking import Booking
 from ..models.user import User
 from ..services.email import email_service
+from ..services.template_service import template_service
 
 logger = logging.getLogger(__name__)
 
 
 class NotificationService:
     """
-    Central notification service for the platform.
+    Central notification service for the platform using Jinja2 templates.
 
-    Handles all types of notifications and ensures consistent
-    communication with users across different channels.
+    All HTML has been extracted to templates for maintainability and
+    to prevent f-string bugs.
     """
 
     def __init__(self, db: Session = None):
@@ -43,6 +39,7 @@ class NotificationService:
         """
         self.db = db
         self.email_service = email_service
+        self.template_service = template_service
         self.frontend_url = settings.frontend_url
 
     async def send_booking_confirmation(self, booking: Booking) -> bool:
@@ -160,117 +157,25 @@ class NotificationService:
     # Private methods for specific email types
 
     async def _send_student_booking_confirmation(self, booking: Booking) -> bool:
-        """Send booking confirmation email to student."""
+        """Send booking confirmation email to student using template."""
         try:
             subject = f"Booking Confirmed: {booking.service_name} with {booking.instructor.full_name}"
 
             # Format booking time
             booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
-            formatted_date = booking_datetime.strftime("%A, %B %d, %Y")  # FIXED: Now properly assigned
+            formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
             formatted_time = booking_datetime.strftime("%-I:%M %p")
 
-            # Build email content - FIXED: Now using f-string
-            html_content = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Booking Confirmation</title>
-            </head>
-            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background-color: #4F46E5; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                    <h1 style="color: white; margin: 0; font-size: 28px;">{BRAND_NAME}</h1>
-                    <p style="color: #E0E7FF; margin: 10px 0 0 0;">Your lesson is confirmed!</p>
-                </div>
+            # Prepare template context
+            context = {
+                "booking": booking,
+                "formatted_date": formatted_date,
+                "formatted_time": formatted_time,
+                "subject": subject,
+            }
 
-                <div style="background-color: #f8f9fa; padding: 40px; border-radius: 0 0 10px 10px;">
-                    <h2 style="color: #1F2937; margin-bottom: 20px;">Booking Confirmation</h2>
-
-                    <p style="color: #4B5563; font-size: 16px;">Hi {booking.student.full_name},</p>
-
-                    <p style="color: #4B5563;">Great news! Your lesson has been confirmed.</p>
-
-                    <div style="background-color: white; padding: 25px; border-radius: 8px; margin: 25px 0; border: 1px solid #E5E7EB;">
-                        <h3 style="color: #1F2937; margin-top: 0; margin-bottom: 15px;">Booking Details</h3>
-
-                        <table style="width: 100%; border-collapse: collapse;">
-                            <tr>
-                                <td style="padding: 8px 0; color: #6B7280;">Service:</td>
-                                <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{booking.service_name}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px 0; color: #6B7280;">Instructor:</td>
-                                <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{booking.instructor.full_name}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px 0; color: #6B7280;">Date:</td>
-                                <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{formatted_date}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px 0; color: #6B7280;">Time:</td>
-                                <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{formatted_time}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px 0; color: #6B7280;">Duration:</td>
-                                <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{booking.duration_minutes} minutes</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px 0; color: #6B7280;">Location:</td>
-                                <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{booking.location_type_display}</td>
-                            </tr>
-                            {f'''<tr>
-                                <td style="padding: 8px 0; color: #6B7280;">Address:</td>
-                                <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{booking.meeting_location}</td>
-                            </tr>''' if booking.meeting_location else ''}
-                            <tr>
-                                <td style="padding: 8px 0; color: #6B7280;">Total Price:</td>
-                                <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">${booking.total_price:.2f}</td>
-                            </tr>
-                        </table>
-                    </div>
-
-                    <div style="text-align: center; margin: 30px 0;">
-                        <a href="{self.frontend_url}/dashboard/student/bookings"
-                           style="background-color: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
-                            View Booking Details
-                        </a>
-                    </div>
-
-                    <div style="background-color: #FEF3C7; padding: 15px; border-radius: 6px; margin: 20px 0;">
-                        <p style="color: #92400E; margin: 0; font-size: 14px;">
-                            <strong>Reminder:</strong> We'll send you a reminder email 24 hours before your lesson.
-                        </p>
-                    </div>
-
-                    <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 30px 0;">
-
-                    <p style="color: #6B7280; font-size: 14px;">
-                        Need to make changes? You can manage your booking from your dashboard.
-                        Please note our cancellation policy.
-                    </p>
-
-                    <p style="color: #6B7280; font-size: 14px;">
-                        If you have any questions, please don't hesitate to contact us.
-                    </p>
-
-                    <p style="color: #4B5563; margin-top: 30px;">
-                        Best regards,<br>
-                        The {BRAND_NAME} Team
-                    </p>
-                </div>
-
-                <div style="text-align: center; padding: 20px; color: #6B7280; font-size: 12px;">
-                    <p>© {datetime.now().year} {BRAND_NAME}. All rights reserved.</p>
-                    <p>
-                        <a href="{self.frontend_url}/help" style="color: #4F46E5; text-decoration: none;">Help Center</a> |
-                        <a href="{self.frontend_url}/terms" style="color: #4F46E5; text-decoration: none;">Terms of Service</a> |
-                        <a href="{self.frontend_url}/privacy" style="color: #4F46E5; text-decoration: none;">Privacy Policy</a>
-                    </p>
-                </div>
-            </body>
-            </html>
-            """
+            # Render template
+            html_content = self.template_service.render_template("email/booking/confirmation_student.html", context)
 
             # Send email
             response = self.email_service.send_email(
@@ -287,100 +192,27 @@ class NotificationService:
             return False
 
     async def _send_instructor_booking_notification(self, booking: Booking) -> bool:
-        """Send new booking notification to instructor."""
+        """Send new booking notification to instructor using template."""
         try:
             subject = f"New Booking: {booking.service_name} with {booking.student.full_name}"
 
             # Format booking time
             booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
-            formatted_date = booking_datetime.strftime("%A, %B %d, %Y")  # FIXED: Now properly assigned
+            formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
             formatted_time = booking_datetime.strftime("%-I:%M %p")
 
-            # Build email content - FIXED: Now using f-string
-            html_content = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            </head>
-            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background-color: #10B981; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                    <h1 style="color: white; margin: 0; font-size: 28px;">{BRAND_NAME}</h1>
-                    <p style="color: #D1FAE5; margin: 10px 0 0 0;">You have a new booking!</p>
-                </div>
+            # Prepare template context with custom colors for instructor
+            context = {
+                "booking": booking,
+                "formatted_date": formatted_date,
+                "formatted_time": formatted_time,
+                "subject": subject,
+                "header_bg_color": "#10B981",  # Green for instructor
+                "header_text_color": "#D1FAE5",  # Light green
+            }
 
-                <div style="background-color: #f8f9fa; padding: 40px; border-radius: 0 0 10px 10px;">
-                    <h2 style="color: #1F2937; margin-bottom: 20px;">New Booking Alert</h2>
-
-                    <p style="color: #4B5563; font-size: 16px;">Hi {booking.instructor.full_name},</p>
-
-                    <p style="color: #4B5563;">You have a new confirmed booking!</p>
-
-                    <div style="background-color: white; padding: 25px; border-radius: 8px; margin: 25px 0; border: 1px solid #E5E7EB;">
-                        <h3 style="color: #1F2937; margin-top: 0; margin-bottom: 15px;">Booking Details</h3>
-
-                        <table style="width: 100%; border-collapse: collapse;">
-                            <tr>
-                                <td style="padding: 8px 0; color: #6B7280;">Student:</td>
-                                <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{booking.student.full_name}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px 0; color: #6B7280;">Service:</td>
-                                <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{booking.service_name}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px 0; color: #6B7280;">Date:</td>
-                                <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{formatted_date}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px 0; color: #6B7280;">Time:</td>
-                                <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{formatted_time}</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px 0; color: #6B7280;">Duration:</td>
-                                <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{booking.duration_minutes} minutes</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 8px 0; color: #6B7280;">Location:</td>
-                                <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{booking.location_type_display}</td>
-                            </tr>
-                            {f'''<tr>
-                                <td style="padding: 8px 0; color: #6B7280;">Student Note:</td>
-                                <td style="padding: 8px 0; color: #1F2937; font-style: italic;">"{booking.student_note}"</td>
-                            </tr>''' if booking.student_note else ''}
-                            <tr>
-                                <td style="padding: 8px 0; color: #6B7280;">Earnings:</td>
-                                <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">${booking.total_price:.2f}</td>
-                            </tr>
-                        </table>
-                    </div>
-
-                    <div style="text-align: center; margin: 30px 0;">
-                        <a href="{self.frontend_url}/dashboard/instructor/bookings/{booking.id}"
-                           style="background-color: #10B981; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
-                            View Full Details
-                        </a>
-                    </div>
-
-                    <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 30px 0;">
-
-                    <p style="color: #6B7280; font-size: 14px;">
-                        This booking has been automatically confirmed. The student has been notified.
-                    </p>
-
-                    <p style="color: #4B5563; margin-top: 30px;">
-                        Happy teaching!<br>
-                        The {BRAND_NAME} Team
-                    </p>
-                </div>
-
-                <div style="text-align: center; padding: 20px; color: #6B7280; font-size: 12px;">
-                    <p>© {datetime.now().year} {BRAND_NAME}. All rights reserved.</p>
-                </div>
-            </body>
-            </html>
-            """
+            # Render template
+            html_content = self.template_service.render_template("email/booking/confirmation_instructor.html", context)
 
             # Send email
             response = self.email_service.send_email(
@@ -404,60 +236,23 @@ class NotificationService:
             subject = f"Booking Cancelled: {booking.service_name}"
 
             booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
-            formatted_date = booking_datetime.strftime("%A, %B %d, %Y")  # FIXED: Now properly assigned
+            formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
             formatted_time = booking_datetime.strftime("%-I:%M %p")
 
-            # FIXED: Now using f-string
-            html_content = f"""
-            <!DOCTYPE html>
-            <html>
-            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background-color: #EF4444; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                    <h1 style="color: white; margin: 0;">{BRAND_NAME}</h1>
-                    <p style="color: #FEE2E2; margin: 10px 0 0 0;">Booking Cancelled</p>
-                </div>
+            # Prepare template context with red colors for cancellation
+            context = {
+                "booking": booking,
+                "formatted_date": formatted_date,
+                "formatted_time": formatted_time,
+                "reason": reason,
+                "cancelled_by": cancelled_by,
+                "subject": subject,
+                "header_bg_color": "#EF4444",  # Red for cancellation
+                "header_text_color": "#FEE2E2",  # Light red
+            }
 
-                <div style="background-color: #f8f9fa; padding: 40px; border-radius: 0 0 10px 10px;">
-                    <h2 style="color: #1F2937;">Booking Cancellation</h2>
-
-                    <p>Hi {booking.student.full_name},</p>
-
-                    <p>We're sorry to inform you that your upcoming lesson has been cancelled by the instructor.</p>
-
-                    <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #E5E7EB;">
-                        <h3 style="color: #1F2937; margin-top: 0;">Cancelled Booking Details</h3>
-                        <p><strong>Service:</strong> {booking.service_name}</p>
-                        <p><strong>Instructor:</strong> {booking.instructor.full_name}</p>
-                        <p><strong>Date:</strong> {formatted_date}</p>
-                        <p><strong>Time:</strong> {formatted_time}</p>
-                        {f'<p><strong>Reason:</strong> {reason}</p>' if reason else ''}
-                    </div>
-
-                    <div style="background-color: #DBEAFE; padding: 15px; border-radius: 6px; margin: 20px 0;">
-                        <p style="color: #1E40AF; margin: 0;">
-                            <strong>What's Next?</strong> You can search for another instructor and book a new lesson at your convenience.
-                        </p>
-                    </div>
-
-                    <div style="text-align: center; margin: 30px 0;">
-                        <a href="{self.frontend_url}/instructors"
-                           style="background-color: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                            Find Another Instructor
-                        </a>
-                    </div>
-
-                    <p style="color: #6B7280; font-size: 14px;">
-                        We apologize for any inconvenience. If you have questions, please contact our support team.
-                    </p>
-
-                    <p style="margin-top: 30px;">
-                        Best regards,<br>
-                        The {BRAND_NAME} Team
-                    </p>
-                </div>
-            </body>
-            </html>
-            """
+            # Render template
+            html_content = self.template_service.render_template("email/booking/cancellation_student.html", context)
 
             response = self.email_service.send_email(
                 to_email=booking.student.email,
@@ -479,56 +274,21 @@ class NotificationService:
             subject = f"Booking Cancelled: {booking.service_name}"
 
             booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
-            formatted_date = booking_datetime.strftime("%A, %B %d, %Y")  # FIXED: Now properly assigned
+            formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
             formatted_time = booking_datetime.strftime("%-I:%M %p")
 
-            # FIXED: Now using f-string
-            html_content = f"""
-            <!DOCTYPE html>
-            <html>
-            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background-color: #F59E0B; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                    <h1 style="color: white; margin: 0;">{BRAND_NAME}</h1>
-                    <p style="color: #FEF3C7; margin: 10px 0 0 0;">Booking Cancelled</p>
-                </div>
+            # Prepare template context
+            context = {
+                "booking": booking,
+                "formatted_date": formatted_date,
+                "formatted_time": formatted_time,
+                "reason": reason,
+                "cancelled_by": cancelled_by,
+                "subject": subject,
+            }
 
-                <div style="background-color: #f8f9fa; padding: 40px; border-radius: 0 0 10px 10px;">
-                    <h2 style="color: #1F2937;">Booking Cancellation</h2>
-
-                    <p>Hi {booking.instructor.full_name},</p>
-
-                    <p>Your upcoming lesson has been cancelled by the student.</p>
-
-                    <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #E5E7EB;">
-                        <h3 style="color: #1F2937; margin-top: 0;">Cancelled Booking Details</h3>
-                        <p><strong>Student:</strong> {booking.student.full_name}</p>
-                        <p><strong>Service:</strong> {booking.service_name}</p>
-                        <p><strong>Date:</strong> {formatted_date}</p>
-                        <p><strong>Time:</strong> {formatted_time}</p>
-                        {f'<p><strong>Reason:</strong> {reason}</p>' if reason else ''}
-                    </div>
-
-                    <div style="background-color: #FEF3C7; padding: 15px; border-radius: 6px;">
-                        <p style="color: #92400E; margin: 0;">
-                            Your time slot has been automatically freed up and is now available for other students to book.
-                        </p>
-                    </div>
-
-                    <div style="text-align: center; margin: 30px 0;">
-                        <a href="{self.frontend_url}/dashboard/instructor"
-                           style="background-color: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                            View Dashboard
-                        </a>
-                    </div>
-
-                    <p style="margin-top: 30px;">
-                        Best regards,<br>
-                        The {BRAND_NAME} Team
-                    </p>
-                </div>
-            </body>
-            </html>
-            """
+            # Render template
+            html_content = self.template_service.render_template("email/booking/cancellation_instructor.html", context)
 
             response = self.email_service.send_email(
                 to_email=booking.instructor.email,
@@ -552,48 +312,18 @@ class NotificationService:
             formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
             formatted_time = booking_datetime.strftime("%-I:%M %p")
 
-            # FIXED: Now using f-string and including booking details
-            html_content = f"""
-            <!DOCTYPE html>
-            <html>
-            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background-color: #6B7280; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                    <h1 style="color: white; margin: 0;">{BRAND_NAME}</h1>
-                    <p style="color: #E5E7EB; margin: 10px 0 0 0;">Cancellation Confirmed</p>
-                </div>
+            # Prepare template context
+            context = {
+                "booking": booking,
+                "formatted_date": formatted_date,
+                "formatted_time": formatted_time,
+                "subject": subject,
+            }
 
-                <div style="background-color: #f8f9fa; padding: 40px; border-radius: 0 0 10px 10px;">
-                    <h2 style="color: #1F2937;">Cancellation Confirmed</h2>
-
-                    <p>Hi {booking.student.full_name},</p>
-
-                    <p>Your booking has been successfully cancelled.</p>
-
-                    <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #E5E7EB;">
-                        <h3 style="color: #1F2937; margin-top: 0;">Cancelled Booking Details</h3>
-                        <p><strong>Service:</strong> {booking.service_name}</p>
-                        <p><strong>Instructor:</strong> {booking.instructor.full_name}</p>
-                        <p><strong>Date:</strong> {formatted_date}</p>
-                        <p><strong>Time:</strong> {formatted_time}</p>
-                    </div>
-
-                    <p>We hope to see you again soon!</p>
-
-                    <div style="text-align: center; margin: 30px 0;">
-                        <a href="{self.frontend_url}/instructors"
-                           style="background-color: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                            Book Another Lesson
-                        </a>
-                    </div>
-
-                    <p style="margin-top: 30px;">
-                        Best regards,<br>
-                        The {BRAND_NAME} Team
-                    </p>
-                </div>
-            </body>
-            </html>
-            """
+            # Render template
+            html_content = self.template_service.render_template(
+                "email/booking/cancellation_confirmation_student.html", context
+            )
 
             response = self.email_service.send_email(
                 to_email=booking.student.email,
@@ -617,48 +347,18 @@ class NotificationService:
             formatted_date = booking_datetime.strftime("%A, %B %d, %Y")
             formatted_time = booking_datetime.strftime("%-I:%M %p")
 
-            # Instructor-specific cancellation confirmation
-            html_content = f"""
-            <!DOCTYPE html>
-            <html>
-            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background-color: #6B7280; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                    <h1 style="color: white; margin: 0;">{BRAND_NAME}</h1>
-                    <p style="color: #E5E7EB; margin: 10px 0 0 0;">Cancellation Confirmed</p>
-                </div>
+            # Prepare template context
+            context = {
+                "booking": booking,
+                "formatted_date": formatted_date,
+                "formatted_time": formatted_time,
+                "subject": subject,
+            }
 
-                <div style="background-color: #f8f9fa; padding: 40px; border-radius: 0 0 10px 10px;">
-                    <h2 style="color: #1F2937;">Cancellation Confirmed</h2>
-
-                    <p>Hi {booking.instructor.full_name},</p>
-
-                    <p>Your booking has been successfully cancelled.</p>
-
-                    <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #E5E7EB;">
-                        <h3 style="color: #1F2937; margin-top: 0;">Cancelled Booking Details</h3>
-                        <p><strong>Service:</strong> {booking.service_name}</p>
-                        <p><strong>Student:</strong> {booking.student.full_name}</p>
-                        <p><strong>Date:</strong> {formatted_date}</p>
-                        <p><strong>Time:</strong> {formatted_time}</p>
-                    </div>
-
-                    <p>Your time slot is now available for other bookings.</p>
-
-                    <div style="text-align: center; margin: 30px 0;">
-                        <a href="{self.frontend_url}/dashboard/instructor"
-                           style="background-color: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                            View Dashboard
-                        </a>
-                    </div>
-
-                    <p style="margin-top: 30px;">
-                        Best regards,<br>
-                        The {BRAND_NAME} Team
-                    </p>
-                </div>
-            </body>
-            </html>
-            """
+            # Render template
+            html_content = self.template_service.render_template(
+                "email/booking/cancellation_confirmation_instructor.html", context
+            )
 
             response = self.email_service.send_email(
                 to_email=booking.instructor.email,
@@ -680,52 +380,15 @@ class NotificationService:
             booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
             formatted_time = booking_datetime.strftime("%-I:%M %p")
 
-            # FIXED: Now using f-string
-            html_content = f"""
-            <!DOCTYPE html>
-            <html>
-            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background-color: #3B82F6; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                    <h1 style="color: white; margin: 0;">{BRAND_NAME}</h1>
-                    <p style="color: #DBEAFE; margin: 10px 0 0 0;">Lesson Reminder</p>
-                </div>
+            # Prepare template context
+            context = {
+                "booking": booking,
+                "formatted_time": formatted_time,
+                "subject": subject,
+            }
 
-                <div style="background-color: #f8f9fa; padding: 40px; border-radius: 0 0 10px 10px;">
-                    <h2 style="color: #1F2937;">Your lesson is tomorrow!</h2>
-
-                    <p>Hi {booking.student.full_name},</p>
-
-                    <p>This is a friendly reminder about your upcoming lesson.</p>
-
-                    <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #E5E7EB;">
-                        <h3 style="color: #1F2937; margin-top: 0;">Tomorrow's Lesson</h3>
-                        <p><strong>Service:</strong> {booking.service_name}</p>
-                        <p><strong>Instructor:</strong> {booking.instructor.full_name}</p>
-                        <p><strong>Time:</strong> {formatted_time}</p>
-                        <p><strong>Duration:</strong> {booking.duration_minutes} minutes</p>
-                        <p><strong>Location:</strong> {booking.location_type_display}</p>
-                        {f'<p><strong>Address:</strong> {booking.meeting_location}</p>' if booking.meeting_location else ''}
-                    </div>
-
-                    <div style="text-align: center; margin: 30px 0;">
-                        <a href="{self.frontend_url}/dashboard/student/bookings"
-                           style="background-color: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                            View Booking Details
-                        </a>
-                    </div>
-
-                    <p style="color: #6B7280; font-size: 14px;">
-                        Need to cancel? Please do so at least 2 hours before your lesson.
-                    </p>
-
-                    <p style="margin-top: 30px;">
-                        See you tomorrow!<br>
-                        The {BRAND_NAME} Team
-                    </p>
-                </div>
-            </body>
-            </html>
-            """
+            # Render template
+            html_content = self.template_service.render_template("email/booking/reminder_student.html", context)
 
             response = self.email_service.send_email(
                 to_email=booking.student.email,
@@ -747,48 +410,15 @@ class NotificationService:
             booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
             formatted_time = booking_datetime.strftime("%-I:%M %p")
 
-            # FIXED: Now using f-string
-            html_content = f"""
-            <!DOCTYPE html>
-            <html>
-            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background-color: #8B5CF6; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-                    <h1 style="color: white; margin: 0;">{BRAND_NAME}</h1>
-                    <p style="color: #EDE9FE; margin: 10px 0 0 0;">Teaching Reminder</p>
-                </div>
+            # Prepare template context
+            context = {
+                "booking": booking,
+                "formatted_time": formatted_time,
+                "subject": subject,
+            }
 
-                <div style="background-color: #f8f9fa; padding: 40px; border-radius: 0 0 10px 10px;">
-                    <h2 style="color: #1F2937;">You have a lesson tomorrow!</h2>
-
-                    <p>Hi {booking.instructor.full_name},</p>
-
-                    <p>This is a reminder about your upcoming lesson.</p>
-
-                    <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #E5E7EB;">
-                        <h3 style="color: #1F2937; margin-top: 0;">Tomorrow's Lesson</h3>
-                        <p><strong>Student:</strong> {booking.student.full_name}</p>
-                        <p><strong>Service:</strong> {booking.service_name}</p>
-                        <p><strong>Time:</strong> {formatted_time}</p>
-                        <p><strong>Duration:</strong> {booking.duration_minutes} minutes</p>
-                        <p><strong>Location:</strong> {booking.location_type_display}</p>
-                        {f'<p><strong>Student Note:</strong> "{booking.student_note}"</p>' if booking.student_note else ''}
-                    </div>
-
-                    <div style="text-align: center; margin: 30px 0;">
-                        <a href="{self.frontend_url}/dashboard/instructor/bookings/{booking.id}"
-                           style="background-color: #8B5CF6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                            View Full Details
-                        </a>
-                    </div>
-
-                    <p style="margin-top: 30px;">
-                        Have a great lesson!<br>
-                        The {BRAND_NAME} Team
-                    </p>
-                </div>
-            </body>
-            </html>
-            """
+            # Render template
+            html_content = self.template_service.render_template("email/booking/reminder_instructor.html", context)
 
             response = self.email_service.send_email(
                 to_email=booking.instructor.email,

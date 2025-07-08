@@ -1,0 +1,38 @@
+<!-- backend/app/templates/email/booking/cancellation_confirmation_instructor.html -->
+{% extends "email/base.html" %}
+
+{% block title %}Cancellation Confirmed: {{ booking.service_name }}{% endblock %}
+
+{% block header_color %}#6B7280{% endblock %}
+{% block header_subtitle_color %}#E5E7EB{% endblock %}
+{% block header_subtitle %}Cancellation Confirmed{% endblock %}
+
+{% block content %}
+<h2 style="color: #1F2937;">Cancellation Confirmed</h2>
+
+<p>Hi {{ booking.instructor.full_name }},</p>
+
+<p>Your booking has been successfully cancelled.</p>
+
+<div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #E5E7EB;">
+    <h3 style="color: #1F2937; margin-top: 0;">Cancelled Booking Details</h3>
+    <p><strong>Service:</strong> {{ booking.service_name }}</p>
+    <p><strong>Student:</strong> {{ booking.student.full_name }}</p>
+    <p><strong>Date:</strong> {{ formatted_date }}</p>
+    <p><strong>Time:</strong> {{ formatted_time }}</p>
+</div>
+
+<p>Your time slot is now available for other bookings.</p>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ frontend_url }}/dashboard/instructor"
+       style="background-color: #4F46E5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">
+        View Dashboard
+    </a>
+</div>
+
+<p style="margin-top: 30px;">
+    Best regards,<br>
+    The {{ brand_name }} Team
+</p>
+{% endblock %}
