@@ -13,14 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Setup Vercel Project
-        run: |
-          mkdir -p frontend/.vercel
-          echo '{"projectId":"${{ secrets.VERCEL_PROJECT_ID }}","orgId":"${{ secrets.VERCEL_ORG_ID }}"}' > frontend/.vercel/project.json
-
       - name: Deploy to Vercel
         run: |
-          cd frontend && npx vercel . --prod --token=${{ secrets.VERCEL_TOKEN }} --yes
+          npx vercel --prod --token=${{ secrets.VERCEL_TOKEN }} --yes --build-env VERCEL_ROOT_DIRECTORY=frontend
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
