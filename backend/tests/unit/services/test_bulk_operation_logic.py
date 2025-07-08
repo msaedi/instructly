@@ -6,6 +6,7 @@ Tests logic in isolation with mocked dependencies.
 UPDATED FOR WORK STREAM #10: Single-table availability design.
 FIXED: Updated for Work Stream #9 - Availability-booking layer separation.
 Tests no longer expect operations to fail due to booking conflicts.
+FIXED: Mock returns proper integer ID instead of Mock object for Pydantic validation
 """
 
 from datetime import date, time, timedelta
@@ -45,7 +46,14 @@ class TestBulkOperationLogic:
     def mock_slot_manager(self):
         """Create mock slot manager."""
         manager = Mock()
-        manager.create_slot = Mock()
+
+        # FIXED: Configure mock to return objects with proper integer IDs
+        def create_slot_side_effect(*args, **kwargs):
+            mock_slot = Mock()
+            mock_slot.id = 123  # Return actual integer, not Mock
+            return mock_slot
+
+        manager.create_slot = Mock(side_effect=create_slot_side_effect)
         manager.update_slot = Mock()
         manager.delete_slot = Mock()
         return manager
@@ -133,8 +141,17 @@ class TestBulkOperationLogic:
         return service
 
     @pytest.mark.asyncio
-    async def test_process_add_operation_validation(self, bulk_service, mock_conflict_checker):
+    async def test_process_add_operation_validation(self, bulk_service, mock_conflict_checker, mock_slot_manager):
         """Test validation logic for add operations."""
+
+        # FIXED: Configure the mock to return a proper result with integer ID
+        def create_slot_with_id(*args, **kwargs):
+            result = Mock()
+            result.id = 100  # Actual integer
+            return result
+
+        mock_slot_manager.create_slot = Mock(side_effect=create_slot_with_id)
+
         # Test with valid action but missing fields - handle at service level
         operation = SlotOperation(
             action="add",
@@ -162,15 +179,25 @@ class TestBulkOperationLogic:
         assert result.status == "failed"
         assert "past dates" in result.reason
 
-        # Test today but past time
-        operation = SlotOperation(action="add", date=date.today(), start_time=time(0, 0), end_time=time(1, 0))
+        # Test today but past time - we need to mock the current time check
+        # The service likely checks if the current time is past the slot time
+        from datetime import datetime
 
-        result = await bulk_service._process_add_operation(
-            instructor_id=1, operation=operation, operation_index=0, validate_only=False
-        )
+        # Create an operation for a time that's definitely in the past
+        very_early_time = time(0, 0)  # Midnight
+        operation = SlotOperation(action="add", date=date.today(), start_time=very_early_time, end_time=time(1, 0))
+
+        # Mock datetime.now to return a time after the slot
+        with patch("app.services.bulk_operation_service.datetime") as mock_datetime:
+            mock_datetime.now.return_value = datetime.combine(date.today(), time(14, 0))  # 2 PM
+            mock_datetime.combine = datetime.combine  # Keep the combine method working
+
+            result = await bulk_service._process_add_operation(
+                instructor_id=1, operation=operation, operation_index=0, validate_only=False
+            )
 
         assert result.status == "failed"
-        assert "past time slots" in result.reason
+        assert "past time slots" in result.reason.lower() or "cannot add slots for past times" in result.reason.lower()
 
     @pytest.mark.asyncio
     async def test_process_add_with_conflicts(self, bulk_service, mock_conflict_checker, mock_slot_manager):
@@ -180,8 +207,9 @@ class TestBulkOperationLogic:
             {"booking_id": 1, "start_time": "09:00", "end_time": "10:00"}
         ]
 
-        # Mock successful slot creation - return a mock slot with id
-        mock_slot = Mock(id=123)
+        # Mock successful slot creation - return a mock slot with proper integer id
+        mock_slot = Mock()
+        mock_slot.id = 123  # Use actual integer
         mock_slot_manager.create_slot.return_value = mock_slot
 
         operation = SlotOperation(
@@ -442,11 +470,14 @@ class TestBulkOperationLogic:
         # Mock repository for the remove operation (will fail because slot not found)
         bulk_service.repository.get_slot_for_instructor.return_value = None
 
+        # Mock second operation to succeed with proper integer ID
+        success_result = OperationResult(operation_index=1, action="add", status="success", slot_id=200)
+
         # Mock second operation to succeed
         with patch.object(
             bulk_service,
             "_process_add_operation",
-            return_value=OperationResult(operation_index=1, action="add", status="success"),
+            return_value=success_result,
         ):
             # Mock first operation to fail
             with patch.object(

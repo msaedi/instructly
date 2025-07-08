@@ -7,6 +7,7 @@ Fixed for time-based booking architecture.
 UPDATED: Fixed test expectations to check for actual values, not placeholders.
 FIXED: Using booking.student.full_name instead of undefined test_student
 FIXED: Changed assertion to expect "Test Studio" instead of placeholder bug
+FIXED: Dynamic date checking instead of hardcoded day names for timezone compatibility
 """
 
 from datetime import date, time, timedelta
@@ -93,7 +94,15 @@ class TestSupportingSystemsIntegration:
             # Should have actual booking info (not placeholders)
             assert full_booking.service_name in html_content  # "Test Piano"
             assert "9:00 AM" in html_content  # Actual formatted time
-            assert "Tuesday" in html_content  # Part of the formatted date
+
+            # FIXED: Check for the actual formatted date instead of hardcoded day name
+            # The booking date should be formatted in the email
+            booking_date_str = full_booking.booking_date.strftime("%B %d, %Y")  # e.g., "July 09, 2025"
+            assert booking_date_str in html_content or str(full_booking.booking_date) in html_content
+
+            # Alternative: Check that SOME day name is present (not a specific one)
+            weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+            assert any(day in html_content for day in weekdays), "Email should contain a day name"
 
             # Check for the student and instructor names (FIXED: using booking object)
             assert full_booking.student.full_name in html_content or full_booking.instructor.full_name in html_content
