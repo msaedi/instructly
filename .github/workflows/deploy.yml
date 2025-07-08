@@ -13,15 +13,14 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Pull Vercel Environment Information
-        run: npx vercel pull --yes --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Deploy to Vercel
+        run: |
+          cd frontend
+          vercel --prod --token=${{ secrets.VERCEL_TOKEN }} --yes --scope=${{ secrets.VERCEL_ORG_ID }}
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-      - name: Deploy to Vercel
-        run: |
-          npx vercel --prod --prebuilt --token=${{ secrets.VERCEL_TOKEN }} --yes
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
