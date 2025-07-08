@@ -91,45 +91,44 @@ class SlotManager(BaseService):
         if self.availability_repository.slot_exists(instructor_id, target_date, start_time, end_time):
             raise ConflictException("This exact time slot already exists")
 
-        # Create the slot
-        new_slot = self.repository.create(
-            instructor_id=instructor_id, specific_date=target_date, start_time=start_time, end_time=end_time
-        )
-
-        # Always merge if requested
-        if auto_merge:
-            self.merge_overlapping_slots(instructor_id, target_date)
-
-        self.db.commit()
-
-        # After merging, the new_slot might have been deleted
-        # Try to get the slot by ID first
-        final_slot = self.repository.get_slot_by_id(new_slot.id)
-
-        if not final_slot:
-            # The slot was merged into another slot
-            # Find the slot that now contains our time range
-            slots = self.repository.get_slots_by_date_ordered(instructor_id, target_date)
-            for slot in slots:
-                # Check if this slot contains our original time range
-                if slot.start_time <= start_time and slot.end_time >= end_time:
-                    final_slot = slot
-                    break
-
-        if final_slot:
-            self.db.refresh(final_slot)
-            self.logger.info(
-                f"Created slot {new_slot.id} for instructor {instructor_id} on {target_date}: "
-                f"{start_time}-{end_time}"
+        with self.transaction():
+            # Create the slot
+            new_slot = self.repository.create(
+                instructor_id=instructor_id, specific_date=target_date, start_time=start_time, end_time=end_time
             )
-            return final_slot
-        else:
-            # This shouldn't happen, but return the original slot info
-            self.logger.info(
-                f"Created slot {new_slot.id} for instructor {instructor_id} on {target_date}: "
-                f"{start_time}-{end_time}"
-            )
-            return new_slot
+
+            # Always merge if requested
+            if auto_merge:
+                self.merge_overlapping_slots(instructor_id, target_date)
+
+            # After merging, the new_slot might have been deleted
+            # Try to get the slot by ID first
+            final_slot = self.repository.get_slot_by_id(new_slot.id)
+
+            if not final_slot:
+                # The slot was merged into another slot
+                # Find the slot that now contains our time range
+                slots = self.repository.get_slots_by_date_ordered(instructor_id, target_date)
+                for slot in slots:
+                    # Check if this slot contains our original time range
+                    if slot.start_time <= start_time and slot.end_time >= end_time:
+                        final_slot = slot
+                        break
+
+            if final_slot:
+                self.db.refresh(final_slot)
+                self.logger.info(
+                    f"Created slot {new_slot.id} for instructor {instructor_id} on {target_date}: "
+                    f"{start_time}-{end_time}"
+                )
+                return final_slot
+            else:
+                # This shouldn't happen, but return the original slot info
+                self.logger.info(
+                    f"Created slot {new_slot.id} for instructor {instructor_id} on {target_date}: "
+                    f"{start_time}-{end_time}"
+                )
+                return new_slot
 
     def update_slot(
         self,
@@ -169,13 +168,13 @@ class SlotManager(BaseService):
         if not validation["valid"]:
             raise ValidationException(validation["reason"])
 
-        # Update the slot
-        updated_slot = self.repository.update(slot_id, start_time=new_start, end_time=new_end)
+        with self.transaction():
+            # Update the slot
+            updated_slot = self.repository.update(slot_id, start_time=new_start, end_time=new_end)
 
-        self.db.commit()
-        self.logger.info(f"Updated slot {slot_id}: {new_start}-{new_end}")
+            self.logger.info(f"Updated slot {slot_id}: {new_start}-{new_end}")
 
-        return updated_slot
+            return updated_slot
 
     def delete_slot(self, slot_id: int) -> bool:
         """
@@ -199,12 +198,12 @@ class SlotManager(BaseService):
         if not slot:
             raise NotFoundException("Slot not found")
 
-        # Delete the slot
-        self.repository.delete(slot_id)
-        self.db.commit()
+        with self.transaction():
+            # Delete the slot
+            self.repository.delete(slot_id)
 
-        self.logger.info(f"Deleted slot {slot_id}")
-        return True
+            self.logger.info(f"Deleted slot {slot_id}")
+            return True
 
     def merge_overlapping_slots(self, instructor_id: int, target_date: date) -> int:
         """
@@ -257,7 +256,8 @@ class SlotManager(BaseService):
         merged_slots.append(current)
 
         if merged_count > 0:
-            self.db.commit()
+            # Note: When called from create_slot, we're already in a transaction
+            # The BaseService.transaction() context manager handles nested transactions
             self.logger.info(
                 f"Merge complete: {len(slots)} slots -> " f"{len(merged_slots)} slots ({merged_count} merged)"
             )
@@ -291,28 +291,31 @@ class SlotManager(BaseService):
         if split_time <= slot.start_time or split_time >= slot.end_time:
             raise ValidationException("Split time must be between slot start and end times")
 
-        # Create second slot
-        second_slot = self.repository.create(
-            instructor_id=slot.instructor_id,
-            specific_date=slot.specific_date,
-            start_time=split_time,
-            end_time=slot.end_time,
-        )
+        with self.transaction():
+            # Create second slot
+            second_slot = self.repository.create(
+                instructor_id=slot.instructor_id,
+                specific_date=slot.specific_date,
+                start_time=split_time,
+                end_time=slot.end_time,
+            )
 
-        # Update first slot
-        slot.end_time = split_time
+            # Update first slot
+            slot.end_time = split_time
 
-        self.db.commit()
-        self.db.refresh(slot)
-        self.db.refresh(second_slot)
+            # Flush changes to database before refresh
+            self.db.flush()
 
-        self.logger.info(
-            f"Split slot {slot_id} at {split_time} into "
-            f"{slot.start_time}-{slot.end_time} and "
-            f"{second_slot.start_time}-{second_slot.end_time}"
-        )
+            self.db.refresh(slot)
+            self.db.refresh(second_slot)
 
-        return (slot, second_slot)
+            self.logger.info(
+                f"Split slot {slot_id} at {split_time} into "
+                f"{slot.start_time}-{slot.end_time} and "
+                f"{second_slot.start_time}-{second_slot.end_time}"
+            )
+
+            return (slot, second_slot)
 
     def find_gaps_in_availability(
         self, instructor_id: int, target_date: date, min_gap_minutes: int = 30
