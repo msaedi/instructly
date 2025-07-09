@@ -70,6 +70,8 @@ class BulkOperationService(BaseService):
         """
         Process bulk update operations.
 
+        Routes to validation or execution based on mode.
+
         Args:
             instructor_id: The instructor ID
             update_data: Bulk update request data
@@ -84,29 +86,80 @@ class BulkOperationService(BaseService):
             validate_only=update_data.validate_only,
         )
 
-        # Use transaction for all operations
-        with self.transaction() if not update_data.validate_only else self._null_transaction():
-            # Process all operations
+        if update_data.validate_only:
+            return await self._validate_bulk_operations(instructor_id, update_data)
+        else:
+            return await self._execute_bulk_operations(instructor_id, update_data)
+
+    async def _validate_bulk_operations(
+        self,
+        instructor_id: int,
+        update_data: BulkUpdateRequest,
+    ) -> Dict[str, Any]:
+        """
+        Validate operations without persisting (always rollback).
+
+        Args:
+            instructor_id: The instructor ID
+            update_data: Bulk update request with operations
+
+        Returns:
+            Summary of validation results
+        """
+        with self.transaction():
+            # Process operations in validation mode
             results, successful, failed = await self._process_operations(
                 instructor_id=instructor_id,
                 operations=update_data.operations,
-                validate_only=update_data.validate_only,
+                validate_only=True,
             )
 
-            # Rollback if validation only or if all operations failed
-            if update_data.validate_only:
-                self.db.rollback()
-                self.logger.info("Validation mode - rolling back all changes")
-            elif successful == 0:
+            # Always rollback for validation
+            self.db.rollback()
+            self.logger.info("Validation mode - rolling back all changes")
+
+        # No cache invalidation for validation
+        # But we can still show what would be affected
+        self._extract_affected_dates(update_data.operations, results)
+
+        return self._create_operation_summary(results, successful, failed, 0)
+
+    async def _execute_bulk_operations(
+        self,
+        instructor_id: int,
+        update_data: BulkUpdateRequest,
+    ) -> Dict[str, Any]:
+        """
+        Execute operations with conditional commit.
+
+        Args:
+            instructor_id: The instructor ID
+            update_data: Bulk update request with operations
+
+        Returns:
+            Summary of execution results
+        """
+        with self.transaction():
+            # Process operations
+            results, successful, failed = await self._process_operations(
+                instructor_id=instructor_id,
+                operations=update_data.operations,
+                validate_only=False,
+            )
+
+            # Rollback if nothing succeeded
+            if successful == 0:
                 self.db.rollback()
                 self.logger.info(f"No successful operations out of {len(update_data.operations)} - rolling back")
+                return self._create_operation_summary(results, successful, failed, 0)
 
-        # Invalidate cache after successful operations
-        if successful > 0 and not update_data.validate_only:
+            # Transaction will auto-commit if we don't rollback
+
+        # Invalidate cache after successful commit
+        if successful > 0:
             await self._invalidate_affected_cache(instructor_id, update_data.operations, results)
 
-        # Create and return summary
-        return self._create_operation_summary(results, successful, failed, 0)  # skipped is always 0 in current logic
+        return self._create_operation_summary(results, successful, failed, 0)
 
     async def _process_operations(
         self,
