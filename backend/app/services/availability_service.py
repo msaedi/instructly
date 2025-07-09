@@ -351,7 +351,7 @@ class AvailabilityService(BaseService):
                 start_time=availability_data.start_time,
                 end_time=availability_data.end_time,
             )
-            self.db.commit()
+            # REMOVED: self.db.commit() - handled by transaction context
 
             # Invalidate cache
             self._invalidate_availability_caches(instructor_id, [availability_data.specific_date])
@@ -390,14 +390,15 @@ class AvailabilityService(BaseService):
         if any(b.date == blackout_data.date for b in existing_blackouts):
             raise ConflictException("Blackout date already exists")
 
-        try:
-            blackout = self.repository.create_blackout_date(instructor_id, blackout_data.date, blackout_data.reason)
-            self.db.commit()
-            return blackout
-        except RepositoryException as e:
-            if "already exists" in str(e):
-                raise ConflictException("Blackout date already exists")
-            raise
+        with self.transaction():
+            try:
+                blackout = self.repository.create_blackout_date(instructor_id, blackout_data.date, blackout_data.reason)
+                # REMOVED: self.db.commit() - handled by transaction context
+                return blackout
+            except RepositoryException as e:
+                if "already exists" in str(e):
+                    raise ConflictException("Blackout date already exists")
+                raise
 
     def delete_blackout_date(self, instructor_id: int, blackout_id: int) -> bool:
         """
@@ -410,15 +411,16 @@ class AvailabilityService(BaseService):
         Returns:
             True if deleted successfully
         """
-        try:
-            success = self.repository.delete_blackout_date(blackout_id, instructor_id)
-            if not success:
-                raise NotFoundException("Blackout date not found")
-            self.db.commit()
-            return True
-        except RepositoryException as e:
-            logger.error(f"Error deleting blackout date: {e}")
-            raise
+        with self.transaction():
+            try:
+                success = self.repository.delete_blackout_date(blackout_id, instructor_id)
+                if not success:
+                    raise NotFoundException("Blackout date not found")
+                # REMOVED: self.db.commit() - handled by transaction context
+                return True
+            except RepositoryException as e:
+                logger.error(f"Error deleting blackout date: {e}")
+                raise
 
     # Private helper methods
 
