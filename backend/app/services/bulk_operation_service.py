@@ -65,6 +65,7 @@ class BulkOperationService(BaseService):
         self.availability_repository = RepositoryFactory.create_availability_repository(db)
         self.week_operation_repository = RepositoryFactory.create_week_operation_repository(db)
 
+    @BaseService.measure_operation("bulk_update")
     async def process_bulk_update(self, instructor_id: int, update_data: BulkUpdateRequest) -> Dict[str, Any]:
         """
         Process bulk update operations.
@@ -110,12 +111,12 @@ class BulkOperationService(BaseService):
                     results.append(result)
 
                 except Exception as e:
-                    self.logger.error(f"Error processing operation {idx}: {str(e)}")
+                    self.logger.error(f"Error processing operation {idx} for instructor {instructor_id}: {str(e)}")
                     result = OperationResult(
                         operation_index=idx,
                         action=operation.action,
                         status="failed",
-                        reason=str(e),
+                        reason=f"Unexpected error in operation {idx}: {str(e)}",
                     )
                     results.append(result)
                     failed += 1
@@ -126,7 +127,7 @@ class BulkOperationService(BaseService):
                 self.logger.info("Validation mode - rolling back all changes")
             elif successful == 0:
                 self.db.rollback()
-                self.logger.info("No successful operations - rolling back")
+                self.logger.info(f"No successful operations out of {len(update_data.operations)} - rolling back")
 
         # Invalidate cache after successful operations
         if successful > 0 and not update_data.validate_only:
@@ -152,7 +153,9 @@ class BulkOperationService(BaseService):
                 # Get the current week's dates and invalidate all of them
                 if self.cache_service:
                     self.cache_service.delete_pattern(f"*{instructor_id}*")
-                    self.logger.info(f"Invalidated all cache for instructor {instructor_id} due to remove operations")
+                    self.logger.info(
+                        f"Invalidated all cache for instructor {instructor_id} due to remove operations without specific dates"
+                    )
             elif affected_dates and self.cache_service:
                 self.cache_service.invalidate_instructor_availability(instructor_id, list(affected_dates))
                 self.logger.info(f"Invalidated cache for instructor {instructor_id}, dates: {len(affected_dates)}")
@@ -164,6 +167,7 @@ class BulkOperationService(BaseService):
             "results": results,
         }
 
+    @BaseService.measure_operation("validate_week")
     async def validate_week_changes(self, instructor_id: int, validation_data: ValidateWeekRequest) -> Dict[str, Any]:
         """
         Validate planned changes to week availability.
@@ -244,9 +248,10 @@ class BulkOperationService(BaseService):
                 operation_index=operation_index,
                 action=operation.action,
                 status="failed",
-                reason=f"Unknown action: {operation.action}",
+                reason=f"Unknown action '{operation.action}' - valid actions are: add, remove, update",
             )
 
+    @BaseService.measure_operation("process_add_operation")
     async def _process_add_operation(
         self,
         instructor_id: int,
@@ -261,11 +266,19 @@ class BulkOperationService(BaseService):
         """
         # Validate required fields
         if not all([operation.date, operation.start_time, operation.end_time]):
+            missing_fields = []
+            if not operation.date:
+                missing_fields.append("date")
+            if not operation.start_time:
+                missing_fields.append("start_time")
+            if not operation.end_time:
+                missing_fields.append("end_time")
+
             return OperationResult(
                 operation_index=operation_index,
                 action="add",
                 status="failed",
-                reason="Missing required fields for add operation",
+                reason=f"Missing required fields for add operation: {', '.join(missing_fields)}",
             )
 
         # Check for past dates
@@ -274,7 +287,7 @@ class BulkOperationService(BaseService):
                 operation_index=operation_index,
                 action="add",
                 status="failed",
-                reason="Cannot add availability for past dates",
+                reason=f"Cannot add availability for past date {operation.date.isoformat()} (today is {date.today().isoformat()})",
             )
 
         # Check if it's today and time has passed
@@ -285,7 +298,7 @@ class BulkOperationService(BaseService):
                     operation_index=operation_index,
                     action="add",
                     status="failed",
-                    reason="Cannot add availability for past time slots",
+                    reason=f"Cannot add availability for past time slot {operation.start_time.strftime('%H:%M')}-{operation.end_time.strftime('%H:%M')} (current time is {now.strftime('%H:%M')})",
                 )
 
         # Check if slot already exists
@@ -296,7 +309,7 @@ class BulkOperationService(BaseService):
                 operation_index=operation_index,
                 action="add",
                 status="failed",
-                reason="This time slot already exists",
+                reason=f"Time slot {operation.start_time.strftime('%H:%M')}-{operation.end_time.strftime('%H:%M')} already exists on {operation.date.isoformat()}",
             )
 
         if validate_only:
@@ -330,9 +343,10 @@ class BulkOperationService(BaseService):
                 operation_index=operation_index,
                 action="add",
                 status="failed",
-                reason=str(e),
+                reason=f"Failed to create slot {operation.start_time.strftime('%H:%M')}-{operation.end_time.strftime('%H:%M')} on {operation.date.isoformat()}: {str(e)}",
             )
 
+    @BaseService.measure_operation("process_remove_operation")
     async def _process_remove_operation(
         self,
         instructor_id: int,
@@ -350,7 +364,7 @@ class BulkOperationService(BaseService):
                 operation_index=operation_index,
                 action="remove",
                 status="failed",
-                reason="Missing slot_id for remove operation",
+                reason="Missing slot_id for remove operation - cannot identify which slot to remove",
             )
 
         # Find the slot using repository
@@ -361,7 +375,7 @@ class BulkOperationService(BaseService):
                 operation_index=operation_index,
                 action="remove",
                 status="failed",
-                reason="Slot not found or not owned by instructor",
+                reason=f"Slot {operation.slot_id} not found or not owned by instructor {instructor_id}",
             )
 
         if validate_only:
@@ -375,15 +389,21 @@ class BulkOperationService(BaseService):
         # Actually remove the slot
         try:
             self.slot_manager.delete_slot(operation.slot_id)
-            return OperationResult(operation_index=operation_index, action="remove", status="success")
+            return OperationResult(
+                operation_index=operation_index,
+                action="remove",
+                status="success",
+                reason=f"Successfully removed slot {operation.slot_id}",
+            )
         except Exception as e:
             return OperationResult(
                 operation_index=operation_index,
                 action="remove",
                 status="failed",
-                reason=str(e),
+                reason=f"Failed to remove slot {operation.slot_id}: {str(e)}",
             )
 
+    @BaseService.measure_operation("process_update_operation")
     async def _process_update_operation(
         self,
         instructor_id: int,
@@ -401,7 +421,7 @@ class BulkOperationService(BaseService):
                 operation_index=operation_index,
                 action="update",
                 status="failed",
-                reason="Missing slot_id for update operation",
+                reason="Missing slot_id for update operation - cannot identify which slot to update",
             )
 
         # Find the slot using repository
@@ -412,7 +432,7 @@ class BulkOperationService(BaseService):
                 operation_index=operation_index,
                 action="update",
                 status="failed",
-                reason="Slot not found or not owned by instructor",
+                reason=f"Slot {operation.slot_id} not found or not owned by instructor {instructor_id}",
             )
 
         # Determine new times
@@ -425,7 +445,7 @@ class BulkOperationService(BaseService):
                 operation_index=operation_index,
                 action="update",
                 status="failed",
-                reason="End time must be after start time",
+                reason=f"End time ({new_end.strftime('%H:%M')}) must be after start time ({new_start.strftime('%H:%M')}) for slot {operation.slot_id}",
             )
 
         if validate_only:
@@ -449,13 +469,14 @@ class BulkOperationService(BaseService):
                 action="update",
                 status="success",
                 slot_id=updated_slot.id,
+                reason=f"Successfully updated slot {operation.slot_id} to {new_start.strftime('%H:%M')}-{new_end.strftime('%H:%M')}",
             )
         except Exception as e:
             return OperationResult(
                 operation_index=operation_index,
                 action="update",
                 status="failed",
-                reason=str(e),
+                reason=f"Failed to update slot {operation.slot_id} to {new_start.strftime('%H:%M')}-{new_end.strftime('%H:%M')}: {str(e)}",
             )
 
     def _get_existing_week_slots(self, instructor_id: int, week_start: date) -> Dict[str, List[Dict]]:
