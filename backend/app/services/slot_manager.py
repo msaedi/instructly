@@ -243,6 +243,9 @@ class SlotManager(BaseService):
 
                 # Extend current slot
                 if next_slot.end_time > current.end_time:
+                    # Use repository to update the slot
+                    self.repository.update(current.id, end_time=next_slot.end_time)
+                    # Update the current reference
                     current.end_time = next_slot.end_time
 
                 # Delete the merged slot
@@ -300,7 +303,9 @@ class SlotManager(BaseService):
                 end_time=slot.end_time,
             )
 
-            # Update first slot
+            # Update first slot using repository
+            self.repository.update(slot.id, end_time=split_time)
+            # Update the local reference for the return value
             slot.end_time = split_time
 
             # Flush changes to database before refresh
