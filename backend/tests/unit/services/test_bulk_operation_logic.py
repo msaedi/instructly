@@ -7,6 +7,7 @@ UPDATED FOR WORK STREAM #10: Single-table availability design.
 FIXED: Updated for Work Stream #9 - Availability-booking layer separation.
 Tests no longer expect operations to fail due to booking conflicts.
 FIXED: Mock returns proper integer ID instead of Mock object for Pydantic validation
+FIXED: Updated assertions to match improved error messages
 """
 
 from datetime import date, time, timedelta
@@ -177,7 +178,8 @@ class TestBulkOperationLogic:
         )
 
         assert result.status == "failed"
-        assert "past dates" in result.reason
+        # FIXED: Updated assertion to match improved error message
+        assert "past date" in result.reason  # Changed from "past dates"
 
         # Test today but past time - we need to mock the current time check
         # The service likely checks if the current time is past the slot time
@@ -197,7 +199,10 @@ class TestBulkOperationLogic:
             )
 
         assert result.status == "failed"
-        assert "past time slots" in result.reason.lower() or "cannot add slots for past times" in result.reason.lower()
+        assert (
+            "past time slot" in result.reason.lower()
+            or "cannot add availability for past time" in result.reason.lower()
+        )
 
     @pytest.mark.asyncio
     async def test_process_add_with_conflicts(self, bulk_service, mock_conflict_checker, mock_slot_manager):
@@ -453,7 +458,8 @@ class TestBulkOperationLogic:
         )
 
         assert result.status == "failed"
-        assert "End time must be after start time" in result.reason
+        # FIXED: Updated assertion to match improved error message
+        assert "must be after start time" in result.reason
 
     @pytest.mark.asyncio
     async def test_error_handling_in_batch(self, bulk_service):
@@ -470,23 +476,16 @@ class TestBulkOperationLogic:
         # Mock repository for the remove operation (will fail because slot not found)
         bulk_service.repository.get_slot_for_instructor.return_value = None
 
-        # Mock second operation to succeed with proper integer ID
-        success_result = OperationResult(operation_index=1, action="add", status="success", slot_id=200)
+        # Create async mock functions that return the results
+        async def mock_remove_operation(*args, **kwargs):
+            return OperationResult(operation_index=0, action="remove", status="failed", reason="Slot not found")
 
-        # Mock second operation to succeed
-        with patch.object(
-            bulk_service,
-            "_process_add_operation",
-            return_value=success_result,
-        ):
-            # Mock first operation to fail
-            with patch.object(
-                bulk_service,
-                "_process_remove_operation",
-                return_value=OperationResult(
-                    operation_index=0, action="remove", status="failed", reason="Slot not found"
-                ),
-            ):
+        async def mock_add_operation(*args, **kwargs):
+            return OperationResult(operation_index=1, action="add", status="success", slot_id=200)
+
+        # Mock the methods with async functions
+        with patch.object(bulk_service, "_process_remove_operation", side_effect=mock_remove_operation):
+            with patch.object(bulk_service, "_process_add_operation", side_effect=mock_add_operation):
                 result = await bulk_service.process_bulk_update(1, request)
 
         assert result["failed"] == 1  # First operation fails

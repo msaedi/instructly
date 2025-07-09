@@ -15,7 +15,7 @@ using instructor_id + date.
 import logging
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -84,42 +84,14 @@ class BulkOperationService(BaseService):
             validate_only=update_data.validate_only,
         )
 
-        results = []
-        successful = 0
-        failed = 0
-        skipped = 0
-
         # Use transaction for all operations
         with self.transaction() if not update_data.validate_only else self._null_transaction():
-            for idx, operation in enumerate(update_data.operations):
-                try:
-                    result = await self._process_single_operation(
-                        instructor_id=instructor_id,
-                        operation=operation,
-                        operation_index=idx,
-                        validate_only=update_data.validate_only,
-                    )
-
-                    # Update counters
-                    if result.status == "success":
-                        successful += 1
-                    elif result.status == "failed":
-                        failed += 1
-                    else:
-                        skipped += 1
-
-                    results.append(result)
-
-                except Exception as e:
-                    self.logger.error(f"Error processing operation {idx} for instructor {instructor_id}: {str(e)}")
-                    result = OperationResult(
-                        operation_index=idx,
-                        action=operation.action,
-                        status="failed",
-                        reason=f"Unexpected error in operation {idx}: {str(e)}",
-                    )
-                    results.append(result)
-                    failed += 1
+            # Process all operations
+            results, successful, failed = await self._process_operations(
+                instructor_id=instructor_id,
+                operations=update_data.operations,
+                validate_only=update_data.validate_only,
+            )
 
             # Rollback if validation only or if all operations failed
             if update_data.validate_only:
@@ -131,35 +103,154 @@ class BulkOperationService(BaseService):
 
         # Invalidate cache after successful operations
         if successful > 0 and not update_data.validate_only:
-            # Get unique dates from operations
-            affected_dates = set()
+            await self._invalidate_affected_cache(instructor_id, update_data.operations, results)
 
-            # For remove operations, we need to look up the dates from the slot IDs
-            for op in update_data.operations:
-                if op.action == "remove" and op.slot_id:
-                    # Query the slot's date using repository
-                    slots_data = self.repository.get_slots_by_ids([op.slot_id])
-                    for slot_id, slot_date, _, _ in slots_data:
-                        affected_dates.add(slot_date)
-                elif op.date:
-                    # Handle both string and date objects
-                    if isinstance(op.date, str):
-                        affected_dates.add(date.fromisoformat(op.date))
-                    elif isinstance(op.date, date):
-                        affected_dates.add(op.date)
+        # Create and return summary
+        return self._create_operation_summary(results, successful, failed, 0)  # skipped is always 0 in current logic
 
-            # If we had remove operations but no dates, invalidate the entire week's cache
-            if successful > 0 and len(affected_dates) == 0:
-                # Get the current week's dates and invalidate all of them
-                if self.cache_service:
-                    self.cache_service.delete_pattern(f"*{instructor_id}*")
-                    self.logger.info(
-                        f"Invalidated all cache for instructor {instructor_id} due to remove operations without specific dates"
-                    )
-            elif affected_dates and self.cache_service:
-                self.cache_service.invalidate_instructor_availability(instructor_id, list(affected_dates))
-                self.logger.info(f"Invalidated cache for instructor {instructor_id}, dates: {len(affected_dates)}")
+    async def _process_operations(
+        self,
+        instructor_id: int,
+        operations: List[SlotOperation],
+        validate_only: bool,
+    ) -> Tuple[List[OperationResult], int, int]:
+        """
+        Process all operations and return results with counters.
 
+        Args:
+            instructor_id: The instructor ID
+            operations: List of operations to process
+            validate_only: Whether this is validation only
+
+        Returns:
+            Tuple of (results, successful_count, failed_count)
+        """
+        results = []
+        successful = 0
+        failed = 0
+
+        for idx, operation in enumerate(operations):
+            try:
+                result = await self._process_single_operation(
+                    instructor_id=instructor_id,
+                    operation=operation,
+                    operation_index=idx,
+                    validate_only=validate_only,
+                )
+
+                # Update counters
+                if result.status == "success":
+                    successful += 1
+                elif result.status == "failed":
+                    failed += 1
+
+                results.append(result)
+
+            except Exception as e:
+                self.logger.error(f"Error processing operation {idx} for instructor {instructor_id}: {str(e)}")
+                result = OperationResult(
+                    operation_index=idx,
+                    action=operation.action,
+                    status="failed",
+                    reason=f"Unexpected error in operation {idx}: {str(e)}",
+                )
+                results.append(result)
+                failed += 1
+
+        return results, successful, failed
+
+    async def _invalidate_affected_cache(
+        self,
+        instructor_id: int,
+        operations: List[SlotOperation],
+        results: List[OperationResult],
+    ) -> None:
+        """
+        Invalidate cache for all affected dates.
+
+        Args:
+            instructor_id: The instructor ID
+            operations: List of operations performed
+            results: Results of the operations
+        """
+        if not self.cache_service:
+            return
+
+        affected_dates = self._extract_affected_dates(operations, results)
+
+        # If we had remove operations but no dates, invalidate the entire week's cache
+        if len(affected_dates) == 0:
+            # Check if there were any successful remove operations
+            has_successful_removes = any(
+                op.action == "remove" and results[idx].status == "success"
+                for idx, op in enumerate(operations)
+                if idx < len(results)
+            )
+
+            if has_successful_removes:
+                self.cache_service.delete_pattern(f"*{instructor_id}*")
+                self.logger.info(
+                    f"Invalidated all cache for instructor {instructor_id} due to remove operations without specific dates"
+                )
+        elif affected_dates:
+            self.cache_service.invalidate_instructor_availability(instructor_id, list(affected_dates))
+            self.logger.info(f"Invalidated cache for instructor {instructor_id}, dates: {len(affected_dates)}")
+
+    def _extract_affected_dates(
+        self,
+        operations: List[SlotOperation],
+        results: List[OperationResult],
+    ) -> Set[date]:
+        """
+        Extract unique dates affected by successful operations.
+
+        Args:
+            operations: List of operations
+            results: Results of operations
+
+        Returns:
+            Set of affected dates
+        """
+        affected_dates = set()
+
+        for idx, (op, result) in enumerate(zip(operations, results)):
+            # Only consider successful operations
+            if result.status != "success":
+                continue
+
+            if op.action == "remove" and op.slot_id:
+                # Query the slot's date using repository
+                slots_data = self.repository.get_slots_by_ids([op.slot_id])
+                for slot_id, slot_date, _, _ in slots_data:
+                    affected_dates.add(slot_date)
+            elif op.date:
+                # Handle both string and date objects
+                if isinstance(op.date, str):
+                    affected_dates.add(date.fromisoformat(op.date))
+                elif isinstance(op.date, date):
+                    affected_dates.add(op.date)
+
+        return affected_dates
+
+    def _create_operation_summary(
+        self,
+        results: List[OperationResult],
+        successful: int,
+        failed: int,
+        skipped: int,
+    ) -> Dict[str, Any]:
+        """
+        Create summary of bulk operation results.
+
+        Args:
+            results: List of operation results
+            successful: Number of successful operations
+            failed: Number of failed operations
+            skipped: Number of skipped operations
+
+        Returns:
+            Summary dictionary
+        """
         return {
             "successful": successful,
             "failed": failed,
