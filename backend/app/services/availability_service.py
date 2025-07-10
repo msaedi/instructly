@@ -75,6 +75,7 @@ class AvailabilityService(BaseService):
         self.bulk_repository = bulk_repository or RepositoryFactory.create_bulk_operation_repository(db)
         self.conflict_repository = conflict_repository or RepositoryFactory.create_conflict_checker_repository(db)
 
+    @BaseService.measure_operation("get_availability_for_date")
     def get_availability_for_date(self, instructor_id: int, target_date: date) -> Optional[Dict[str, Any]]:
         """
         Get availability for a specific date.
@@ -126,6 +127,7 @@ class AvailabilityService(BaseService):
 
         return result
 
+    @BaseService.measure_operation("get_availability_summary")
     def get_availability_summary(self, instructor_id: int, start_date: date, end_date: date) -> Dict[str, int]:
         """
         Get summary of availability (slot counts) for date range.
@@ -202,6 +204,7 @@ class AvailabilityService(BaseService):
 
         return week_schedule
 
+    @BaseService.measure_operation("get_all_availability")
     def get_all_instructor_availability(
         self, instructor_id: int, start_date: Optional[date] = None, end_date: Optional[date] = None
     ) -> List[AvailabilitySlot]:
@@ -238,6 +241,7 @@ class AvailabilityService(BaseService):
             logger.error(f"Error retrieving all availability: {str(e)}")
             raise
 
+    @BaseService.measure_operation("save_week_availability")
     async def save_week_availability(self, instructor_id: int, week_data: WeekSpecificScheduleCreate) -> Dict[str, Any]:
         """
         Save availability for specific dates in a week.
@@ -300,7 +304,8 @@ class AvailabilityService(BaseService):
                 created_slots = self.bulk_repository.bulk_create_slots(slots_to_create)
                 logger.info(f"Created {len(created_slots)} new slots")
 
-        # Ensure SQLAlchemy session is fresh
+        # Expire all cached objects to ensure fresh data for the final query
+        # This is necessary after bulk operations to prevent stale data issues
         self.db.expire_all()
 
         # Handle cache warming
@@ -321,6 +326,7 @@ class AvailabilityService(BaseService):
 
         return updated_availability
 
+    @BaseService.measure_operation("add_specific_date")
     def add_specific_date_availability(
         self, instructor_id: int, availability_data: SpecificDateAvailabilityCreate
     ) -> Dict[str, Any]:
@@ -358,6 +364,7 @@ class AvailabilityService(BaseService):
 
             return slot  # Just return the model object
 
+    @BaseService.measure_operation("get_blackout_dates")
     def get_blackout_dates(self, instructor_id: int) -> List[BlackoutDate]:
         """
         Get instructor's future blackout dates.
@@ -374,6 +381,7 @@ class AvailabilityService(BaseService):
             logger.error(f"Error getting blackout dates: {e}")
             return []
 
+    @BaseService.measure_operation("add_blackout_date")
     def add_blackout_date(self, instructor_id: int, blackout_data: BlackoutDateCreate) -> BlackoutDate:
         """
         Add a blackout date for an instructor.
@@ -400,6 +408,7 @@ class AvailabilityService(BaseService):
                     raise ConflictException("Blackout date already exists")
                 raise
 
+    @BaseService.measure_operation("delete_blackout_date")
     def delete_blackout_date(self, instructor_id: int, blackout_id: int) -> bool:
         """
         Delete a blackout date.
