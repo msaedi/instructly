@@ -47,6 +47,7 @@ class ConflictChecker(BaseService):
         self.logger = logging.getLogger(__name__)
         self.repository = repository or RepositoryFactory.create_conflict_checker_repository(db)
 
+    @BaseService.measure_operation("check_booking_conflicts")
     def check_booking_conflicts(
         self,
         instructor_id: int,
@@ -95,6 +96,7 @@ class ConflictChecker(BaseService):
 
         return conflicts
 
+    @BaseService.measure_operation("check_time_conflicts")
     def check_time_conflicts(
         self,
         instructor_id: int,
@@ -121,6 +123,7 @@ class ConflictChecker(BaseService):
         conflicts = self.check_booking_conflicts(instructor_id, booking_date, start_time, end_time, exclude_booking_id)
         return len(conflicts) > 0
 
+    @BaseService.measure_operation("get_booked_times_date")
     def get_booked_times_for_date(self, instructor_id: int, target_date: date) -> List[Dict[str, Any]]:
         """
         Get all booked time ranges for an instructor on a specific date.
@@ -149,6 +152,7 @@ class ConflictChecker(BaseService):
             if booking.status in [BookingStatus.CONFIRMED, BookingStatus.COMPLETED]
         ]
 
+    @BaseService.measure_operation("get_booked_times_week")
     def get_booked_times_for_week(self, instructor_id: int, week_start: date) -> Dict[str, List[Dict[str, Any]]]:
         """
         Get all booked times for an instructor for a week.
@@ -186,6 +190,7 @@ class ConflictChecker(BaseService):
 
         return times_by_date
 
+    @BaseService.measure_operation("validate_time_range")
     def validate_time_range(
         self,
         start_time: time,
@@ -235,6 +240,7 @@ class ConflictChecker(BaseService):
 
         return {"valid": True, "duration_minutes": duration_minutes}
 
+    @BaseService.measure_operation("check_advance_booking")
     def check_minimum_advance_booking(
         self, instructor_id: int, booking_date: date, booking_time: time
     ) -> Dict[str, Any]:
@@ -270,6 +276,7 @@ class ConflictChecker(BaseService):
 
         return {"valid": True, "min_advance_hours": profile.min_advance_booking_hours}
 
+    @BaseService.measure_operation("check_blackout")
     def check_blackout_date(self, instructor_id: int, target_date: date) -> bool:
         """
         Check if a date is blacked out for an instructor.
@@ -284,6 +291,7 @@ class ConflictChecker(BaseService):
         blackout = self.repository.get_blackout_date(instructor_id, target_date)
         return blackout is not None
 
+    @BaseService.measure_operation("validate_constraints")
     def validate_booking_constraints(
         self,
         instructor_id: int,
@@ -366,6 +374,7 @@ class ConflictChecker(BaseService):
             },
         }
 
+    @BaseService.measure_operation("find_next_available")
     def find_next_available_time(
         self,
         instructor_id: int,
