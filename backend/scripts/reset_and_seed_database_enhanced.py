@@ -10,21 +10,21 @@ USAGE OPTIONS:
 ==============
 | Command | Database | Use Case |
 |---------|----------|----------|
-| USE_TEST_DATABASE=true python scripts/rreset_and_seed_database_enhanced.py | Local test DB | Safe local testing |
-| ALLOW_SEED_PRODUCTION=true python scripts/rreset_and_seed_database_enhanced.py | Production (Supabase) | Pre-launch seeding (asks yes/no) |
-| FORCE_ALLOW_RESET=true python scripts/rreset_and_seed_database_enhanced.py | Production (Supabase) | Emergency reset (requires typing confirmation) |
-| python scripts/rreset_and_seed_database_enhanced.py | BLOCKED! | Safety error - no accidental usage |
+| USE_TEST_DATABASE=true python scripts/reset_and_seed_database_enhanced.py | Local test DB | Safe local testing |
+| ALLOW_SEED_PRODUCTION=true python scripts/reset_and_seed_database_enhanced.py | Production (Supabase) | Pre-launch seeding (asks yes/no) |
+| FORCE_ALLOW_RESET=true python scripts/reset_and_seed_database_enhanced.py | Production (Supabase) | Emergency reset (requires typing confirmation) |
+| python scripts/reset_and_seed_database_enhanced.py | BLOCKED! | Safety error - no accidental usage |
 
 Examples:
 ---------
 # For local development testing:
-USE_TEST_DATABASE=true python scripts/rreset_and_seed_database_enhanced.py
+USE_TEST_DATABASE=true python scripts/reset_and_seed_database_enhanced.py
 
 # For seeding Supabase before going live:
-ALLOW_SEED_PRODUCTION=true python scripts/rreset_and_seed_database_enhanced.py
+ALLOW_SEED_PRODUCTION=true python scripts/reset_and_seed_database_enhanced.py
 
 # For emergency production reset (DANGEROUS):
-FORCE_ALLOW_RESET=true python scripts/rreset_and_seed_database_enhanced.py
+FORCE_ALLOW_RESET=true python scripts/reset_and_seed_database_enhanced.py
 
 Features:
 - Safety checks prevent production database usage

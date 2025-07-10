@@ -4,3 +4,4 @@ scripts/
 .next/
 out/
 node_modules/
+server.js
