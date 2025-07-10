@@ -6,7 +6,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
+from .core.config import settings
 from .core.constants import ALLOWED_ORIGINS, API_DESCRIPTION, API_TITLE, API_VERSION, BRAND_NAME
+from .middleware.https_redirect import create_https_redirect_middleware
 from .middleware.monitoring import MonitoringMiddleware
 from .middleware.rate_limiter import RateLimitMiddleware
 from .middleware.timing import TimingMiddleware
@@ -28,9 +30,16 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     logger.info(f"{BRAND_NAME} API starting up...")
+    logger.info(f"Environment: {settings.environment}")
     logger.info(f"Allowed origins: {ALLOWED_ORIGINS}")
     logger.info("GZip compression enabled for responses > 500 bytes")
     logger.info("Rate limiting enabled for DDoS and brute force protection")
+
+    # Log HTTPS status
+    if settings.environment == "production":
+        logger.info("🔐 HTTPS redirect enabled for production")
+    else:
+        logger.info("🔓 HTTPS redirect disabled for development")
 
     # Here you can add any startup logic like:
     # - Warming up caches
@@ -57,12 +66,16 @@ app = FastAPI(
 )
 
 # Add middleware in the correct order (reverse order of execution)
+# HTTPS redirect should be first to handle before other processing
+if settings.environment == "production":
+    # Only force HTTPS in production
+    HTTPSRedirectMiddleware = create_https_redirect_middleware(force_https=True)
+    app.add_middleware(HTTPSRedirectMiddleware)
+
 # Rate limiting should be early in the chain to block bad requests quickly
 app.add_middleware(TimingMiddleware)
 app.add_middleware(MonitoringMiddleware)
 app.add_middleware(RateLimitMiddleware)  # Added rate limiting
-
-# CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -91,6 +104,8 @@ def read_root():
         "message": f"Welcome to the {BRAND_NAME} API!",
         "version": API_VERSION,
         "docs": "/docs",
+        "environment": settings.environment,
+        "secure": settings.environment == "production",
     }
 
 
@@ -101,6 +116,7 @@ def health_check():
         "status": "healthy",
         "service": f"{BRAND_NAME.lower()}-api",
         "version": API_VERSION,
+        "environment": settings.environment,
     }
 
 
