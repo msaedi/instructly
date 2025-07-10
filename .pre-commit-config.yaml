@@ -54,6 +54,7 @@ repos:
     hooks:
       - id: eslint
         files: ^frontend/.*\.[jt]sx?$
+        exclude: ^frontend/server\.js$  # Exclude the HTTPS server file
         types: [file]
         additional_dependencies:
           - eslint@8.54.0
