@@ -51,6 +51,7 @@ class SlotManager(BaseService):
         self.repository = repository or RepositoryFactory.create_slot_manager_repository(db)
         self.availability_repository = RepositoryFactory.create_availability_repository(db)
 
+    @BaseService.measure_operation("create_slot")
     def create_slot(
         self,
         instructor_id: int,
@@ -130,6 +131,7 @@ class SlotManager(BaseService):
                 )
                 return new_slot
 
+    @BaseService.measure_operation("update_slot")
     def update_slot(
         self,
         slot_id: int,
@@ -176,6 +178,7 @@ class SlotManager(BaseService):
 
             return updated_slot
 
+    @BaseService.measure_operation("delete_slot")
     def delete_slot(self, slot_id: int) -> bool:
         """
         Delete an availability slot.
@@ -205,6 +208,7 @@ class SlotManager(BaseService):
             self.logger.info(f"Deleted slot {slot_id}")
             return True
 
+    @BaseService.measure_operation("merge_slots")
     def merge_overlapping_slots(self, instructor_id: int, target_date: date) -> int:
         """
         Merge overlapping or adjacent slots for a specific date.
@@ -267,6 +271,7 @@ class SlotManager(BaseService):
 
         return merged_count
 
+    @BaseService.measure_operation("split_slot")
     def split_slot(self, slot_id: int, split_time: time) -> Tuple[AvailabilitySlot, AvailabilitySlot]:
         """
         Split a slot into two at the specified time.
@@ -308,11 +313,8 @@ class SlotManager(BaseService):
             # Update the local reference for the return value
             slot.end_time = split_time
 
-            # Flush changes to database before refresh
-            self.db.flush()
-
-            self.db.refresh(slot)
-            self.db.refresh(second_slot)
+            # Get fresh objects from repository
+            self.repository.refresh_slots([slot, second_slot])
 
             self.logger.info(
                 f"Split slot {slot_id} at {split_time} into "
@@ -322,6 +324,7 @@ class SlotManager(BaseService):
 
             return (slot, second_slot)
 
+    @BaseService.measure_operation("find_gaps")
     def find_gaps_in_availability(
         self, instructor_id: int, target_date: date, min_gap_minutes: int = 30
     ) -> List[Dict[str, Any]]:

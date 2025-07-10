@@ -252,3 +252,9 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
         except SQLAlchemyError as e:
             self.logger.error(f"Error bulk deleting slots: {str(e)}")
             raise RepositoryException(f"Failed to bulk delete slots: {str(e)}")
+
+    def refresh_slots(self, slots: List[AvailabilitySlot]) -> None:
+        """Refresh slot objects with latest DB state."""
+        self.db.flush()
+        for slot in slots:
+            self.db.refresh(slot)
