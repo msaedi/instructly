@@ -61,3 +61,4 @@ backend/htmlcov/
 project_overview.txt
 backend/certs/
 frontend/certs/
+backend/dead_code_backup_*/
