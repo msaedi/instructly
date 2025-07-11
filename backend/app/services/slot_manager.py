@@ -376,6 +376,7 @@ class SlotManager(BaseService):
 
         return gaps
 
+    @BaseService.measure_operation("get_slots_for_date")
     def get_slots_for_date(self, instructor_id: int, target_date: date) -> List[AvailabilitySlot]:
         """
         Get all availability slots for an instructor on a date.
