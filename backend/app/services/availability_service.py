@@ -3,11 +3,12 @@
 Availability Service for InstaInstru Platform
 
 This service handles all availability-related business logic.
+
 """
 
 import logging
 from datetime import date, time, timedelta
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, TypedDict
 
 from sqlalchemy.orm import Session
 
@@ -241,10 +242,161 @@ class AvailabilityService(BaseService):
             logger.error(f"Error retrieving all availability: {str(e)}")
             raise
 
+    def _validate_and_parse_week_data(
+        self, week_data: WeekSpecificScheduleCreate
+    ) -> Tuple[date, List[date], Dict[date, List[ProcessedSlot]]]:
+        """
+        Validate week data and parse into organized structure.
+
+        Args:
+            week_data: The week schedule data to validate and parse
+
+        Returns:
+            Tuple of (monday, week_dates, schedule_by_date)
+        """
+        # Determine week dates
+        monday = self._determine_week_start(week_data)
+        week_dates = self._calculate_week_dates(monday)
+
+        # Group schedule by date
+        schedule_by_date = self._group_schedule_by_date(week_data.schedule)
+
+        return monday, week_dates, schedule_by_date
+
+    def _prepare_slots_for_creation(
+        self, instructor_id: int, week_dates: List[date], schedule_by_date: Dict[date, List[ProcessedSlot]]
+    ) -> List[Dict[str, Any]]:
+        """
+        Convert time slots to database-ready format.
+
+        Args:
+            instructor_id: The instructor ID
+            week_dates: List of dates in the week
+            schedule_by_date: Schedule data grouped by date
+
+        Returns:
+            List of slot dictionaries ready for creation
+        """
+        slots_to_create = []
+
+        for week_date in week_dates:
+            # Skip past dates
+            if week_date < date.today():
+                continue
+
+            if week_date in schedule_by_date:
+                # Prepare slots for bulk creation
+                for slot in schedule_by_date[week_date]:
+                    # Check if slot already exists
+                    if not self.repository.slot_exists(
+                        instructor_id,
+                        target_date=week_date,
+                        start_time=slot["start_time"],
+                        end_time=slot["end_time"],
+                    ):
+                        slots_to_create.append(
+                            {
+                                "instructor_id": instructor_id,
+                                "specific_date": week_date,
+                                "start_time": slot["start_time"],
+                                "end_time": slot["end_time"],
+                            }
+                        )
+
+        return slots_to_create
+
+    async def _save_week_slots_transaction(
+        self,
+        instructor_id: int,
+        week_data: WeekSpecificScheduleCreate,
+        week_dates: List[date],
+        slots_to_create: List[Dict[str, Any]],
+    ) -> int:
+        """
+        Execute the database transaction to save slots.
+
+        Args:
+            instructor_id: The instructor ID
+            week_data: Original week data for clear_existing flag
+            week_dates: List of dates in the week
+            slots_to_create: Prepared slots for creation
+
+        Returns:
+            Number of slots created
+
+        Raises:
+            RepositoryException: If database operation fails
+        """
+        try:
+            with self.transaction():
+                # If clearing existing, delete all slots for the week
+                if week_data.clear_existing:
+                    deleted_count = self.repository.delete_slots_by_dates(instructor_id, week_dates)
+                    logger.info(f"Deleted {deleted_count} existing slots for instructor {instructor_id}")
+
+                # Bulk create all slots at once
+                if slots_to_create:
+                    created_slots = self.bulk_repository.bulk_create_slots(slots_to_create)
+                    logger.info(f"Created {len(created_slots)} new slots for instructor {instructor_id}")
+                    return len(created_slots)
+
+                return 0
+        except RepositoryException as e:
+            logger.error(f"Database error saving week availability for instructor {instructor_id}: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error saving week availability for instructor {instructor_id}: {e}")
+            raise
+
+    async def _warm_cache_after_save(
+        self, instructor_id: int, monday: date, week_dates: List[date], slot_count: int
+    ) -> Dict[str, List[TimeSlotResponse]]:
+        """
+        Warm cache with new availability data.
+
+        Args:
+            instructor_id: The instructor ID
+            monday: Monday of the week
+            week_dates: List of dates affected
+            slot_count: Number of slots created
+
+        Returns:
+            Updated availability data
+
+        Note:
+            Cache failures do not prevent the operation from succeeding
+        """
+        # Expire all cached objects to ensure fresh data for the final query
+        # This is necessary after bulk operations to prevent stale data issues
+        self.db.expire_all()
+
+        # Handle cache warming
+        if self.cache_service:
+            try:
+                from .cache_strategies import CacheWarmingStrategy
+
+                warmer = CacheWarmingStrategy(self.cache_service, self.db)
+                updated_availability = await warmer.warm_with_verification(
+                    instructor_id, monday, expected_slot_count=slot_count
+                )
+                logger.debug(f"Cache warmed successfully for instructor {instructor_id}, week {monday}")
+                return updated_availability
+            except ImportError:
+                logger.warning("Cache strategies not available, using direct fetch")
+                self._invalidate_availability_caches(instructor_id, week_dates)
+                return self.get_week_availability(instructor_id, monday)
+            except Exception as cache_error:
+                logger.warning(f"Cache warming failed for instructor {instructor_id}: {cache_error}")
+                self._invalidate_availability_caches(instructor_id, week_dates)
+                return self.get_week_availability(instructor_id, monday)
+        else:
+            logger.debug(f"No cache service available, fetching availability directly for instructor {instructor_id}")
+            return self.get_week_availability(instructor_id, monday)
+
     @BaseService.measure_operation("save_week_availability")
     async def save_week_availability(self, instructor_id: int, week_data: WeekSpecificScheduleCreate) -> Dict[str, Any]:
         """
-        Save availability for specific dates in a week.
+        Save availability for specific dates in a week - NOW UNDER 50 LINES!
 
         Args:
             instructor_id: The instructor's user ID
@@ -260,69 +412,17 @@ class AvailabilityService(BaseService):
             schedule_count=len(week_data.schedule),
         )
 
-        # Determine week dates
-        monday = self._determine_week_start(week_data)
-        week_dates = self._calculate_week_dates(monday)
+        # 1. Validate and parse
+        monday, week_dates, schedule_by_date = self._validate_and_parse_week_data(week_data)
 
-        # Group schedule by date
-        schedule_by_date = self._group_schedule_by_date(week_data.schedule)
+        # 2. Prepare slots for creation
+        slots_to_create = self._prepare_slots_for_creation(instructor_id, week_dates, schedule_by_date)
 
-        with self.transaction():
-            # If clearing existing, delete all slots for the week
-            if week_data.clear_existing:
-                deleted_count = self.repository.delete_slots_by_dates(instructor_id, week_dates)
-                logger.info(f"Deleted {deleted_count} existing slots")
+        # 3. Save to database
+        slot_count = await self._save_week_slots_transaction(instructor_id, week_data, week_dates, slots_to_create)
 
-            # Process each date with new slots
-            slots_to_create = []
-            for week_date in week_dates:
-                # Skip past dates
-                if week_date < date.today():
-                    continue
-
-                if week_date in schedule_by_date:
-                    # Prepare slots for bulk creation
-                    for slot in schedule_by_date[week_date]:
-                        # Check if slot already exists - FIX: Use dictionary access
-                        if not self.repository.slot_exists(
-                            instructor_id,
-                            target_date=week_date,
-                            start_time=slot["start_time"],
-                            end_time=slot["end_time"],
-                        ):
-                            slots_to_create.append(
-                                {
-                                    "instructor_id": instructor_id,
-                                    "specific_date": week_date,
-                                    "start_time": slot["start_time"],
-                                    "end_time": slot["end_time"],
-                                }
-                            )
-
-            # Bulk create all slots at once
-            if slots_to_create:
-                created_slots = self.bulk_repository.bulk_create_slots(slots_to_create)
-                logger.info(f"Created {len(created_slots)} new slots")
-
-        # Expire all cached objects to ensure fresh data for the final query
-        # This is necessary after bulk operations to prevent stale data issues
-        self.db.expire_all()
-
-        # Handle cache warming
-        if self.cache_service:
-            try:
-                from .cache_strategies import CacheWarmingStrategy
-
-                warmer = CacheWarmingStrategy(self.cache_service, self.db)
-                updated_availability = await warmer.warm_with_verification(
-                    instructor_id, monday, expected_slot_count=len(slots_to_create)
-                )
-            except ImportError:
-                logger.warning("Cache strategies not available, using direct fetch")
-                self._invalidate_availability_caches(instructor_id, week_dates)
-                updated_availability = self.get_week_availability(instructor_id, monday)
-        else:
-            updated_availability = self.get_week_availability(instructor_id, monday)
+        # 4. Warm cache and return response
+        updated_availability = await self._warm_cache_after_save(instructor_id, monday, week_dates, slot_count)
 
         return updated_availability
 
@@ -357,7 +457,6 @@ class AvailabilityService(BaseService):
                 start_time=availability_data.start_time,
                 end_time=availability_data.end_time,
             )
-            # REMOVED: self.db.commit() - handled by transaction context
 
             # Invalidate cache
             self._invalidate_availability_caches(instructor_id, [availability_data.specific_date])
@@ -401,7 +500,6 @@ class AvailabilityService(BaseService):
         with self.transaction():
             try:
                 blackout = self.repository.create_blackout_date(instructor_id, blackout_data.date, blackout_data.reason)
-                # REMOVED: self.db.commit() - handled by transaction context
                 return blackout
             except RepositoryException as e:
                 if "already exists" in str(e):
@@ -425,7 +523,6 @@ class AvailabilityService(BaseService):
                 success = self.repository.delete_blackout_date(blackout_id, instructor_id)
                 if not success:
                     raise NotFoundException("Blackout date not found")
-                # REMOVED: self.db.commit() - handled by transaction context
                 return True
             except RepositoryException as e:
                 logger.error(f"Error deleting blackout date: {e}")
