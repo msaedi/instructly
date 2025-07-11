@@ -9,6 +9,7 @@ FIXED IN THIS VERSION:
 - Now extends BaseService for architectural consistency
 - Added performance metrics to all public methods
 - Removed singleton pattern - uses dependency injection
+- Added intelligent caching for common contexts and template checks
 - Maintains all existing functionality
 """
 
@@ -38,10 +39,23 @@ class TemplateService(BaseService):
     - Consistent architecture across all services
     - Performance metrics collection
     - Standardized error handling
-    - Future cache integration capability
+    - Integrated caching support
 
     Uses dependency injection pattern - no singleton.
+
+    Caching Strategy:
+    - Common context is cached (changes rarely)
+    - Template existence checks are cached
+    - Jinja2 handles template compilation caching internally
     """
+
+    # Cache key prefixes
+    CACHE_PREFIX_CONTEXT = "template:context:common"
+    CACHE_PREFIX_EXISTS = "template:exists"
+
+    # Cache TTLs (in seconds)
+    CACHE_TTL_CONTEXT = 3600  # 1 hour for common context
+    CACHE_TTL_EXISTS = 86400  # 24 hours for template existence
 
     def __init__(self, db: Optional[Session] = None, cache=None):
         """
@@ -49,7 +63,7 @@ class TemplateService(BaseService):
 
         Args:
             db: Optional database session (not used by TemplateService but required by BaseService)
-            cache: Optional cache service for future template caching
+            cache: Optional cache service for caching common contexts and template checks
         """
         # For TemplateService, we don't actually need a DB session
         # But BaseService requires one, so we'll handle it gracefully
@@ -66,24 +80,30 @@ class TemplateService(BaseService):
         else:
             self._owns_db = False
 
-        # Initialize BaseService
+        # Initialize BaseService - this gives us self.cache
         super().__init__(db, cache)
 
         # Get the template directory path
         template_dir = Path(__file__).parent.parent / "templates"
 
         # Create the Jinja2 environment
+        # Note: Jinja2 has its own internal template compilation cache
         self.env = Environment(
             loader=FileSystemLoader(template_dir),
             autoescape=True,  # Enable autoescaping for security
             trim_blocks=True,  # Remove trailing newlines from blocks
             lstrip_blocks=True,  # Remove leading whitespace from blocks
+            cache_size=400,  # Jinja2's internal cache for compiled templates
         )
 
         # Add custom filters if needed
         self._register_custom_filters()
 
+        # Track if caching is enabled (can be disabled for development)
+        self._caching_enabled = getattr(settings, "template_cache_enabled", True)
+
         self.logger.info(f"Template service initialized with template directory: {template_dir}")
+        self.logger.info(f"Template caching: {'enabled' if self._caching_enabled else 'disabled'}")
 
     def __del__(self):
         """Clean up the database session if we created it."""
@@ -118,25 +138,70 @@ class TemplateService(BaseService):
 
         self.env.filters["format_time"] = format_time
 
+    def _get_cache_key(self, prefix: str, *args) -> str:
+        """
+        Generate a cache key from prefix and arguments.
+
+        Args:
+            prefix: Cache key prefix
+            *args: Additional key components
+
+        Returns:
+            Cache key string
+        """
+        components = [prefix] + [str(arg) for arg in args]
+        return ":".join(components)
+
+    def _should_use_cache(self) -> bool:
+        """Check if caching should be used."""
+        return self._caching_enabled and self.cache is not None and hasattr(self.cache, "get")
+
     @BaseService.measure_operation("get_common_context")
     def get_common_context(self) -> Dict[str, Any]:
         """
         Get common context variables used across all templates.
 
+        This is cached since these values change rarely.
+
         Returns:
             Dictionary of common template variables
         """
-        return {
+        # Try cache first if available
+        if self._should_use_cache():
+            cache_key = self.CACHE_PREFIX_CONTEXT
+            try:
+                cached_context = self.cache.get(cache_key)
+                if cached_context:
+                    self.logger.debug("Common context retrieved from cache")
+                    return cached_context
+            except Exception as e:
+                self.logger.warning(f"Cache get failed for common context: {e}")
+
+        # Build the context
+        context = {
             "brand_name": BRAND_NAME,
             "current_year": datetime.now().year,
             "frontend_url": settings.frontend_url,
             "support_email": settings.from_email,
         }
 
+        # Cache it if possible
+        if self._should_use_cache():
+            try:
+                self.cache.set(cache_key, context, self.CACHE_TTL_CONTEXT)
+                self.logger.debug("Common context cached")
+            except Exception as e:
+                self.logger.warning(f"Failed to cache common context: {e}")
+
+        return context
+
     @BaseService.measure_operation("render_template")
     def render_template(self, template_name: str, context: Optional[Dict[str, Any]] = None, **kwargs) -> str:
         """
         Render a template with the given context.
+
+        Note: Jinja2 internally caches compiled templates, so we don't need
+        to cache the compiled templates ourselves. We only cache the common context.
 
         Args:
             template_name: Path to template relative to templates directory
@@ -150,10 +215,10 @@ class TemplateService(BaseService):
             TemplateNotFound: If template doesn't exist
         """
         try:
-            # Get the template
+            # Get the template (Jinja2 caches compiled templates internally)
             template = self.env.get_template(template_name)
 
-            # Merge contexts
+            # Merge contexts - get_common_context() uses caching
             full_context = self.get_common_context()
             if context:
                 full_context.update(context)
@@ -177,6 +242,8 @@ class TemplateService(BaseService):
         """
         Render a template from a string.
 
+        String templates are not cached since they're typically unique.
+
         Args:
             template_string: Template content as string
             context: Dictionary of template variables
@@ -186,10 +253,10 @@ class TemplateService(BaseService):
             Rendered template as string
         """
         try:
-            # Create template from string
+            # Create template from string (not cached)
             template = self.env.from_string(template_string)
 
-            # Merge contexts
+            # Merge contexts - get_common_context() uses caching
             full_context = self.get_common_context()
             if context:
                 full_context.update(context)
@@ -207,21 +274,77 @@ class TemplateService(BaseService):
         """
         Check if a template exists.
 
+        This is cached since template existence rarely changes.
+
         Args:
             template_name: Path to template relative to templates directory
 
         Returns:
             True if template exists, False otherwise
         """
+        # Try cache first
+        if self._should_use_cache():
+            cache_key = self._get_cache_key(self.CACHE_PREFIX_EXISTS, template_name)
+            try:
+                cached_result = self.cache.get(cache_key)
+                if cached_result is not None:
+                    self.logger.debug(f"Template existence for '{template_name}' retrieved from cache")
+                    return cached_result
+            except Exception as e:
+                self.logger.warning(f"Cache get failed for template existence: {e}")
+
+        # Check if template exists
         try:
             self.env.get_template(template_name)
-            return True
+            exists = True
         except TemplateNotFound:
-            return False
+            exists = False
 
+        # Cache the result
+        if self._should_use_cache():
+            try:
+                self.cache.set(cache_key, exists, self.CACHE_TTL_EXISTS)
+                self.logger.debug(f"Template existence for '{template_name}' cached")
+            except Exception as e:
+                self.logger.warning(f"Failed to cache template existence: {e}")
 
-# NO MORE SINGLETON!
-# Use dependency injection instead:
-# - In routes: template_service = Depends(get_template_service)
-# - In services: Pass as constructor parameter
-# - In tests: Create instances as needed
+        return exists
+
+    def invalidate_cache(self) -> None:
+        """
+        Invalidate all template-related caches.
+
+        Useful when templates are updated or settings change.
+        """
+        if not self._should_use_cache():
+            return
+
+        try:
+            # Invalidate common context
+            self.cache.delete(self.CACHE_PREFIX_CONTEXT)
+
+            # Invalidate template existence checks (using pattern)
+            self.cache.delete_pattern(f"{self.CACHE_PREFIX_EXISTS}:*")
+
+            self.logger.info("Template cache invalidated")
+        except Exception as e:
+            self.logger.error(f"Failed to invalidate template cache: {e}")
+
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """
+        Get cache statistics for monitoring.
+
+        Returns:
+            Dictionary with cache stats
+        """
+        stats = {
+            "caching_enabled": self._caching_enabled,
+            "jinja2_cache_size": self.env.cache.capacity if hasattr(self.env, "cache") else None,
+        }
+
+        # Add metrics from BaseService
+        metrics = self.get_metrics()
+        if metrics:
+            stats["operation_metrics"] = metrics
+
+        return stats

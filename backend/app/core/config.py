@@ -107,6 +107,11 @@ class Settings(BaseSettings):
     # Rate limit bypass for testing
     rate_limit_bypass_token: str = Field(default="", description="Token to bypass rate limiting (for load testing)")
 
+    # Template Caching Configuration
+    template_cache_enabled: bool = Field(
+        default=True, description="Enable template service caching (disable for development if needed)"
+    )
+
     @field_validator("test_database_url")
     @classmethod
     def validate_test_database(cls, v: str, info) -> str:
