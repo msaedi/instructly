@@ -7,13 +7,15 @@ FIXED: Updated test expectations to match the corrected f-string email templates
 The notification service now properly interpolates values instead of sending
 literal placeholders.
 
+UPDATED: Fixed async mock for send_booking_reminders method.
+
 Run with:
     cd backend
     pytest tests/routes/test_reminder_clean_architecture.py -v
 """
 
 from datetime import date, time, timedelta
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -43,8 +45,8 @@ class TestReminderEndpointCleanArchitecture:
     @patch("app.services.booking_service.BookingService.send_booking_reminders")
     def test_reminder_endpoint_calls_service(self, mock_send_reminders, client, db):
         """Test reminder endpoint delegates to service layer."""
-        # Mock the service to return a count
-        mock_send_reminders.return_value = 5
+        # Mock the service to return a count - FIXED: Use AsyncMock for async method
+        mock_send_reminders.return_value = AsyncMock(return_value=5)()
 
         # Create admin user for testing
         admin = User(
