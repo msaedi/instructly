@@ -8,6 +8,7 @@ email templates and potentially other template types in the future.
 FIXED IN THIS VERSION:
 - Now extends BaseService for architectural consistency
 - Added performance metrics to all public methods
+- Removed singleton pattern - uses dependency injection
 - Maintains all existing functionality
 """
 
@@ -38,6 +39,8 @@ class TemplateService(BaseService):
     - Performance metrics collection
     - Standardized error handling
     - Future cache integration capability
+
+    Uses dependency injection pattern - no singleton.
     """
 
     def __init__(self, db: Optional[Session] = None, cache=None):
@@ -217,6 +220,8 @@ class TemplateService(BaseService):
             return False
 
 
-# Create a singleton instance for easy import
-# TODO: Will be removed in Fix 3 (singleton removal)
-template_service = TemplateService()
+# NO MORE SINGLETON!
+# Use dependency injection instead:
+# - In routes: template_service = Depends(get_template_service)
+# - In services: Pass as constructor parameter
+# - In tests: Create instances as needed

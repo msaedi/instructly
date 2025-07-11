@@ -101,13 +101,19 @@ class TestNotificationService:
     @pytest.fixture
     def notification_service(self, mock_db, mock_email_service, mock_template_service):
         """Create NotificationService with mocked dependencies."""
+        # NEW APPROACH: Pass mocks directly to constructor
+        service = NotificationService(db=mock_db, template_service=mock_template_service)  # Inject the mock!
+        # Still need to replace email_service since it's created internally
+        service.email_service = mock_email_service
+        return service
+
+    # Alternative approach if you need to patch email_service import:
+    @pytest.fixture
+    def notification_service_with_patched_email(self, mock_db, mock_email_service, mock_template_service):
+        """Create NotificationService with patched email service."""
         with patch("app.services.notification_service.email_service", mock_email_service):
-            with patch("app.services.notification_service.template_service", mock_template_service):
-                service = NotificationService(db=mock_db)
-                # Ensure the mocks are properly set
-                service.email_service = mock_email_service
-                service.template_service = mock_template_service
-                return service
+            service = NotificationService(db=mock_db, template_service=mock_template_service)
+            return service
 
     @pytest.fixture
     def sample_booking(self):

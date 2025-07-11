@@ -15,7 +15,7 @@ import pytest
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User
 from app.services.notification_service import NotificationService
-from app.services.template_service import template_service
+from app.services.template_service import TemplateService  # Changed: import class, not singleton
 
 
 @pytest.fixture
@@ -27,9 +27,15 @@ def mock_email_service():
 
 
 @pytest.fixture
-def notification_service(mock_email_service):
-    """Create notification service with mocked email."""
-    service = NotificationService()
+def template_service():
+    """Create a TemplateService instance for testing."""
+    return TemplateService()
+
+
+@pytest.fixture
+def notification_service(mock_email_service, template_service):
+    """Create notification service with mocked email and real template service."""
+    service = NotificationService(template_service=template_service)
     service.email_service = mock_email_service
     return service
 
@@ -70,11 +76,11 @@ def test_booking():
 class TestTemplateRendering:
     """Test that templates render correctly."""
 
-    def test_base_template_exists(self):
+    def test_base_template_exists(self, template_service):  # Changed: use injected template_service
         """Test that base template exists."""
         assert template_service.template_exists("email/base.html")
 
-    def test_booking_confirmation_templates_exist(self):
+    def test_booking_confirmation_templates_exist(self, template_service):  # Changed: use injected template_service
         """Test that all booking confirmation templates exist."""
         templates = [
             "email/booking/confirmation_student.html",
@@ -90,7 +96,9 @@ class TestTemplateRendering:
         for template in templates:
             assert template_service.template_exists(template), f"Template {template} not found"
 
-    def test_template_renders_without_errors(self, test_booking):
+    def test_template_renders_without_errors(
+        self, test_booking, template_service
+    ):  # Changed: use injected template_service
         """Test that templates render without errors."""
         context = {
             "booking": test_booking,
@@ -217,7 +225,7 @@ class TestReminderEmails:
 class TestTemplateVariables:
     """Test that all required template variables are provided."""
 
-    def test_common_context(self):
+    def test_common_context(self, template_service):  # Changed: use injected template_service
         """Test common context variables."""
         context = template_service.get_common_context()
 
@@ -226,7 +234,7 @@ class TestTemplateVariables:
         assert "frontend_url" in context
         assert context["current_year"] == datetime.now().year
 
-    def test_no_missing_variables(self, test_booking):
+    def test_no_missing_variables(self, test_booking, template_service):  # Changed: use injected template_service
         """Test templates don't have missing variables."""
         context = {
             "booking": test_booking,
@@ -260,7 +268,9 @@ class TestErrorHandling:
         assert result is False  # Should return False on failure
 
     @pytest.mark.asyncio
-    async def test_handles_template_error(self, notification_service, test_booking):
+    async def test_handles_template_error(
+        self, notification_service, test_booking, template_service
+    ):  # Changed: use injected template_service
         """Test handling of template rendering errors."""
         with patch.object(template_service, "render_template", side_effect=Exception("Template error")):
             result = await notification_service.send_booking_confirmation(test_booking)
