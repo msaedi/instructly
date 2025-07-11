@@ -14,8 +14,6 @@ import pytest
 
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User
-from app.services.notification_service import NotificationService
-from app.services.template_service import TemplateService  # Changed: import class, not singleton
 
 
 @pytest.fixture
@@ -24,20 +22,6 @@ def mock_email_service():
     mock = Mock()
     mock.send_email = Mock(return_value=True)
     return mock
-
-
-@pytest.fixture
-def template_service():
-    """Create a TemplateService instance for testing."""
-    return TemplateService()
-
-
-@pytest.fixture
-def notification_service(mock_email_service, template_service):
-    """Create notification service with mocked email and real template service."""
-    service = NotificationService(template_service=template_service)
-    service.email_service = mock_email_service
-    return service
 
 
 @pytest.fixture
@@ -76,11 +60,11 @@ def test_booking():
 class TestTemplateRendering:
     """Test that templates render correctly."""
 
-    def test_base_template_exists(self, template_service):  # Changed: use injected template_service
+    def test_base_template_exists(self, template_service):
         """Test that base template exists."""
         assert template_service.template_exists("email/base.html")
 
-    def test_booking_confirmation_templates_exist(self, template_service):  # Changed: use injected template_service
+    def test_booking_confirmation_templates_exist(self, template_service):
         """Test that all booking confirmation templates exist."""
         templates = [
             "email/booking/confirmation_student.html",
@@ -96,9 +80,7 @@ class TestTemplateRendering:
         for template in templates:
             assert template_service.template_exists(template), f"Template {template} not found"
 
-    def test_template_renders_without_errors(
-        self, test_booking, template_service
-    ):  # Changed: use injected template_service
+    def test_template_renders_without_errors(self, test_booking, template_service):
         """Test that templates render without errors."""
         context = {
             "booking": test_booking,
@@ -122,9 +104,11 @@ class TestBookingConfirmation:
     """Test booking confirmation email functionality."""
 
     @pytest.mark.asyncio
-    async def test_send_booking_confirmation_success(self, notification_service, mock_email_service, test_booking):
+    async def test_send_booking_confirmation_success(
+        self, notification_service_with_mocked_email, mock_email_service, test_booking
+    ):
         """Test successful booking confirmation sends both emails."""
-        result = await notification_service.send_booking_confirmation(test_booking)
+        result = await notification_service_with_mocked_email.send_booking_confirmation(test_booking)
 
         assert result is True
         assert mock_email_service.send_email.call_count == 2
@@ -140,9 +124,11 @@ class TestBookingConfirmation:
         assert "New Booking" in instructor_call.kwargs["subject"]
 
     @pytest.mark.asyncio
-    async def test_booking_confirmation_content(self, notification_service, mock_email_service, test_booking):
+    async def test_booking_confirmation_content(
+        self, notification_service_with_mocked_email, mock_email_service, test_booking
+    ):
         """Test that confirmation emails contain correct content."""
-        await notification_service.send_booking_confirmation(test_booking)
+        await notification_service_with_mocked_email.send_booking_confirmation(test_booking)
 
         # Check student email content
         student_html = mock_email_service.send_email.call_args_list[0].kwargs["html_content"]
@@ -160,9 +146,9 @@ class TestCancellationNotification:
     """Test cancellation notification functionality."""
 
     @pytest.mark.asyncio
-    async def test_student_cancellation(self, notification_service, mock_email_service, test_booking):
+    async def test_student_cancellation(self, notification_service_with_mocked_email, mock_email_service, test_booking):
         """Test when student cancels booking."""
-        result = await notification_service.send_cancellation_notification(
+        result = await notification_service_with_mocked_email.send_cancellation_notification(
             booking=test_booking, cancelled_by=test_booking.student, reason="Schedule conflict"
         )
 
@@ -180,9 +166,11 @@ class TestCancellationNotification:
         assert student_call.kwargs["to_email"] == test_booking.student.email
 
     @pytest.mark.asyncio
-    async def test_instructor_cancellation(self, notification_service, mock_email_service, test_booking):
+    async def test_instructor_cancellation(
+        self, notification_service_with_mocked_email, mock_email_service, test_booking
+    ):
         """Test when instructor cancels booking."""
-        result = await notification_service.send_cancellation_notification(
+        result = await notification_service_with_mocked_email.send_cancellation_notification(
             booking=test_booking, cancelled_by=test_booking.instructor, reason="Emergency"
         )
 
@@ -204,13 +192,13 @@ class TestReminderEmails:
     """Test reminder email functionality."""
 
     @pytest.mark.asyncio
-    async def test_send_reminders(self, notification_service, mock_email_service, test_booking):
+    async def test_send_reminders(self, notification_service_with_mocked_email, mock_email_service, test_booking):
         """Test reminder emails are sent correctly."""
         # Test individual reminder methods
-        result = await notification_service._send_student_reminder(test_booking)
+        result = await notification_service_with_mocked_email._send_student_reminder(test_booking)
         assert result is True
 
-        result = await notification_service._send_instructor_reminder(test_booking)
+        result = await notification_service_with_mocked_email._send_instructor_reminder(test_booking)
         assert result is True
 
         assert mock_email_service.send_email.call_count == 2
@@ -225,7 +213,7 @@ class TestReminderEmails:
 class TestTemplateVariables:
     """Test that all required template variables are provided."""
 
-    def test_common_context(self, template_service):  # Changed: use injected template_service
+    def test_common_context(self, template_service):
         """Test common context variables."""
         context = template_service.get_common_context()
 
@@ -234,7 +222,7 @@ class TestTemplateVariables:
         assert "frontend_url" in context
         assert context["current_year"] == datetime.now().year
 
-    def test_no_missing_variables(self, test_booking, template_service):  # Changed: use injected template_service
+    def test_no_missing_variables(self, test_booking, template_service):
         """Test templates don't have missing variables."""
         context = {
             "booking": test_booking,
@@ -260,18 +248,18 @@ class TestErrorHandling:
     """Test error handling in notification service."""
 
     @pytest.mark.asyncio
-    async def test_handles_email_service_failure(self, notification_service, mock_email_service, test_booking):
+    async def test_handles_email_service_failure(
+        self, notification_service_with_mocked_email, mock_email_service, test_booking
+    ):
         """Test graceful handling when email service fails."""
         mock_email_service.send_email.side_effect = Exception("Email service down")
 
-        result = await notification_service.send_booking_confirmation(test_booking)
+        result = await notification_service_with_mocked_email.send_booking_confirmation(test_booking)
         assert result is False  # Should return False on failure
 
     @pytest.mark.asyncio
-    async def test_handles_template_error(
-        self, notification_service, test_booking, template_service
-    ):  # Changed: use injected template_service
+    async def test_handles_template_error(self, notification_service_with_mocked_email, test_booking, template_service):
         """Test handling of template rendering errors."""
         with patch.object(template_service, "render_template", side_effect=Exception("Template error")):
-            result = await notification_service.send_booking_confirmation(test_booking)
+            result = await notification_service_with_mocked_email.send_booking_confirmation(test_booking)
             assert result is False

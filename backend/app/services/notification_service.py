@@ -588,8 +588,3 @@ class NotificationService(BaseService):
         )
 
         return True
-
-
-# Create a singleton instance for easy import
-# TODO: This will also be removed when we fully implement dependency injection
-notification_service = NotificationService()

@@ -1,11 +1,11 @@
-# backend/scripts/test_email_notifications.py
+# backend/tests/integration/services/test_email_notifications.py
 """
 Test script for email notifications.
 
 Run this script to test the email notification system without creating actual bookings.
 
 Usage:
-    python scripts/test_email_notifications.py
+    python backend/tests/integration/services/test_email_notifications.py
 """
 
 import asyncio
@@ -20,6 +20,7 @@ from app.database import SessionLocal
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User
 from app.services.notification_service import NotificationService
+from app.services.template_service import TemplateService
 
 
 def create_test_booking():
@@ -70,9 +71,13 @@ async def test_booking_confirmation():
     print("\n=== Testing Booking Confirmation Emails ===")
 
     booking = create_test_booking()
-    notification_service = NotificationService()
 
+    # Create services using dependency injection
+    db = SessionLocal()
     try:
+        template_service = TemplateService(db, None)
+        notification_service = NotificationService(db, None, template_service)
+
         success = await notification_service.send_booking_confirmation(booking)
         if success:
             print("✅ Booking confirmation emails sent successfully!")
@@ -80,6 +85,8 @@ async def test_booking_confirmation():
             print("❌ Failed to send booking confirmation emails")
     except Exception as e:
         print(f"❌ Error: {str(e)}")
+    finally:
+        db.close()
 
 
 async def test_cancellation_notification():
@@ -87,33 +94,40 @@ async def test_cancellation_notification():
     print("\n=== Testing Cancellation Notification Emails ===")
 
     booking = create_test_booking()
-    notification_service = NotificationService()
 
-    # Test student cancellation
-    print("\n1. Testing student cancellation...")
+    # Create services using dependency injection
+    db = SessionLocal()
     try:
-        success = await notification_service.send_cancellation_notification(
-            booking=booking, cancelled_by=booking.student, reason="Schedule conflict"
-        )
-        if success:
-            print("✅ Student cancellation emails sent successfully!")
-        else:
-            print("❌ Failed to send student cancellation emails")
-    except Exception as e:
-        print(f"❌ Error: {str(e)}")
+        template_service = TemplateService(db, None)
+        notification_service = NotificationService(db, None, template_service)
 
-    # Test instructor cancellation
-    print("\n2. Testing instructor cancellation...")
-    try:
-        success = await notification_service.send_cancellation_notification(
-            booking=booking, cancelled_by=booking.instructor, reason="Emergency came up"
-        )
-        if success:
-            print("✅ Instructor cancellation emails sent successfully!")
-        else:
-            print("❌ Failed to send instructor cancellation emails")
-    except Exception as e:
-        print(f"❌ Error: {str(e)}")
+        # Test student cancellation
+        print("\n1. Testing student cancellation...")
+        try:
+            success = await notification_service.send_cancellation_notification(
+                booking=booking, cancelled_by=booking.student, reason="Schedule conflict"
+            )
+            if success:
+                print("✅ Student cancellation emails sent successfully!")
+            else:
+                print("❌ Failed to send student cancellation emails")
+        except Exception as e:
+            print(f"❌ Error: {str(e)}")
+
+        # Test instructor cancellation
+        print("\n2. Testing instructor cancellation...")
+        try:
+            success = await notification_service.send_cancellation_notification(
+                booking=booking, cancelled_by=booking.instructor, reason="Emergency came up"
+            )
+            if success:
+                print("✅ Instructor cancellation emails sent successfully!")
+            else:
+                print("❌ Failed to send instructor cancellation emails")
+        except Exception as e:
+            print(f"❌ Error: {str(e)}")
+    finally:
+        db.close()
 
 
 async def test_reminder_emails():
@@ -127,8 +141,9 @@ async def test_reminder_emails():
         # Create a test booking for tomorrow
         booking = create_test_booking()
 
-        # We'll test the private methods directly since the public method queries the DB
-        notification_service = NotificationService(db)
+        # Create services using dependency injection
+        template_service = TemplateService(db, None)
+        notification_service = NotificationService(db, None, template_service)
 
         print("\n1. Testing student reminder...")
         try:

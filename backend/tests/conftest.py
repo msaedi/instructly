@@ -28,6 +28,7 @@ settings.is_testing = True
 settings.rate_limit_enabled = False
 
 from datetime import date, time, timedelta
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -45,6 +46,8 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service import Service
 from app.models.user import User, UserRole
+from app.services.notification_service import NotificationService
+from app.services.template_service import TemplateService
 
 # ============================================================================
 # PRODUCTION DATABASE PROTECTION
@@ -463,3 +466,56 @@ def test_instructor_with_inactive_service(db: Session, test_instructor: User) ->
     db.flush()
 
     return test_instructor
+
+
+# ============================================================================
+# NOTIFICATION SERVICE FIXTURES
+# ============================================================================
+
+
+@pytest.fixture
+def template_service(db: Session):
+    """Create a TemplateService instance for testing."""
+    return TemplateService(db, None)
+
+
+@pytest.fixture
+def notification_service(db: Session, template_service):
+    """Create a NotificationService instance for testing."""
+    return NotificationService(db, None, template_service)
+
+
+@pytest.fixture
+def mock_email_service():
+    """Mock email service to avoid sending real emails in tests."""
+    mock = Mock()
+    mock.send_email = Mock(return_value={"id": "test-email-id", "status": "sent"})
+    return mock
+
+
+@pytest.fixture
+def mock_notification_service(db: Session, template_service):
+    """
+    Create a NotificationService with mocked email sending.
+    This replaces the old mock_notification_service fixture.
+    """
+    service = NotificationService(db, None, template_service)
+
+    # Mock the email service to avoid sending real emails
+    service.email_service = Mock()
+    service.email_service.send_email = Mock(return_value={"id": "test-email-id", "status": "sent"})
+
+    # Also create async mocks for the main methods
+    service.send_booking_confirmation = AsyncMock(return_value=True)
+    service.send_cancellation_notification = AsyncMock(return_value=True)
+    service.send_reminder_emails = AsyncMock(return_value=0)
+
+    return service
+
+
+@pytest.fixture
+def notification_service_with_mocked_email(db: Session, template_service, mock_email_service):
+    """Create a NotificationService with real template rendering but mocked email sending."""
+    service = NotificationService(db, None, template_service)
+    service.email_service = mock_email_service
+    return service

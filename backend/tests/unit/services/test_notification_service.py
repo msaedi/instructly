@@ -487,13 +487,13 @@ class TestNotificationService:
         assert "formatted_time" in context
         assert ":" in context["formatted_time"]  # Should have time separator
 
-    def test_singleton_instance_created(self):
-        """Test that module creates singleton instance."""
-        # Just verify the pattern is followed
+    def test_no_singleton_exists(self):
+        """Test that the singleton has been removed."""
+        # This test verifies the singleton is gone
         import app.services.notification_service as ns_module
 
-        assert hasattr(ns_module, "notification_service")
-        # Don't check type since it would trigger initialization
+        # Should NOT have a 'notification_service' attribute (the singleton)
+        assert not hasattr(ns_module, "notification_service")
 
 
 if __name__ == "__main__":
