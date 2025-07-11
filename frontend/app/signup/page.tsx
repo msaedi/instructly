@@ -142,6 +142,9 @@ function SignUpForm() {
     setRequestStatus(RequestStatus.LOADING);
     setErrors({});
 
+    // Declare response outside try block so it's accessible in catch
+    let response: Response | undefined;
+
     try {
       // Prepare registration data
       const registrationData: RegisterRequest = {
@@ -158,7 +161,7 @@ function SignUpForm() {
       logger.time('registration');
 
       // Register the user
-      const response = await fetch(`${API_URL}${API_ENDPOINTS.REGISTER}`, {
+      response = await fetch(`${API_URL}${API_ENDPOINTS.REGISTER}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(registrationData),
@@ -236,7 +239,48 @@ function SignUpForm() {
 
       setRequestStatus(RequestStatus.SUCCESS);
     } catch (error) {
-      const errorMessage = getErrorMessage(error);
+      let errorMessage = 'Registration failed';
+
+      // Handle fetch errors
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
+      // Handle API response errors if we have a response
+      if (response && !response.ok) {
+        try {
+          const errorData = await response.json();
+
+          // Handle rate limit errors specially
+          if (response.status === 429 && errorData.detail) {
+            const detail = errorData.detail;
+            if (detail.retry_after) {
+              const minutes = Math.ceil(detail.retry_after / 60);
+              errorMessage = `${detail.message} Please wait ${minutes} minute${
+                minutes > 1 ? 's' : ''
+              } before trying again.`;
+            } else {
+              errorMessage = detail.message || 'Too many attempts. Please try again later.';
+            }
+          }
+          // Handle validation errors
+          else if (Array.isArray(errorData.detail)) {
+            errorMessage = errorData.detail.map((e: any) => e.msg).join(', ');
+          }
+          // Handle other errors
+          else if (typeof errorData.detail === 'string') {
+            errorMessage = errorData.detail;
+          }
+          // Handle email already exists
+          else if (response.status === 400 && errorData.detail?.includes('already registered')) {
+            errorMessage = 'An account with this email already exists';
+          }
+        } catch (parseError) {
+          // If we can't parse the error, use a generic message
+          errorMessage = `Registration failed (${response.status})`;
+        }
+      }
+
       logger.error('Signup process failed', error, {
         email: formData.email,
         errorMessage,

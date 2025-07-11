@@ -275,17 +275,42 @@ export function isAPIError(error: any): error is APIError {
  * @returns Human-readable error message
  */
 export function getErrorMessage(error: any): string {
+  // Handle string errors
   if (typeof error === 'string') return error;
 
+  // Handle API errors
   if (isAPIError(error)) {
+    // Handle string detail
     if (typeof error.detail === 'string') return error.detail;
+
+    // Handle validation error array
     if (Array.isArray(error.detail)) {
       return error.detail.map((e) => e.msg).join(', ');
     }
+
+    // Handle rate limit error object
+    if (error.detail && typeof error.detail === 'object' && 'message' in error.detail) {
+      const detail = error.detail as any;
+
+      // For rate limiting, show retry time
+      if (detail.code === 'RATE_LIMIT_EXCEEDED' && detail.retry_after) {
+        const minutes = Math.ceil(detail.retry_after / 60);
+        return `${detail.message} (Try again in ${minutes} minute${minutes > 1 ? 's' : ''})`;
+      }
+
+      return detail.message;
+    }
   }
 
+  // Handle standard Error objects
   if (error instanceof Error) return error.message;
 
+  // Handle objects with message property
+  if (error && typeof error === 'object' && 'message' in error) {
+    return error.message;
+  }
+
+  // Default fallback
   return 'An unexpected error occurred';
 }
 
@@ -343,4 +368,41 @@ export function getCurrentWeekRange(startOfWeek: number = 1): DateRange {
     start_date: monday.toISOString().split('T')[0],
     end_date: sunday.toISOString().split('T')[0],
   };
+}
+
+/**
+ * Rate limit error detail structure
+ */
+export interface RateLimitErrorDetail {
+  message: string;
+  code: 'RATE_LIMIT_EXCEEDED';
+  retry_after: number;
+}
+
+/**
+ * Check if an error is a rate limit error
+ * @param error - Error to check
+ * @returns boolean indicating if it's a rate limit error
+ */
+export function isRateLimitError(error: any): boolean {
+  if (!error || typeof error !== 'object') return false;
+  if (!('detail' in error)) return false;
+
+  const detail = error.detail;
+  if (!detail || typeof detail !== 'object') return false;
+  if (!('code' in detail)) return false;
+
+  return (detail as any).code === 'RATE_LIMIT_EXCEEDED';
+}
+
+/**
+ * Get retry time in seconds from a rate limit error
+ * @param error - Error to check
+ * @returns Number of seconds to wait, or null if not a rate limit error
+ */
+export function getRateLimitRetryTime(error: any): number | null {
+  if (!isRateLimitError(error)) return null;
+
+  const detail = error.detail as any;
+  return typeof detail.retry_after === 'number' ? detail.retry_after : null;
 }
