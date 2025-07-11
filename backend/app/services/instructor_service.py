@@ -4,6 +4,9 @@ Instructor Service Layer
 
 Handles all business logic related to instructor operations including
 profile management, service updates with soft delete, and data transformations.
+
+UPDATED IN v65: Added performance metrics to all public methods for observability.
+Now tracks timing for all instructor operations to earn those MEGAWATTS! ⚡
 """
 
 import logging
@@ -53,6 +56,7 @@ class InstructorService(BaseService):
         self.user_repository = user_repository or RepositoryFactory.create_base_repository(db, User)
         self.booking_repository = booking_repository or RepositoryFactory.create_booking_repository(db)
 
+    @BaseService.measure_operation("get_instructor_profile")
     def get_instructor_profile(self, user_id: int, include_inactive_services: bool = False) -> Dict:
         """
         Get instructor profile with proper service filtering.
@@ -80,6 +84,7 @@ class InstructorService(BaseService):
         # Everything is already loaded - no additional queries
         return self._profile_to_dict(profile, include_inactive_services)
 
+    @BaseService.measure_operation("get_all_instructors")
     def get_all_instructors(self, skip: int = 0, limit: int = 100) -> List[Dict]:
         """
         Get all instructor profiles with active services only.
@@ -107,6 +112,7 @@ class InstructorService(BaseService):
 
         return result
 
+    @BaseService.measure_operation("create_instructor_profile")
     def create_instructor_profile(self, user: User, profile_data: InstructorProfileCreate) -> Dict:
         """
         Create a new instructor profile.
@@ -159,6 +165,7 @@ class InstructorService(BaseService):
 
             return self._profile_to_dict(profile)
 
+    @BaseService.measure_operation("update_instructor_profile")
     def update_instructor_profile(self, user_id: int, update_data: InstructorProfileUpdate) -> Dict:
         """
         Update instructor profile with proper soft delete handling.
@@ -197,6 +204,7 @@ class InstructorService(BaseService):
             # Return fresh data
             return self.get_instructor_profile(user_id)
 
+    @BaseService.measure_operation("delete_instructor_profile")
     def delete_instructor_profile(self, user_id: int) -> None:
         """
         Delete instructor profile and revert to student role.
