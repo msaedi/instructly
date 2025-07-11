@@ -412,14 +412,44 @@ class TestNotificationService:
     # Test error handling
 
     @pytest.mark.asyncio
-    async def test_unexpected_error_propagation(self, notification_service, sample_booking):
-        """Test that unexpected errors in main methods are propagated."""
-        # Simulate unexpected error early in the method
-        notification_service.logger = Mock()
-        notification_service.logger.info.side_effect = RuntimeError("Unexpected!")
+    async def test_send_booking_confirmation_with_none_booking(self, notification_service):
+        """Test that sending confirmation with None booking returns False."""
+        result = await notification_service.send_booking_confirmation(None)
+        assert result is False
 
-        with pytest.raises(RuntimeError, match="Unexpected!"):
+    @pytest.mark.asyncio
+    async def test_send_cancellation_with_none_booking(self, notification_service):
+        """Test that sending cancellation with None booking returns False."""
+        user = Mock(spec=User)
+        result = await notification_service.send_cancellation_notification(None, user)
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_send_cancellation_with_none_user(self, notification_service, sample_booking):
+        """Test that sending cancellation with None user returns False."""
+        result = await notification_service.send_cancellation_notification(sample_booking, None)
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_template_error_propagation(self, notification_service, sample_booking):
+        """Test that template not found errors raise ServiceException."""
+        # Template not found should raise ServiceException
+        notification_service.template_service.render_template.side_effect = TemplateNotFound("template.html")
+
+        with pytest.raises(ServiceException, match="Email template error"):
             await notification_service.send_booking_confirmation(sample_booking)
+
+    @pytest.mark.asyncio
+    async def test_email_sending_failure_handled_gracefully(self, notification_service, sample_booking):
+        """Test that email sending failures are handled gracefully."""
+        # Make email sending fail with runtime error
+        notification_service.email_service.send_email.side_effect = RuntimeError("Email service down")
+
+        # Should return False, not raise exception
+        with patch("asyncio.sleep", new_callable=AsyncMock):
+            result = await notification_service.send_booking_confirmation(sample_booking)
+
+        assert result is False  # Graceful degradation
 
     # Test edge cases
 

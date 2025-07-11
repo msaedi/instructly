@@ -119,11 +119,15 @@ class NotificationService(BaseService):
             booking: The booking object with all related data loaded
 
         Returns:
-            bool: True if all emails sent successfully
+            bool: True if all emails sent successfully, False otherwise
 
         Raises:
             ServiceException: If template rendering fails
         """
+        if not booking:
+            self.logger.error("Cannot send booking confirmation: booking is None")
+            return False
+
         try:
             self.logger.info(f"Sending booking confirmation emails for booking {booking.id}")
 
@@ -173,11 +177,19 @@ class NotificationService(BaseService):
             reason: Optional cancellation reason
 
         Returns:
-            bool: True if all emails sent successfully
+            bool: True if all emails sent successfully, False otherwise
 
         Raises:
             ServiceException: If template rendering fails
         """
+        if not booking:
+            self.logger.error("Cannot send cancellation notification: booking is None")
+            return False
+
+        if not cancelled_by:
+            self.logger.error("Cannot send cancellation notification: cancelled_by is None")
+            return False
+
         try:
             self.logger.info(f"Sending cancellation emails for booking {booking.id}")
 
