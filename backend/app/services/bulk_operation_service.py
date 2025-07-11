@@ -10,18 +10,15 @@ Handles bulk availability operations including:
 
 All operations work directly with AvailabilitySlot objects
 using instructor_id + date.
-
-REFACTORED: All methods under 50 lines, comprehensive metrics coverage.
 """
 
 import logging
 from contextlib import contextmanager
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 from sqlalchemy.orm import Session
 
-from ..models.availability import AvailabilitySlot
 from ..repositories.factory import RepositoryFactory
 from ..schemas.availability_window import (
     BulkUpdateRequest,
@@ -256,323 +253,69 @@ class BulkOperationService(BaseService):
             self.cache_service.invalidate_instructor_availability(instructor_id, list(affected_dates))
             self.logger.info(f"Invalidated cache for instructor {instructor_id}, dates: {len(affected_dates)}")
 
-    @BaseService.measure_operation("process_single_operation")
-    async def _process_single_operation(
+    @BaseService.measure_operation("extract_affected_dates")
+    def _extract_affected_dates(
         self,
-        instructor_id: int,
-        operation: SlotOperation,
-        operation_index: int,
-        validate_only: bool,
-    ) -> OperationResult:
-        """Process a single operation."""
-        if operation.action == "add":
-            return await self._process_add_operation(
-                instructor_id=instructor_id,
-                operation=operation,
-                operation_index=operation_index,
-                validate_only=validate_only,
-            )
-        elif operation.action == "remove":
-            return await self._process_remove_operation(
-                instructor_id=instructor_id,
-                operation=operation,
-                operation_index=operation_index,
-                validate_only=validate_only,
-            )
-        elif operation.action == "update":
-            return await self._process_update_operation(
-                instructor_id=instructor_id,
-                operation=operation,
-                operation_index=operation_index,
-                validate_only=validate_only,
-            )
-        else:
-            return OperationResult(
-                operation_index=operation_index,
-                action=operation.action,
-                status="failed",
-                reason=f"Unknown action '{operation.action}' - valid actions are: add, remove, update",
-            )
+        operations: List[SlotOperation],
+        results: List[OperationResult],
+    ) -> Set[date]:
+        """
+        Extract unique dates affected by successful operations.
 
-    @BaseService.measure_operation("process_add_operation")
-    async def _process_add_operation(
+        Args:
+            operations: List of operations
+            results: Results of operations
+
+        Returns:
+            Set of affected dates
+        """
+        affected_dates = set()
+
+        for idx, (op, result) in enumerate(zip(operations, results)):
+            # Only consider successful operations
+            if result.status != "success":
+                continue
+
+            if op.action == "remove" and op.slot_id:
+                # Query the slot's date using repository
+                slots_data = self.repository.get_slots_by_ids([op.slot_id])
+                for slot_id, slot_date, _, _ in slots_data:
+                    affected_dates.add(slot_date)
+            elif op.date:
+                # Handle both string and date objects
+                if isinstance(op.date, str):
+                    affected_dates.add(date.fromisoformat(op.date))
+                elif isinstance(op.date, date):
+                    affected_dates.add(op.date)
+
+        return affected_dates
+
+    @BaseService.measure_operation("create_operation_summary")
+    def _create_operation_summary(
         self,
-        instructor_id: int,
-        operation: SlotOperation,
-        operation_index: int,
-        validate_only: bool,
-    ) -> OperationResult:
+        results: List[OperationResult],
+        successful: int,
+        failed: int,
+        skipped: int,
+    ) -> Dict[str, Any]:
         """
-        Process add slot operation.
+        Create summary of bulk operation results.
 
-        Creates slot directly without any conflict validation.
+        Args:
+            results: List of operation results
+            successful: Number of successful operations
+            failed: Number of failed operations
+            skipped: Number of skipped operations
+
+        Returns:
+            Summary dictionary
         """
-        # 1. Field validation
-        if error := self._validate_add_operation_fields(operation):
-            return OperationResult(operation_index=operation_index, action="add", status="failed", reason=error)
-
-        # 2. Time validation
-        if error := self._validate_add_operation_timing(operation):
-            return OperationResult(operation_index=operation_index, action="add", status="failed", reason=error)
-
-        # 3. Conflict checking
-        if error := await self._check_add_operation_conflicts(instructor_id, operation):
-            return OperationResult(operation_index=operation_index, action="add", status="failed", reason=error)
-
-        # 4. Create slot
-        slot = await self._create_slot_for_operation(instructor_id, operation, validate_only)
-
-        # 5. Return result
-        if validate_only:
-            return OperationResult(
-                operation_index=operation_index,
-                action="add",
-                status="success",
-                reason="Validation passed - slot can be added",
-            )
-        else:
-            return OperationResult(
-                operation_index=operation_index,
-                action="add",
-                status="success",
-                slot_id=slot.id,
-            )
-
-    def _validate_add_operation_fields(self, operation: SlotOperation) -> Optional[str]:
-        """Validate required fields for add operation."""
-        if not all([operation.date, operation.start_time, operation.end_time]):
-            missing_fields = []
-            if not operation.date:
-                missing_fields.append("date")
-            if not operation.start_time:
-                missing_fields.append("start_time")
-            if not operation.end_time:
-                missing_fields.append("end_time")
-
-            return f"Missing required fields for add operation: {', '.join(missing_fields)}"
-
-        return None
-
-    def _validate_add_operation_timing(self, operation: SlotOperation) -> Optional[str]:
-        """Validate time constraints and alignment."""
-        # Check for past dates
-        if operation.date < date.today():
-            return f"Cannot add availability for past date {operation.date.isoformat()} (today is {date.today().isoformat()})"
-
-        # Check if it's today and time has passed
-        if operation.date == date.today():
-            now = datetime.now().time()
-            if operation.end_time <= now:
-                return f"Cannot add availability for past time slot {operation.start_time.strftime('%H:%M')}-{operation.end_time.strftime('%H:%M')} (current time is {now.strftime('%H:%M')})"
-
-        return None
-
-    async def _check_add_operation_conflicts(self, instructor_id: int, operation: SlotOperation) -> Optional[str]:
-        """Check for booking conflicts and blackout dates."""
-        # Check if slot already exists
-        if self.availability_repository.slot_exists(
-            instructor_id, target_date=operation.date, start_time=operation.start_time, end_time=operation.end_time
-        ):
-            return f"Time slot {operation.start_time.strftime('%H:%M')}-{operation.end_time.strftime('%H:%M')} already exists on {operation.date.isoformat()}"
-
-        return None
-
-    async def _create_slot_for_operation(
-        self, instructor_id: int, operation: SlotOperation, validate_only: bool
-    ) -> Optional[AvailabilitySlot]:
-        """Create the actual slot if not validation only."""
-        if validate_only:
-            return None
-
-        try:
-            # Create slot directly using slot manager
-            new_slot = self.slot_manager.create_slot(
-                instructor_id=instructor_id,
-                target_date=operation.date,
-                start_time=operation.start_time,
-                end_time=operation.end_time,
-                auto_merge=True,
-            )
-            return new_slot
-
-        except Exception as e:
-            raise Exception(
-                f"Failed to create slot {operation.start_time.strftime('%H:%M')}-{operation.end_time.strftime('%H:%M')} on {operation.date.isoformat()}: {str(e)}"
-            )
-
-    @BaseService.measure_operation("process_remove_operation")
-    async def _process_remove_operation(
-        self,
-        instructor_id: int,
-        operation: SlotOperation,
-        operation_index: int,
-        validate_only: bool,
-    ) -> OperationResult:
-        """
-        Process remove slot operation.
-
-        Allows removal regardless of bookings (layer independence).
-        """
-        # 1. Field validation
-        if error := self._validate_remove_operation_fields(operation):
-            return OperationResult(operation_index=operation_index, action="remove", status="failed", reason=error)
-
-        # 2. Slot validation
-        slot, error = await self._find_slot_for_removal(instructor_id, operation.slot_id)
-        if error:
-            return OperationResult(operation_index=operation_index, action="remove", status="failed", reason=error)
-
-        # 3. Execute removal
-        if validate_only:
-            return OperationResult(
-                operation_index=operation_index,
-                action="remove",
-                status="success",
-                reason="Validation passed - slot can be removed",
-            )
-        else:
-            success = await self._execute_slot_removal(slot)
-            if success:
-                return OperationResult(
-                    operation_index=operation_index,
-                    action="remove",
-                    status="success",
-                    reason=f"Successfully removed slot {operation.slot_id}",
-                )
-            else:
-                return OperationResult(
-                    operation_index=operation_index,
-                    action="remove",
-                    status="failed",
-                    reason=f"Failed to remove slot {operation.slot_id}",
-                )
-
-    def _validate_remove_operation_fields(self, operation: SlotOperation) -> Optional[str]:
-        """Validate required fields for remove operation."""
-        if not operation.slot_id:
-            return "Missing slot_id for remove operation - cannot identify which slot to remove"
-        return None
-
-    async def _find_slot_for_removal(
-        self, instructor_id: int, slot_id: int
-    ) -> Tuple[Optional[AvailabilitySlot], Optional[str]]:
-        """Find the slot to remove and verify ownership."""
-        slot = self.repository.get_slot_for_instructor(slot_id, instructor_id)
-
-        if not slot:
-            return None, f"Slot {slot_id} not found or not owned by instructor {instructor_id}"
-
-        return slot, None
-
-    async def _execute_slot_removal(self, slot: AvailabilitySlot) -> bool:
-        """Execute the removal if not validation only."""
-        try:
-            self.slot_manager.delete_slot(slot.id)
-            return True
-        except Exception as e:
-            self.logger.error(f"Failed to remove slot {slot.id}: {str(e)}")
-            return False
-
-    @BaseService.measure_operation("process_update_operation")
-    async def _process_update_operation(
-        self,
-        instructor_id: int,
-        operation: SlotOperation,
-        operation_index: int,
-        validate_only: bool,
-    ) -> OperationResult:
-        """
-        Process update slot operation.
-
-        Allows updates regardless of bookings (layer independence).
-        """
-        # 1. Field validation
-        if error := self._validate_update_operation_fields(operation):
-            return OperationResult(operation_index=operation_index, action="update", status="failed", reason=error)
-
-        # 2. Find slot
-        slot, error = await self._find_slot_for_update(instructor_id, operation.slot_id)
-        if error:
-            return OperationResult(operation_index=operation_index, action="update", status="failed", reason=error)
-
-        # 3. Validate timing
-        new_start, new_end, error = self._validate_update_timing(slot, operation)
-        if error:
-            return OperationResult(operation_index=operation_index, action="update", status="failed", reason=error)
-
-        # 4. Execute update
-        if validate_only:
-            return OperationResult(
-                operation_index=operation_index,
-                action="update",
-                status="success",
-                reason="Validation passed - slot can be updated",
-            )
-        else:
-            updated_slot = await self._execute_slot_update(operation.slot_id, new_start, new_end)
-            if updated_slot:
-                return OperationResult(
-                    operation_index=operation_index,
-                    action="update",
-                    status="success",
-                    slot_id=updated_slot.id,
-                    reason=f"Successfully updated slot {operation.slot_id} to {new_start.strftime('%H:%M')}-{new_end.strftime('%H:%M')}",
-                )
-            else:
-                return OperationResult(
-                    operation_index=operation_index,
-                    action="update",
-                    status="failed",
-                    reason=f"Failed to update slot {operation.slot_id}",
-                )
-
-    def _validate_update_operation_fields(self, operation: SlotOperation) -> Optional[str]:
-        """Validate required fields for update operation."""
-        if not operation.slot_id:
-            return "Missing slot_id for update operation - cannot identify which slot to update"
-        return None
-
-    async def _find_slot_for_update(
-        self, instructor_id: int, slot_id: int
-    ) -> Tuple[Optional[AvailabilitySlot], Optional[str]]:
-        """Find the slot to update and verify ownership."""
-        slot = self.repository.get_slot_for_instructor(slot_id, instructor_id)
-
-        if not slot:
-            return None, f"Slot {slot_id} not found or not owned by instructor {instructor_id}"
-
-        return slot, None
-
-    def _validate_update_timing(
-        self, slot: AvailabilitySlot, operation: SlotOperation
-    ) -> Tuple[Optional[time], Optional[time], Optional[str]]:
-        """Validate new times and check for conflicts."""
-        # Determine new times
-        new_start = operation.start_time if operation.start_time else slot.start_time
-        new_end = operation.end_time if operation.end_time else slot.end_time
-
-        # Validate time order
-        if new_end <= new_start:
-            return (
-                None,
-                None,
-                f"End time ({new_end.strftime('%H:%M')}) must be after start time ({new_start.strftime('%H:%M')}) for slot {slot.id}",
-            )
-
-        return new_start, new_end, None
-
-    async def _execute_slot_update(self, slot_id: int, new_start: time, new_end: time) -> Optional[AvailabilitySlot]:
-        """Execute the update if not validation only."""
-        try:
-            updated_slot = self.slot_manager.update_slot(
-                slot_id=slot_id,
-                start_time=new_start,
-                end_time=new_end,
-            )
-            return updated_slot
-        except Exception as e:
-            self.logger.error(f"Failed to update slot {slot_id}: {str(e)}")
-            return None
+        return {
+            "successful": successful,
+            "failed": failed,
+            "skipped": skipped,
+            "results": results,
+        }
 
     @BaseService.measure_operation("validate_week")
     async def validate_week_changes(self, instructor_id: int, validation_data: ValidateWeekRequest) -> Dict[str, Any]:
@@ -619,7 +362,388 @@ class BulkOperationService(BaseService):
             "warnings": warnings,
         }
 
-    @BaseService.measure_operation("get_existing_week_slots")
+    # Private helper methods
+
+    async def _process_single_operation(
+        self,
+        instructor_id: int,
+        operation: SlotOperation,
+        operation_index: int,
+        validate_only: bool,
+    ) -> OperationResult:
+        """Process a single operation."""
+        if operation.action == "add":
+            return await self._process_add_operation(
+                instructor_id=instructor_id,
+                operation=operation,
+                operation_index=operation_index,
+                validate_only=validate_only,
+            )
+        elif operation.action == "remove":
+            return await self._process_remove_operation(
+                instructor_id=instructor_id,
+                operation=operation,
+                operation_index=operation_index,
+                validate_only=validate_only,
+            )
+        elif operation.action == "update":
+            return await self._process_update_operation(
+                instructor_id=instructor_id,
+                operation=operation,
+                operation_index=operation_index,
+                validate_only=validate_only,
+            )
+        else:
+            return OperationResult(
+                operation_index=operation_index,
+                action=operation.action,
+                status="failed",
+                reason=f"Unknown action '{operation.action}' - valid actions are: add, remove, update",
+            )
+
+    def _validate_add_operation_fields(self, operation: SlotOperation) -> Optional[str]:
+        """Validate required fields for add operation."""
+        if not all([operation.date, operation.start_time, operation.end_time]):
+            missing_fields = []
+            if not operation.date:
+                missing_fields.append("date")
+            if not operation.start_time:
+                missing_fields.append("start_time")
+            if not operation.end_time:
+                missing_fields.append("end_time")
+
+            return f"Missing required fields for add operation: {', '.join(missing_fields)}"
+        return None
+
+    def _validate_add_operation_timing(self, operation: SlotOperation) -> Optional[str]:
+        """Validate time constraints and alignment."""
+        # Check for past dates
+        if operation.date < date.today():
+            return (
+                f"Cannot add availability for past date {operation.date.isoformat()} "
+                f"(today is {date.today().isoformat()})"
+            )
+
+        # Check if it's today and time has passed
+        if operation.date == date.today():
+            now = datetime.now().time()
+            if operation.end_time <= now:
+                return (
+                    f"Cannot add availability for past time slot {operation.start_time.strftime('%H:%M')}-"
+                    f"{operation.end_time.strftime('%H:%M')} (current time is {now.strftime('%H:%M')})"
+                )
+
+        return None
+
+    async def _check_add_operation_conflicts(self, instructor_id: int, operation: SlotOperation) -> Optional[str]:
+        """Check for booking conflicts and blackout dates."""
+        # Check if slot already exists
+        if self.availability_repository.slot_exists(
+            instructor_id, target_date=operation.date, start_time=operation.start_time, end_time=operation.end_time
+        ):
+            return (
+                f"Time slot {operation.start_time.strftime('%H:%M')}-{operation.end_time.strftime('%H:%M')} "
+                f"already exists on {operation.date.isoformat()}"
+            )
+        return None
+
+    async def _create_slot_for_operation(
+        self, instructor_id: int, operation: SlotOperation, validate_only: bool
+    ) -> Optional[Any]:
+        """Create the actual slot if not validation only."""
+        if validate_only:
+            return None
+
+        try:
+            # Create slot directly using slot manager
+            new_slot = self.slot_manager.create_slot(
+                instructor_id=instructor_id,
+                target_date=operation.date,
+                start_time=operation.start_time,
+                end_time=operation.end_time,
+                auto_merge=True,
+            )
+            return new_slot
+        except Exception as e:
+            raise Exception(
+                f"Failed to create slot {operation.start_time.strftime('%H:%M')}-"
+                f"{operation.end_time.strftime('%H:%M')} on {operation.date.isoformat()}: {str(e)}"
+            )
+
+    @BaseService.measure_operation("process_add_operation")
+    async def _process_add_operation(
+        self,
+        instructor_id: int,
+        operation: SlotOperation,
+        operation_index: int,
+        validate_only: bool,
+    ) -> OperationResult:
+        """
+        Process add slot operation.
+
+        Creates slot directly without any conflict validation.
+        """
+        # 1. Field validation
+        if error := self._validate_add_operation_fields(operation):
+            return OperationResult(
+                operation_index=operation_index,
+                action="add",
+                status="failed",
+                reason=error,
+            )
+
+        # 2. Time validation
+        if error := self._validate_add_operation_timing(operation):
+            return OperationResult(
+                operation_index=operation_index,
+                action="add",
+                status="failed",
+                reason=error,
+            )
+
+        # 3. Conflict checking
+        if error := await self._check_add_operation_conflicts(instructor_id, operation):
+            return OperationResult(
+                operation_index=operation_index,
+                action="add",
+                status="failed",
+                reason=error,
+            )
+
+        # 4. Create slot
+        if validate_only:
+            return OperationResult(
+                operation_index=operation_index,
+                action="add",
+                status="success",
+                reason="Validation passed - slot can be added",
+            )
+
+        try:
+            slot = await self._create_slot_for_operation(instructor_id, operation, validate_only)
+            return OperationResult(
+                operation_index=operation_index,
+                action="add",
+                status="success",
+                slot_id=slot.id,
+            )
+        except Exception as e:
+            return OperationResult(
+                operation_index=operation_index,
+                action="add",
+                status="failed",
+                reason=str(e),
+            )
+
+    async def _validate_remove_operation(self, instructor_id: int, slot_id: int) -> Tuple[Optional[Any], Optional[str]]:
+        """Validate slot exists and belongs to instructor."""
+        if not slot_id:
+            return None, "Missing slot_id for remove operation - cannot identify which slot to remove"
+
+        # Find the slot using repository
+        slot = self.repository.get_slot_for_instructor(slot_id, instructor_id)
+
+        if not slot:
+            return None, f"Slot {slot_id} not found or not owned by instructor {instructor_id}"
+
+        return slot, None
+
+    async def _check_remove_operation_bookings(self, slot_id: int) -> Optional[str]:
+        """Check if slot has active bookings."""
+        # With layer independence, we don't check bookings
+        return None
+
+    async def _execute_slot_removal(self, slot: Any, slot_id: int, validate_only: bool) -> bool:
+        """Execute the removal if not validation only."""
+        if validate_only:
+            return True
+
+        try:
+            self.slot_manager.delete_slot(slot_id)
+            return True
+        except Exception as e:
+            raise Exception(f"Failed to remove slot {slot_id}: {str(e)}")
+
+    @BaseService.measure_operation("process_remove_operation")
+    async def _process_remove_operation(
+        self,
+        instructor_id: int,
+        operation: SlotOperation,
+        operation_index: int,
+        validate_only: bool,
+    ) -> OperationResult:
+        """
+        Process remove slot operation.
+
+        Allows removal regardless of bookings (layer independence).
+        """
+        # 1. Validate operation
+        slot, error = await self._validate_remove_operation(instructor_id, operation.slot_id)
+        if error:
+            return OperationResult(
+                operation_index=operation_index,
+                action="remove",
+                status="failed",
+                reason=error,
+            )
+
+        # 2. Check bookings (not needed with layer independence)
+        if error := await self._check_remove_operation_bookings(operation.slot_id):
+            return OperationResult(
+                operation_index=operation_index,
+                action="remove",
+                status="failed",
+                reason=error,
+            )
+
+        # 3. Execute removal
+        if validate_only:
+            return OperationResult(
+                operation_index=operation_index,
+                action="remove",
+                status="success",
+                reason="Validation passed - slot can be removed",
+            )
+
+        try:
+            await self._execute_slot_removal(slot, operation.slot_id, validate_only)
+            return OperationResult(
+                operation_index=operation_index,
+                action="remove",
+                status="success",
+                reason=f"Successfully removed slot {operation.slot_id}",
+            )
+        except Exception as e:
+            return OperationResult(
+                operation_index=operation_index,
+                action="remove",
+                status="failed",
+                reason=str(e),
+            )
+
+    def _validate_update_operation_fields(self, operation: SlotOperation) -> Optional[str]:
+        """Validate required fields for update operation."""
+        if not operation.slot_id:
+            return "Missing slot_id for update operation - cannot identify which slot to update"
+        return None
+
+    async def _find_slot_for_update(self, instructor_id: int, slot_id: int) -> Tuple[Optional[Any], Optional[str]]:
+        """Find the slot to update and verify ownership."""
+        # Find the slot using repository
+        slot = self.repository.get_slot_for_instructor(slot_id, instructor_id)
+
+        if not slot:
+            return None, f"Slot {slot_id} not found or not owned by instructor {instructor_id}"
+
+        return slot, None
+
+    async def _validate_update_timing_and_conflicts(
+        self, instructor_id: int, operation: SlotOperation, existing_slot: Any
+    ) -> Optional[str]:
+        """Validate new times and check for conflicts."""
+        # Determine new times
+        new_start = operation.start_time if operation.start_time else existing_slot.start_time
+        new_end = operation.end_time if operation.end_time else existing_slot.end_time
+
+        # Validate time order
+        if new_end <= new_start:
+            return (
+                f"End time ({new_end.strftime('%H:%M')}) must be after start time "
+                f"({new_start.strftime('%H:%M')}) for slot {operation.slot_id}"
+            )
+
+        return None
+
+    async def _execute_slot_update(
+        self, slot: Any, operation: SlotOperation, new_start: Any, new_end: Any, validate_only: bool
+    ) -> Optional[Any]:
+        """Execute the update if not validation only."""
+        if validate_only:
+            return None
+
+        try:
+            updated_slot = self.slot_manager.update_slot(
+                slot_id=operation.slot_id,
+                start_time=new_start,
+                end_time=new_end,
+            )
+            return updated_slot
+        except Exception as e:
+            raise Exception(
+                f"Failed to update slot {operation.slot_id} to {new_start.strftime('%H:%M')}-"
+                f"{new_end.strftime('%H:%M')}: {str(e)}"
+            )
+
+    @BaseService.measure_operation("process_update_operation")
+    async def _process_update_operation(
+        self,
+        instructor_id: int,
+        operation: SlotOperation,
+        operation_index: int,
+        validate_only: bool,
+    ) -> OperationResult:
+        """
+        Process update slot operation.
+
+        Allows updates regardless of bookings (layer independence).
+        """
+        # 1. Field validation
+        if error := self._validate_update_operation_fields(operation):
+            return OperationResult(
+                operation_index=operation_index,
+                action="update",
+                status="failed",
+                reason=error,
+            )
+
+        # 2. Find slot
+        slot, error = await self._find_slot_for_update(instructor_id, operation.slot_id)
+        if error:
+            return OperationResult(
+                operation_index=operation_index,
+                action="update",
+                status="failed",
+                reason=error,
+            )
+
+        # 3. Validate timing
+        new_start = operation.start_time if operation.start_time else slot.start_time
+        new_end = operation.end_time if operation.end_time else slot.end_time
+
+        if error := await self._validate_update_timing_and_conflicts(instructor_id, operation, slot):
+            return OperationResult(
+                operation_index=operation_index,
+                action="update",
+                status="failed",
+                reason=error,
+            )
+
+        # 4. Execute update
+        if validate_only:
+            return OperationResult(
+                operation_index=operation_index,
+                action="update",
+                status="success",
+                reason="Validation passed - slot can be updated",
+            )
+
+        try:
+            await self._execute_slot_update(slot, operation, new_start, new_end, validate_only)
+            return OperationResult(
+                operation_index=operation_index,
+                action="update",
+                status="success",
+                slot_id=operation.slot_id,
+                reason=f"Successfully updated slot {operation.slot_id} to {new_start.strftime('%H:%M')}-{new_end.strftime('%H:%M')}",
+            )
+        except Exception as e:
+            return OperationResult(
+                operation_index=operation_index,
+                action="update",
+                status="failed",
+                reason=str(e),
+            )
+
     def _get_existing_week_slots(self, instructor_id: int, week_start: date) -> Dict[str, List[Dict]]:
         """Get existing slots for a week from database."""
         end_date = week_start + timedelta(days=6)
@@ -643,7 +767,6 @@ class BulkOperationService(BaseService):
 
         return slots_by_date
 
-    @BaseService.measure_operation("generate_operations_from_states")
     def _generate_operations_from_states(
         self,
         existing_slots: Dict[str, List[Dict]],
@@ -664,69 +787,49 @@ class BulkOperationService(BaseService):
             existing_db_slots = existing_slots.get(date_str, [])
 
             # Find slots to remove
-            operations.extend(self._find_slots_to_remove(saved_slots, current_slots, existing_db_slots))
+            for saved_slot in saved_slots:
+                still_exists = any(
+                    s.start_time == saved_slot.start_time and s.end_time == saved_slot.end_time for s in current_slots
+                )
+
+                if not still_exists:
+                    # Find the DB slot ID
+                    # Handle both string and time object formats
+                    saved_start = saved_slot.start_time
+                    saved_end = saved_slot.end_time
+
+                    # Convert to string if it's a time object
+                    if hasattr(saved_start, "strftime"):
+                        saved_start = saved_start.strftime("%H:%M:%S")
+                    if hasattr(saved_end, "strftime"):
+                        saved_end = saved_end.strftime("%H:%M:%S")
+
+                    db_slot = next(
+                        (s for s in existing_db_slots if s["start_time"] == saved_start and s["end_time"] == saved_end),
+                        None,
+                    )
+
+                    if db_slot:
+                        operations.append(SlotOperation(action="remove", slot_id=db_slot["id"]))
 
             # Find slots to add
-            operations.extend(self._find_slots_to_add(current_slots, saved_slots, check_date))
-
-        return operations
-
-    def _find_slots_to_remove(
-        self, saved_slots: List[Any], current_slots: List[Any], existing_db_slots: List[Dict]
-    ) -> List[SlotOperation]:
-        """Find slots that need to be removed."""
-        operations = []
-
-        for saved_slot in saved_slots:
-            still_exists = any(
-                s.start_time == saved_slot.start_time and s.end_time == saved_slot.end_time for s in current_slots
-            )
-
-            if not still_exists:
-                # Find the DB slot ID
-                saved_start = saved_slot.start_time
-                saved_end = saved_slot.end_time
-
-                # Convert to string if it's a time object
-                if hasattr(saved_start, "strftime"):
-                    saved_start = saved_start.strftime("%H:%M:%S")
-                if hasattr(saved_end, "strftime"):
-                    saved_end = saved_end.strftime("%H:%M:%S")
-
-                db_slot = next(
-                    (s for s in existing_db_slots if s["start_time"] == saved_start and s["end_time"] == saved_end),
-                    None,
+            for current_slot in current_slots:
+                is_new = not any(
+                    s.start_time == current_slot.start_time and s.end_time == current_slot.end_time for s in saved_slots
                 )
 
-                if db_slot:
-                    operations.append(SlotOperation(action="remove", slot_id=db_slot["id"]))
-
-        return operations
-
-    def _find_slots_to_add(
-        self, current_slots: List[Any], saved_slots: List[Any], check_date: date
-    ) -> List[SlotOperation]:
-        """Find slots that need to be added."""
-        operations = []
-
-        for current_slot in current_slots:
-            is_new = not any(
-                s.start_time == current_slot.start_time and s.end_time == current_slot.end_time for s in saved_slots
-            )
-
-            if is_new:
-                operations.append(
-                    SlotOperation(
-                        action="add",
-                        date=check_date,
-                        start_time=current_slot.start_time,
-                        end_time=current_slot.end_time,
+                if is_new:
+                    operations.append(
+                        SlotOperation(
+                            action="add",
+                            date=check_date,
+                            start_time=current_slot.start_time,
+                            end_time=current_slot.end_time,
+                        )
                     )
-                )
 
         return operations
 
-    @BaseService.measure_operation("validate_operations")
     async def _validate_operations(
         self, instructor_id: int, operations: List[SlotOperation]
     ) -> List[ValidationSlotDetail]:
@@ -761,68 +864,6 @@ class BulkOperationService(BaseService):
             validation_details.append(detail)
 
         return validation_details
-
-    def _extract_affected_dates(
-        self,
-        operations: List[SlotOperation],
-        results: List[OperationResult],
-    ) -> Set[date]:
-        """
-        Extract unique dates affected by successful operations.
-
-        Args:
-            operations: List of operations
-            results: Results of operations
-
-        Returns:
-            Set of affected dates
-        """
-        affected_dates = set()
-
-        for idx, (op, result) in enumerate(zip(operations, results)):
-            # Only consider successful operations
-            if result.status != "success":
-                continue
-
-            if op.action == "remove" and op.slot_id:
-                # Query the slot's date using repository
-                slots_data = self.repository.get_slots_by_ids([op.slot_id])
-                for slot_id, slot_date, _, _ in slots_data:
-                    affected_dates.add(slot_date)
-            elif op.date:
-                # Handle both string and date objects
-                if isinstance(op.date, str):
-                    affected_dates.add(date.fromisoformat(op.date))
-                elif isinstance(op.date, date):
-                    affected_dates.add(op.date)
-
-        return affected_dates
-
-    def _create_operation_summary(
-        self,
-        results: List[OperationResult],
-        successful: int,
-        failed: int,
-        skipped: int,
-    ) -> Dict[str, Any]:
-        """
-        Create summary of bulk operation results.
-
-        Args:
-            results: List of operation results
-            successful: Number of successful operations
-            failed: Number of failed operations
-            skipped: Number of skipped operations
-
-        Returns:
-            Summary dictionary
-        """
-        return {
-            "successful": successful,
-            "failed": failed,
-            "skipped": skipped,
-            "results": results,
-        }
 
     def _generate_validation_summary(self, validation_results: List[ValidationSlotDetail]) -> ValidationSummary:
         """Generate summary from validation results."""
