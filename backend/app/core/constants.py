@@ -37,14 +37,19 @@ DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturda
 
 # Frontend URLs
 ALLOWED_ORIGINS = [
+    # Local development
     "http://localhost:3000",
     "https://localhost:3000",  # HTTPS on standard port
     "https://localhost:3001",  # HTTPS on alternate port
     "http://localhost:8000",  # Backend HTTP
     "https://localhost:8001",  # Backend HTTPS
-    "https://instructly-ten.vercel.app",  # Legacy URL
+    # Current production URLs
+    "https://instructly-ten.vercel.app",  # Current frontend (Vercel)
+    "https://instructly.onrender.com",  # Current backend (Render)
+    # Future production URLs (keep for later migration)
     "https://instainstru.com",  # Future production URL
     "https://www.instainstru.com",  # Future production URL with www
+    # Vercel preview deployments
     "https://*.vercel.app",  # All Vercel preview deployments
 ]
 
