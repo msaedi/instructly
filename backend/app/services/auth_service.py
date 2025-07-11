@@ -4,6 +4,8 @@ Authentication Service for InstaInstru Platform
 
 Handles user registration, authentication, and user retrieval operations.
 Follows the service layer pattern to keep business logic out of routes.
+
+FIXED: Added @measure_operation decorators to all public methods
 """
 
 import logging
@@ -45,6 +47,7 @@ class AuthService(BaseService):
             db, InstructorProfile
         )
 
+    @BaseService.measure_operation("register_user")
     def register_user(self, email: str, password: str, full_name: str, role: UserRole) -> User:
         """
         Register a new user.
@@ -101,6 +104,7 @@ class AuthService(BaseService):
             self.logger.error(f"Error registering user {email}: {str(e)}")
             raise ValidationException(f"Error creating user: {str(e)}")
 
+    @BaseService.measure_operation("authenticate_user")
     def authenticate_user(self, email: str, password: str) -> Optional[User]:
         """
         Authenticate user by email and password.
@@ -126,6 +130,7 @@ class AuthService(BaseService):
         self.logger.info(f"Successful authentication for user: {email}")
         return user
 
+    @BaseService.measure_operation("get_user_by_email")
     def get_user_by_email(self, email: str) -> Optional[User]:
         """
         Get user by email address.
@@ -142,6 +147,7 @@ class AuthService(BaseService):
             self.logger.error(f"Error getting user by email {email}: {str(e)}")
             return None
 
+    @BaseService.measure_operation("get_user_by_id")
     def get_user_by_id(self, user_id: int) -> Optional[User]:
         """
         Get user by ID.
@@ -158,6 +164,7 @@ class AuthService(BaseService):
             self.logger.error(f"Error getting user by ID {user_id}: {str(e)}")
             return None
 
+    @BaseService.measure_operation("get_current_user")
     def get_current_user(self, email: str) -> User:
         """
         Get current user by email, raising exception if not found.
