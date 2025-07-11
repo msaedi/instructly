@@ -4,6 +4,11 @@ Template rendering service for InstaInstru platform.
 
 Provides centralized template rendering using Jinja2, supporting
 email templates and potentially other template types in the future.
+
+FIXED IN THIS VERSION:
+- Now extends BaseService for architectural consistency
+- Added performance metrics to all public methods
+- Maintains all existing functionality
 """
 
 import logging
@@ -12,23 +17,55 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
+from sqlalchemy.orm import Session
 
 from ..core.config import settings
 from ..core.constants import BRAND_NAME
+from .base import BaseService
 
 logger = logging.getLogger(__name__)
 
 
-class TemplateService:
+class TemplateService(BaseService):
     """
     Centralized template rendering service using Jinja2.
 
     This service handles all template rendering for the platform,
     providing a consistent interface and common context variables.
+
+    Now extends BaseService for:
+    - Consistent architecture across all services
+    - Performance metrics collection
+    - Standardized error handling
+    - Future cache integration capability
     """
 
-    def __init__(self):
-        """Initialize the template service with Jinja2 environment."""
+    def __init__(self, db: Optional[Session] = None, cache=None):
+        """
+        Initialize the template service with Jinja2 environment.
+
+        Args:
+            db: Optional database session (not used by TemplateService but required by BaseService)
+            cache: Optional cache service for future template caching
+        """
+        # For TemplateService, we don't actually need a DB session
+        # But BaseService requires one, so we'll handle it gracefully
+        if db is None:
+            # Create a minimal session just for BaseService compatibility
+            # This won't be used but satisfies the interface
+            from sqlalchemy import create_engine
+            from sqlalchemy.orm import sessionmaker
+
+            engine = create_engine("sqlite:///:memory:")
+            SessionLocal = sessionmaker(bind=engine)
+            db = SessionLocal()
+            self._owns_db = True
+        else:
+            self._owns_db = False
+
+        # Initialize BaseService
+        super().__init__(db, cache)
+
         # Get the template directory path
         template_dir = Path(__file__).parent.parent / "templates"
 
@@ -43,7 +80,12 @@ class TemplateService:
         # Add custom filters if needed
         self._register_custom_filters()
 
-        logger.info(f"Template service initialized with template directory: {template_dir}")
+        self.logger.info(f"Template service initialized with template directory: {template_dir}")
+
+    def __del__(self):
+        """Clean up the database session if we created it."""
+        if hasattr(self, "_owns_db") and self._owns_db and hasattr(self, "db"):
+            self.db.close()
 
     def _register_custom_filters(self):
         """Register any custom Jinja2 filters."""
@@ -73,6 +115,7 @@ class TemplateService:
 
         self.env.filters["format_time"] = format_time
 
+    @BaseService.measure_operation("get_common_context")
     def get_common_context(self) -> Dict[str, Any]:
         """
         Get common context variables used across all templates.
@@ -87,6 +130,7 @@ class TemplateService:
             "support_email": settings.from_email,
         }
 
+    @BaseService.measure_operation("render_template")
     def render_template(self, template_name: str, context: Optional[Dict[str, Any]] = None, **kwargs) -> str:
         """
         Render a template with the given context.
@@ -115,16 +159,17 @@ class TemplateService:
             # Render and return
             rendered = template.render(full_context)
 
-            logger.debug(f"Successfully rendered template: {template_name}")
+            self.logger.debug(f"Successfully rendered template: {template_name}")
             return rendered
 
         except TemplateNotFound:
-            logger.error(f"Template not found: {template_name}")
+            self.logger.error(f"Template not found: {template_name}")
             raise
         except Exception as e:
-            logger.error(f"Error rendering template {template_name}: {str(e)}")
+            self.logger.error(f"Error rendering template {template_name}: {str(e)}")
             raise
 
+    @BaseService.measure_operation("render_string")
     def render_string(self, template_string: str, context: Optional[Dict[str, Any]] = None, **kwargs) -> str:
         """
         Render a template from a string.
@@ -151,9 +196,10 @@ class TemplateService:
             return template.render(full_context)
 
         except Exception as e:
-            logger.error(f"Error rendering template string: {str(e)}")
+            self.logger.error(f"Error rendering template string: {str(e)}")
             raise
 
+    @BaseService.measure_operation("template_exists")
     def template_exists(self, template_name: str) -> bool:
         """
         Check if a template exists.
@@ -172,4 +218,5 @@ class TemplateService:
 
 
 # Create a singleton instance for easy import
+# TODO: Will be removed in Fix 3 (singleton removal)
 template_service = TemplateService()
