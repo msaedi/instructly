@@ -36,68 +36,68 @@ export interface AvailabilitySlotUpdate {
 
 // From availability_window.py
 export interface TimeSlot {
-  start_time: TimeType;
-  end_time: TimeType;
+  start_time: string;
+  end_time: string;
 }
 
 export interface AvailabilityWindowBase {
-  start_time: TimeType;
-  end_time: TimeType;
+  start_time: string;
+  end_time: string;
 }
 
 export interface AvailabilityWindowUpdate {
-  start_time?: TimeType | null;
-  end_time?: TimeType | null;
+  start_time?: string | null;
+  end_time?: string | null;
 }
 
 export interface AvailabilityWindowResponse {
   id: number;
   instructor_id: number;
-  specific_date: DateType;
-  start_time: TimeType;
-  end_time: TimeType;
+  specific_date: string;
+  start_time: string;
+  end_time: string;
 }
 
 export interface BlackoutDateCreate {
-  date: DateType;
+  date: string;
   reason?: string | null;
 }
 
 export interface BlackoutDateResponse {
   id: number;
   instructor_id: number;
-  date: DateType;
+  date: string;
   reason?: string | null;
-  created_at: DateTimeType;
+  created_at: string;
 }
 
 export interface TimeRange {
-  start_time: TimeType;
-  end_time: TimeType;
+  start_time: string;
+  end_time: string;
 }
 
 export interface WeekSpecificScheduleCreate {
   schedule: Record<string, any>[];
   clear_existing?: boolean;
-  week_start?: DateType | null;
+  week_start?: string | null;
 }
 
 export interface CopyWeekRequest {
-  from_week_start: DateType;
-  to_week_start: DateType;
+  from_week_start: string;
+  to_week_start: string;
 }
 
 export interface ApplyToDateRangeRequest {
-  from_week_start: DateType;
-  start_date: DateType;
-  end_date: DateType;
+  from_week_start: string;
+  start_date: string;
+  end_date: string;
 }
 
 export interface SlotOperation {
   action: string;
-  date?: DateType | null;
-  start_time?: TimeType | null;
-  end_time?: TimeType | null;
+  date?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
   slot_id?: number | null;
 }
 
@@ -124,9 +124,9 @@ export interface BulkUpdateResponse {
 export interface ValidationSlotDetail {
   operation_index: number;
   action: string;
-  date?: DateType | null;
-  start_time?: TimeType | null;
-  end_time?: TimeType | null;
+  date?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
   slot_id?: number | null;
   reason?: string | null;
   conflicts_with?: Record<string, any>[] | null;
@@ -151,7 +151,7 @@ export interface WeekValidationResponse {
 export interface ValidateWeekRequest {
   current_week: Record<string, TimeSlot[]>;
   saved_week: Record<string, TimeSlot[]>;
-  week_start: DateType;
+  week_start: string;
 }
 
 // From base.py
@@ -185,8 +185,8 @@ export interface BookingBase {
   start_time: string;
   end_time: string;
   service_name: string;
-  hourly_rate: Money;
-  total_price: Money;
+  hourly_rate: number;
+  total_price: number;
   duration_minutes: number;
   status: BookingStatus;
   service_area: string | null;
@@ -239,7 +239,7 @@ export interface AvailabilityCheckResponse {
   available: boolean;
   reason?: string | null;
   min_advance_hours?: number | null;
-  conflicts_with?: dict[] | null;
+  conflicts_with?: Record<string, any>[] | null;
 }
 
 export interface BookingStatsResponse {
@@ -247,8 +247,8 @@ export interface BookingStatsResponse {
   upcoming_bookings: number;
   completed_bookings: number;
   cancelled_bookings: number;
-  total_earnings: Money;
-  this_month_earnings: Money;
+  total_earnings: number;
+  this_month_earnings: number;
   average_rating?: number | null;
 }
 
@@ -281,13 +281,13 @@ export interface BookingOpportunity {
 export interface FindBookingOpportunitiesResponse {
   opportunities: BookingOpportunity[];
   total_found: number;
-  search_parameters: dict;
+  search_parameters: Record<string, any>;
 }
 
 // From instructor.py
 export interface ServiceBase {
   skill: string;
-  hourly_rate: Money;
+  hourly_rate: number;
   description?: string | null;
   duration_override?: number | null;
 }
@@ -455,19 +455,103 @@ export function getAuthHeaders(token: string): AuthHeaders {
   };
 }
 
+// Custom Type Aliases
+export type Money = number; // Monetary values (serialized as float)
+export type DateType = string; // ISO date string (YYYY-MM-DD)
+export type TimeType = string; // Time string (HH:MM:SS)
+export type DateTimeType = string; // ISO datetime string
+
+// Missing Interfaces (manually added)
+
+export interface ServiceCreate {
+  skill: string;
+  hourly_rate: Money;
+  description?: string | null;
+  duration_override?: number | null;
+}
+
+export interface ServiceResponse {
+  id: number;
+  skill: string;
+  hourly_rate: Money;
+  description?: string | null;
+  duration_override?: number | null;
+  duration: number;
+}
+
+export interface BookingResponse {
+  id: number;
+  student_id: number;
+  instructor_id: number;
+  service_id: number;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  service_name: string;
+  hourly_rate: Money;
+  total_price: Money;
+  duration_minutes: number;
+  status: BookingStatus;
+  service_area?: string | null;
+  meeting_location?: string | null;
+  location_type?: string | null;
+  student_note?: string | null;
+  instructor_note?: string | null;
+  created_at: string;
+  confirmed_at?: string | null;
+  completed_at?: string | null;
+  cancelled_at?: string | null;
+  cancelled_by_id?: number | null;
+  cancellation_reason?: string | null;
+  student?: StudentInfo;
+  instructor?: InstructorInfo;
+  service?: ServiceInfo;
+}
+
+export interface InstructorProfileCreate {
+  bio: string;
+  areas_of_service: string[];
+  years_experience: number;
+  min_advance_booking_hours?: number;
+  buffer_time_minutes?: number;
+  services: ServiceCreate[];
+}
+
+export interface InstructorProfileResponse {
+  id: number;
+  user_id: number;
+  created_at: string;
+  updated_at?: string | null;
+  user: UserBasic;
+  services: ServiceResponse[];
+  bio: string;
+  areas_of_service: string[];
+  years_experience: number;
+  min_advance_booking_hours?: number;
+  buffer_time_minutes?: number;
+}
+
 // Date/Time Helpers
 
-export function formatDate(date: Date): string {
+export function formatDate(date: Date): DateType {
   return date.toISOString().split('T')[0];
 }
 
-export function formatTime(date: Date): string {
+export function formatTime(date: Date): TimeType {
   return date.toTimeString().split(' ')[0];
 }
 
-export function parseTime(timeStr: string): Date {
+export function parseTime(timeStr: TimeType): Date {
   const [hours, minutes, seconds] = timeStr.split(':').map(Number);
   const date = new Date();
   date.setHours(hours, minutes, seconds || 0, 0);
   return date;
+}
+
+export function parseDate(dateStr: DateType): Date {
+  return new Date(dateStr + 'T00:00:00');
+}
+
+export function parseDateTime(dateTimeStr: DateTimeType): Date {
+  return new Date(dateTimeStr);
 }
