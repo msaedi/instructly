@@ -14,8 +14,8 @@ from sqlalchemy.orm import Session
 from app.services.base import BaseService
 
 
-class TestServiceExample(BaseService):
-    """Test service for metrics testing."""
+class ExampleService(BaseService):
+    """Example service for metrics testing."""
 
     @BaseService.measure_operation("fast_operation")
     def fast_operation(self):
@@ -64,7 +64,7 @@ class TestBaseServiceMetrics:
     @pytest.fixture
     def test_service(self, mock_db):
         """Create a test service instance."""
-        return TestServiceExample(mock_db)
+        return ExampleService(mock_db)
 
     def test_decorator_metrics_collection(self, test_service):
         """Test that decorator properly collects metrics."""
@@ -204,7 +204,7 @@ class TestMetricsIntegration:
         """Create a mock booking service with metrics."""
 
         # Create a test service class with metrics already applied
-        class TestBookingService(BaseService):
+        class MockBookingService(BaseService):
             def __init__(self, db):
                 super().__init__(db)
                 self.repository = Mock()
@@ -217,7 +217,7 @@ class TestMetricsIntegration:
                 # This would normally call the repository methods
                 return {"available": True, "reason": None, "min_advance_hours": 2}
 
-        return TestBookingService(mock_db)
+        return MockBookingService(mock_db)
 
     @pytest.mark.skip(reason="Integration test - metrics already verified working")
     @pytest.mark.asyncio

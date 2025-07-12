@@ -357,7 +357,7 @@ class BulkOperationService(BaseService):
 
         return {
             "valid": summary.invalid_operations == 0,
-            "summary": summary.dict(),
+            "summary": summary.model_dump(),
             "details": validation_results,
             "warnings": warnings,
         }

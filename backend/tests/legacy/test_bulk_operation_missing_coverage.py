@@ -505,9 +505,6 @@ class TestBulkOperationMissingCoverage:
         print(f"  hasattr strftime: {hasattr(slot.start_time, 'strftime')}")
 
         # Check if it's a Pydantic model
-        if hasattr(slot, "dict"):
-            print(f"\n[DEBUG] As dict: {slot.dict()}")
-
         if hasattr(slot, "model_dump"):
             print(f"\n[DEBUG] As model_dump: {slot.model_dump()}")
 

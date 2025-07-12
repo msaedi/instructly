@@ -386,7 +386,7 @@ class TestCleanArchitectureVerification:
         db.flush()
 
         # Booking should still exist ("person remains")
-        booking = db.query(Booking).get(booking_id)
+        booking = db.get(Booking, booking_id)
         assert booking is not None
         assert booking.start_time == time(15, 0)
         assert booking.end_time == time(16, 0)
@@ -651,7 +651,7 @@ class TestArchitecturalIntegrity:
         # For now, we verify through model inspection
 
         booking_mapper = inspect(Booking)
-        for fk in booking_mapper.mapped_table.foreign_keys:
+        for fk in booking_mapper.selectable.foreign_keys:
             # Should not have any FK to availability_slots table
             assert fk.column.table.name != "availability_slots"
 

@@ -1057,7 +1057,7 @@ class TestBookingIntegration:
         # Verify status changed
         from app.models.booking import Booking
 
-        booking = db.query(Booking).get(booking_id)
+        booking = db.get(Booking, booking_id)
         assert booking.status == BookingStatus.COMPLETED
 
     @pytest.mark.asyncio

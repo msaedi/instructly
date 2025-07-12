@@ -456,7 +456,7 @@ class TestRepositoryIntegration:
         db.flush()
 
         # Booking should still exist (layer independence)
-        booking_check = db.query(Booking).get(booking.id)
+        booking_check = db.get(Booking, booking.id)
         assert booking_check is not None
         assert booking_check.start_time == time(10, 0)
 

@@ -24,8 +24,7 @@ class PublicTimeSlot(BaseModel):
     start_time: str = Field(description="Start time in HH:MM format")
     end_time: str = Field(description="End time in HH:MM format")
 
-    class Config:
-        json_schema_extra = {"example": {"start_time": "09:00", "end_time": "10:00"}}
+    model_config = ConfigDict(json_schema_extra={"example": {"start_time": "09:00", "end_time": "10:00"}})
 
 
 class PublicDayAvailability(BaseModel):
@@ -37,8 +36,8 @@ class PublicDayAvailability(BaseModel):
     )
     is_blackout: bool = Field(default=False, description="Whether this date is completely unavailable")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "date": "2025-07-15",
                 "available_slots": [
@@ -48,6 +47,7 @@ class PublicDayAvailability(BaseModel):
                 "is_blackout": False,
             }
         }
+    )
 
 
 class PublicInstructorAvailability(BaseModel):

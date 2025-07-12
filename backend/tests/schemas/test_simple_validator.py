@@ -7,7 +7,9 @@ import pytest
 from pydantic import BaseModel, ValidationError, field_validator
 
 
-class TestModel(BaseModel):
+class TimeRangeModel(BaseModel):
+    """Model for testing time range validation."""
+
     start_time: time
     end_time: time
 
@@ -24,12 +26,12 @@ class TestModel(BaseModel):
 def test_pydantic_v2_validator():
     """Test that our validator syntax works."""
     # Valid case
-    model = TestModel(start_time=time(9, 0), end_time=time(10, 0))
+    model = TimeRangeModel(start_time=time(9, 0), end_time=time(10, 0))
     assert model.start_time < model.end_time
 
     # Invalid case
     with pytest.raises(ValidationError) as exc:
-        TestModel(start_time=time(10, 0), end_time=time(9, 0))
+        TimeRangeModel(start_time=time(10, 0), end_time=time(9, 0))
 
     errors = exc.value.errors()
     assert len(errors) == 1

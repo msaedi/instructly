@@ -406,7 +406,7 @@ def get_blackout_dates(
 
     try:
         blackout_dates = availability_service.get_blackout_dates(instructor_id=current_user.id)
-        return [BlackoutDateResponse.from_orm(bd) for bd in blackout_dates]
+        return [BlackoutDateResponse.model_validate(bd) for bd in blackout_dates]
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:
@@ -425,7 +425,7 @@ def add_blackout_date(
 
     try:
         result = availability_service.add_blackout_date(instructor_id=current_user.id, blackout_data=blackout_data)
-        return BlackoutDateResponse.from_orm(result)
+        return BlackoutDateResponse.model_validate(result)
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:
