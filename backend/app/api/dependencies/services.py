@@ -36,17 +36,37 @@ def get_cache_service_singleton() -> CacheService:
     return get_cache_service()
 
 
-def get_notification_service(db: Session = Depends(get_db)) -> NotificationService:
+def get_cache_service_dep() -> CacheService:
+    """Get cache service instance for dependency injection."""
+    return get_cache_service_singleton()
+
+
+def get_email_service(
+    db: Session = Depends(get_db), cache: CacheService = Depends(get_cache_service_dep)
+) -> EmailService:
+    """Get EmailService instance with proper dependencies."""
+    return EmailService(db, cache)
+
+
+def get_notification_service(
+    db: Session = Depends(get_db), email_service: EmailService = Depends(get_email_service)
+) -> NotificationService:
     """
     Get notification service instance.
 
     Args:
         db: Database session
+        email_service: Email service for sending emails
 
     Returns:
         NotificationService instance
     """
-    return NotificationService(db)
+    # Create template service internally
+    from ...services.template_service import TemplateService
+
+    template_service = TemplateService(db, None)
+
+    return NotificationService(db, None, template_service, email_service)
 
 
 def get_booking_service(
@@ -64,11 +84,6 @@ def get_booking_service(
         BookingService instance
     """
     return BookingService(db, notification_service)
-
-
-def get_cache_service_dep() -> CacheService:
-    """Get cache service instance for dependency injection."""
-    return get_cache_service_singleton()
 
 
 def get_instructor_service(
@@ -194,11 +209,6 @@ def get_presentation_service(db: Session = Depends(get_db)) -> PresentationServi
 def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
     """Get AuthService instance."""
     return AuthService(db)
-
-
-def get_email_service() -> EmailService:
-    """Get EmailService instance."""
-    return EmailService()
 
 
 def get_password_reset_service(

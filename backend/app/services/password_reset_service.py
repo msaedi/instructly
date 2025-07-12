@@ -44,7 +44,10 @@ class PasswordResetService(BaseService):
         self.logger = logging.getLogger(__name__)
 
         # Initialize email service using dependency injection
-        self.email_service = email_service or EmailService()
+        if email_service is None:
+            self.email_service = EmailService(db, cache_service)
+        else:
+            self.email_service = email_service
 
         # Initialize repositories using BaseRepository
         self.user_repository = user_repository or RepositoryFactory.create_base_repository(db, User)

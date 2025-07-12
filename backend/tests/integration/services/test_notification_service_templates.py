@@ -8,20 +8,12 @@ as the original embedded HTML version.
 """
 
 from datetime import date, datetime, time, timedelta
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User
-
-
-@pytest.fixture
-def mock_email_service():
-    """Mock email service for testing."""
-    mock = Mock()
-    mock.send_email = Mock(return_value=True)
-    return mock
 
 
 @pytest.fixture
@@ -103,35 +95,40 @@ class TestTemplateRendering:
 class TestBookingConfirmation:
     """Test booking confirmation email functionality."""
 
+    @pytest.fixture(autouse=True)
+    def reset_mock(self, notification_service_with_mocked_email):
+        """Reset the email service mock before each test."""
+        notification_service_with_mocked_email.email_service.send_email.reset_mock()
+        yield
+
     @pytest.mark.asyncio
-    async def test_send_booking_confirmation_success(
-        self, notification_service_with_mocked_email, mock_email_service, test_booking
-    ):
+    async def test_send_booking_confirmation_success(self, notification_service_with_mocked_email, test_booking):
         """Test successful booking confirmation sends both emails."""
         result = await notification_service_with_mocked_email.send_booking_confirmation(test_booking)
 
         assert result is True
-        assert mock_email_service.send_email.call_count == 2
+        # Check the email service that's inside the notification service
+        assert notification_service_with_mocked_email.email_service.send_email.call_count == 2
 
         # Check student email
-        student_call = mock_email_service.send_email.call_args_list[0]
+        student_call = notification_service_with_mocked_email.email_service.send_email.call_args_list[0]
         assert student_call.kwargs["to_email"] == test_booking.student.email
         assert "Booking Confirmed" in student_call.kwargs["subject"]
 
         # Check instructor email
-        instructor_call = mock_email_service.send_email.call_args_list[1]
+        instructor_call = notification_service_with_mocked_email.email_service.send_email.call_args_list[1]
         assert instructor_call.kwargs["to_email"] == test_booking.instructor.email
         assert "New Booking" in instructor_call.kwargs["subject"]
 
     @pytest.mark.asyncio
-    async def test_booking_confirmation_content(
-        self, notification_service_with_mocked_email, mock_email_service, test_booking
-    ):
+    async def test_booking_confirmation_content(self, notification_service_with_mocked_email, test_booking):
         """Test that confirmation emails contain correct content."""
         await notification_service_with_mocked_email.send_booking_confirmation(test_booking)
 
         # Check student email content
-        student_html = mock_email_service.send_email.call_args_list[0].kwargs["html_content"]
+        student_html = notification_service_with_mocked_email.email_service.send_email.call_args_list[0].kwargs[
+            "html_content"
+        ]
         assert test_booking.student.full_name in student_html
         assert test_booking.service_name in student_html
         assert test_booking.meeting_location in student_html
@@ -145,54 +142,64 @@ class TestBookingConfirmation:
 class TestCancellationNotification:
     """Test cancellation notification functionality."""
 
+    @pytest.fixture(autouse=True)
+    def reset_mock(self, notification_service_with_mocked_email):
+        """Reset the email service mock before each test."""
+        notification_service_with_mocked_email.email_service.send_email.reset_mock()
+        yield
+
     @pytest.mark.asyncio
-    async def test_student_cancellation(self, notification_service_with_mocked_email, mock_email_service, test_booking):
+    async def test_student_cancellation(self, notification_service_with_mocked_email, test_booking):
         """Test when student cancels booking."""
         result = await notification_service_with_mocked_email.send_cancellation_notification(
             booking=test_booking, cancelled_by=test_booking.student, reason="Schedule conflict"
         )
 
         assert result is True
-        assert mock_email_service.send_email.call_count == 2
+        assert notification_service_with_mocked_email.email_service.send_email.call_count == 2
 
         # Instructor should get cancellation notification
-        instructor_call = mock_email_service.send_email.call_args_list[0]
+        instructor_call = notification_service_with_mocked_email.email_service.send_email.call_args_list[0]
         assert instructor_call.kwargs["to_email"] == test_booking.instructor.email
         instructor_html = instructor_call.kwargs["html_content"]
         assert "Schedule conflict" in instructor_html
 
         # Student should get confirmation
-        student_call = mock_email_service.send_email.call_args_list[1]
+        student_call = notification_service_with_mocked_email.email_service.send_email.call_args_list[1]
         assert student_call.kwargs["to_email"] == test_booking.student.email
 
     @pytest.mark.asyncio
-    async def test_instructor_cancellation(
-        self, notification_service_with_mocked_email, mock_email_service, test_booking
-    ):
+    async def test_instructor_cancellation(self, notification_service_with_mocked_email, test_booking):
         """Test when instructor cancels booking."""
         result = await notification_service_with_mocked_email.send_cancellation_notification(
             booking=test_booking, cancelled_by=test_booking.instructor, reason="Emergency"
         )
 
         assert result is True
-        assert mock_email_service.send_email.call_count == 2
+        assert notification_service_with_mocked_email.email_service.send_email.call_count == 2
 
         # Student should get cancellation notification
-        student_call = mock_email_service.send_email.call_args_list[0]
+        student_call = notification_service_with_mocked_email.email_service.send_email.call_args_list[0]
         assert student_call.kwargs["to_email"] == test_booking.student.email
         student_html = student_call.kwargs["html_content"]
         assert "Emergency" in student_html
 
         # Instructor should get confirmation
-        instructor_call = mock_email_service.send_email.call_args_list[1]
+        instructor_call = notification_service_with_mocked_email.email_service.send_email.call_args_list[1]
         assert instructor_call.kwargs["to_email"] == test_booking.instructor.email
 
 
 class TestReminderEmails:
     """Test reminder email functionality."""
 
+    @pytest.fixture(autouse=True)
+    def reset_mock(self, notification_service_with_mocked_email):
+        """Reset the email service mock before each test."""
+        notification_service_with_mocked_email.email_service.send_email.reset_mock()
+        yield
+
     @pytest.mark.asyncio
-    async def test_send_reminders(self, notification_service_with_mocked_email, mock_email_service, test_booking):
+    async def test_send_reminders(self, notification_service_with_mocked_email, test_booking):
         """Test reminder emails are sent correctly."""
         # Test individual reminder methods
         result = await notification_service_with_mocked_email._send_student_reminder(test_booking)
@@ -201,10 +208,10 @@ class TestReminderEmails:
         result = await notification_service_with_mocked_email._send_instructor_reminder(test_booking)
         assert result is True
 
-        assert mock_email_service.send_email.call_count == 2
+        assert notification_service_with_mocked_email.email_service.send_email.call_count == 2
 
         # Check content
-        for call in mock_email_service.send_email.call_args_list:
+        for call in notification_service_with_mocked_email.email_service.send_email.call_args_list:
             html = call.kwargs["html_content"]
             assert "tomorrow" in html.lower()
             assert test_booking.service_name in html
@@ -247,12 +254,16 @@ class TestTemplateVariables:
 class TestErrorHandling:
     """Test error handling in notification service."""
 
+    @pytest.fixture(autouse=True)
+    def reset_mock(self, notification_service_with_mocked_email):
+        """Reset the email service mock before each test."""
+        notification_service_with_mocked_email.email_service.send_email.reset_mock()
+        yield
+
     @pytest.mark.asyncio
-    async def test_handles_email_service_failure(
-        self, notification_service_with_mocked_email, mock_email_service, test_booking
-    ):
+    async def test_handles_email_service_failure(self, notification_service_with_mocked_email, test_booking):
         """Test graceful handling when email service fails."""
-        mock_email_service.send_email.side_effect = Exception("Email service down")
+        notification_service_with_mocked_email.email_service.send_email.side_effect = Exception("Email service down")
 
         result = await notification_service_with_mocked_email.send_booking_confirmation(test_booking)
         assert result is False  # Should return False on failure
@@ -260,6 +271,11 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_handles_template_error(self, notification_service_with_mocked_email, test_booking, template_service):
         """Test handling of template rendering errors."""
-        with patch.object(template_service, "render_template", side_effect=Exception("Template error")):
+        # We need to patch the template service that's inside the notification service
+        with patch.object(
+            notification_service_with_mocked_email.template_service,
+            "render_template",
+            side_effect=Exception("Template error"),
+        ):
             result = await notification_service_with_mocked_email.send_booking_confirmation(test_booking)
             assert result is False

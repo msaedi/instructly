@@ -46,7 +46,6 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service import Service
 from app.models.user import User, UserRole
-from app.services.notification_service import NotificationService
 from app.services.template_service import TemplateService
 
 # ============================================================================
@@ -474,15 +473,39 @@ def test_instructor_with_inactive_service(db: Session, test_instructor: User) ->
 
 
 @pytest.fixture
+def mock_cache():
+    """Mock cache service for testing."""
+    mock = Mock()
+    mock.get = Mock(return_value=None)
+    mock.set = Mock(return_value=True)
+    mock.delete = Mock(return_value=True)
+    mock.delete_pattern = Mock(return_value=0)
+    return mock
+
+
+@pytest.fixture
+def email_service(db: Session, mock_cache):
+    """Create EmailService with dependencies."""
+    from app.services.email import EmailService
+
+    service = EmailService(db, mock_cache)
+    # Mock the actual sending to prevent real emails in tests
+    service.send_email = Mock(return_value={"id": "test-email-id", "status": "sent"})
+    return service
+
+
+@pytest.fixture
 def template_service(db: Session):
     """Create a TemplateService instance for testing."""
     return TemplateService(db, None)
 
 
 @pytest.fixture
-def notification_service(db: Session, template_service):
+def notification_service(db: Session, template_service, email_service):
     """Create a NotificationService instance for testing."""
-    return NotificationService(db, None, template_service)
+    from app.services.notification_service import NotificationService
+
+    return NotificationService(db, None, template_service, email_service)
 
 
 @pytest.fixture
@@ -494,17 +517,16 @@ def mock_email_service():
 
 
 @pytest.fixture
-def mock_notification_service(db: Session, template_service):
+def mock_notification_service(db: Session, template_service, email_service):
     """
     Create a NotificationService with mocked email sending.
     This replaces the old mock_notification_service fixture.
     """
-    service = NotificationService(db, None, template_service)
+    from app.services.notification_service import NotificationService
 
-    # Mock the email service to avoid sending real emails
-    service.email_service = Mock()
-    service.email_service.send_email = Mock(return_value={"id": "test-email-id", "status": "sent"})
+    service = NotificationService(db, None, template_service, email_service)
 
+    # The email service is already mocked in the email_service fixture
     # Also create async mocks for the main methods
     service.send_booking_confirmation = AsyncMock(return_value=True)
     service.send_cancellation_notification = AsyncMock(return_value=True)
@@ -514,8 +536,9 @@ def mock_notification_service(db: Session, template_service):
 
 
 @pytest.fixture
-def notification_service_with_mocked_email(db: Session, template_service, mock_email_service):
+def notification_service_with_mocked_email(db: Session, template_service, email_service):
     """Create a NotificationService with real template rendering but mocked email sending."""
-    service = NotificationService(db, None, template_service)
-    service.email_service = mock_email_service
-    return service
+    from app.services.notification_service import NotificationService
+
+    # email_service fixture already has mocked send_email
+    return NotificationService(db, None, template_service, email_service)

@@ -29,7 +29,7 @@ from ..core.exceptions import ServiceException
 from ..models.booking import Booking
 from ..models.user import User
 from ..services.base import BaseService
-from ..services.email import email_service
+from ..services.email import EmailService
 from ..services.template_service import TemplateService
 
 logger = logging.getLogger(__name__)
@@ -82,7 +82,13 @@ class NotificationService(BaseService):
     and standardized error handling. Uses dependency injection for TemplateService.
     """
 
-    def __init__(self, db: Optional[Session] = None, cache=None, template_service: Optional[TemplateService] = None):
+    def __init__(
+        self,
+        db: Optional[Session] = None,
+        cache=None,
+        template_service: Optional[TemplateService] = None,
+        email_service: Optional[EmailService] = None,
+    ):
         """
         Initialize the notification service.
 
@@ -90,6 +96,7 @@ class NotificationService(BaseService):
             db: Optional database session for loading additional data
             cache: Optional cache service (not used but kept for consistency)
             template_service: Optional TemplateService instance (will create if not provided)
+            email_service: Optional EmailService instance (will create if not provided)
         """
         # Initialize BaseService with a dummy session if none provided
         # This maintains compatibility with the original interface
@@ -103,7 +110,14 @@ class NotificationService(BaseService):
 
         super().__init__(db, cache)
 
-        self.email_service = email_service
+        # Use dependency injection for EmailService
+        if email_service is None:
+            # Create our own instance if not provided
+            self.email_service = EmailService(db, cache)
+            self._owns_email_service = True
+        else:
+            self.email_service = email_service
+            self._owns_email_service = False
 
         # Use dependency injection for TemplateService
         if template_service is None:

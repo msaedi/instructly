@@ -1,0 +1,168 @@
+# backend/tests/unit/services/test_email_service.py
+"""
+Unit tests for the refactored EmailService.
+
+Tests the EmailService extends BaseService properly and uses dependency injection.
+"""
+
+from unittest.mock import patch
+
+import pytest
+
+from app.core.exceptions import ServiceException
+from app.services.email import EmailService
+
+
+class TestEmailService:
+    """Test the refactored EmailService."""
+
+    @pytest.fixture(autouse=True)
+    def reset_metrics(self):
+        """Reset BaseService metrics before each test."""
+        from app.services.base import BaseService
+
+        BaseService._class_metrics.clear()
+        yield
+
+    def test_email_service_extends_base_service(self, db, mock_cache):
+        """Test that EmailService properly extends BaseService."""
+        service = EmailService(db, mock_cache)
+
+        # Should have BaseService methods
+        assert hasattr(service, "transaction")
+        assert hasattr(service, "measure_operation")
+        assert hasattr(service, "get_metrics")
+        assert hasattr(service, "log_operation")
+
+    def test_email_service_initialization(self, db, mock_cache):
+        """Test EmailService initialization with dependencies."""
+        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+            service = EmailService(db, mock_cache)
+
+            assert service.db == db
+            assert service.cache == mock_cache
+            assert service.from_email is not None
+
+    def test_email_service_no_api_key_raises_exception(self, db, mock_cache):
+        """Test that missing API key raises ServiceException."""
+        with patch("app.core.config.settings.resend_api_key", None):
+            with pytest.raises(ServiceException, match="Resend API key not configured"):
+                EmailService(db, mock_cache)
+
+    @patch("resend.Emails.send")
+    def test_send_email_success(self, mock_resend_send, db, mock_cache):
+        """Test successful email sending."""
+        # Mock Resend response
+        mock_resend_send.return_value = {"id": "test-email-id", "status": "sent"}
+
+        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+            service = EmailService(db, mock_cache)
+
+            result = service.send_email(
+                to_email="test@example.com", subject="Test Subject", html_content="<p>Test content</p>"
+            )
+
+            assert result["id"] == "test-email-id"
+            assert result["status"] == "sent"
+            mock_resend_send.assert_called_once()
+
+    @patch("resend.Emails.send")
+    def test_send_email_failure(self, mock_resend_send, db, mock_cache):
+        """Test email sending failure."""
+        # Mock Resend failure
+        mock_resend_send.side_effect = Exception("API Error")
+
+        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+            service = EmailService(db, mock_cache)
+
+            with pytest.raises(ServiceException, match="Email sending failed"):
+                service.send_email(
+                    to_email="test@example.com", subject="Test Subject", html_content="<p>Test content</p>"
+                )
+
+    @patch("resend.Emails.send")
+    async def test_send_password_reset_email(self, mock_resend_send, db, mock_cache):
+        """Test password reset email sending."""
+        mock_resend_send.return_value = {"id": "test-email-id", "status": "sent"}
+
+        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+            service = EmailService(db, mock_cache)
+
+            result = await service.send_password_reset_email(
+                to_email="test@example.com", reset_url="https://example.com/reset?token=abc123", user_name="Test User"
+            )
+
+            assert result is True
+            mock_resend_send.assert_called_once()
+
+            # Check email content
+            call_args = mock_resend_send.call_args[0][0]
+            assert "test@example.com" in call_args["to"]
+            assert "Reset Your" in call_args["subject"]
+            assert "Test User" in call_args["html"]
+            assert "abc123" in call_args["html"]
+
+    def test_validate_email_config_success(self, db, mock_cache):
+        """Test email configuration validation success."""
+        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+            service = EmailService(db, mock_cache)
+
+            result = service.validate_email_config()
+            assert result is True
+
+    def test_validate_email_config_no_api_key(self, db, mock_cache):
+        """Test email configuration validation with missing API key."""
+        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+            service = EmailService(db, mock_cache)
+
+        # Remove API key after initialization
+        with patch("app.core.config.settings.resend_api_key", None):
+            with pytest.raises(ServiceException, match="Resend API key not configured"):
+                service.validate_email_config()
+
+    def test_get_send_stats(self, db, mock_cache):
+        """Test getting email send statistics."""
+        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+            service = EmailService(db, mock_cache)
+
+            # Simulate some metrics
+            service._record_metric("send_email", 0.5, True)
+            service._record_metric("send_email", 0.3, True)
+            service._record_metric("send_email", 0.4, False)
+
+            stats = service.get_send_stats()
+
+            assert stats["emails_sent"] == 2
+            assert stats["emails_failed"] == 1
+            assert stats["success_rate"] == 2 / 3
+            assert stats["avg_send_time"] > 0
+
+    def test_metrics_decorator_applied(self, db, mock_cache):
+        """Test that measure_operation decorator is applied to methods."""
+        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+            service = EmailService(db, mock_cache)
+
+            # Check that methods have the decorator marker
+            assert hasattr(service.send_email, "_is_measured")
+            assert hasattr(service.send_password_reset_email, "_is_measured")
+            assert hasattr(service.send_password_reset_confirmation, "_is_measured")
+            assert hasattr(service.validate_email_config, "_is_measured")
+
+    @patch("resend.Emails.send")
+    def test_email_with_custom_from(self, mock_resend_send, db, mock_cache):
+        """Test sending email with custom from address."""
+        mock_resend_send.return_value = {"id": "test-email-id", "status": "sent"}
+
+        with patch("app.core.config.settings.resend_api_key", "test-api-key"):
+            service = EmailService(db, mock_cache)
+
+            service.send_email(
+                to_email="test@example.com",
+                subject="Test",
+                html_content="<p>Test</p>",
+                from_email="custom@example.com",
+                from_name="Custom Sender",
+            )
+
+            call_args = mock_resend_send.call_args[0][0]
+            assert call_args["from"] == "Custom Sender <custom@example.com>"
