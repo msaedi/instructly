@@ -19,7 +19,7 @@ from ..core.exceptions import ValidationException
 from ..models.password_reset import PasswordResetToken
 from ..models.user import User
 from ..repositories.factory import RepositoryFactory
-from ..services.email import email_service
+from ..services.email import EmailService
 from .base import BaseService
 
 if TYPE_CHECKING:
@@ -35,6 +35,7 @@ class PasswordResetService(BaseService):
         self,
         db: Session,
         cache_service: Optional["CacheService"] = None,
+        email_service: Optional[EmailService] = None,
         user_repository=None,
         token_repository=None,
     ):
@@ -42,10 +43,14 @@ class PasswordResetService(BaseService):
         super().__init__(db, cache=cache_service)
         self.logger = logging.getLogger(__name__)
 
+        # Initialize email service using dependency injection
+        self.email_service = email_service or EmailService()
+
         # Initialize repositories using BaseRepository
         self.user_repository = user_repository or RepositoryFactory.create_base_repository(db, User)
         self.token_repository = token_repository or RepositoryFactory.create_base_repository(db, PasswordResetToken)
 
+    @BaseService.measure_operation("request_password_reset")
     async def request_password_reset(self, email: str) -> bool:
         """
         Request a password reset for the given email.
@@ -76,7 +81,7 @@ class PasswordResetService(BaseService):
                     reset_url = f"{settings.frontend_url}/reset-password?token={token}"
 
                     # Send email asynchronously
-                    await email_service.send_password_reset_email(
+                    await self.email_service.send_password_reset_email(
                         to_email=user.email,
                         reset_url=reset_url,
                         user_name=user.full_name,
@@ -94,6 +99,7 @@ class PasswordResetService(BaseService):
         # Always return True to prevent email enumeration
         return True
 
+    @BaseService.measure_operation("verify_reset_token")
     def verify_reset_token(self, token: str) -> Tuple[bool, Optional[str]]:
         """
         Verify if a reset token is valid.
@@ -131,6 +137,7 @@ class PasswordResetService(BaseService):
 
         return (True, masked_email)
 
+    @BaseService.measure_operation("confirm_password_reset")
     async def confirm_password_reset(self, token: str, new_password: str) -> bool:
         """
         Complete password reset with token and new password.
@@ -179,7 +186,7 @@ class PasswordResetService(BaseService):
                 self.token_repository.update(reset_token.id, used=True)
 
                 # Send confirmation email
-                await email_service.send_password_reset_confirmation(
+                await self.email_service.send_password_reset_confirmation(
                     to_email=user.email,
                     user_name=user.full_name,
                 )

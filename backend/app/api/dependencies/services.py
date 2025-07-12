@@ -17,6 +17,7 @@ from ...services.booking_service import BookingService
 from ...services.bulk_operation_service import BulkOperationService
 from ...services.cache_service import CacheService, get_cache_service
 from ...services.conflict_checker import ConflictChecker
+from ...services.email import EmailService
 from ...services.instructor_service import InstructorService
 from ...services.notification_service import NotificationService
 from ...services.password_reset_service import PasswordResetService
@@ -195,6 +196,23 @@ def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
     return AuthService(db)
 
 
-def get_password_reset_service(db: Session = Depends(get_db)) -> PasswordResetService:
-    """Get PasswordResetService instance."""
-    return PasswordResetService(db)
+def get_email_service() -> EmailService:
+    """Get EmailService instance."""
+    return EmailService()
+
+
+def get_password_reset_service(
+    db: Session = Depends(get_db),
+    email_service: EmailService = Depends(get_email_service),
+) -> PasswordResetService:
+    """
+    Get PasswordResetService instance with dependencies.
+
+    Args:
+        db: Database session
+        email_service: Email service for sending reset emails
+
+    Returns:
+        PasswordResetService instance
+    """
+    return PasswordResetService(db, email_service=email_service)

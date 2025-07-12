@@ -2,10 +2,10 @@
 """
 Comprehensive test suite for password reset routes.
 Tests all endpoints and error scenarios.
-FIXED: Using FastAPI dependency overrides instead of mocking
+FIXED: Using proper dependency injection pattern with EmailService
 """
 
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from fastapi import status
@@ -13,6 +13,8 @@ from fastapi import status
 from app.api.dependencies.services import get_password_reset_service
 from app.core.exceptions import ValidationException
 from app.main import app
+from app.models.password_reset import PasswordResetToken
+from app.services.email import EmailService
 from app.services.password_reset_service import PasswordResetService
 
 
@@ -20,13 +22,25 @@ class TestPasswordResetRoutes:
     """Test password reset API endpoints."""
 
     @pytest.fixture
-    def mock_password_reset_service(self):
-        """Create a mock password reset service."""
-        mock_service = MagicMock(spec=PasswordResetService)
-        mock_service.request_password_reset = AsyncMock(return_value=True)
-        mock_service.confirm_password_reset = AsyncMock(return_value=True)
-        mock_service.verify_reset_token = Mock(return_value=(True, "te***@example.com"))
-        return mock_service
+    def mock_email_service(self):
+        """Create mock email service."""
+        mock = Mock(spec=EmailService)
+        mock.send_password_reset_email = AsyncMock(return_value=True)
+        mock.send_password_reset_confirmation = AsyncMock(return_value=True)
+        return mock
+
+    @pytest.fixture
+    def mock_password_reset_service(self, db, mock_email_service):
+        """Create a properly initialized mock password reset service."""
+        # Create real service with mocked email service
+        service = PasswordResetService(db, email_service=mock_email_service)
+
+        # Mock the public methods
+        service.request_password_reset = AsyncMock(return_value=True)
+        service.confirm_password_reset = AsyncMock(return_value=True)
+        service.verify_reset_token = Mock(return_value=(True, "te***@example.com"))
+
+        return service
 
     @pytest.fixture
     def client_with_mock_service(self, client, mock_password_reset_service):
@@ -220,51 +234,70 @@ class TestPasswordResetRoutes:
 class TestPasswordResetIntegration:
     """Integration tests for password reset flow."""
 
+    @pytest.fixture
+    def mock_email_service(self):
+        """Create mock email service for integration tests."""
+        mock = Mock(spec=EmailService)
+        mock.send_password_reset_email = AsyncMock(return_value=True)
+        mock.send_password_reset_confirmation = AsyncMock(return_value=True)
+        return mock
+
     @pytest.mark.asyncio
-    async def test_complete_password_reset_flow(self, client, db, test_student):
+    async def test_complete_password_reset_flow(self, client, db, test_student, mock_email_service):
         """Test complete password reset flow from request to confirmation."""
-        # Step 1: Request password reset
-        response = client.post("/auth/password-reset/request", json={"email": test_student.email})
-        assert response.status_code == status.HTTP_200_OK
 
-        # Step 2: Get the token from database
-        from app.models.password_reset import PasswordResetToken
+        # Override the password reset service to use mocked email
+        def override_get_password_reset_service():
+            return PasswordResetService(db, email_service=mock_email_service)
 
-        token_record = (
-            db.query(PasswordResetToken)
-            .filter_by(user_id=test_student.id)
-            .order_by(PasswordResetToken.created_at.desc())
-            .first()
-        )
+        app.dependency_overrides[get_password_reset_service] = override_get_password_reset_service
 
-        assert token_record is not None
-        assert token_record.used is False
+        try:
+            # Step 1: Request password reset
+            response = client.post("/auth/password-reset/request", json={"email": test_student.email})
+            assert response.status_code == status.HTTP_200_OK
 
-        # Step 3: Verify the token
-        response = client.get(f"/auth/password-reset/verify/{token_record.token}")
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert data["valid"] is True
+            # Step 2: Get the token from database
+            token_record = (
+                db.query(PasswordResetToken)
+                .filter_by(user_id=test_student.id)
+                .order_by(PasswordResetToken.created_at.desc())
+                .first()
+            )
 
-        # Step 4: Reset password with the token
-        new_password = "MyNewSecurePassword123!"
-        response = client.post(
-            "/auth/password-reset/confirm", json={"token": token_record.token, "new_password": new_password}
-        )
-        assert response.status_code == status.HTTP_200_OK
+            assert token_record is not None
+            assert token_record.used is False
 
-        # Verify token is now marked as used
-        db.refresh(token_record)
-        assert token_record.used is True
+            # Step 3: Verify the token
+            response = client.get(f"/auth/password-reset/verify/{token_record.token}")
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data["valid"] is True
 
-        # Step 5: Try to login with new password
-        response = client.post("/auth/login", data={"username": test_student.email, "password": new_password})
-        assert response.status_code == status.HTTP_200_OK
-        assert "access_token" in response.json()
+            # Step 4: Reset password with the token
+            new_password = "MyNewSecurePassword123!"
+            response = client.post(
+                "/auth/password-reset/confirm", json={"token": token_record.token, "new_password": new_password}
+            )
+            assert response.status_code == status.HTTP_200_OK
 
-        # Step 6: Verify old token cannot be reused
-        response = client.post(
-            "/auth/password-reset/confirm", json={"token": token_record.token, "new_password": "AnotherPassword123!"}
-        )
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "already been used" in response.json()["detail"]
+            # Verify token is now marked as used
+            db.refresh(token_record)
+            assert token_record.used is True
+
+            # Step 5: Try to login with new password
+            response = client.post("/auth/login", data={"username": test_student.email, "password": new_password})
+            assert response.status_code == status.HTTP_200_OK
+            assert "access_token" in response.json()
+
+            # Step 6: Verify old token cannot be reused
+            response = client.post(
+                "/auth/password-reset/confirm",
+                json={"token": token_record.token, "new_password": "AnotherPassword123!"},
+            )
+            assert response.status_code == status.HTTP_400_BAD_REQUEST
+            assert "already been used" in response.json()["detail"]
+
+        finally:
+            # Clean up the override
+            app.dependency_overrides.clear()
