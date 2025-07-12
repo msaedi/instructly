@@ -9,7 +9,7 @@ UPDATED FOR WORK STREAM #10: Single-table availability design.
 UPDATED FOR WORK STREAM #11: Time-based booking (no slot IDs).
 """
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, time, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -282,12 +282,13 @@ class TestBookingServiceUnit:
     ):
         """Test minimum advance booking hours validation."""
         # Set booking to be too soon
+        # Use fixed times to avoid midnight wrap-around issues
         booking_data = BookingCreate(
             instructor_id=2,
             service_id=1,
             booking_date=date.today(),
-            start_time=(datetime.now() + timedelta(hours=1)).time(),
-            end_time=(datetime.now() + timedelta(hours=2)).time(),
+            start_time=time(10, 0),  # 10:00 AM
+            end_time=time(11, 0),  # 11:00 AM
         )
 
         # Mock repository responses
