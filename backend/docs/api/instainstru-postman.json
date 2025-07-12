@@ -1,0 +1,891 @@
+{
+  "info": {
+    "name": "InstaInstru API",
+    "description": "Complete API collection for InstaInstru - The Uber of instruction platform.\n\nThis collection includes all endpoints for authentication, instructor management, availability scheduling, and booking operations.\n\n## Getting Started\n\n1. Import this collection into Postman\n2. Import the environment variables\n3. Register a new user or use test credentials\n4. Login to get an access token (automatically saved)\n5. Start making API calls!\n\n## Test Accounts\n\nAll test accounts use password: `TestPassword123!`\n\n**Instructors**:\n- sarah.chen@example.com\n- michael.rodriguez@example.com\n\n**Students**:\n- john.smith@example.com\n- emma.johnson@example.com",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://instructly.onrender.com",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "instructor_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "booking_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "service_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "slot_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register Student",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has user data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('email');",
+                  "    pm.expect(jsonData.role).to.eql('student');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test.student@example.com\",\n  \"password\": \"TestPassword123!\",\n  \"full_name\": \"Test Student\",\n  \"role\": \"student\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Register a new student account. Rate limited to 10 per hour per IP."
+          }
+        },
+        {
+          "name": "Register Instructor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has user data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData.role).to.eql('instructor');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test.instructor@example.com\",\n  \"password\": \"TestPassword123!\",\n  \"full_name\": \"Test Instructor\",\n  \"role\": \"instructor\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Register a new instructor account."
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has access token\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('access_token');",
+                  "    pm.expect(jsonData.token_type).to.eql('bearer');",
+                  "    ",
+                  "    // Save token for subsequent requests",
+                  "    pm.collectionVariables.set(\"access_token\", jsonData.access_token);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "username",
+                  "value": "sarah.chen@example.com",
+                  "description": "Email address"
+                },
+                {
+                  "key": "password",
+                  "value": "TestPassword123!"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Login with email and password. Rate limited to 5 per minute per IP."
+          }
+        },
+        {
+          "name": "Get Current User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has user data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('email');",
+                  "    pm.expect(jsonData).to.have.property('role');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "me"]
+            },
+            "description": "Get information about the authenticated user."
+          }
+        },
+        {
+          "name": "Request Password Reset",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/password-reset/request",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "password-reset", "request"]
+            },
+            "description": "Request a password reset email. Always returns success to prevent email enumeration. Rate limited to 3 per hour per email."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Instructors",
+      "item": [
+        {
+          "name": "List All Instructors",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is an array\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});",
+                  "",
+                  "// Save first instructor ID for later use",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.length > 0) {",
+                  "    pm.collectionVariables.set(\"instructor_id\", jsonData[0].user_id);",
+                  "    if (jsonData[0].services && jsonData[0].services.length > 0) {",
+                  "        pm.collectionVariables.set(\"service_id\", jsonData[0].services[0].id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/instructors?skip=0&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["instructors"],
+              "query": [
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Get a list of all instructor profiles with their services. No authentication required."
+          }
+        },
+        {
+          "name": "Create Instructor Profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bio\": \"Experienced piano teacher with 10 years of teaching students of all ages. Specializing in classical and jazz piano.\",\n  \"areas_of_service\": [\"Manhattan\", \"Brooklyn\"],\n  \"years_experience\": 10,\n  \"min_advance_booking_hours\": 24,\n  \"buffer_time_minutes\": 15,\n  \"services\": [\n    {\n      \"skill\": \"Piano\",\n      \"hourly_rate\": 80.00,\n      \"description\": \"Classical and jazz piano lessons for all levels\",\n      \"duration_override\": 60\n    },\n    {\n      \"skill\": \"Music Theory\",\n      \"hourly_rate\": 60.00,\n      \"description\": \"Comprehensive music theory instruction\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/instructors/profile",
+              "host": ["{{base_url}}"],
+              "path": ["instructors", "profile"]
+            },
+            "description": "Create a new instructor profile. This converts a regular user to an instructor."
+          }
+        },
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/instructors/profile",
+              "host": ["{{base_url}}"],
+              "path": ["instructors", "profile"]
+            },
+            "description": "Get the current instructor's profile. Must be authenticated as an instructor."
+          }
+        },
+        {
+          "name": "Update Instructor Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bio\": \"Updated bio with more information about my teaching experience and methods.\",\n  \"years_experience\": 11,\n  \"areas_of_service\": [\"Manhattan\", \"Brooklyn\", \"Queens\"],\n  \"services\": [\n    {\n      \"skill\": \"Piano\",\n      \"hourly_rate\": 90.00,\n      \"description\": \"Updated: Classical, jazz, and contemporary piano lessons\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/instructors/profile",
+              "host": ["{{base_url}}"],
+              "path": ["instructors", "profile"]
+            },
+            "description": "Update instructor profile. Services with existing bookings will be soft-deleted rather than removed."
+          }
+        },
+        {
+          "name": "Get Instructor by ID",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/instructors/{{instructor_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["instructors", "{{instructor_id}}"]
+            },
+            "description": "Get a specific instructor's profile by user ID. No authentication required."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Availability Management",
+      "item": [
+        {
+          "name": "Get Week Availability",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/instructors/availability-windows/week?start_date=2025-01-20",
+              "host": ["{{base_url}}"],
+              "path": ["instructors", "availability-windows", "week"],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-20",
+                  "description": "Monday of the week"
+                }
+              ]
+            },
+            "description": "Get availability for a specific week. Returns availability organized by date."
+          }
+        },
+        {
+          "name": "Save Week Availability",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"schedule\": [\n    {\n      \"date\": \"2025-01-20\",\n      \"start_time\": \"09:00\",\n      \"end_time\": \"12:00\"\n    },\n    {\n      \"date\": \"2025-01-20\",\n      \"start_time\": \"14:00\",\n      \"end_time\": \"17:00\"\n    },\n    {\n      \"date\": \"2025-01-22\",\n      \"start_time\": \"10:00\",\n      \"end_time\": \"15:00\"\n    },\n    {\n      \"date\": \"2025-01-24\",\n      \"start_time\": \"09:00\",\n      \"end_time\": \"12:00\"\n    }\n  ],\n  \"clear_existing\": true,\n  \"week_start\": \"2025-01-20\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/instructors/availability-windows/week",
+              "host": ["{{base_url}}"],
+              "path": ["instructors", "availability-windows", "week"]
+            },
+            "description": "Save availability for specific dates in a week. Setting clear_existing to true will remove existing slots before adding new ones."
+          }
+        },
+        {
+          "name": "Copy Week Availability",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from_week_start\": \"2025-01-20\",\n  \"to_week_start\": \"2025-01-27\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/instructors/availability-windows/copy-week",
+              "host": ["{{base_url}}"],
+              "path": ["instructors", "availability-windows", "copy-week"]
+            },
+            "description": "Copy availability from one week to another. Both dates must be Mondays."
+          }
+        },
+        {
+          "name": "Add Specific Date Availability",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set(\"slot_id\", jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"specific_date\": \"2025-01-25\",\n  \"start_time\": \"18:00\",\n  \"end_time\": \"20:00\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/instructors/availability-windows/specific-date",
+              "host": ["{{base_url}}"],
+              "path": ["instructors", "availability-windows", "specific-date"]
+            },
+            "description": "Add availability for a single specific date."
+          }
+        },
+        {
+          "name": "Get All Availability",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/instructors/availability-windows?start_date=2025-01-20&end_date=2025-01-31",
+              "host": ["{{base_url}}"],
+              "path": ["instructors", "availability-windows"],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-20",
+                  "description": "Optional start date filter"
+                },
+                {
+                  "key": "end_date",
+                  "value": "2025-01-31",
+                  "description": "Optional end date filter"
+                }
+              ]
+            },
+            "description": "Get all availability slots with optional date filtering."
+          }
+        },
+        {
+          "name": "Update Availability Slot",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"start_time\": \"18:30\",\n  \"end_time\": \"20:30\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/instructors/availability-windows/{{slot_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["instructors", "availability-windows", "{{slot_id}}"]
+            },
+            "description": "Update the times for a specific availability slot."
+          }
+        },
+        {
+          "name": "Delete Availability Slot",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/instructors/availability-windows/{{slot_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["instructors", "availability-windows", "{{slot_id}}"]
+            },
+            "description": "Delete a specific availability slot."
+          }
+        },
+        {
+          "name": "Get Blackout Dates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/instructors/availability-windows/blackout-dates",
+              "host": ["{{base_url}}"],
+              "path": ["instructors", "availability-windows", "blackout-dates"]
+            },
+            "description": "Get instructor's blackout (vacation) dates."
+          }
+        },
+        {
+          "name": "Add Blackout Date",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2025-02-14\",\n  \"reason\": \"Valentine's Day - No lessons\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/instructors/availability-windows/blackout-dates",
+              "host": ["{{base_url}}"],
+              "path": ["instructors", "availability-windows", "blackout-dates"]
+            },
+            "description": "Add a blackout date when instructor is unavailable."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bookings",
+      "item": [
+        {
+          "name": "Check Availability",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instructor_id\": {{instructor_id}},\n  \"service_id\": {{service_id}},\n  \"booking_date\": \"2025-01-25\",\n  \"start_time\": \"14:00\",\n  \"end_time\": \"15:00\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/bookings/check-availability",
+              "host": ["{{base_url}}"],
+              "path": ["bookings", "check-availability"]
+            },
+            "description": "Check if a time slot is available for booking. Rate limited to 30 per minute per user."
+          }
+        },
+        {
+          "name": "Create Booking",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set(\"booking_id\", jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instructor_id\": {{instructor_id}},\n  \"service_id\": {{service_id}},\n  \"booking_date\": \"2025-01-25\",\n  \"start_time\": \"14:00\",\n  \"end_time\": \"15:00\",\n  \"student_note\": \"Looking forward to my first piano lesson!\",\n  \"meeting_location\": \"123 Main St, Apt 4B, New York, NY 10001\",\n  \"location_type\": \"student_home\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/bookings/",
+              "host": ["{{base_url}}"],
+              "path": ["bookings", ""]
+            },
+            "description": "Create a new instant booking. Bookings are confirmed immediately. Rate limited to 20 per minute per user."
+          }
+        },
+        {
+          "name": "Get My Bookings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/bookings?status=CONFIRMED&upcoming_only=true&page=1&per_page=20",
+              "host": ["{{base_url}}"],
+              "path": ["bookings"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "CONFIRMED",
+                  "description": "Filter by status (PENDING, CONFIRMED, COMPLETED, CANCELLED, NO_SHOW)"
+                },
+                {
+                  "key": "upcoming_only",
+                  "value": "true",
+                  "description": "Only show future bookings"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "per_page",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Get user's bookings with pagination and filtering options."
+          }
+        },
+        {
+          "name": "Get Upcoming Bookings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/bookings/upcoming?limit=5",
+              "host": ["{{base_url}}"],
+              "path": ["bookings", "upcoming"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "Get upcoming bookings for dashboard widget. Returns simplified booking information."
+          }
+        },
+        {
+          "name": "Get Booking Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/bookings/stats",
+              "host": ["{{base_url}}"],
+              "path": ["bookings", "stats"]
+            },
+            "description": "Get booking statistics. Only available for instructors."
+          }
+        },
+        {
+          "name": "Get Booking Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/bookings/{{booking_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["bookings", "{{booking_id}}"]
+            },
+            "description": "Get full details for a specific booking. Only participants can view."
+          }
+        },
+        {
+          "name": "Update Booking",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instructor_note\": \"Please bring beginner sheet music. We'll start with basic scales.\",\n  \"meeting_location\": \"Updated: 456 Park Ave, Studio B\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/bookings/{{booking_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["bookings", "{{booking_id}}"]
+            },
+            "description": "Update booking details. Only instructors can update bookings."
+          }
+        },
+        {
+          "name": "Cancel Booking",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Schedule conflict - need to reschedule\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/bookings/{{booking_id}}/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["bookings", "{{booking_id}}", "cancel"]
+            },
+            "description": "Cancel a booking. Both students and instructors can cancel."
+          }
+        },
+        {
+          "name": "Complete Booking",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/bookings/{{booking_id}}/complete",
+              "host": ["{{base_url}}"],
+              "path": ["bookings", "{{booking_id}}", "complete"]
+            },
+            "description": "Mark a booking as completed. Only instructors can complete bookings."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public API",
+      "item": [
+        {
+          "name": "Get Instructor Availability (Public)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/public/instructors/{{instructor_id}}/availability?start_date=2025-01-20&end_date=2025-01-26",
+              "host": ["{{base_url}}"],
+              "path": ["api", "public", "instructors", "{{instructor_id}}", "availability"],
+              "query": [
+                {
+                  "key": "start_date",
+                  "value": "2025-01-20",
+                  "description": "Start of date range (required)"
+                },
+                {
+                  "key": "end_date",
+                  "value": "2025-01-26",
+                  "description": "End of date range (optional, max 30-90 days)"
+                }
+              ]
+            },
+            "description": "Get instructor's available time slots for booking. No authentication required. Response detail level depends on server configuration."
+          }
+        },
+        {
+          "name": "Get Next Available Slot (Public)",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/public/instructors/{{instructor_id}}/next-available?duration_minutes=60",
+              "host": ["{{base_url}}"],
+              "path": ["api", "public", "instructors", "{{instructor_id}}", "next-available"],
+              "query": [
+                {
+                  "key": "duration_minutes",
+                  "value": "60",
+                  "description": "Required duration in minutes"
+                }
+              ]
+            },
+            "description": "Find the next available booking slot for an instructor. No authentication required."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health & Monitoring",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Basic health check endpoint to verify the API is running."
+          }
+        },
+        {
+          "name": "Metrics Health",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/metrics/health",
+              "host": ["{{base_url}}"],
+              "path": ["metrics", "health"]
+            },
+            "description": "Health check for metrics service."
+          }
+        }
+      ]
+    }
+  ]
+}

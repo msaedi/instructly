@@ -1,0 +1,1860 @@
+openapi: 3.0.3
+info:
+  title: InstaInstru API
+  description: |
+    Backend API for InstaInstru - A platform connecting students with instructors for instant bookings.
+
+    The InstaInstru API provides endpoints for user authentication, instructor profile management,
+    availability scheduling, and instant booking of lessons. All endpoints use JSON for requests
+    and responses, with JWT Bearer token authentication.
+  version: 1.0.0
+  contact:
+    email: support@instainstru.com
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://instructly.onrender.com
+    description: Production server
+  - url: http://localhost:8000
+    description: Local development server
+
+tags:
+  - name: auth
+    description: Authentication endpoints
+  - name: password-reset
+    description: Password reset functionality
+  - name: instructors
+    description: Instructor profile management
+  - name: availability-windows
+    description: Instructor availability management
+  - name: bookings
+    description: Booking operations
+  - name: public
+    description: Public endpoints (no auth required)
+  - name: monitoring
+    description: Health and metrics endpoints
+
+security:
+  - bearerAuth: []
+
+paths:
+  # Authentication
+  /auth/register:
+    post:
+      tags:
+        - auth
+      summary: Register a new user
+      description: |
+        Create a new user account as either a student or instructor.
+        Rate limited to 10 requests per hour per IP.
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /auth/login:
+    post:
+      tags:
+        - auth
+      summary: Login with email and password
+      description: |
+        Authenticate and receive a JWT token.
+        Rate limited to 5 requests per minute per IP.
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  format: email
+                  description: User's email address
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /auth/me:
+    get:
+      tags:
+        - auth
+      summary: Get current user
+      description: Get information about the authenticated user
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Current user information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Password Reset
+  /auth/password-reset/request:
+    post:
+      tags:
+        - password-reset
+      summary: Request password reset
+      description: |
+        Request a password reset email. Always returns success to prevent email enumeration.
+        Rate limited to 3 per hour per email and 10 per hour per IP.
+      operationId: requestPasswordReset
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+      responses:
+        '200':
+          description: Request processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetResponse'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /auth/password-reset/confirm:
+    post:
+      tags:
+        - password-reset
+      summary: Confirm password reset
+      description: |
+        Reset password using token from email.
+        Rate limited to 10 per minute per IP.
+      operationId: confirmPasswordReset
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirm'
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /auth/password-reset/verify/{token}:
+    get:
+      tags:
+        - password-reset
+      summary: Verify reset token
+      description: |
+        Check if a password reset token is valid.
+        Rate limited to 20 per minute per IP.
+      operationId: verifyResetToken
+      security: []
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema:
+            type: string
+          description: Reset token to verify
+      responses:
+        '200':
+          description: Token validity status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  email:
+                    type: string
+                    description: Masked email if valid
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  # Instructors
+  /instructors/:
+    get:
+      tags:
+        - instructors
+      summary: List all instructors
+      description: Get a list of all instructor profiles with their services
+      operationId: listInstructors
+      security: []
+      parameters:
+        - in: query
+          name: skip
+          schema:
+            type: integer
+            default: 0
+          description: Number of records to skip
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 100
+            maximum: 100
+          description: Maximum number of records to return
+      responses:
+        '200':
+          description: List of instructor profiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InstructorProfileResponse'
+
+  /instructors/profile:
+    post:
+      tags:
+        - instructors
+      summary: Create instructor profile
+      description: Create a new instructor profile (converts user to instructor role)
+      operationId: createInstructorProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstructorProfileCreate'
+      responses:
+        '201':
+          description: Profile created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstructorProfileResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    get:
+      tags:
+        - instructors
+      summary: Get my instructor profile
+      description: Get the current instructor's profile
+      operationId: getMyProfile
+      responses:
+        '200':
+          description: Instructor profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstructorProfileResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - instructors
+      summary: Update instructor profile
+      description: |
+        Update instructor profile. Services with existing bookings will be
+        soft-deleted rather than removed.
+      operationId: updateProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstructorProfileUpdate'
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstructorProfileResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - instructors
+      summary: Delete instructor profile
+      description: Delete instructor profile and revert to student role
+      operationId: deleteProfile
+      responses:
+        '204':
+          description: Profile deleted successfully
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /instructors/{instructor_id}:
+    get:
+      tags:
+        - instructors
+      summary: Get instructor by ID
+      description: Get a specific instructor's profile by user ID
+      operationId: getInstructor
+      security: []
+      parameters:
+        - in: path
+          name: instructor_id
+          required: true
+          schema:
+            type: integer
+          description: Instructor's user ID
+      responses:
+        '200':
+          description: Instructor profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InstructorProfileResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Availability Management
+  /instructors/availability-windows/week:
+    get:
+      tags:
+        - availability-windows
+      summary: Get week availability
+      description: Get availability for a specific week
+      operationId: getWeekAvailability
+      parameters:
+        - in: query
+          name: start_date
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Monday of the week
+      responses:
+        '200':
+          description: Week availability by date
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/AvailabilitySlot'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags:
+        - availability-windows
+      summary: Save week availability
+      description: Save availability for specific dates in a week
+      operationId: saveWeekAvailability
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeekSpecificScheduleCreate'
+      responses:
+        '200':
+          description: Availability saved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /instructors/availability-windows/copy-week:
+    post:
+      tags:
+        - availability-windows
+      summary: Copy week availability
+      description: Copy availability from one week to another
+      operationId: copyWeek
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CopyWeekRequest'
+      responses:
+        '200':
+          description: Week copied successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  slots_copied:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /instructors/availability-windows/specific-date:
+    post:
+      tags:
+        - availability-windows
+      summary: Add specific date availability
+      description: Add availability for a single date
+      operationId: addSpecificDate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpecificDateAvailabilityCreate'
+      responses:
+        '200':
+          description: Availability created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailabilityWindowResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /instructors/availability-windows/:
+    get:
+      tags:
+        - availability-windows
+      summary: Get all availability
+      description: Get all availability with optional date filtering
+      operationId: getAllAvailability
+      parameters:
+        - in: query
+          name: start_date
+          schema:
+            type: string
+            format: date
+          description: Filter from date
+        - in: query
+          name: end_date
+          schema:
+            type: string
+            format: date
+          description: Filter to date
+      responses:
+        '200':
+          description: List of availability slots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AvailabilityWindowResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /instructors/availability-windows/{window_id}:
+    patch:
+      tags:
+        - availability-windows
+      summary: Update availability slot
+      description: Update a specific time slot
+      operationId: updateSlot
+      parameters:
+        - in: path
+          name: window_id
+          required: true
+          schema:
+            type: integer
+          description: Availability slot ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AvailabilityWindowUpdate'
+      responses:
+        '200':
+          description: Slot updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailabilityWindowResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - availability-windows
+      summary: Delete availability slot
+      description: Delete a specific time slot
+      operationId: deleteSlot
+      parameters:
+        - in: path
+          name: window_id
+          required: true
+          schema:
+            type: integer
+          description: Availability slot ID
+      responses:
+        '200':
+          description: Slot deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /instructors/availability-windows/blackout-dates:
+    get:
+      tags:
+        - availability-windows
+      summary: Get blackout dates
+      description: Get instructor's blackout (vacation) dates
+      operationId: getBlackoutDates
+      responses:
+        '200':
+          description: List of blackout dates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BlackoutDateResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags:
+        - availability-windows
+      summary: Add blackout date
+      description: Add a blackout date (vacation/unavailable)
+      operationId: addBlackoutDate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BlackoutDateCreate'
+      responses:
+        '200':
+          description: Blackout date created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BlackoutDateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /instructors/availability-windows/blackout-dates/{id}:
+    delete:
+      tags:
+        - availability-windows
+      summary: Delete blackout date
+      description: Remove a blackout date
+      operationId: deleteBlackoutDate
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Blackout date ID
+      responses:
+        '200':
+          description: Blackout date deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Bookings
+  /bookings/:
+    get:
+      tags:
+        - bookings
+      summary: List bookings
+      description: Get user's bookings with pagination and filtering
+      operationId: listBookings
+      parameters:
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/BookingStatus'
+          description: Filter by booking status
+        - in: query
+          name: upcoming_only
+          schema:
+            type: boolean
+            default: false
+          description: Only show future bookings
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number
+        - in: query
+          name: per_page
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Items per page
+      responses:
+        '200':
+          description: Paginated list of bookings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - bookings
+      summary: Create booking
+      description: |
+        Create a new instant booking.
+        Rate limited to 20 per minute per user.
+      operationId: createBooking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingCreate'
+      responses:
+        '201':
+          description: Booking created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Time slot not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /bookings/upcoming:
+    get:
+      tags:
+        - bookings
+      summary: Get upcoming bookings
+      description: Get upcoming bookings for dashboard widget
+      operationId: getUpcomingBookings
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 5
+          description: Number of bookings to return
+      responses:
+        '200':
+          description: List of upcoming bookings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UpcomingBookingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /bookings/stats:
+    get:
+      tags:
+        - bookings
+      summary: Get booking statistics
+      description: Get booking statistics (instructors only)
+      operationId: getBookingStats
+      responses:
+        '200':
+          description: Booking statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingStatsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /bookings/check-availability:
+    post:
+      tags:
+        - bookings
+      summary: Check availability
+      description: |
+        Check if a time slot is available for booking.
+        Rate limited to 30 per minute per user.
+      operationId: checkAvailability
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AvailabilityCheckRequest'
+      responses:
+        '200':
+          description: Availability check result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailabilityCheckResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+
+  /bookings/{booking_id}:
+    get:
+      tags:
+        - bookings
+      summary: Get booking details
+      description: Get full booking details
+      operationId: getBooking
+      parameters:
+        - in: path
+          name: booking_id
+          required: true
+          schema:
+            type: integer
+          description: Booking ID
+      responses:
+        '200':
+          description: Booking details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags:
+        - bookings
+      summary: Update booking
+      description: Update booking details (instructor only)
+      operationId: updateBooking
+      parameters:
+        - in: path
+          name: booking_id
+          required: true
+          schema:
+            type: integer
+          description: Booking ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingUpdate'
+      responses:
+        '200':
+          description: Booking updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /bookings/{booking_id}/cancel:
+    post:
+      tags:
+        - bookings
+      summary: Cancel booking
+      description: Cancel a booking
+      operationId: cancelBooking
+      parameters:
+        - in: path
+          name: booking_id
+          required: true
+          schema:
+            type: integer
+          description: Booking ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingCancel'
+      responses:
+        '200':
+          description: Booking cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /bookings/{booking_id}/complete:
+    post:
+      tags:
+        - bookings
+      summary: Complete booking
+      description: Mark booking as completed (instructor only)
+      operationId: completeBooking
+      parameters:
+        - in: path
+          name: booking_id
+          required: true
+          schema:
+            type: integer
+          description: Booking ID
+      responses:
+        '200':
+          description: Booking completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Public Endpoints
+  /api/public/instructors/{instructor_id}/availability:
+    get:
+      tags:
+        - public
+      summary: Get instructor availability
+      description: Get instructor's available time slots for booking (no auth required)
+      operationId: getPublicAvailability
+      security: []
+      parameters:
+        - in: path
+          name: instructor_id
+          required: true
+          schema:
+            type: integer
+          description: Instructor's user ID
+        - in: query
+          name: start_date
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Start of date range
+        - in: query
+          name: end_date
+          schema:
+            type: string
+            format: date
+          description: End of date range (max 30-90 days from start)
+      responses:
+        '200':
+          description: Instructor availability
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/PublicInstructorAvailability'
+                  - $ref: '#/components/schemas/PublicAvailabilitySummary'
+                  - $ref: '#/components/schemas/PublicAvailabilityMinimal'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/public/instructors/{instructor_id}/next-available:
+    get:
+      tags:
+        - public
+      summary: Get next available slot
+      description: Find the next available booking slot
+      operationId: getNextAvailable
+      security: []
+      parameters:
+        - in: path
+          name: instructor_id
+          required: true
+          schema:
+            type: integer
+          description: Instructor's user ID
+        - in: query
+          name: duration_minutes
+          schema:
+            type: integer
+            default: 60
+          description: Required duration in minutes
+      responses:
+        '200':
+          description: Next available slot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NextAvailableResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Health & Metrics
+  /health:
+    get:
+      tags:
+        - monitoring
+      summary: Health check
+      description: Basic health check endpoint
+      operationId: healthCheck
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  service:
+                    type: string
+                    example: instainstru-api
+                  version:
+                    type: string
+                    example: 1.0.0
+                  environment:
+                    type: string
+                    example: production
+
+  /metrics/health:
+    get:
+      tags:
+        - monitoring
+      summary: Metrics health check
+      description: Health check for metrics service
+      operationId: metricsHealthCheck
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  service:
+                    type: string
+                    example: InstaInstru API
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # User Schemas
+    UserRole:
+      type: string
+      enum:
+        - student
+        - instructor
+
+    UserCreate:
+      type: object
+      required:
+        - email
+        - password
+        - full_name
+        - role
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        full_name:
+          type: string
+          minLength: 1
+        role:
+          $ref: '#/components/schemas/UserRole'
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        role:
+          $ref: '#/components/schemas/UserRole'
+        is_active:
+          type: boolean
+
+    Token:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          enum:
+            - bearer
+
+    # Password Reset Schemas
+    PasswordResetRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+
+    PasswordResetConfirm:
+      type: object
+      required:
+        - token
+        - new_password
+      properties:
+        token:
+          type: string
+        new_password:
+          type: string
+          format: password
+          minLength: 8
+
+    PasswordResetResponse:
+      type: object
+      properties:
+        message:
+          type: string
+
+    # Instructor Schemas
+    ServiceBase:
+      type: object
+      required:
+        - skill
+        - hourly_rate
+      properties:
+        skill:
+          type: string
+          minLength: 1
+          maxLength: 100
+        hourly_rate:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1000
+        description:
+          type: string
+          maxLength: 500
+        duration_override:
+          type: integer
+          minimum: 30
+          maximum: 240
+
+    ServiceResponse:
+      allOf:
+        - $ref: '#/components/schemas/ServiceBase'
+        - type: object
+          properties:
+            id:
+              type: integer
+            duration:
+              type: integer
+              description: Effective duration in minutes
+
+    InstructorProfileBase:
+      type: object
+      required:
+        - bio
+        - areas_of_service
+        - years_experience
+      properties:
+        bio:
+          type: string
+          minLength: 10
+          maxLength: 1000
+        areas_of_service:
+          type: array
+          items:
+            type: string
+          minItems: 1
+          maxItems: 20
+        years_experience:
+          type: integer
+          minimum: 0
+          maximum: 50
+        min_advance_booking_hours:
+          type: integer
+          minimum: 0
+          maximum: 168
+          default: 2
+        buffer_time_minutes:
+          type: integer
+          minimum: 0
+          maximum: 60
+          default: 0
+
+    InstructorProfileCreate:
+      allOf:
+        - $ref: '#/components/schemas/InstructorProfileBase'
+        - type: object
+          required:
+            - services
+          properties:
+            services:
+              type: array
+              items:
+                $ref: '#/components/schemas/ServiceBase'
+              minItems: 1
+              maxItems: 20
+
+    InstructorProfileUpdate:
+      type: object
+      properties:
+        bio:
+          type: string
+          minLength: 10
+          maxLength: 1000
+        areas_of_service:
+          type: array
+          items:
+            type: string
+          maxItems: 10
+        years_experience:
+          type: integer
+          minimum: 0
+          maximum: 50
+        services:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceBase'
+          maxItems: 20
+
+    InstructorProfileResponse:
+      allOf:
+        - $ref: '#/components/schemas/InstructorProfileBase'
+        - type: object
+          properties:
+            id:
+              type: integer
+            user_id:
+              type: integer
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+              nullable: true
+            user:
+              type: object
+              properties:
+                full_name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+            services:
+              type: array
+              items:
+                $ref: '#/components/schemas/ServiceResponse'
+
+    # Availability Schemas
+    TimeSlot:
+      type: object
+      required:
+        - start_time
+        - end_time
+      properties:
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+
+    AvailabilitySlot:
+      type: object
+      properties:
+        instructor_id:
+          type: integer
+        specific_date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+
+    AvailabilityWindowResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        instructor_id:
+          type: integer
+        specific_date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+
+    SpecificDateAvailabilityCreate:
+      type: object
+      required:
+        - specific_date
+        - start_time
+        - end_time
+      properties:
+        specific_date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+
+    WeekSpecificScheduleCreate:
+      type: object
+      required:
+        - schedule
+      properties:
+        schedule:
+          type: array
+          items:
+            type: object
+            required:
+              - date
+              - start_time
+              - end_time
+            properties:
+              date:
+                type: string
+                format: date
+              start_time:
+                type: string
+                format: time
+              end_time:
+                type: string
+                format: time
+        clear_existing:
+          type: boolean
+          default: true
+        week_start:
+          type: string
+          format: date
+          nullable: true
+
+    CopyWeekRequest:
+      type: object
+      required:
+        - from_week_start
+        - to_week_start
+      properties:
+        from_week_start:
+          type: string
+          format: date
+        to_week_start:
+          type: string
+          format: date
+
+    AvailabilityWindowUpdate:
+      type: object
+      properties:
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+
+    BlackoutDateCreate:
+      type: object
+      required:
+        - date
+      properties:
+        date:
+          type: string
+          format: date
+        reason:
+          type: string
+          maxLength: 255
+
+    BlackoutDateResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        instructor_id:
+          type: integer
+        date:
+          type: string
+          format: date
+        reason:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    # Booking Schemas
+    BookingStatus:
+      type: string
+      enum:
+        - PENDING
+        - CONFIRMED
+        - COMPLETED
+        - CANCELLED
+        - NO_SHOW
+
+    LocationType:
+      type: string
+      enum:
+        - student_home
+        - instructor_location
+        - neutral
+
+    BookingCreate:
+      type: object
+      required:
+        - instructor_id
+        - service_id
+        - booking_date
+        - start_time
+        - end_time
+      properties:
+        instructor_id:
+          type: integer
+        service_id:
+          type: integer
+        booking_date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+        student_note:
+          type: string
+          maxLength: 1000
+        meeting_location:
+          type: string
+        location_type:
+          $ref: '#/components/schemas/LocationType'
+
+    BookingUpdate:
+      type: object
+      properties:
+        instructor_note:
+          type: string
+          maxLength: 1000
+        meeting_location:
+          type: string
+
+    BookingCancel:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+
+    BookingResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        student_id:
+          type: integer
+        instructor_id:
+          type: integer
+        service_id:
+          type: integer
+        booking_date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+        service_name:
+          type: string
+        hourly_rate:
+          type: number
+          format: float
+        total_price:
+          type: number
+          format: float
+        duration_minutes:
+          type: integer
+        status:
+          $ref: '#/components/schemas/BookingStatus'
+        location_type:
+          $ref: '#/components/schemas/LocationType'
+        meeting_location:
+          type: string
+          nullable: true
+        service_area:
+          type: string
+          nullable: true
+        student_note:
+          type: string
+          nullable: true
+        instructor_note:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        confirmed_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        cancelled_at:
+          type: string
+          format: date-time
+          nullable: true
+        student:
+          type: object
+          properties:
+            id:
+              type: integer
+            full_name:
+              type: string
+            email:
+              type: string
+              format: email
+        instructor:
+          type: object
+          properties:
+            id:
+              type: integer
+            full_name:
+              type: string
+            email:
+              type: string
+              format: email
+        service:
+          type: object
+          properties:
+            id:
+              type: integer
+            skill:
+              type: string
+            description:
+              type: string
+              nullable: true
+
+    BookingListResponse:
+      type: object
+      properties:
+        bookings:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingResponse'
+        total:
+          type: integer
+        page:
+          type: integer
+        per_page:
+          type: integer
+
+    UpcomingBookingResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        booking_date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+        service_name:
+          type: string
+        student_name:
+          type: string
+        instructor_name:
+          type: string
+        meeting_location:
+          type: string
+          nullable: true
+
+    BookingStatsResponse:
+      type: object
+      properties:
+        total_bookings:
+          type: integer
+        upcoming_bookings:
+          type: integer
+        completed_bookings:
+          type: integer
+        cancelled_bookings:
+          type: integer
+        total_earnings:
+          type: number
+          format: float
+        this_month_earnings:
+          type: number
+          format: float
+        average_rating:
+          type: number
+          format: float
+          nullable: true
+
+    AvailabilityCheckRequest:
+      type: object
+      required:
+        - instructor_id
+        - service_id
+        - booking_date
+        - start_time
+        - end_time
+      properties:
+        instructor_id:
+          type: integer
+        service_id:
+          type: integer
+        booking_date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+
+    AvailabilityCheckResponse:
+      type: object
+      properties:
+        available:
+          type: boolean
+        reason:
+          type: string
+          nullable: true
+        min_advance_hours:
+          type: integer
+          nullable: true
+        conflicts_with:
+          type: array
+          items:
+            type: object
+
+    # Public API Schemas
+    PublicTimeSlot:
+      type: object
+      properties:
+        start_time:
+          type: string
+          pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$'
+        end_time:
+          type: string
+          pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$'
+
+    PublicDayAvailability:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        available_slots:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicTimeSlot'
+        is_blackout:
+          type: boolean
+
+    PublicInstructorAvailability:
+      type: object
+      properties:
+        instructor_id:
+          type: integer
+        instructor_name:
+          type: string
+        availability_by_date:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/PublicDayAvailability'
+        timezone:
+          type: string
+        total_available_slots:
+          type: integer
+        earliest_available_date:
+          type: string
+          format: date
+          nullable: true
+
+    PublicAvailabilitySummary:
+      type: object
+      properties:
+        instructor_id:
+          type: integer
+        instructor_name:
+          type: string
+        availability_summary:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              morning_available:
+                type: boolean
+              afternoon_available:
+                type: boolean
+              evening_available:
+                type: boolean
+              total_hours:
+                type: number
+                format: float
+        timezone:
+          type: string
+        total_available_days:
+          type: integer
+        detail_level:
+          type: string
+          enum:
+            - summary
+
+    PublicAvailabilityMinimal:
+      type: object
+      properties:
+        instructor_id:
+          type: integer
+        instructor_name:
+          type: string
+        has_availability:
+          type: boolean
+        earliest_available_date:
+          type: string
+          format: date
+          nullable: true
+        timezone:
+          type: string
+
+    NextAvailableResponse:
+      type: object
+      properties:
+        found:
+          type: boolean
+        date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+        duration_minutes:
+          type: integer
+        message:
+          type: string
+
+    # Error Schemas
+    ErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+        code:
+          type: string
+        field:
+          type: string
+
+    RateLimitError:
+      type: object
+      properties:
+        detail:
+          type: object
+          properties:
+            message:
+              type: string
+            code:
+              type: string
+              enum:
+                - RATE_LIMIT_EXCEEDED
+            retry_after:
+              type: integer
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    RateLimitExceeded:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RateLimitError'
+      headers:
+        Retry-After:
+          description: Number of seconds to wait before retrying
+          schema:
+            type: integer
+        X-RateLimit-Limit:
+          description: Request limit per time window
+          schema:
+            type: integer
+        X-RateLimit-Remaining:
+          description: Remaining requests in current window
+          schema:
+            type: integer
+        X-RateLimit-Reset:
+          description: Unix timestamp when the rate limit resets
+          schema:
+            type: integer
