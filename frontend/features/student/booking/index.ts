@@ -2,3 +2,4 @@
 
 export { default as BookingModal } from './components/BookingModal';
 export * from './types';
+export * from './hooks/useAuth';

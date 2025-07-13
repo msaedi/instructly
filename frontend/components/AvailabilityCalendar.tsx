@@ -7,6 +7,7 @@ import { publicApi } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import BookingModal from '@/features/student/booking/components/BookingModal';
 import { Instructor, BookingFlowState } from '@/features/student/booking/types';
+import { getBookingIntent, clearBookingIntent } from '@/features/student/booking';
 
 interface TimeSlot {
   start_time: string;
@@ -37,6 +38,7 @@ export default function AvailabilityCalendar({
   // Booking Modal State
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [selectedTime, setSelectedTime] = useState<string>('');
+  const [shouldOpenModalFromIntent, setShouldOpenModalFromIntent] = useState(false);
 
   // Handle time slot selection
   const handleTimeSlotSelect = (date: string, startTime: string, endTime: string) => {
@@ -81,6 +83,26 @@ export default function AvailabilityCalendar({
     }
     return days;
   });
+
+  // Check for stored booking intent on mount
+  useEffect(() => {
+    const intent = getBookingIntent();
+    if (intent && intent.instructorId === instructor.user_id) {
+      logger.info('Found booking intent, restoring state', intent);
+      setSelectedDate(intent.date);
+      setSelectedTime(intent.time);
+      setShouldOpenModalFromIntent(true);
+      clearBookingIntent();
+    }
+  }, [instructor.user_id]);
+
+  // Open modal when booking intent is restored
+  useEffect(() => {
+    if (shouldOpenModalFromIntent && selectedDate && selectedTime && !loading) {
+      setIsBookingModalOpen(true);
+      setShouldOpenModalFromIntent(false);
+    }
+  }, [shouldOpenModalFromIntent, selectedDate, selectedTime, loading]);
 
   // Fetch availability data
   useEffect(() => {
