@@ -21,6 +21,38 @@ from .base import Money, StandardizedModel
 logger = logging.getLogger(__name__)
 
 
+class InstructorFilterParams(BaseModel):
+    """
+    Query parameters for filtering instructors.
+
+    All fields are optional to maintain backward compatibility.
+    Supports text search, skill filtering, and price range filtering.
+    """
+
+    search: Optional[str] = Field(
+        None, description="Text search across instructor name, bio, and skills", min_length=1, max_length=100
+    )
+    skill: Optional[str] = Field(None, description="Filter by specific skill/service", min_length=1, max_length=100)
+    min_price: Optional[float] = Field(None, ge=0, le=1000, description="Minimum hourly rate filter")
+    max_price: Optional[float] = Field(None, ge=0, le=1000, description="Maximum hourly rate filter")
+
+    @field_validator("max_price")
+    def validate_price_range(cls, v, values):
+        """Ensure max_price >= min_price if both are provided."""
+        if v is not None and "min_price" in values.data:
+            min_price = values.data["min_price"]
+            if min_price is not None and v < min_price:
+                raise ValueError("max_price must be greater than or equal to min_price")
+        return v
+
+    @field_validator("search", "skill")
+    def clean_string_fields(cls, v):
+        """Clean and normalize string fields."""
+        if v is not None:
+            return v.strip()
+        return v
+
+
 class ServiceBase(StandardizedModel):
     """
     Base schema for instructor services.

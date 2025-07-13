@@ -112,6 +112,101 @@ class InstructorService(BaseService):
 
         return result
 
+    @BaseService.measure_operation("get_instructors_filtered")
+    def get_instructors_filtered(
+        self,
+        search: Optional[str] = None,
+        skill: Optional[str] = None,
+        min_price: Optional[float] = None,
+        max_price: Optional[float] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> Dict:
+        """
+        Get instructor profiles based on filter criteria.
+
+        Uses the repository's find_by_filters method to efficiently query instructors
+        matching the provided filters. Only returns instructors with active services.
+
+        Args:
+            search: Text search across name, bio, and skills
+            skill: Filter by specific skill/service
+            min_price: Minimum hourly rate filter
+            max_price: Maximum hourly rate filter
+            skip: Number of records to skip for pagination
+            limit: Maximum number of records to return
+
+        Returns:
+            Dictionary containing:
+                - instructors: List of instructor profile dictionaries (active services only)
+                - metadata: Information about applied filters and results
+        """
+        # Log filter usage for analytics
+        filter_info = {
+            "search": search is not None,
+            "skill": skill is not None,
+            "price_range": min_price is not None or max_price is not None,
+            "filters_count": sum([search is not None, skill is not None, min_price is not None, max_price is not None]),
+        }
+
+        logger.info(
+            f"Instructor filter request - "
+            f"Filters used: {filter_info['filters_count']}, "
+            f"Search: {filter_info['search']}, "
+            f"Skill: {filter_info['skill']}, "
+            f"Price: {filter_info['price_range']}, "
+            f"Pagination: skip={skip}, limit={limit}"
+        )
+
+        # Call repository method with filters
+        profiles = self.profile_repository.find_by_filters(
+            search=search, skill=skill, min_price=min_price, max_price=max_price, skip=skip, limit=limit
+        )
+
+        # Convert to dictionaries, ensuring only active services are included
+        instructors = []
+        for profile in profiles:
+            # _profile_to_dict with include_inactive_services=False filters out inactive services
+            instructor_dict = self._profile_to_dict(profile, include_inactive_services=False)
+
+            # Only include instructors that have at least one active service after filtering
+            if instructor_dict["services"]:
+                instructors.append(instructor_dict)
+
+        # Build metadata about applied filters
+        applied_filters = {}
+        if search:
+            applied_filters["search"] = search
+        if skill:
+            applied_filters["skill"] = skill
+        if min_price is not None:
+            applied_filters["min_price"] = min_price
+        if max_price is not None:
+            applied_filters["max_price"] = max_price
+
+        metadata = {
+            "filters_applied": applied_filters,
+            "pagination": {"skip": skip, "limit": limit, "count": len(instructors)},
+            "total_matches": len(profiles),  # Total found by repository
+            "active_instructors": len(instructors),  # After filtering inactive services
+        }
+
+        # Log search results for analytics
+        if search:
+            logger.info(
+                f"Search '{search}' returned {len(instructors)} active instructors "
+                f"(from {len(profiles)} total matches)"
+            )
+
+        if skill:
+            logger.info(f"Skill filter '{skill}' returned {len(instructors)} instructors")
+
+        if min_price is not None or max_price is not None:
+            price_range = f"${min_price or 0}-${max_price or 'unlimited'}"
+            logger.info(f"Price range {price_range} returned {len(instructors)} instructors")
+
+        return {"instructors": instructors, "metadata": metadata}
+
     @BaseService.measure_operation("create_instructor_profile")
     def create_instructor_profile(self, user: User, profile_data: InstructorProfileCreate) -> Dict:
         """

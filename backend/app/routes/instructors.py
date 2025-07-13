@@ -25,14 +25,19 @@ Router Endpoints:
 """
 
 import logging
-from typing import List
+from typing import Dict, List, Union
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from ..api.dependencies.auth import get_current_active_user
 from ..api.dependencies.services import get_cache_service_dep, get_instructor_service
 from ..models.user import User, UserRole
-from ..schemas.instructor import InstructorProfileCreate, InstructorProfileResponse, InstructorProfileUpdate
+from ..schemas.instructor import (
+    InstructorFilterParams,
+    InstructorProfileCreate,
+    InstructorProfileResponse,
+    InstructorProfileUpdate,
+)
 from ..services.cache_service import CacheService
 from ..services.instructor_service import InstructorService
 
@@ -40,13 +45,51 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/instructors", tags=["instructors"])
 
 
-@router.get("/", response_model=List[InstructorProfileResponse])
+@router.get("/", response_model=Union[List[InstructorProfileResponse], Dict])
 async def get_all_instructors(
-    skip: int = 0, limit: int = 100, instructor_service: InstructorService = Depends(get_instructor_service)
+    search: str = Query(None, description="Text search across name, bio, and skills"),
+    skill: str = Query(None, description="Filter by specific skill/service"),
+    min_price: float = Query(None, ge=0, le=1000, description="Minimum hourly rate"),
+    max_price: float = Query(None, ge=0, le=1000, description="Maximum hourly rate"),
+    skip: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(100, ge=1, le=100, description="Maximum number of records to return"),
+    instructor_service: InstructorService = Depends(get_instructor_service),
 ):
-    """Get all instructor profiles with active services only."""
-    profiles = instructor_service.get_all_instructors(skip=skip, limit=limit)
-    return profiles
+    """
+    Get instructor profiles with optional filtering.
+
+    Supports filtering by:
+    - search: Text search across instructor name, bio, and skills
+    - skill: Filter by specific skill/service
+    - min_price/max_price: Price range filtering
+
+    Returns filtered results with metadata when filters are applied,
+    or a simple list when no filters are used (backward compatibility).
+    """
+    # Check if any filters are applied
+    has_filters = any([search, skill, min_price is not None, max_price is not None])
+
+    if has_filters:
+        # Validate filter parameters using the schema
+        try:
+            filters = InstructorFilterParams(search=search, skill=skill, min_price=min_price, max_price=max_price)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+        # Use the new filtering method
+        result = instructor_service.get_instructors_filtered(
+            search=filters.search,
+            skill=filters.skill,
+            min_price=filters.min_price,
+            max_price=filters.max_price,
+            skip=skip,
+            limit=limit,
+        )
+        return result
+    else:
+        # No filters - use the original method for backward compatibility
+        profiles = instructor_service.get_all_instructors(skip=skip, limit=limit)
+        return profiles
 
 
 @router.post(
