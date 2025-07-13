@@ -1,4 +1,4 @@
-// frontend/lib/availability/slotHelpers.ts
+// frontend/legacy-patterns/slotHelpers.ts
 
 /**
  * Slot Helper Utilities for Availability System

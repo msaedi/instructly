@@ -1,4 +1,4 @@
-// frontend/lib/availability/operationGenerator.ts
+// frontend/legacy-patterns/operationGenerator.ts
 
 /**
  * Operation Generator for Availability System

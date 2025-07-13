@@ -1,3 +1,4 @@
+// frontend/features/shared/utils/search-parser.ts
 /**
  * Natural Language Search Parser
  *

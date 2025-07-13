@@ -1,5 +1,4 @@
 // frontend/app/instructors/page.tsx
-'use client';
 
 /**
  * Browse Instructors Page
@@ -11,17 +10,14 @@
  * @module instructors/page
  */
 
-import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Search } from 'lucide-react';
 import Link from 'next/link';
 import { BRAND } from '@/app/config/brand';
 import { logger } from '@/lib/logger';
 import { publicApi } from '@/features/shared/api/client';
+import SearchInput from '@/components/SearchInput';
 
 // Import centralized types
 import type { InstructorProfile, InstructorService } from '@/types/instructor';
-import { RequestStatus } from '@/types/api';
 import { getErrorMessage } from '@/types/common';
 
 /**
@@ -30,97 +26,39 @@ import { getErrorMessage } from '@/types/common';
  * @component
  * @returns {JSX.Element} The instructors browse page
  */
-export default function InstructorsPage() {
-  // Get search params from URL
-  const searchParams = useSearchParams();
-  const urlSearchQuery = searchParams.get('search') || '';
+export default async function InstructorsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ search?: string }>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const urlSearchQuery = resolvedSearchParams.search || '';
 
-  // State management with proper typing
-  const [instructors, setInstructors] = useState<InstructorProfile[]>([]);
-  const [filteredInstructors, setFilteredInstructors] = useState<InstructorProfile[]>([]);
-  const [searchQuery, setSearchQuery] = useState(urlSearchQuery);
-  const [requestStatus, setRequestStatus] = useState<RequestStatus>(RequestStatus.IDLE);
-  const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
+  // Fetch instructors server-side
+  let instructors: InstructorProfile[] = [];
+  let error: string | null = null;
 
-  // Update search query when URL changes
-  useEffect(() => {
-    setSearchQuery(urlSearchQuery);
-  }, [urlSearchQuery]);
+  try {
+    // Use new API client with proper filtering
+    const response = await publicApi.searchInstructors({
+      search: urlSearchQuery || undefined,
+    });
 
-  /**
-   * Fetch instructors from the API
-   */
-  useEffect(() => {
-    const fetchInstructors = async () => {
-      logger.info('Fetching instructors list');
-      setRequestStatus(RequestStatus.LOADING);
-
-      try {
-        logger.time('fetchInstructors');
-
-        // Use new API client with proper filtering
-        const response = await publicApi.searchInstructors({
-          search: urlSearchQuery || undefined,
-        });
-
-        logger.timeEnd('fetchInstructors');
-
-        if (response.data) {
-          // Handle both filtered and unfiltered responses
-          let instructorsList: InstructorProfile[];
-          if (Array.isArray(response.data)) {
-            instructorsList = response.data as InstructorProfile[];
-          } else if (response.data.instructors) {
-            instructorsList = response.data.instructors as InstructorProfile[];
-            logger.info('Received filtered response', {
-              metadata: response.data.metadata,
-            });
-          } else {
-            instructorsList = [];
-          }
-
-          logger.info('Instructors fetched successfully', {
-            count: instructorsList.length,
-            hasServices: instructorsList.filter((i) => i.services.length > 0).length,
-            hasUrlSearch: !!urlSearchQuery,
-          });
-
-          setInstructors(instructorsList);
-          setFilteredInstructors(instructorsList);
-          setRequestStatus(RequestStatus.SUCCESS);
-        } else {
-          throw new Error(response.error || 'Failed to fetch instructors');
-        }
-      } catch (err) {
-        const errorMessage = getErrorMessage(err);
-        logger.error('Failed to fetch instructors', err);
-
-        setError(errorMessage);
-        setRequestStatus(RequestStatus.ERROR);
+    if (response.data) {
+      // Handle both filtered and unfiltered responses
+      if (Array.isArray(response.data)) {
+        instructors = response.data as InstructorProfile[];
+      } else if (response.data.instructors) {
+        instructors = response.data.instructors as InstructorProfile[];
+      } else {
+        instructors = [];
       }
-    };
-
-    fetchInstructors();
-  }, [urlSearchQuery]); // Re-fetch when URL search changes
-
-  /**
-   * Update filtered instructors when instructors change
-   * (No client-side filtering since backend handles it)
-   */
-  useEffect(() => {
-    setFilteredInstructors(instructors);
-  }, [instructors]);
-
-  /**
-   * Handle instructor card click
-   *
-   * @param {number} userId - The user ID of the instructor
-   */
-  const handleViewProfile = (userId: number) => {
-    logger.info('Navigating to instructor profile', { userId });
-    router.push(`/instructors/${userId}`);
-  };
+    } else {
+      throw new Error(response.error || 'Failed to fetch instructors');
+    }
+  } catch (err) {
+    error = getErrorMessage(err);
+  }
 
   /**
    * Get the minimum hourly rate from an instructor's services
@@ -133,40 +71,23 @@ export default function InstructorsPage() {
     return Math.min(...services.map((s) => s.hourly_rate));
   };
 
-  // Loading state
-  if (requestStatus === RequestStatus.LOADING) {
-    logger.debug('Rendering loading state');
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
-  }
-
   // Error state
-  if (requestStatus === RequestStatus.ERROR) {
-    logger.debug('Rendering error state', { error });
+  if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-red-500 text-center">
           <h2 className="text-2xl font-bold mb-2">Error</h2>
           <p>{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          <Link
+            href="/instructors"
+            className="mt-4 inline-block px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
             Try Again
-          </button>
+          </Link>
         </div>
       </div>
     );
   }
-
-  logger.debug('Rendering instructors page', {
-    totalInstructors: instructors.length,
-    displayedInstructors: filteredInstructors.length,
-    hasSearchQuery: !!searchQuery,
-  });
 
   return (
     <>
@@ -198,46 +119,20 @@ export default function InstructorsPage() {
         </h1>
 
         {/* Search Bar */}
-        <div className="max-w-2xl mx-auto mb-8">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search by name, skill, or area..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  // Navigate to trigger backend search
-                  const params = new URLSearchParams(searchParams);
-                  if (searchQuery.trim()) {
-                    params.set('search', searchQuery.trim());
-                  } else {
-                    params.delete('search');
-                  }
-                  router.push(`/instructors?${params.toString()}`);
-                  logger.debug('Search query submitted', { query: searchQuery });
-                }
-              }}
-              className="w-full px-4 py-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-              aria-label="Search instructors"
-            />
-            <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" aria-hidden="true" />
-          </div>
-        </div>
+        <SearchInput initialValue={urlSearchQuery} />
 
         {/* Results summary */}
-        {searchQuery && (
+        {urlSearchQuery && (
           <p className="text-center text-gray-600 dark:text-gray-400 mb-4">
-            Found {filteredInstructors.length} instructor
-            {filteredInstructors.length !== 1 ? 's' : ''}
-            {searchQuery && ` matching "${searchQuery}"`}
+            Found {instructors.length} instructor
+            {instructors.length !== 1 ? 's' : ''}
+            {urlSearchQuery && ` matching "${urlSearchQuery}"`}
           </p>
         )}
 
         {/* Instructor Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredInstructors.map((instructor) => (
+          {instructors.map((instructor) => (
             <div
               key={instructor.id}
               className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
@@ -283,31 +178,28 @@ export default function InstructorsPage() {
                 <span className="text-xs">From ${getMinimumRate(instructor.services)}/hr</span>
               </div>
 
-              <button
-                onClick={() => handleViewProfile(instructor.user_id)}
-                className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors"
+              <Link
+                href={`/instructors/${instructor.user_id}`}
+                className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors text-center block"
                 aria-label={`View profile for ${instructor.user.full_name}`}
               >
                 View Profile
-              </button>
+              </Link>
             </div>
           ))}
         </div>
 
         {/* Empty state */}
-        {filteredInstructors.length === 0 && (
+        {instructors.length === 0 && (
           <div className="text-center text-gray-500 dark:text-gray-400 mt-8">
             <p className="text-lg">No instructors found matching your search.</p>
-            {searchQuery && (
-              <button
-                onClick={() => {
-                  logger.info('Clearing search query');
-                  setSearchQuery('');
-                }}
-                className="mt-4 text-blue-500 hover:text-blue-600 underline"
+            {urlSearchQuery && (
+              <Link
+                href="/instructors"
+                className="mt-4 text-blue-500 hover:text-blue-600 underline inline-block"
               >
                 Clear search
-              </button>
+              </Link>
             )}
           </div>
         )}

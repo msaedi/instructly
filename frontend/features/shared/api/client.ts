@@ -1,3 +1,4 @@
+// frontend/features/shared/api/client.ts
 /**
  * Clean API Client for Student Features
  *

@@ -1,4 +1,4 @@
-// frontend/hooks/availability/useAvailabilityOperations.ts
+// frontend/legacy-patterns/useAvailabilityOperations.ts
 
 /**
  * useAvailabilityOperations Hook

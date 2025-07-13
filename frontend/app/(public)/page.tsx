@@ -1,3 +1,4 @@
+// frontend/app/(public)/page.tsx
 'use client';
 
 import { useState } from 'react';
