@@ -180,7 +180,7 @@ export default async function InstructorsPage({
 
               <Link
                 href={`/instructors/${instructor.user_id}`}
-                className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors text-center block"
+                className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 transition-colors text-center block"
                 aria-label={`View profile for ${instructor.user.full_name}`}
               >
                 View Profile

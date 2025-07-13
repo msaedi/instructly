@@ -199,7 +199,12 @@ function SearchPageContent() {
               </h1>
               {total > 0 && <span className="ml-2 text-gray-600">({total} found)</span>}
             </div>
-            <button className="flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+            {/* TODO: Implement filter functionality in future iteration */}
+            <button
+              className="flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700 dark:text-white opacity-50 cursor-not-allowed"
+              disabled
+              title="Filters coming soon"
+            >
               <Filter className="h-5 w-5 mr-2" />
               Filters
             </button>
@@ -339,13 +344,13 @@ function SearchPageContent() {
                     <div className="flex gap-3">
                       <Link
                         href={`/instructors/${instructor.id}`}
-                        className="flex-1 text-center py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                        className="flex-1 text-center py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white transition-colors"
                       >
                         View Profile
                       </Link>
                       <Link
                         href={`/book/${instructor.id}`}
-                        className="flex-1 text-center py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        className="flex-1 text-center py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 transition-colors"
                       >
                         Book Now →
                       </Link>
