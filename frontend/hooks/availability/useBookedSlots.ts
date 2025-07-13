@@ -18,7 +18,7 @@ import {
   isSlotBooked as checkSlotBooked,
   getBookingForSlot as findBookingForSlot,
   createBookedHoursMap,
-} from '@/lib/availability/slotHelpers';
+} from '@/legacy-patterns/slotHelpers';
 import { logger } from '@/lib/logger';
 
 /**

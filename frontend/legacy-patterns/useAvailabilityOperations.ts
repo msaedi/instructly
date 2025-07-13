@@ -26,7 +26,7 @@ import { fetchWithAuth, API_ENDPOINTS, validateWeekChanges } from '@/lib/api';
 import {
   generateAvailabilityOperations,
   validateOperations,
-} from '@/lib/availability/operationGenerator';
+} from '@/legacy-patterns/operationGenerator';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
 import { logger } from '@/lib/logger';
 

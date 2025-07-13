@@ -30,7 +30,7 @@ import { useRouter } from 'next/navigation';
 // Custom hooks
 import { useWeekSchedule } from '@/hooks/availability/useWeekSchedule';
 import { useBookedSlots } from '@/hooks/availability/useBookedSlots';
-import { useAvailabilityOperations } from '@/hooks/availability/useAvailabilityOperations';
+import { useAvailabilityOperations } from '@/legacy-patterns/useAvailabilityOperations';
 
 // Components
 import WeekNavigator from '@/components/availability/WeekNavigator';
@@ -50,7 +50,7 @@ import ValidationPreviewModal from '@/components/modals/ValidationPreviewModal';
 // Utilities and constants
 import { PRESET_SCHEDULES, SUCCESS_MESSAGES, ERROR_MESSAGES } from '@/lib/availability/constants';
 import { isTimeSlotInPast } from '@/lib/availability/dateHelpers';
-import { mergeAdjacentSlots, createHourSlot } from '@/lib/availability/slotHelpers';
+import { mergeAdjacentSlots, createHourSlot } from '@/legacy-patterns/slotHelpers';
 import { logger } from '@/lib/logger';
 import { BRAND } from '@/app/config/brand';
 

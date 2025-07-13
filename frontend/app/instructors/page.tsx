@@ -12,7 +12,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Search } from 'lucide-react';
 import Link from 'next/link';
 import { fetchAPI, API_ENDPOINTS } from '@/lib/api';
@@ -31,13 +31,22 @@ import { getErrorMessage } from '@/types/common';
  * @returns {JSX.Element} The instructors browse page
  */
 export default function InstructorsPage() {
+  // Get search params from URL
+  const searchParams = useSearchParams();
+  const urlSearchQuery = searchParams.get('search') || '';
+
   // State management with proper typing
   const [instructors, setInstructors] = useState<InstructorProfile[]>([]);
   const [filteredInstructors, setFilteredInstructors] = useState<InstructorProfile[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(urlSearchQuery);
   const [requestStatus, setRequestStatus] = useState<RequestStatus>(RequestStatus.IDLE);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+
+  // Update search query when URL changes
+  useEffect(() => {
+    setSearchQuery(urlSearchQuery);
+  }, [urlSearchQuery]);
 
   /**
    * Fetch instructors from the API
@@ -49,22 +58,42 @@ export default function InstructorsPage() {
 
       try {
         logger.time('fetchInstructors');
-        const response = await fetchAPI(API_ENDPOINTS.INSTRUCTORS);
+        // Build API URL with search params if available
+        let apiUrl = API_ENDPOINTS.INSTRUCTORS;
+        if (urlSearchQuery) {
+          apiUrl += `?search=${encodeURIComponent(urlSearchQuery)}`;
+        }
+
+        const response = await fetchAPI(apiUrl);
 
         if (!response.ok) {
           throw new Error(`Failed to fetch instructors: ${response.status} ${response.statusText}`);
         }
 
-        const data: InstructorProfile[] = await response.json();
+        const data = await response.json();
         logger.timeEnd('fetchInstructors');
 
+        // Check if response is array (no filters) or object with metadata (filtered)
+        let instructorsList: InstructorProfile[];
+        if (Array.isArray(data)) {
+          instructorsList = data;
+        } else if (data.instructors) {
+          instructorsList = data.instructors;
+          logger.info('Received filtered response', {
+            metadata: data.metadata,
+          });
+        } else {
+          instructorsList = [];
+        }
+
         logger.info('Instructors fetched successfully', {
-          count: data.length,
-          hasServices: data.filter((i) => i.services.length > 0).length,
+          count: instructorsList.length,
+          hasServices: instructorsList.filter((i) => i.services.length > 0).length,
+          hasUrlSearch: !!urlSearchQuery,
         });
 
-        setInstructors(data);
-        setFilteredInstructors(data);
+        setInstructors(instructorsList);
+        setFilteredInstructors(instructorsList);
         setRequestStatus(RequestStatus.SUCCESS);
       } catch (err) {
         const errorMessage = getErrorMessage(err);
@@ -78,50 +107,15 @@ export default function InstructorsPage() {
     };
 
     fetchInstructors();
-  }, []);
+  }, [urlSearchQuery]); // Re-fetch when URL search changes
 
   /**
-   * Filter instructors based on search query
+   * Update filtered instructors when instructors change
+   * (No client-side filtering since backend handles it)
    */
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredInstructors(instructors);
-      return;
-    }
-
-    logger.time('filterInstructors');
-    logger.debug('Filtering instructors', {
-      query: searchQuery,
-      totalInstructors: instructors.length,
-    });
-
-    const searchLower = searchQuery.toLowerCase().trim();
-    const filtered = instructors.filter((instructor) => {
-      // Search by name
-      const nameMatch = instructor.user.full_name.toLowerCase().includes(searchLower);
-
-      // Search by skills
-      const skillMatch = instructor.services.some((service) =>
-        service.skill.toLowerCase().includes(searchLower)
-      );
-
-      // Search by areas (bonus search capability)
-      const areaMatch = instructor.areas_of_service.some((area) =>
-        area.toLowerCase().includes(searchLower)
-      );
-
-      return nameMatch || skillMatch || areaMatch;
-    });
-
-    logger.timeEnd('filterInstructors');
-    logger.debug('Filter results', {
-      query: searchQuery,
-      resultsCount: filtered.length,
-      filteredOut: instructors.length - filtered.length,
-    });
-
-    setFilteredInstructors(filtered);
-  }, [searchQuery, instructors]);
+    setFilteredInstructors(instructors);
+  }, [instructors]);
 
   /**
    * Handle instructor card click
@@ -217,6 +211,15 @@ export default function InstructorsPage() {
               value={searchQuery}
               onChange={(e) => {
                 const newQuery = e.target.value;
+                setSearchQuery(newQuery);
+                // Update URL without navigation
+                const params = new URLSearchParams(searchParams);
+                if (newQuery) {
+                  params.set('search', newQuery);
+                } else {
+                  params.delete('search');
+                }
+                window.history.replaceState({}, '', `?${params.toString()}`);
                 logger.debug('Search query changed', {
                   oldQuery: searchQuery,
                   newQuery,
