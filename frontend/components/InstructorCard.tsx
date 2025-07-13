@@ -39,6 +39,12 @@ export default function InstructorCard({
 }: InstructorCardProps) {
   const router = useRouter();
 
+  // Filter out past availability slots
+  const futureAvailableSlots = nextAvailableSlots.filter((slot) => {
+    const slotDateTime = new Date(`${slot.date}T${slot.time}`);
+    return slotDateTime > new Date();
+  });
+
   const getMinimumRate = () => {
     if (instructor.services.length === 0) return 0;
     return Math.min(...instructor.services.map((s) => s.hourly_rate));
@@ -112,20 +118,24 @@ export default function InstructorCard({
         {/* Next available times */}
         <div className="mb-4">
           <p className="text-sm font-medium text-gray-900 mb-2">Next available:</p>
-          <div className="flex gap-2 flex-wrap">
-            {nextAvailableSlots.slice(0, 3).map((slot, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleInstantBook(slot.date, slot.time)}
-                className="px-3 py-2 bg-gray-100 rounded-lg text-sm hover:bg-gray-200"
-              >
-                <div className="font-medium">{slot.displayText.split(' ')[0]}</div>
-                <div className="text-gray-600">
-                  {slot.displayText.split(' ').slice(1).join(' ')}
-                </div>
-              </button>
-            ))}
-          </div>
+          {futureAvailableSlots.length > 0 ? (
+            <div className="flex gap-2 flex-wrap">
+              {futureAvailableSlots.slice(0, 3).map((slot, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleInstantBook(slot.date, slot.time)}
+                  className="px-3 py-2 bg-gray-100 rounded-lg text-sm hover:bg-gray-200"
+                >
+                  <div className="font-medium">{slot.displayText.split(' ')[0]}</div>
+                  <div className="text-gray-600">
+                    {slot.displayText.split(' ').slice(1).join(' ')}
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-gray-500 italic">No upcoming availability</div>
+          )}
         </div>
 
         {/* Actions */}

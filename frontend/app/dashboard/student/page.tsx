@@ -104,12 +104,18 @@ export default function StudentDashboard() {
         per_page: 10,
       });
 
-      // If we have bookings, store them
+      // If we have bookings, sort them by date (nearest first) and store them
       if (myBookings.bookings && Array.isArray(myBookings.bookings)) {
-        logger.info('Upcoming bookings loaded', {
-          count: myBookings.bookings.length,
+        const sortedBookings = myBookings.bookings.sort((a, b) => {
+          const dateTimeA = new Date(`${a.booking_date}T${a.start_time}`);
+          const dateTimeB = new Date(`${b.booking_date}T${b.start_time}`);
+          return dateTimeA.getTime() - dateTimeB.getTime();
         });
-        setUpcomingBookings(myBookings.bookings);
+
+        logger.info('Upcoming bookings loaded and sorted', {
+          count: sortedBookings.length,
+        });
+        setUpcomingBookings(sortedBookings);
       }
     } catch (error) {
       logger.error('Error fetching bookings', error);
@@ -198,7 +204,7 @@ export default function StudentDashboard() {
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <Link
-            href="/instructors"
+            href="/search"
             className="block"
             onClick={() => logger.debug('Navigating to find instructors')}
           >
@@ -247,7 +253,7 @@ export default function StudentDashboard() {
                   className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
                   onClick={() => {
                     logger.debug('Booking card clicked', { bookingId: booking.id });
-                    router.push('/dashboard/student/bookings');
+                    router.push(`/booking/confirmation?bookingId=${booking.id}`);
                   }}
                 >
                   <div className="flex justify-between items-start">
@@ -302,7 +308,7 @@ export default function StudentDashboard() {
               <p className="text-gray-500 text-center py-8">No upcoming sessions booked yet</p>
               <div className="text-center">
                 <Link
-                  href="/instructors"
+                  href="/search"
                   className="inline-block px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
                   onClick={() => logger.debug('Find instructor CTA clicked from empty state')}
                 >

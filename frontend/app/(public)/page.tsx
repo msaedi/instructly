@@ -126,12 +126,14 @@ export default function HomePage() {
               </Link>
             </div>
             <div className="flex items-center space-x-8">
-              <Link
-                href="/lessons"
-                className="text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400"
-              >
-                Lessons
-              </Link>
+              {isAuthenticated && (
+                <Link
+                  href={userRole === 'student' ? '/dashboard/student' : '/dashboard/instructor'}
+                  className="text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400"
+                >
+                  Dashboard
+                </Link>
+              )}
               {!isAuthenticated && (
                 <Link
                   href="/become-instructor"
@@ -142,22 +144,12 @@ export default function HomePage() {
               )}
 
               {isAuthenticated ? (
-                <div className="flex items-center space-x-4">
-                  {userRole === 'instructor' && (
-                    <Link
-                      href="/dashboard/instructor"
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      Instructor Dashboard
-                    </Link>
-                  )}
-                  <button
-                    onClick={handleLogout}
-                    className="px-4 py-2 border border-red-600 dark:border-red-400 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                  >
-                    Logout
-                  </button>
-                </div>
+                <button
+                  onClick={handleLogout}
+                  className="px-4 py-2 border border-red-600 dark:border-red-400 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  Logout
+                </button>
               ) : (
                 <Link
                   href="/login"

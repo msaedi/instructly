@@ -174,7 +174,14 @@ export default function AvailabilityCalendar({
 
   const getAvailableSlots = (date: string) => {
     const dayAvailability = availability.find((day) => day.date === date);
-    return dayAvailability?.slots.filter((slot) => slot.is_available) || [];
+    const allSlots = dayAvailability?.slots.filter((slot) => slot.is_available) || [];
+
+    // Filter out past time slots
+    const now = new Date();
+    return allSlots.filter((slot) => {
+      const slotDateTime = new Date(`${date}T${slot.start_time}`);
+      return slotDateTime > now;
+    });
   };
 
   const hasAvailability = (date: string) => {

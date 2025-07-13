@@ -43,24 +43,35 @@ export function useCreateBooking(): UseCreateBookingReturn {
         // Handle specific error scenarios
         let errorMessage = 'Failed to create booking';
 
+        // Extract message from error object if it's an object
+        const errorText =
+          typeof response.error === 'object' && response.error && 'message' in response.error
+            ? (response.error as any).message
+            : response.error;
+
         if (response.status === 401) {
           errorMessage = 'You must be logged in to book lessons';
         } else if (response.status === 409) {
           // Conflict - time slot no longer available
           errorMessage = 'This time slot is no longer available. Please select another time.';
-        } else if (response.status === 400) {
+        } else if (response.status === 400 || response.status === 422) {
           // Validation error
-          if (response.error.includes('advance booking')) {
-            errorMessage = 'This instructor requires advance booking. Please select a later time.';
-          } else if (response.error.includes('outside availability')) {
-            errorMessage = "The selected time is outside the instructor's availability.";
+          if (typeof errorText === 'string') {
+            if (errorText.includes('advance booking') || errorText.includes('24 hours')) {
+              errorMessage =
+                'This instructor requires advance booking. Please select a time at least 24 hours in advance.';
+            } else if (errorText.includes('outside availability')) {
+              errorMessage = "The selected time is outside the instructor's availability.";
+            } else {
+              errorMessage = errorText;
+            }
           } else {
-            errorMessage = response.error;
+            errorMessage = 'Invalid booking request. Please check your selection.';
           }
         } else if (response.status === 404) {
           errorMessage = 'Instructor or service not found';
         } else {
-          errorMessage = response.error || 'An unexpected error occurred';
+          errorMessage = typeof errorText === 'string' ? errorText : 'An unexpected error occurred';
         }
 
         logger.error('Booking creation failed', undefined, {
