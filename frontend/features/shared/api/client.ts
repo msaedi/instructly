@@ -212,15 +212,22 @@ export const publicApi = {
     }
   ) {
     return cleanFetch<{
-      instructor_id: string;
-      availability: Array<{
-        date: string;
-        slots: Array<{
-          start_time: string;
-          end_time: string;
-          is_available: boolean;
-        }>;
-      }>;
+      instructor_id: number;
+      instructor_name: string;
+      availability_by_date: Record<
+        string,
+        {
+          date: string;
+          available_slots: Array<{
+            start_time: string;
+            end_time: string;
+          }>;
+          is_blackout: boolean;
+        }
+      >;
+      timezone: string;
+      total_available_slots: number;
+      earliest_available_date: string;
     }>(PUBLIC_ENDPOINTS.instructors.availability(instructorId), {
       params,
     });

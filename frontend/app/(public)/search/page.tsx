@@ -137,6 +137,7 @@ function SearchPageContent() {
             logger.info('Received simple array response', {
               count: response.data.length,
             });
+
             setInstructors(response.data);
             setTotal(response.data.length);
             setMetadata(null);
@@ -146,6 +147,7 @@ function SearchPageContent() {
               instructorCount: response.data.instructors.length,
               metadata: response.data.metadata,
             });
+
             setInstructors(response.data.instructors);
             setTotal(response.data.metadata.active_instructors);
             setMetadata(response.data.metadata);
@@ -343,13 +345,13 @@ function SearchPageContent() {
                     {/* Actions */}
                     <div className="flex gap-3">
                       <Link
-                        href={`/instructors/${instructor.id}`}
+                        href={`/instructors/${instructor.user_id}`}
                         className="flex-1 text-center py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white transition-colors"
                       >
                         View Profile
                       </Link>
                       <Link
-                        href={`/book/${instructor.id}`}
+                        href={`/book/${instructor.user_id}`}
                         className="flex-1 text-center py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 transition-colors"
                       >
                         Book Now →

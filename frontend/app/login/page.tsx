@@ -5,6 +5,7 @@ import { BRAND } from '@/app/config/brand';
 import { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Eye, EyeOff } from 'lucide-react';
 import { API_URL, API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
 import { logger } from '@/lib/logger';
 
@@ -39,6 +40,7 @@ function LoginForm() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   /**
    * Handle form input changes
@@ -96,10 +98,12 @@ function LoginForm() {
     }
 
     setIsSubmitting(true);
-    logger.info('Login attempt', {
+    logger.info('Login attempt started', {
       email: formData.email,
       hasRedirect: redirect !== '/',
       redirectTo: redirect,
+      API_URL,
+      LOGIN_ENDPOINT: API_ENDPOINTS.LOGIN,
     });
 
     try {
@@ -108,10 +112,23 @@ function LoginForm() {
       params.append('username', formData.email); // OAuth2 expects 'username'
       params.append('password', formData.password);
 
-      const response = await fetch(`${API_URL}${API_ENDPOINTS.LOGIN}`, {
+      const loginUrl = `${API_URL}${API_ENDPOINTS.LOGIN}`;
+      logger.info('Attempting login', {
+        url: loginUrl,
+        email: formData.email,
+        hasPassword: !!formData.password,
+      });
+
+      const response = await fetch(loginUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: params,
+      });
+
+      logger.info('Login response received', {
+        status: response.status,
+        ok: response.ok,
+        statusText: response.statusText,
       });
 
       if (response.ok) {
@@ -175,11 +192,14 @@ function LoginForm() {
 
   return (
     <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-      <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+      <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
         <form className="space-y-6" onSubmit={handleSubmit} noValidate>
           {/* Email Field */}
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-200"
+            >
               Email address
             </label>
             <div className="mt-1">
@@ -192,7 +212,7 @@ function LoginForm() {
                 value={formData.email}
                 onChange={handleChange}
                 disabled={isSubmitting}
-                className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 autofill-fix"
                 placeholder="you@example.com"
               />
               {errors.email && (
@@ -205,22 +225,37 @@ function LoginForm() {
 
           {/* Password Field */}
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-200"
+            >
               Password
             </label>
-            <div className="mt-1">
+            <div className="mt-1 relative">
               <input
                 id="password"
                 name="password"
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
                 required
                 value={formData.password}
                 onChange={handleChange}
                 disabled={isSubmitting}
-                className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="appearance-none block w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 autofill-fix"
                 placeholder="••••••••"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                disabled={isSubmitting}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-5 w-5" aria-hidden="true" />
+                ) : (
+                  <Eye className="h-5 w-5" aria-hidden="true" />
+                )}
+              </button>
               {errors.password && (
                 <p className="mt-1 text-sm text-red-600" role="alert">
                   {errors.password}
@@ -282,7 +317,7 @@ function LoginForm() {
 
         {/* Sign Up Link */}
         <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
             Don't have an account?{' '}
             <Link
               href={`/signup${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}

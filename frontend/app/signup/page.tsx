@@ -15,6 +15,7 @@
 import { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Eye, EyeOff } from 'lucide-react';
 import { API_URL, API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
 import { BRAND } from '@/app/config/brand';
 import { logger } from '@/lib/logger';
@@ -55,6 +56,7 @@ function SignUpForm() {
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [requestStatus, setRequestStatus] = useState<RequestStatus>(RequestStatus.IDLE);
+  const [showPassword, setShowPassword] = useState(false);
 
   logger.debug('SignUpForm initialized', {
     redirectTo: redirect,
@@ -359,7 +361,7 @@ function SignUpForm() {
                 value={formData.email}
                 onChange={handleChange}
                 disabled={isLoading}
-                className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix"
                 aria-invalid={!!errors.email}
                 aria-describedby={errors.email ? 'email-error' : undefined}
               />
@@ -379,20 +381,32 @@ function SignUpForm() {
             >
               Password
             </label>
-            <div className="mt-1">
+            <div className="mt-1 relative">
               <input
                 id="password"
                 name="password"
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 autoComplete="new-password"
                 required
                 value={formData.password}
                 onChange={handleChange}
                 disabled={isLoading}
-                className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                className="appearance-none block w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix"
                 aria-invalid={!!errors.password}
                 aria-describedby={errors.password ? 'password-error' : 'password-hint'}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute top-0 right-0 h-10 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                disabled={isLoading}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-5 w-5" aria-hidden="true" />
+                ) : (
+                  <Eye className="h-5 w-5" aria-hidden="true" />
+                )}
+              </button>
               {errors.password && (
                 <p id="password-error" className="mt-1 text-sm text-red-600 dark:text-red-400">
                   {errors.password}
@@ -416,13 +430,13 @@ function SignUpForm() {
               <input
                 id="confirmPassword"
                 name="confirmPassword"
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 autoComplete="new-password"
                 required
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 disabled={isLoading}
-                className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix"
                 aria-invalid={!!errors.confirmPassword}
                 aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined}
               />

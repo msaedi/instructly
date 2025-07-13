@@ -3,6 +3,8 @@
 
 import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { publicApi } from '@/features/shared/api/client';
+import { logger } from '@/lib/logger';
 
 interface TimeSlot {
   start_time: string;
@@ -24,9 +26,10 @@ export default function AvailabilityCalendar({ instructorId }: AvailabilityCalen
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [availability, setAvailability] = useState<AvailabilityDay[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Generate next 14 days starting from today
-  const generateNext14Days = () => {
+  // Generate next 14 days starting from today - memoize to avoid regeneration
+  const [next14Days] = useState(() => {
     const days = [];
     const today = new Date();
 
@@ -41,36 +44,72 @@ export default function AvailabilityCalendar({ instructorId }: AvailabilityCalen
       });
     }
     return days;
-  };
-
-  const next14Days = generateNext14Days();
+  });
 
   // Fetch availability data
   useEffect(() => {
     const fetchAvailability = async () => {
       setLoading(true);
+      setError(null);
       try {
         const startDate = next14Days[0].date;
         const endDate = next14Days[next14Days.length - 1].date;
 
-        // Mock data for now - replace with actual API call
-        const mockAvailability: AvailabilityDay[] = next14Days.map((day) => ({
-          date: day.date,
-          slots:
-            Math.random() > 0.3
-              ? [
-                  { start_time: '09:00', end_time: '10:00', is_available: true },
-                  { start_time: '10:00', end_time: '11:00', is_available: true },
-                  { start_time: '14:00', end_time: '15:00', is_available: true },
-                  { start_time: '15:00', end_time: '16:00', is_available: true },
-                  { start_time: '17:00', end_time: '18:00', is_available: true },
-                ]
-              : [],
-        }));
+        logger.info('Fetching availability for instructor', { instructorId, startDate, endDate });
 
-        setAvailability(mockAvailability);
+        // Call the real availability API
+        const response = await publicApi.getInstructorAvailability(instructorId, {
+          start_date: startDate,
+          end_date: endDate,
+        });
+
+        logger.debug('Availability API response received', {
+          hasData: !!response.data,
+          hasError: !!response.error,
+          status: response.status,
+          dataKeys: response.data ? Object.keys(response.data) : [],
+        });
+
+        if (response.data) {
+          // Transform API response to our expected format
+          const availabilityMap = new Map<string, TimeSlot[]>();
+
+          if (response.data.availability_by_date) {
+            Object.entries(response.data.availability_by_date).forEach(
+              ([date, dayData]: [string, any]) => {
+                const slots = dayData.available_slots
+                  ? dayData.available_slots.map((slot: any) => ({
+                      start_time: slot.start_time,
+                      end_time: slot.end_time,
+                      is_available: true, // All slots from available_slots are available
+                    }))
+                  : [];
+                availabilityMap.set(date, slots);
+              }
+            );
+          }
+
+          // Create availability data for all 14 days
+          const availabilityData: AvailabilityDay[] = next14Days.map((day) => ({
+            date: day.date,
+            slots: availabilityMap.get(day.date) || [],
+          }));
+
+          setAvailability(availabilityData);
+          logger.info('Availability data processed successfully', {
+            totalDays: availabilityData.length,
+            daysWithSlots: availabilityData.filter((day) => day.slots.length > 0).length,
+          });
+        } else {
+          setError(response.error || 'Failed to load availability');
+          // Fall back to empty availability
+          setAvailability(next14Days.map((day) => ({ date: day.date, slots: [] })));
+        }
       } catch (error) {
-        console.error('Failed to fetch availability:', error);
+        logger.error('Failed to fetch availability', error, { instructorId });
+        setError('Unable to load availability. Please try again.');
+        // Fall back to empty availability on error
+        setAvailability(next14Days.map((day) => ({ date: day.date, slots: [] })));
       } finally {
         setLoading(false);
       }
@@ -139,6 +178,28 @@ export default function AvailabilityCalendar({ instructorId }: AvailabilityCalen
   const selectedDaySlots = selectedDate ? getAvailableSlots(selectedDate) : [];
   const groupedSlots = groupSlotsByTimeOfDay(selectedDaySlots);
 
+  // Check if instructor has any availability at all
+  const hasAnyAvailability = availability.some((day) => day.slots.length > 0);
+
+  if (error) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+        <div className="text-center py-8">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+            Unable to Load Availability
+          </h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
       <div className="mb-6">
@@ -193,6 +254,18 @@ export default function AvailabilityCalendar({ instructorId }: AvailabilityCalen
             <span>Fully booked</span>
           </div>
         </div>
+
+        {/* No availability message */}
+        {!hasAnyAvailability && (
+          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg text-center">
+            <p className="text-gray-600 dark:text-gray-400 text-sm">
+              This instructor has no available times in the next 14 days.
+            </p>
+            <p className="text-gray-500 dark:text-gray-500 text-xs mt-1">
+              Try contacting them directly or check back later.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Time slots for selected day */}

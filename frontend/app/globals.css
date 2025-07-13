@@ -399,3 +399,23 @@ html {
 .animate-fade-in {
   animation: fadeIn var(--transition-base) ease-out;
 }
+
+/* Fix Autocomplete in Dark Mode */
+.autofill-fix:-webkit-autofill,
+.autofill-fix:-webkit-autofill:hover,
+.autofill-fix:-webkit-autofill:focus,
+.autofill-fix:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px white inset !important;
+  -webkit-text-fill-color: #111827 !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+@media (prefers-color-scheme: dark) {
+  .autofill-fix:-webkit-autofill,
+  .autofill-fix:-webkit-autofill:hover,
+  .autofill-fix:-webkit-autofill:focus,
+  .autofill-fix:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px #374151 inset !important;
+    -webkit-text-fill-color: #f9fafb !important;
+  }
+}

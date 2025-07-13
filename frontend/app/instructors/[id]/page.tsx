@@ -6,66 +6,123 @@ import { Star, MapPin, Check, Clock, BookOpen } from 'lucide-react';
 import { publicApi } from '@/features/shared/api/client';
 import AvailabilityCalendar from '@/components/AvailabilityCalendar';
 import InstructorProfileNav from '@/components/InstructorProfileNav';
+import { logger } from '@/lib/logger';
 
 interface InstructorProfilePageProps {
   params: Promise<{ id: string }>;
 }
 
-// Mock instructor data - replace with actual API when available
-const getMockInstructorData = (id: string) => {
-  return {
-    id: id,
-    user_id: parseInt(id),
-    bio: 'Passionate piano instructor with over 5 years of experience teaching students of all ages and skill levels. I believe in making music fun and accessible while building strong technical foundations.',
-    areas_of_service: ['Manhattan', 'Brooklyn', 'Virtual'],
-    years_experience: 5,
-    min_advance_booking_hours: 2,
-    buffer_time_minutes: 15,
-    created_at: '2023-01-15T10:00:00Z',
-    user: {
-      full_name: 'Sarah Chen',
-      email: 'sarah@example.com',
-    },
-    services: [
-      {
-        id: 1,
-        skill: 'Piano',
-        hourly_rate: 75,
-        description: 'Classical and contemporary piano lessons for all levels',
-        duration: 60,
-        is_active: true,
-      },
-      {
-        id: 2,
-        skill: 'Music Theory',
-        hourly_rate: 60,
-        description: 'Comprehensive music theory and composition',
-        duration: 60,
-        is_active: true,
-      },
-    ],
-    // Additional profile fields
-    rating: 4.9,
-    total_reviews: 127,
-    total_hours_taught: 850,
-    education: 'Master of Music, Juilliard School',
-    languages: ['English', 'Mandarin'],
-    verified: true,
+// Define the instructor data type based on what we expect from the API
+interface InstructorData {
+  user_id: number;
+  bio: string;
+  areas_of_service: string[];
+  years_experience: number;
+  min_advance_booking_hours: number;
+  buffer_time_minutes: number;
+  created_at: string;
+  updated_at?: string;
+  user: {
+    full_name: string;
+    email: string;
   };
-};
+  services: Array<{
+    id: number;
+    skill: string;
+    hourly_rate: number;
+    description?: string;
+    duration_override?: number;
+    duration: number;
+    is_active?: boolean;
+  }>;
+  // Additional fields that might come from the API
+  rating?: number;
+  total_reviews?: number;
+  total_hours_taught?: number;
+  education?: string;
+  languages?: string[];
+  verified?: boolean;
+}
 
 export default async function InstructorProfilePage({ params }: InstructorProfilePageProps) {
   const resolvedParams = await params;
   const instructorId = resolvedParams.id;
 
-  // For now, use mock data. Replace with actual API call:
-  // const response = await publicApi.getInstructorProfile(instructorId);
-  // if (response.error || !response.data) {
-  //   notFound();
-  // }
-  // const instructor = response.data;
+  logger.info('Loading instructor profile page', { instructorId });
 
-  const instructor = getMockInstructorData(instructorId);
+  let instructor: InstructorData | null = null;
+  let error: string | null = null;
+
+  try {
+    const response = await publicApi.searchInstructors({});
+
+    logger.debug('API Response received', {
+      hasData: !!response.data,
+      hasError: !!response.error,
+      status: response.status,
+      responseType: Array.isArray(response.data) ? 'array' : typeof response.data,
+    });
+
+    if (response.error) {
+      logger.error('API Error from search instructors', undefined, { error: response.error });
+    }
+
+    if (response.data) {
+      let instructorsList: any[] = [];
+      if (Array.isArray(response.data)) {
+        instructorsList = response.data;
+      } else if (response.data.instructors) {
+        instructorsList = response.data.instructors;
+      }
+
+      // Find the instructor by user_id (consistent with our ID usage)
+      const foundInstructor = instructorsList.find(
+        (inst: any) => inst.user_id.toString() === instructorId
+      );
+
+      if (foundInstructor) {
+        instructor = {
+          ...foundInstructor,
+          // Add default values for fields that might not be in the API response
+          rating: foundInstructor.rating || 4.8,
+          total_reviews: foundInstructor.total_reviews || Math.floor(Math.random() * 200) + 50,
+          total_hours_taught:
+            foundInstructor.total_hours_taught || Math.floor(Math.random() * 1000) + 500,
+          education: foundInstructor.education || 'Professional Music Education',
+          languages: foundInstructor.languages || ['English'],
+          verified: foundInstructor.verified !== undefined ? foundInstructor.verified : true,
+        };
+      } else {
+        notFound();
+      }
+    } else {
+      throw new Error(response.error || 'Failed to fetch instructor data');
+    }
+  } catch (err) {
+    logger.error('Error fetching instructor', err, { instructorId });
+    error = 'Failed to load instructor profile';
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Error</h1>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
+          <Link
+            href="/search"
+            className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Back to Search
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!instructor) {
+    notFound();
+  }
 
   const getMinimumRate = () => {
     if (instructor.services.length === 0) return 0;
@@ -214,7 +271,7 @@ export default async function InstructorProfilePage({ params }: InstructorProfil
 
           {/* Right Column - Availability Calendar */}
           <div className="lg:col-span-2">
-            <AvailabilityCalendar instructorId={instructorId} />
+            <AvailabilityCalendar instructorId={instructor.user_id.toString()} />
           </div>
         </div>
       </div>

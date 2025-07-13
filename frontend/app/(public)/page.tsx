@@ -1,7 +1,7 @@
 // frontend/app/(public)/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -18,6 +18,8 @@ import {
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const router = useRouter();
 
   const handleSearch = (e: React.FormEvent) => {
@@ -25,6 +27,38 @@ export default function HomePage() {
     if (searchQuery.trim()) {
       router.push(`/search?q=${encodeURIComponent(searchQuery)}`);
     }
+  };
+
+  // Check authentication on component mount
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      setIsAuthenticated(true);
+      // Try to get user data to determine role
+      fetch('http://localhost:8000/auth/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+        .then((response) => response.json())
+        .then((userData) => {
+          if (userData.role) {
+            setUserRole(userData.role);
+          }
+        })
+        .catch(() => {
+          // Token might be invalid, clear it
+          localStorage.removeItem('access_token');
+          setIsAuthenticated(false);
+        });
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('access_token');
+    setIsAuthenticated(false);
+    setUserRole(null);
+    router.push('/');
   };
 
   const categories = [
@@ -98,18 +132,40 @@ export default function HomePage() {
               >
                 Lessons
               </Link>
-              <Link
-                href="/become-instructor"
-                className="text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400"
-              >
-                Become an Instructor
-              </Link>
-              <Link
-                href="/auth/login"
-                className="px-4 py-2 border border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20"
-              >
-                Sign up / Log in
-              </Link>
+              {!isAuthenticated && (
+                <Link
+                  href="/become-instructor"
+                  className="text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400"
+                >
+                  Become an Instructor
+                </Link>
+              )}
+
+              {isAuthenticated ? (
+                <div className="flex items-center space-x-4">
+                  {userRole === 'instructor' && (
+                    <Link
+                      href="/dashboard/instructor"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Instructor Dashboard
+                    </Link>
+                  )}
+                  <button
+                    onClick={handleLogout}
+                    className="px-4 py-2 border border-red-600 dark:border-red-400 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  >
+                    Logout
+                  </button>
+                </div>
+              ) : (
+                <Link
+                  href="/login"
+                  className="px-4 py-2 border border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                >
+                  Sign up / Log in
+                </Link>
+              )}
             </div>
           </div>
         </div>
