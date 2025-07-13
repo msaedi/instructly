@@ -278,15 +278,23 @@ Verify if a reset token is valid.
 ### Instructor Endpoints
 
 #### GET /instructors/
-Get list of all instructor profiles.
+Get list of all instructor profiles with optional filtering.
 
 **Authentication**: Not required
 
 **Query Parameters**:
 - `skip` (integer, default: 0) - Number of records to skip
 - `limit` (integer, default: 100, max: 100) - Number of records to return
+- `search` (string, optional) - Text search across instructor name, bio, and skills (case-insensitive)
+- `skill` (string, optional) - Filter by specific skill/service (case-insensitive)
+- `min_price` (float, optional) - Minimum hourly rate filter (0-1000)
+- `max_price` (float, optional) - Maximum hourly rate filter (0-1000)
 
-**Response (200)**:
+**Response Format**:
+- When no filters are applied: Returns array of instructor profiles (backward compatible)
+- When filters are applied: Returns object with instructors array and metadata
+
+**Response (200) - No filters**:
 ```json
 [
   {
@@ -316,6 +324,90 @@ Get list of all instructor profiles.
   }
 ]
 ```
+
+**Response (200) - With filters**:
+```json
+{
+  "instructors": [
+    {
+      "id": 1,
+      "user_id": 123,
+      "bio": "Experienced piano teacher with 15 years of teaching experience. Juilliard graduate specializing in classical piano.",
+      "areas_of_service": ["Manhattan", "Brooklyn"],
+      "years_experience": 15,
+      "min_advance_booking_hours": 2,
+      "buffer_time_minutes": 0,
+      "created_at": "2025-01-15T10:00:00Z",
+      "updated_at": "2025-01-15T10:00:00Z",
+      "user": {
+        "full_name": "Sarah Chen",
+        "email": "sarah.chen@example.com"
+      },
+      "services": [
+        {
+          "id": 1,
+          "skill": "Piano",
+          "hourly_rate": 120.00,
+          "description": "Classical piano for all levels",
+          "duration_override": null,
+          "duration": 60,
+          "is_active": true
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "filters_applied": {
+      "search": "piano",
+      "max_price": 150
+    },
+    "pagination": {
+      "skip": 0,
+      "limit": 100,
+      "count": 3
+    },
+    "total_matches": 3,
+    "active_instructors": 3
+  }
+}
+```
+
+**Example Requests**:
+
+1. **Search for piano teachers**:
+   ```bash
+   curl "https://instructly.onrender.com/instructors/?search=piano"
+   ```
+
+2. **Find budget-friendly Spanish teachers**:
+   ```bash
+   curl "https://instructly.onrender.com/instructors/?skill=spanish&max_price=75"
+   ```
+
+3. **Search with multiple filters**:
+   ```bash
+   curl "https://instructly.onrender.com/instructors/?search=music&min_price=50&max_price=150&limit=20"
+   ```
+
+4. **Find premium instructors (over $100/hr)**:
+   ```bash
+   curl "https://instructly.onrender.com/instructors/?min_price=100"
+   ```
+
+**Performance Considerations**:
+- Text search uses PostgreSQL GIN indexes for fast full-text search
+- Skill filtering uses case-insensitive indexes
+- Price filtering uses composite indexes on active services
+- All filters are applied with AND logic
+- Results are deduplicated when joins produce multiple rows
+- Only instructors with active services are returned
+- Response time typically under 100ms for most queries
+
+**Filter Details**:
+- **search**: Searches across instructor name, bio, and all their service skills
+- **skill**: Exact skill match (case-insensitive), useful for specific service lookup
+- **min_price/max_price**: Filters based on any active service price within range
+- All filters can be combined for precise results
 
 ---
 
@@ -1031,6 +1123,7 @@ export interface Service {
   description?: string;
   duration_override?: number;
   duration: number;
+  is_active?: boolean;  // Included when filtering is applied
 }
 
 export interface InstructorProfile {
@@ -1048,6 +1141,30 @@ export interface InstructorProfile {
     email: string;
   };
   services: Service[];
+}
+
+// Instructor Filtering Types
+export interface InstructorFilterParams {
+  search?: string;
+  skill?: string;
+  min_price?: number;
+  max_price?: number;
+  skip?: number;
+  limit?: number;
+}
+
+export interface InstructorFilterResponse {
+  instructors: InstructorProfile[];
+  metadata: {
+    filters_applied: Record<string, any>;
+    pagination: {
+      skip: number;
+      limit: number;
+      count: number;
+    };
+    total_matches: number;
+    active_instructors: number;
+  };
 }
 
 // Availability Types
@@ -1164,10 +1281,13 @@ export interface RateLimitError {
 
 ### Complete Booking Flow
 ```typescript
-// 1. Search for instructors (future feature)
-// Currently: Get all instructors
-const response = await fetch('https://instructly.onrender.com/instructors/');
-const instructors = await response.json();
+// 1. Search for instructors with filtering
+// Example: Find piano teachers under $100/hr
+const response = await fetch('https://instructly.onrender.com/instructors/?skill=piano&max_price=100');
+const result = await response.json();
+
+// Check if response includes metadata (filters were applied)
+const instructors = result.instructors || result;
 
 // 2. Check instructor availability (public endpoint)
 const availabilityResponse = await fetch(
@@ -1201,6 +1321,63 @@ const bookingResponse = await fetch('https://instructly.onrender.com/bookings/',
   })
 });
 const booking = await bookingResponse.json();
+```
+
+### Instructor Search and Filtering
+```typescript
+// 1. Simple text search
+const searchResponse = await fetch('https://instructly.onrender.com/instructors/?search=music');
+const searchResult = await searchResponse.json();
+console.log(`Found ${searchResult.metadata.active_instructors} music instructors`);
+
+// 2. Filter by specific skill
+const skillResponse = await fetch('https://instructly.onrender.com/instructors/?skill=yoga');
+const skillResult = await skillResponse.json();
+const yogaInstructors = skillResult.instructors;
+
+// 3. Price range filtering
+const budgetResponse = await fetch('https://instructly.onrender.com/instructors/?min_price=20&max_price=50');
+const budgetResult = await budgetResponse.json();
+console.log(`Found ${budgetResult.metadata.total_matches} budget-friendly options`);
+
+// 4. Combined filters for precise results
+const params = new URLSearchParams({
+  search: 'piano',
+  max_price: '100',
+  skip: '0',
+  limit: '10'
+});
+const comboResponse = await fetch(`https://instructly.onrender.com/instructors/?${params}`);
+const comboResult = await comboResponse.json();
+
+// 5. Handle backward-compatible responses
+async function getInstructors(filters?: InstructorFilterParams) {
+  const url = new URL('https://instructly.onrender.com/instructors/');
+  if (filters) {
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined) url.searchParams.append(key, String(value));
+    });
+  }
+
+  const response = await fetch(url);
+  const data = await response.json();
+
+  // Check if filtering was applied (response has metadata)
+  if (data.metadata) {
+    return {
+      instructors: data.instructors,
+      totalFound: data.metadata.total_matches,
+      filtersUsed: data.metadata.filters_applied
+    };
+  }
+
+  // No filters - simple array response
+  return {
+    instructors: data,
+    totalFound: data.length,
+    filtersUsed: {}
+  };
+}
 ```
 
 ### Instructor Availability Management
@@ -1299,6 +1476,14 @@ The API currently uses URL-based versioning. Future versions may introduce:
 For API support, contact: support@instainstru.com
 
 ## Changelog
+- **v1.1.0** (2025-01-13): Instructor search and filtering
+  - Added filtering to GET /instructors/ endpoint
+  - Text search across name, bio, and skills
+  - Skill-specific filtering
+  - Price range filtering (min/max)
+  - Backward-compatible response format
+  - Performance optimizations with PostgreSQL indexes
+
 - **v1.0.0** (2025-01-15): Initial API release
   - Authentication endpoints
   - Instructor management
