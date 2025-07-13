@@ -15,9 +15,9 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Search } from 'lucide-react';
 import Link from 'next/link';
-import { fetchAPI, API_ENDPOINTS } from '@/lib/api';
 import { BRAND } from '@/app/config/brand';
 import { logger } from '@/lib/logger';
+import { publicApi } from '@/features/shared/api/client';
 
 // Import centralized types
 import type { InstructorProfile, InstructorService } from '@/types/instructor';
@@ -58,48 +58,43 @@ export default function InstructorsPage() {
 
       try {
         logger.time('fetchInstructors');
-        // Build API URL with search params if available
-        let apiUrl = API_ENDPOINTS.INSTRUCTORS;
-        if (urlSearchQuery) {
-          apiUrl += `?search=${encodeURIComponent(urlSearchQuery)}`;
-        }
 
-        const response = await fetchAPI(apiUrl);
+        // Use new API client with proper filtering
+        const response = await publicApi.searchInstructors({
+          search: urlSearchQuery || undefined,
+        });
 
-        if (!response.ok) {
-          throw new Error(`Failed to fetch instructors: ${response.status} ${response.statusText}`);
-        }
-
-        const data = await response.json();
         logger.timeEnd('fetchInstructors');
 
-        // Check if response is array (no filters) or object with metadata (filtered)
-        let instructorsList: InstructorProfile[];
-        if (Array.isArray(data)) {
-          instructorsList = data;
-        } else if (data.instructors) {
-          instructorsList = data.instructors;
-          logger.info('Received filtered response', {
-            metadata: data.metadata,
+        if (response.success) {
+          // Handle both filtered and unfiltered responses
+          let instructorsList: InstructorProfile[];
+          if (Array.isArray(response.data)) {
+            instructorsList = response.data;
+          } else if (response.data.instructors) {
+            instructorsList = response.data.instructors;
+            logger.info('Received filtered response', {
+              metadata: response.data.metadata,
+            });
+          } else {
+            instructorsList = [];
+          }
+
+          logger.info('Instructors fetched successfully', {
+            count: instructorsList.length,
+            hasServices: instructorsList.filter((i) => i.services.length > 0).length,
+            hasUrlSearch: !!urlSearchQuery,
           });
+
+          setInstructors(instructorsList);
+          setFilteredInstructors(instructorsList);
+          setRequestStatus(RequestStatus.SUCCESS);
         } else {
-          instructorsList = [];
+          throw new Error(response.error || 'Failed to fetch instructors');
         }
-
-        logger.info('Instructors fetched successfully', {
-          count: instructorsList.length,
-          hasServices: instructorsList.filter((i) => i.services.length > 0).length,
-          hasUrlSearch: !!urlSearchQuery,
-        });
-
-        setInstructors(instructorsList);
-        setFilteredInstructors(instructorsList);
-        setRequestStatus(RequestStatus.SUCCESS);
       } catch (err) {
         const errorMessage = getErrorMessage(err);
-        logger.error('Failed to fetch instructors', err, {
-          endpoint: API_ENDPOINTS.INSTRUCTORS,
-        });
+        logger.error('Failed to fetch instructors', err);
 
         setError(errorMessage);
         setRequestStatus(RequestStatus.ERROR);
@@ -209,22 +204,20 @@ export default function InstructorsPage() {
               type="text"
               placeholder="Search by name, skill, or area..."
               value={searchQuery}
-              onChange={(e) => {
-                const newQuery = e.target.value;
-                setSearchQuery(newQuery);
-                // Update URL without navigation
-                const params = new URLSearchParams(searchParams);
-                if (newQuery) {
-                  params.set('search', newQuery);
-                } else {
-                  params.delete('search');
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  // Navigate to trigger backend search
+                  const params = new URLSearchParams(searchParams);
+                  if (searchQuery.trim()) {
+                    params.set('search', searchQuery.trim());
+                  } else {
+                    params.delete('search');
+                  }
+                  router.push(`/instructors?${params.toString()}`);
+                  logger.debug('Search query submitted', { query: searchQuery });
                 }
-                window.history.replaceState({}, '', `?${params.toString()}`);
-                logger.debug('Search query changed', {
-                  oldQuery: searchQuery,
-                  newQuery,
-                });
-                setSearchQuery(newQuery);
               }}
               className="w-full px-4 py-2 pl-10 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
               aria-label="Search instructors"
