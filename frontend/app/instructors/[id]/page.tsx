@@ -271,7 +271,10 @@ export default async function InstructorProfilePage({ params }: InstructorProfil
 
           {/* Right Column - Availability Calendar */}
           <div className="lg:col-span-2">
-            <AvailabilityCalendar instructorId={instructor.user_id.toString()} />
+            <AvailabilityCalendar
+              instructorId={instructor.user_id.toString()}
+              instructor={instructor}
+            />
           </div>
         </div>
       </div>

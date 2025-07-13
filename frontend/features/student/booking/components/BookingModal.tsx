@@ -1,0 +1,253 @@
+// frontend/features/student/booking/components/BookingModal.tsx
+'use client';
+
+import { useState, useEffect } from 'react';
+import { X, MapPin, Clock, DollarSign } from 'lucide-react';
+import { BookingModalProps, Service, BookingFlowState } from '../types';
+import { logger } from '@/lib/logger';
+
+export default function BookingModal({
+  isOpen,
+  onClose,
+  instructor,
+  selectedDate,
+  selectedTime,
+  onContinueToBooking,
+}: BookingModalProps) {
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [duration, setDuration] = useState(60); // Default to 60 minutes
+  const [totalPrice, setTotalPrice] = useState(0);
+
+  // Initialize with first service if multiple, or use the only service
+  useEffect(() => {
+    if (instructor.services.length > 0 && !selectedService) {
+      const firstService = instructor.services[0];
+      setSelectedService(firstService);
+      setDuration(firstService.duration);
+      setTotalPrice(firstService.hourly_rate * (firstService.duration / 60));
+    }
+  }, [instructor.services, selectedService]);
+
+  // Update price when service or duration changes
+  useEffect(() => {
+    if (selectedService) {
+      const hourlyRate = selectedService.hourly_rate;
+      const hours = duration / 60;
+      setTotalPrice(hourlyRate * hours);
+    }
+  }, [selectedService, duration]);
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  };
+
+  const formatTime = (timeString: string) => {
+    const [hours, minutes] = timeString.split(':');
+    const time = new Date();
+    time.setHours(parseInt(hours), parseInt(minutes));
+    return time.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+  const handleServiceChange = (service: Service) => {
+    setSelectedService(service);
+    setDuration(service.duration);
+    logger.info('Service selected', {
+      serviceId: service.id,
+      skill: service.skill,
+      rate: service.hourly_rate,
+      duration: service.duration,
+    });
+  };
+
+  const handleDurationChange = (newDuration: number) => {
+    setDuration(newDuration);
+    logger.info('Duration changed', { duration: newDuration });
+  };
+
+  const handleContinue = () => {
+    if (!selectedService) return;
+
+    const bookingData: BookingFlowState = {
+      instructor,
+      selectedDate,
+      selectedTime,
+      selectedService,
+      duration,
+      totalPrice,
+    };
+
+    logger.info('Continue to booking clicked', bookingData);
+    onContinueToBooking(bookingData);
+  };
+
+  const handleOverlayClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onClick={handleOverlayClick}
+    >
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Confirm Your Lesson
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            aria-label="Close modal"
+          >
+            <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-6">
+          {/* Instructor and Time Info */}
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3">
+              {/* Instructor Photo Placeholder */}
+              <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                <span className="text-gray-500 dark:text-gray-400 font-medium">
+                  {instructor.user.full_name.charAt(0)}
+                </span>
+              </div>
+              <div>
+                <h3 className="font-medium text-gray-900 dark:text-white">
+                  {selectedService?.skill || 'Lesson'} with {instructor.user.full_name}
+                </h3>
+                <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
+                  <Clock className="h-4 w-4 mr-1" />
+                  {formatDate(selectedDate)} at {formatTime(selectedTime)}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Service Selection (if multiple services) */}
+          {instructor.services.length > 1 && (
+            <div className="space-y-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Select Service:
+              </label>
+              <div className="space-y-2">
+                {instructor.services.map((service) => (
+                  <label
+                    key={service.id}
+                    className="flex items-center space-x-3 p-3 border border-gray-200 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <input
+                      type="radio"
+                      name="service"
+                      value={service.id}
+                      checked={selectedService?.id === service.id}
+                      onChange={() => handleServiceChange(service)}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900 dark:text-white">
+                        {service.skill}
+                      </div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                        ${service.hourly_rate}/hour
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Duration Selection */}
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Duration:
+            </label>
+            <div className="space-y-2">
+              {[30, 60, 90].map((minutes) => {
+                const price = selectedService ? (selectedService.hourly_rate * minutes) / 60 : 0;
+                return (
+                  <label
+                    key={minutes}
+                    className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <input
+                        type="radio"
+                        name="duration"
+                        value={minutes}
+                        checked={duration === minutes}
+                        onChange={() => handleDurationChange(minutes)}
+                        className="text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-gray-900 dark:text-white">{minutes} minutes</span>
+                    </div>
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      ${Math.round(price)}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Location Info */}
+          <div className="flex items-start space-x-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <MapPin className="h-5 w-5 text-gray-500 dark:text-gray-400 mt-0.5" />
+            <div>
+              <div className="font-medium text-gray-900 dark:text-white">
+                {instructor.user.full_name}'s Studio
+              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {instructor.areas_of_service[0]} • Location details will be provided after booking
+              </div>
+            </div>
+          </div>
+
+          {/* Price Summary */}
+          <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <DollarSign className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <span className="font-medium text-gray-900 dark:text-white">Total</span>
+            </div>
+            <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
+              ${Math.round(totalPrice)}
+            </span>
+          </div>
+
+          {/* Continue Button */}
+          <button
+            onClick={handleContinue}
+            disabled={!selectedService}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-colors"
+          >
+            Continue to Booking
+          </button>
+
+          {/* Trust & Policy Info */}
+          <div className="text-xs text-gray-500 dark:text-gray-400 text-center space-y-1">
+            <div>Free cancellation until 2 hours before</div>
+            <div>100% satisfaction guarantee</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -5,6 +5,8 @@ import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { publicApi } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
+import BookingModal from '@/features/student/booking/components/BookingModal';
+import { Instructor, BookingFlowState } from '@/features/student/booking/types';
 
 interface TimeSlot {
   start_time: string;
@@ -19,14 +21,48 @@ interface AvailabilityDay {
 
 interface AvailabilityCalendarProps {
   instructorId: string;
+  instructor: Instructor;
 }
 
-export default function AvailabilityCalendar({ instructorId }: AvailabilityCalendarProps) {
+export default function AvailabilityCalendar({
+  instructorId,
+  instructor,
+}: AvailabilityCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [availability, setAvailability] = useState<AvailabilityDay[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Booking Modal State
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [selectedTime, setSelectedTime] = useState<string>('');
+
+  // Handle time slot selection
+  const handleTimeSlotSelect = (date: string, startTime: string, endTime: string) => {
+    setSelectedTime(startTime);
+    setIsBookingModalOpen(true);
+    logger.info('Time slot selected', {
+      date,
+      startTime,
+      endTime,
+      instructorId,
+    });
+  };
+
+  // Handle booking modal actions
+  const handleCloseModal = () => {
+    setIsBookingModalOpen(false);
+    setSelectedTime('');
+  };
+
+  const handleContinueToBooking = (bookingData: BookingFlowState) => {
+    logger.info('Continue to booking from modal', bookingData);
+    // TODO: Navigate to booking form or handle authentication
+    handleCloseModal();
+    // For now, just log - we'll implement the actual booking flow later
+    alert('Booking flow will be implemented next!');
+  };
 
   // Generate next 14 days starting from today - memoize to avoid regeneration
   const [next14Days] = useState(() => {
@@ -152,12 +188,6 @@ export default function AvailabilityCalendar({ instructorId }: AvailabilityCalen
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const displayHour = hour % 12 || 12;
     return `${displayHour}:${minutes}${ampm}`;
-  };
-
-  const handleTimeSlotSelect = (date: string, startTime: string, endTime: string) => {
-    // TODO: Navigate to booking page or open booking modal
-    console.log('Selected time slot:', { date, startTime, endTime });
-    alert(`Selected: ${new Date(date).toLocaleDateString()} at ${formatTime(startTime)}`);
   };
 
   if (loading) {
@@ -348,6 +378,18 @@ export default function AvailabilityCalendar({ instructorId }: AvailabilityCalen
             </div>
           )}
         </div>
+      )}
+
+      {/* Booking Modal */}
+      {selectedDate && (
+        <BookingModal
+          isOpen={isBookingModalOpen}
+          onClose={handleCloseModal}
+          instructor={instructor}
+          selectedDate={selectedDate}
+          selectedTime={selectedTime}
+          onContinueToBooking={handleContinueToBooking}
+        />
       )}
     </div>
   );
