@@ -4,11 +4,15 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Star, MapPin, Clock, DollarSign, Check } from 'lucide-react';
+import { ArrowLeft, Star, MapPin, Clock, DollarSign, Check, AlertCircle } from 'lucide-react';
 import { publicApi } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
-import { useAuth, storeBookingIntent } from '@/features/student/booking';
-import { API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
+import {
+  useAuth,
+  storeBookingIntent,
+  useCreateBooking,
+  calculateEndTime,
+} from '@/features/student/booking';
 
 interface Service {
   id: number;
@@ -36,6 +40,12 @@ export default function QuickBookingPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user, isAuthenticated, redirectToLogin } = useAuth();
+  const {
+    createBooking,
+    isLoading: isCreatingBooking,
+    error: bookingError,
+    reset: resetBookingError,
+  } = useCreateBooking();
 
   const instructorId = params.id as string;
   const preselectedTime = searchParams.get('time');
@@ -134,13 +144,13 @@ export default function QuickBookingPage() {
   }, [instructor, instructorId]);
 
   const handleConfirmBooking = async () => {
-    if (!selectedService || !selectedTime) return;
+    if (!selectedService || !selectedTime || !instructor) return;
 
     // Check authentication
     if (!isAuthenticated) {
       // Store booking intent
       storeBookingIntent({
-        instructorId: instructor!.user_id,
+        instructorId: instructor.user_id,
         serviceId: selectedService.id,
         date: selectedDate,
         time: selectedTime,
@@ -153,14 +163,34 @@ export default function QuickBookingPage() {
       return;
     }
 
-    // For now, just show success
+    // Create booking via API
     setConfirmingBooking(true);
+    resetBookingError();
 
-    // TODO: Implement actual booking API call
-    setTimeout(() => {
-      alert('Booking confirmed! (This is a placeholder - actual booking API not implemented yet)');
+    // Format time to remove seconds if present
+    const formattedStartTime = selectedTime.split(':').slice(0, 2).join(':');
+    const endTime = calculateEndTime(formattedStartTime, duration);
+
+    const booking = await createBooking({
+      instructor_id: instructor.user_id,
+      service_id: selectedService.id,
+      booking_date: selectedDate,
+      start_time: formattedStartTime,
+      end_time: endTime,
+    });
+
+    if (booking) {
+      logger.info('Quick booking created successfully', {
+        bookingId: booking.id,
+        status: booking.status,
+      });
+
+      // Redirect to bookings page
       router.push('/dashboard/student/bookings');
-    }, 1000);
+    } else {
+      // Error is handled by the hook and displayed in the UI
+      setConfirmingBooking(false);
+    }
   };
 
   const formatTime = (time: string) => {
@@ -260,10 +290,21 @@ export default function QuickBookingPage() {
               </div>
             </div>
 
+            {/* Error Display */}
+            {bookingError && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                <div className="flex items-start">
+                  <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 mr-2 flex-shrink-0" />
+                  <div className="text-sm text-red-800 dark:text-red-300">{bookingError}</div>
+                </div>
+              </div>
+            )}
+
             <div className="flex space-x-4">
               <button
                 onClick={() => {
                   setShowConfirmation(false);
+                  resetBookingError();
                   // Keep selectedTime and selectedDate so user sees their previous selection
                 }}
                 className="flex-1 px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
@@ -272,10 +313,10 @@ export default function QuickBookingPage() {
               </button>
               <button
                 onClick={handleConfirmBooking}
-                disabled={confirmingBooking}
+                disabled={confirmingBooking || isCreatingBooking}
                 className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {confirmingBooking ? 'Confirming...' : 'Confirm booking'}
+                {confirmingBooking || isCreatingBooking ? 'Confirming...' : 'Confirm booking'}
               </button>
             </div>
 

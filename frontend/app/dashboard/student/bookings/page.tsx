@@ -1,174 +1,168 @@
 // frontend/app/dashboard/student/bookings/page.tsx
 'use client';
 
-import { BRAND } from '@/app/config/brand';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
-import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
-import { bookingsApi } from '@/lib/api/bookings';
-import { Booking } from '@/types/booking';
-import { BookingCard } from '@/components/BookingCard';
-import { CancelBookingModal } from '@/components/modals/CancelBookingModal';
-import BookingDetailsModal from '@/components/BookingDetailsModal';
+import { protectedApi } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
+import type { Booking } from '@/types/booking';
 
-/**
- * MyBookingsPage Component
- *
- * Main booking management interface for students. Displays all bookings
- * organized into tabs (upcoming, past, cancelled) with actions for each.
- *
- * Features:
- * - Tabbed interface for booking organization
- * - Real-time booking counts per tab
- * - Cancel booking functionality with confirmation modal
- * - View detailed booking information
- * - Automatic sorting by date and status
- * - Loading and error states
- * - Empty state with CTA to browse instructors
- *
- * @component
- * @example
- * ```tsx
- * // This is a page component, typically accessed via routing
- * // Route: /dashboard/student/bookings
- * ```
- */
 export default function MyBookingsPage() {
   const router = useRouter();
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past' | 'cancelled'>('upcoming');
-  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [cancelError, setCancelError] = useState<string | null>(null);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [cancellingBookingId, setCancellingBookingId] = useState<number | null>(null);
 
   useEffect(() => {
-    logger.info('Student bookings page loaded');
+    // Debug token state on page load
+    const token = localStorage.getItem('access_token');
+    logger.debug('Page load token check', {
+      hasToken: !!token,
+      tokenLength: token?.length,
+      tokenPreview: token ? `${token.substring(0, 20)}...` : 'null',
+      pageUrl: window.location.href,
+    });
+
     fetchBookings();
   }, []);
 
-  /**
-   * Fetch all bookings for the current student
-   * Client-side filtering is used for tab organization
-   */
   const fetchBookings = async () => {
     try {
-      setIsLoading(true);
+      setLoading(true);
       setError(null);
 
-      logger.info('Fetching student bookings');
-
-      // Fetch all bookings (we'll filter them client-side for tabs)
-      const response = await bookingsApi.getMyBookings({
-        per_page: 50, // Get more bookings to ensure we have past ones too
+      // Check if token exists
+      const token = localStorage.getItem('access_token');
+      logger.info('Fetching bookings for student', {
+        hasToken: !!token,
+        tokenPreview: token ? `${token.substring(0, 10)}...` : 'null',
       });
 
-      const bookingCount = response.bookings?.length || 0;
-      logger.info('Bookings fetched successfully', {
-        count: bookingCount,
-        hasBookings: bookingCount > 0,
+      if (!token) {
+        throw new Error('No authentication token found. Please log in again.');
+      }
+
+      const response = await protectedApi.getBookings({
+        limit: 50, // Request up to 50 bookings
       });
 
-      setBookings(response.bookings || []);
+      logger.info('Raw API response', {
+        hasData: !!response.data,
+        hasError: !!response.error,
+        status: response.status,
+        responseKeys: Object.keys(response),
+      });
+
+      if (response.error) {
+        logger.error('API returned error', undefined, {
+          error: response.error,
+          status: response.status,
+        });
+
+        // If it's an authentication error, redirect to login
+        if (
+          response.error.includes('credentials') ||
+          response.error.includes('Unauthorized') ||
+          response.status === 401
+        ) {
+          localStorage.removeItem('access_token');
+          router.push('/login?message=Session expired. Please log in again.');
+          return;
+        }
+
+        throw new Error(response.error);
+      }
+
+      const bookingsData = Array.isArray(response.data)
+        ? response.data
+        : response.data?.bookings || [];
+      logger.info('Bookings fetched successfully', { count: bookingsData.length });
+
+      if (bookingsData.length > 0) {
+        logger.debug('Sample booking structure', { booking: bookingsData[0] });
+      }
+
+      setBookings(bookingsData as any);
     } catch (err) {
-      const errorMessage = 'Failed to load bookings. Please try again.';
-      logger.error('Error fetching bookings', err);
-      setError(errorMessage);
+      logger.error('Failed to fetch bookings', err as Error);
+
+      // Handle specific authentication errors
+      if (
+        err instanceof Error &&
+        (err.message.includes('credentials') || err.message.includes('Unauthorized'))
+      ) {
+        localStorage.removeItem('access_token');
+        setError('Your session has expired. Please log in again.');
+        setTimeout(() => {
+          router.push('/login?message=Session expired. Please log in again.');
+        }, 2000);
+      } else {
+        setError(
+          `Failed to load bookings: ${err instanceof Error ? err.message : 'Unknown error'}`
+        );
+      }
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  /**
-   * Handle booking cancellation with reason
-   * @param reason - The cancellation reason provided by the student
-   */
-  const handleCancelBooking = async (reason: string) => {
-    if (!selectedBooking) {
-      logger.warn('Attempted to cancel booking without selection');
-      return;
-    }
+  const handleCancelBooking = async (bookingId: number) => {
+    if (cancellingBookingId) return;
 
-    setCancelError(null); // Clear any previous errors
+    const shouldCancel = window.confirm('Are you sure you want to cancel this booking?');
+    if (!shouldCancel) return;
 
-    logger.info('Cancelling booking', {
-      bookingId: selectedBooking.id,
-      hasReason: !!reason,
-    });
+    setCancellingBookingId(bookingId);
 
     try {
-      await bookingsApi.cancelBooking(selectedBooking.id, {
-        cancellation_reason: reason,
-      });
-
-      logger.info('Booking cancelled successfully', {
-        bookingId: selectedBooking.id,
-      });
-
-      // Refresh bookings after successful cancellation
+      const response = await protectedApi.cancelBooking(
+        bookingId.toString(),
+        'Cancelled by student'
+      );
+      if (response.error) {
+        throw new Error(response.error);
+      }
       await fetchBookings();
-      setShowCancelModal(false);
-      setSelectedBooking(null);
     } catch (err) {
-      // Set error message to display in modal
-      const errorMessage =
-        err instanceof Error ? err.message : 'Failed to cancel booking. Please try again.';
-      logger.error('Failed to cancel booking', err, {
-        bookingId: selectedBooking.id,
-      });
-      setCancelError(errorMessage);
-
-      // Don't close the modal on error so user can see the message and retry
+      alert('Failed to cancel booking. Please try again.');
+    } finally {
+      setCancellingBookingId(null);
     }
   };
 
-  /**
-   * Open the cancellation modal for a specific booking
-   * @param booking - The booking to cancel
-   */
-  const openCancelModal = (booking: Booking) => {
-    logger.debug('Opening cancel modal', {
-      bookingId: booking.id,
-      status: booking.status,
+  const filteredBookings = bookings
+    .filter((booking) => {
+      const bookingDateTime = new Date(`${booking.booking_date}T${booking.end_time}`);
+      const now = new Date();
+
+      switch (activeTab) {
+        case 'upcoming':
+          return bookingDateTime >= now && booking.status.toLowerCase() === 'confirmed';
+        case 'past':
+          return (
+            (bookingDateTime < now && booking.status.toLowerCase() === 'confirmed') ||
+            booking.status.toLowerCase() === 'completed'
+          );
+        case 'cancelled':
+          return booking.status.toLowerCase() === 'cancelled';
+        default:
+          return false;
+      }
+    })
+    .sort((a, b) => {
+      const dateTimeA = new Date(`${a.booking_date}T${a.start_time}`);
+      const dateTimeB = new Date(`${b.booking_date}T${b.start_time}`);
+
+      if (activeTab === 'upcoming') {
+        return dateTimeA.getTime() - dateTimeB.getTime();
+      } else {
+        return dateTimeB.getTime() - dateTimeA.getTime();
+      }
     });
-    setSelectedBooking(booking);
-    setShowCancelModal(true);
-  };
 
-  /**
-   * Filter bookings based on active tab
-   * - Upcoming: Future bookings with CONFIRMED status
-   * - Past: Past bookings (CONFIRMED or COMPLETED)
-   * - Cancelled: Bookings with CANCELLED status
-   */
-  const filteredBookings = bookings.filter((booking) => {
-    const bookingDateTime = new Date(`${booking.booking_date}T${booking.end_time}`);
-    const now = new Date();
-
-    switch (activeTab) {
-      case 'upcoming':
-        return bookingDateTime >= now && booking.status === 'CONFIRMED';
-      case 'past':
-        return (
-          (bookingDateTime < now && booking.status === 'CONFIRMED') ||
-          booking.status === 'COMPLETED'
-        );
-      case 'cancelled':
-        return booking.status === 'CANCELLED';
-      default:
-        return false;
-    }
-  });
-
-  /**
-   * Get count of bookings for a specific tab
-   * @param tab - The tab to count bookings for
-   */
   const getTabCount = (tab: 'upcoming' | 'past' | 'cancelled'): number => {
     return bookings.filter((b) => {
       const bookingDateTime = new Date(`${b.booking_date}T${b.end_time}`);
@@ -176,44 +170,78 @@ export default function MyBookingsPage() {
 
       switch (tab) {
         case 'upcoming':
-          return bookingDateTime >= now && b.status === 'CONFIRMED';
+          return bookingDateTime >= now && b.status.toLowerCase() === 'confirmed';
         case 'past':
-          return (bookingDateTime < now && b.status === 'CONFIRMED') || b.status === 'COMPLETED';
+          return (
+            (bookingDateTime < now && b.status.toLowerCase() === 'confirmed') ||
+            b.status.toLowerCase() === 'completed'
+          );
         case 'cancelled':
-          return b.status === 'CANCELLED';
+          return b.status.toLowerCase() === 'cancelled';
         default:
           return false;
       }
     }).length;
   };
 
-  /**
-   * Handle tab change
-   * @param tab - The tab to switch to
-   */
-  const handleTabChange = (tab: 'upcoming' | 'past' | 'cancelled') => {
-    logger.debug('Switching tab', {
-      from: activeTab,
-      to: tab,
-      count: getTabCount(tab),
+  const formatTime = (time: string) => {
+    const [hours, minutes] = time.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    return `${displayHour}:${minutes} ${ampm}`;
+  };
+
+  const formatDate = (date: string) => {
+    return new Date(date + 'T00:00:00').toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
     });
-    setActiveTab(tab);
+  };
+
+  const getLocationDisplay = (booking: Booking) => {
+    switch (booking.location_type) {
+      case 'student_home':
+        return "Student's Home";
+      case 'instructor_location':
+        return "Instructor's Location";
+      case 'neutral':
+        return booking.meeting_location || 'Neutral Location';
+      default:
+        return 'To be determined';
+    }
+  };
+
+  const handleBookingClick = (booking: Booking) => {
+    router.push(`/booking/confirmation?bookingId=${booking.id}`);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
+      <div className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center">
             <Link
               href="/dashboard/student"
-              className="mr-4"
-              onClick={() => logger.debug('Navigating back to student dashboard')}
+              className="mr-4 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition"
             >
-              <ArrowLeft className="h-5 w-5 text-gray-600 hover:text-gray-900" />
+              <svg
+                className="h-5 w-5 text-gray-600 dark:text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
             </Link>
-            <h1 className="text-2xl font-bold text-gray-900">My Bookings</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Bookings</h1>
           </div>
         </div>
       </div>
@@ -221,46 +249,37 @@ export default function MyBookingsPage() {
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Tabs */}
-        <div className="border-b border-gray-200 mb-6">
-          <nav className="-mb-px flex space-x-8" role="tablist">
+        <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
+          <nav className="-mb-px flex space-x-8">
             <button
-              onClick={() => handleTabChange('upcoming')}
+              onClick={() => setActiveTab('upcoming')}
               className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
                 activeTab === 'upcoming'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
               }`}
-              role="tab"
-              aria-selected={activeTab === 'upcoming'}
-              aria-controls="upcoming-panel"
             >
               Upcoming
               <span className="ml-2 text-xs">({getTabCount('upcoming')})</span>
             </button>
             <button
-              onClick={() => handleTabChange('past')}
+              onClick={() => setActiveTab('past')}
               className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
                 activeTab === 'past'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
               }`}
-              role="tab"
-              aria-selected={activeTab === 'past'}
-              aria-controls="past-panel"
             >
               Past
               <span className="ml-2 text-xs">({getTabCount('past')})</span>
             </button>
             <button
-              onClick={() => handleTabChange('cancelled')}
+              onClick={() => setActiveTab('cancelled')}
               className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
                 activeTab === 'cancelled'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
               }`}
-              role="tab"
-              aria-selected={activeTab === 'cancelled'}
-              aria-controls="cancelled-panel"
             >
               Cancelled
               <span className="ml-2 text-xs">({getTabCount('cancelled')})</span>
@@ -269,94 +288,110 @@ export default function MyBookingsPage() {
         </div>
 
         {/* Content Area */}
-        <div role="tabpanel" id={`${activeTab}-panel`}>
-          {isLoading ? (
+        <div>
+          {loading ? (
             <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-              <p className="mt-2 text-gray-500">Loading bookings...</p>
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500 mx-auto"></div>
+              <p className="mt-2 text-gray-500 dark:text-gray-400">Loading bookings...</p>
             </div>
           ) : error ? (
             <div className="text-center py-8">
-              <p className="text-red-600 mb-4">{error}</p>
+              <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
               <button
-                onClick={() => {
-                  logger.info('Retrying bookings fetch after error');
-                  fetchBookings();
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                onClick={fetchBookings}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
               >
                 Try Again
               </button>
             </div>
           ) : filteredBookings.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-500 text-lg">
+              <p className="text-gray-500 dark:text-gray-400 text-lg">
                 {activeTab === 'upcoming' && 'No upcoming bookings'}
-                {activeTab === 'past' && 'No past bookings'}
+                {activeTab === 'past' && 'No past bookings yet'}
                 {activeTab === 'cancelled' && 'No cancelled bookings'}
               </p>
               {activeTab === 'upcoming' && (
                 <Link
-                  href="/instructors"
-                  className="mt-4 inline-block px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                  onClick={() => logger.debug('Navigating to browse instructors from empty state')}
+                  href="/search"
+                  className="mt-4 inline-block px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
                 >
-                  Browse Instructors
+                  Find an Instructor
                 </Link>
               )}
             </div>
           ) : (
             <div className="space-y-4">
               {filteredBookings.map((booking) => (
-                <BookingCard
+                <div
                   key={booking.id}
-                  booking={booking}
-                  variant={activeTab === 'past' ? 'past' : 'upcoming'}
-                  onCancel={() => openCancelModal(booking)}
-                  onComplete={() => {
-                    // TODO: Implement complete functionality
-                    logger.info('Complete booking clicked', {
-                      bookingId: booking.id,
-                    });
-                  }}
-                  onViewDetails={() => {
-                    logger.debug('Opening booking details modal', {
-                      bookingId: booking.id,
-                    });
-                    setSelectedBooking(booking);
-                    setShowDetailsModal(true);
-                  }}
-                />
+                  className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 cursor-pointer hover:shadow-lg transition-shadow"
+                  onClick={() => handleBookingClick(booking)}
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-start">
+                        <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded-lg mr-4 flex items-center justify-center">
+                          <span className="text-2xl">👤</span>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-900 dark:text-white">
+                            {(booking.instructor as any)?.user?.full_name ||
+                              (booking.instructor as any)?.full_name ||
+                              `Instructor #${booking.instructor_id}`}
+                          </h3>
+                          <p className="text-gray-600 dark:text-gray-400">
+                            {(booking.service as any)?.skill || `Service #${booking.service_id}`}
+                          </p>
+                          <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                            <p>
+                              {formatDate(booking.booking_date)} • {formatTime(booking.start_time)}{' '}
+                              - {formatTime(booking.end_time)}
+                            </p>
+                            <p>{getLocationDisplay(booking)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="ml-4 flex flex-col items-end">
+                      <span
+                        className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          booking.status.toLowerCase() === 'confirmed'
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                            : booking.status.toLowerCase() === 'completed'
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                              : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                        }`}
+                      >
+                        {booking.status.toLowerCase() === 'confirmed'
+                          ? 'Confirmed'
+                          : booking.status.toLowerCase() === 'completed'
+                            ? 'Completed'
+                            : 'Cancelled'}
+                      </span>
+                      <p className="mt-2 font-semibold text-gray-900 dark:text-white">
+                        ${booking.total_price || 'TBD'}
+                      </p>
+                      {activeTab === 'upcoming' && booking.status.toLowerCase() === 'confirmed' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCancelBooking(booking.id);
+                          }}
+                          disabled={cancellingBookingId === booking.id}
+                          className="mt-3 text-sm text-red-600 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
+                        >
+                          {cancellingBookingId === booking.id ? 'Cancelling...' : 'Cancel Booking'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
           )}
         </div>
       </div>
-
-      {/* Cancel Modal */}
-      <CancelBookingModal
-        booking={selectedBooking}
-        isOpen={showCancelModal}
-        error={cancelError}
-        onClose={() => {
-          logger.debug('Closing cancel modal');
-          setShowCancelModal(false);
-          setSelectedBooking(null);
-          setCancelError(null); // Clear error when closing
-        }}
-        onConfirm={handleCancelBooking}
-      />
-
-      {/* Booking Details Modal */}
-      <BookingDetailsModal
-        booking={selectedBooking}
-        isOpen={showDetailsModal}
-        onClose={() => {
-          logger.debug('Closing booking details modal');
-          setShowDetailsModal(false);
-          setSelectedBooking(null);
-        }}
-      />
     </div>
   );
 }

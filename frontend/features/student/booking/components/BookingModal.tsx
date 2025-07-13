@@ -2,10 +2,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, MapPin, Clock, DollarSign, User, Mail, Phone, MessageSquare } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import {
+  X,
+  MapPin,
+  Clock,
+  DollarSign,
+  User,
+  Mail,
+  Phone,
+  MessageSquare,
+  AlertCircle,
+} from 'lucide-react';
 import { BookingModalProps, Service, BookingFlowState } from '../types';
 import { logger } from '@/lib/logger';
 import { useAuth, storeBookingIntent } from '../hooks/useAuth';
+import { useCreateBooking, calculateEndTime } from '../hooks/useCreateBooking';
 
 export default function BookingModal({
   isOpen,
@@ -15,7 +27,14 @@ export default function BookingModal({
   selectedTime,
   onContinueToBooking,
 }: BookingModalProps) {
+  const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading, redirectToLogin } = useAuth();
+  const {
+    createBooking,
+    isLoading: isCreatingBooking,
+    error: bookingError,
+    reset: resetBookingError,
+  } = useCreateBooking();
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [duration, setDuration] = useState(60); // Default to 60 minutes
   const [totalPrice, setTotalPrice] = useState(0);
@@ -36,7 +55,7 @@ export default function BookingModal({
       setDuration(firstService.duration);
       setTotalPrice(firstService.hourly_rate * (firstService.duration / 60));
     }
-  }, [instructor.services, selectedService]);
+  }, [instructor.services.length]);
 
   // Pre-fill form with user data if authenticated
   useEffect(() => {
@@ -61,6 +80,7 @@ export default function BookingModal({
         notes: '',
         agreedToTerms: false,
       });
+      resetBookingError(); // Reset any previous booking errors
 
       // Reset service selection if instructor has multiple services
       if (instructor.services.length > 1) {
@@ -68,7 +88,14 @@ export default function BookingModal({
         setDuration(instructor.services[0].duration);
       }
     }
-  }, [selectedDate, selectedTime, isOpen, instructor.services, user]);
+  }, [
+    selectedDate,
+    selectedTime,
+    isOpen,
+    instructor.services.length,
+    user?.full_name,
+    user?.email,
+  ]);
 
   // Update price when service or duration changes
   useEffect(() => {
@@ -153,7 +180,7 @@ export default function BookingModal({
     });
   };
 
-  const handleBookingSubmit = () => {
+  const handleBookingSubmit = async () => {
     // Validate form
     if (!bookingFormData.name || !bookingFormData.email || !bookingFormData.phone) {
       alert('Please fill in all required fields');
@@ -165,23 +192,43 @@ export default function BookingModal({
       return;
     }
 
-    const bookingData: BookingFlowState = {
-      instructor,
-      selectedDate,
-      selectedTime,
-      selectedService: selectedService!,
-      duration,
-      totalPrice,
-      userInfo: {
-        name: bookingFormData.name,
-        email: bookingFormData.email,
-        phone: bookingFormData.phone,
-        notes: bookingFormData.notes,
-      },
+    if (!selectedService) {
+      alert('Please select a service');
+      return;
+    }
+
+    // Create booking via API
+    logger.info('Calculating end time', { selectedTime, duration });
+    const endTime = calculateEndTime(selectedTime, duration);
+    logger.info('Calculated end time', { endTime });
+
+    // Format time to remove seconds if present
+    const formattedStartTime = selectedTime.split(':').slice(0, 2).join(':');
+
+    const bookingData = {
+      instructor_id: instructor.user_id,
+      service_id: selectedService.id,
+      booking_date: selectedDate,
+      start_time: formattedStartTime,
+      end_time: endTime,
+      student_note: bookingFormData.notes || undefined,
     };
 
-    logger.info('Booking form submitted', bookingData);
-    onContinueToBooking(bookingData);
+    logger.info('Creating booking with data', bookingData);
+
+    const booking = await createBooking(bookingData);
+
+    if (booking) {
+      logger.info('Booking created successfully', {
+        bookingId: booking.id,
+        status: booking.status,
+      });
+
+      // Close modal and redirect to confirmation page
+      onClose();
+      router.push(`/booking/confirmation?bookingId=${booking.id}`);
+    }
+    // Error is handled by the hook and displayed in the UI
   };
 
   const handleOverlayClick = (e: React.MouseEvent) => {
@@ -330,20 +377,31 @@ export default function BookingModal({
                 </div>
               </div>
 
+              {/* Error Display */}
+              {bookingError && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                  <div className="flex items-start">
+                    <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 mr-2 flex-shrink-0" />
+                    <div className="text-sm text-red-800 dark:text-red-300">{bookingError}</div>
+                  </div>
+                </div>
+              )}
+
               {/* Form Buttons */}
               <div className="flex space-x-3">
                 <button
                   onClick={() => setShowBookingForm(false)}
-                  className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  disabled={isCreatingBooking}
+                  className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Back
                 </button>
                 <button
                   onClick={handleBookingSubmit}
-                  disabled={!bookingFormData.agreedToTerms}
+                  disabled={!bookingFormData.agreedToTerms || isCreatingBooking}
                   className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-colors"
                 >
-                  Confirm Booking
+                  {isCreatingBooking ? 'Creating Booking...' : 'Confirm Booking'}
                 </button>
               </div>
             </>

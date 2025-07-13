@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { publicApi } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import BookingModal from '@/features/student/booking/components/BookingModal';
-import { Instructor, BookingFlowState } from '@/features/student/booking/types';
+import { Instructor } from '@/features/student/booking/types';
 import { getBookingIntent, clearBookingIntent } from '@/features/student/booking';
 
 interface TimeSlot {
@@ -58,12 +58,8 @@ export default function AvailabilityCalendar({
     setSelectedTime('');
   };
 
-  const handleContinueToBooking = (bookingData: BookingFlowState) => {
-    logger.info('Continue to booking from modal', bookingData);
-    // TODO: Navigate to booking form or handle authentication
+  const handleContinueToBooking = () => {
     handleCloseModal();
-    // For now, just log - we'll implement the actual booking flow later
-    alert('Booking flow will be implemented next!');
   };
 
   // Generate next 14 days starting from today - memoize to avoid regeneration

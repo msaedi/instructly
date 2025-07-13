@@ -29,6 +29,18 @@ export const PUBLIC_ENDPOINTS = {
 } as const;
 
 /**
+ * Protected API endpoints (authentication required)
+ */
+export const PROTECTED_ENDPOINTS = {
+  bookings: {
+    create: '/bookings/',
+    list: '/bookings/',
+    get: (id: string) => `/bookings/${id}`,
+    cancel: (id: string) => `/bookings/${id}/cancel`,
+  },
+} as const;
+
+/**
  * Fetch options with common defaults
  */
 interface FetchOptions extends RequestInit {
@@ -82,6 +94,28 @@ async function cleanFetch<T>(
       status: 0,
     };
   }
+}
+
+/**
+ * Authenticated fetch wrapper
+ */
+async function authFetch<T>(endpoint: string, options: FetchOptions = {}): Promise<ApiResponse<T>> {
+  const token = localStorage.getItem('access_token');
+
+  if (!token) {
+    return {
+      error: 'Not authenticated',
+      status: 401,
+    };
+  }
+
+  return cleanFetch<T>(endpoint, {
+    ...options,
+    headers: {
+      ...options.headers,
+      Authorization: `Bearer ${token}`,
+    },
+  });
 }
 
 /**
@@ -230,6 +264,98 @@ export const publicApi = {
       earliest_available_date: string;
     }>(PUBLIC_ENDPOINTS.instructors.availability(instructorId), {
       params,
+    });
+  },
+};
+
+/**
+ * Booking type definitions
+ */
+export interface CreateBookingRequest {
+  instructor_id: number;
+  service_id: number;
+  booking_date: string; // ISO date string (YYYY-MM-DD)
+  start_time: string; // HH:MM format
+  end_time: string; // HH:MM format
+  student_note?: string;
+  meeting_location?: string;
+  location_type?: 'student_home' | 'instructor_location' | 'neutral';
+}
+
+export interface Booking {
+  id: number;
+  instructor_id: number;
+  student_id: number;
+  service_id: number;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+  total_price: number;
+  cancellation_reason?: string;
+  student_note?: string;
+  meeting_location?: string;
+  location_type?: 'student_home' | 'instructor_location' | 'neutral';
+  created_at: string;
+  updated_at: string;
+  instructor: {
+    user_id: number;
+    user: {
+      full_name: string;
+      email: string;
+    };
+  };
+  service: {
+    skill: string;
+    hourly_rate: number;
+  };
+}
+
+/**
+ * Protected API client for authenticated features
+ */
+export const protectedApi = {
+  /**
+   * Create a new booking
+   */
+  async createBooking(data: CreateBookingRequest) {
+    return authFetch<Booking>(PROTECTED_ENDPOINTS.bookings.create, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Get list of bookings for authenticated user
+   */
+  async getBookings(params?: {
+    status?: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+    upcoming?: boolean;
+    limit?: number;
+    offset?: number;
+  }) {
+    return authFetch<{
+      bookings: Booking[];
+      total: number;
+    }>(PROTECTED_ENDPOINTS.bookings.list, {
+      params,
+    });
+  },
+
+  /**
+   * Get a specific booking
+   */
+  async getBooking(bookingId: string) {
+    return authFetch<Booking>(PROTECTED_ENDPOINTS.bookings.get(bookingId));
+  },
+
+  /**
+   * Cancel a booking
+   */
+  async cancelBooking(bookingId: string, reason?: string) {
+    return authFetch<Booking>(PROTECTED_ENDPOINTS.bookings.cancel(bookingId), {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
     });
   },
 };
