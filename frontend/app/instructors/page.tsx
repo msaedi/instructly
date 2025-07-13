@@ -66,13 +66,13 @@ export default function InstructorsPage() {
 
         logger.timeEnd('fetchInstructors');
 
-        if (response.success) {
+        if (response.data) {
           // Handle both filtered and unfiltered responses
           let instructorsList: InstructorProfile[];
           if (Array.isArray(response.data)) {
-            instructorsList = response.data;
+            instructorsList = response.data as InstructorProfile[];
           } else if (response.data.instructors) {
-            instructorsList = response.data.instructors;
+            instructorsList = response.data.instructors as InstructorProfile[];
             logger.info('Received filtered response', {
               metadata: response.data.metadata,
             });

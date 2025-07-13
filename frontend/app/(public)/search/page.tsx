@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Star, MapPin, Check, ChevronLeft, Filter } from 'lucide-react';
@@ -45,7 +45,7 @@ interface SearchMetadata {
   active_instructors: number;
 }
 
-export default function SearchResultsPage() {
+function SearchPageContent() {
   const searchParams = useSearchParams();
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [metadata, setMetadata] = useState<SearchMetadata | null>(null);
@@ -382,5 +382,19 @@ export default function SearchResultsPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function SearchResultsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      }
+    >
+      <SearchPageContent />
+    </Suspense>
   );
 }
