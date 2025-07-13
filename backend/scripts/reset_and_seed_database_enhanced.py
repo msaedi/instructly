@@ -145,58 +145,328 @@ NYC_AREAS = [
     "Queens - Astoria",
 ]
 
-# Instructor templates with services
+# Instructor templates with services - comprehensive test data for filtering
 INSTRUCTOR_TEMPLATES = [
+    # Music instructors (multiple piano teachers at different price points)
     {
         "name": "Sarah Chen",
         "email": "sarah.chen@example.com",
-        "bio": "Experienced piano and music theory instructor with 15 years of teaching experience. Specializes in classical and jazz piano for all skill levels.",
+        "bio": "Experienced piano teacher with 15 years of teaching experience. Juilliard graduate specializing in classical piano.",
         "years_experience": 15,
-        "areas": ["Manhattan - Upper East Side", "Manhattan - Upper West Side", "Manhattan - Midtown"],
+        "areas": ["Manhattan", "Brooklyn"],
         "services": [
-            {"skill": "Piano", "rate": 80, "desc": "Classical and jazz piano for all levels"},
-            {"skill": "Music Theory", "rate": 70, "desc": "Comprehensive music theory and composition"},
-            {"skill": "Sight Reading", "rate": 60, "desc": "Sight reading practice sessions"},
+            {"skill": "Piano", "rate": 120, "desc": "Classical piano for all levels"},
+            {"skill": "Music Theory", "rate": 80, "desc": "Comprehensive music theory"},
+            {"skill": "Sight Reading", "rate": 60, "desc": "Sight reading practice"},
         ],
         "service_to_soft_delete": "Sight Reading",
     },
     {
         "name": "Michael Rodriguez",
         "email": "michael.rodriguez@example.com",
-        "bio": "Professional guitarist and guitar instructor. Expert in rock, blues, and acoustic styles. Patient approach perfect for beginners.",
-        "years_experience": 10,
-        "areas": ["Brooklyn - Park Slope", "Brooklyn - DUMBO", "Manhattan - Greenwich Village"],
+        "bio": "Professional guitarist and music teacher. Expert in rock, jazz, and blues styles.",
+        "years_experience": 12,
+        "areas": ["Brooklyn", "Queens"],
         "services": [
-            {"skill": "Guitar", "rate": 75, "desc": "Electric and acoustic guitar lessons"},
-            {"skill": "Bass Guitar", "rate": 75, "desc": "Bass guitar fundamentals and advanced techniques"},
-            {"skill": "Ukulele", "rate": 50, "desc": "Beginner ukulele lessons"},
-        ],
-        "service_to_soft_delete": "Ukulele",
-    },
-    {
-        "name": "Emily Watson",
-        "email": "emily.watson@example.com",
-        "bio": "Certified math tutor specializing in high school and college-level mathematics. SAT/ACT prep expert with proven results.",
-        "years_experience": 8,
-        "areas": ["Manhattan - Chelsea", "Manhattan - Greenwich Village", "Manhattan - SoHo"],
-        "services": [
-            {"skill": "Math Tutoring", "rate": 90, "desc": "Algebra, Calculus, and Statistics"},
-            {"skill": "SAT/ACT Prep", "rate": 100, "desc": "Comprehensive test preparation"},
+            {"skill": "Guitar", "rate": 85, "desc": "Electric and acoustic guitar"},
+            {"skill": "Bass Guitar", "rate": 90, "desc": "Bass guitar fundamentals"},
+            {"skill": "Piano", "rate": 75, "desc": "Contemporary piano lessons"},
         ],
         "service_to_soft_delete": None,
     },
     {
-        "name": "James Kim",
-        "email": "james.kim@example.com",
-        "bio": "Professional software engineer offering programming lessons. Specializes in Python, JavaScript, and web development.",
-        "years_experience": 12,
-        "areas": ["Queens - Long Island City", "Queens - Astoria", "Manhattan - Midtown"],
+        "name": "Emily Watson",
+        "email": "emily.watson@example.com",
+        "bio": "Concert violinist offering private lessons. First chair at NY Philharmonic.",
+        "years_experience": 20,
+        "areas": ["Manhattan"],
         "services": [
-            {"skill": "Python Programming", "rate": 95, "desc": "From basics to advanced Python development"},
-            {"skill": "Web Development", "rate": 100, "desc": "HTML, CSS, JavaScript, and React"},
-            {"skill": "Java Programming", "rate": 90, "desc": "Java fundamentals and OOP"},
+            {"skill": "Violin", "rate": 150, "desc": "Professional violin instruction"},
+            {"skill": "Orchestra Prep", "rate": 130, "desc": "Audition preparation"},
         ],
-        "service_to_soft_delete": "Java Programming",
+        "service_to_soft_delete": None,
+    },
+    {
+        "name": "James Park",
+        "email": "james.park@example.com",
+        "bio": "Affordable piano teacher for beginners. Patient and encouraging approach.",
+        "years_experience": 5,
+        "areas": ["Queens", "Brooklyn"],
+        "services": [
+            {"skill": "Piano", "rate": 45, "desc": "Beginner piano lessons"},
+            {"skill": "Music Basics", "rate": 35, "desc": "Music fundamentals for kids"},
+        ],
+        "service_to_soft_delete": "Music Basics",
+    },
+    # Language instructors
+    {
+        "name": "Maria Garcia",
+        "email": "maria.garcia@example.com",
+        "bio": "Native Spanish speaker and certified Spanish teacher. DELE examiner with 10 years experience.",
+        "years_experience": 10,
+        "areas": ["Manhattan", "Brooklyn", "Queens"],
+        "services": [
+            {"skill": "Spanish", "rate": 65, "desc": "Spanish for all levels"},
+            {"skill": "Spanish Conversation", "rate": 55, "desc": "Conversational practice"},
+            {"skill": "Business Spanish", "rate": 75, "desc": "Professional Spanish"},
+        ],
+        "service_to_soft_delete": None,
+    },
+    {
+        "name": "Pierre Dubois",
+        "email": "pierre.dubois@example.com",
+        "bio": "Native French speaker from Paris. Former Alliance Française instructor.",
+        "years_experience": 8,
+        "areas": ["Manhattan", "Brooklyn"],
+        "services": [
+            {"skill": "French", "rate": 70, "desc": "French language and culture"},
+            {"skill": "French Conversation", "rate": 60, "desc": "Conversational French"},
+        ],
+        "service_to_soft_delete": None,
+    },
+    # Fitness and wellness
+    {
+        "name": "Jessica Thompson",
+        "email": "jessica.thompson@example.com",
+        "bio": "Certified yoga instructor with RYT-500. Specializes in Vinyasa and restorative yoga.",
+        "years_experience": 9,
+        "areas": ["Manhattan", "Brooklyn"],
+        "services": [
+            {"skill": "Yoga", "rate": 90, "desc": "Vinyasa and Hatha yoga"},
+            {"skill": "Meditation", "rate": 70, "desc": "Guided meditation"},
+            {"skill": "Prenatal Yoga", "rate": 100, "desc": "Specialized prenatal yoga"},
+        ],
+        "service_to_soft_delete": "Prenatal Yoga",
+    },
+    {
+        "name": "David Kim",
+        "email": "david.kim@example.com",
+        "bio": "Personal trainer and nutrition coach. NASM certified with focus on strength training.",
+        "years_experience": 11,
+        "areas": ["Manhattan", "Queens"],
+        "services": [
+            {"skill": "Personal Training", "rate": 120, "desc": "One-on-one fitness training"},
+            {"skill": "Nutrition Coaching", "rate": 80, "desc": "Personalized nutrition plans"},
+        ],
+        "service_to_soft_delete": None,
+    },
+    {
+        "name": "Mike Johnson",
+        "email": "mike.johnson@example.com",
+        "bio": "Former Olympic swimmer offering swimming lessons. Specializes in competitive techniques.",
+        "years_experience": 16,
+        "areas": ["Manhattan", "Brooklyn", "Staten Island"],
+        "services": [
+            {"skill": "Swimming", "rate": 110, "desc": "Swimming for all levels"},
+            {"skill": "Competitive Swimming", "rate": 130, "desc": "Advanced techniques"},
+        ],
+        "service_to_soft_delete": None,
+    },
+    # Dance instructors
+    {
+        "name": "Rachel Green",
+        "email": "rachel.green@example.com",
+        "bio": "Professional dancer and choreographer. Broadway performer teaching various styles.",
+        "years_experience": 14,
+        "areas": ["Manhattan", "Brooklyn"],
+        "services": [
+            {"skill": "Dance", "rate": 95, "desc": "Contemporary and jazz dance"},
+            {"skill": "Ballet", "rate": 100, "desc": "Classical ballet technique"},
+            {"skill": "Hip Hop Dance", "rate": 85, "desc": "Hip hop and street dance"},
+        ],
+        "service_to_soft_delete": None,
+    },
+    # Academic tutors
+    {
+        "name": "Dr. Robert Smith",
+        "email": "robert.smith@example.com",
+        "bio": "PhD in Mathematics from MIT. Experienced math teacher for high school and college.",
+        "years_experience": 18,
+        "areas": ["Manhattan", "Brooklyn"],
+        "services": [
+            {"skill": "Math", "rate": 100, "desc": "Algebra, Calculus, Statistics"},
+            {"skill": "SAT Math Prep", "rate": 120, "desc": "SAT/ACT preparation"},
+            {"skill": "College Math", "rate": 140, "desc": "University mathematics"},
+        ],
+        "service_to_soft_delete": None,
+    },
+    {
+        "name": "Dr. Lisa Anderson",
+        "email": "lisa.anderson@example.com",
+        "bio": "Chemistry professor with 20 years experience. Specializes in AP Chemistry preparation.",
+        "years_experience": 20,
+        "areas": ["Manhattan", "Queens"],
+        "services": [
+            {"skill": "Chemistry", "rate": 110, "desc": "General and organic chemistry"},
+            {"skill": "AP Chemistry", "rate": 130, "desc": "AP Chemistry prep"},
+        ],
+        "service_to_soft_delete": None,
+    },
+    {
+        "name": "Thomas Brown",
+        "email": "thomas.brown@example.com",
+        "bio": "Physics teacher with engineering background. Former NASA engineer.",
+        "years_experience": 15,
+        "areas": ["Manhattan", "Bronx"],
+        "services": [
+            {"skill": "Physics", "rate": 105, "desc": "High school and college physics"},
+            {"skill": "Engineering Prep", "rate": 115, "desc": "Engineering fundamentals"},
+        ],
+        "service_to_soft_delete": None,
+    },
+    # Technology instructors
+    {
+        "name": "Ryan Chen",
+        "email": "ryan.chen@example.com",
+        "bio": "Software engineer teaching programming. Full-stack developer with startup experience.",
+        "years_experience": 7,
+        "areas": ["Manhattan", "Brooklyn"],
+        "services": [
+            {"skill": "Programming", "rate": 120, "desc": "Python, JavaScript, web dev"},
+            {"skill": "Data Science", "rate": 140, "desc": "Machine learning basics"},
+        ],
+        "service_to_soft_delete": None,
+    },
+    # Arts and creative
+    {
+        "name": "Amanda Martinez",
+        "email": "amanda.martinez@example.com",
+        "bio": "Professional photographer specializing in portraits. Gallery exhibitions worldwide.",
+        "years_experience": 13,
+        "areas": ["Manhattan", "Brooklyn"],
+        "services": [
+            {"skill": "Photography", "rate": 100, "desc": "Digital photography basics"},
+            {"skill": "Photo Editing", "rate": 80, "desc": "Photoshop and Lightroom"},
+        ],
+        "service_to_soft_delete": "Photo Editing",
+    },
+    {
+        "name": "Carlos Rivera",
+        "email": "carlos.rivera@example.com",
+        "bio": "Professional chef with Michelin star experience. Culinary Institute graduate.",
+        "years_experience": 17,
+        "areas": ["Manhattan", "Queens", "Brooklyn"],
+        "services": [
+            {"skill": "Cooking", "rate": 110, "desc": "Professional cooking techniques"},
+            {"skill": "Baking", "rate": 95, "desc": "Artisan bread and pastries"},
+        ],
+        "service_to_soft_delete": None,
+    },
+    # Sports instructors
+    {
+        "name": "Alex Turner",
+        "email": "alex.turner@example.com",
+        "bio": "Professional tennis coach with USTA certification. Former college player.",
+        "years_experience": 10,
+        "areas": ["Manhattan", "Brooklyn", "Queens"],
+        "services": [
+            {"skill": "Tennis", "rate": 100, "desc": "Tennis for all skill levels"},
+            {"skill": "Tennis Strategy", "rate": 110, "desc": "Advanced tactics"},
+        ],
+        "service_to_soft_delete": None,
+    },
+    {
+        "name": "Daniel Park",
+        "email": "daniel.park@example.com",
+        "bio": "Chess master and tournament player. FIDE rated instructor.",
+        "years_experience": 8,
+        "areas": ["Manhattan", "Brooklyn"],
+        "services": [
+            {"skill": "Chess", "rate": 70, "desc": "Chess for all levels"},
+            {"skill": "Tournament Chess", "rate": 90, "desc": "Competitive preparation"},
+        ],
+        "service_to_soft_delete": None,
+    },
+    # Budget instructors (testing low price range)
+    {
+        "name": "Jake Miller",
+        "email": "jake.miller@example.com",
+        "bio": "College student offering affordable tutoring. Dean's list scholar.",
+        "years_experience": 2,
+        "areas": ["Queens", "Brooklyn"],
+        "services": [
+            {"skill": "Basic Math", "rate": 30, "desc": "Elementary math help"},
+            {"skill": "Reading", "rate": 25, "desc": "Reading comprehension"},
+            {"skill": "Homework Help", "rate": 20, "desc": "General homework assistance"},
+        ],
+        "service_to_soft_delete": "Homework Help",
+    },
+    {
+        "name": "Emma Davis",
+        "email": "emma.davis@example.com",
+        "bio": "Recent graduate offering budget-friendly language practice.",
+        "years_experience": 1,
+        "areas": ["Brooklyn", "Queens"],
+        "services": [
+            {"skill": "English Conversation", "rate": 35, "desc": "English practice"},
+            {"skill": "Basic Spanish", "rate": 30, "desc": "Beginner Spanish"},
+        ],
+        "service_to_soft_delete": None,
+    },
+    # Premium instructors (testing high price range)
+    {
+        "name": "Dr. Victoria Sterling",
+        "email": "victoria.sterling@example.com",
+        "bio": "Concert pianist and Juilliard professor. International competition winner.",
+        "years_experience": 25,
+        "areas": ["Manhattan"],
+        "services": [
+            {"skill": "Piano Masterclass", "rate": 200, "desc": "Professional piano instruction"},
+            {"skill": "Performance Coaching", "rate": 180, "desc": "Stage performance"},
+        ],
+        "service_to_soft_delete": None,
+    },
+    {
+        "name": "Marcus Goldman",
+        "email": "marcus.goldman@example.com",
+        "bio": "Wall Street executive teaching finance. MBA from Wharton.",
+        "years_experience": 20,
+        "areas": ["Manhattan"],
+        "services": [
+            {"skill": "Finance", "rate": 175, "desc": "Corporate finance"},
+            {"skill": "Business Strategy", "rate": 190, "desc": "Executive coaching"},
+            {"skill": "Investment Banking", "rate": 185, "desc": "IB preparation"},
+        ],
+        "service_to_soft_delete": "Investment Banking",
+    },
+    # Additional variety
+    {
+        "name": "Sophia Patel",
+        "email": "sophia.patel@example.com",
+        "bio": "Certified Pilates instructor. Former professional dancer.",
+        "years_experience": 6,
+        "areas": ["Manhattan", "Brooklyn"],
+        "services": [
+            {"skill": "Pilates", "rate": 85, "desc": "Mat and equipment Pilates"},
+            {"skill": "Barre", "rate": 75, "desc": "Ballet-inspired fitness"},
+        ],
+        "service_to_soft_delete": None,
+    },
+    {
+        "name": "Oliver Chen",
+        "email": "oliver.chen@example.com",
+        "bio": "Professional tutor specializing in test preparation. Perfect SAT scorer.",
+        "years_experience": 4,
+        "areas": ["Manhattan", "Queens"],
+        "services": [
+            {"skill": "SAT Prep", "rate": 95, "desc": "Comprehensive SAT preparation"},
+            {"skill": "ACT Prep", "rate": 95, "desc": "ACT test strategies"},
+            {"skill": "Essay Writing", "rate": 85, "desc": "College essay coaching"},
+        ],
+        "service_to_soft_delete": None,
+    },
+    {
+        "name": "Isabella Martinez",
+        "email": "isabella.martinez@example.com",
+        "bio": "Art teacher and working artist. MFA from Pratt Institute.",
+        "years_experience": 11,
+        "areas": ["Brooklyn", "Manhattan"],
+        "services": [
+            {"skill": "Painting", "rate": 90, "desc": "Oil and acrylic painting"},
+            {"skill": "Drawing", "rate": 75, "desc": "Pencil and charcoal drawing"},
+            {"skill": "Digital Art", "rate": 85, "desc": "Digital illustration"},
+        ],
+        "service_to_soft_delete": None,
     },
 ]
 
@@ -206,7 +476,7 @@ STUDENT_TEMPLATES = [
     {"name": "William Brown", "email": "william.brown@example.com"},
     {"name": "Sophia Davis", "email": "sophia.davis@example.com"},
     {"name": "Oliver Wilson", "email": "oliver.wilson@example.com"},
-    {"name": "Isabella Martinez", "email": "isabella.martinez@example.com"},
+    {"name": "Isabella Rodriguez", "email": "isabella.rodriguez@example.com"},
     {"name": "Lucas Anderson", "email": "lucas.anderson@example.com"},
     {"name": "Mia Thompson", "email": "mia.thompson@example.com"},
 ]
@@ -344,6 +614,123 @@ def create_dummy_instructors(session: Session):
 
     session.commit()
     logger.info(f"Created {len(INSTRUCTOR_TEMPLATES)} instructors with profiles and services")
+
+    # Generate comprehensive summary of instructors
+    generate_instructor_summary(session)
+
+
+def generate_instructor_summary(session: Session):
+    """Generate and display comprehensive summary of created instructors."""
+    from collections import defaultdict
+
+    logger.info("\n" + "=" * 60)
+    logger.info("📊 INSTRUCTOR DATA SUMMARY")
+    logger.info("=" * 60)
+
+    # Get all active services with instructor info
+    services_with_instructors = (
+        session.query(Service, User)
+        .join(InstructorProfile, Service.instructor_profile_id == InstructorProfile.id)
+        .join(User, InstructorProfile.user_id == User.id)
+        .filter(Service.is_active == True)
+        .all()
+    )
+
+    # Summary by skill
+    skill_summary = defaultdict(lambda: {"count": 0, "min_price": float("inf"), "max_price": 0, "instructors": []})
+
+    for service, user in services_with_instructors:
+        skill = service.skill
+        skill_summary[skill]["count"] += 1
+        skill_summary[skill]["min_price"] = min(skill_summary[skill]["min_price"], float(service.hourly_rate))
+        skill_summary[skill]["max_price"] = max(skill_summary[skill]["max_price"], float(service.hourly_rate))
+        skill_summary[skill]["instructors"].append(user.full_name)
+
+    # Sort skills by count
+    sorted_skills = sorted(skill_summary.items(), key=lambda x: x[1]["count"], reverse=True)
+
+    logger.info("\n📚 INSTRUCTORS BY SKILL:")
+    logger.info("-" * 40)
+    for skill, data in sorted_skills:
+        if data["min_price"] == data["max_price"]:
+            price_str = f"${data['min_price']:.0f}/hr"
+        else:
+            price_str = f"${data['min_price']:.0f}-${data['max_price']:.0f}/hr"
+        logger.info(f"  {skill}: {data['count']} instructor(s) - {price_str}")
+        for instructor in data["instructors"][:3]:  # Show first 3
+            logger.info(f"    • {instructor}")
+        if len(data["instructors"]) > 3:
+            logger.info(f"    • ... and {len(data['instructors']) - 3} more")
+
+    # Price range distribution
+    price_ranges = {"$0-50": 0, "$51-75": 0, "$76-100": 0, "$101-125": 0, "$126-150": 0, "$151+": 0}
+
+    all_prices = []
+    for service, _ in services_with_instructors:
+        price = float(service.hourly_rate)
+        all_prices.append(price)
+        if price <= 50:
+            price_ranges["$0-50"] += 1
+        elif price <= 75:
+            price_ranges["$51-75"] += 1
+        elif price <= 100:
+            price_ranges["$76-100"] += 1
+        elif price <= 125:
+            price_ranges["$101-125"] += 1
+        elif price <= 150:
+            price_ranges["$126-150"] += 1
+        else:
+            price_ranges["$151+"] += 1
+
+    logger.info("\n💰 PRICE RANGE DISTRIBUTION:")
+    logger.info("-" * 40)
+    for range_name, count in price_ranges.items():
+        if count > 0:
+            percentage = (count / len(services_with_instructors)) * 100
+            bar = "█" * int(percentage / 5) + "░" * (20 - int(percentage / 5))
+            logger.info(f"  {range_name:>8}: {count:>3} services [{bar}] {percentage:>5.1f}%")
+
+    if all_prices:
+        avg_price = sum(all_prices) / len(all_prices)
+        logger.info(f"\n  Average price: ${avg_price:.2f}/hr")
+        logger.info(f"  Lowest price:  ${min(all_prices):.2f}/hr")
+        logger.info(f"  Highest price: ${max(all_prices):.2f}/hr")
+
+    # Active vs Inactive services count
+    total_services = session.query(Service).count()
+    active_services = session.query(Service).filter(Service.is_active == True).count()
+    inactive_services = total_services - active_services
+
+    logger.info("\n📈 SERVICE STATUS:")
+    logger.info("-" * 40)
+    logger.info(f"  Total services:    {total_services}")
+    logger.info(f"  Active services:   {active_services} ({(active_services/total_services*100):.1f}%)")
+    logger.info(f"  Inactive services: {inactive_services} ({(inactive_services/total_services*100):.1f}%)")
+
+    # Example filter queries
+    logger.info("\n🔍 EXAMPLE FILTER QUERIES TO TRY:")
+    logger.info("-" * 40)
+    logger.info("  Search queries:")
+    logger.info("    • ?search=piano          # Find all piano teachers")
+    logger.info("    • ?search=music          # Find music-related instructors")
+    logger.info("    • ?search=juilliard      # Find instructors by credentials")
+    logger.info("")
+    logger.info("  Skill filters:")
+    logger.info("    • ?skill=yoga            # Find yoga instructors")
+    logger.info("    • ?skill=spanish         # Find Spanish teachers")
+    logger.info("    • ?skill=guitar          # Find guitar instructors")
+    logger.info("")
+    logger.info("  Price filters:")
+    logger.info("    • ?min_price=20&max_price=50    # Budget options")
+    logger.info("    • ?min_price=100                # Premium instructors")
+    logger.info("    • ?max_price=75                 # Under $75/hr")
+    logger.info("")
+    logger.info("  Combined filters:")
+    logger.info("    • ?search=piano&max_price=100   # Affordable piano teachers")
+    logger.info("    • ?skill=yoga&min_price=80      # Premium yoga instructors")
+    logger.info("    • ?search=music&min_price=50&max_price=150")
+
+    logger.info("\n" + "=" * 60 + "\n")
 
 
 def create_realistic_availability(session: Session, instructor_id: int):
@@ -745,8 +1132,8 @@ def main():
                 "| (no flags)                | BLOCKED!         | Safety error                |\n"
                 "=" * 70 + "\n\n"
                 "Examples:\n"
-                "  USE_TEST_DATABASE=true python scripts/rreset_and_seed_database_enhanced.py\n"
-                "  ALLOW_SEED_PRODUCTION=true python scripts/rreset_and_seed_database_enhanced.py\n"
+                "  USE_TEST_DATABASE=true python backend/scripts/reset_and_seed_database_enhanced.py\n"
+                "  ALLOW_SEED_PRODUCTION=true python backend/scripts/reset_and_seed_database_enhanced.py\n"
             )
             sys.exit(1)
 
