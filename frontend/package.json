@@ -11,6 +11,7 @@
     "lint": "next lint",
     "test:e2e": "playwright test",
     "test:e2e:working": "playwright test e2e/tests/smoke.spec.ts e2e/tests/basic-search.spec.ts e2e/tests/example-working.spec.ts",
+    "test:e2e:ci": "playwright test e2e/tests/smoke.spec.ts e2e/tests/example-working.spec.ts",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
     "test:e2e:headed": "playwright test --headed",

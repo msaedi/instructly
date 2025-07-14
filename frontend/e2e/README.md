@@ -17,7 +17,10 @@ End-to-end tests for InstaInstru using Playwright.
 ## Running Tests
 
 ```bash
-# Run only working tests (recommended)
+# Run CI-safe tests (recommended for CI/CD)
+npm run test:e2e:ci
+
+# Run working tests (includes search test that may fail without backend)
 npm run test:e2e:working
 
 # Run all tests (includes failing booking tests)
@@ -51,9 +54,14 @@ npm run test:e2e:report
 
 ## Current Test Status
 
-✅ **Passing Tests:**
+✅ **Passing Tests (CI-Safe):**
 - Smoke tests (homepage, navigation)
-- Basic search functionality
+- Example interaction flows
+- Footer navigation
+
+✅ **Passing Tests (Local):**
+- All of the above plus:
+- Basic search functionality (requires search page implementation)
 - Category navigation
 
 🚧 **In Progress:**
