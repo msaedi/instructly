@@ -56,10 +56,12 @@ def get_instructor_service(db: Session = Depends(get_db)) -> InstructorService:
     return InstructorService(db)
 
 
-def get_cache_service_dep() -> Optional[CacheService]:
+def get_cache_service_dep(db: Session = Depends(get_db)) -> Optional[CacheService]:
     """Get cache service instance."""
     try:
-        return CacheService()
+        from ..services.cache_service import get_cache_service
+
+        return get_cache_service(db)
     except Exception:
         return None
 
