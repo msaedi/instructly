@@ -52,8 +52,13 @@ export function useCreateBooking(): UseCreateBookingReturn {
         if (response.status === 401) {
           errorMessage = 'You must be logged in to book lessons';
         } else if (response.status === 409) {
-          // Conflict - time slot no longer available
-          errorMessage = 'This time slot is no longer available. Please select another time.';
+          // Conflict - check if it's a student double-booking or instructor conflict
+          if (typeof errorText === 'string' && errorText.includes('already have a booking')) {
+            errorMessage =
+              'You already have a booking scheduled at this time. Please select a different time slot.';
+          } else {
+            errorMessage = 'This time slot is no longer available. Please select another time.';
+          }
         } else if (response.status === 400 || response.status === 422) {
           // Validation error
           if (typeof errorText === 'string') {
