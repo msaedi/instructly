@@ -129,6 +129,46 @@ class BookingRepository(BaseRepository[Booking]):
             self.logger.error(f"Error checking time conflict: {str(e)}")
             raise RepositoryException(f"Failed to check conflict: {str(e)}")
 
+    def check_student_time_conflict(
+        self,
+        student_id: int,
+        booking_date: date,
+        start_time: time,
+        end_time: time,
+        exclude_booking_id: Optional[int] = None,
+    ) -> List[Booking]:
+        """
+        Check if a student has any conflicting bookings at the given time.
+
+        Args:
+            student_id: The student ID
+            booking_date: The date to check
+            start_time: Start time to check
+            end_time: End time to check
+            exclude_booking_id: Optional booking to exclude (for updates)
+
+        Returns:
+            List of conflicting bookings (empty if no conflicts)
+        """
+        try:
+            query = self.db.query(Booking).filter(
+                Booking.student_id == student_id,
+                Booking.booking_date == booking_date,
+                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                # Time overlap check: start_time < other_end_time AND end_time > other_start_time
+                Booking.start_time < end_time,
+                Booking.end_time > start_time,
+            )
+
+            if exclude_booking_id:
+                query = query.filter(Booking.id != exclude_booking_id)
+
+            return query.all()
+
+        except Exception as e:
+            self.logger.error(f"Error checking student time conflict: {str(e)}")
+            raise RepositoryException(f"Failed to check student conflict: {str(e)}")
+
     def get_instructor_bookings_for_date(
         self,
         instructor_id: int,

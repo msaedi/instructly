@@ -95,7 +95,7 @@ class BookingService(BaseService):
         service, instructor_profile = await self._validate_booking_prerequisites(student, booking_data)
 
         # 2. Check conflicts and apply business rules
-        await self._check_conflicts_and_rules(booking_data, service, instructor_profile)
+        await self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
 
         # 3. Create the booking with transaction
         with self.transaction():
@@ -513,6 +513,8 @@ class BookingService(BaseService):
         booking_data: BookingCreate,
         service: Service,
         instructor_profile: InstructorProfile,
+        student: Optional[User] = None,
+        exclude_booking_id: Optional[int] = None,
     ) -> None:
         """
         Check for time conflicts and apply business rules.
@@ -521,21 +523,37 @@ class BookingService(BaseService):
             booking_data: Booking creation data
             service: The service being booked
             instructor_profile: Instructor's profile
+            student: The student making the booking (for student conflict checks)
+            exclude_booking_id: Optional booking ID to exclude (for updates)
 
         Raises:
             ConflictException: If time slot conflicts
             BusinessRuleException: If business rules violated
         """
-        # Check for time conflicts
+        # Check for instructor time conflicts
         existing_conflicts = self.repository.check_time_conflict(
             instructor_id=booking_data.instructor_id,
             booking_date=booking_data.booking_date,
             start_time=booking_data.start_time,
             end_time=booking_data.end_time,
+            exclude_booking_id=exclude_booking_id,
         )
 
         if existing_conflicts:
             raise ConflictException("This time slot conflicts with an existing booking")
+
+        # Check for student time conflicts
+        if student:
+            student_conflicts = self.repository.check_student_time_conflict(
+                student_id=student.id,
+                booking_date=booking_data.booking_date,
+                start_time=booking_data.start_time,
+                end_time=booking_data.end_time,
+                exclude_booking_id=exclude_booking_id,
+            )
+
+            if student_conflicts:
+                raise ConflictException("You already have a booking scheduled at this time")
 
         # Check minimum advance booking time
         booking_datetime = datetime.combine(booking_data.booking_date, booking_data.start_time)

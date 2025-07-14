@@ -1,0 +1,170 @@
+# backend/tests/integration/services/test_booking_service_edge_cases_student_bug.py
+"""
+Test that verifies student double-booking prevention is working correctly.
+This test ensures students cannot book overlapping sessions with different instructors.
+"""
+
+from datetime import date, time, timedelta
+
+import pytest
+from sqlalchemy.orm import Session
+
+from app.auth import get_password_hash
+from app.models.availability import AvailabilitySlot
+from app.models.booking import BookingStatus
+from app.models.instructor import InstructorProfile
+from app.models.service import Service
+from app.models.user import User, UserRole
+from app.schemas.booking import BookingCreate
+from app.services.booking_service import BookingService
+
+
+@pytest.mark.asyncio
+async def test_student_cannot_double_book_overlapping_sessions(db: Session):
+    """
+    Test that students cannot book overlapping sessions with different instructors.
+    This verifies the double-booking prevention is working correctly.
+    """
+    # Create a student
+    student = User(
+        email="double.booking.student@test.com",
+        hashed_password=get_password_hash("testpass123"),
+        full_name="Double Booking Student",
+        role=UserRole.STUDENT,
+        is_active=True,
+    )
+    db.add(student)
+
+    # Create first instructor with Math service
+    instructor1 = User(
+        email="math.instructor@test.com",
+        hashed_password=get_password_hash("testpass123"),
+        full_name="Math Instructor",
+        role=UserRole.INSTRUCTOR,
+        is_active=True,
+    )
+    db.add(instructor1)
+    db.flush()
+
+    profile1 = InstructorProfile(
+        user_id=instructor1.id,
+        areas_of_service="['Math', 'Science']",
+        min_advance_booking_hours=1,
+    )
+    db.add(profile1)
+    db.flush()
+
+    math_service = Service(
+        instructor_profile_id=profile1.id,
+        skill="Math",
+        hourly_rate=50.0,
+        is_active=True,
+    )
+    db.add(math_service)
+
+    # Create second instructor with Piano service
+    instructor2 = User(
+        email="piano.instructor@test.com",
+        hashed_password=get_password_hash("testpass123"),
+        full_name="Piano Instructor",
+        role=UserRole.INSTRUCTOR,
+        is_active=True,
+    )
+    db.add(instructor2)
+    db.flush()
+
+    profile2 = InstructorProfile(
+        user_id=instructor2.id,
+        areas_of_service="['Piano', 'Music Theory']",
+        min_advance_booking_hours=1,
+    )
+    db.add(profile2)
+    db.flush()
+
+    piano_service = Service(
+        instructor_profile_id=profile2.id,
+        skill="Piano",
+        hourly_rate=75.0,
+        is_active=True,
+    )
+    db.add(piano_service)
+
+    # Add availability for both instructors on the same day
+    tomorrow = date.today() + timedelta(days=1)
+
+    # Math instructor available 9 AM - 5 PM
+    math_slot = AvailabilitySlot(
+        instructor_id=instructor1.id,
+        specific_date=tomorrow,
+        start_time=time(9, 0),
+        end_time=time(17, 0),
+    )
+    db.add(math_slot)
+
+    # Piano instructor available 9 AM - 5 PM
+    piano_slot = AvailabilitySlot(
+        instructor_id=instructor2.id,
+        specific_date=tomorrow,
+        start_time=time(9, 0),
+        end_time=time(17, 0),
+    )
+    db.add(piano_slot)
+    db.commit()
+
+    # Create booking service (notifications will fail but that's OK)
+    booking_service = BookingService(db)
+
+    # First booking: Math lesson 3:00-4:00 PM
+    booking1_data = BookingCreate(
+        instructor_id=instructor1.id,
+        booking_date=tomorrow,
+        start_time=time(15, 0),  # 3:00 PM
+        end_time=time(16, 0),  # 4:00 PM
+        service_id=math_service.id,
+        location_type="neutral",
+        meeting_location="Online",
+    )
+
+    booking1 = await booking_service.create_booking(student, booking1_data)
+    assert booking1.id is not None
+    assert booking1.status == BookingStatus.CONFIRMED
+
+    # Second booking: Piano lesson 3:30-4:30 PM (overlaps with first)
+    booking2_data = BookingCreate(
+        instructor_id=instructor2.id,
+        booking_date=tomorrow,
+        start_time=time(15, 30),  # 3:30 PM - overlaps with Math lesson
+        end_time=time(16, 30),  # 4:30 PM
+        service_id=piano_service.id,
+        location_type="neutral",
+        meeting_location="Online",
+    )
+
+    # This should fail with ConflictException
+    from app.core.exceptions import ConflictException
+
+    with pytest.raises(ConflictException) as exc_info:
+        await booking_service.create_booking(student, booking2_data)
+
+    # Verify the error message
+    assert "already have a booking" in str(exc_info.value) or "conflicts with an existing booking" in str(
+        exc_info.value
+    )
+
+    # Verify only the first booking exists
+    student_bookings = booking_service.get_bookings_for_user(student)
+    confirmed_tomorrow = [
+        b for b in student_bookings if b.booking_date == tomorrow and b.status == BookingStatus.CONFIRMED
+    ]
+    assert len(confirmed_tomorrow) == 1
+    assert confirmed_tomorrow[0].id == booking1.id
+
+    # Verify the time overlap would have occurred
+    assert booking1.start_time < time(16, 30)  # booking2 end time
+    assert booking1.end_time > time(15, 30)  # booking2 start time
+
+    print("SUCCESS: Student double-booking prevention is working correctly!")
+    print(
+        f"Booking 1: {booking1.service_name} with {booking1.instructor.full_name} at {booking1.start_time}-{booking1.end_time}"
+    )
+    print("Booking 2: BLOCKED - ConflictException raised as expected")

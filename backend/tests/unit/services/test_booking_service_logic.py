@@ -59,7 +59,8 @@ class TestBookingServiceUnit:
         """Create a mock booking repository."""
         repository = Mock(spec=BookingRepository)
         # Set default return values for common methods
-        repository.check_time_conflict.return_value = []  # No conflicts by default
+        repository.check_time_conflict.return_value = False  # No conflicts by default
+        repository.check_student_time_conflict.return_value = []  # No student conflicts by default
         repository.get_bookings_by_time_range.return_value = []  # No existing bookings
         repository.create.return_value = Mock(spec=Booking, id=1)
         repository.get_booking_with_details.return_value = None
@@ -197,7 +198,7 @@ class TestBookingServiceUnit:
         )
 
         # Mock repository responses
-        booking_service.repository.check_time_conflict.return_value = []  # No conflicts
+        booking_service.repository.check_time_conflict.return_value = False  # No conflicts
 
         # Mock the service and instructor profile queries (still direct DB queries in the service)
         mock_db.query.return_value.filter.return_value.first.side_effect = [
@@ -246,7 +247,7 @@ class TestBookingServiceUnit:
         )
 
         # Mock repository responses
-        booking_service.repository.check_time_conflict.return_value = []
+        booking_service.repository.check_time_conflict.return_value = False
 
         # Mock service not found (inactive)
         mock_db.query.return_value.filter.return_value.first.return_value = None
@@ -268,7 +269,7 @@ class TestBookingServiceUnit:
         )
 
         # Mock repository responses
-        booking_service.repository.check_time_conflict.return_value = [mock_booking]  # Has conflicts!
+        booking_service.repository.check_time_conflict.return_value = True  # Has conflicts!
 
         # Mock the service and instructor profile queries
         mock_db.query.return_value.filter.return_value.first.side_effect = [mock_service, mock_instructor_profile]
@@ -292,7 +293,7 @@ class TestBookingServiceUnit:
         )
 
         # Mock repository responses
-        booking_service.repository.check_time_conflict.return_value = []
+        booking_service.repository.check_time_conflict.return_value = False
 
         # Mock the service and instructor profile queries
         mock_db.query.return_value.filter.return_value.first.side_effect = [mock_service, mock_instructor_profile]
