@@ -12,6 +12,7 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from .booking_service import BookingService
 from .cache_service import CacheService, get_cache_service
 from .notification_service import NotificationService
 from .template_service import TemplateService
@@ -43,6 +44,24 @@ def get_notification_service(
         notification_service: NotificationService = Depends(get_notification_service)
     """
     return NotificationService(db, cache, template_service)
+
+
+def get_booking_service(
+    db: Session = Depends(get_db),
+    cache: Optional[CacheService] = Depends(get_cache_service),
+    notification_service: NotificationService = Depends(get_notification_service),
+) -> BookingService:
+    """
+    Dependency injection function for BookingService with cache support.
+
+    Usage in routes:
+        booking_service: BookingService = Depends(get_booking_service)
+    """
+    return BookingService(
+        db=db,
+        notification_service=notification_service,
+        cache_service=cache,
+    )
 
 
 # Example of how to use in a route:

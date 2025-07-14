@@ -79,7 +79,7 @@ class AvailabilityService(BaseService):
     @BaseService.measure_operation("get_availability_for_date")
     def get_availability_for_date(self, instructor_id: int, target_date: date) -> Optional[Dict[str, Any]]:
         """
-        Get availability for a specific date.
+        Get availability for a specific date using cache-aside pattern.
 
         Args:
             instructor_id: The instructor ID
@@ -88,17 +88,19 @@ class AvailabilityService(BaseService):
         Returns:
             Availability data for the date or None if no slots
         """
-        # Try cache first
-        cache_key = f"availability:day:{instructor_id}:{target_date.isoformat()}"
+        # Try cache first (cache-aside pattern)
         if self.cache_service:
             try:
-                cached = self.cache_service.get(cache_key)
-                if cached is not None:
-                    return cached
+                # Use the new date range caching for single dates
+                cached = self.cache_service.get_instructor_availability_date_range(
+                    instructor_id, target_date, target_date
+                )
+                if cached is not None and len(cached) > 0:
+                    return cached[0]  # Return the single date's data
             except Exception as cache_error:
                 logger.warning(f"Cache error for date availability: {cache_error}")
 
-        # Query slots directly
+        # Cache miss - query database
         try:
             slots = self.repository.get_slots_by_date(instructor_id, target_date)
         except RepositoryException as e:
@@ -119,10 +121,12 @@ class AvailabilityService(BaseService):
             ],
         }
 
-        # Cache for 1 hour
+        # Cache the result with 5-minute TTL for better performance
         if self.cache_service:
             try:
-                self.cache_service.set(cache_key, result, tier="warm")
+                self.cache_service.cache_instructor_availability_date_range(
+                    instructor_id, target_date, target_date, [result]
+                )
             except Exception as cache_error:
                 logger.warning(f"Failed to cache date availability: {cache_error}")
 
@@ -150,7 +154,7 @@ class AvailabilityService(BaseService):
     @BaseService.measure_operation("get_week_availability")
     def get_week_availability(self, instructor_id: int, start_date: date) -> Dict[str, List[TimeSlotResponse]]:
         """
-        Get availability for a specific week.
+        Get availability for a specific week using enhanced cache-aside pattern.
 
         Args:
             instructor_id: The instructor's user ID
@@ -161,7 +165,7 @@ class AvailabilityService(BaseService):
         """
         self.log_operation("get_week_availability", instructor_id=instructor_id, start_date=start_date)
 
-        # Try cache first
+        # Try cache first with enhanced caching
         if self.cache_service:
             try:
                 cached_data = self.cache_service.get_week_availability(instructor_id, start_date)
@@ -196,7 +200,7 @@ class AvailabilityService(BaseService):
                 )
             )
 
-        # Cache the result
+        # Cache the result with optimized TTL (5 minutes for current/future weeks)
         if self.cache_service:
             try:
                 self.cache_service.cache_week_availability(instructor_id, start_date, week_schedule)
@@ -204,6 +208,70 @@ class AvailabilityService(BaseService):
                 logger.warning(f"Failed to cache week availability: {cache_error}")
 
         return week_schedule
+
+    @BaseService.measure_operation("get_instructor_availability_for_date_range")
+    def get_instructor_availability_for_date_range(
+        self, instructor_id: int, start_date: date, end_date: date
+    ) -> List[Dict[str, Any]]:
+        """
+        Get instructor availability for a date range using enhanced caching.
+
+        Args:
+            instructor_id: The instructor's ID
+            start_date: Start date of range
+            end_date: End date of range
+
+        Returns:
+            List of availability data for each date
+        """
+        # Try cache first
+        if self.cache_service:
+            try:
+                cached_data = self.cache_service.get_instructor_availability_date_range(
+                    instructor_id, start_date, end_date
+                )
+                if cached_data is not None:
+                    return cached_data
+            except Exception as cache_error:
+                logger.warning(f"Cache error for date range availability: {cache_error}")
+
+        # Cache miss - query database
+        try:
+            slots = self.repository.get_week_availability(instructor_id, start_date, end_date)
+        except RepositoryException as e:
+            logger.error(f"Error getting date range availability: {e}")
+            return []
+
+        # Group slots by date
+        availability_by_date = {}
+        for slot in slots:
+            date_str = slot.specific_date.isoformat()
+            if date_str not in availability_by_date:
+                availability_by_date[date_str] = []
+
+            availability_by_date[date_str].append(
+                {
+                    "start_time": time_to_string(slot.start_time),
+                    "end_time": time_to_string(slot.end_time),
+                }
+            )
+
+        # Convert to list format
+        result = []
+        current_date = start_date
+        while current_date <= end_date:
+            date_str = current_date.isoformat()
+            result.append({"date": date_str, "slots": availability_by_date.get(date_str, [])})
+            current_date += timedelta(days=1)
+
+        # Cache the result
+        if self.cache_service:
+            try:
+                self.cache_service.cache_instructor_availability_date_range(instructor_id, start_date, end_date, result)
+            except Exception as cache_error:
+                logger.warning(f"Failed to cache date range availability: {cache_error}")
+
+        return result
 
     @BaseService.measure_operation("get_all_availability")
     def get_all_instructor_availability(
@@ -582,8 +650,15 @@ class AvailabilityService(BaseService):
         return schedule_by_date
 
     def _invalidate_availability_caches(self, instructor_id: int, dates: List[date]) -> None:
-        """Invalidate caches for affected dates."""
-        # Invalidate instructor-specific caches
+        """Invalidate caches for affected dates using enhanced cache service."""
+        if self.cache_service:
+            try:
+                # Use the new cache service invalidation method
+                self.cache_service.invalidate_instructor_availability(instructor_id, dates)
+            except Exception as cache_error:
+                logger.warning(f"Cache invalidation failed: {cache_error}")
+
+        # Fallback to legacy cache invalidation
         self.invalidate_cache(f"instructor_availability:{instructor_id}")
 
         # Invalidate date-specific caches

@@ -262,6 +262,9 @@ class CacheService(BaseService):
             "deletes": 0,
             "errors": 0,
             "circuit_opens": 0,
+            "availability_hits": 0,
+            "availability_misses": 0,
+            "availability_invalidations": 0,
         }
 
     # Core Cache Operations
@@ -487,7 +490,91 @@ class CacheService(BaseService):
     def get_week_availability(self, instructor_id: int, week_start: date) -> Optional[Dict[str, Any]]:
         """Get cached week availability."""
         key = self.key_builder.build("availability", "week", instructor_id, week_start)
-        return self.get(key)
+        result = self.get(key)
+
+        # Track availability-specific metrics
+        if result is not None:
+            self._stats["availability_hits"] += 1
+        else:
+            self._stats["availability_misses"] += 1
+
+        return result
+
+    @BaseService.measure_operation("cache_instructor_availability_date_range")
+    def cache_instructor_availability_date_range(
+        self, instructor_id: int, start_date: date, end_date: date, availability_data: List[Dict[str, Any]]
+    ) -> bool:
+        """Cache instructor availability for a date range with optimized TTL."""
+        key = self.key_builder.build("availability", "range", instructor_id, start_date, end_date)
+
+        # Use hot cache for current/future dates, warm for past
+        if start_date >= date.today():
+            tier = "hot"  # 5 minutes
+        else:
+            tier = "warm"  # 1 hour
+
+        return self.set(key, availability_data, tier=tier)
+
+    @BaseService.measure_operation("get_instructor_availability_date_range")
+    def get_instructor_availability_date_range(
+        self, instructor_id: int, start_date: date, end_date: date
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Get cached instructor availability for date range."""
+        key = self.key_builder.build("availability", "range", instructor_id, start_date, end_date)
+        result = self.get(key)
+
+        # Track availability-specific metrics
+        if result is not None:
+            self._stats["availability_hits"] += 1
+        else:
+            self._stats["availability_misses"] += 1
+
+        return result
+
+    @BaseService.measure_operation("cache_instructor_weekly_availability")
+    def cache_instructor_weekly_availability(
+        self, instructor_id: int, weekly_data: Dict[str, List[Dict[str, Any]]]
+    ) -> bool:
+        """Cache instructor's weekly availability pattern with 5-minute TTL."""
+        key = self.key_builder.build("availability", "weekly", instructor_id)
+        return self.set(key, weekly_data, tier="hot")  # 5 minutes
+
+    @BaseService.measure_operation("get_instructor_weekly_availability")
+    def get_instructor_weekly_availability(self, instructor_id: int) -> Optional[Dict[str, List[Dict[str, Any]]]]:
+        """Get cached instructor weekly availability pattern."""
+        key = self.key_builder.build("availability", "weekly", instructor_id)
+        result = self.get(key)
+
+        # Track availability-specific metrics
+        if result is not None:
+            self._stats["availability_hits"] += 1
+        else:
+            self._stats["availability_misses"] += 1
+
+        return result
+
+    @BaseService.measure_operation("batch_cache_availability")
+    def batch_cache_availability(self, availability_entries: List[Dict[str, Any]]) -> int:
+        """Batch cache multiple availability entries for performance."""
+        cache_data = {}
+
+        for entry in availability_entries:
+            instructor_id = entry["instructor_id"]
+            if "week_start" in entry:
+                # Week availability
+                key = self.key_builder.build("availability", "week", instructor_id, entry["week_start"])
+                cache_data[key] = entry["data"]
+            elif "start_date" in entry and "end_date" in entry:
+                # Date range availability
+                key = self.key_builder.build(
+                    "availability", "range", instructor_id, entry["start_date"], entry["end_date"]
+                )
+                cache_data[key] = entry["data"]
+
+        if cache_data:
+            success = self.mset(cache_data, tier="hot")
+            return len(cache_data) if success else 0
+        return 0
 
     @BaseService.measure_operation("invalidate_instructor_availability")
     def invalidate_instructor_availability(self, instructor_id: int, dates: List[date] = None):
@@ -511,6 +598,9 @@ class CacheService(BaseService):
         total_deleted = 0
         for pattern in patterns:
             total_deleted += self.delete_pattern(pattern)
+
+        # Track availability-specific invalidations
+        self._stats["availability_invalidations"] += total_deleted
 
         logger.info(f"Invalidated {total_deleted} cache entries for instructor {instructor_id}")
 
@@ -669,6 +759,10 @@ class CacheService(BaseService):
             "sets": 0,
             "deletes": 0,
             "errors": 0,
+            "circuit_opens": 0,
+            "availability_hits": 0,
+            "availability_misses": 0,
+            "availability_invalidations": 0,
         }
 
     # Helper methods

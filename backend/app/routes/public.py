@@ -13,11 +13,12 @@ Key Design Decisions:
 5. Respects blackout dates
 """
 
+import hashlib
 import logging
 from datetime import date, datetime, timedelta
 from typing import Optional, Union
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
@@ -71,6 +72,8 @@ def get_cache_service_dep() -> Optional[CacheService]:
 )
 async def get_instructor_public_availability(
     instructor_id: int,
+    request: Request,
+    response_obj: Response,
     start_date: date = Query(..., description="Start date for availability search"),
     end_date: Optional[date] = Query(None, description="End date (defaults to configured days from start)"),
     availability_service: AvailabilityService = Depends(get_availability_service),
@@ -133,25 +136,43 @@ async def get_instructor_public_availability(
     if end_date > max_end_date:
         end_date = max_end_date
 
+    # Generate ETag for conditional requests
+    etag_data = f"{instructor_id}:{start_date}:{end_date}:{settings.public_availability_detail_level}"
+    etag = hashlib.md5(etag_data.encode()).hexdigest()
+
+    # Check if client has current version using ETag
+    if_none_match = request.headers.get("if-none-match")
+    if if_none_match and if_none_match.strip('"') == etag:
+        response_obj.status_code = status.HTTP_304_NOT_MODIFIED
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+
     # Check cache first - include detail level in cache key
     cache_key = (
         f"public_availability:{instructor_id}:{start_date}:{end_date}:{settings.public_availability_detail_level}"
     )
+    cached_result = None
     if cache_service:
         try:
             cached_data = cache_service.get(cache_key)
             if cached_data:
                 logger.info(f"Cache hit for public availability: {cache_key}")
-                return cached_data
+                cached_result = cached_data
         except Exception as e:
             logger.warning(f"Cache error: {e}")
+
+    # If we have cached data, set headers and return
+    if cached_result:
+        # Set cache control headers (5 minutes)
+        response_obj.headers["Cache-Control"] = "public, max-age=300"
+        response_obj.headers["ETag"] = f'"{etag}"'
+        return cached_result
 
     # Build response based on detail level
     if settings.public_availability_detail_level == "minimal":
         # Minimal: Just check if any availability exists
         all_slots = availability_service.repository.get_week_availability(instructor_id, start_date, end_date)
 
-        response = PublicAvailabilityMinimal(
+        response_data = PublicAvailabilityMinimal(
             instructor_id=instructor_id,
             instructor_name=instructor_user.full_name
             if settings.public_availability_show_instructor_name
@@ -192,7 +213,7 @@ async def get_instructor_public_availability(
             ).seconds / 3600
             availability_summary[date_str]["total_hours"] += duration
 
-        response = PublicAvailabilitySummary(
+        response_data = PublicAvailabilitySummary(
             instructor_id=instructor_id,
             instructor_name=instructor_user.full_name
             if settings.public_availability_show_instructor_name
@@ -275,7 +296,7 @@ async def get_instructor_public_availability(
             current_date += timedelta(days=1)
 
         # Build response - use instructor's user full_name, not profile
-        response = PublicInstructorAvailability(
+        response_data = PublicInstructorAvailability(
             instructor_id=instructor_id,
             instructor_name=instructor_user.full_name
             if settings.public_availability_show_instructor_name
@@ -289,11 +310,16 @@ async def get_instructor_public_availability(
     # Cache the response
     if cache_service:
         try:
-            cache_service.set(cache_key, response.model_dump(), ttl=settings.public_availability_cache_ttl)
+            cache_service.set(cache_key, response_data.model_dump(), ttl=settings.public_availability_cache_ttl)
         except Exception as e:
             logger.warning(f"Failed to cache public availability: {e}")
 
-    return response
+    # Set cache control headers (5 minutes) and ETag on FastAPI Response object
+    response_obj.headers["Cache-Control"] = "public, max-age=300"
+    response_obj.headers["ETag"] = f'"{etag}"'
+    response_obj.headers["Vary"] = "Accept-Encoding"
+
+    return response_data
 
 
 @router.get(
@@ -303,6 +329,7 @@ async def get_instructor_public_availability(
 )
 async def get_next_available_slot(
     instructor_id: int,
+    response_obj: Response,
     duration_minutes: int = Query(60, description="Required duration in minutes"),
     availability_service: AvailabilityService = Depends(get_availability_service),
     conflict_checker: ConflictChecker = Depends(get_conflict_checker),
@@ -367,7 +394,7 @@ async def get_next_available_slot(
                             datetime.combine(date.min, slot.start_time) + timedelta(minutes=duration_minutes)
                         ).time()
 
-                        return {
+                        result = {
                             "found": True,
                             "date": current_date.isoformat(),
                             "start_time": slot.start_time.strftime("%H:%M:%S"),
@@ -375,6 +402,16 @@ async def get_next_available_slot(
                             "duration_minutes": duration_minutes,
                         }
 
+                        # Set cache headers for successful results (2 minutes for next-available)
+                        response_obj.headers["Cache-Control"] = "public, max-age=120"
+
+                        return result
+
         current_date += timedelta(days=1)
 
-    return {"found": False, "message": f"No available slots found in the next {search_days} days"}
+    result = {"found": False, "message": f"No available slots found in the next {search_days} days"}
+
+    # Set cache headers for no-availability results (1 minute)
+    response_obj.headers["Cache-Control"] = "public, max-age=60"
+
+    return result

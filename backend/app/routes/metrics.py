@@ -83,7 +83,7 @@ async def get_cache_metrics(
     current_user: User = Depends(get_current_user),
     cache_service: CacheService = Depends(get_cache_service_dep),
 ):
-    """Get detailed cache metrics."""
+    """Get detailed cache metrics including availability-specific stats."""
 
     if current_user.email not in ["admin@instainstru.com", "profiling@instainstru.com"]:
         return {"error": "Unauthorized"}
@@ -91,7 +91,158 @@ async def get_cache_metrics(
     if not cache_service:
         return {"error": "Cache service not available"}
 
-    return cache_service.get_stats()
+    # Get basic cache stats
+    stats = cache_service.get_stats()
+
+    # Add availability-specific metrics
+    availability_stats = {
+        "availability_hit_rate": 0,
+        "availability_total_requests": 0,
+        "availability_invalidations": stats.get("availability_invalidations", 0),
+    }
+
+    # Calculate availability-specific hit rate
+    avail_hits = stats.get("availability_hits", 0)
+    avail_misses = stats.get("availability_misses", 0)
+    avail_total = avail_hits + avail_misses
+
+    if avail_total > 0:
+        availability_stats["availability_hit_rate"] = f"{(avail_hits / avail_total * 100):.2f}%"
+        availability_stats["availability_total_requests"] = avail_total
+
+    # Add cache size estimates (if Redis is available)
+    cache_info = {}
+    if hasattr(cache_service, "redis") and cache_service.redis:
+        try:
+            # Get approximate cache size
+            info = cache_service.redis.info()
+            cache_info = {
+                "used_memory_human": info.get("used_memory_human", "Unknown"),
+                "keyspace_hits": info.get("keyspace_hits", 0),
+                "keyspace_misses": info.get("keyspace_misses", 0),
+                "evicted_keys": info.get("evicted_keys", 0),
+            }
+        except Exception as e:
+            cache_info = {"error": f"Could not get Redis info: {e}"}
+
+    # Combine all metrics
+    enhanced_stats = {
+        **stats,
+        "availability_metrics": availability_stats,
+        "redis_info": cache_info,
+        "performance_insights": _get_cache_performance_insights(stats),
+    }
+
+    return enhanced_stats
+
+
+def _get_cache_performance_insights(stats):
+    """Generate performance insights from cache statistics."""
+    insights = []
+
+    total_requests = stats.get("hits", 0) + stats.get("misses", 0)
+    if total_requests > 0:
+        hit_rate = stats.get("hits", 0) / total_requests * 100
+
+        if hit_rate < 60:
+            insights.append("Low cache hit rate - consider adjusting TTL or cache strategy")
+        elif hit_rate > 90:
+            insights.append("Excellent cache performance")
+
+        if stats.get("errors", 0) > 0:
+            error_rate = stats.get("errors", 0) / total_requests * 100
+            if error_rate > 5:
+                insights.append(f"High error rate ({error_rate:.1f}%) - check cache service health")
+
+    # Check availability-specific metrics
+    avail_hits = stats.get("availability_hits", 0)
+    avail_misses = stats.get("availability_misses", 0)
+    avail_total = avail_hits + avail_misses
+
+    if avail_total > 0:
+        avail_hit_rate = avail_hits / avail_total * 100
+        if avail_hit_rate < 70:
+            insights.append("Availability cache hit rate is low - consider increasing TTL")
+
+    if stats.get("availability_invalidations", 0) > 100:
+        insights.append("High availability cache invalidation rate - check booking frequency")
+
+    if not insights:
+        insights.append("Cache performance looks good")
+
+    return insights
+
+
+@router.get("/cache/availability")
+async def get_availability_cache_metrics(
+    current_user: User = Depends(get_current_user),
+    cache_service: CacheService = Depends(get_cache_service_dep),
+):
+    """Get detailed availability-specific cache metrics and top cached keys."""
+
+    if current_user.email not in ["admin@instainstru.com", "profiling@instainstru.com"]:
+        return {"error": "Unauthorized"}
+
+    if not cache_service:
+        return {"error": "Cache service not available"}
+
+    stats = cache_service.get_stats()
+
+    # Calculate availability-specific metrics
+    avail_hits = stats.get("availability_hits", 0)
+    avail_misses = stats.get("availability_misses", 0)
+    avail_total = avail_hits + avail_misses
+    avail_invalidations = stats.get("availability_invalidations", 0)
+
+    availability_metrics = {
+        "hit_rate": f"{(avail_hits / avail_total * 100):.2f}%" if avail_total > 0 else "0%",
+        "total_requests": avail_total,
+        "hits": avail_hits,
+        "misses": avail_misses,
+        "invalidations": avail_invalidations,
+        "cache_efficiency": "excellent"
+        if avail_total > 0 and (avail_hits / avail_total) > 0.8
+        else "needs_improvement",
+    }
+
+    # Get top cached keys (if possible)
+    top_keys = []
+    if hasattr(cache_service, "redis") and cache_service.redis:
+        try:
+            # Sample some availability-related keys
+            sample_keys = []
+            for pattern in ["avail:*", "availability:*"]:
+                keys = list(cache_service.redis.scan_iter(match=pattern, count=10))
+                sample_keys.extend(keys[:5])  # Limit to 5 per pattern
+
+            top_keys = sample_keys[:10]  # Top 10 keys
+        except Exception as e:
+            top_keys = [f"Error retrieving keys: {e}"]
+
+    # Performance recommendations
+    recommendations = []
+    if avail_total > 0:
+        hit_rate = avail_hits / avail_total
+        if hit_rate < 0.7:
+            recommendations.append("Consider increasing availability cache TTL")
+        if avail_invalidations > avail_hits * 0.5:
+            recommendations.append("High invalidation rate - consider optimizing booking patterns")
+        if avail_misses > avail_hits:
+            recommendations.append("More misses than hits - check cache warming strategy")
+
+    if not recommendations:
+        recommendations.append("Availability caching performance is optimal")
+
+    return {
+        "availability_cache_metrics": availability_metrics,
+        "top_cached_keys_sample": top_keys,
+        "recommendations": recommendations,
+        "cache_tiers_info": {
+            "hot": "5 minutes (current/future availability)",
+            "warm": "1 hour (past availability)",
+            "cold": "24 hours (historical data)",
+        },
+    }
 
 
 @router.get("/slow-queries")

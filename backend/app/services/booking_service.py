@@ -46,6 +46,7 @@ class BookingService(BaseService):
         notification_service: Optional[NotificationService] = None,
         repository=None,
         conflict_checker_repository=None,
+        cache_service=None,
     ):
         """
         Initialize booking service.
@@ -55,14 +56,16 @@ class BookingService(BaseService):
             notification_service: Optional notification service instance
             repository: Optional BookingRepository instance
             conflict_checker_repository: Optional ConflictCheckerRepository instance
+            cache_service: Optional cache service for invalidation
         """
-        super().__init__(db)
+        super().__init__(db, cache=cache_service)
         self.notification_service = notification_service or NotificationService(db)
         self.repository = repository or RepositoryFactory.create_booking_repository(db)
         self.availability_repository = RepositoryFactory.create_availability_repository(db)
         self.conflict_checker_repository = (
             conflict_checker_repository or RepositoryFactory.create_conflict_checker_repository(db)
         )
+        self.cache_service = cache_service
 
     @BaseService.measure_operation("create_booking")
     async def create_booking(self, student: User, booking_data: BookingCreate) -> Booking:
@@ -826,15 +829,24 @@ class BookingService(BaseService):
         }
 
     def _invalidate_booking_caches(self, booking: Booking) -> None:
-        """Invalidate caches affected by booking changes."""
-        # Invalidate user-specific caches
+        """Invalidate caches affected by booking changes using enhanced cache service."""
+        # Use enhanced cache service to invalidate availability caches
+        if self.cache_service:
+            try:
+                # Invalidate all availability caches for the instructor and specific date
+                self.cache_service.invalidate_instructor_availability(booking.instructor_id, [booking.booking_date])
+                logger.debug(f"Invalidated availability caches for instructor {booking.instructor_id}")
+            except Exception as cache_error:
+                logger.warning(f"Failed to invalidate availability caches: {cache_error}")
+
+        # Legacy cache invalidation for other booking-related caches
         self.invalidate_cache(f"user_bookings:{booking.student_id}")
         self.invalidate_cache(f"user_bookings:{booking.instructor_id}")
 
         # Invalidate date-specific caches
         self.invalidate_cache(f"bookings:date:{booking.booking_date}")
 
-        # Invalidate instructor availability caches
+        # Invalidate instructor availability caches (fallback)
         self.invalidate_cache(f"instructor_availability:{booking.instructor_id}:{booking.booking_date}")
 
         # Invalidate stats caches
