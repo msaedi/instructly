@@ -237,8 +237,10 @@ export default function StudentDashboard() {
         </div>
 
         {/* Upcoming Sessions */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Upcoming Sessions</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+            Upcoming Sessions
+          </h2>
 
           {bookingsLoading ? (
             <div className="text-center py-8">
@@ -250,7 +252,7 @@ export default function StudentDashboard() {
               {upcomingBookings.slice(0, 3).map((booking) => (
                 <div
                   key={booking.id}
-                  className="border rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+                  className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
                   onClick={() => {
                     logger.debug('Booking card clicked', { bookingId: booking.id });
                     router.push(`/booking/confirmation?bookingId=${booking.id}`);
@@ -258,11 +260,13 @@ export default function StudentDashboard() {
                 >
                   <div className="flex justify-between items-start">
                     <div>
-                      <h4 className="font-semibold text-gray-900">{booking.service_name}</h4>
-                      <p className="text-sm text-gray-600">
+                      <h4 className="font-semibold text-gray-900 dark:text-white">
+                        {booking.service_name}
+                      </h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
                         with {booking.instructor?.full_name || 'Instructor'}
                       </p>
-                      <p className="text-sm text-gray-500 mt-1">
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                         {new Date(booking.booking_date).toLocaleDateString('en-US', {
                           weekday: 'long',
                           year: 'numeric',
@@ -272,11 +276,15 @@ export default function StudentDashboard() {
                         at {formatTime(booking.start_time)}
                       </p>
                       {booking.meeting_location && (
-                        <p className="text-sm text-gray-500">📍 {booking.meeting_location}</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          📍 {booking.meeting_location}
+                        </p>
                       )}
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-gray-900">${booking.total_price}</p>
+                      <p className="font-semibold text-gray-900 dark:text-white">
+                        ${booking.total_price}
+                      </p>
                       <span
                         className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusBadgeColor(
                           booking.status
