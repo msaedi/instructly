@@ -1,0 +1,152 @@
+# InstaInstru Homepage Redesign - TaskRabbit Style
+*Incorporating yellow accent color and improved layout*
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│  iNSTAiNSTRU                           Become an Instructor    Sign up / Log in     │
+│  ▔▔▔▔▔▔▔▔▔▔▔                                                                       │
+├─────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                     │
+│                                                                                     │
+│                         Instant learning with                                       │
+│                            iNSTAiNSTRU                                             │
+│                                                                                     │
+│                    ┌─────────────────────────────────────┐                        │
+│                    │ Ready to learn something new?       │ 🟡                    │
+│                    └─────────────────────────────────────┘                        │
+│                                                                                     │
+│  ┌──────────┬──────────┬──────────┬──────────┬──────────┐                        │
+│  │   [💬]   │   [♪]    │  [═○═]   │   [📖]   │   [◇]    │                        │
+│  │ Language │  Music   │ Fitness  │Academics │  Hidden  │                        │
+│  │          │          │ ████████ │          │   Gems   │                        │
+│  └──────────┴──────────┴──────────┴──────────┴──────────┘                        │
+│  ═══════════════════════════════════════════════════════════                     │
+
+Note: [💬] [♪] [═○═] [📖] [◇] represent minimal black & white line-art icons
+│  ═══════════════════════════════════════════════════════════════════════════════ │
+│                                                                                     │
+│  [ Yoga ] [ Personal Training ] [ Pilates ] [ Martial Arts ] [ Dance ]            │
+│                                                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Design Specifications:
+
+### 1. **Yellow Accent Integration** 🟡
+- Search button end cap: Yellow (#FFD700) circle
+- Selected category highlight: Yellow underline
+- Hover states: Yellow glow
+- CTA buttons: Yellow backgrounds where appropriate
+
+### 2. **Spacing Improvements**
+```
+Before:                          After:
+Instant Learning with iNSTAiNSTRU    │ (60px padding top)
+                                     │ Instant learning with
+                                     │ iNSTAiNSTRU
+                                     │ (40px padding bottom)
+```
+
+### 3. **Search Bar Design**
+```
+┌─────────────────────────────────────────────┐
+│ Ready to learn something new?               │ 🟡 ← Yellow button
+└─────────────────────────────────────────────┘
+     Grey border (#E5E5E5)                    Yellow fill (#FFD700)
+     720px width                              60px diameter
+```
+
+### 4. **Category Icons Redesign**
+```
+Default (unselected):              Selected (Fitness):
+┌──────────┐                      ┌──────────┐
+│    ♪     │                      │   ═○═    │
+│  Music   │                      │ Fitness  │
+│          │                      │ ████████ │ ← Yellow bar
+└──────────┘                      └──────────┘
+ Grey (#6B7280)                    Black + Yellow accent
+
+Note: Icons are minimal black & white line-art designs
+- Language: Two chat bubbles (💬)
+- Music: Musical note (♪)
+- Fitness: Dumbbell (═○═)
+- Academics: Open book (📖)
+- Hidden Gems: Diamond outline (◇)
+```
+
+### 5. **Visual Hierarchy**
+- **Primary**: iNSTAiNSTRU (36px, bold)
+- **Secondary**: "Instant learning with" (24px, regular)
+- **Search placeholder**: 16px, grey (#6B7280)
+- **Category labels**: 14px, grey/black on selection
+
+### 6. **Color Palette Application**
+- **Blue (#0066CC)**: Logo, links, secondary CTAs
+- **Yellow (#FFD700)**: Search button, selected states, primary CTAs
+- **Green (#00A86B)**: Success states, instructor availability
+- **Grey (#6B7280)**: Unselected categories, placeholder text
+
+### 7. **Subcategory Pills**
+```
+[ Yoga ]  [ Personal Training ]  [ Pilates ]  [ Martial Arts ]  [ Dance ]
+
+Style:
+- Border: 1px solid #E5E5E5
+- Padding: 8px 16px
+- Border-radius: 20px
+- On hover: Yellow border (#FFD700)
+```
+
+## Mobile Responsive Version:
+
+```
+┌─────────────────────┐
+│ ☰  iNSTAiNSTRU  👤 │
+├─────────────────────┤
+│                     │
+│ Instant learning    │
+│      with          │
+│   iNSTAiNSTRU      │
+│                     │
+│ ┌─────────────────┐ │
+│ │ Learn...      🟡│ │
+│ └─────────────────┘ │
+│                     │
+│ [💬] [♪] [═○═] [📖] [◇]│
+│ ═══════════════════ │
+│                     │
+│ [ Yoga ]           │
+│ [ Personal Train.] │
+│ [ Pilates ]        │
+│                     │
+└─────────────────────┘
+```
+
+## Implementation Notes:
+
+1. **Icons**:
+   - Use minimal black & white SVG line-art icons
+   - 24x24px, 1.5px stroke weight
+   - No fill, outline only
+   - See "Minimal Black & White Category Icons" artifact for SVG code
+
+2. **Yellow Search Button**:
+   - Exactly like TaskRabbit's green button but yellow
+   - Circular end cap with search icon
+   - Slight shadow for depth
+
+3. **Category Bar**:
+   - Continuous underline across all categories
+   - Selected category gets yellow highlight bar
+   - Icons simplified and greyed out
+   - Equal spacing between categories
+
+4. **Typography**:
+   - "Instant learning with" - lighter weight
+   - "iNSTAiNSTRU" - bold, slightly larger
+   - Clear visual hierarchy
+
+5. **Spacing**:
+   - More breathing room above headline
+   - Better proportions throughout
+   - Follows TaskRabbit's generous spacing

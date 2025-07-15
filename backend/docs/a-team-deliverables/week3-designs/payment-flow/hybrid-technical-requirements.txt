@@ -1,0 +1,307 @@
+# Hybrid Payment Technical Requirements for X-Team
+
+## 🔧 Core Technical Requirements
+
+### 1. Stripe API Integration Needed
+
+#### Authorization/Capture Flow:
+```python
+# At booking time
+def create_booking_payment():
+    # Create payment intent with capture_method='manual'
+    intent = stripe.PaymentIntent.create(
+        amount=9600,  # $96.00 in cents
+        currency='usd',
+        capture_method='manual',  # KEY: Don't capture immediately
+        metadata={
+            'booking_id': booking.id,
+            'instructor_id': instructor.id,
+            'student_id': student.id
+        }
+    )
+
+    # Confirm the payment intent (authorizes but doesn't capture)
+    stripe.PaymentIntent.confirm(intent.id)
+
+    # Store intent.id with booking
+    booking.stripe_intent_id = intent.id
+    booking.payment_status = 'authorized'
+
+# After lesson completion
+def capture_payment(booking_id):
+    booking = get_booking(booking_id)
+
+    # Capture the previously authorized amount
+    stripe.PaymentIntent.capture(
+        booking.stripe_intent_id,
+        amount_to_capture=9600  # Can be less for partial capture
+    )
+
+    booking.payment_status = 'captured'
+```
+
+#### For Packages (Immediate Charge):
+```python
+def create_package_payment():
+    # Use capture_method='automatic' for immediate charge
+    intent = stripe.PaymentIntent.create(
+        amount=42000,  # $420.00 for 5-lesson package
+        currency='usd',
+        capture_method='automatic',  # Charges immediately
+        metadata={
+            'package_id': package.id,
+            'lessons_count': 5
+        }
+    )
+```
+
+### 2. Database Schema Updates
+
+```sql
+-- Add to bookings table
+ALTER TABLE bookings ADD COLUMN payment_status VARCHAR(20)
+  CHECK (payment_status IN ('pending', 'authorized', 'captured', 'failed', 'refunded', 'released'));
+ALTER TABLE bookings ADD COLUMN stripe_intent_id VARCHAR(255);
+ALTER TABLE bookings ADD COLUMN authorized_amount DECIMAL(10,2);
+ALTER TABLE bookings ADD COLUMN captured_amount DECIMAL(10,2);
+ALTER TABLE bookings ADD COLUMN authorization_expires_at TIMESTAMP;
+
+-- Track payment events
+CREATE TABLE payment_events (
+    id SERIAL PRIMARY KEY,
+    booking_id INTEGER REFERENCES bookings(id),
+    event_type VARCHAR(50),
+    amount DECIMAL(10,2),
+    stripe_event_id VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### 3. Backend Status Management
+
+```python
+class PaymentStatus(Enum):
+    PENDING = "pending"              # Booking created, no payment yet
+    AUTHORIZED = "authorized"        # Card authorized, not charged
+    CAPTURED = "captured"           # Payment captured (charged)
+    FAILED = "failed"               # Auth or capture failed
+    REFUNDED = "refunded"           # Refunded after capture
+    RELEASED = "released"           # Auth released without capture
+
+class BookingService:
+    def complete_lesson(self, booking_id: int):
+        booking = self.get_booking(booking_id)
+
+        # Capture payment after lesson
+        if booking.payment_status == PaymentStatus.AUTHORIZED:
+            self.payment_service.capture_payment(booking)
+
+        booking.status = BookingStatus.COMPLETED
+
+    def cancel_booking(self, booking_id: int):
+        booking = self.get_booking(booking_id)
+
+        if booking.payment_status == PaymentStatus.AUTHORIZED:
+            # Release the authorization
+            self.payment_service.release_authorization(booking)
+        elif booking.payment_status == PaymentStatus.CAPTURED:
+            # Process refund based on cancellation policy
+            refund_amount = self.calculate_refund(booking)
+            if refund_amount > 0:
+                self.payment_service.refund_payment(booking, refund_amount)
+```
+
+### 4. Scheduled Jobs Required
+
+```python
+# Run every hour
+def check_expiring_authorizations():
+    """Capture payments before Stripe's 7-day expiry"""
+    expiring_soon = Booking.query.filter(
+        Booking.payment_status == 'authorized',
+        Booking.authorization_expires_at < datetime.now() + timedelta(days=1)
+    ).all()
+
+    for booking in expiring_soon:
+        # Auto-capture to prevent losing the authorization
+        capture_payment(booking.id)
+        send_notification(
+            booking.student,
+            "Payment processed for upcoming lesson"
+        )
+
+# Run after each lesson's scheduled end time
+def auto_capture_completed_lessons():
+    """Capture payment for lessons that should be done"""
+    completed_lessons = Booking.query.filter(
+        Booking.payment_status == 'authorized',
+        Booking.end_time < datetime.now() - timedelta(hours=1)
+    ).all()
+
+    for booking in completed_lessons:
+        capture_payment(booking.id)
+```
+
+### 5. API Endpoint Updates
+
+```python
+# Update booking creation endpoint
+@router.post("/bookings")
+async def create_booking(booking_data: BookingCreate):
+    # Determine payment type
+    if booking_data.is_package:
+        payment_method = "immediate"
+    else:
+        payment_method = "authorize_only"
+
+    # Create booking with appropriate payment
+    booking = booking_service.create_booking(
+        booking_data,
+        payment_method=payment_method
+    )
+
+    return {
+        "booking": booking,
+        "payment": {
+            "status": booking.payment_status,
+            "message": get_payment_message(booking)
+        }
+    }
+
+# New endpoint for manual capture
+@router.post("/bookings/{booking_id}/capture-payment")
+async def capture_booking_payment(booking_id: int):
+    # For admin/instructor to manually trigger capture
+    result = payment_service.capture_payment(booking_id)
+    return {"status": "captured", "amount": result.amount}
+```
+
+### 6. Webhook Handlers
+
+```python
+@router.post("/webhooks/stripe")
+async def handle_stripe_webhook(request: Request):
+    payload = await request.body()
+    sig_header = request.headers.get('Stripe-Signature')
+
+    event = stripe.Webhook.construct_event(
+        payload, sig_header, webhook_secret
+    )
+
+    if event.type == 'payment_intent.amount_capturable_updated':
+        # Authorization successful
+        update_booking_status(event.data.object.metadata.booking_id, 'authorized')
+
+    elif event.type == 'payment_intent.canceled':
+        # Authorization released/expired
+        update_booking_status(event.data.object.metadata.booking_id, 'released')
+
+    elif event.type == 'charge.succeeded':
+        # Payment captured successfully
+        update_booking_status(event.data.object.metadata.booking_id, 'captured')
+```
+
+### 7. Email Notification Updates
+
+```python
+# After authorization
+def send_booking_authorized_email(booking):
+    template = """
+    Your lesson is reserved!
+
+    Instructor: {instructor_name}
+    Date: {date}
+    Time: {time}
+    Reserved amount: ${amount}
+
+    This amount is held on your card and will only be charged after your lesson is complete.
+    You can cancel anytime up to 6 hours before your lesson.
+    """
+
+# After capture
+def send_payment_captured_email(booking):
+    template = """
+    Payment processed for your lesson
+
+    Thank you for learning with {instructor_name}!
+    Amount charged: ${amount}
+
+    Rate your experience: {rating_link}
+    """
+```
+
+### 8. Frontend Status Display
+
+```typescript
+// Payment status indicators
+enum PaymentStatus {
+  PENDING = "pending",
+  AUTHORIZED = "authorized",
+  CAPTURED = "captured",
+  FAILED = "failed",
+  REFUNDED = "refunded",
+  RELEASED = "released"
+}
+
+// Show appropriate message based on status
+function getPaymentStatusMessage(booking: Booking): string {
+  switch (booking.paymentStatus) {
+    case PaymentStatus.AUTHORIZED:
+      return `$${booking.amount} reserved • Charged after lesson`;
+    case PaymentStatus.CAPTURED:
+      return `$${booking.amount} paid`;
+    case PaymentStatus.REFUNDED:
+      return `$${booking.refundAmount} refunded`;
+    default:
+      return "Payment pending";
+  }
+}
+
+// Visual indicators
+function getPaymentStatusIcon(status: PaymentStatus): string {
+  const icons = {
+    [PaymentStatus.AUTHORIZED]: "💳",
+    [PaymentStatus.CAPTURED]: "✅",
+    [PaymentStatus.REFUNDED]: "↩️",
+    [PaymentStatus.FAILED]: "❌"
+  };
+  return icons[status] || "⏳";
+}
+```
+
+### 9. Testing Requirements
+
+```python
+# Test scenarios to cover
+def test_authorization_capture_flow():
+    # 1. Successful auth → capture
+    # 2. Failed authorization
+    # 3. Expired authorization (7 days)
+    # 4. Partial capture
+    # 5. Cancel before capture (release)
+    # 6. Refund after capture
+    # 7. Package immediate charge
+    # 8. Instructor cancellation handling
+    # 9. No-show capture logic
+    # 10. Network failure recovery
+```
+
+## 🚨 Critical Implementation Notes
+
+1. **Stripe Authorization Expiry**: 7 days max - must capture or release before
+2. **Hold Amounts**: May appear on customer statements
+3. **Partial Captures**: Can capture less than authorized
+4. **Multiple Captures**: NOT allowed - one capture per auth
+5. **Currency**: Must match authorization currency
+
+## 📊 Monitoring & Analytics
+
+Track these metrics:
+- Authorization success rate
+- Time from auth to capture
+- Authorization expiry rate
+- Capture failure rate
+- Average hold duration
+- Customer support tickets about holds
+
+This hybrid model requires more complex implementation but will differentiate InstaInstru in the market!

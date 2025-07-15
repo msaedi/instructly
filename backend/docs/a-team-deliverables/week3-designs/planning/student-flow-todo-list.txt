@@ -1,0 +1,236 @@
+# Student Flow Design TODO List - A-Team
+*Date: July 13, 2025*
+*Priority: Week 3 X-Team Deliverables*
+
+## 🔴 CRITICAL - Block Revenue (Must Complete First)
+
+### 1. Payment Integration Flow 💳 (2-3 hours)
+- [ ] **Checkout UI Flow**
+  - Where in booking flow to insert payment
+  - Payment form design (Stripe Elements style)
+  - Mobile payment experience
+- [ ] **Payment Timing Decision** (30 min)
+  - At booking time vs 24hrs before vs after lesson?
+  - Hold vs immediate charge?
+- [ ] **Payment Method Management**
+  - Add/edit/delete cards
+  - Default payment method
+  - Payment method selection during booking
+- [ ] **Pricing Display**
+  - Service price + platform fee breakdown
+  - Total calculation display
+  - Currency formatting
+- [ ] **Success/Failure States**
+  - Payment successful confirmation
+  - Payment failed error handling
+  - Retry payment flow
+- [ ] **Refund Policy Display**
+  - Where to show cancellation policy
+  - Refund amount calculator
+  - Policy acknowledgment checkbox
+
+### 2. Business Policy Decisions 📋 (1 hour)
+- [ ] **Cancellation Policy**
+  - Free cancellation window (2 hours? 24 hours?)
+  - Partial refund tiers
+  - Instructor compensation rules
+  - No-show policy
+- [ ] **Payment Rules**
+  - Minimum booking amount?
+  - Maximum advance booking (30 days? 60 days?)
+  - Series discount policy?
+  - Platform fee percentage (20%?)
+- [ ] **Booking Modifications**
+  - What changes allowed after booking?
+  - Time limit for modifications?
+  - Price change handling?
+
+## 🟡 HIGH PRIORITY - Improve UX (Complete Second)
+
+### 3. Student Dashboard Enhancement 📊 (2 hours)
+- [ ] **Top Navigation After Login**
+  - User avatar/initials design
+  - Dropdown menu contents
+  - Notification badge placement
+- [ ] **Full Dashboard Layout**
+  - Beyond basic 3 tabs (add stats, quick actions)
+  - Find Instructors widget/CTA
+  - Upcoming lesson countdown
+  - Quick rebook buttons
+- [ ] **Dashboard Cards Design**
+  - Booking card expanded view
+  - Quick actions per booking
+  - Status indicators (confirmed, pending, etc.)
+- [ ] **Mobile Dashboard**
+  - Responsive layout
+  - Bottom navigation vs hamburger
+  - Swipe actions on bookings?
+
+### 4. Advanced Search Filters 🔍 (2 hours)
+- [ ] **Filter UI Pattern**
+  - Sidebar vs modal vs dropdown?
+  - Mobile filter experience
+  - Applied filters display
+- [ ] **Priority Filters**
+  - Available today/this week
+  - Price range slider
+  - Location/distance radius
+  - Rating threshold (4+ stars)
+  - Service subcategories
+- [ ] **Filter Interactions**
+  - Multi-select behavior
+  - Clear all vs clear individual
+  - Save filter preferences?
+  - Filter count badge
+- [ ] **Results Updates**
+  - Live results count
+  - No results state
+  - Loading during filter application
+
+### 5. Loading & Error States ⏳ (1.5 hours)
+- [ ] **Skeleton Screens**
+  - Search results skeleton
+  - Instructor profile skeleton
+  - Dashboard loading state
+  - Booking confirmation skeleton
+- [ ] **Error Messages**
+  - Network error (friendly message)
+  - No availability error
+  - Payment failed error
+  - Booking conflict error
+- [ ] **Empty States**
+  - No search results
+  - No bookings yet
+  - No availability this week
+  - All instructors booked
+- [ ] **Offline States**
+  - What works offline?
+  - Offline message design
+  - Retry mechanisms
+
+## 🟢 IMPORTANT - Complete Experience (If Time Allows)
+
+### 6. Reschedule Booking Flow 📅 (1.5 hours)
+- [ ] **Initiation Points**
+  - From dashboard
+  - From booking details
+  - From email link
+- [ ] **Reschedule UI**
+  - Show original booking details
+  - Available alternative times
+  - Reason for reschedule (optional?)
+- [ ] **Constraints Display**
+  - Instructor availability
+  - Reschedule deadline
+  - Policy reminders
+- [ ] **Confirmation Flow**
+  - Review changes
+  - Notify instructor toggle?
+  - Confirmation message
+
+### 7. Booking Modifications 🔄 (1 hour)
+- [ ] **What Can Be Modified**
+  - Service type change?
+  - Duration extension?
+  - Add notes to instructor
+  - Location change?
+- [ ] **Modification UI**
+  - Edit mode design
+  - Save/cancel pattern
+  - Validation messages
+- [ ] **Approval Flow**
+  - What needs instructor approval?
+  - Pending state design
+  - Approval timeline
+
+### 8. Nice-to-Have Designs 🎨 (If Extra Time)
+- [ ] **Rating/Review Flow**
+  - When to prompt for review
+  - Star rating component
+  - Text review guidelines
+  - Review success state
+- [ ] **Favorite Instructors**
+  - Heart icon placement
+  - Favorites list/grid
+  - Quick book from favorites
+- [ ] **Booking History Filters**
+  - Date range picker
+  - Service type filter
+  - Instructor filter
+- [ ] **Email Templates**
+  - Booking confirmation
+  - Reminder (24hr)
+  - Cancellation
+  - Reschedule
+- [ ] **Receipt/Invoice**
+  - PDF design
+  - Email receipt
+  - Download option
+
+## 📱 Mobile-Specific Considerations
+
+### For All Flows:
+- [ ] Touch targets minimum 44px
+- [ ] Thumb-friendly button placement
+- [ ] Swipe gestures where appropriate
+- [ ] Bottom sheet patterns for modals
+- [ ] Native payment sheet integration
+
+## 🎯 Design System Extensions
+
+### Components Needed:
+- [ ] Payment form inputs
+- [ ] Filter chips
+- [ ] Toggle switches
+- [ ] Progress indicators
+- [ ] Toast notifications
+- [ ] Star rating component
+- [ ] Date/time pickers
+- [ ] Dropdown menus
+
+## 📊 Metrics to Enable
+
+Design with these metrics in mind:
+- Payment conversion rate
+- Filter usage patterns
+- Reschedule frequency
+- Cancellation rate
+- Time to complete booking
+- Error rate by type
+
+## ⏰ Time Estimates
+
+**Total Estimated Time**: 12-15 hours
+
+### Priority Order:
+1. **Day 1 (4-5 hours)**
+   - Payment flow + business decisions
+   - Student dashboard enhancement
+
+2. **Day 2 (4-5 hours)**
+   - Search filters
+   - Loading/error states
+   - Start reschedule flow
+
+3. **Day 3 (3-5 hours)**
+   - Complete reschedule flow
+   - Booking modifications
+   - Nice-to-haves if time
+
+## 🚀 Delivery Format
+
+For each design:
+1. ASCII mockup (X-Team prefers this format)
+2. User flow diagram
+3. State descriptions
+4. Interaction notes
+5. Mobile variations
+6. Implementation notes
+
+## ✅ Success Criteria
+
+X-Team can implement Week 3 features without blocking on design questions. All business rules are clearly defined. Payment flow enables revenue generation.
+
+---
+
+**Remember**: X-Team is ahead of schedule (2-3 days buffer), so we have some flexibility. But payment flow is CRITICAL - it blocks revenue!

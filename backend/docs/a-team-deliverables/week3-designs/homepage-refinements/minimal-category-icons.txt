@@ -1,0 +1,168 @@
+# Minimal Black & White Category Icons - Design Specifications
+
+## Icon Designs (24x24px, 1.5px stroke)
+
+### Language Icon
+```
+┌─────────────────┐
+│ ┌───┐     ┌───┐ │
+│ │   │ ─── │   │ │  ← Two speech bubbles
+│ └─┬─┘     └─┬─┘ │
+│   └───┐ ┌───┘   │
+└─────────────────┘
+```
+
+### Music Icon
+```
+┌─────────────────┐
+│     ♪ ♪         │  ← Two music notes
+│   ♪     ♪       │
+│ ♪         ♪     │
+└─────────────────┘
+```
+
+### Fitness Icon
+```
+┌─────────────────┐
+│   ═══○═══       │  ← Dumbbell
+│                 │
+└─────────────────┘
+```
+
+### Academics Icon
+```
+┌─────────────────┐
+│   ┌─────┐       │  ← Open book
+│  ╱       ╲      │
+│ └─────────┘     │
+└─────────────────┘
+```
+
+### Hidden Gems Icon
+```
+┌─────────────────┐
+│      ◇          │  ← Diamond/gem outline
+│    ╱   ╲        │
+│    ╲   ╱        │
+│      ◇          │
+└─────────────────┘
+```
+
+## Visual Specifications
+
+### Line Style
+- **Stroke width**: 1.5px
+- **Color (unselected)**: #6B7280 (grey)
+- **Color (selected)**: #000000 (black)
+- **No fill**: All icons are outlines only
+- **Corner radius**: 2px where applicable
+
+### Icon Container
+```
+┌─────────────────────┐
+│                     │
+│     [ICON]          │  ← 24x24px icon area
+│                     │
+│    Category         │  ← 14px text
+│                     │
+│    ═══════          │  ← Yellow bar (selected only)
+└─────────────────────┘
+      140px width
+```
+
+## Implementation in Homepage
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│                                                                            │
+│   💬         ♪          💪         📖          ◇                          │
+│ Language   Music     Fitness   Academics  Hidden Gems                     │
+│                      ═══════                                               │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+## CSS Implementation
+
+```css
+.category-icon {
+  width: 24px;
+  height: 24px;
+  stroke: #6B7280;
+  stroke-width: 1.5px;
+  fill: none;
+  transition: stroke 0.2s ease;
+}
+
+.category-item:hover .category-icon {
+  stroke: #374151;
+}
+
+.category-item.selected .category-icon {
+  stroke: #000000;
+}
+```
+
+## SVG Examples
+
+### Language Icon SVG
+```svg
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <rect x="4" y="6" width="10" height="8" rx="2" stroke="currentColor" stroke-width="1.5"/>
+  <rect x="10" y="10" width="10" height="8" rx="2" stroke="currentColor" stroke-width="1.5"/>
+  <path d="M8 14v2" stroke="currentColor" stroke-width="1.5"/>
+  <path d="M16 10v-2" stroke="currentColor" stroke-width="1.5"/>
+</svg>
+```
+
+### Music Icon SVG
+```svg
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <path d="M9 18V6l12-3v13" stroke="currentColor" stroke-width="1.5"/>
+  <circle cx="6" cy="18" r="3" stroke="currentColor" stroke-width="1.5"/>
+  <circle cx="18" cy="16" r="3" stroke="currentColor" stroke-width="1.5"/>
+</svg>
+```
+
+### Fitness Icon SVG
+```svg
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <path d="M6 12h12M4 12h2m12 0h2" stroke="currentColor" stroke-width="1.5"/>
+  <rect x="7" y="10" width="3" height="4" rx="1" stroke="currentColor" stroke-width="1.5"/>
+  <rect x="14" y="10" width="3" height="4" rx="1" stroke="currentColor" stroke-width="1.5"/>
+</svg>
+```
+
+### Academics Icon SVG
+```svg
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <path d="M4 19V7c0-1 1-2 2-2h12c1 0 2 1 2 2v12" stroke="currentColor" stroke-width="1.5"/>
+  <path d="M12 5v14" stroke="currentColor" stroke-width="1.5"/>
+  <path d="M4 7s3 2 8 2 8-2 8-2" stroke="currentColor" stroke-width="1.5"/>
+</svg>
+```
+
+### Hidden Gems Icon SVG
+```svg
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+  <path d="M12 4l2 4h4l-3 3 1 4-4-2-4 2 1-4-3-3h4z" stroke="currentColor" stroke-width="1.5"/>
+</svg>
+```
+
+## Interaction States
+
+1. **Default**: Grey outline (#6B7280)
+2. **Hover**: Darker grey (#374151)
+3. **Selected**: Black (#000000) + yellow bar below
+4. **Active/Pressed**: Slight scale (0.95)
+
+## Benefits of Minimal Design
+
+- **Modern & Clean**: Matches contemporary UI trends
+- **Scalable**: Works at any size
+- **Accessible**: High contrast, clear shapes
+- **Fast Loading**: SVG icons are tiny file sizes
+- **Consistent**: All icons have same visual weight
+- **Professional**: Elevates the platform's perceived quality
+
+These minimal icons will create a sophisticated, professional look similar to platforms like Airbnb, Uber, and other modern services.

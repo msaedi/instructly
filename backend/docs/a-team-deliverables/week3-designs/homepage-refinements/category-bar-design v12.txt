@@ -1,0 +1,234 @@
+# Category Selection Bar - Minimal TaskRabbit Style
+
+## Desktop Category Bar
+
+### Default State (Fitness Pre-selected):
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│   Language      Music      Fitness    Academics   Hidden Gems              │
+│      💬          ♪          ═○═         📖          ◇                     │
+│                          ═════════                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+════════════════════════════════════════════════════════════════════════════════
+
+Note: Icons shown as simple representations. Actual implementation uses minimal
+black & white line-art SVGs (see "Minimal Black & White Category Icons" artifact)
+```
+
+### Design Specifications:
+
+```
+Category Item Structure:
+┌───────────────┐
+│      Icon     │  ← 24px, grey (#6B7280)
+│   Category    │  ← 14px, grey (#6B7280)
+│   ═══════     │  ← Yellow bar (selected only)
+└───────────────┘
+    140px width (adjusted for 5 categories)
+```
+
+### States:
+
+**Unselected Category:**
+```
+┌───────────────┐
+│      🎵       │  Color: #6B7280 (grey)
+│    Music      │  Font: 14px, regular
+│               │  No underline
+└───────────────┘
+```
+
+**Selected Category (Fitness):**
+```
+┌───────────────┐
+│      💪       │  Color: #000000 (black)
+│   Fitness     │  Font: 14px, medium
+│   ════════    │  Yellow bar (#FFD700)
+└───────────────┘
+```
+
+**Hover State:**
+```
+┌───────────────┐
+│      📚       │  Color: #374151 (darker grey)
+│  Academics    │  Cursor: pointer
+│   --------    │  Dotted grey line appears
+└───────────────┘
+```
+
+## Full Implementation:
+
+### Desktop View:
+```
+┌────────────────────────────────────────────────────────────────────────────────────┐
+│                                   White Background                                 │
+│   💬         ♪          ═○═         📖          ◇                               │
+│ Language    Music    Fitness   Academics  Hidden Gems                         │
+│                      ════════                                                 │
+│                                                                              │
+├────────────────────────────────────────────────────────────────────────────────────┤
+│════════════════════════════════════════════════════════════════════════════════════│
+│░░░░░░░░░░░░░░░░░░░░░░░░░ Light Yellow Background (#FFFEF5) ░░░░░░░░░░░░░░░░░░░░░│
+│░                                                                                  ░│
+│░ [ Yoga ] [ Personal Training ] [ Pilates ] [ Martial Arts ] [ Dance ] [ Nutrition ]░│
+│░                                                                                  ░│
+│░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░│
+└────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+Note: Icons are minimal black & white line-art designs (see detailed specs)
+░ = Extremely light yellow background (#FFFEF5)
+
+### Mobile View (Horizontal Scroll):
+```
+┌─────────────────────────┐
+│ 💬   ♪   ═○═  📖   ◇   │
+│Lang  Mus  Fit  Acad  Gem│
+│        ═════            │
+├─────────────────────────┤
+│═════════════════════════│
+│                         │
+│ [ Yoga ]               │
+│ [ Personal Training ]   │
+│ [ Pilates ]            │
+│ [ View all ]           │
+└─────────────────────────┘
+```
+
+Icons: Minimal line-art designs
+
+## Subcategory Pills Design:
+
+```
+Default:                          Hover:                      Selected:
+┌─────────────────┐              ┌─────────────────┐        ┌─────────────────┐
+│      Yoga       │              │      Yoga       │        │      Yoga       │
+└─────────────────┘              └─────────────────┘        └─────────────────┘
+Border: #E5E5E5                  Border: #FFD700            Background: #FFF9E6
+Color: #374151                   Color: #000000             Border: #FFD700
+                                                            Color: #000000
+```
+
+## CSS Implementation:
+
+```css
+/* Category bar container */
+.category-bar {
+  display: flex;
+  justify-content: center;
+  gap: 60px; /* Space between categories for 5 items */
+  padding: 20px 0;
+  border-bottom: 1px solid #E5E5E5;
+}
+
+/* Individual category */
+.category-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  position: relative;
+  padding: 0 20px;
+  color: #6B7280;
+  transition: color 0.2s ease;
+}
+
+.category-item:hover {
+  color: #374151;
+}
+
+.category-item.selected {
+  color: #000000;
+}
+
+/* Category icon */
+.category-icon {
+  width: 24px;
+  height: 24px;
+  margin-bottom: 8px;
+}
+
+/* SVG icon styling */
+.category-icon svg {
+  stroke: #6B7280;
+  stroke-width: 1.5px;
+  fill: none;
+  transition: stroke 0.2s ease;
+}
+
+.category-item:hover .category-icon svg {
+  stroke: #374151;
+}
+
+.category-item.selected .category-icon svg {
+  stroke: #000000;
+}
+
+/* Category label */
+.category-label {
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.category-item.selected .category-label {
+  font-weight: 500;
+}
+
+/* Selection indicator */
+.category-item.selected::after {
+  content: '';
+  position: absolute;
+  bottom: -10px;
+  left: 20%;
+  right: 20%;
+  height: 3px;
+  background-color: #FFD700;
+  border-radius: 2px;
+}
+
+/* Continuous underline */
+.category-underline {
+  height: 1px;
+  background-color: #E5E5E5;
+  width: 100%;
+}
+
+/* Subcategory section */
+.subcategory-section {
+  background-color: #FFFEF5; /* Extremely light yellow */
+  padding: 24px 0;
+  border-top: 1px solid #E5E5E5;
+}
+
+/* Subcategory pills */
+.subcategory-pill {
+  display: inline-block;
+  padding: 8px 16px;
+  margin: 8px 4px;
+  border: 1px solid #E5E5E5;
+  border-radius: 20px;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.subcategory-pill:hover {
+  border-color: #FFD700;
+  color: #000000;
+}
+```
+
+## Interaction Pattern:
+
+1. **On Page Load**: Fitness is pre-selected (middle category)
+2. **Click Category**:
+   - Previous selection fades
+   - New category gets black text + yellow underline
+   - Subcategories slide in below
+3. **Hover Effects**:
+   - Categories: Darker grey
+   - Pills: Yellow border
+4. **Mobile**: Horizontal scroll with touch-friendly spacing
+
+This design maintains TaskRabbit's minimal aesthetic while incorporating InstaInstru's yellow accent color for selection states.

@@ -1,0 +1,129 @@
+# Search Bar Component Design - TaskRabbit Style
+
+## Desktop Search Bar (720px width)
+
+```
+┌───────────────────────────────────────────────────────────────────────┬─────┐
+│  Ready to learn something new? Your next skill starts here.           │  🔍 │
+└───────────────────────────────────────────────────────────────────────┴─────┘
+                                                                          ╰──🟡─╯
+```
+
+### Detailed Specifications:
+
+```
+├── Input Field ──────────────────────────────────┤├─ Button ─┤
+│                                                 ││           │
+│  Border: #E5E5E5 (1px)                         ││  #FFD700  │
+│  Background: #FFFFFF                            ││  (Yellow) │
+│  Height: 56px                                   ││  56px     │
+│  Border-radius: 28px 0 0 28px                  ││  Circle   │
+│  Padding: 0 20px                               ││  60px dia │
+│  Font-size: 16px                               ││           │
+│  Placeholder color: #6B7280                    ││  Shadow   │
+│  No left icon - clean input field              ││  2px 4px  │
+└─────────────────────────────────────────────────┴───────────┘
+```
+
+## Visual States:
+
+### Default State:
+```
+┌───────────────────────────────────────────────────────────┬────┐
+│  Ready to learn something new?                             │ 🔍 │ ← White icon
+└───────────────────────────────────────────────────────────┴────┘
+      Grey placeholder (#6B7280)                            Yellow bg
+```
+
+### Focused State:
+```
+┌═══════════════════════════════════════════════════════════┬════┐
+│  |                                                        │ 🔍 │ ← White icon
+└═══════════════════════════════════════════════════════════┴════┘
+      Blue border (#0066CC)                                 Brighter yellow
+```
+
+### With Input:
+```
+┌───────────────────────────────────────────────────────────┬────┐
+│  Piano lessons under $50                                  │ 🔍 │
+└───────────────────────────────────────────────────────────┴────┘
+      Black text (#000000)                                  Ready to search
+```
+
+## Mobile Search Bar (100% width - 32px margins)
+
+```
+┌─────────────────────────────────────┬────┐
+│  Learn something new?               │ 🔍 │
+└─────────────────────────────────────┴────┘
+```
+
+## CSS Implementation Guide:
+
+```css
+.search-container {
+  display: flex;
+  width: 720px;
+  height: 56px;
+  position: relative;
+}
+
+.search-input {
+  flex: 1;
+  border: 1px solid #E5E5E5;
+  border-right: none;
+  border-radius: 28px 0 0 28px;
+  padding: 0 20px; /* Simplified padding without left icon space */
+  font-size: 16px;
+  outline: none;
+}
+
+.search-input:focus {
+  border-color: #0066CC;
+  border-width: 2px;
+}
+
+.search-button {
+  width: 60px;
+  height: 60px;
+  background-color: #FFD700;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.3);
+  margin-left: -2px; /* Slight overlap */
+  transition: all 0.2s ease;
+}
+
+.search-button:hover {
+  background-color: #FFC700;
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.4);
+  transform: scale(1.05);
+}
+```
+
+## Comparison with TaskRabbit:
+
+| Feature | TaskRabbit | InstaInstru |
+|---------|------------|-------------|
+| Shape | Rounded rectangle + circle | Same |
+| End button | Green circle | Yellow circle (#FFD700) |
+| Height | 56px | 56px |
+| Width | ~720px | 720px |
+| Icon | White on colored bg (right only) | White on yellow bg (right only) |
+| Shadow | Subtle | Subtle with yellow tint |
+| Placeholder | Grey, descriptive | Grey, learning-focused |
+| Left icon | None | None |
+
+## Natural Language Examples:
+- "Spanish tutor tomorrow morning"
+- "Piano lessons under $50"
+- "LSAT prep this weekend"
+- "Yoga instructor near me"
+- "Math help tonight"
+
+This search bar design maintains TaskRabbit's proven UX pattern while incorporating InstaInstru's yellow brand color for the action button. The clean input field without a left icon reduces visual clutter and follows modern design principles.
