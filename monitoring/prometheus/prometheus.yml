@@ -1,0 +1,52 @@
+global:
+  scrape_interval: 15s # Default scrape interval
+  evaluation_interval: 15s # How frequently to evaluate rules
+  external_labels:
+    monitor: 'instainstru-monitor'
+
+# Alertmanager configuration (optional)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+# Load rules once and periodically evaluate them according to the global 'evaluation_interval'
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+# Scrape configurations
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+  - job_name: 'prometheus'
+    # Scrape Prometheus itself
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'instainstru-backend'
+    # Scrape the FastAPI backend metrics
+    static_configs:
+      - targets: ['host.docker.internal:8000'] # Use host.docker.internal to access host machine
+    metrics_path: '/metrics/prometheus' # Adjust based on your actual metrics endpoint
+    scrape_interval: 15s
+
+  - job_name: 'instainstru-health'
+    # Scrape health check endpoint
+    static_configs:
+      - targets: ['host.docker.internal:8000']
+    metrics_path: '/health'
+    scrape_interval: 30s
+
+  - job_name: 'instainstru-performance'
+    # Scrape performance metrics
+    static_configs:
+      - targets: ['host.docker.internal:8000']
+    metrics_path: '/metrics/performance'
+    scrape_interval: 15s
+
+  - job_name: 'instainstru-cache'
+    # Scrape cache metrics
+    static_configs:
+      - targets: ['host.docker.internal:8000']
+    metrics_path: '/metrics/cache'
+    scrape_interval: 15s

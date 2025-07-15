@@ -10,9 +10,10 @@ from .core.config import settings
 from .core.constants import ALLOWED_ORIGINS, API_DESCRIPTION, API_TITLE, API_VERSION, BRAND_NAME
 from .middleware.https_redirect import create_https_redirect_middleware
 from .middleware.monitoring import MonitoringMiddleware
+from .middleware.prometheus_middleware import PrometheusMiddleware
 from .middleware.rate_limiter import RateLimitMiddleware
 from .middleware.timing import TimingMiddleware
-from .routes import auth, availability_windows, bookings, instructors, metrics, password_reset, public
+from .routes import auth, availability_windows, bookings, instructors, metrics, password_reset, prometheus, public
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -75,6 +76,7 @@ if settings.environment == "production":
 # Rate limiting should be early in the chain to block bad requests quickly
 app.add_middleware(TimingMiddleware)
 app.add_middleware(MonitoringMiddleware)
+app.add_middleware(PrometheusMiddleware)  # Prometheus metrics collection
 app.add_middleware(RateLimitMiddleware)  # Added rate limiting
 app.add_middleware(
     CORSMiddleware,
@@ -95,6 +97,7 @@ app.include_router(password_reset.router)
 app.include_router(bookings.router)
 app.include_router(metrics.router)
 app.include_router(public.router)
+app.include_router(prometheus.router)
 
 
 @app.get("/")

@@ -144,6 +144,32 @@ class BaseService:
                     if elapsed > 1.0 and hasattr(self, "logger"):
                         self.logger.warning(f"Slow operation detected: {operation_name} took {elapsed:.2f}s")
 
+                    # Record Prometheus metrics
+                    try:
+                        from ..monitoring.prometheus_metrics import prometheus_metrics
+
+                        service_name = self.__class__.__name__ if hasattr(self, "__class__") else "Unknown"
+                        status = "success" if success else "error"
+                        error_type = None
+
+                        # Try to get error type if there was an exception
+                        if not success and hasattr(wrapper, "_last_exception"):
+                            error_type = type(wrapper._last_exception).__name__
+
+                        prometheus_metrics.record_service_operation(
+                            service=service_name,
+                            operation=operation_name,
+                            duration=elapsed,
+                            status=status,
+                            error_type=error_type,
+                        )
+                    except ImportError:
+                        # Prometheus metrics not available, skip
+                        pass
+                    except Exception:
+                        # Don't let metrics collection break the operation
+                        pass
+
             return wrapper
 
         return decorator
@@ -177,6 +203,23 @@ class BaseService:
             # Log slow operations
             if elapsed > 1.0:
                 self.logger.warning(f"Slow operation detected: {operation_name} took {elapsed:.2f}s")
+
+            # Record Prometheus metrics
+            try:
+                from ..monitoring.prometheus_metrics import prometheus_metrics
+
+                service_name = self.__class__.__name__
+                status = "success" if success else "error"
+
+                prometheus_metrics.record_service_operation(
+                    service=service_name, operation=operation_name, duration=elapsed, status=status
+                )
+            except ImportError:
+                # Prometheus metrics not available, skip
+                pass
+            except Exception:
+                # Don't let metrics collection break the operation
+                pass
 
     def invalidate_cache(self, *keys: str) -> None:
         """

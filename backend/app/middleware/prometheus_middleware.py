@@ -1,0 +1,58 @@
+"""
+Prometheus metrics middleware for HTTP request tracking.
+
+This middleware integrates with the prometheus_metrics module to
+track HTTP request metrics including duration, status codes, and
+in-progress requests.
+"""
+
+import time
+from typing import Callable
+
+from fastapi import Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware
+
+from ..monitoring.prometheus_metrics import prometheus_metrics
+
+
+class PrometheusMiddleware(BaseHTTPMiddleware):
+    """Middleware to collect Prometheus metrics for HTTP requests."""
+
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        """
+        Process the request and collect metrics.
+
+        Args:
+            request: The incoming request
+            call_next: The next middleware/handler
+
+        Returns:
+            The response from the handler
+        """
+        # Skip metrics collection for the metrics endpoint itself
+        if request.url.path == "/metrics/prometheus":
+            return await call_next(request)
+
+        method = request.method
+        path = request.url.path
+
+        # Track request start
+        prometheus_metrics.track_http_request_start(method, path)
+
+        # Time the request
+        start_time = time.time()
+
+        try:
+            response = await call_next(request)
+            duration = time.time() - start_time
+
+            # Record metrics
+            prometheus_metrics.record_http_request(
+                method=method, endpoint=path, duration=duration, status_code=response.status_code
+            )
+
+            return response
+
+        finally:
+            # Always track request end
+            prometheus_metrics.track_http_request_end(method, path)

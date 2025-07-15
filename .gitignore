@@ -62,3 +62,6 @@ project_overview.txt
 backend/certs/
 frontend/certs/
 backend/dead_code_backup_*/
+.env.monitoring
+monitoring/grafana-data/
+monitoring/prometheus-data/
