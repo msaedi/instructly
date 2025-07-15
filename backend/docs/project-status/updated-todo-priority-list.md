@@ -1,28 +1,28 @@
 # InstaInstru Updated TODO Priority List
-*Updated: July 11, 2025 - After Service Layer Transformation*
+*Updated: July 13, 2025 - Post Phoenix Week 3*
 
 ## 🔴 CRITICAL - Must Do Before Launch
 
 ### 1. Frontend Technical Debt Cleanup (Work Stream #13) 🚨 BIGGEST BLOCKER
 **Effort**: 3-4 weeks
-**Status**: NOT STARTED
+**Status**: IN PROGRESS - Phoenix Initiative 60% complete
 **Details**:
-- Delete operation pattern (600+ lines → ~50)
-- Remove slot ID tracking
-- Fix mental model (slots as entities → time ranges)
-- **Impact**: Currently 5x slower development velocity
-- **Blocks**: ALL student features
+- Week 1: ✅ Foundation + Search
+- Week 2: ✅ Student Booking Flow
+- Week 3: 🔄 UI Implementation in progress
+- Week 4: 📅 Instructor Migration planned
+- **Impact**: Technical debt isolated, zero new debt created
+- **Student features**: ✅ NOW OPERATIONAL
 
-### 2. Student Booking Features (Post A-Team) 👥
-**Effort**: 2-3 weeks
-**Status**: Awaiting A-Team UX decisions
+### 2. Week 4 Migration Prep 🏗️
+**Effort**: 1 week
+**Status**: CRITICAL for Phoenix Week 4
 **Details**:
-- Booking creation flow
-- Booking management (view, cancel)
-- Instructor discovery/search
-- Availability viewing
-- **Unblocked by**: Public API endpoint ✅
-- **Blocked by**: A-Team design decisions
+- Build clean availability components in features/instructor/
+- Create migration utilities for operation pattern removal
+- Parallel testing framework (old vs new patterns)
+- State management bridge for gradual migration
+- Rollback procedures documentation
 
 ### 3. Security Audit 🔒
 **Effort**: 1-2 days
@@ -93,6 +93,16 @@
 - Add @measure_operation to remaining 26 methods
 - Especially cache_strategies.py (0/3)
 
+### 6. Backend Enhancements 🔧
+**Effort**: 1-2 weeks total
+**Status**: Ready for implementation
+**Details**:
+- Webhook system for booking events (3-4 days)
+- Email notification queue with Celery (2-3 days)
+- Recurring booking backend support (3-4 days)
+- Advanced search query builder (2-3 days)
+- Analytics event tracking preparation (2 days)
+
 ## 🟢 Nice to Have (Can Wait)
 
 ### 1. Advanced Monitoring (Grafana) 📊
@@ -111,29 +121,31 @@
 - Centralized log search
 - Log retention policies
 
-### 3. E2E Testing Suite 🧪
-**Effort**: 1 week
-**Status**: Important for stability
+### 3. Infrastructure Improvements 🌐
+**Effort**: Various
+**Status**: Some already completed
 **Details**:
-- Playwright setup
-- Critical user journeys
-- Nightly test runs
+- Error tracking with Sentry (4-5 hours)
+- Health check endpoints enhancement (2-3 hours)
+- CI/CD staging environment (2-3 hours)
+- Blue-green deployment setup (3-4 hours)
 
-### 4. Optimistic UI Updates ⚡
+### 4. Code Quality & Documentation 📚
+**Effort**: Ongoing
+**Status**: Continuous improvement
+**Details**:
+- TypeScript strict mode migration (1 week)
+- Code coverage to 85%+ (1 week)
+- Performance benchmarks suite (2-3 days)
+- Architecture diagrams update (1 day)
+
+### 5. Optimistic UI Updates ⚡
 **Effort**: 2-3 days
 **Status**: Quick win for UX
 **Details**:
 - Immediate UI feedback
 - Rollback on errors
 - Better perceived performance
-
-### 5. CI/CD Improvements 🔧
-**Effort**: 2-3 hours
-**Status**: Basic working
-**Details**:
-- Staging environment
-- Blue-green deployments
-- Smoke tests
 
 ## 🔵 Future Roadmap (Post-MVP)
 
@@ -166,6 +178,10 @@
 3. **SSL Configuration** ✅ - Complete for production (Render/Vercel) and local dev
 4. **Test Suite Fixes** ✅ - Improved from 73.6% to 99.4% pass rate
 
+### Phoenix Week 3 Completions
+5. **E2E Testing Infrastructure** ✅ - Playwright setup complete
+6. **Performance Optimization** ✅ - 58% improvement achieved with Redis caching
+
 ### From Original "Should Do"
 1. **Email Template Extraction** ✅ - 1000+ lines removed, Jinja2 templates
 2. **Metrics Implementation Expansion** ✅ - From 1 to 98 metrics (79% coverage)
@@ -191,16 +207,16 @@
 
 ### Platform Readiness
 - **Backend**: 95% ready (just monitoring/security remaining)
-- **Frontend**: 20% ready (massive technical debt)
-- **Infrastructure**: 90% ready (SSL ✅, Rate limiting ✅, needs monitoring)
-- **Features**: 50% ready (instructor features done, student features missing)
+- **Frontend**: 60% ready (Phoenix Initiative progress)
+- **Infrastructure**: 92% ready (SSL ✅, Rate limiting ✅, E2E ✅, Performance ✅)
+- **Features**: 70% ready (instructor done, student features working)
 
 ### What's Blocking Launch
-1. **Frontend wrong mental model** - 3,000+ lines of debt
-2. **No student booking** - Awaiting A-Team
+1. **Phoenix Week 3 UI** - A-Team designs ready for implementation
+2. **Phoenix Week 4 Migration** - Instructor migration planning
 3. **No production monitoring** - Can't see issues
 4. **No security audit** - Unknown vulnerabilities
 
 ---
 
-*Remember: We're building for MEGAWATTS! The backend excellence proves we deserve energy, but we need the frontend to match! ⚡🚀*
+*Remember: We're building for MEGAWATTS! Student booking is NOW OPERATIONAL and the platform is 75-80% complete. Phoenix Week 3 UI implementation will complete the experience! ⚡🚀*
