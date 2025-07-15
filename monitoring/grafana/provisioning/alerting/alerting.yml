@@ -1,0 +1,129 @@
+apiVersion: 1
+
+# Alert rule groups
+groups:
+  - name: InstaInstru Production Alerts
+    folder: InstaInstru
+    interval: 1m
+    rules:
+      # Response Time Alert
+      - uid: response-time-alert
+        title: High Response Time (P95 > 500ms)
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus-uid
+            model:
+              expr: histogram_quantile(0.95, sum(rate(instainstru_service_operation_duration_seconds_bucket[5m])) by (le)) > 0.5
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 5m
+        annotations:
+          description: "Service P95 latency has exceeded 500ms for 5 minutes"
+          runbook_url: "https://wiki.instainstru.com/runbooks/high-response-time"
+          summary: "High response time detected"
+        labels:
+          severity: warning
+          team: backend
+
+      # Error Rate Alert
+      - uid: error-rate-alert
+        title: High Error Rate (> 1%)
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus-uid
+            model:
+              expr: (sum(rate(instainstru_http_requests_total{status_code=~"4..|5.."}[5m])) / sum(rate(instainstru_http_requests_total[5m]))) > 0.01
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 5m
+        annotations:
+          description: "HTTP error rate has exceeded 1% for 5 minutes"
+          runbook_url: "https://wiki.instainstru.com/runbooks/high-error-rate"
+          summary: "High error rate detected"
+        labels:
+          severity: critical
+          team: backend
+
+      # Service Degradation Alert
+      - uid: service-degradation-alert
+        title: Service Degradation (P99 > 1s)
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 180
+              to: 0
+            datasourceUid: prometheus-uid
+            model:
+              expr: histogram_quantile(0.99, sum by (service) (rate(instainstru_service_operation_duration_seconds_bucket[5m]))) > 1
+              refId: A
+        noDataState: NoData
+        execErrState: Alerting
+        for: 3m
+        annotations:
+          description: "Service {{$labels.service}} P99 latency has exceeded 1 second for 3 minutes"
+          runbook_url: "https://wiki.instainstru.com/runbooks/service-degradation"
+          summary: "Service degradation detected for {{$labels.service}}"
+        labels:
+          severity: critical
+          team: backend
+
+      # High Load Alert
+      - uid: high-load-alert
+        title: High Request Load (> 1000 req/s)
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus-uid
+            model:
+              expr: sum(rate(instainstru_http_requests_total[1m])) > 1000
+              refId: A
+        noDataState: NoData
+        execErrState: OK
+        for: 10m
+        annotations:
+          description: "Request rate has exceeded 1000 req/s for 10 minutes"
+          runbook_url: "https://wiki.instainstru.com/runbooks/high-load"
+          summary: "High load detected"
+        labels:
+          severity: warning
+          team: infrastructure
+
+      # Cache Performance Alert
+      - uid: cache-performance-alert
+        title: Low Cache Hit Rate (< 60%)
+        condition: A
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus-uid
+            model:
+              expr: |
+                (sum(rate(instainstru_service_operations_total{service="CacheService", operation="get", status="success"}[5m])) /
+                 sum(rate(instainstru_service_operations_total{service="CacheService", operation="get"}[5m]))) < 0.6
+              refId: A
+        noDataState: NoData
+        execErrState: OK
+        for: 10m
+        annotations:
+          description: "Cache hit rate has fallen below 60% for 10 minutes"
+          runbook_url: "https://wiki.instainstru.com/runbooks/low-cache-hit-rate"
+          summary: "Low cache performance detected"
+        labels:
+          severity: warning
+          team: backend

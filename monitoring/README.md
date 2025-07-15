@@ -1,79 +1,140 @@
 # InstaInstru Monitoring Stack
 
-This directory contains the monitoring infrastructure for InstaInstru using Prometheus and Grafana.
+## Overview
+
+This directory contains the complete monitoring infrastructure for InstaInstru, including:
+- Prometheus for metrics collection
+- Grafana for visualization and alerting
+- Pre-configured dashboards and alerts
+- Test scripts for validation
 
 ## Quick Start
 
-1. **Copy and configure environment variables:**
+1. **Configure environment variables**:
    ```bash
    cp .env.monitoring.example .env.monitoring
-   # Edit .env.monitoring and set secure passwords
+   # Edit .env.monitoring with your credentials and webhook URLs
    ```
 
-2. **Start the monitoring stack:**
+2. **Start the monitoring stack**:
    ```bash
    docker-compose -f docker-compose.monitoring.yml up -d
    ```
 
-   Note: If you've already started the containers with default credentials,
-   you may need to remove the Grafana volume and restart:
-   ```bash
-   docker-compose -f docker-compose.monitoring.yml down
-   docker volume rm instructly_monitoring_grafana-data 2>/dev/null || true
-   rm -rf ./monitoring/grafana-data
-   docker-compose -f docker-compose.monitoring.yml up -d
-   ```
+3. **Access Grafana**:
+   - URL: http://localhost:3003
+   - Username: Value from GRAFANA_ADMIN_USER in .env.monitoring
+   - Password: Value from GRAFANA_ADMIN_PASSWORD in .env.monitoring
 
-3. **Access the services:**
-   - Grafana: http://localhost:3003 (login with credentials from .env.monitoring)
-   - Prometheus: http://localhost:9090
+## Components
 
-## Architecture
+### Prometheus
+- Collects metrics from the FastAPI backend
+- Scrapes endpoints every 15 seconds
+- Stores time-series data for queries
 
-- **Prometheus**: Collects metrics from the FastAPI backend every 15 seconds
-- **Grafana**: Visualizes metrics with dashboards and alerts
-- **Persistent volumes**: Data is stored in `./monitoring/prometheus-data` and `./monitoring/grafana-data`
+### Grafana
+- 3 pre-configured dashboards
+- 5 alert rules with notification routing
+- Alert status panels on dashboards
 
-## Monitored Endpoints
+### Dashboards
 
-Prometheus scrapes the following endpoints:
-- `/metrics/prometheus` - Application metrics
-- `/metrics/performance` - Performance metrics
-- `/metrics/cache` - Cache statistics
-- `/health` - Health check status
+1. **Service Performance Dashboard**
+   - Service response times
+   - Operation latency heatmap
+   - Anomaly detection (Z-score)
+   - SLA compliance metrics
+   - Alert status indicators
 
-## Working with Existing Services
+2. **API Health Dashboard**
+   - HTTP request metrics
+   - Error rates and status codes
+   - Endpoint performance
+   - Rate limiting metrics
 
-This monitoring stack is designed to run alongside the existing DragonflyDB container without conflicts:
-- Grafana runs on port 3002 (frontend uses 3000 for HTTP, 3001 for HTTPS)
-- Prometheus runs on port 9090
-- Uses a separate Docker network (`instainstru_monitoring`)
+3. **Business Metrics Dashboard**
+   - Booking statistics
+   - User activity
+   - Revenue metrics
+   - Growth indicators
 
-## Common Commands
+## Alerts
 
+Configured alerts include:
+- High Response Time (P95 > 500ms)
+- High Error Rate (> 1%)
+- Service Degradation (P99 > 1s)
+- High Request Load (> 1000 req/s)
+- Low Cache Hit Rate (< 60%)
+
+See [ALERTING.md](./ALERTING.md) for detailed configuration.
+
+## Testing
+
+Run the alert test script to validate your setup:
 ```bash
-# View logs
-docker-compose -f docker-compose.monitoring.yml logs -f
-
-# Stop the monitoring stack
-docker-compose -f docker-compose.monitoring.yml down
-
-# Restart services
-docker-compose -f docker-compose.monitoring.yml restart
-
-# Remove volumes (WARNING: deletes all monitoring data)
-docker-compose -f docker-compose.monitoring.yml down -v
+./monitoring/test-alerts.sh
 ```
 
-## Creating Dashboards
+This will simulate conditions to trigger all configured alerts.
 
-1. Log into Grafana at http://localhost:3002
-2. Navigate to Dashboards → New Dashboard
-3. Add panels using Prometheus as the data source
-4. Save dashboards to `./monitoring/grafana/provisioning/dashboards/` for persistence
+## Directory Structure
+
+```
+monitoring/
+├── grafana/
+│   └── provisioning/
+│       ├── alerting/          # Alert rules and notification channels
+│       ├── dashboards/        # Dashboard JSON files
+│       └── datasources/       # Prometheus datasource config
+├── prometheus/
+│   └── prometheus.yml         # Prometheus configuration
+├── grafana-data/             # Grafana persistent storage (created at runtime)
+├── prometheus-data/          # Prometheus data (created at runtime)
+├── ALERTING.md              # Alert configuration guide
+├── README.md                # This file
+└── test-alerts.sh          # Alert testing script
+```
+
+## Maintenance
+
+### Updating Dashboards
+1. Make changes in Grafana UI
+2. Export dashboard JSON
+3. Replace file in `grafana/provisioning/dashboards/`
+4. Restart Grafana container
+
+### Adding New Alerts
+1. Edit `grafana/provisioning/alerting/alerting.yml`
+2. Add notification routing in `notification-policies.yml`
+3. Restart Grafana container
+
+### Backup
+Important data to backup:
+- `.env.monitoring` (credentials)
+- `grafana/provisioning/` (configurations)
+- `grafana-data/` (if you have custom dashboards)
 
 ## Troubleshooting
 
-- If metrics aren't appearing, check that the backend is running on port 8000
-- On macOS/Windows, Prometheus uses `host.docker.internal` to reach the host
-- Check container logs: `docker-compose -f docker-compose.monitoring.yml logs prometheus`
+### Grafana not starting
+- Check logs: `docker-compose -f docker-compose.monitoring.yml logs grafana`
+- Verify `.env.monitoring` exists and has valid values
+
+### No metrics appearing
+- Ensure backend is running: `curl http://localhost:8000/health`
+- Check Prometheus targets: http://localhost:9090/targets
+- Verify metrics endpoint: `curl http://localhost:8000/metrics/prometheus`
+
+### Alerts not firing
+- Check alert rules in Grafana: Alerting → Alert rules
+- Test notification channels: Alerting → Contact points → Test
+- Review alert conditions and thresholds
+
+## Performance Impact
+
+The monitoring stack has minimal impact:
+- Prometheus scraping adds ~1-2ms to request latency
+- Metrics collection uses ~50MB RAM
+- Disk usage grows ~100MB/day (with retention policies)
