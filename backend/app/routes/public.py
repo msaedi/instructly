@@ -138,16 +138,6 @@ async def get_instructor_public_availability(
     if end_date > max_end_date:
         end_date = max_end_date
 
-    # Generate ETag for conditional requests
-    etag_data = f"{instructor_id}:{start_date}:{end_date}:{settings.public_availability_detail_level}"
-    etag = hashlib.md5(etag_data.encode()).hexdigest()
-
-    # Check if client has current version using ETag
-    if_none_match = request.headers.get("if-none-match")
-    if if_none_match and if_none_match.strip('"') == etag:
-        response_obj.status_code = status.HTTP_304_NOT_MODIFIED
-        return Response(status_code=status.HTTP_304_NOT_MODIFIED)
-
     # Check cache first - include detail level in cache key
     cache_key = (
         f"public_availability:{instructor_id}:{start_date}:{end_date}:{settings.public_availability_detail_level}"
@@ -162,12 +152,8 @@ async def get_instructor_public_availability(
         except Exception as e:
             logger.warning(f"Cache error: {e}")
 
-    # If we have cached data, set headers and return
-    if cached_result:
-        # Set cache control headers (5 minutes)
-        response_obj.headers["Cache-Control"] = "public, max-age=300"
-        response_obj.headers["ETag"] = f'"{etag}"'
-        return cached_result
+    # Initialize response_data
+    response_data = None
 
     # Build response based on detail level
     if settings.public_availability_detail_level == "minimal":
@@ -309,8 +295,33 @@ async def get_instructor_public_availability(
             earliest_available_date=earliest_available_date,
         )
 
-    # Cache the response
-    if cache_service:
+    # Get response data (either from cache or freshly built)
+    if cached_result:
+        response_data = cached_result
+        # For cached results, convert to JSON string for ETag generation
+        import json
+
+        response_json = json.dumps(response_data, sort_keys=True)
+    else:
+        # For fresh results, use model_dump_json
+        response_json = response_data.model_dump_json()
+
+    # Generate ETag based on response content
+    # Include instructor_id, date range, and response data in the hash
+    etag_data = f"{instructor_id}:{start_date}:{end_date}:{response_json}"
+    etag_hash = hashlib.md5(etag_data.encode()).hexdigest()
+    etag = f'W/"{etag_hash}"'  # Weak ETag as content may vary slightly
+
+    # Check If-None-Match header for conditional requests
+    if_none_match = request.headers.get("If-None-Match")
+    if if_none_match and if_none_match == etag:
+        # Return 304 Not Modified with proper headers
+        headers = {"ETag": etag, "Cache-Control": "public, max-age=300", "Vary": "Accept-Encoding"}
+        # Return proper 304 response with no content
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
+
+    # Cache the response if not already cached
+    if not cached_result and cache_service:
         try:
             cache_service.set(cache_key, response_data.model_dump(), ttl=settings.public_availability_cache_ttl)
         except Exception as e:
@@ -318,7 +329,7 @@ async def get_instructor_public_availability(
 
     # Set cache control headers (5 minutes) and ETag on FastAPI Response object
     response_obj.headers["Cache-Control"] = "public, max-age=300"
-    response_obj.headers["ETag"] = f'"{etag}"'
+    response_obj.headers["ETag"] = etag
     response_obj.headers["Vary"] = "Accept-Encoding"
 
     return response_data

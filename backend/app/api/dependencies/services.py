@@ -72,6 +72,7 @@ def get_notification_service(
 def get_booking_service(
     db: Session = Depends(get_db),
     notification_service: NotificationService = Depends(get_notification_service),
+    cache_service: CacheService = Depends(get_cache_service_dep),
 ) -> BookingService:
     """
     Get booking service instance with all dependencies.
@@ -79,11 +80,14 @@ def get_booking_service(
     Args:
         db: Database session
         notification_service: Notification service for sending emails
+        cache_service: Cache service for invalidation
 
     Returns:
         BookingService instance
     """
-    return BookingService(db, notification_service)
+    return BookingService(
+        db, notification_service, repository=None, conflict_checker_repository=None, cache_service=cache_service
+    )
 
 
 def get_instructor_service(

@@ -2,7 +2,10 @@
 Check if availability data exists in the database.
 """
 
+import sys
 from datetime import date, timedelta
+
+sys.path.append(".")
 
 from app.database import SessionLocal
 from app.models.availability import AvailabilitySlot

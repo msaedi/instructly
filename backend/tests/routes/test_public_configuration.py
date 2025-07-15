@@ -144,23 +144,36 @@ class TestPublicAPIConfiguration:
         # Should show generic name when configured to hide
         assert result["instructor_name"] == "Instructor"
 
-    def test_cache_ttl_configuration(self, client, test_instructor, monkeypatch):
+    def test_cache_ttl_configuration(self, client, test_instructor, monkeypatch, db: Session):
         """Test that cache TTL uses configured value."""
+        from datetime import time as datetime_time
+
+        from app.models.availability import AvailabilitySlot
+
+        # Create some availability so there's data to cache
+        slot = AvailabilitySlot(
+            instructor_id=test_instructor.id,
+            specific_date=date.today(),
+            start_time=datetime_time(9, 0),
+            end_time=datetime_time(10, 0),
+        )
+        db.add(slot)
+        db.commit()
+
         cache_ttl_used = None
 
-        def mock_set(key, value, ttl=None):
+        def mock_set(self, key, value, ttl=None):
             nonlocal cache_ttl_used
             cache_ttl_used = ttl
             return True
 
-        # Mock cache service
-        class MockCacheService:
-            def __init__(self):
-                self.get = lambda k: None
-                self.set = mock_set
+        # Mock the cache service's set method
+        from app.services.cache_service import CacheService
 
-        monkeypatch.setattr("app.routes.public.CacheService", MockCacheService)
+        original_set = CacheService.set
+        monkeypatch.setattr(CacheService, "set", mock_set)
 
+        # Make request - this should trigger caching with TTL
         response = client.get(
             f"/api/public/instructors/{test_instructor.id}/availability",
             params={"start_date": date.today().isoformat()},
@@ -168,8 +181,9 @@ class TestPublicAPIConfiguration:
 
         assert response.status_code == 200
 
-        # Verify configured TTL was used
+        # Verify configured TTL was used (300 seconds = 5 minutes)
         assert cache_ttl_used == settings.public_availability_cache_ttl
+        assert cache_ttl_used == 300  # Explicitly check for 5 minutes
 
     def test_default_date_range_uses_configured_days(self, client, test_instructor, db: Session):
         """Test that default end date uses configured days."""

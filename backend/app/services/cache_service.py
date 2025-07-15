@@ -592,6 +592,9 @@ class CacheService(BaseService):
                     [
                         f"*:{instructor_id}:{d.isoformat()}",
                         f"*:{instructor_id}:*:{d.isoformat()}",
+                        # Also invalidate public availability endpoints that include this date
+                        f"public_availability:{instructor_id}:{d.isoformat()}:*",
+                        f"public_availability:{instructor_id}:*:{d.isoformat()}:*",
                     ]
                 )
 
