@@ -10,7 +10,7 @@ from datetime import date, time, timedelta
 from typing import List
 
 import pytest
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.models.availability import AvailabilitySlot
@@ -524,7 +524,7 @@ class TestInstructorProfileQueryPatterns:
         inactive_profiles = (
             db.query(InstructorProfile)
             .join(User)
-            .filter(and_(User.is_active == True, ~InstructorProfile.user_id.in_(active_instructors)))
+            .filter(and_(User.is_active == True, ~InstructorProfile.user_id.in_(select(active_instructors))))
             .all()
         )
 

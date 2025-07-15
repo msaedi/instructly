@@ -123,24 +123,29 @@ class TestCacheDataStructures:
     def test_cache_week_availability_uses_clean_data(self, cache_service):
         """Test caching week availability doesn't store removed fields."""
         instructor_id = 123
-        week_start = date(2025, 7, 14)
+        # Use a date that's definitely in the future to ensure "hot" tier TTL
+        from datetime import timedelta
+
+        week_start = date.today() + timedelta(days=7)
 
         # Clean availability data (what we should cache)
+        date_str = week_start.isoformat()
+        next_day_str = (week_start + timedelta(days=1)).isoformat()
         availability_data = {
-            "2025-07-14": [
+            date_str: [
                 {
                     "id": 1,
                     "instructor_id": instructor_id,
-                    "specific_date": "2025-07-14",  # Fixed: date -> specific_date
+                    "specific_date": date_str,  # Fixed: date -> specific_date
                     "start_time": "09:00",
                     "end_time": "12:00",
                 }
             ],
-            "2025-07-15": [
+            next_day_str: [
                 {
                     "id": 2,
                     "instructor_id": instructor_id,
-                    "specific_date": "2025-07-15",  # Fixed: date -> specific_date
+                    "specific_date": next_day_str,  # Fixed: date -> specific_date
                     "start_time": "14:00",
                     "end_time": "17:00",
                 }
