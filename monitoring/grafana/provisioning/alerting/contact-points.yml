@@ -1,0 +1,17 @@
+apiVersion: 1
+
+contactPoints:
+  - uid: default-email
+    name: default-email
+    type: email
+    settings:
+      addresses: admin@localhost
+    disableResolveMessage: false
+  - uid: slack-notifications
+    name: slack-notifications
+    type: slack
+    settings:
+      url: ${SLACK_WEBHOOK_URL}
+      title: 'InstaInstru Alert'
+      text: '{{ template "slack.default.text" . }}'
+    disableResolveMessage: false

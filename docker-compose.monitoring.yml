@@ -33,6 +33,12 @@ services:
       # Explicit configuration for alert provisioning
       - GF_ALERTING_ENABLED=true
       - GF_UNIFIED_ALERTING_ENABLED=true
+      # External URL for correct links in notifications
+      - GF_SERVER_ROOT_URL=http://localhost:3003
+      # Notification channels
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+      - ALERT_EMAIL_ADDRESSES=${ALERT_EMAIL_ADDRESSES:-admin@localhost}
+      - PAGERDUTY_INTEGRATION_KEY=${PAGERDUTY_INTEGRATION_KEY:-}
     volumes:
       - ./monitoring/grafana-data:/var/lib/grafana
       - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro

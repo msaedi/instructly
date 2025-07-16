@@ -38,20 +38,93 @@ The following alert rules are configured:
 - **Team**: Backend
 - **Action**: Investigate cache misses, check DragonflyDB
 
-## Notification Channels
+## Setting up Slack Notifications
 
-### Slack Configuration
+Slack notifications are optional but recommended for real-time alert visibility.
 
-1. Create a Slack webhook:
+### Creating a Slack Webhook
+
+1. **Access Slack API**:
    - Go to https://api.slack.com/apps
-   - Create a new app or use existing
-   - Add "Incoming Webhooks" feature
-   - Create webhook for your alert channel
+   - Sign in with your Slack workspace
 
-2. Add webhook URL to `.env.monitoring`:
+2. **Create App**:
+   - Click "Create New App" → "From scratch"
+   - Name it "InstaInstru Monitoring"
+   - Select your workspace
+
+3. **Enable Incoming Webhooks**:
+   - In app settings, go to "Features" → "Incoming Webhooks"
+   - Toggle "Activate Incoming Webhooks" to ON
+   - Click "Add New Webhook to Workspace"
+   - Select the channel for alerts (e.g., #alerts or #monitoring)
+   - Copy the webhook URL
+
+4. **Configure in InstaInstru**:
+   - Add to `.env.monitoring`:
+     ```bash
+     SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX
+     ```
+   - Restart Grafana: `docker-compose -f docker-compose.monitoring.yml restart grafana`
+
+### Testing Slack Notifications
+
+1. **Manual Test**:
    ```bash
-   SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+   curl -X POST -H 'Content-type: application/json' \
+     --data '{"text":"Test alert from InstaInstru monitoring"}' \
+     YOUR_SLACK_WEBHOOK_URL
    ```
+
+2. **Test from Grafana**:
+   - Go to Alerting → Contact points
+   - Find "slack-notifications"
+   - Click "Test" button
+   - Check your Slack channel
+
+3. **Trigger Test Alert**:
+   ```bash
+   ./monitoring/test-alerts.sh
+   ```
+
+### Alert Routing
+
+With Slack configured, alerts are routed as follows:
+
+| Alert | Severity | Slack | Email | When Triggered |
+|-------|----------|-------|-------|----------------|
+| High Error Rate | Critical | ✅ | ✅ | Error rate > 1% for 5 min |
+| Service Degradation | Critical | ✅ | ✅ | P99 latency > 1s for 3 min |
+| High Response Time | Warning | ✅ | ❌ | P95 latency > 500ms for 5 min |
+| High Load | Warning | ✅ | ❌ | > 1000 req/s for 10 min |
+| Low Cache Hit Rate | Warning | ✅ | ❌ | Hit rate < 60% for 10 min |
+
+### Customizing Slack Messages
+
+The default message format includes:
+- Alert name and severity
+- Summary and description
+- Service and team labels
+- Link to view in Grafana
+
+To customize, edit `monitoring/grafana/provisioning/alerting/contact-points.yml`.
+
+### Troubleshooting Slack Integration
+
+**No messages arriving**:
+- Verify webhook URL is correct in `.env.monitoring`
+- Check Grafana logs: `docker-compose -f docker-compose.monitoring.yml logs grafana | grep slack`
+- Test webhook manually with curl
+
+**Invalid webhook error**:
+- Ensure no extra spaces in SLACK_WEBHOOK_URL
+- Webhook may be revoked - create new one in Slack
+
+**Rate limiting**:
+- Slack limits to 1 message per second
+- Grafana groups alerts to avoid limits
+
+## Other Notification Channels
 
 ### Email Configuration
 
@@ -69,6 +142,25 @@ ALERT_EMAIL_ADDRESSES=oncall@instainstru.com,engineering@instainstru.com
    ```
 
 ## Alert Routing
+
+### Automated Setup
+Contact points are automatically provisioned:
+- `default-email` - Default receiver for all alerts
+- `slack-notifications` - Slack webhook (if configured in .env.monitoring)
+
+### Manual Routing Configuration
+Due to Grafana 12's strict notification policy format, configure routing through the UI:
+
+1. Go to **Alerting → Notification policies**
+2. Edit the default policy
+3. Add nested policies:
+   - **Critical alerts** (High Error Rate, Service Degradation) → slack-notifications
+   - **Warning alerts** → slack-notifications or default-email
+
+### Default Behavior
+Without manual configuration:
+- All alerts go to default-email
+- Slack contact point exists but needs routing
 
 - **Critical alerts**: PagerDuty + Slack (immediate notification)
 - **Warning alerts**: Slack only (grouped notifications)

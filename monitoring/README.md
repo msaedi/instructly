@@ -37,6 +37,7 @@ This directory contains the complete monitoring infrastructure for InstaInstru, 
 - 3 pre-configured dashboards
 - 5 alert rules with notification routing
 - Alert status panels on dashboards
+- Optional Slack notifications (configure in .env.monitoring)
 
 ### Dashboards
 
@@ -70,6 +71,13 @@ Configured alerts include:
 
 See [ALERTING.md](./ALERTING.md) for detailed configuration.
 
+### Slack Notifications
+
+To enable Slack notifications:
+1. Add your webhook URL to `.env.monitoring`
+2. Configure through Grafana UI (recommended)
+3. See [SLACK_SETUP.md](./SLACK_SETUP.md) for instructions
+
 ## Testing
 
 Run the alert test script to validate your setup:
@@ -78,6 +86,11 @@ Run the alert test script to validate your setup:
 ```
 
 This will simulate conditions to trigger all configured alerts.
+
+Test Slack notifications:
+```bash
+./monitoring/test-slack.sh
+```
 
 ## Directory Structure
 
