@@ -21,6 +21,15 @@ from sqlalchemy.orm import Session
 
 from ..core.exceptions import ServiceException
 
+# Import prometheus_metrics at module level to avoid repeated imports
+try:
+    from ..monitoring.prometheus_metrics import prometheus_metrics
+
+    PROMETHEUS_AVAILABLE = True
+except ImportError:
+    prometheus_metrics = None
+    PROMETHEUS_AVAILABLE = False
+
 # Use TYPE_CHECKING to avoid circular imports
 if TYPE_CHECKING:
     from .cache_service import CacheService
@@ -127,48 +136,45 @@ class BaseService:
 
                 start_time = time.time()
                 success = False
+                error_type = None
 
                 try:
                     result = func(self, *args, **kwargs)
                     success = True
                     return result
-                except Exception:
+                except Exception as e:
                     success = False
+                    error_type = type(e).__name__
                     raise
                 finally:
                     elapsed = time.time() - start_time
+
+                    # Fast path: only do expensive work if needed
                     if hasattr(self, "_record_metric"):
                         self._record_metric(operation_name, elapsed, success)
 
-                    # Log slow operations
-                    if elapsed > 1.0 and hasattr(self, "logger"):
-                        self.logger.warning(f"Slow operation detected: {operation_name} took {elapsed:.2f}s")
+                    # Only log if it's actually slow
+                    if elapsed > 1.0:
+                        if hasattr(self, "logger"):
+                            self.logger.warning(f"Slow operation detected: {operation_name} took {elapsed:.2f}s")
 
-                    # Record Prometheus metrics
-                    try:
-                        from ..monitoring.prometheus_metrics import prometheus_metrics
+                    # Record Prometheus metrics (optimized)
+                    if PROMETHEUS_AVAILABLE and prometheus_metrics:
+                        try:
+                            # Cache service name to avoid repeated __class__ access
+                            service_name = self.__class__.__name__
+                            status = "success" if success else "error"
 
-                        service_name = self.__class__.__name__ if hasattr(self, "__class__") else "Unknown"
-                        status = "success" if success else "error"
-                        error_type = None
-
-                        # Try to get error type if there was an exception
-                        if not success and hasattr(wrapper, "_last_exception"):
-                            error_type = type(wrapper._last_exception).__name__
-
-                        prometheus_metrics.record_service_operation(
-                            service=service_name,
-                            operation=operation_name,
-                            duration=elapsed,
-                            status=status,
-                            error_type=error_type,
-                        )
-                    except ImportError:
-                        # Prometheus metrics not available, skip
-                        pass
-                    except Exception:
-                        # Don't let metrics collection break the operation
-                        pass
+                            prometheus_metrics.record_service_operation(
+                                service=service_name,
+                                operation=operation_name,
+                                duration=elapsed,
+                                status=status,
+                                error_type=error_type,
+                            )
+                        except Exception:
+                            # Don't let metrics collection break the operation
+                            pass
 
             return wrapper
 
@@ -205,21 +211,17 @@ class BaseService:
                 self.logger.warning(f"Slow operation detected: {operation_name} took {elapsed:.2f}s")
 
             # Record Prometheus metrics
-            try:
-                from ..monitoring.prometheus_metrics import prometheus_metrics
+            if PROMETHEUS_AVAILABLE and prometheus_metrics:
+                try:
+                    service_name = self.__class__.__name__
+                    status = "success" if success else "error"
 
-                service_name = self.__class__.__name__
-                status = "success" if success else "error"
-
-                prometheus_metrics.record_service_operation(
-                    service=service_name, operation=operation_name, duration=elapsed, status=status
-                )
-            except ImportError:
-                # Prometheus metrics not available, skip
-                pass
-            except Exception:
-                # Don't let metrics collection break the operation
-                pass
+                    prometheus_metrics.record_service_operation(
+                        service=service_name, operation=operation_name, duration=elapsed, status=status
+                    )
+                except Exception:
+                    # Don't let metrics collection break the operation
+                    pass
 
     def invalidate_cache(self, *keys: str) -> None:
         """

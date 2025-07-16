@@ -1,0 +1,34 @@
+{
+  "timestamp": "2025-07-15T22:26:33.421561",
+  "prometheus_connection": true,
+  "backend_connection": true,
+  "grafana_connection": true,
+  "metrics_found": {
+    "instainstru_http_requests_total": "counter",
+    "instainstru_http_requests_in_progress": "gauge"
+  },
+  "metrics_missing": {
+    "instainstru_service_operation_duration_seconds": "histogram",
+    "instainstru_service_operations_total": "counter",
+    "instainstru_errors_total": "counter",
+    "instainstru_http_request_duration_seconds": "histogram",
+    "instainstru_cache_hits_total": "counter",
+    "instainstru_cache_misses_total": "counter",
+    "instainstru_cache_evictions_total": "counter",
+    "instainstru_db_query_duration_seconds": "histogram",
+    "instainstru_db_pool_connections_used": "gauge",
+    "instainstru_db_pool_connections_max": "gauge"
+  },
+  "alerts_found": [],
+  "alerts_missing": [
+    "High Error Rate (> 1%)",
+    "Service Degradation",
+    "High Response Time (P95 > 500ms)",
+    "High Request Load (> 1000 req/s)",
+    "Low Cache Hit Rate (< 70%)"
+  ],
+  "synthetic_traffic_generated": true,
+  "metrics_appeared": true,
+  "dashboard_data_available": false,
+  "issues": []
+}

@@ -1,0 +1,3 @@
+# Requirements for monitoring validation script
+httpx>=0.24.0
+colorama>=0.4.6
