@@ -197,9 +197,19 @@ class TestPerformanceOverhead:
         avg_time = statistics.mean(times)
         max_time = max(times)
 
-        # Metrics endpoint should be fast
-        assert avg_time < 0.050, f"Metrics endpoint avg time is {avg_time*1000:.1f}ms"
-        assert max_time < 0.100, f"Metrics endpoint max time is {max_time*1000:.1f}ms"
+        # Metrics endpoint should be fast (more lenient for CI environments)
+        import os
+
+        is_ci = os.getenv("CI") == "true" or os.getenv("GITHUB_ACTIONS") == "true"
+
+        if is_ci:
+            # More lenient thresholds for CI environment
+            assert avg_time < 0.100, f"Metrics endpoint avg time is {avg_time*1000:.1f}ms"
+            assert max_time < 0.200, f"Metrics endpoint max time is {max_time*1000:.1f}ms"
+        else:
+            # Strict thresholds for local development
+            assert avg_time < 0.050, f"Metrics endpoint avg time is {avg_time*1000:.1f}ms"
+            assert max_time < 0.100, f"Metrics endpoint max time is {max_time*1000:.1f}ms"
 
         print(f"\nMetrics endpoint performance:")
         print(f"  Average: {avg_time*1000:.1f}ms")

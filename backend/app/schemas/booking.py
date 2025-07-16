@@ -40,6 +40,19 @@ class BookingCreate(BaseModel):
     # Forbid extra fields to enforce clean architecture
     model_config = ConfigDict(extra="forbid")
 
+    @field_validator("start_time", "end_time", mode="before")
+    @classmethod
+    def parse_time_string(cls, v):
+        """Convert time strings to time objects."""
+        if isinstance(v, str):
+            try:
+                # Parse HH:MM format
+                hour, minute = v.split(":")
+                return time(int(hour), int(minute))
+            except (ValueError, AttributeError):
+                raise ValueError(f"Invalid time format: {v}. Expected HH:MM format.")
+        return v
+
     @field_validator("end_time")
     @classmethod
     def validate_time_order(cls, v, info):
@@ -227,7 +240,21 @@ class AvailabilityCheckRequest(BaseModel):
     start_time: time = Field(..., description="Start time to check")
     end_time: time = Field(..., description="End time to check")
 
+    @field_validator("start_time", "end_time", mode="before")
+    @classmethod
+    def parse_time_string(cls, v):
+        """Convert time strings to time objects."""
+        if isinstance(v, str):
+            try:
+                # Parse HH:MM format
+                hour, minute = v.split(":")
+                return time(int(hour), int(minute))
+            except (ValueError, AttributeError):
+                raise ValueError(f"Invalid time format: {v}. Expected HH:MM format.")
+        return v
+
     @field_validator("end_time")
+    @classmethod
     def validate_time_order(cls, v, info):
         """Ensure end time is after start time."""
         if info.data and "start_time" in info.data and v <= info.data["start_time"]:
