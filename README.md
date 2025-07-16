@@ -63,6 +63,30 @@ docker-compose up -d
 # See: https://dragonflydb.io/docs/getting-started
 
 ```
+## 📊 Monitoring
+
+InstaInstru includes a comprehensive monitoring stack with Prometheus and Grafana.
+
+### Quick Start
+```bash
+# Start monitoring stack
+./monitoring/start-monitoring.sh
+
+# Stop monitoring stack
+./monitoring/stop-monitoring.sh
+```
+
+### Access Points
+- **Grafana**: http://localhost:3003 - Dashboards and alerts
+- **Prometheus**: http://localhost:9090 - Metrics explorer
+
+### What's Being Monitored
+- 98 service operations tracked with `@measure_operation` decorators
+- 5 production-ready alert rules (response time, error rate, etc.)
+- 3 pre-configured dashboards (Service Performance, API Health, Business Metrics)
+
+See [monitoring/README.md](monitoring/README.md) for detailed setup and configuration.
+
 🧪 Testing
 ```bash
 # Backend tests

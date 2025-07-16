@@ -9,16 +9,46 @@ groups:
       # Response Time Alert
       - uid: response-time-alert
         title: High Response Time (P95 > 500ms)
-        condition: A
+        condition: B
         data:
           - refId: A
+            queryType: ""
             relativeTimeRange:
               from: 300
               to: 0
             datasourceUid: prometheus-uid
             model:
-              expr: histogram_quantile(0.95, sum(rate(instainstru_service_operation_duration_seconds_bucket[5m])) by (le)) > 0.5
+              expr: histogram_quantile(0.95, sum(rate(instainstru_service_operation_duration_seconds_bucket[5m])) by (le))
+              interval: ""
               refId: A
+          - refId: B
+            queryType: ""
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0.5
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              hide: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: classic_conditions
         noDataState: NoData
         execErrState: Alerting
         for: 5m
@@ -30,19 +60,49 @@ groups:
           severity: warning
           team: backend
 
-      # Error Rate Alert
+      # Error Rate Alert - Simplified
       - uid: error-rate-alert
         title: High Error Rate (> 1%)
-        condition: A
+        condition: B
         data:
           - refId: A
+            queryType: ""
             relativeTimeRange:
               from: 300
               to: 0
             datasourceUid: prometheus-uid
             model:
-              expr: (sum(rate(instainstru_http_requests_total{status_code=~"4..|5.."}[5m])) / sum(rate(instainstru_http_requests_total[5m]))) > 0.01
+              expr: (sum(rate(instainstru_http_requests_total{status_code=~"4..|5.."}[5m])) / sum(rate(instainstru_http_requests_total[5m]))) * 100
+              interval: ""
               refId: A
+          - refId: B
+            queryType: ""
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              hide: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: classic_conditions
         noDataState: NoData
         execErrState: Alerting
         for: 5m
@@ -57,23 +117,53 @@ groups:
       # Service Degradation Alert
       - uid: service-degradation-alert
         title: Service Degradation (P99 > 1s)
-        condition: A
+        condition: B
         data:
           - refId: A
+            queryType: ""
             relativeTimeRange:
               from: 180
               to: 0
             datasourceUid: prometheus-uid
             model:
-              expr: histogram_quantile(0.99, sum by (service) (rate(instainstru_service_operation_duration_seconds_bucket[5m]))) > 1
+              expr: max(histogram_quantile(0.99, sum by (service, le) (rate(instainstru_service_operation_duration_seconds_bucket[5m]))))
+              interval: ""
               refId: A
+          - refId: B
+            queryType: ""
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              hide: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: classic_conditions
         noDataState: NoData
         execErrState: Alerting
         for: 3m
         annotations:
-          description: "Service {{$labels.service}} P99 latency has exceeded 1 second for 3 minutes"
+          description: "Service P99 latency has exceeded 1 second for 3 minutes"
           runbook_url: "https://wiki.instainstru.com/runbooks/service-degradation"
-          summary: "Service degradation detected for {{$labels.service}}"
+          summary: "Service degradation detected"
         labels:
           severity: critical
           team: backend
@@ -81,16 +171,46 @@ groups:
       # High Load Alert
       - uid: high-load-alert
         title: High Request Load (> 1000 req/s)
-        condition: A
+        condition: B
         data:
           - refId: A
+            queryType: ""
             relativeTimeRange:
               from: 600
               to: 0
             datasourceUid: prometheus-uid
             model:
-              expr: sum(rate(instainstru_http_requests_total[1m])) > 1000
+              expr: sum(rate(instainstru_http_requests_total[1m]))
+              interval: ""
               refId: A
+          - refId: B
+            queryType: ""
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1000
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              hide: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: classic_conditions
         noDataState: NoData
         execErrState: OK
         for: 10m
@@ -102,21 +222,49 @@ groups:
           severity: warning
           team: infrastructure
 
-      # Cache Performance Alert
+      # Cache Performance Alert - Simplified
       - uid: cache-performance-alert
         title: Low Cache Hit Rate (< 60%)
-        condition: A
+        condition: B
         data:
           - refId: A
+            queryType: ""
             relativeTimeRange:
               from: 600
               to: 0
             datasourceUid: prometheus-uid
             model:
-              expr: |
-                (sum(rate(instainstru_service_operations_total{service="CacheService", operation="get", status="success"}[5m])) /
-                 sum(rate(instainstru_service_operations_total{service="CacheService", operation="get"}[5m]))) < 0.6
+              expr: (sum(rate(instainstru_service_operations_total{service="CacheService", operation="get", status="success"}[5m])) / sum(rate(instainstru_service_operations_total{service="CacheService", operation="get"}[5m]))) * 100
+              interval: ""
               refId: A
+          - refId: B
+            queryType: ""
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 60
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              hide: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: classic_conditions
         noDataState: NoData
         execErrState: OK
         for: 10m
