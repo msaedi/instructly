@@ -1,0 +1,41 @@
+# Example Terraform Variables for InstaInstru Monitoring
+# Copy this file to environments/production.tfvars and fill in your values
+
+# Grafana Cloud Configuration
+grafana_url     = "https://yourcompany.grafana.net"
+grafana_api_key = "glsa_xxxxxxxxxxxxxxxxxxxxxx"  # Service Account token with Admin role
+
+# Prometheus Configuration
+prometheus_url     = "https://prometheus-us-central1.grafana.net/api/prom"
+prometheus_user    = "123456"  # Your Prometheus instance ID
+prometheus_api_key = "glc_xxxxxxxxxxxxxxxxxxxxxx"  # Metrics publisher API key
+
+# Alert Notification Channels
+slack_webhook_url = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+alert_email_addresses = [
+  "oncall@yourcompany.com",
+  "engineering@yourcompany.com"
+]
+
+# Optional: PagerDuty for critical alerts
+# pagerduty_integration_key = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Environment Configuration
+environment = "production"
+region      = "us"  # Options: us, eu, au
+
+# SLO Targets (optional - has defaults)
+slo_targets = {
+  availability    = 0.999  # 99.9%
+  latency_p99_ms = 500    # 500ms
+  error_rate_pct = 1      # 1%
+  cache_hit_rate = 80     # 80%
+}
+
+# Tags for all resources
+tags = {
+  managed_by  = "terraform"
+  service     = "instainstru"
+  environment = "production"
+  team        = "platform"
+}
