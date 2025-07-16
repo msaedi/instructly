@@ -148,13 +148,18 @@ class TestCleanArchitectureValidation:
 
     def test_booking_create_with_all_fields(self, client, auth_headers_student):
         """Verify BookingCreate accepts all valid fields."""
+        from datetime import date, timedelta
+
+        # Use a future date to avoid validation error
+        future_date = (date.today() + timedelta(days=7)).isoformat()
+
         # This will fail at service level but validates schema accepts fields
         response = client.post(
             "/bookings/",
             json={
                 "instructor_id": 1,
                 "service_id": 1,
-                "booking_date": "2025-07-15",
+                "booking_date": future_date,
                 "start_time": "09:00",
                 "end_time": "10:00",
                 "student_note": "Test note",
@@ -170,12 +175,17 @@ class TestCleanArchitectureValidation:
 
     def test_availability_check_with_valid_format(self, client, auth_headers_student):
         """Verify availability check accepts valid time-based format."""
+        from datetime import date, timedelta
+
+        # Use a future date to avoid validation error
+        future_date = (date.today() + timedelta(days=7)).isoformat()
+
         response = client.post(
             "/bookings/check-availability",
             json={
                 "instructor_id": 1,
                 "service_id": 1,
-                "booking_date": "2025-07-15",
+                "booking_date": future_date,
                 "start_time": "09:00",
                 "end_time": "10:00",
             },
