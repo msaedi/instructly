@@ -14,6 +14,11 @@ import {
   Shield,
   DollarSign,
   CheckCircle,
+  Globe,
+  Music,
+  Dumbbell,
+  GraduationCap,
+  Sparkles,
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -62,11 +67,11 @@ export default function HomePage() {
   };
 
   const categories = [
-    { icon: '🗣️', name: 'Language', slug: 'language' },
-    { icon: '🎵', name: 'Music', slug: 'music' },
-    { icon: '💪', name: 'Fitness', slug: 'fitness' },
-    { icon: '📚', name: 'Academics', slug: 'academics' },
-    { icon: '💎', name: 'Hidden Gems', slug: 'other' },
+    { icon: Globe, name: 'Language', slug: 'language' },
+    { icon: Music, name: 'Music', slug: 'music' },
+    { icon: Dumbbell, name: 'Fitness', slug: 'fitness' },
+    { icon: GraduationCap, name: 'Academics', slug: 'academics' },
+    { icon: Sparkles, name: 'Hidden Gems', slug: 'other' },
   ];
 
   const availableNow = [
@@ -164,47 +169,106 @@ export default function HomePage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="py-20 bg-gradient-to-b from-blue-50 to-white dark:from-gray-800 dark:to-gray-900">
+      <section className="py-16 bg-[#FFFEF5] dark:bg-gray-800/50" style={{ paddingTop: '60px' }}>
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h1 className="text-5xl font-bold text-gray-900 dark:text-gray-100 mb-8">
-            Instant Learning with iNSTAiNSTRU
+            <div className="leading-tight">Instant learning with</div>
+            <div className="leading-tight">iNSTAiNSTRU</div>
           </h1>
 
           <form onSubmit={handleSearch} className="max-w-2xl mx-auto">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Search className="h-6 w-6 text-gray-400" />
-              </div>
+            <div
+              className="relative border border-[#E5E5E5] dark:border-gray-600 rounded-full focus-within:border-[#0066CC] dark:focus-within:border-blue-400 bg-white dark:bg-gray-700 overflow-hidden"
+              style={{ width: '720px', height: '64px', margin: '0 auto' }}
+            >
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Ready to learn something new? Your next skill starts here."
-                className="w-full pl-12 pr-4 py-5 text-lg border-2 border-blue-600 dark:border-blue-400 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-700 dark:focus:border-blue-300 focus:outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                placeholder="Ready to learn something new?"
+                className="w-full h-full text-base bg-transparent border-none focus:outline-none text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+                style={{
+                  padding: '0 70px 0 20px',
+                  fontSize: '16px',
+                }}
               />
+              <button
+                type="submit"
+                className="absolute bg-[#FFD700] border-none rounded-full cursor-pointer flex items-center justify-center transition-all duration-200 ease-in-out hover:bg-[#FFC700] hover:scale-105"
+                style={{
+                  width: '52px',
+                  height: '52px',
+                  position: 'absolute',
+                  right: '6px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  boxShadow: '0 2px 8px rgba(255, 215, 0, 0.3)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(255, 215, 0, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(255, 215, 0, 0.3)';
+                }}
+              >
+                <Search className="h-5 w-5 text-white" />
+              </button>
             </div>
           </form>
         </div>
       </section>
 
       {/* Categories */}
-      <section className="py-16">
+      <section className="py-6 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="grid grid-cols-5 gap-6">
-            {categories.map((category) => (
-              <Link
-                key={category.slug}
-                href={`/search?category=${category.slug}`}
-                className="group"
-              >
-                <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-8 text-center hover:border-2 hover:border-blue-600 dark:hover:border-blue-400 hover:shadow-lg transition-all cursor-pointer">
-                  <div className="text-5xl mb-4">{category.icon}</div>
-                  <p className="text-base font-medium text-gray-900 dark:text-gray-100">
+          <div className="flex justify-center items-center space-x-16">
+            {categories.map((category, index) => {
+              const IconComponent = category.icon;
+              return (
+                <Link
+                  key={category.slug}
+                  href={`/search?category=${category.slug}`}
+                  className={`group flex flex-col items-center cursor-pointer transition-colors duration-200 relative`}
+                >
+                  <IconComponent
+                    size={32}
+                    strokeWidth={1.5}
+                    className={
+                      index === 2 ? 'text-gray-900 dark:text-gray-100 mb-2' : 'text-gray-500 mb-2'
+                    }
+                  />
+                  <p
+                    className={`text-sm font-medium ${
+                      index === 2 ? 'text-gray-900 dark:text-gray-100' : 'text-gray-500'
+                    }`}
+                  >
                     {category.name}
                   </p>
-                </div>
-              </Link>
-            ))}
+                  {index === 2 && (
+                    <div className="absolute -bottom-3 left-1/2 transform -translate-x-1/2 w-16 h-1 bg-[#FFD700] rounded-full"></div>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Subcategories */}
+      <section className="py-6 bg-[#FFFEF5] dark:bg-gray-800/50">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex flex-wrap justify-center gap-3">
+            {['Yoga', 'Personal Training', 'Pilates', 'Martial Arts', 'Dance', 'Nutrition'].map(
+              (subcategory) => (
+                <Link
+                  key={subcategory}
+                  href={`/search?subcategory=${subcategory.toLowerCase().replace(' ', '-')}`}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-full text-sm text-gray-600 dark:text-gray-400 hover:border-[#FFD700] dark:hover:border-[#FFD700] hover:text-black dark:hover:text-white transition-colors duration-200"
+                >
+                  {subcategory}
+                </Link>
+              )
+            )}
           </div>
         </div>
       </section>
@@ -240,7 +304,7 @@ export default function HomePage() {
       </section>
 
       {/* Available Now & Trending */}
-      <section className="py-16">
+      <section className="py-16 bg-[#FFFEF5] dark:bg-gray-800/50">
         <div className="max-w-7xl mx-auto px-4">
           <div className="grid grid-cols-2 gap-8">
             {/* Available Now */}
@@ -255,7 +319,7 @@ export default function HomePage() {
                 {availableNow.map((instructor, idx) => (
                   <div
                     key={idx}
-                    className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4"
+                    className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-[#FFFEF5] dark:hover:bg-gray-700/50 transition-colors duration-200"
                   >
                     <h3 className="font-semibold text-gray-900 dark:text-gray-100">
                       {instructor.name}
@@ -275,7 +339,7 @@ export default function HomePage() {
                       <Clock className="h-4 w-4 mr-1" />
                       <span>Next: {instructor.nextAvailable}</span>
                     </div>
-                    <button className="mt-3 w-full bg-blue-600 dark:bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600">
+                    <button className="mt-3 w-full bg-[#FFD700] hover:bg-[#FFC700] text-black py-2 rounded-lg transition-colors duration-200">
                       Book Now
                     </button>
                   </div>
