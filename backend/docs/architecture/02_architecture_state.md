@@ -1,5 +1,5 @@
 # InstaInstru Architecture State
-*Last Updated: July 13, 2025 - Session v67*
+*Last Updated: July 16, 2025 - Session v68*
 
 ## 🏗️ Service Layer Architecture (COMPLETE)
 
@@ -479,6 +479,55 @@ backend/app/routes/
 - Database query time: 15-40ms
 - Cache read time: 0.7-1.5ms
 - **Monitored operations**: 98 (79% coverage) ✅
+
+## 📊 Monitoring Architecture
+
+### Current Implementation ✅
+Complete observability stack implemented for local development, production-ready assets included.
+
+### Technology Stack
+- **Metrics Collection**: Prometheus (scraping every 15s)
+- **Visualization**: Grafana (3 dashboards)
+- **Metrics Format**: Prometheus exposition format
+- **Integration**: Via existing @measure_operation decorators
+
+### Architecture Components
+1. **Metrics Endpoint**
+   - `/metrics/prometheus` - Public endpoint
+   - Exposes all 98 service operation metrics
+   - HTTP middleware metrics included
+   - No authentication required (standard practice)
+
+2. **Metric Types**
+   - `instainstru_service_operation_duration_seconds` (histogram)
+   - `instainstru_service_operations_total` (counter)
+   - `instainstru_http_request_duration_seconds` (histogram)
+   - `instainstru_http_requests_total` (counter)
+   - `instainstru_errors_total` (counter)
+
+3. **Infrastructure**
+   ```yaml
+   # docker-compose.monitoring.yml
+   - Grafana (port 3003)
+   - Prometheus (port 9090)
+   - Persistent volumes for data
+   - Auto-provisioning for dashboards/alerts
+   ```
+
+### Production Deployment Strategy
+- **Local**: ✅ Complete with Docker Compose
+- **Production**: ⏳ Requires Grafana Cloud or similar
+- **Assets Ready**: Terraform scripts, export files, documentation
+
+### Known Limitations
+1. **Deployment Scope**: Local only via Docker Compose
+2. **Slack Integration**: Manual configuration required (Grafana bug)
+3. **Production Cost**: ~$49-299/month for Grafana Cloud
+
+### Performance Impact
+- **Overhead**: Only 1.8% (optimized from initial 45%)
+- **Memory**: Minimal impact
+- **No business logic changes**: Uses existing decorators
 
 ## 🎯 Architecture Maturity
 
