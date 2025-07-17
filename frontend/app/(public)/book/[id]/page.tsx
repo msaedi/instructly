@@ -22,6 +22,7 @@ import {
   PaymentStep,
   BookingPayment,
   BookingType,
+  PaymentStatus,
   PaymentCard,
   CreditBalance,
   determineBookingType,
@@ -218,7 +219,7 @@ export default function QuickBookingPage() {
       serviceFee,
       totalAmount,
       bookingType,
-      paymentStatus: 'pending' as const,
+      paymentStatus: PaymentStatus.PENDING,
       freeCancellationUntil:
         bookingType === BookingType.STANDARD
           ? new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
