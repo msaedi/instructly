@@ -1,0 +1,97 @@
+```mermaid
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#6366f1', 'primaryTextColor':'#fff', 'primaryBorderColor':'#4f46e5', 'lineColor':'#e5e7eb', 'secondaryColor':'#f3f4f6', 'tertiaryColor':'#fef3c7', 'noteTextColor':'#1f2937', 'noteBkgColor':'#fef3c7', 'errorBkgColor':'#fee2e2', 'errorTextColor':'#991b1b'}}}%%
+
+flowchart TB
+    Start([User wants to book]) --> Entry{Entry Point}
+
+    %% Entry Points
+    Entry -->|Homepage| Featured[Featured Instructors]
+    Entry -->|Search| Search[Search Results]
+    Entry -->|Direct URL| DirectBook[/book/instructor-id]
+    Entry -->|Profile| Profile[Instructor Profile]
+
+    %% Path 1: Homepage Featured (Incomplete)
+    Featured -->|Book Now<br/>NOT IMPLEMENTED| NotImpl[❌ Handler Missing]
+
+    %% Path 2: Search Results
+    Search --> Card[InstructorCard]
+    Card -->|Quick Slot<br/>e.g. 'Today 3PM'| QuickBook[/book/id?date=X&time=Y]
+    Card -->|Book Now →| BookPage[/book/id]
+    Card -->|View Profile| Profile
+
+    %% Path 3: Instructor Profile
+    Profile --> Calendar[AvailabilityCalendar]
+    Calendar -->|Click Time Slot| Modal[BookingModal Opens]
+
+    %% Path 4: Quick Booking Page
+    BookPage --> ServiceSelect{Multiple Services?}
+    ServiceSelect -->|Yes| PickService[Select Service]
+    ServiceSelect -->|No| AutoService[Auto-selected]
+    PickService --> TimeGrid
+    AutoService --> TimeGrid[Time Slot Grid]
+
+    QuickBook --> Confirmation[Instant Confirmation Screen]
+    TimeGrid -->|Select Time| Confirmation
+
+    %% BookingModal Flow - CORRECTED
+    Modal --> AuthCheck{Authenticated?}
+    AuthCheck -->|No| StoreIntent[Store Booking Intent]
+    StoreIntent --> LoginRedirect[✅ Redirects to /login<br/>with booking intent stored]
+    LoginRedirect --> LoginPage[Login Page]
+    LoginPage -->|Success| RestoreModal[Modal Reopens<br/>with saved booking details]
+    RestoreModal --> BookingForm
+
+    AuthCheck -->|Yes| BookingForm[Booking Form<br/>Name, Email, Phone]
+    BookingForm -->|Continue| Payment
+
+    %% Confirmation to Payment
+    Confirmation -->|Confirm| Payment
+
+    %% PAYMENT FLOW - MANDATORY FOR ALL PATHS
+    Payment[💳 PAYMENT FLOW<br/>===REQUIRED===]
+    Payment --> PayMethod[Payment Method Selection<br/>Card or Credits]
+    PayMethod --> PayConfirm[Payment Confirmation<br/>Review Details]
+    PayConfirm --> Processing[Payment Processing<br/>API: POST /bookings/]
+    Processing -->|Success| Success[Payment Success<br/>Show Confirmation #]
+    Processing -->|Failure| Error[Payment Error<br/>Try Again]
+
+    Success -->|3 sec delay| Dashboard[/dashboard/student/bookings]
+
+    %% Styling
+    classDef entryPoint fill:#6366f1,stroke:#4f46e5,color:#fff
+    classDef paymentStep fill:#10b981,stroke:#059669,color:#fff
+    classDef errorStep fill:#ef4444,stroke:#dc2626,color:#fff
+    classDef incomplete fill:#fee2e2,stroke:#dc2626,color:#991b1b
+
+    class Start,Entry entryPoint
+    class Payment,PayMethod,PayConfirm,Processing paymentStep
+    class Error,NotImpl errorStep
+    class Featured,NotImpl incomplete
+
+    %% Notes
+    Payment -.->|"⚠️ NO SKIP OPTION<br/>Payment is MANDATORY"| Payment
+```
+
+## Student Booking Flow Analysis (Updated)
+
+### Key Findings:
+1. **ALL PATHS REQUIRE PAYMENT** - No booking can be created without payment
+2. **No Guest Checkout** - Must be logged in to complete booking
+3. **Homepage path is broken** - Featured instructors "Book Now" not implemented
+4. **4 Main Entry Points**:
+   - Homepage (broken)
+   - Search Results
+   - Instructor Profile
+   - Direct URL (/book/id)
+
+### Payment Integration:
+- Payment flow is embedded in BookingModal component
+- Uses A-Team's hybrid payment approach
+- Supports credit cards (Stripe) and platform credits
+- No saved payment methods - enter card each time
+
+### Authentication Handling (Corrected):
+- ✅ Properly redirects to login when unauthenticated
+- ✅ Booking intent is stored before login redirect
+- ✅ After login, modal reopens with saved booking details
+- ✅ No dead ends - auth flow works correctly

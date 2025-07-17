@@ -1,0 +1,140 @@
+```mermaid
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#6366f1', 'primaryTextColor':'#fff', 'primaryBorderColor':'#4f46e5', 'lineColor':'#e5e7eb', 'secondaryColor':'#f3f4f6'}}}%%
+
+graph TD
+    %% Base Components
+    subgraph "Base UI Components"
+        Modal[Modal<br/>Base modal wrapper]
+        TimeSlotButton[TimeSlotButton<br/>Hour slot selector]
+        BookingCard[BookingCard<br/>Booking display]
+        WeekNavigator[WeekNavigator<br/>Week selector]
+    end
+
+    %% Feature Components
+    subgraph "Feature Components"
+        BookingModal[BookingModal<br/>Complete booking flow]
+        AvailabilityCalendar[AvailabilityCalendar<br/>14-day calendar]
+        WeekCalendarGrid[WeekCalendarGrid<br/>Weekly grid view]
+        InstructorCard[InstructorCard<br/>Search result card]
+    end
+
+    %% Modal Components
+    subgraph "Modal Components"
+        CancelBookingModal[CancelBookingModal<br/>❌ UNUSED]
+        EditProfileModal[EditProfileModal]
+        DeleteProfileModal[DeleteProfileModal]
+        BookingDetailsModal[BookingDetailsModal<br/>❌ UNUSED]
+        ValidationPreviewModal[ValidationPreviewModal<br/>✅ USED in availability]
+        ClearWeekConfirmModal[ClearWeekConfirmModal<br/>✅ USED in availability]
+        ApplyToFutureWeeksModal[ApplyToFutureWeeksModal<br/>✅ USED in availability]
+    end
+
+    %% Payment Components
+    subgraph "Payment Flow Components"
+        PaymentMethodSelection[PaymentMethodSelection]
+        PaymentConfirmation[PaymentConfirmation]
+        PaymentProcessing[PaymentProcessing]
+        PaymentSuccess[PaymentSuccess]
+    end
+
+    %% Page Usage
+    subgraph "Pages Using Components"
+        HomePage[Homepage]
+        SearchPage[Search Page]
+        InstructorProfile[Instructor Profile]
+        StudentDashboard[Student Dashboard]
+        StudentBookings[My Bookings]
+        InstructorDashboard[Instructor Dashboard]
+        InstructorAvailability[Availability Management]
+        BookingConfirmation[Booking Confirmation]
+    end
+
+    %% Relationships - Modal base
+    Modal --> BookingModal
+    Modal --> CancelBookingModal
+    Modal --> EditProfileModal
+    Modal --> DeleteProfileModal
+    Modal --> BookingDetailsModal
+    Modal --> ValidationPreviewModal
+    Modal --> ClearWeekConfirmModal
+    Modal --> ApplyToFutureWeeksModal
+
+    %% BookingModal contains payment flow
+    BookingModal --> PaymentMethodSelection
+    PaymentMethodSelection --> PaymentConfirmation
+    PaymentConfirmation --> PaymentProcessing
+    PaymentProcessing --> PaymentSuccess
+
+    %% Page component usage
+    HomePage -.->|Featured Instructors| InstructorCard
+    SearchPage -->|Search Results| InstructorCard
+    InstructorProfile -->|Availability Display| AvailabilityCalendar
+    AvailabilityCalendar -->|Opens on click| BookingModal
+
+    StudentDashboard -->|Booking Preview| BookingCard
+    StudentBookings -->|Booking List| BookingCard
+
+    InstructorDashboard -->|Profile Actions| EditProfileModal
+    InstructorDashboard -->|Profile Actions| DeleteProfileModal
+
+    InstructorAvailability -->|Calendar Display| WeekCalendarGrid
+    InstructorAvailability -->|Navigation| WeekNavigator
+    InstructorAvailability -->|Confirmations| ClearWeekConfirmModal
+    InstructorAvailability -->|Bulk Actions| ApplyToFutureWeeksModal
+    InstructorAvailability -->|Validation| ValidationPreviewModal
+
+    WeekCalendarGrid -->|Time Slots| TimeSlotButton
+
+    %% Unused components
+    style CancelBookingModal fill:#fee2e2,stroke:#dc2626
+    style BookingDetailsModal fill:#fee2e2,stroke:#dc2626
+
+    %% Used components (corrected)
+    style ValidationPreviewModal fill:#d9f99d,stroke:#65a30d
+    style ClearWeekConfirmModal fill:#d9f99d,stroke:#65a30d
+    style ApplyToFutureWeeksModal fill:#d9f99d,stroke:#65a30d
+
+    %% Shared components
+    classDef shared fill:#ddd6fe,stroke:#9333ea
+    class Modal,TimeSlotButton,BookingCard shared
+
+    %% Feature-specific
+    classDef feature fill:#bfdbfe,stroke:#2563eb
+    class BookingModal,AvailabilityCalendar,WeekCalendarGrid,InstructorCard feature
+
+    %% Payment
+    classDef payment fill:#d9f99d,stroke:#65a30d
+    class PaymentMethodSelection,PaymentConfirmation,PaymentProcessing,PaymentSuccess payment
+```
+
+## Component Usage Analysis (Updated)
+
+### Key Findings:
+
+1. **Highly Reused Components:**
+   - `Modal` - Base for all modal components
+   - `BookingCard` - Used in student dashboard and bookings page
+   - `InstructorCard` - Used in homepage and search results
+   - `TimeSlotButton` - Core UI element for availability
+
+2. **Unused Components (Technical Debt) - CORRECTED:**
+   - `CancelBookingModal` - Implemented but not integrated
+   - `BookingDetailsModal` - Replaced by full page view
+   - ~~`ValidationPreviewModal`~~ - ✅ USED in instructor availability
+   - ~~`ClearWeekConfirmModal`~~ - ✅ USED in instructor availability
+   - ~~`ApplyToFutureWeeksModal`~~ - ✅ USED in instructor availability
+
+3. **Page-Specific Components:**
+   - `WeekCalendarGrid` - Only in instructor availability
+   - `AvailabilityCalendar` - Only in instructor profiles
+   - Payment components - Only within BookingModal
+   - 3 availability modals - Only in instructor availability page
+
+4. **Component Hierarchy:**
+   - Base UI components are extended by feature components
+   - Modal serves as base for 8 different modal types
+   - Payment flow is self-contained within BookingModal
+
+5. **Actual Unused Components:**
+   - Only 2 modals are truly unused (CancelBookingModal, BookingDetailsModal)
+   - Most components are actively integrated

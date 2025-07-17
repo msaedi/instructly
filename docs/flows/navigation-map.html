@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InstaInstru Navigation Map</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f3f4f6;
+            color: #1f2937;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #6366f1;
+            margin-bottom: 10px;
+        }
+        .legend {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 30px;
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 8px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+        .nav-section {
+            margin-bottom: 40px;
+        }
+        .nav-section h2 {
+            color: #4b5563;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        .pages-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+        .page-card {
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 20px;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        .page-card:hover {
+            border-color: #6366f1;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+        }
+        .page-card.public {
+            background: #f0fdf4;
+            border-color: #86efac;
+        }
+        .page-card.auth {
+            background: #fef3c7;
+            border-color: #fde047;
+        }
+        .page-card.student {
+            background: #eff6ff;
+            border-color: #93c5fd;
+        }
+        .page-card.instructor {
+            background: #f3e8ff;
+            border-color: #c084fc;
+        }
+        .page-card.shared {
+            background: #f0f9ff;
+            border-color: #7dd3fc;
+        }
+        .page-title {
+            font-weight: 600;
+            font-size: 18px;
+            margin-bottom: 8px;
+            color: #1f2937;
+        }
+        .page-url {
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #6b7280;
+            margin-bottom: 12px;
+        }
+        .page-features {
+            font-size: 14px;
+            color: #4b5563;
+            margin-bottom: 15px;
+        }
+        .page-links {
+            border-top: 1px solid #e5e7eb;
+            padding-top: 12px;
+            margin-top: 12px;
+        }
+        .link-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+            font-size: 13px;
+            color: #6366f1;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .link-item:hover {
+            color: #4f46e5;
+            text-decoration: underline;
+        }
+        .link-arrow {
+            font-size: 16px;
+        }
+        .auth-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #ef4444;
+            color: white;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        .dynamic-param {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .highlight {
+            background: #fef08a;
+            transition: background 0.5s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>InstaInstru Navigation Map</h1>
+        <p style="color: #6b7280; margin-bottom: 20px;">Interactive site map showing all pages and navigation flows. Click on links to see connections.</p>
+
+        <div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+            <strong>📢 Updated (July 17, 2025):</strong> Total routes corrected to 66 (18 frontend shown here + 48 backend API routes not displayed). Auth flow corrections applied.
+        </div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #f0fdf4; border: 2px solid #86efac;"></div>
+                <span>Public Pages</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #fef3c7; border: 2px solid #fde047;"></div>
+                <span>Auth Pages</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #eff6ff; border: 2px solid #93c5fd;"></div>
+                <span>Student Only</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #f3e8ff; border: 2px solid #c084fc;"></div>
+                <span>Instructor Only</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #f0f9ff; border: 2px solid #7dd3fc;"></div>
+                <span>Shared (Role-based)</span>
+            </div>
+        </div>
+
+        <!-- Public Pages -->
+        <div class="nav-section">
+            <h2>Public Pages</h2>
+            <div class="pages-grid">
+                <div class="page-card public" id="home">
+                    <div class="page-title">Homepage</div>
+                    <div class="page-url">/</div>
+                    <div class="page-features">
+                        • Hero section<br>
+                        • Featured instructors<br>
+                        • Category navigation<br>
+                        • Footer links
+                    </div>
+                    <div class="page-links">
+                        <div class="link-item" onclick="highlightPage('search')">
+                            <span class="link-arrow">→</span> Search Instructors
+                        </div>
+                        <div class="link-item" onclick="highlightPage('login')">
+                            <span class="link-arrow">→</span> Login/Signup
+                        </div>
+                        <div class="link-item" onclick="highlightPage('become-instructor')">
+                            <span class="link-arrow">→</span> Become Instructor
+                        </div>
+                        <div class="link-item" onclick="highlightPage('dashboard')">
+                            <span class="link-arrow">→</span> Dashboard (if logged in)
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page-card public" id="search">
+                    <div class="page-title">Search Instructors</div>
+                    <div class="page-url">/search</div>
+                    <div class="page-features">
+                        • Filter by category<br>
+                        • Instructor cards<br>
+                        • Quick booking slots<br>
+                        • Sort options
+                    </div>
+                    <div class="page-links">
+                        <div class="link-item" onclick="highlightPage('instructor-profile')">
+                            <span class="link-arrow">→</span> Instructor Profile
+                        </div>
+                        <div class="link-item" onclick="highlightPage('book')">
+                            <span class="link-arrow">→</span> Quick Book
+                        </div>
+                        <div class="link-item" onclick="highlightPage('home')">
+                            <span class="link-arrow">←</span> Back to Home
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page-card public" id="instructor-profile">
+                    <div class="page-title">Instructor Profile</div>
+                    <div class="page-url">/instructors/<span class="dynamic-param">{id}</span></div>
+                    <div class="page-features">
+                        • Full profile details<br>
+                        • Availability calendar<br>
+                        • Service offerings<br>
+                        • Booking modal (with auth redirect)
+                    </div>
+                    <div class="page-links">
+                        <div class="link-item" onclick="highlightPage('search')">
+                            <span class="link-arrow">←</span> Back to Search
+                        </div>
+                        <div class="link-item">
+                            <span class="link-arrow">↗</span> Opens BookingModal (auth required)
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page-card public" id="book">
+                    <div class="page-title">Quick Booking Page</div>
+                    <div class="page-url">/book/<span class="dynamic-param">{id}</span></div>
+                    <div class="page-features">
+                        • Service selection<br>
+                        • Time slot grid<br>
+                        • Quick confirmation<br>
+                        • Payment flow
+                    </div>
+                    <div class="page-links">
+                        <div class="link-item" onclick="highlightPage('student-dashboard')">
+                            <span class="link-arrow">→</span> Student Dashboard (after booking)
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page-card public" id="instructors">
+                    <div class="page-title">Instructors Listing</div>
+                    <div class="page-url">/instructors</div>
+                    <div class="page-features">
+                        • Grid of instructors<br>
+                        • Basic filtering
+                    </div>
+                    <div class="page-links">
+                        <div class="link-item" onclick="highlightPage('instructor-profile')">
+                            <span class="link-arrow">→</span> Instructor Profiles
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Auth Pages -->
+        <div class="nav-section">
+            <h2>Authentication Pages</h2>
+            <div class="pages-grid">
+                <div class="page-card auth" id="login">
+                    <div class="page-title">Login</div>
+                    <div class="page-url">/login</div>
+                    <div class="page-features">
+                        • Email/password form<br>
+                        • Remember redirect<br>
+                        • Social login (UI only)
+                    </div>
+                    <div class="page-links">
+                        <div class="link-item" onclick="highlightPage('signup')">
+                            <span class="link-arrow">→</span> Sign Up
+                        </div>
+                        <div class="link-item" onclick="highlightPage('forgot-password')">
+                            <span class="link-arrow">→</span> Forgot Password
+                        </div>
+                        <div class="link-item" onclick="highlightPage('dashboard')">
+                            <span class="link-arrow">→</span> Dashboard (on success)
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page-card auth" id="signup">
+                    <div class="page-title">Sign Up</div>
+                    <div class="page-url">/signup</div>
+                    <div class="page-features">
+                        • Registration form<br>
+                        • Role selection<br>
+                        • Preserves redirect
+                    </div>
+                    <div class="page-links">
+                        <div class="link-item" onclick="highlightPage('login')">
+                            <span class="link-arrow">→</span> Login
+                        </div>
+                        <div class="link-item" onclick="highlightPage('dashboard')">
+                            <span class="link-arrow">→</span> Dashboard (on success)
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page-card auth" id="forgot-password">
+                    <div class="page-title">Forgot Password</div>
+                    <div class="page-url">/forgot-password</div>
+                    <div class="page-features">
+                        • Email input<br>
+                        • Send reset link
+                    </div>
+                    <div class="page-links">
+                        <div class="link-item" onclick="highlightPage('login')">
+                            <span class="link-arrow">←</span> Back to Login
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page-card auth" id="reset-password">
+                    <div class="page-title">Reset Password</div>
+                    <div class="page-url">/reset-password</div>
+                    <div class="page-features">
+                        • New password form<br>
+                        • Requires token
+                    </div>
+                    <div class="page-links">
+                        <div class="link-item" onclick="highlightPage('login')">
+                            <span class="link-arrow">→</span> Login (after reset)
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page-card auth" id="become-instructor">
+                    <div class="page-title">Become Instructor</div>
+                    <div class="page-url">/become-instructor</div>
+                    <div class="page-features">
+                        • Instructor registration<br>
+                        • Profile setup<br>
+                        • Service configuration
+                    </div>
+                    <div class="page-links">
+                        <div class="link-item" onclick="highlightPage('instructor-dashboard')">
+                            <span class="link-arrow">→</span> Instructor Dashboard
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Student Pages -->
+        <div class="nav-section">
+            <h2>Student Pages</h2>
+            <div class="pages-grid">
+                <div class="page-card student" id="student-dashboard">
+                    <div class="auth-badge">Login Required</div>
+                    <div class="page-title">Student Dashboard</div>
+                    <div class="page-url">/dashboard/student</div>
+                    <div class="page-features">
+                        • Welcome message<br>
+                        • Quick actions<br>
+                        • Upcoming sessions<br>
+                        • Empty states
+                    </div>
+                    <div class="page-links">
+                        <div class="link-item" onclick="highlightPage('search')">
+                            <span class="link-arrow">→</span> Find Instructors
+                        </div>
+                        <div class="link-item" onclick="highlightPage('student-bookings')">
+                            <span class="link-arrow">→</span> My Bookings
+                        </div>
+                        <div class="link-item" onclick="highlightPage('booking-confirmation')">
+                            <span class="link-arrow">→</span> Booking Details
+                        </div>
+                        <div class="link-item" onclick="highlightPage('home')">
+                            <span class="link-arrow">←</span> Logout → Home
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page-card student" id="student-bookings">
+                    <div class="auth-badge">Login Required</div>
+                    <div class="page-title">My Bookings</div>
+                    <div class="page-url">/dashboard/student/bookings</div>
+                    <div class="page-features">
+                        • Upcoming/Past/Cancelled tabs<br>
+                        • Booking cards<br>
+                        • Cancel booking action<br>
+                        • Empty states
+                    </div>
+                    <div class="page-links">
+                        <div class="link-item" onclick="highlightPage('student-dashboard')">
+                            <span class="link-arrow">←</span> Back to Dashboard
+                        </div>
+                        <div class="link-item" onclick="highlightPage('booking-confirmation')">
+                            <span class="link-arrow">→</span> Booking Details
+                        </div>
+                        <div class="link-item" onclick="highlightPage('search')">
+                            <span class="link-arrow">→</span> Find Instructor
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page-card student" id="booking-confirmation">
+                    <div class="auth-badge">Login Required</div>
+                    <div class="page-title">Booking Confirmation</div>
+                    <div class="page-url">/booking/confirmation?bookingId=<span class="dynamic-param">{id}</span></div>
+                    <div class="page-features">
+                        • Booking details<br>
+                        • Confirmation number<br>
+                        • Add to calendar<br>
+                        • Next actions
+                    </div>
+                    <div class="page-links">
+                        <div class="link-item" onclick="highlightPage('student-bookings')">
+                            <span class="link-arrow">→</span> View My Bookings
+                        </div>
+                        <div class="link-item" onclick="highlightPage('search')">
+                            <span class="link-arrow">→</span> Book Another Session
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instructor Pages -->
+        <div class="nav-section">
+            <h2>Instructor Pages</h2>
+            <div class="pages-grid">
+                <div class="page-card instructor" id="instructor-dashboard">
+                    <div class="auth-badge">Login Required</div>
+                    <div class="page-title">Instructor Dashboard</div>
+                    <div class="page-url">/dashboard/instructor</div>
+                    <div class="page-features">
+                        • Profile management<br>
+                        • Upcoming sessions<br>
+                        • Quick actions<br>
+                        • Stats overview
+                    </div>
+                    <div class="page-links">
+                        <div class="link-item" onclick="highlightPage('instructor-availability')">
+                            <span class="link-arrow">→</span> Manage Availability
+                        </div>
+                        <div class="link-item" onclick="highlightPage('instructor-profile')">
+                            <span class="link-arrow">→</span> View Public Profile
+                        </div>
+                        <div class="link-item" onclick="highlightPage('home')">
+                            <span class="link-arrow">←</span> Logout → Home
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page-card instructor" id="instructor-availability">
+                    <div class="auth-badge">Login Required</div>
+                    <div class="page-title">Manage Availability</div>
+                    <div class="page-url">/dashboard/instructor/availability</div>
+                    <div class="page-features">
+                        • Week calendar grid<br>
+                        • Time slot selection<br>
+                        • Preset schedules<br>
+                        • Copy/Apply weeks
+                    </div>
+                    <div class="page-links">
+                        <div class="link-item" onclick="highlightPage('instructor-dashboard')">
+                            <span class="link-arrow">←</span> Back to Dashboard
+                        </div>
+                        <div class="link-item" onclick="highlightPage('instructor-booking-details')">
+                            <span class="link-arrow">→</span> View Booking (from calendar)
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page-card instructor" id="instructor-booking-details">
+                    <div class="auth-badge">Login Required</div>
+                    <div class="page-title">Booking Details</div>
+                    <div class="page-url">/dashboard/instructor/bookings/<span class="dynamic-param">{id}</span></div>
+                    <div class="page-features">
+                        • Full booking info<br>
+                        • Student details<br>
+                        • Action buttons<br>
+                        • Notes section
+                    </div>
+                    <div class="page-links">
+                        <div class="link-item" onclick="highlightPage('instructor-dashboard')">
+                            <span class="link-arrow">←</span> Back to Dashboard
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shared Pages -->
+        <div class="nav-section">
+            <h2>Shared Pages</h2>
+            <div class="pages-grid">
+                <div class="page-card shared" id="dashboard">
+                    <div class="auth-badge">Login Required</div>
+                    <div class="page-title">Dashboard Router</div>
+                    <div class="page-url">/dashboard</div>
+                    <div class="page-features">
+                        • Auto-redirect based on role<br>
+                        • → Student Dashboard<br>
+                        • → Instructor Dashboard<br>
+                        • → Login if no auth
+                    </div>
+                    <div class="page-links">
+                        <div class="link-item" onclick="highlightPage('student-dashboard')">
+                            <span class="link-arrow">→</span> Student Dashboard (if student)
+                        </div>
+                        <div class="link-item" onclick="highlightPage('instructor-dashboard')">
+                            <span class="link-arrow">→</span> Instructor Dashboard (if instructor)
+                        </div>
+                        <div class="link-item" onclick="highlightPage('login')">
+                            <span class="link-arrow">→</span> Login (if no auth)
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function highlightPage(pageId) {
+            // Remove existing highlights
+            document.querySelectorAll('.highlight').forEach(el => {
+                el.classList.remove('highlight');
+            });
+
+            // Add highlight to target page
+            const targetPage = document.getElementById(pageId);
+            if (targetPage) {
+                targetPage.classList.add('highlight');
+                targetPage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                // Remove highlight after animation
+                setTimeout(() => {
+                    targetPage.classList.remove('highlight');
+                }, 2000);
+            }
+        }
+    </script>
+</body>
+</html>

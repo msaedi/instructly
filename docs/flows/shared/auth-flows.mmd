@@ -1,0 +1,145 @@
+```mermaid
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#6366f1', 'primaryTextColor':'#fff', 'primaryBorderColor':'#4f46e5', 'lineColor':'#e5e7eb', 'secondaryColor':'#f3f4f6', 'tertiaryColor':'#fef3c7'}}}%%
+
+flowchart TB
+    %% Login Flow
+    subgraph "Login Flow"
+        LoginStart([User visits protected page]) --> CheckAuth{Has token?}
+        CheckAuth -->|No| StoreRedirect[Store redirect URL]
+        StoreRedirect --> LoginPage[/login?redirect=X]
+        CheckAuth -->|Yes| ValidateToken[Validate with /auth/me]
+
+        LoginPage --> LoginForm[Enter credentials]
+        LoginForm --> LoginAPI[POST /auth/login]
+        LoginAPI -->|Success| StoreToken[localStorage.setItem<br/>'access_token']
+        LoginAPI -->|Failure| LoginError[Show error message]
+
+        StoreToken --> CheckRedirect{Has redirect?}
+        CheckRedirect -->|Yes| RedirectTarget[Navigate to redirect URL]
+        CheckRedirect -->|No| RoleCheck[Check user role]
+
+        RoleCheck -->|Student| StudentDash[/dashboard/student]
+        RoleCheck -->|Instructor| InstructorDash[/dashboard/instructor]
+    end
+
+    %% Signup Flow
+    subgraph "Signup Flow"
+        SignupStart([New user]) --> SignupPage[/signup]
+        SignupPage --> RoleSelect[Select role:<br/>Student or Instructor]
+        RoleSelect --> SignupForm[Fill registration form]
+        SignupForm --> SignupAPI[POST /auth/register]
+
+        SignupAPI -->|Success| AutoLogin[Auto-login user]
+        SignupAPI -->|Failure| SignupError[Show error message]
+
+        AutoLogin --> SignupToken[Store token]
+        SignupToken --> PostSignup{Role?}
+        PostSignup -->|Student| StudentDash2[/dashboard/student]
+        PostSignup -->|Instructor| BecomeInstructor[/become-instructor]
+    end
+
+    %% Protected Route Handling
+    subgraph "Protected Route Access"
+        PageLoad([Page loads]) --> ClientCheck{Check localStorage<br/>token}
+        ClientCheck -->|No token| RedirectLogin[Redirect to /login]
+        ClientCheck -->|Has token| FetchData[Fetch page data]
+
+        FetchData -->|401 Error| ClearToken[localStorage.removeItem<br/>'access_token']
+        ClearToken --> SessionExpired[Show 'Session expired']
+        SessionExpired --> RedirectLogin
+
+        FetchData -->|Success| ShowPage[Display page content]
+    end
+
+    %% Dashboard Router Logic
+    subgraph "Dashboard Router (/dashboard)"
+        DashLoad([/dashboard loads]) --> DashAuth{Has token?}
+        DashAuth -->|No| DashLogin[Redirect to /login]
+        DashAuth -->|Yes| FetchUser[GET /auth/me]
+
+        FetchUser -->|Success| CheckRole{User role?}
+        CheckRole -->|student| StudentRoute[/dashboard/student]
+        CheckRole -->|instructor| InstructorRoute[/dashboard/instructor]
+        CheckRole -->|neither| ErrorLogin[Redirect to /login]
+
+        FetchUser -->|Error| DashLogin
+    end
+
+    %% Logout Flow
+    subgraph "Logout Flow"
+        LogoutButton([Logout clicked]) --> ClearStorage[localStorage.removeItem<br/>'access_token']
+        ClearStorage --> HomeRedirect[Navigate to /]
+    end
+
+    %% Password Reset Flow
+    subgraph "Password Reset Flow"
+        ForgotLink([Forgot password]) --> ForgotPage[/forgot-password]
+        ForgotPage --> EmailForm[Enter email]
+        EmailForm --> ResetAPI[POST /auth/forgot-password]
+        ResetAPI -->|Success| EmailSent[Check email message]
+        ResetAPI -->|Error| ResetError[Show error]
+
+        EmailLink([Email link clicked]) --> ResetPage[/reset-password?token=X]
+        ResetPage --> NewPassForm[Enter new password]
+        NewPassForm --> ConfirmAPI[POST /auth/reset-password]
+        ConfirmAPI -->|Success| ResetSuccess[Redirect to /login]
+        ConfirmAPI -->|Error| TokenError[Invalid/expired token]
+    end
+
+    %% Booking Intent Preservation
+    subgraph "Booking Authentication Flow"
+        BookingAttempt([User tries to book]) --> BookingAuth{Authenticated?}
+        BookingAuth -->|No| SaveIntent[Store booking details:<br/>instructor, service, time]
+        SaveIntent --> BookingLogin[Redirect to /login]
+        BookingLogin --> AfterLogin[After successful login]
+        AfterLogin --> RestoreBooking[Restore booking modal<br/>with saved details]
+
+        BookingAuth -->|Yes| ContinueBooking[Show booking form]
+    end
+
+    %% Styling
+    classDef authRequired fill:#fee2e2,stroke:#dc2626,color:#991b1b
+    classDef success fill:#d9f99d,stroke:#65a30d,color:#365314
+    classDef storage fill:#fef3c7,stroke:#eab308,color:#713f12
+
+    class CheckAuth,ClientCheck,DashAuth,BookingAuth authRequired
+    class StoreToken,SignupToken,ClearToken,ClearStorage storage
+    class ShowPage,StudentDash,InstructorDash,StudentDash2,ResetSuccess,ContinueBooking success
+```
+
+## Authentication Flow Analysis
+
+### Key Patterns:
+
+1. **Client-Side Token Management**
+   - All auth state stored in `localStorage`
+   - Token checked on every protected page load
+   - No server-side session management
+   - No refresh token implementation
+
+2. **Role-Based Routing**
+   - `/dashboard` acts as smart router
+   - Fetches user data and redirects based on role
+   - Student → `/dashboard/student`
+   - Instructor → `/dashboard/instructor`
+
+3. **Redirect Preservation**
+   - Login page preserves intended destination
+   - After login, users return to original page
+   - Implemented via URL query parameter
+
+4. **Booking Intent Preservation**
+   - Special handling for booking attempts
+   - Stores booking details before login redirect
+   - Restores booking modal after authentication
+
+5. **Error Handling**
+   - 401 errors trigger re-authentication
+   - Token cleared on auth failures
+   - User-friendly error messages
+
+### Security Considerations:
+- No middleware protection (client-side only)
+- API must validate tokens on every request
+- No automatic token refresh
+- Logout only clears client storage
