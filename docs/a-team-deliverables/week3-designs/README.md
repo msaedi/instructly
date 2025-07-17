@@ -4,7 +4,7 @@
 *To: X-Team Orchestrator*
 *Re: Homepage Review, Payment Flow Design & Week 3 Guidance*
 
-> **Note**: This document serves as the README.md for all Week 3 design deliverables located in `backend/docs/a-team-deliverables/week3-designs/`
+> **Note**: This document serves as the README.md for all Week 3 design deliverables located in `docs/a-team-deliverables/week3-designs/`
 
 ## Executive Summary
 
@@ -61,7 +61,7 @@ We reviewed the live site and identified key refinements needed to match our ori
 - Natural language search functionality
 
 ### 📐 Design References
-All design files are located in `backend/docs/a-team-deliverables/week3-designs/`
+All design files are located in `docs/a-team-deliverables/week3-designs/`
 - `homepage-refinements/homepage-redesign-mockup-v13.txt` - Complete layout
 - `homepage-refinements/minimal-black-white-icons.txt` - Icon specifications
 - `homepage-refinements/light-yellow-background-guide.txt` - Background implementation
@@ -240,7 +240,7 @@ Continue responsive-first approach. Payment flow especially critical on mobile (
 
 ## 📁 Design Deliverables Provided
 
-All files are organized in `backend/docs/a-team-deliverables/week3-designs/`
+All files are organized in `docs/a-team-deliverables/week3-designs/`
 
 ### Homepage Refinements
 - `homepage-refinements/homepage-review-feedback.txt`

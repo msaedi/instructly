@@ -283,10 +283,10 @@ docker-compose logs dragonfly
 
 ## Additional Resources
 
-- [API Documentation](/backend/docs/api/instainstru-api-guide.md)
-- [Architecture Overview](/backend/docs/architecture/architecture-decisions.md)
-- [Testing Guide](/backend/docs/development/testing/)
-- [SSL Configuration](/backend/docs/infrastructure/ssl-config-summary.md)
+- [API Documentation](/docs/api/instainstru-api-guide.md)
+- [Architecture Overview](/docs/architecture/architecture-decisions.md)
+- [Testing Guide](/docs/development/testing/)
+- [SSL Configuration](/docs/infrastructure/ssl-config-summary.md)
 
 ## Getting Help
 

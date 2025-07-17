@@ -106,7 +106,7 @@ PUBLIC_AVAILABILITY_CACHE_TTL=300  # Cache duration in seconds
 - API usage guide with examples
 - TypeScript generator script
 - Postman collection
-- All organized in `backend/docs/api/`
+- All organized in `docs/api/`
 
 ### Monitoring Implementation (Implicit Work Stream)
 **Status**: COMPLETE ✅

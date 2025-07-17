@@ -73,26 +73,26 @@ Frontend believes slots are database entities with IDs (WRONG). The operation pa
 
 ## Documentation Structure
 
-Key project documentation is organized in `backend/docs/`:
+Key project documentation is organized in `docs/`:
 
-- **Project Overview**: `backend/docs/01_core_project_info.md`
-- **Architecture State**: `backend/docs/architecture/02_architecture_state.md`
-- **Work Streams Status**: `backend/docs/project-status/03_work-streams-status.md`
-- **System Capabilities**: `backend/docs/project-status/04_system-capabilities.md`
-- **Frontend Cleanup Guide**: `backend/docs/project-status/Frontend Technical Debt Cleanup Checklist - Work Stream #13.md`
+- **Project Overview**: `docs/project-overview/01_core_project_info.md`
+- **Architecture State**: `docs/architecture/02_architecture_state.md`
+- **Work Streams Status**: `docs/project-status/03_work-streams-status.md`
+- **System Capabilities**: `docs/project-status/04_system-capabilities.md`
+- **Frontend Cleanup Guide**: `docs/project-status/Frontend Technical Debt Cleanup Checklist - Work Stream #13.md`
 
 Always check these documents for current state before making changes.
 
 ## A-Team Design Deliverables
 
-The A-Team has delivered complete design specifications in `backend/docs/a-team-deliverables/`:
+The A-Team has delivered complete design specifications in `docs/a-team-deliverables/`:
 
-- **Implementation Guide**: `backend/docs/a-team-deliverables/student-booking-implementation-guide.md`
+- **Implementation Guide**: `docs/a-team-deliverables/student-booking-implementation-guide.md`
   - 6-8 week plan with all features designed
   - References all design artifacts
   - Technical implementation details
 
-- **UI Components**: `backend/docs/a-team-deliverables/missing-ui-components.md`
+- **UI Components**: `docs/a-team-deliverables/missing-ui-components.md`
   - Availability calendar grid design
   - Time selection patterns
   - Instructor search cards
@@ -227,18 +227,18 @@ The frontend uses Next.js 15 App Router with:
 ## Key Documentation
 
 ### Project Overview & State
-- `backend/docs/01_core_project_info.md` - Mission, team structure, priorities
-- `backend/docs/architecture/02_architecture_state.md` - Current architecture
-- `backend/docs/project-status/03_work-streams-status.md` - Active work status
-- `backend/docs/project-status/04_system-capabilities.md` - What's working/broken
+- `docs/project-overview/01_core_project_info.md` - Mission, team structure, priorities
+- `docs/architecture/02_architecture_state.md` - Current architecture
+- `docs/project-status/03_work-streams-status.md` - Active work status
+- `docs/project-status/04_system-capabilities.md` - What's working/broken
 
 ### Current Priority Work
-- `backend/docs/project-status/Frontend Technical Debt Cleanup Checklist - Work Stream #13.md` - Critical blocker
-- `backend/docs/project-status/work-streams/10-single-table-design.md` - Backend complete, frontend needs update
+- `docs/project-status/Frontend Technical Debt Cleanup Checklist - Work Stream #13.md` - Critical blocker
+- `docs/project-status/work-streams/Work Stream #10 - Two-Table Availability Design Removal.md` - Backend complete, frontend needs update
 
 ### Architecture References
-- `backend/docs/architecture/06_repository_pattern_architecture.md` - Repository implementation guide
-- `backend/docs/architecture/architecture-decisions.md` - All architectural decisions
+- `docs/architecture/06_repository_pattern_architecture.md` - Repository implementation guide
+- `docs/architecture/architecture-decisions.md` - All architectural decisions
 
 When working on any feature, check these docs first for context and current state.
 

@@ -185,7 +185,7 @@
    - ✅ API usage guide with examples
    - ✅ TypeScript generator script
    - ✅ Postman collection
-   - ✅ Located in backend/docs/api/
+   - ✅ Located in docs/api/
 
 ### Monitoring Implementation ✅
 **Completed**: July 16, 2025
