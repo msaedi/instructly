@@ -13,6 +13,21 @@ import {
   useCreateBooking,
   calculateEndTime,
 } from '@/features/student/booking';
+import {
+  PaymentMethodSelection,
+  PaymentConfirmation,
+  PaymentProcessing,
+  PaymentSuccess,
+  usePaymentFlow,
+  PaymentStep,
+  BookingPayment,
+  BookingType,
+  PaymentCard,
+  CreditBalance,
+  determineBookingType,
+  calculateServiceFee,
+  calculateTotalAmount,
+} from '@/features/student/payment';
 
 interface Service {
   id: number;
@@ -61,6 +76,25 @@ export default function QuickBookingPage() {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [availability, setAvailability] = useState<any[]>([]);
   const [confirmingBooking, setConfirmingBooking] = useState(false);
+  const [showPaymentFlow, setShowPaymentFlow] = useState(false);
+  const [bookingData, setBookingData] = useState<BookingPayment | null>(null);
+  const [confirmationNumber, setConfirmationNumber] = useState<string>('');
+
+  // Mock payment data - replace with actual API calls
+  const [userCards] = useState<PaymentCard[]>([
+    {
+      id: '1',
+      last4: '4242',
+      brand: 'Visa',
+      expiryMonth: 12,
+      expiryYear: 2025,
+      isDefault: true,
+    },
+  ]);
+  const [userCredits] = useState<CreditBalance>({
+    totalAmount: 0,
+    credits: [],
+  });
 
   // Fetch instructor data
   useEffect(() => {
@@ -163,34 +197,37 @@ export default function QuickBookingPage() {
       return;
     }
 
-    // Create booking via API
-    setConfirmingBooking(true);
-    resetBookingError();
+    // Prepare booking data for payment flow
+    const bookingDate = new Date(selectedDate + 'T' + selectedTime);
+    const basePrice = selectedService.hourly_rate * (duration / 60);
+    const serviceFee = calculateServiceFee(basePrice);
+    const totalAmount = calculateTotalAmount(basePrice);
+    const bookingType = determineBookingType(bookingDate);
 
-    // Format time to remove seconds if present
-    const formattedStartTime = selectedTime.split(':').slice(0, 2).join(':');
-    const endTime = calculateEndTime(formattedStartTime, duration);
+    const paymentBookingData: BookingPayment = {
+      bookingId: '', // Will be set after creation
+      instructorId: String(instructor.user_id),
+      instructorName: instructor.user.full_name,
+      lessonType: selectedService.skill,
+      date: bookingDate,
+      startTime: selectedTime,
+      endTime: calculateEndTime(selectedTime, duration),
+      duration,
+      location: instructor.areas_of_service[0] || 'NYC',
+      basePrice,
+      serviceFee,
+      totalAmount,
+      bookingType,
+      paymentStatus: 'pending' as const,
+      freeCancellationUntil:
+        bookingType === BookingType.STANDARD
+          ? new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
+          : undefined,
+    };
 
-    const booking = await createBooking({
-      instructor_id: instructor.user_id,
-      service_id: selectedService.id,
-      booking_date: selectedDate,
-      start_time: formattedStartTime,
-      end_time: endTime,
-    });
-
-    if (booking) {
-      logger.info('Quick booking created successfully', {
-        bookingId: booking.id,
-        status: booking.status,
-      });
-
-      // Redirect to bookings page
-      router.push('/dashboard/student/bookings');
-    } else {
-      // Error is handled by the hook and displayed in the UI
-      setConfirmingBooking(false);
-    }
+    setBookingData(paymentBookingData);
+    setShowConfirmation(false);
+    setShowPaymentFlow(true);
   };
 
   const formatTime = (time: string) => {
@@ -215,6 +252,77 @@ export default function QuickBookingPage() {
     return selectedService.hourly_rate * (duration / 60);
   };
 
+  // Initialize payment flow
+  const {
+    currentStep,
+    paymentMethod,
+    selectedCard,
+    creditsToUse,
+    isProcessing,
+    error: paymentError,
+    goToStep,
+    selectPaymentMethod,
+    processPayment: processPaymentOriginal,
+    reset: resetPayment,
+  } = usePaymentFlow({
+    booking: bookingData!,
+    onSuccess: (bookingId) => {
+      logger.info('Payment successful', { bookingId });
+    },
+    onError: (error) => {
+      logger.error('Payment failed', error);
+    },
+  });
+
+  // Override processPayment to create booking during payment
+  const processPayment = async () => {
+    if (!bookingData || !instructor || !selectedService) return;
+
+    // Set to processing state
+    goToStep(PaymentStep.PROCESSING);
+
+    try {
+      // Format time to remove seconds if present
+      const formattedStartTime = selectedTime.split(':').slice(0, 2).join(':');
+      const endTime = calculateEndTime(formattedStartTime, duration);
+
+      // Create booking via API
+      const booking = await createBooking({
+        instructor_id: instructor.user_id,
+        service_id: selectedService.id,
+        booking_date: selectedDate,
+        start_time: formattedStartTime,
+        end_time: endTime,
+      });
+
+      if (booking) {
+        logger.info('Booking created successfully', {
+          bookingId: booking.id,
+          status: booking.status,
+        });
+
+        // Update booking data with actual booking ID
+        setBookingData({ ...bookingData, bookingId: String(booking.id) });
+        setConfirmationNumber(`B${booking.id}`);
+
+        // Move to success state
+        goToStep(PaymentStep.SUCCESS);
+      } else {
+        throw new Error(bookingError || 'Failed to create booking');
+      }
+    } catch (error) {
+      logger.error('Booking creation failed', error as Error);
+      goToStep(PaymentStep.ERROR);
+    }
+  };
+
+  // Handle going back from payment flow
+  const handleBackFromPayment = () => {
+    setShowPaymentFlow(false);
+    setShowConfirmation(true);
+    resetPayment();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
@@ -237,6 +345,75 @@ export default function QuickBookingPage() {
             Back to search
           </Link>
         </div>
+      </div>
+    );
+  }
+
+  // Render payment flow if active
+  if (showPaymentFlow && bookingData) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        {currentStep === PaymentStep.METHOD_SELECTION && (
+          <PaymentMethodSelection
+            booking={bookingData}
+            cards={userCards}
+            credits={userCredits}
+            onSelectPayment={selectPaymentMethod}
+            onAddCard={() => {
+              // TODO: Implement add card flow
+              alert('Add card functionality coming soon');
+            }}
+          />
+        )}
+        {currentStep === PaymentStep.CONFIRMATION && (
+          <PaymentConfirmation
+            booking={bookingData}
+            paymentMethod={paymentMethod!}
+            cardLast4={selectedCard?.last4}
+            creditsUsed={creditsToUse}
+            onConfirm={processPayment}
+            onBack={() => goToStep(PaymentStep.METHOD_SELECTION)}
+          />
+        )}
+        {currentStep === PaymentStep.PROCESSING && (
+          <PaymentProcessing
+            amount={bookingData.totalAmount - creditsToUse}
+            bookingType={bookingData.bookingType}
+          />
+        )}
+        {currentStep === PaymentStep.SUCCESS && (
+          <PaymentSuccess
+            booking={bookingData}
+            confirmationNumber={confirmationNumber}
+            cardLast4={selectedCard?.last4}
+          />
+        )}
+        {currentStep === PaymentStep.ERROR && (
+          <div className="min-h-screen flex items-center justify-center p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 max-w-md text-center">
+              <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+              <h2 className="text-2xl font-bold mb-2">Payment Failed</h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
+                {paymentError || bookingError || 'An error occurred while processing your payment.'}
+              </p>
+              <button
+                onClick={() => {
+                  resetPayment();
+                  goToStep(PaymentStep.METHOD_SELECTION);
+                }}
+                className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700"
+              >
+                Try Again
+              </button>
+              <button
+                onClick={handleBackFromPayment}
+                className="ml-4 text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
