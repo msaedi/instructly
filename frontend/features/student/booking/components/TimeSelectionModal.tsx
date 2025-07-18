@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, ArrowLeft } from 'lucide-react';
 import { logger } from '@/lib/logger';
+import { publicApi } from '@/features/shared/api/client';
 import Calendar from './TimeSelectionModal/Calendar';
 import TimeDropdown from './TimeSelectionModal/TimeDropdown';
 import DurationButtons from './TimeSelectionModal/DurationButtons';
@@ -14,9 +15,15 @@ interface TimeSelectionModalProps {
   instructor: {
     user_id: number;
     user: { full_name: string };
-    services: Array<{ duration_options: number[] }>;
+    services: Array<{
+      duration_options?: number[];
+      duration?: number;
+      hourly_rate: number;
+      skill: string;
+    }>;
   };
   preSelectedDate?: string; // From search context (format: "YYYY-MM-DD")
+  preSelectedTime?: string; // Pre-selected time slot
   onTimeSelected: (selection: { date: string; time: string; duration: number }) => void;
 }
 
@@ -25,41 +32,52 @@ export default function TimeSelectionModal({
   onClose,
   instructor,
   preSelectedDate,
+  preSelectedTime,
   onTimeSelected,
 }: TimeSelectionModalProps) {
-  // Mock duration options for testing - replace with real instructor data
-  const mockDurationOptions = [
-    { duration: 30, price: 75 },
-    { duration: 60, price: 120 },
-    { duration: 90, price: 165 },
-  ];
-  // For single duration test: [{ duration: 60, price: 120 }]
+  // Get duration options from instructor services
+  const getDurationOptions = () => {
+    // Collect unique durations from all services
+    const durations = new Set<number>();
+    instructor.services.forEach((service) => {
+      if (service.duration_options && service.duration_options.length > 0) {
+        service.duration_options.forEach((d) => durations.add(d));
+      } else if (service.duration) {
+        durations.add(service.duration);
+      }
+    });
+
+    // Convert to array and sort
+    const sortedDurations = Array.from(durations).sort((a, b) => a - b);
+
+    // Calculate prices based on average hourly rate
+    const avgHourlyRate =
+      instructor.services.reduce((sum, s) => sum + s.hourly_rate, 0) / instructor.services.length;
+
+    return sortedDurations.map((duration) => ({
+      duration,
+      price: Math.round((avgHourlyRate * duration) / 60),
+    }));
+  };
+
+  const durationOptions = getDurationOptions();
 
   // Component state
   const [selectedDate, setSelectedDate] = useState<string | null>(preSelectedDate || null);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string | null>(preSelectedTime || null);
   // Pre-select middle duration option by default
   const [selectedDuration, setSelectedDuration] = useState<number>(
-    mockDurationOptions.length > 1
-      ? mockDurationOptions[Math.floor(mockDurationOptions.length / 2)].duration
-      : mockDurationOptions[0]?.duration || 60
+    durationOptions.length > 1
+      ? durationOptions[Math.floor(durationOptions.length / 2)].duration
+      : durationOptions[0]?.duration || 60
   );
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
-  const [showTimeDropdown, setShowTimeDropdown] = useState(!!preSelectedDate);
-  const [availableDates, setAvailableDates] = useState<string[]>([
-    // Mock data - replace with actual API call
-    '2024-01-17',
-    '2024-01-18',
-    '2024-01-19',
-    '2024-01-22',
-    '2024-01-23',
-    '2024-01-24',
-    '2024-01-25',
-    '2024-01-26',
-    '2024-01-29',
-    '2024-01-30',
-  ]);
+  const [showTimeDropdown, setShowTimeDropdown] = useState(false);
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
+  const [availabilityData, setAvailabilityData] = useState<any>(null);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
+  const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
 
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
@@ -72,6 +90,81 @@ export default function TimeSelectionModal({
     const lastName = parts[parts.length - 1];
     const lastInitial = lastName ? lastName.charAt(0) : '';
     return `${firstName} ${lastInitial}.`;
+  };
+
+  // Fetch availability data when modal opens
+  useEffect(() => {
+    if (isOpen && instructor.user_id) {
+      fetchAvailability();
+    }
+  }, [isOpen, instructor.user_id]);
+
+  const fetchAvailability = async () => {
+    setLoadingAvailability(true);
+    try {
+      const today = new Date();
+      const endDate = new Date();
+      endDate.setDate(today.getDate() + 30); // Get 30 days of availability
+
+      const response = await publicApi.getInstructorAvailability(instructor.user_id.toString(), {
+        start_date: today.toISOString().split('T')[0],
+        end_date: endDate.toISOString().split('T')[0],
+      });
+
+      if (response.data?.availability_by_date) {
+        const availabilityByDate = response.data.availability_by_date;
+        setAvailabilityData(availabilityByDate);
+
+        // Extract available dates - only include dates with actual time slots
+        const datesWithSlots: string[] = [];
+        Object.keys(availabilityByDate).forEach((date) => {
+          const slots = availabilityByDate[date].available_slots || [];
+          // Filter out past times if it's today
+          const now = new Date();
+          const isToday = date === now.toISOString().split('T')[0];
+
+          const validSlots = slots.filter((slot: any) => {
+            if (!isToday) return true;
+            const [hours, minutes] = slot.start_time.split(':');
+            const slotTime = new Date();
+            slotTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+            return slotTime > now;
+          });
+
+          if (validSlots.length > 0) {
+            datesWithSlots.push(date);
+          }
+        });
+        setAvailableDates(datesWithSlots);
+
+        // If we have a pre-selected date, load its time slots
+        if (preSelectedDate && availabilityByDate[preSelectedDate]) {
+          const slots = availabilityByDate[preSelectedDate].available_slots || [];
+          const formattedSlots = slots.map((slot: any) => {
+            const [hours, minutes] = slot.start_time.split(':');
+            const hour = parseInt(hours);
+            const ampm = hour >= 12 ? 'pm' : 'am';
+            const displayHour = hour % 12 || 12;
+            return `${displayHour}:${minutes.padStart(2, '0')}${ampm}`;
+          });
+          setTimeSlots(formattedSlots);
+
+          // If pre-selected time is provided, format it to match
+          if (preSelectedTime) {
+            const [hours, minutes] = preSelectedTime.split(':');
+            const hour = parseInt(hours);
+            const ampm = hour >= 12 ? 'pm' : 'am';
+            const displayHour = hour % 12 || 12;
+            const formattedTime = `${displayHour}:${minutes.padStart(2, '0')}${ampm}`;
+            setSelectedTime(formattedTime);
+          }
+        }
+      }
+    } catch (error) {
+      logger.error('Failed to fetch availability', error);
+    } finally {
+      setLoadingAvailability(false);
+    }
   };
 
   // Handle escape key
@@ -136,24 +229,107 @@ export default function TimeSelectionModal({
 
   // Get current price based on selected duration
   const getCurrentPrice = () => {
-    const option = mockDurationOptions.find((opt) => opt.duration === selectedDuration);
+    const option = durationOptions.find((opt) => opt.duration === selectedDuration);
     return option?.price || 0;
   };
 
   // Handle date selection
-  const handleDateSelect = (date: string) => {
+  const handleDateSelect = async (date: string) => {
     setSelectedDate(date);
+    setSelectedTime(null); // Clear previous time selection
     setShowTimeDropdown(true);
-    // Generate mock time slots based on duration
-    const mockTimeSlots =
-      selectedDuration === 30
-        ? ['9:00am', '9:30am', '10:00am', '10:30am', '11:00am', '1:00pm', '1:30pm', '2:00pm']
-        : selectedDuration === 60
-          ? ['9:00am', '10:00am', '11:00am', '1:00pm', '2:00pm', '3:00pm']
-          : ['9:00am', '10:30am', '1:00pm', '2:30pm']; // 90 min
+    setTimeSlots([]); // Clear previous slots
+    setLoadingTimeSlots(true); // Show loading state
 
-    setTimeSlots(mockTimeSlots);
-    logger.info('Date selected', { date, slotsGenerated: mockTimeSlots.length });
+    // If we don't have availability data yet, fetch it
+    if (!availabilityData) {
+      await fetchAvailability();
+    }
+
+    // Get time slots from availability data
+    if (availabilityData && availabilityData[date]) {
+      const slots = availabilityData[date].available_slots || [];
+
+      // Filter out past times if selecting today
+      const now = new Date();
+      const isToday = date === now.toISOString().split('T')[0];
+
+      const validSlots = slots.filter((slot: any) => {
+        if (!isToday) return true;
+
+        const [hours, minutes] = slot.start_time.split(':');
+        const slotTime = new Date();
+        slotTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+        return slotTime > now;
+      });
+
+      const formattedSlots = validSlots.map((slot: any) => {
+        // Convert 24h to 12h format
+        const [hours, minutes] = slot.start_time.split(':');
+        const hour = parseInt(hours);
+        const ampm = hour >= 12 ? 'pm' : 'am';
+        const displayHour = hour % 12 || 12;
+        return `${displayHour}:${minutes.padStart(2, '0')}${ampm}`;
+      });
+
+      setTimeSlots(formattedSlots);
+      setLoadingTimeSlots(false);
+      logger.info('Date selected', { date, slotsGenerated: formattedSlots.length, isToday });
+    } else {
+      // Fetch specific date availability if not in cache
+      try {
+        const response = await publicApi.getInstructorAvailability(instructor.user_id.toString(), {
+          start_date: date,
+          end_date: date,
+        });
+
+        if (response.data?.availability_by_date?.[date]) {
+          const dayData = response.data.availability_by_date[date];
+          const slots = dayData.available_slots || [];
+
+          // Update availability data cache
+          setAvailabilityData((prev: any) => ({
+            ...prev,
+            [date]: dayData,
+          }));
+
+          // Process slots
+          const now = new Date();
+          const isToday = date === now.toISOString().split('T')[0];
+
+          const validSlots = slots.filter((slot: any) => {
+            if (!isToday) return true;
+
+            const [hours, minutes] = slot.start_time.split(':');
+            const slotTime = new Date();
+            slotTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+            return slotTime > now;
+          });
+
+          const formattedSlots = validSlots.map((slot: any) => {
+            const [hours, minutes] = slot.start_time.split(':');
+            const hour = parseInt(hours);
+            const ampm = hour >= 12 ? 'pm' : 'am';
+            const displayHour = hour % 12 || 12;
+            return `${displayHour}:${minutes.padStart(2, '0')}${ampm}`;
+          });
+
+          setTimeSlots(formattedSlots);
+          setLoadingTimeSlots(false);
+          logger.info('Fetched date-specific availability', { date, slots: formattedSlots.length });
+        } else {
+          setTimeSlots([]);
+          setLoadingTimeSlots(false);
+          logger.info('No availability for selected date', { date });
+        }
+      } catch (error) {
+        logger.error('Failed to fetch date-specific availability', error);
+        setTimeSlots([]);
+        setLoadingTimeSlots(false);
+      }
+    }
   };
 
   // Handle time selection
@@ -161,6 +337,14 @@ export default function TimeSelectionModal({
     setSelectedTime(time);
     logger.info('Time selected', { time });
   };
+
+  // Auto-select first available time when time slots load
+  useEffect(() => {
+    if (timeSlots.length > 0 && !selectedTime && !loadingTimeSlots) {
+      setSelectedTime(timeSlots[0]);
+      logger.info('Auto-selected first available time', { time: timeSlots[0] });
+    }
+  }, [timeSlots, selectedTime, loadingTimeSlots]);
 
   // Handle duration selection
   const handleDurationSelect = (duration: number) => {
@@ -170,18 +354,6 @@ export default function TimeSelectionModal({
     // Clear selected time if changing duration
     if (previousDuration !== duration && selectedTime) {
       setSelectedTime(null);
-    }
-
-    // Update time slots based on new duration
-    if (selectedDate) {
-      const mockTimeSlots =
-        duration === 30
-          ? ['9:00am', '9:30am', '10:00am', '10:30am', '11:00am', '1:00pm', '1:30pm', '2:00pm']
-          : duration === 60
-            ? ['9:00am', '10:00am', '11:00am', '1:00pm', '2:00pm', '3:00pm']
-            : ['9:00am', '10:30am', '1:00pm', '2:30pm']; // 90 min
-
-      setTimeSlots(mockTimeSlots);
     }
 
     logger.info('Duration selected', { duration, previousDuration });
@@ -237,13 +409,14 @@ export default function TimeSelectionModal({
                   isVisible={showTimeDropdown}
                   onTimeSelect={handleTimeSelect}
                   disabled={false}
+                  isLoading={loadingTimeSlots}
                 />
               </div>
             )}
 
             {/* Duration Buttons (only if multiple durations) */}
             <DurationButtons
-              durationOptions={mockDurationOptions}
+              durationOptions={durationOptions}
               selectedDuration={selectedDuration}
               onDurationSelect={handleDurationSelect}
             />
@@ -280,13 +453,16 @@ export default function TimeSelectionModal({
       >
         <div className="flex min-h-screen items-center justify-center p-4">
           {/* Backdrop */}
-          <div className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" />
+          <div
+            className="fixed inset-0 transition-opacity"
+            style={{ backgroundColor: 'var(--modal-backdrop)' }}
+          />
 
           {/* Modal */}
           <div
             ref={modalRef}
             tabIndex={-1}
-            className="relative bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-[600px] max-h-[90vh] overflow-hidden animate-slideUp"
+            className="relative bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-[720px] max-h-[90vh] flex flex-col animate-slideUp"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Desktop Header */}
@@ -314,7 +490,7 @@ export default function TimeSelectionModal({
             </div>
 
             {/* Desktop Content - Split Layout */}
-            <div className="px-8 pb-8">
+            <div className="flex-1 overflow-y-auto px-8 pb-8">
               <div className="flex gap-8">
                 {/* Left Section - Calendar and Controls */}
                 <div className="flex-1">
@@ -337,13 +513,14 @@ export default function TimeSelectionModal({
                         isVisible={showTimeDropdown}
                         onTimeSelect={handleTimeSelect}
                         disabled={false}
+                        isLoading={loadingTimeSlots}
                       />
                     </div>
                   )}
 
                   {/* Duration Buttons (only if multiple durations) */}
                   <DurationButtons
-                    durationOptions={mockDurationOptions}
+                    durationOptions={durationOptions}
                     selectedDuration={selectedDuration}
                     onDurationSelect={handleDurationSelect}
                   />
@@ -356,7 +533,7 @@ export default function TimeSelectionModal({
                 />
 
                 {/* Right Section - Summary and CTA */}
-                <div className="w-[200px]">
+                <div className="w-[200px] flex-shrink-0">
                   <SummarySection
                     selectedDate={selectedDate}
                     selectedTime={selectedTime}
@@ -398,6 +575,39 @@ export default function TimeSelectionModal({
           --border-default: #e0e0e0;
           --border-light: #e8e8e8;
           --background-hover: #f5f5f5;
+        }
+      `}</style>
+
+      {/* Global styles for dropdown animations */}
+      <style jsx global>{`
+        @keyframes dropdownOpen {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes dropdownClose {
+          from {
+            opacity: 1;
+            transform: translateY(0);
+          }
+          to {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+        }
+
+        .animate-dropdownOpen {
+          animation: dropdownOpen 0.15s ease-out forwards;
+        }
+
+        .animate-dropdownClose {
+          animation: dropdownClose 0.15s ease-out forwards;
         }
       `}</style>
     </>

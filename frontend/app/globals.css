@@ -17,6 +17,9 @@
   --color-primary-hover: #4338ca; /* Indigo 700 */
   --color-primary-light: #e0e7ff; /* Indigo 100 */
 
+  /* Modal Settings */
+  --modal-backdrop: rgba(0, 0, 0, 0.5); /* Semi-transparent backdrop for modals */
+
   /* Semantic Colors */
   --color-success: #10b981;
   --color-warning: #f59e0b;

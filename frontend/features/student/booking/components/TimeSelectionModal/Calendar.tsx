@@ -131,7 +131,7 @@ export default function Calendar({
           const isCurrentMonth = date.getMonth() === currentMonth.getMonth();
           const isToday = date.getTime() === today.getTime();
           const isAvailable = availableDates.includes(dateStr);
-          const isSelected = selectedDate === dateStr || preSelectedDate === dateStr;
+          const isSelected = selectedDate === dateStr;
           const isPast = date < today;
 
           // Don't render dates outside current month view

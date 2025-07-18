@@ -58,7 +58,7 @@ export default function SummarySection({
   }
 
   return (
-    <div className="w-full lg:w-[200px]">
+    <div className="w-full">
       <div className="text-center">
         {/* Request for header */}
         <p className="text-sm mb-3" style={{ color: '#666666' }}>
@@ -103,11 +103,11 @@ export default function SummarySection({
 
         {/* Helper Text */}
         <p
-          className="mt-4 text-sm leading-relaxed"
+          className="mt-4 text-sm leading-relaxed px-2"
           style={{
             color: '#666666',
-            fontSize: '14px',
-            lineHeight: '1.5',
+            fontSize: '13px',
+            lineHeight: '1.4',
           }}
         >
           Next, confirm your details and start learning
