@@ -1,0 +1,32 @@
+NO TIMES AVAILABLE:
+│  ┌─────────────────────────────────────┐      │
+│  │ No times available for this date │      │
+│  └─────────────────────────────────────┘      │
+
+SINGLE TIME AVAILABLE:
+│  ┌─────────────────────────────────────┐      │
+│  │ 2:00pm (only time available)    │      │
+│  └─────────────────────────────────────┘      │
+
+NO AVAILABILITY SPECIFICATIONS:
+Dropdown State:
+- Background: #F5F5F5
+- Text color: #999999
+- Cursor: not-allowed
+- No dropdown arrow
+- Font: 16px italic
+- Padding: 12px 16px
+
+Suggestions:
+- Consider showing nearby dates with availability
+- "Try July 18 or 19" helper text
+- Link to instructor's full availability
+
+SINGLE TIME SPECIFICATIONS:
+Auto-selection:
+- Pre-select the single option
+- Still require user to open dropdown (intentional friction)
+- Show "(only time available)" suffix
+- Font: 14px, #666666 for suffix
+- Update summary immediately
+- Enable continue button

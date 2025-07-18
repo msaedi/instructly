@@ -1,0 +1,53 @@
+NO RESULTS STATE:
+┌─────────────────────────────────────────┐
+│                                         │
+│         😔 No instructors found         │
+│                                         │
+│   Try adjusting your filters or search  │
+│   for a different subject               │
+│                                         │
+│        [Clear Filters]                  │
+│                                         │
+└─────────────────────────────────────────┘
+
+NO AVAILABILITY STATE (Card shows but grayed):
+┌─────────────────────────────────────────┐
+│ [Avatar]  Sarah Chen                    │
+│           Piano Instructor              │
+│                                         │
+│ ⭐ 4.9 · 127 reviews  🎹 Classical, Pop │
+│ Upper West Side · $120/hour            │
+│                                         │
+│ ┌────┬────┬────┬────┬────┬────┬────┐  │
+│ │Mon │Tue │Wed │Thu │Fri │Sat │Sun │  │
+│ │ -- │ -- │ -- │ -- │ -- │ -- │ -- │  │
+│ └────┴────┴────┴────┴────┴────┴────┘  │
+│                                         │
+│ "Patient teacher specializing in        │
+│ beginners and music theory..."          │
+│                                         │
+│         [No availability]               │
+└─────────────────────────────────────────┘
+
+EMPTY STATE SPECIFICATIONS:
+Container:
+- Min-height: 400px
+- Center content vertically and horizontally
+- Padding: 48px
+
+Typography:
+- Emoji: 48px
+- Title: 20px, #333, font-weight: 500
+- Message: 16px, #666
+- Line-height: 1.5
+
+Button:
+- Standard secondary button style
+- 16px font
+- #6B46C1 text
+- 1px solid #6B46C1 border
+
+No Availability Card:
+- Opacity: 0.6
+- Button disabled state
+- Hover shows "Try different dates"

@@ -1,0 +1,27 @@
+[30m/$75]  [60m/$120]  [90m/$165]
+
+DURATION BUTTON SPECIFICATIONS:
+Container:
+- Display: flex
+- Gap: 12px
+- Margin-top: 16px
+
+Individual Buttons:
+- Height: 40px
+- Padding: 12px 20px
+- Border: 1px solid #E0E0E0
+- Border-radius: 4px
+- Font: 14px, #333333
+- Format: "{duration}/{price}"
+
+Button States:
+- Default: Background #FFFFFF, Border #E0E0E0
+- Hover: Background #F9F7FF
+- Selected: Background #6B46C1, Color #FFFFFF, No border
+- Disabled: Background #F5F5F5, Color #CCCCCC
+
+CRITICAL NOTES:
+- ONLY shown if instructor offers multiple durations (10% of cases)
+- Middle option (60 min) is pre-selected by default
+- Selection immediately updates time dropdown increments
+- Mobile: May stack to 2×2 grid if space constrained

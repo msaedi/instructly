@@ -1,0 +1,56 @@
+DATE FILTER DROPDOWN:
+┌─────────────────┐
+│ 📅 When         │
+├─────────────────┤
+│ ○ Today         │
+│ ○ Tomorrow      │
+│ ○ This Week     │
+│ ○ Next Week     │
+│ ○ I'm flexible  │
+│ ─────────────── │
+│ 📅 Custom dates │
+└─────────────────┘
+
+AREA FILTER (MULTI-SELECT):
+┌─────────────────────┐
+│ 📍 Areas           │
+├─────────────────────┤
+│ Manhattan          │
+│ □ Upper West Side  │
+│ □ Upper East Side  │
+│ □ Midtown          │
+│ □ Chelsea          │
+│ Brooklyn           │
+│ □ Brooklyn Heights │
+│ □ Park Slope       │
+│ [Show all areas]   │
+├─────────────────────┤
+│ [Apply] [Clear]    │
+└─────────────────────┘
+
+DROPDOWN SPECIFICATIONS:
+- Position: Absolute below trigger
+- Background: White
+- Border: 1px solid #E0E0E0
+- Border-radius: 8px
+- Box-shadow: 0 4px 12px rgba(0,0,0,0.15)
+- Min-width: 200px
+- Max-height: 400px (then scroll)
+
+Options:
+- Height: 40px per option
+- Padding: 12px 16px
+- Hover: #F5F5F5 background
+- Radio/checkbox: 20px, 8px margin-right
+
+Section Headers:
+- Font: 12px, #999, uppercase
+- Letter-spacing: 0.5px
+- Padding: 8px 16px
+- Not selectable
+
+Action Buttons:
+- Height: 36px
+- Margin: 12px
+- Primary: #6B46C1 background
+- Secondary: White with border

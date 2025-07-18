@@ -1,0 +1,39 @@
+┌─────────────────────────────┐
+│ [<] Select Your Lesson Time │
+├─────────────────────────────┤
+│ Sarah C's availability      │
+│                             │
+│ < July 2025 >               │
+│                             │
+│ S  M  T  W  T  F  S        │
+│ 14 15 16(17)18 19 20       │
+│ 21 22 23 24 25 26 27       │
+│ 28 29 30 31  1  2  3       │
+│                             │
+│ ┌───────────────────┐       │
+│ │ 1:00pm         ▼ │       │
+│ └───────────────────┘       │
+│                             │
+│ [30m]  [60m]  [90m]        │
+│ [$75] [$120] [$165]        │
+│                             │
+├─────────────────────────────┤
+│ July 17, 1:00pm            │
+│ 60 min · $120              │
+│                             │
+│  [Select and continue]      │
+│                             │
+│ Next, confirm your details  │
+│ and start learning         │
+└─────────────────────────────┘
+
+MOBILE SPECIFICATIONS:
+- Full page (not modal)
+- Width: 100vw
+- Header: 56px with back arrow
+- Padding: 16px
+- Calendar cells: 40×40px tap targets
+- Time dropdown: 100% width
+- Duration buttons: Stack in 2 rows
+- Primary button: Full width
+- Sticky footer with CTA

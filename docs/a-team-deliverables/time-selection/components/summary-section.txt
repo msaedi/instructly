@@ -1,0 +1,46 @@
+│   Request for:    │
+│                   │
+│   July 17, 1:00pm │
+│                   │
+│   60 min · $120   │
+│                   │
+│   [Select and      │
+│    continue]       │
+│                   │
+│ Next, confirm your │
+│ details and start  │
+│ learning           │
+
+SUMMARY SECTION SPECIFICATIONS:
+Container:
+- Width: ~200px
+- Padding: 24px
+- Right side of modal
+
+Text Elements:
+- "Request for:": 14px, #666666
+- Date/Time: 18px, #333333, font-weight: 500
+- Duration/Price: 16px, #333333
+- Format: "XX min · $XXX"
+
+Primary Button:
+- Text: "Select and continue"
+- Width: 180px (or auto with padding)
+- Height: 44px
+- Background: #6B46C1 (purple)
+- Color: #FFFFFF
+- Font: 16px, font-weight: 500
+- Border-radius: 4px
+- Disabled until all selections made
+
+Helper Text:
+- Font: 14px, #666666
+- Line-height: 1.5
+- Max-width: 200px
+- Text-align: Center
+- Margin-top: 16px
+
+State Changes:
+- Empty: Nothing shown until selections
+- Partial: Only date/time if no duration
+- Complete: All information displayed

@@ -1,0 +1,58 @@
+┌─────────────────────────────────────────┐
+│ [Avatar]  Sarah Chen                    │
+│           Piano Instructor              │
+│                                         │
+│ ⭐ 4.9 · 127 reviews  🎹 Classical, Pop │
+│ Upper West Side · $120/hour            │
+│                                         │
+│ ┌────┬────┬────┬────┬────┬────┬────┐  │
+│ │Mon │Tue │Wed │Thu │Fri │Sat │Sun │  │
+│ │Jul │Jul │Jul │Jul │Jul │Jul │Jul │  │
+│ │ 15 │ 16 │ 17 │ 18 │ 19 │ 20 │ 21 │  │
+│ │9am │2pm │3pm │10am│6pm │ -- │4pm │  │
+│ │ ⋯  │ ⋯  │ ⋯  │ ⋯  │    │    │ ⋯  │  │
+│ └────┴────┴────┴────┴────┴────┴────┘  │
+│                                         │
+│ "Patient teacher specializing in        │
+│ beginners and music theory..."          │
+│                                         │
+│              [Book Now →]               │
+└─────────────────────────────────────────┘
+
+COMPONENT SPECIFICATIONS:
+Card Container:
+- Width: 100% of container
+- Min-height: 320px
+- Max-width: 600px (desktop)
+- Padding: 24px
+- Margin: 0 0 16px 0
+- Background: #FFFFFF
+- Border: 1px solid #E0E0E0
+- Border-radius: 8px
+- Box-shadow: 0 1px 3px rgba(0,0,0,0.1)
+- Hover: box-shadow: 0 4px 12px rgba(0,0,0,0.15)
+
+Avatar:
+- Size: 48px × 48px
+- Border-radius: 50%
+- Default: Initials on color background
+- Border: 2px solid white
+- Shadow: 0 2px 4px rgba(0,0,0,0.1)
+
+Calendar Grid:
+- Width: 100%
+- Height: 80px
+- Background: #FAFAFA
+- Border: 1px solid #E0E0E0
+- Cell width: calc(100% / 7)
+- Show first available time
+- Show "⋯" if more than one slot
+
+Book Now Button:
+- Width: 160px
+- Height: 44px
+- Background: #FFD700
+- Color: #333
+- Font: 16px, font-weight: 600
+- Border-radius: 22px
+- Center aligned

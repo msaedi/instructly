@@ -1,0 +1,57 @@
+│  Price Details              │
+│                             │
+│  Lesson (60 min)   $120.00  │
+│  Support fee        $24.00  │
+│  ─────────────────────────  │
+│  Total             $144.00  │
+
+WITH FREQUENCY DISCOUNT:
+│  Price Details              │
+│                             │
+│  Lesson (60 min)   $120.00  │
+│  Support fee        $24.00  │
+│  ─────────────────────────  │
+│  Subtotal          $144.00  │
+│  Weekly discount   -$21.60  │
+│  ─────────────────────────  │
+│  Total per lesson  $122.40  │
+│                             │
+│  Next 4 lessons:            │
+│  • Jul 17, 24, 31, Aug 7    │
+
+PRICE BREAKDOWN SPECIFICATIONS:
+Container:
+- Background: White
+- Padding: 16px
+- Part of right column
+
+Header:
+- Text: "Price Details"
+- Font: 16px, #333333, font-weight: 600
+- Margin-bottom: 12px
+
+Line Items:
+- Font: 14px
+- Description: #333333, left-aligned
+- Price: #333333, tabular-nums, right-aligned
+- Space between: Use flexbox justify-between
+
+Divider:
+- 1px solid #E0E0E0
+- Margin: 8px 0
+
+Total Row:
+- Background: #F9F7FF
+- Padding: 8px
+- Font-weight: 600
+- Border-radius: 4px
+
+Discount Display:
+- Color: #6B46C1
+- Show negative sign
+- Updates based on frequency selection
+
+Recurring Info:
+- Font: 12px, #666666
+- Show next lesson dates
+- Bullet points for dates

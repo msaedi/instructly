@@ -1,0 +1,48 @@
+│  Payment method                     │
+│                                     │
+│  [💳] •••• •••• •••• 4242          │
+│                                     │
+│  [Add payment method]               │
+│                                     │
+│  You may see a temporary hold on   │
+│  your payment method in the amount  │
+│  of your booking. Don't worry -     │
+│  you won't be charged until 24      │
+│  hours before your lesson starts.   │
+
+PAYMENT METHOD SPECIFICATIONS:
+Section Header:
+- Font: 18px, #333333, font-weight: 600
+- Margin-bottom: 16px
+
+Saved Card Display:
+- Container: Border 1px solid #E0E0E0
+- Padding: 16px
+- Border-radius: 8px
+- Background: #FAFAFA
+- Height: 56px
+- Icon: Payment brand logo
+- Text: 16px, monospace font
+
+Add Payment Button:
+- Style: Text button
+- Color: #6B46C1
+- Font: 14px
+- Icon: + symbol
+- Margin-top: 12px
+
+Payment Timing Notice:
+- Font: 14px, #666666
+- Line-height: 1.5
+- Background: #FFF9F0 (warm tint)
+- Padding: 12px
+- Border: 1px solid #FFE4B5
+- Border-radius: 4px
+- Icon: ℹ️ information icon
+- Margin-top: 16px
+
+CRITICAL MESSAGE:
+"You won't be charged until 24 hours before your lesson starts"
+- This is the T-24hr payment model
+- Pre-authorization happens now
+- Actual charge at T-24hr

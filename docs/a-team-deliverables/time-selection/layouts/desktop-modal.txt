@@ -1,0 +1,39 @@
+┌─────────────────────────────────────────────────────────────────────┐
+│  Select Your Lesson Time                                         [X] │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Sarah C's availability                                            │
+│                                                                     │
+│  < July 2025                               >   │                    │
+│                                                │                    │
+│  SUN   MON   TUE   WED   THU   FRI   SAT      │   Request for:    │
+│                                                │                    │
+│   14    15    16   (17)   18    19    20      │   July 17, 1:00pm │
+│                                                │                    │
+│   21    22    23    24    25    26    27      │   60 min · $120   │
+│                                                │                    │
+│   28    29    30    31     1     2     3      │                    │
+│                                                │   [Select and      │
+│  ┌─────────────────────────────────────┐      │    continue]       │
+│  │ 1:00pm                           ▼ │      │                    │
+│  └─────────────────────────────────────┘      │                    │
+│                                                │ Next, confirm your │
+│  [30m/$75]  [60m/$120]  [90m/$165]           │ details and start  │
+│                                                │ learning           │
+└─────────────────────────────────────────────────────────────────────┘
+
+MODAL SPECIFICATIONS:
+- Type: Modal overlay
+- Width: 600px
+- Max-height: 90vh
+- Padding: 32px
+- Background: #FFFFFF
+- Border-radius: 8px
+- Backdrop: rgba(0, 0, 0, 0.5)
+- Animation: Slide up 300ms ease-out
+
+Layout:
+- Left section: Calendar & controls
+- Vertical divider: 1px solid #E8E8E8
+- Right section: Summary & CTA
+- Gap: 32px between sections

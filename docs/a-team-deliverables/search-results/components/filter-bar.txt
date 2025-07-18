@@ -1,0 +1,32 @@
+│  [📅 Today ▼] [I'm flexible] [Price] [Areas] [More filters]  │
+
+FILTER BAR SPECIFICATIONS:
+Container:
+- Height: 48px
+- Background: white
+- Border-bottom: 1px solid #E0E0E0
+- Padding: 0 24px
+- Display: flex
+- Align-items: center
+- Gap: 12px
+
+Individual Filter Pills:
+- Height: 40px
+- Padding: 12px horizontal, 8px vertical
+- Border: 1px solid #DDD
+- Border-radius: 20px
+- Font: 14px, font-weight: 500
+- Icon size: 16px, 4px right margin
+- Auto width based on content
+
+Filter States:
+- Default: White background, #333 text
+- Hover: #F5F5F5 background
+- Active: #FFD700 background, #333 text
+- Disabled: #F5F5F5 background, #999 text
+
+Mobile Behavior:
+- Horizontal scroll
+- No wrap
+- Fade edges to indicate scroll
+- Sticky below header

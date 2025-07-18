@@ -1,0 +1,51 @@
+DEFAULT STATE:
+│  Promo code                         │
+│  ┌─────────────────────┬──────┐    │
+│  │ Enter code         │Apply │    │
+│  └─────────────────────┴──────┘    │
+
+VALID CODE APPLIED:
+│  ✅ FIRSTLESSON - $20 off          │
+│  ┌─────────────────────┬──────┐    │
+│  │ FIRSTLESSON        │Remove│    │
+│  └─────────────────────┴──────┘    │
+
+INVALID CODE:
+│  ❌ Invalid or expired code        │
+│  ┌─────────────────────┬──────┐    │
+│  │ BADCODE           │Apply │    │
+│  └─────────────────────┴──────┘    │
+
+PROMO CODE SPECIFICATIONS:
+Input Field:
+- Flex: 1
+- Height: 44px
+- Border: 1px solid #E0E0E0 (right: none)
+- Border-radius: 4px 0 0 4px
+- Padding: 12px 16px
+- Font: 16px
+- Placeholder: "Enter code"
+- Text transform: Uppercase on input
+
+Apply Button:
+- Width: 80px
+- Height: 44px
+- Background: #6B46C1
+- Color: White
+- Border-radius: 0 4px 4px 0
+- Font: 14px, font-weight: 500
+- Hover: Darken 10%
+- Loading: Show spinner
+
+Success State:
+- Green checkmark: ✅
+- Success message: Green #4CAF50
+- Button text: "Remove"
+- Input disabled
+- Updates price breakdown
+
+Error State:
+- Red X: ❌
+- Error message: Red #F44336
+- Clears after 3 seconds
+- Input remains editable

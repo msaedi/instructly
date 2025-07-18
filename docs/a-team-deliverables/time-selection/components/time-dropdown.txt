@@ -1,0 +1,48 @@
+COLLAPSED STATE:
+┌─────────────────────────────────────┐
+│ 1:00pm                           ▼ │
+└─────────────────────────────────────┘
+
+EXPANDED STATE:
+┌─────────────────────────────────────┐
+│ 9:00am                              │
+│ 9:30am                              │
+│ 10:00am                             │
+│ 10:30am                             │
+│ 11:00am                             │
+│ 1:00pm                              │
+│ 1:30pm                              │
+│ 2:00pm                              │
+│ 2:30pm                              │
+│ 3:00pm                              │
+└─────────────────────────────────────┘
+
+DROPDOWN SPECIFICATIONS:
+Container:
+- Width: 320px (desktop), 100% (mobile)
+- Height: 44px
+- Border: 1px solid #E0E0E0
+- Border-radius: 4px
+- Background: #FFFFFF
+- Font: 16px, #333333
+- Padding: 12px 16px
+- Arrow: "▼" character, 20px from right
+
+States:
+- Hidden: Not shown until date selected
+- Placeholder: "Select time"
+- Selected: Shows selected time
+- Disabled: Grayed if no times available
+
+Options:
+- Height: 40px per option
+- Padding: 12px 16px
+- Hover: Background #F5F5F5
+- Selected: Background #F9F7FF
+- Max height: 300px (then scroll)
+- No grouping headers
+
+Dynamic Behavior:
+- 30-min slots: All half-hour increments
+- 60-min slots: Only on-the-hour
+- 90-min slots: Strategic times to avoid conflicts

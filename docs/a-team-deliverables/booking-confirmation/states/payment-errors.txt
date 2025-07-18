@@ -1,0 +1,78 @@
+AVAILABILITY CONFLICT:
+┌─────────────────────────────────────┐
+│ ⚠️ Time No Longer Available         │
+│                                     │
+│ This time slot was just booked.     │
+│ Please select a different time.     │
+│                                     │
+│        [Select New Time]            │
+└─────────────────────────────────────┘
+
+PAYMENT FAILURE:
+┌─────────────────────────────────────┐
+│ ❌ Payment Method Declined          │
+│                                     │
+│ Please try a different card or      │
+│ contact your bank.                  │
+│                                     │
+│    [Try Different Card]             │
+└─────────────────────────────────────┘
+
+NETWORK ERROR:
+┌─────────────────────────────────────┐
+│ 🔄 Connection Issue                 │
+│                                     │
+│ Please check your internet and      │
+│ try again.                          │
+│                                     │
+│         [Retry]                     │
+└─────────────────────────────────────┘
+
+RECURRING BOOKING CONFLICTS:
+┌─────────────────────────────────────┐
+│ ⚠️ Schedule Conflict                │
+│                                     │
+│ Sarah isn't available for all       │
+│ requested dates:                    │
+│                                     │
+│ ✓ Jul 17 - Available               │
+│ ✓ Jul 24 - Available               │
+│ ✗ Jul 31 - Unavailable             │
+│ ✓ Aug 7 - Available                │
+│                                     │
+│ [Select different time]             │
+│ [Book available dates only]         │
+└─────────────────────────────────────┘
+
+ERROR MODAL SPECIFICATIONS:
+Container:
+- Position: Fixed center
+- Width: 400px max
+- Background: White
+- Border-radius: 8px
+- Box-shadow: 0 8px 24px rgba(0,0,0,0.2)
+- Padding: 24px
+- Z-index: 1000
+
+Icon:
+- Size: 48px
+- Center aligned
+- Margin-bottom: 16px
+- Colors: ⚠️ Orange, ❌ Red, 🔄 Blue
+
+Title:
+- Font: 18px, #333333, font-weight: 600
+- Center aligned
+- Margin-bottom: 12px
+
+Message:
+- Font: 14px, #666666
+- Line-height: 1.5
+- Center aligned
+- Margin-bottom: 24px
+
+Buttons:
+- Primary: #6B46C1 background
+- Secondary: White with border
+- Full width on mobile
+- Center aligned on desktop

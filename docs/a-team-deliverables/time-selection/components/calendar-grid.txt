@@ -1,0 +1,35 @@
+│  < July 2025                               >   │
+│                                                │
+│  SUN   MON   TUE   WED   THU   FRI   SAT      │
+│                                                │
+│   14    15    16   (17)   18    19    20      │
+│   21    22    23    24    25    26    27      │
+│   28    29    30    31     1     2     3      │
+
+CALENDAR SPECIFICATIONS:
+Month Navigation:
+- Month/Year: 16px, #333333, font-weight: 500
+- Left-aligned (not centered)
+- Nav arrows: 20×20px visual, 32×32px tap target
+- Arrow color: #666666, hover: #333333
+- Disabled: #CCCCCC for past months
+
+Grid Layout:
+- 7 columns, equal width
+- Cell height: 36px
+- Font: 14px for dates
+- Day headers: 12px, #999999, uppercase
+
+Date Cell States:
+- Available: #6B46C1 (purple), cursor: pointer
+- Unavailable: #CCCCCC, cursor: not-allowed
+- Selected: 2px solid #6B46C1, border-radius: 50%
+- Pre-selected: Same as selected (auto-applied)
+- Today: Font-weight: 600, underline
+- Hover (available): Background #F9F7FF
+
+Pre-selection Logic:
+- Date from search is auto-selected
+- Shows with circle border
+- Time dropdown becomes visible
+- Summary shows partial info

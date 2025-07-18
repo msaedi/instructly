@@ -1,0 +1,55 @@
+│      Piano Lesson           │
+│                             │
+│      [Photo]                │
+│      Sarah Chen             │
+│                             │
+│  📅  Wed, July 17, 1:00pm  │
+│                             │
+│  📍  Upper West Side        │
+│      Sarah's Studio         │
+│                             │
+│  ⏱️   60 minutes            │
+│                             │
+│      [Change]               │
+
+LESSON SUMMARY SPECIFICATIONS:
+Container:
+- Background: White
+- Border: 1px solid #E0E0E0
+- Border-radius: 8px
+- Padding: 24px
+- Box-shadow: 0 2px 8px rgba(0,0,0,0.05)
+
+Title:
+- Text: Service name
+- Font: 20px, #333333, font-weight: 600
+- Center aligned
+- Margin-bottom: 16px
+
+Instructor Photo:
+- Size: 64px circle
+- Center aligned
+- Border: 2px solid white
+- Shadow: 0 2px 4px rgba(0,0,0,0.1)
+
+Name:
+- Font: 18px, #333333
+- Center aligned
+- Margin-bottom: 16px
+
+Details:
+- Icons: 16px
+- Text: 16px, #333333
+- Line-height: 1.5
+- Icon color: #666666
+- Spacing: 12px between items
+- Left-aligned with icon
+
+Change Button:
+- Style: Ghost button
+- Font: 14px
+- Color: #6B46C1
+- Border: 1px solid #6B46C1
+- Padding: 4px 12px
+- Position: Right-aligned
+- Margin-top: 16px

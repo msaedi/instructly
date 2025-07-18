@@ -1,0 +1,23 @@
+┌─────────────────────┐
+│ Sarah Chen          │
+│ Piano · $120/hr     │
+│ ⭐4.9 · Upper West  │
+│                     │
+│ ┌──┬──┬──┬──┐ ... │
+│ │M │T │W │T │     │
+│ │15│16│17│18│     │
+│ │9a│2p│3p│10│     │
+│ └──┴──┴──┴──┘     │
+│                     │
+│   [Book Now →]      │
+└─────────────────────┘
+
+MOBILE ADJUSTMENTS:
+- Padding: 16px (reduced from 24px)
+- Font sizes: -2px across board
+- No avatar shown
+- No bio text (save space)
+- Calendar: Show 4 days, swipe for more
+- Swipe indicator: "..."
+- Button: Full width minus padding
+- Time format: Shortened (9a vs 9am)

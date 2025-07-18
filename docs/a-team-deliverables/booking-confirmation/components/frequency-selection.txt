@@ -1,0 +1,50 @@
+│  Select a frequency                 │
+│  Save time and money by setting up  │
+│  repeat lessons with your instructor │
+│                                     │
+│  ◉ Just Once                        │
+│                                     │
+│  ○ Weekly                           │
+│    SAVE 15%                         │
+│                                     │
+│  ○ Every 2 weeks                    │
+│    SAVE 10% - MOST POPULAR          │
+│                                     │
+│  ○ Every 4 weeks                    │
+│    SAVE 5%                          │
+
+FREQUENCY SELECTION SPECIFICATIONS:
+Section Header:
+- Text: "Select a frequency"
+- Font: 18px, #333333, font-weight: 600
+
+Subtext:
+- Text: "Save time and money by setting up repeat lessons with your instructor"
+- Font: 14px, #666666
+- Line-height: 1.5
+- Margin-bottom: 16px
+
+Radio Options:
+- Container: Full width
+- Option height: 48px
+- Padding: 12px 16px
+- Border-radius: 8px
+- Hover: Background #F5F5F5
+- Default selection: "Just Once"
+
+Selected State:
+- Background: #F9F7FF
+- Border: 1px solid #6B46C1
+- Radio: Filled circle
+
+Savings Badges:
+- Font: 12px, font-weight: 600
+- Color: #6B46C1
+- Text transform: Uppercase
+- "MOST POPULAR": Background #6B46C1, Color white, Padding 2px 8px, Border-radius 12px
+
+Pricing Impact:
+- Weekly: 15% off total (support fee waived)
+- Bi-weekly: 10% off total
+- Monthly: 5% off total
+- Updates price breakdown immediately
