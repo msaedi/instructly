@@ -5,6 +5,7 @@ import { X, ArrowLeft } from 'lucide-react';
 import { logger } from '@/lib/logger';
 import Calendar from './TimeSelectionModal/Calendar';
 import TimeDropdown from './TimeSelectionModal/TimeDropdown';
+import DurationButtons from './TimeSelectionModal/DurationButtons';
 
 interface TimeSelectionModalProps {
   isOpen: boolean;
@@ -25,10 +26,23 @@ export default function TimeSelectionModal({
   preSelectedDate,
   onTimeSelected,
 }: TimeSelectionModalProps) {
+  // Mock duration options for testing - replace with real instructor data
+  const mockDurationOptions = [
+    { duration: 30, price: 75 },
+    { duration: 60, price: 120 },
+    { duration: 90, price: 165 },
+  ];
+  // For single duration test: [{ duration: 60, price: 120 }]
+
   // Component state
   const [selectedDate, setSelectedDate] = useState<string | null>(preSelectedDate || null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [selectedDuration, setSelectedDuration] = useState<number>(60); // Default
+  // Pre-select middle duration option by default
+  const [selectedDuration, setSelectedDuration] = useState<number>(
+    mockDurationOptions.length > 1
+      ? mockDurationOptions[Math.floor(mockDurationOptions.length / 2)].duration
+      : mockDurationOptions[0]?.duration || 60
+  );
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [showTimeDropdown, setShowTimeDropdown] = useState(!!preSelectedDate);
   const [availableDates, setAvailableDates] = useState<string[]>([
@@ -140,6 +154,31 @@ export default function TimeSelectionModal({
     logger.info('Time selected', { time });
   };
 
+  // Handle duration selection
+  const handleDurationSelect = (duration: number) => {
+    const previousDuration = selectedDuration;
+    setSelectedDuration(duration);
+
+    // Clear selected time if changing duration
+    if (previousDuration !== duration && selectedTime) {
+      setSelectedTime(null);
+    }
+
+    // Update time slots based on new duration
+    if (selectedDate) {
+      const mockTimeSlots =
+        duration === 30
+          ? ['9:00am', '9:30am', '10:00am', '10:30am', '11:00am', '1:00pm', '1:30pm', '2:00pm']
+          : duration === 60
+            ? ['9:00am', '10:00am', '11:00am', '1:00pm', '2:00pm', '3:00pm']
+            : ['9:00am', '10:30am', '1:00pm', '2:30pm']; // 90 min
+
+      setTimeSlots(mockTimeSlots);
+    }
+
+    logger.info('Duration selected', { duration, previousDuration });
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -194,10 +233,12 @@ export default function TimeSelectionModal({
               </div>
             )}
 
-            {/* TODO: Duration Buttons (only if multiple durations) */}
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mb-4">
-              <p className="text-gray-500">Duration Buttons Placeholder</p>
-            </div>
+            {/* Duration Buttons (only if multiple durations) */}
+            <DurationButtons
+              durationOptions={mockDurationOptions}
+              selectedDuration={selectedDuration}
+              onDurationSelect={handleDurationSelect}
+            />
 
             {/* TODO: Summary Section */}
             <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
@@ -287,10 +328,12 @@ export default function TimeSelectionModal({
                     </div>
                   )}
 
-                  {/* TODO: Duration Buttons (only if multiple durations) */}
-                  <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
-                    <p className="text-gray-500">Duration Buttons Placeholder</p>
-                  </div>
+                  {/* Duration Buttons (only if multiple durations) */}
+                  <DurationButtons
+                    durationOptions={mockDurationOptions}
+                    selectedDuration={selectedDuration}
+                    onDurationSelect={handleDurationSelect}
+                  />
                 </div>
 
                 {/* Vertical Divider */}
