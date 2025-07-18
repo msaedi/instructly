@@ -3,6 +3,7 @@ export { default as PaymentMethodSelection } from './components/PaymentMethodSel
 export { default as PaymentConfirmation } from './components/PaymentConfirmation';
 export { default as PaymentProcessing } from './components/PaymentProcessing';
 export { default as PaymentSuccess } from './components/PaymentSuccess';
+export { PaymentSection } from './components/PaymentSection';
 
 // Export hooks
 export { usePaymentFlow, PaymentStep } from './hooks/usePaymentFlow';
