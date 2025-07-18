@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, ArrowLeft } from 'lucide-react';
 import { logger } from '@/lib/logger';
+import Calendar from './TimeSelectionModal/Calendar';
 
 interface TimeSelectionModalProps {
   isOpen: boolean;
@@ -29,7 +30,19 @@ export default function TimeSelectionModal({
   const [selectedDuration, setSelectedDuration] = useState<number>(60); // Default
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [showTimeDropdown, setShowTimeDropdown] = useState(!!preSelectedDate);
-  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [availableDates, setAvailableDates] = useState<string[]>([
+    // Mock data - replace with actual API call
+    '2024-01-17',
+    '2024-01-18',
+    '2024-01-19',
+    '2024-01-22',
+    '2024-01-23',
+    '2024-01-24',
+    '2024-01-25',
+    '2024-01-26',
+    '2024-01-29',
+    '2024-01-30',
+  ]);
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
 
   const modalRef = useRef<HTMLDivElement>(null);
@@ -104,6 +117,14 @@ export default function TimeSelectionModal({
     }
   };
 
+  // Handle date selection
+  const handleDateSelect = (date: string) => {
+    setSelectedDate(date);
+    setShowTimeDropdown(true);
+    // TODO: Fetch available time slots for selected date
+    logger.info('Date selected', { date });
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -135,10 +156,15 @@ export default function TimeSelectionModal({
 
           {/* Mobile Content */}
           <div className="flex-1 overflow-y-auto px-4 pb-20">
-            {/* TODO: Calendar Component */}
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mb-4">
-              <p className="text-gray-500">Calendar Component Placeholder</p>
-            </div>
+            {/* Calendar Component */}
+            <Calendar
+              currentMonth={currentMonth}
+              selectedDate={selectedDate}
+              preSelectedDate={preSelectedDate}
+              availableDates={availableDates}
+              onDateSelect={handleDateSelect}
+              onMonthChange={setCurrentMonth}
+            />
 
             {/* TODO: Time Dropdown (shown when date selected) */}
             {showTimeDropdown && (
@@ -217,10 +243,15 @@ export default function TimeSelectionModal({
               <div className="flex gap-8">
                 {/* Left Section - Calendar and Controls */}
                 <div className="flex-1">
-                  {/* TODO: Calendar Component */}
-                  <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mb-4">
-                    <p className="text-gray-500">Calendar Component Placeholder</p>
-                  </div>
+                  {/* Calendar Component */}
+                  <Calendar
+                    currentMonth={currentMonth}
+                    selectedDate={selectedDate}
+                    preSelectedDate={preSelectedDate}
+                    availableDates={availableDates}
+                    onDateSelect={handleDateSelect}
+                    onMonthChange={setCurrentMonth}
+                  />
 
                   {/* TODO: Time Dropdown (shown when date selected) */}
                   {showTimeDropdown && (
