@@ -6,6 +6,7 @@ import { logger } from '@/lib/logger';
 import Calendar from './TimeSelectionModal/Calendar';
 import TimeDropdown from './TimeSelectionModal/TimeDropdown';
 import DurationButtons from './TimeSelectionModal/DurationButtons';
+import SummarySection from './TimeSelectionModal/SummarySection';
 
 interface TimeSelectionModalProps {
   isOpen: boolean;
@@ -129,7 +130,14 @@ export default function TimeSelectionModal({
         time: selectedTime,
         duration: selectedDuration,
       });
+      onClose();
     }
+  };
+
+  // Get current price based on selected duration
+  const getCurrentPrice = () => {
+    const option = mockDurationOptions.find((opt) => opt.duration === selectedDuration);
+    return option?.price || 0;
   };
 
   // Handle date selection
@@ -240,22 +248,27 @@ export default function TimeSelectionModal({
               onDurationSelect={handleDurationSelect}
             />
 
-            {/* TODO: Summary Section */}
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
-              <p className="text-gray-500">Summary Section Placeholder</p>
-            </div>
+            {/* Summary Section */}
+            <SummarySection
+              selectedDate={selectedDate}
+              selectedTime={selectedTime}
+              selectedDuration={selectedDuration}
+              price={getCurrentPrice()}
+              onContinue={handleContinue}
+              isComplete={!!selectedDate && !!selectedTime}
+            />
           </div>
 
-          {/* Mobile Sticky CTA */}
+          {/* Mobile Sticky CTA - Rendered by SummarySection */}
           <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 p-4">
-            <button
-              onClick={handleContinue}
-              disabled={!selectedDate || !selectedTime}
-              className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-colors"
-              style={{ backgroundColor: selectedDate && selectedTime ? '#6B46C1' : undefined }}
-            >
-              Continue
-            </button>
+            <SummarySection
+              selectedDate={selectedDate}
+              selectedTime={selectedTime}
+              selectedDuration={selectedDuration}
+              price={getCurrentPrice()}
+              onContinue={handleContinue}
+              isComplete={!!selectedDate && !!selectedTime}
+            />
           </div>
         </div>
       </div>
@@ -344,22 +357,14 @@ export default function TimeSelectionModal({
 
                 {/* Right Section - Summary and CTA */}
                 <div className="w-[200px]">
-                  {/* TODO: Summary Section */}
-                  <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mb-6">
-                    <p className="text-gray-500">Summary Section Placeholder</p>
-                  </div>
-
-                  {/* Desktop CTA Button */}
-                  <button
-                    onClick={handleContinue}
-                    disabled={!selectedDate || !selectedTime}
-                    className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-colors"
-                    style={{
-                      backgroundColor: selectedDate && selectedTime ? '#6B46C1' : undefined,
-                    }}
-                  >
-                    Continue
-                  </button>
+                  <SummarySection
+                    selectedDate={selectedDate}
+                    selectedTime={selectedTime}
+                    selectedDuration={selectedDuration}
+                    price={getCurrentPrice()}
+                    onContinue={handleContinue}
+                    isComplete={!!selectedDate && !!selectedTime}
+                  />
                 </div>
               </div>
             </div>
