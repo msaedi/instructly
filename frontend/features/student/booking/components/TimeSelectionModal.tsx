@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { X, ArrowLeft } from 'lucide-react';
 import { logger } from '@/lib/logger';
 import { publicApi } from '@/features/shared/api/client';
+import { useAuth, storeBookingIntent } from '../hooks/useAuth';
 import Calendar from './TimeSelectionModal/Calendar';
 import TimeDropdown from './TimeSelectionModal/TimeDropdown';
 import DurationButtons from './TimeSelectionModal/DurationButtons';
@@ -16,6 +18,7 @@ interface TimeSelectionModalProps {
     user_id: number;
     user: { full_name: string };
     services: Array<{
+      id?: number;
       duration_options?: number[];
       duration?: number;
       hourly_rate: number;
@@ -24,7 +27,8 @@ interface TimeSelectionModalProps {
   };
   preSelectedDate?: string; // From search context (format: "YYYY-MM-DD")
   preSelectedTime?: string; // Pre-selected time slot
-  onTimeSelected: (selection: { date: string; time: string; duration: number }) => void;
+  onTimeSelected?: (selection: { date: string; time: string; duration: number }) => void;
+  serviceId?: number; // Optional service ID from search context
 }
 
 export default function TimeSelectionModal({
@@ -34,33 +38,49 @@ export default function TimeSelectionModal({
   preSelectedDate,
   preSelectedTime,
   onTimeSelected,
+  serviceId,
 }: TimeSelectionModalProps) {
-  // Get duration options from instructor services
+  const router = useRouter();
+  const { isAuthenticated, redirectToLogin } = useAuth();
+
+  // Get duration options - always show standard options
   const getDurationOptions = () => {
-    // Collect unique durations from all services
-    const durations = new Set<number>();
-    instructor.services.forEach((service) => {
-      if (service.duration_options && service.duration_options.length > 0) {
-        service.duration_options.forEach((d) => durations.add(d));
-      } else if (service.duration) {
-        durations.add(service.duration);
-      }
+    // Always use standard duration options for consistency
+    const standardDurations = [30, 60, 90, 120];
+
+    logger.debug('Using standard duration options', {
+      durations: standardDurations,
     });
 
-    // Convert to array and sort
-    const sortedDurations = Array.from(durations).sort((a, b) => a - b);
+    // Get the selected service if serviceId is provided, otherwise use first
+    const selectedService = serviceId
+      ? instructor.services.find((s) => s.id === serviceId) || instructor.services[0]
+      : instructor.services[0];
 
-    // Calculate prices based on average hourly rate
-    const avgHourlyRate =
-      instructor.services.reduce((sum, s) => sum + s.hourly_rate, 0) / instructor.services.length;
+    const hourlyRate = selectedService?.hourly_rate || 100; // fallback rate
 
-    return sortedDurations.map((duration) => ({
+    const result = standardDurations.map((duration) => ({
       duration,
-      price: Math.round((avgHourlyRate * duration) / 60),
+      price: Math.round((hourlyRate * duration) / 60),
     }));
+
+    logger.debug('Final duration options', {
+      durationsCount: result.length,
+      options: result,
+      hourlyRate,
+    });
+
+    return result;
   };
 
   const durationOptions = getDurationOptions();
+
+  // Debug logging
+  logger.info('Duration options generated', {
+    durationOptions,
+    servicesCount: instructor.services.length,
+    services: instructor.services,
+  });
 
   // Component state
   const [selectedDate, setSelectedDate] = useState<string | null>(preSelectedDate || null);
@@ -210,20 +230,173 @@ export default function TimeSelectionModal({
     }
   };
 
-  // Handle continue button
+  // Handle continue button - go directly to payment
   const handleContinue = () => {
     if (selectedDate && selectedTime) {
-      logger.info('Time selection completed', {
+      logger.info('Time selection completed, preparing booking data', {
         date: selectedDate,
         time: selectedTime,
         duration: selectedDuration,
+        instructorId: instructor.user_id,
+        serviceId,
+        servicesCount: instructor.services.length,
       });
-      onTimeSelected({
+
+      // If callback provided, use it (for backward compatibility)
+      if (onTimeSelected) {
+        onTimeSelected({
+          date: selectedDate,
+          time: selectedTime,
+          duration: selectedDuration,
+        });
+        onClose();
+        return;
+      }
+
+      // Otherwise, go directly to payment page
+      const selectedService = serviceId
+        ? instructor.services.find((s) => s.id === serviceId) || instructor.services[0]
+        : instructor.services[0]; // Use first service as fallback
+
+      if (!selectedService) {
+        logger.error('No service found for booking', { serviceId, services: instructor.services });
+        onClose();
+        return;
+      }
+
+      const price = getCurrentPrice();
+
+      // Parse time - handle both "8:00am" and "8:00" formats
+      const timeWithoutAmPm = selectedTime.replace(/[ap]m/gi, '').trim();
+      const timeParts = timeWithoutAmPm.split(':');
+
+      if (timeParts.length !== 2) {
+        logger.error('Invalid time format', { selectedTime });
+        return;
+      }
+
+      const [hours, minutes] = timeParts;
+      let hour = parseInt(hours);
+      const minute = parseInt(minutes) || 0;
+
+      if (isNaN(hour) || isNaN(minute)) {
+        logger.error('Invalid time values', { hours, minutes, selectedTime });
+        return;
+      }
+
+      const isAM = selectedTime.toLowerCase().includes('am');
+      const isPM = selectedTime.toLowerCase().includes('pm');
+
+      // Convert to 24-hour format if AM/PM is present
+      if (isPM && hour !== 12) hour += 12;
+      if (isAM && hour === 12) hour = 0;
+
+      const startTime = `${hour.toString().padStart(2, '0')}:${minute
+        .toString()
+        .padStart(2, '0')}:00`;
+      const endHour = hour + Math.floor(selectedDuration / 60);
+      const endMinute = minute + (selectedDuration % 60);
+
+      // Handle minute overflow
+      let finalEndHour = endHour;
+      let finalEndMinute = endMinute;
+      if (endMinute >= 60) {
+        finalEndHour += Math.floor(endMinute / 60);
+        finalEndMinute = endMinute % 60;
+      }
+
+      const endTime = `${finalEndHour.toString().padStart(2, '0')}:${finalEndMinute
+        .toString()
+        .padStart(2, '0')}:00`;
+
+      // Calculate fees
+      const basePrice = price;
+      const serviceFee = Math.round(basePrice * 0.1); // 10% service fee
+      const totalAmount = basePrice + serviceFee;
+
+      // Log parsed values for debugging
+      logger.debug('Time parsing results', {
+        originalTime: selectedTime,
+        parsedHour: hour,
+        parsedMinute: minute,
+        startTime,
+        endTime,
+        selectedDate,
+      });
+
+      // Calculate free cancellation deadline (24 hours before)
+      const bookingDateTimeString = `${selectedDate}T${startTime}`;
+      const bookingDateTime = new Date(bookingDateTimeString);
+
+      if (isNaN(bookingDateTime.getTime())) {
+        logger.error('Invalid booking date/time', {
+          dateTimeString: bookingDateTimeString,
+          selectedDate,
+          startTime,
+        });
+        return;
+      }
+
+      const freeCancellationUntil = new Date(bookingDateTime);
+      freeCancellationUntil.setHours(freeCancellationUntil.getHours() - 24);
+
+      // Check if user is authenticated
+      if (!isAuthenticated) {
+        logger.info('User not authenticated, storing booking intent and redirecting to login');
+
+        // Store booking intent for after login
+        storeBookingIntent({
+          instructorId: instructor.user_id,
+          serviceId: serviceId || selectedService.id,
+          date: selectedDate,
+          time: selectedTime,
+          duration: selectedDuration,
+        });
+
+        // Close modal and redirect to login
+        // After login, user should return to the instructor page to complete booking
+        const returnUrl = `/instructors/${instructor.user_id}`;
+        onClose();
+        redirectToLogin(returnUrl);
+        return;
+      }
+
+      // Prepare booking data for payment page
+      const bookingData = {
+        instructorId: instructor.user_id,
+        instructorName: instructor.user.full_name,
+        serviceId: serviceId || selectedService.id || 1,
+        skill: selectedService.skill,
+        lessonType: selectedService.skill, // Same as skill for display
         date: selectedDate,
-        time: selectedTime,
+        startTime: startTime,
+        endTime: endTime,
         duration: selectedDuration,
+        basePrice: basePrice,
+        serviceFee: serviceFee,
+        totalAmount: totalAmount,
+        hourlyRate: selectedService.hourly_rate,
+        location: 'Online', // Default to online, could be enhanced later
+        freeCancellationUntil: freeCancellationUntil.toISOString(),
+      };
+
+      // Store booking data in session storage
+      sessionStorage.setItem('bookingData', JSON.stringify(bookingData));
+      sessionStorage.setItem('serviceId', String(bookingData.serviceId));
+
+      logger.info('Booking data stored in sessionStorage', {
+        bookingData,
+        storageCheck: sessionStorage.getItem('bookingData') ? 'Data stored' : 'Data NOT stored',
       });
+
+      // Close modal first, then navigate
       onClose();
+
+      // Small delay to ensure modal closes before navigation
+      setTimeout(() => {
+        // Use window.location for a hard navigation to ensure sessionStorage persists
+        window.location.href = '/student/booking/confirm';
+      }, 100);
     }
   };
 
@@ -255,13 +428,29 @@ export default function TimeSelectionModal({
       const isToday = date === now.toISOString().split('T')[0];
 
       const validSlots = slots.filter((slot: any) => {
-        if (!isToday) return true;
+        // Check if slot is in the past (for today)
+        if (isToday) {
+          const [hours, minutes] = slot.start_time.split(':');
+          const slotTime = new Date();
+          slotTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+          if (slotTime <= now) return false;
+        }
 
-        const [hours, minutes] = slot.start_time.split(':');
-        const slotTime = new Date();
-        slotTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        // Check if slot has enough time for selected duration
+        const slotStart = new Date(`${date}T${slot.start_time}`);
+        const slotEnd = new Date(`${date}T${slot.end_time}`);
+        const slotDurationMinutes = (slotEnd.getTime() - slotStart.getTime()) / (1000 * 60);
 
-        return slotTime > now;
+        const hasEnoughTime = slotDurationMinutes >= selectedDuration;
+        if (!hasEnoughTime) {
+          logger.debug('Filtering out slot - insufficient duration', {
+            slot: slot.start_time,
+            slotDuration: slotDurationMinutes,
+            requiredDuration: selectedDuration,
+          });
+        }
+
+        return hasEnoughTime;
       });
 
       const formattedSlots = validSlots.map((slot: any) => {
@@ -299,13 +488,29 @@ export default function TimeSelectionModal({
           const isToday = date === now.toISOString().split('T')[0];
 
           const validSlots = slots.filter((slot: any) => {
-            if (!isToday) return true;
+            // Check if slot is in the past (for today)
+            if (isToday) {
+              const [hours, minutes] = slot.start_time.split(':');
+              const slotTime = new Date();
+              slotTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+              if (slotTime <= now) return false;
+            }
 
-            const [hours, minutes] = slot.start_time.split(':');
-            const slotTime = new Date();
-            slotTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+            // Check if slot has enough time for selected duration
+            const slotStart = new Date(`${date}T${slot.start_time}`);
+            const slotEnd = new Date(`${date}T${slot.end_time}`);
+            const slotDurationMinutes = (slotEnd.getTime() - slotStart.getTime()) / (1000 * 60);
 
-            return slotTime > now;
+            const hasEnoughTime = slotDurationMinutes >= selectedDuration;
+            if (!hasEnoughTime) {
+              logger.debug('Filtering out slot - insufficient duration', {
+                slot: slot.start_time,
+                slotDuration: slotDurationMinutes,
+                requiredDuration: selectedDuration,
+              });
+            }
+
+            return hasEnoughTime;
           });
 
           const formattedSlots = validSlots.map((slot: any) => {
@@ -351,12 +556,13 @@ export default function TimeSelectionModal({
     const previousDuration = selectedDuration;
     setSelectedDuration(duration);
 
-    // Clear selected time if changing duration
-    if (previousDuration !== duration && selectedTime) {
-      setSelectedTime(null);
-    }
-
     logger.info('Duration selected', { duration, previousDuration });
+
+    // Re-filter time slots if we have a selected date
+    if (selectedDate && previousDuration !== duration) {
+      setSelectedTime(null); // Clear selected time
+      handleDateSelect(selectedDate); // Re-fetch/filter slots for new duration
+    }
   };
 
   if (!isOpen) return null;

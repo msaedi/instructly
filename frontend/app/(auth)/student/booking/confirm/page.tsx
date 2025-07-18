@@ -14,9 +14,20 @@ export default function BookingConfirmationPage() {
   const router = useRouter();
 
   useEffect(() => {
+    // Skip if already loaded
+    if (bookingData) {
+      return;
+    }
+
     // Retrieve booking data from sessionStorage
     const storedData = sessionStorage.getItem('bookingData');
     const storedServiceId = sessionStorage.getItem('serviceId');
+
+    logger.info('Checking for booking data', {
+      hasStoredData: !!storedData,
+      hasServiceId: !!storedServiceId,
+      dataLength: storedData?.length || 0,
+    });
 
     if (storedData) {
       try {
@@ -24,29 +35,36 @@ export default function BookingConfirmationPage() {
         setBookingData(parsedData);
         setServiceId(storedServiceId);
 
-        // Clear session storage after retrieving
-        sessionStorage.removeItem('bookingData');
-        sessionStorage.removeItem('serviceId');
-
-        logger.info('Booking data loaded', {
-          bookingId: parsedData.bookingId,
+        logger.info('Booking data loaded successfully', {
           instructorId: parsedData.instructorId,
+          instructorName: parsedData.instructorName,
+          date: parsedData.date,
+          totalAmount: parsedData.totalAmount,
         });
+        setIsLoading(false);
       } catch (error) {
-        logger.error('Failed to parse booking data', error as Error);
-        router.push('/search');
+        logger.error('Failed to parse booking data', {
+          error: error as Error,
+          storedData: storedData?.substring(0, 100), // Log first 100 chars
+        });
+        setIsLoading(false);
+        // Delay redirect to avoid React strict mode issues
+        setTimeout(() => router.push('/search'), 100);
       }
     } else {
       // Redirect back if no booking data
-      logger.warn('No booking data found, redirecting to search');
-      router.push('/search');
+      logger.warn('No booking data found in sessionStorage');
+      setIsLoading(false);
+      // Delay redirect to avoid React strict mode issues
+      setTimeout(() => router.push('/search'), 100);
     }
-
-    setIsLoading(false);
-  }, [router]);
+  }, [bookingData, router]);
 
   const handlePaymentSuccess = (confirmationNumber: string) => {
     logger.info('Payment successful', { confirmationNumber });
+    // Clear session storage after successful payment
+    sessionStorage.removeItem('bookingData');
+    sessionStorage.removeItem('serviceId');
     // The PaymentSection already handles redirect to dashboard
     // But we could add additional logic here if needed
   };
@@ -58,6 +76,9 @@ export default function BookingConfirmationPage() {
   };
 
   const handleBack = () => {
+    // Clear session storage when user goes back
+    sessionStorage.removeItem('bookingData');
+    sessionStorage.removeItem('serviceId');
     // Go back to previous page
     router.back();
   };

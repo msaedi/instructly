@@ -5,7 +5,6 @@ import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { publicApi } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
-import BookingModal from '@/features/student/booking/components/BookingModal';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import { Instructor } from '@/features/student/booking/types';
 import { getBookingIntent, clearBookingIntent } from '@/features/student/booking';
@@ -38,10 +37,10 @@ export default function AvailabilityCalendar({
 
   // Modal State
   const [isTimeSelectionModalOpen, setIsTimeSelectionModalOpen] = useState(false);
-  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [preSelectedDate, setPreSelectedDate] = useState<string | undefined>();
   const [preSelectedTime, setPreSelectedTime] = useState<string | undefined>();
+  const [preSelectedServiceId, setPreSelectedServiceId] = useState<number | undefined>();
   const [shouldOpenModalFromIntent, setShouldOpenModalFromIntent] = useState(false);
 
   // Handle time slot selection - opens TimeSelectionModal with pre-selected values
@@ -64,7 +63,7 @@ export default function AvailabilityCalendar({
     setSelectedDate(selection.date);
     setSelectedTime(selection.time);
     setIsTimeSelectionModalOpen(false);
-    setIsBookingModalOpen(true);
+    // No longer opening BookingModal - TimeSelectionModal handles payment navigation
     logger.info('Time selected from TimeSelectionModal', selection);
   };
 
@@ -73,15 +72,7 @@ export default function AvailabilityCalendar({
     setIsTimeSelectionModalOpen(false);
     setPreSelectedDate(undefined);
     setPreSelectedTime(undefined);
-  };
-
-  const handleCloseBookingModal = () => {
-    setIsBookingModalOpen(false);
-    setSelectedTime('');
-  };
-
-  const handleContinueToBooking = () => {
-    handleCloseBookingModal();
+    setPreSelectedServiceId(undefined);
   };
 
   // Generate next 14 days starting from today - memoize to avoid regeneration
@@ -105,10 +96,21 @@ export default function AvailabilityCalendar({
   // Check for stored booking intent on mount
   useEffect(() => {
     const intent = getBookingIntent();
+    logger.info('Checking for booking intent', {
+      hasIntent: !!intent,
+      instructorId: instructor.user_id,
+      intentInstructorId: intent?.instructorId,
+    });
+
     if (intent && intent.instructorId === instructor.user_id) {
-      logger.info('Found booking intent, restoring state', intent);
+      logger.info('Found matching booking intent, restoring state', intent);
       setSelectedDate(intent.date);
       setSelectedTime(intent.time);
+      setPreSelectedDate(intent.date);
+      setPreSelectedTime(intent.time);
+      if (intent.serviceId) {
+        setPreSelectedServiceId(intent.serviceId);
+      }
       setShouldOpenModalFromIntent(true);
       clearBookingIntent();
     }
@@ -435,20 +437,10 @@ export default function AvailabilityCalendar({
         onClose={handleCloseTimeSelectionModal}
         instructor={instructor}
         preSelectedDate={preSelectedDate}
-        onTimeSelected={handleTimeSelected}
+        preSelectedTime={preSelectedTime}
+        serviceId={preSelectedServiceId}
+        // Don't pass onTimeSelected - let TimeSelectionModal handle navigation
       />
-
-      {/* Booking Modal */}
-      {selectedDate && (
-        <BookingModal
-          isOpen={isBookingModalOpen}
-          onClose={handleCloseBookingModal}
-          instructor={instructor}
-          selectedDate={selectedDate}
-          selectedTime={selectedTime}
-          onContinueToBooking={handleContinueToBooking}
-        />
-      )}
     </div>
   );
 }

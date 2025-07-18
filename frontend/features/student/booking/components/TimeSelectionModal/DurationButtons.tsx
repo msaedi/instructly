@@ -1,5 +1,7 @@
 'use client';
 
+import { logger } from '@/lib/logger';
+
 interface DurationButtonsProps {
   durationOptions: Array<{
     duration: number;
@@ -14,8 +16,17 @@ export default function DurationButtons({
   selectedDuration,
   onDurationSelect,
 }: DurationButtonsProps) {
+  logger.debug('DurationButtons rendered', {
+    durationOptions,
+    optionsLength: durationOptions.length,
+    selectedDuration,
+  });
+
   // Only show if instructor has multiple duration options
   if (durationOptions.length <= 1) {
+    logger.debug('DurationButtons hiding - not enough options', {
+      optionsLength: durationOptions.length,
+    });
     return null;
   }
 
