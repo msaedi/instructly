@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, ArrowLeft } from 'lucide-react';
 import { logger } from '@/lib/logger';
 import Calendar from './TimeSelectionModal/Calendar';
+import TimeDropdown from './TimeSelectionModal/TimeDropdown';
 
 interface TimeSelectionModalProps {
   isOpen: boolean;
@@ -121,8 +122,22 @@ export default function TimeSelectionModal({
   const handleDateSelect = (date: string) => {
     setSelectedDate(date);
     setShowTimeDropdown(true);
-    // TODO: Fetch available time slots for selected date
-    logger.info('Date selected', { date });
+    // Generate mock time slots based on duration
+    const mockTimeSlots =
+      selectedDuration === 30
+        ? ['9:00am', '9:30am', '10:00am', '10:30am', '11:00am', '1:00pm', '1:30pm', '2:00pm']
+        : selectedDuration === 60
+          ? ['9:00am', '10:00am', '11:00am', '1:00pm', '2:00pm', '3:00pm']
+          : ['9:00am', '10:30am', '1:00pm', '2:30pm']; // 90 min
+
+    setTimeSlots(mockTimeSlots);
+    logger.info('Date selected', { date, slotsGenerated: mockTimeSlots.length });
+  };
+
+  // Handle time selection
+  const handleTimeSelect = (time: string) => {
+    setSelectedTime(time);
+    logger.info('Time selected', { time });
   };
 
   if (!isOpen) return null;
@@ -166,10 +181,16 @@ export default function TimeSelectionModal({
               onMonthChange={setCurrentMonth}
             />
 
-            {/* TODO: Time Dropdown (shown when date selected) */}
+            {/* Time Dropdown (shown when date selected) */}
             {showTimeDropdown && (
-              <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mb-4">
-                <p className="text-gray-500">Time Dropdown Placeholder</p>
+              <div className="mb-4">
+                <TimeDropdown
+                  selectedTime={selectedTime}
+                  timeSlots={timeSlots}
+                  isVisible={showTimeDropdown}
+                  onTimeSelect={handleTimeSelect}
+                  disabled={false}
+                />
               </div>
             )}
 
@@ -253,10 +274,16 @@ export default function TimeSelectionModal({
                     onMonthChange={setCurrentMonth}
                   />
 
-                  {/* TODO: Time Dropdown (shown when date selected) */}
+                  {/* Time Dropdown (shown when date selected) */}
                   {showTimeDropdown && (
-                    <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mb-4">
-                      <p className="text-gray-500">Time Dropdown Placeholder</p>
+                    <div className="mb-4">
+                      <TimeDropdown
+                        selectedTime={selectedTime}
+                        timeSlots={timeSlots}
+                        isVisible={showTimeDropdown}
+                        onTimeSelect={handleTimeSelect}
+                        disabled={false}
+                      />
                     </div>
                   )}
 
