@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation';
 import { AlertCircle } from 'lucide-react';
 import { BookingPayment, PaymentCard, CreditBalance } from '../types';
 import { usePaymentFlow, PaymentStep } from '../hooks/usePaymentFlow';
-import { PaymentMethodSelection } from './PaymentMethodSelection';
-import { PaymentConfirmation } from './PaymentConfirmation';
-import { PaymentProcessing } from './PaymentProcessing';
-import { PaymentSuccess } from './PaymentSuccess';
+import PaymentMethodSelection from './PaymentMethodSelection';
+import PaymentConfirmation from './PaymentConfirmation';
+import PaymentProcessing from './PaymentProcessing';
+import PaymentSuccess from './PaymentSuccess';
 import { logger } from '@/lib/logger';
 import { useCreateBooking, calculateEndTime } from '@/features/student/booking';
 
