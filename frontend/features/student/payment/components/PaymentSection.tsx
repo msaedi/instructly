@@ -13,7 +13,7 @@ import { logger } from '@/lib/logger';
 import { useCreateBooking, calculateEndTime } from '@/features/student/booking';
 
 interface PaymentSectionProps {
-  bookingData: BookingPayment;
+  bookingData: BookingPayment & { metadata?: any };
   onSuccess: (confirmationNumber: string) => void;
   onError: (error: Error) => void;
   onBack?: () => void;
@@ -77,7 +77,10 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack }: Paym
     try {
       // Parse instructor ID and service ID from booking data
       const instructorId = parseInt(bookingData.instructorId);
-      const serviceId = parseInt(bookingData.lessonType); // This might need adjustment based on actual data structure
+      // Try to get serviceId from metadata first, otherwise try to parse from lessonType
+      const serviceId = bookingData.metadata?.serviceId
+        ? parseInt(bookingData.metadata.serviceId)
+        : parseInt(bookingData.lessonType); // Fallback if serviceId not in metadata
 
       // Format time to remove seconds if present
       const formattedStartTime = bookingData.startTime.split(':').slice(0, 2).join(':');
