@@ -1,0 +1,20 @@
+students:
+  - email: john.smith@example.com
+    full_name: John Smith
+    phone: "+12125551001"
+
+  - email: emma.johnson@example.com
+    full_name: Emma Johnson
+    phone: "+12125551002"
+
+  - email: alex.williams@example.com
+    full_name: Alex Williams
+    phone: "+12125551003"
+
+  - email: sophia.brown@example.com
+    full_name: Sophia Brown
+    phone: "+12125551004"
+
+  - email: david.miller@example.com
+    full_name: David Miller
+    phone: "+12125551005"

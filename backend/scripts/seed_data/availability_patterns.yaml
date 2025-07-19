@@ -1,0 +1,39 @@
+patterns:
+  standard_weekday:
+    description: "Monday-Friday, 9 AM - 5 PM"
+    days:
+      monday: [["09:00", "17:00"]]
+      tuesday: [["09:00", "17:00"]]
+      wednesday: [["09:00", "17:00"]]
+      thursday: [["09:00", "17:00"]]
+      friday: [["09:00", "17:00"]]
+
+  mornings_only:
+    description: "Weekday mornings, 7 AM - 12 PM"
+    days:
+      monday: [["07:00", "12:00"]]
+      tuesday: [["07:00", "12:00"]]
+      wednesday: [["07:00", "12:00"]]
+      thursday: [["07:00", "12:00"]]
+      friday: [["07:00", "12:00"]]
+
+  evenings_weekends:
+    description: "Weekday evenings and weekends"
+    days:
+      monday: [["17:00", "21:00"]]
+      tuesday: [["17:00", "21:00"]]
+      wednesday: [["17:00", "21:00"]]
+      thursday: [["17:00", "21:00"]]
+      friday: [["17:00", "21:00"]]
+      saturday: [["10:00", "18:00"]]
+      sunday: [["10:00", "18:00"]]
+
+  flexible_academic:
+    description: "Flexible schedule for academic tutors"
+    days:
+      monday: [["09:00", "12:00"], ["14:00", "20:00"]]
+      tuesday: [["14:00", "20:00"]]
+      wednesday: [["09:00", "12:00"], ["14:00", "20:00"]]
+      thursday: [["14:00", "20:00"]]
+      friday: [["09:00", "12:00"], ["14:00", "18:00"]]
+      saturday: [["10:00", "16:00"]]

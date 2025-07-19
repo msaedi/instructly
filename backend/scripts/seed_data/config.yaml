@@ -1,0 +1,23 @@
+settings:
+  default_password: "Test123"
+  weeks_of_availability: 4
+  booking_days_ahead: 7
+
+categories:
+  # Define instructor categories for easy reference
+  - name: "Academic"
+    subcategories: ["Math", "Science", "English", "History"]
+  - name: "Languages"
+    subcategories: ["Spanish", "French", "Mandarin", "Italian", "German"]
+  - name: "Music"
+    subcategories: ["Piano", "Guitar", "Violin", "Voice", "Drums"]
+  - name: "Arts"
+    subcategories: ["Painting", "Drawing", "Photography", "Digital Art"]
+  - name: "Fitness"
+    subcategories: ["Yoga", "Personal Training", "Pilates", "Dance"]
+  - name: "Technology"
+    subcategories: ["Programming", "Web Design", "Data Science", "AI/ML"]
+  - name: "Test Prep"
+    subcategories: ["SAT", "ACT", "GRE", "GMAT", "TOEFL"]
+  - name: "Professional"
+    subcategories: ["Public Speaking", "Business Writing", "Leadership", "Career Coaching"]

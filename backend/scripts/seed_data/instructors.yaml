@@ -1,0 +1,229 @@
+instructors:
+  # ACADEMIC - Multiple durations (showcase feature)
+  - email: sarah.chen@example.com
+    full_name: Sarah Chen
+    phone: "+12125551101"
+    profile:
+      bio: "MIT graduate with 10 years of experience teaching math and physics. Specializes in AP prep and college-level courses."
+      years_experience: 10
+      areas: ["Manhattan", "Brooklyn"]
+      services:
+        - name: "Math Tutoring"
+          description: "Algebra, Calculus, Statistics - all levels"
+          price: 80.00
+          duration_options: [30, 60, 90]  # Multiple durations
+        - name: "Physics Tutoring"
+          description: "AP Physics, College Physics, Quantum Mechanics"
+          price: 90.00
+          duration_options: [60, 90]  # Multiple durations
+    availability_pattern: "flexible_academic"
+
+  - email: robert.kim@example.com
+    full_name: Robert Kim
+    phone: "+12125551102"
+    profile:
+      bio: "Former high school English teacher, now specializing in SAT/ACT prep and college essays."
+      years_experience: 8
+      areas: ["Queens", "Manhattan"]
+      services:
+        - name: "English & Writing"
+          description: "Essay writing, literature analysis, grammar"
+          price: 70.00
+          duration_options: [60]  # Single duration
+        - name: "College Essay Coaching"
+          description: "Brainstorming, editing, and perfecting college applications"
+          price: 100.00
+          duration_options: [90]  # Single duration
+    availability_pattern: "evenings_weekends"
+
+  # LANGUAGES - Mix of single and multiple durations
+  - email: maria.gonzalez@example.com
+    full_name: Maria Gonzalez
+    phone: "+12125551103"
+    profile:
+      bio: "Native Spanish speaker with teaching certification. Fun, interactive lessons for all ages."
+      years_experience: 6
+      areas: ["Brooklyn", "Queens"]
+      services:
+        - name: "Spanish Lessons"
+          description: "Conversational Spanish, grammar, business Spanish"
+          price: 60.00
+          duration_options: [30, 45, 60]  # Multiple durations for flexibility
+    availability_pattern: "standard_weekday"
+
+  - email: pierre.dubois@example.com
+    full_name: Pierre Dubois
+    phone: "+12125551104"
+    profile:
+      bio: "French native from Paris, specializing in pronunciation and conversational skills."
+      years_experience: 5
+      areas: ["Manhattan"]
+      services:
+        - name: "French Lessons"
+          description: "From beginner to advanced, focus on real-world conversation"
+          price: 65.00
+          duration_options: [45]  # Single duration
+    availability_pattern: "mornings_only"
+
+  - email: wei.zhang@example.com
+    full_name: Wei Zhang
+    phone: "+12125551105"
+    profile:
+      bio: "Certified Mandarin instructor with experience teaching business professionals."
+      years_experience: 12
+      areas: ["Manhattan", "Brooklyn", "Queens"]
+      services:
+        - name: "Mandarin Chinese"
+          description: "HSK prep, business Chinese, conversational practice"
+          price: 75.00
+          duration_options: [60]  # Single duration
+    availability_pattern: "evenings_weekends"
+
+  # MUSIC - Mostly single durations
+  - email: michael.rodriguez@example.com
+    full_name: Michael Rodriguez
+    phone: "+12125551106"
+    profile:
+      bio: "Julliard-trained musician offering guitar and piano lessons. Jazz, classical, and contemporary styles."
+      years_experience: 15
+      areas: ["Queens", "Brooklyn"]
+      services:
+        - name: "Guitar Lessons"
+          description: "Acoustic, electric, classical guitar - all styles"
+          price: 70.00
+          duration_options: [30, 45, 60]  # Multiple durations
+        - name: "Piano Lessons"
+          description: "Classical, jazz, music theory included"
+          price: 75.00
+          duration_options: [45, 60]  # Multiple durations
+    availability_pattern: "flexible_academic"
+
+  - email: jessica.chen@example.com
+    full_name: Jessica Chen
+    phone: "+12125551107"
+    profile:
+      bio: "Professional violinist with NY Philharmonic. Patient teacher for serious students."
+      years_experience: 20
+      areas: ["Manhattan"]
+      services:
+        - name: "Violin Lessons"
+          description: "Classical technique, music theory, performance prep"
+          price: 120.00
+          duration_options: [60]  # Single duration - serious study
+    availability_pattern: "evenings_weekends"
+
+  # ARTS
+  - email: david.thompson@example.com
+    full_name: David Thompson
+    phone: "+12125551108"
+    profile:
+      bio: "Professional photographer specializing in portrait and street photography."
+      years_experience: 8
+      areas: ["Brooklyn", "Manhattan"]
+      services:
+        - name: "Photography Lessons"
+          description: "Camera basics, composition, editing in Lightroom"
+          price: 85.00
+          duration_options: [90]  # Single duration - need time for practice
+    availability_pattern: "flexible_academic"
+
+  # FITNESS - Various duration needs
+  - email: amanda.white@example.com
+    full_name: Amanda White
+    phone: "+12125551109"
+    profile:
+      bio: "Certified yoga instructor specializing in Vinyasa and restorative yoga."
+      years_experience: 7
+      areas: ["Manhattan", "Brooklyn"]
+      services:
+        - name: "Private Yoga"
+          description: "Customized yoga sessions for your level and goals"
+          price: 90.00
+          duration_options: [60, 90]  # Multiple durations
+    availability_pattern: "mornings_only"
+
+  - email: marcus.johnson@example.com
+    full_name: Marcus Johnson
+    phone: "+12125551110"
+    profile:
+      bio: "NASM certified personal trainer. Strength training and HIIT specialist."
+      years_experience: 5
+      areas: ["Queens", "Brooklyn"]
+      services:
+        - name: "Personal Training"
+          description: "Custom workout plans, form correction, nutrition guidance"
+          price: 100.00
+          duration_options: [45]  # Single duration
+    availability_pattern: "standard_weekday"
+
+  # TECHNOLOGY
+  - email: alex.patel@example.com
+    full_name: Alex Patel
+    phone: "+12125551111"
+    profile:
+      bio: "Full-stack developer with 10 years in tech. Love teaching coding to beginners!"
+      years_experience: 10
+      areas: ["Manhattan", "Remote"]
+      services:
+        - name: "Programming Lessons"
+          description: "Python, JavaScript, web development basics"
+          price: 95.00
+          duration_options: [60, 90, 120]  # Multiple - projects take time
+        - name: "Data Science Intro"
+          description: "Python for data analysis, pandas, visualization"
+          price: 110.00
+          duration_options: [90]  # Single duration
+    availability_pattern: "evenings_weekends"
+
+  # TEST PREP - Often longer sessions
+  - email: jennifer.park@example.com
+    full_name: Jennifer Park
+    phone: "+12125551112"
+    profile:
+      bio: "Perfect SAT scorer, Harvard grad. Proven strategies to boost scores 200+ points."
+      years_experience: 6
+      areas: ["Manhattan", "Queens"]
+      services:
+        - name: "SAT Prep"
+          description: "Complete SAT prep - Math, Reading, Writing"
+          price: 150.00
+          duration_options: [90, 120]  # Multiple - full practice tests
+        - name: "SAT Math Focus"
+          description: "Intensive math section preparation"
+          price: 130.00
+          duration_options: [60]  # Single duration
+    availability_pattern: "flexible_academic"
+
+  # PROFESSIONAL SKILLS
+  - email: rachel.moore@example.com
+    full_name: Rachel Moore
+    phone: "+12125551113"
+    profile:
+      bio: "Former McKinsey consultant, now executive coach. TEDx speaker."
+      years_experience: 12
+      areas: ["Manhattan"]
+      services:
+        - name: "Public Speaking"
+          description: "Presentation skills, speech writing, confidence building"
+          price: 125.00
+          duration_options: [60]  # Single duration
+        - name: "Career Coaching"
+          description: "Resume review, interview prep, career transitions"
+          price: 140.00
+          duration_options: [45, 60, 90]  # Multiple - depends on needs
+    availability_pattern: "standard_weekday"
+
+  # Add a few more single-duration instructors
+  - email: thomas.lee@example.com
+    full_name: Thomas Lee
+    phone: "+12125551114"
+    profile:
+      bio: "CFA charterholder offering finance and accounting tutoring."
+      years_experience: 9
+      areas: ["Manhattan"]
+      services:
+        - name: "Finance Tutoring"
+          description: "Corporate finance, accounting, CFA prep"
+          price: 110.00
+          duration_options: [60]  # Single duration
+    availability_pattern: "evenings_weekends"

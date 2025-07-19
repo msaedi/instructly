@@ -8,7 +8,11 @@ from sqlalchemy import create_engine, text
 
 from app.core.config import settings
 
-engine = create_engine(settings.database_url)
+# Use test database if USE_TEST_DATABASE is set
+db_url = settings.test_database_url if os.getenv("USE_TEST_DATABASE") == "true" else settings.database_url
+print(f"Using database: {'TEST' if os.getenv('USE_TEST_DATABASE') == 'true' else 'PRODUCTION'}")
+
+engine = create_engine(db_url)
 with engine.connect() as conn:
     conn.execute(text("DROP SCHEMA public CASCADE"))
     conn.execute(text("CREATE SCHEMA public"))

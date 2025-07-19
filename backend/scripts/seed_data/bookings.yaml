@@ -1,0 +1,11 @@
+# This file can be used in the future to define specific booking scenarios
+# For now, bookings are generated randomly by the script
+
+booking_scenarios:
+  # Example structure for future use:
+  # - student_email: john.smith@example.com
+  #   instructor_email: sarah.chen@example.com
+  #   service_name: "Math Tutoring"
+  #   duration_minutes: 60
+  #   days_from_now: 2
+  #   time: "14:00"
