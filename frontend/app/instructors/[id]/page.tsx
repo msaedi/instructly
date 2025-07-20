@@ -31,7 +31,7 @@ interface InstructorData {
     skill: string;
     hourly_rate: number;
     description?: string;
-    duration_override?: number;
+    duration_options: number[];
     duration: number;
     is_active?: boolean;
   }>;
