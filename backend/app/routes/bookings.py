@@ -230,8 +230,13 @@ async def create_booking(
     """
     try:
         # The schema now enforces the correct format with extra='forbid'
-        # BookingCreate has: instructor_id, service_id, booking_date, start_time, end_time, etc.
-        booking = await booking_service.create_booking(student=current_user, booking_data=booking_data)
+        # BookingCreate has: instructor_id, service_id, booking_date, start_time, selected_duration, etc.
+        # Extract selected_duration from booking_data
+        selected_duration = booking_data.selected_duration
+
+        booking = await booking_service.create_booking(
+            student=current_user, booking_data=booking_data, selected_duration=selected_duration
+        )
 
         return BookingResponse.model_validate(booking)
     except DomainException as e:

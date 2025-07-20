@@ -118,7 +118,7 @@ class TestBookingServiceUnit:
         service.skill = "Piano"
         service.hourly_rate = 50.0
         service.is_active = True
-        service.duration_override = None
+        service.duration_options = [30, 60, 90]
         service.instructor_profile_id = 1
         return service
 
@@ -192,6 +192,7 @@ class TestBookingServiceUnit:
             service_id=1,
             booking_date=date.today() + timedelta(days=2),
             start_time=time(14, 0),
+            selected_duration=60,
             end_time=time(15, 0),
             meeting_location="Online",
             student_note="Looking forward to it!",
@@ -212,7 +213,9 @@ class TestBookingServiceUnit:
         booking_service.repository.get_booking_with_details.return_value = mock_booking
 
         with patch.object(booking_service, "_invalidate_booking_caches"):
-            result = await booking_service.create_booking(mock_student, booking_data)
+            result = await booking_service.create_booking(
+                mock_student, booking_data, selected_duration=booking_data.selected_duration
+            )
 
         # Assertions
         assert result == mock_booking
@@ -229,11 +232,14 @@ class TestBookingServiceUnit:
             service_id=1,
             booking_date=date.today() + timedelta(days=2),
             start_time=time(14, 0),
+            selected_duration=60,
             end_time=time(15, 0),
         )
 
         with pytest.raises(ValidationException, match="Only students can create bookings"):
-            await booking_service.create_booking(mock_instructor, booking_data)
+            await booking_service.create_booking(
+                mock_instructor, booking_data, selected_duration=booking_data.selected_duration
+            )
 
     @pytest.mark.asyncio
     async def test_create_booking_service_inactive(self, booking_service, mock_db, mock_student):
@@ -243,6 +249,7 @@ class TestBookingServiceUnit:
             service_id=1,
             booking_date=date.today() + timedelta(days=2),
             start_time=time(14, 0),
+            selected_duration=60,
             end_time=time(15, 0),
         )
 
@@ -253,7 +260,9 @@ class TestBookingServiceUnit:
         mock_db.query.return_value.filter.return_value.first.return_value = None
 
         with pytest.raises(NotFoundException, match="Service not found or no longer available"):
-            await booking_service.create_booking(mock_student, booking_data)
+            await booking_service.create_booking(
+                mock_student, booking_data, selected_duration=booking_data.selected_duration
+            )
 
     @pytest.mark.asyncio
     async def test_create_booking_time_conflict(
@@ -265,6 +274,7 @@ class TestBookingServiceUnit:
             service_id=1,
             booking_date=date.today() + timedelta(days=2),
             start_time=time(14, 0),
+            selected_duration=60,
             end_time=time(15, 0),
         )
 
@@ -275,7 +285,9 @@ class TestBookingServiceUnit:
         mock_db.query.return_value.filter.return_value.first.side_effect = [mock_service, mock_instructor_profile]
 
         with pytest.raises(ConflictException, match="This time slot conflicts with an existing booking"):
-            await booking_service.create_booking(mock_student, booking_data)
+            await booking_service.create_booking(
+                mock_student, booking_data, selected_duration=booking_data.selected_duration
+            )
 
     @pytest.mark.asyncio
     async def test_create_booking_minimum_advance_hours(
@@ -289,6 +301,7 @@ class TestBookingServiceUnit:
             service_id=1,
             booking_date=date.today(),
             start_time=time(10, 0),  # 10:00 AM
+            selected_duration=60,
             end_time=time(11, 0),  # 11:00 AM
         )
 
@@ -299,7 +312,9 @@ class TestBookingServiceUnit:
         mock_db.query.return_value.filter.return_value.first.side_effect = [mock_service, mock_instructor_profile]
 
         with pytest.raises(BusinessRuleException, match="at least 24 hours in advance"):
-            await booking_service.create_booking(mock_student, booking_data)
+            await booking_service.create_booking(
+                mock_student, booking_data, selected_duration=booking_data.selected_duration
+            )
 
     @pytest.mark.asyncio
     async def test_cancel_booking_success(self, booking_service, mock_db, mock_student, mock_booking):
@@ -499,7 +514,7 @@ class TestBookingServiceUnit:
         """Test pricing calculation for standard booking."""
         service = Mock()
         service.hourly_rate = 50.0
-        service.duration_override = None
+        service.duration_options = [60, 90]
 
         # Calculate for 1.5 hours
         start_time = time(14, 0)
@@ -512,14 +527,15 @@ class TestBookingServiceUnit:
         assert pricing["total_price"] == 75.0  # 1.5 * 50
         assert pricing["hourly_rate"] == 50.0
 
-    def test_calculate_pricing_with_override(self, booking_service):
-        """Test pricing calculation with duration override."""
+    def test_calculate_pricing_with_selected_duration(self, booking_service):
+        """Test pricing calculation with selected duration."""
         service = Mock()
         service.hourly_rate = 60.0
-        service.duration_override = 45  # 45 minute lessons
+        service.duration_options = [30, 45, 60]  # Multiple duration options
 
+        # Selected duration is 45 minutes
         start_time = time(14, 0)
-        end_time = time(15, 0)  # Time range is 1 hour but service overrides
+        end_time = time(14, 45)  # End time matches selected duration
 
         with patch.object(booking_service, "db"):
             pricing = booking_service._calculate_pricing(service, start_time, end_time)

@@ -120,12 +120,15 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session):
         booking_date=tomorrow,
         start_time=time(15, 0),  # 3:00 PM
         end_time=time(16, 0),  # 4:00 PM
+        selected_duration=60,
         service_id=math_service.id,
         location_type="neutral",
         meeting_location="Online",
     )
 
-    booking1 = await booking_service.create_booking(student, booking1_data)
+    booking1 = await booking_service.create_booking(
+        student, booking1_data, selected_duration=booking1_data.selected_duration
+    )
     assert booking1.id is not None
     assert booking1.status == BookingStatus.CONFIRMED
 
@@ -135,6 +138,7 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session):
         booking_date=tomorrow,
         start_time=time(15, 30),  # 3:30 PM - overlaps with Math lesson
         end_time=time(16, 30),  # 4:30 PM
+        selected_duration=60,
         service_id=piano_service.id,
         location_type="neutral",
         meeting_location="Online",
@@ -144,7 +148,7 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session):
     from app.core.exceptions import ConflictException
 
     with pytest.raises(ConflictException) as exc_info:
-        await booking_service.create_booking(student, booking2_data)
+        await booking_service.create_booking(student, booking2_data, selected_duration=booking2_data.selected_duration)
 
     # Verify the error message
     assert "already have a booking" in str(exc_info.value) or "conflicts with an existing booking" in str(

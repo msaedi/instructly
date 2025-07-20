@@ -61,18 +61,27 @@ class ServiceBase(StandardizedModel):
         skill: The skill/service being offered (e.g., "Piano", "Yoga")
         hourly_rate: Rate per hour in USD
         description: Optional description of the service
-        duration_override: Optional custom duration for this service
+        duration_options: Available duration options for this service in minutes
     """
 
     skill: str = Field(..., min_length=1, max_length=100)
     hourly_rate: Money = Field(..., gt=0, le=1000, description="Hourly rate in USD")  # Changed from float
     description: Optional[str] = Field(None, max_length=500)
-    duration_override: Optional[int] = Field(
-        None,
-        ge=MIN_SESSION_DURATION,
-        le=MAX_SESSION_DURATION,
-        description="Custom duration for this service in minutes (overrides default)",
+    duration_options: List[int] = Field(
+        default=[60],
+        description="Available duration options for this service in minutes",
+        min_length=1,
     )
+
+    @field_validator("duration_options")
+    def validate_duration_range(cls, v):
+        """Ensure each duration is within valid range."""
+        if not v:
+            raise ValueError("At least one duration option is required")
+        for duration in v:
+            if not MIN_SESSION_DURATION <= duration <= MAX_SESSION_DURATION:
+                raise ValueError(f"Duration must be between {MIN_SESSION_DURATION} and {MAX_SESSION_DURATION} minutes")
+        return v
 
     @field_validator("skill")
     def validate_skill(cls, v):
@@ -92,7 +101,6 @@ class ServiceResponse(ServiceBase):
     """
 
     id: int
-    duration: int = Field(description="Effective duration in minutes")
 
     model_config = ConfigDict(from_attributes=True)
 

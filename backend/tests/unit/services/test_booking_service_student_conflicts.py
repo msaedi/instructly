@@ -52,7 +52,7 @@ class TestStudentConflictValidation:
         service.instructor_profile_id = 1
         service.skill = "Math"
         service.hourly_rate = 50.0
-        service.duration_override = None
+        service.duration_options = [60]
         service.is_active = True
         repository.get_active_service = Mock(return_value=service)
 
@@ -119,6 +119,7 @@ class TestStudentConflictValidation:
             booking_date=date.today() + timedelta(days=1),
             start_time=time(15, 30),
             end_time=time(16, 30),
+            selected_duration=60,
             service_id=1,
             location_type="neutral",
             meeting_location="Online",
@@ -126,7 +127,9 @@ class TestStudentConflictValidation:
 
         # Should raise ConflictException
         with pytest.raises(ConflictException) as exc_info:
-            await booking_service.create_booking(student, booking_data)
+            await booking_service.create_booking(
+                student, booking_data, selected_duration=booking_data.selected_duration
+            )
 
         assert str(exc_info.value) == "You already have a booking scheduled at this time"
 
@@ -166,13 +169,16 @@ class TestStudentConflictValidation:
             booking_date=date.today() + timedelta(days=1),
             start_time=time(16, 0),  # Exactly when previous ends
             end_time=time(17, 0),
+            selected_duration=60,
             service_id=1,
             location_type="neutral",
             meeting_location="Online",
         )
 
         # Should succeed
-        result = await booking_service.create_booking(student, booking_data)
+        result = await booking_service.create_booking(
+            student, booking_data, selected_duration=booking_data.selected_duration
+        )
         assert result.id == 101
         assert result.status == BookingStatus.CONFIRMED
 
@@ -214,12 +220,15 @@ class TestStudentConflictValidation:
             booking_date=date.today() + timedelta(days=1),
             start_time=time(15, 0),
             end_time=time(16, 0),
+            selected_duration=60,
             service_id=1,
             location_type="neutral",
             meeting_location="Online",
         )
 
-        result1 = await booking_service.create_booking(student1, booking_data1)
+        result1 = await booking_service.create_booking(
+            student1, booking_data1, selected_duration=booking_data1.selected_duration
+        )
         assert result1.id == 101
 
         # After first booking, instructor has conflict but student2 doesn't
@@ -231,13 +240,16 @@ class TestStudentConflictValidation:
             booking_date=date.today() + timedelta(days=1),
             start_time=time(15, 30),
             end_time=time(16, 30),
+            selected_duration=60,
             service_id=1,
             location_type="neutral",
             meeting_location="Online",
         )
 
         with pytest.raises(ConflictException) as exc_info:
-            await booking_service.create_booking(student2, booking_data2)
+            await booking_service.create_booking(
+                student2, booking_data2, selected_duration=booking_data2.selected_duration
+            )
 
         assert str(exc_info.value) == "This time slot conflicts with an existing booking"
 
@@ -262,6 +274,7 @@ class TestStudentConflictValidation:
             booking_date=date.today() + timedelta(days=1),
             start_time=time(15, 59),  # 1 minute before existing ends
             end_time=time(17, 0),
+            selected_duration=60,
             service_id=1,
             location_type="neutral",
             meeting_location="Online",
@@ -269,7 +282,9 @@ class TestStudentConflictValidation:
 
         # Should raise ConflictException
         with pytest.raises(ConflictException) as exc_info:
-            await booking_service.create_booking(student, booking_data)
+            await booking_service.create_booking(
+                student, booking_data, selected_duration=booking_data.selected_duration
+            )
 
         assert str(exc_info.value) == "You already have a booking scheduled at this time"
 
@@ -294,12 +309,15 @@ class TestStudentConflictValidation:
             booking_date=date.today() + timedelta(days=1),
             start_time=time(15, 0),
             end_time=time(16, 0),
+            selected_duration=60,
             service_id=1,
             location_type="neutral",
             meeting_location="Online",
         )
 
         # Should succeed
-        result = await booking_service.create_booking(student, booking_data)
+        result = await booking_service.create_booking(
+            student, booking_data, selected_duration=booking_data.selected_duration
+        )
         assert result.id == 101
         assert result.status == BookingStatus.CONFIRMED

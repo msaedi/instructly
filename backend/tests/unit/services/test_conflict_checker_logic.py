@@ -206,9 +206,9 @@ class TestConflictCheckerValidationRules:
 
     def test_service_duration_validation_rules(self, service):
         """Test service-specific duration validation."""
-        # Mock service with duration override
+        # Mock service with duration options
         mock_service = Mock(spec=Service)
-        mock_service.duration_override = 90  # 90 minutes required
+        mock_service.duration_options = [60, 90, 120]  # Multiple duration options
         mock_service.is_active = True
         service.repository.get_active_service.return_value = mock_service
 
@@ -220,18 +220,18 @@ class TestConflictCheckerValidationRules:
         mock_profile.min_advance_booking_hours = 2
         service.repository.get_instructor_profile.return_value = mock_profile
 
-        # Test service duration mismatch
+        # Test service duration mismatch - use a duration not in the options
         result = service.validate_booking_constraints(
             instructor_id=1,
             booking_date=date.today() + timedelta(days=1),
             start_time=time(14, 0),
-            end_time=time(15, 0),  # 60 minutes but service needs 90
+            end_time=time(14, 45),  # 45 minutes - not in the options [60, 90, 120]
             service_id=1,
         )
 
         assert result["valid"] == True  # Valid but with warning
         assert len(result["warnings"]) >= 1
-        assert any("90 minutes" in warning for warning in result["warnings"])
+        assert any("[60, 90, 120] minutes" in warning for warning in result["warnings"])
 
     def test_blackout_date_priority_rules(self, service):
         """Test that blackout dates take priority over other validations."""

@@ -609,7 +609,7 @@ class TestDefaultValues:
 
         assert service.is_active is True  # Default
         assert service.description is None  # Optional
-        assert service.duration_override is None  # Optional
+        assert service.duration_options == [60]  # Default value
 
     def test_booking_instant_confirmation(self, db, test_student, test_instructor):
         """Test Booking defaults to CONFIRMED status (instant booking)."""

@@ -444,8 +444,7 @@ class InstructorService(BaseService):
                     "skill": service.skill,
                     "hourly_rate": service.hourly_rate,
                     "description": service.description,
-                    "duration_override": service.duration_override,
-                    "duration": service.duration if hasattr(service, "duration") else 60,
+                    "duration_options": service.duration_options,
                     "is_active": service.is_active,
                 }
                 for service in sorted(services, key=lambda s: s.skill)

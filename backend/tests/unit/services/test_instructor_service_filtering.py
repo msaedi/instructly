@@ -67,7 +67,7 @@ class TestInstructorServiceFiltering:
             service.skill = skill
             service.hourly_rate = rate
             service.description = f"{skill} lessons"
-            service.duration_override = None
+            service.duration_options = [60]
             service.duration = 60
             service.is_active = True
             mock_services.append(service)

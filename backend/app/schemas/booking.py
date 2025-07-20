@@ -8,10 +8,10 @@ the "Rug and Person" principle where bookings persist independently of
 availability changes.
 """
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ..models.booking import BookingStatus
 from ..schemas.base import Money, StandardizedModel
@@ -30,12 +30,15 @@ class BookingCreate(BaseModel):
     service_id: int = Field(..., description="Service being booked")
     booking_date: date = Field(..., description="Date of the booking")
     start_time: time = Field(..., description="Start time")
-    end_time: time = Field(..., description="End time")
+    selected_duration: int = Field(..., description="Selected duration in minutes from service's duration_options")
     student_note: Optional[str] = Field(None, max_length=1000, description="Optional note from student")
     meeting_location: Optional[str] = Field(None, description="Specific meeting location if applicable")
     location_type: Optional[Literal["student_home", "instructor_location", "neutral"]] = Field(
         "neutral", description="Type of meeting location"
     )
+
+    # Note: end_time is calculated from start_time + selected_duration
+    end_time: Optional[time] = Field(None, description="Calculated end time (set automatically)")
 
     # Forbid extra fields to enforce clean architecture
     model_config = ConfigDict(extra="forbid")
@@ -53,12 +56,14 @@ class BookingCreate(BaseModel):
                 raise ValueError(f"Invalid time format: {v}. Expected HH:MM format.")
         return v
 
-    @field_validator("end_time")
+    @field_validator("selected_duration")
     @classmethod
-    def validate_time_order(cls, v, info):
-        """Ensure end time is after start time."""
-        if info.data.get("start_time") and v <= info.data["start_time"]:
-            raise ValueError("End time must be after start time")
+    def validate_duration(cls, v):
+        """Ensure duration is within reasonable bounds."""
+        if v < 15:
+            raise ValueError("Duration must be at least 15 minutes")
+        if v > 720:  # 12 hours
+            raise ValueError("Duration cannot exceed 12 hours")
         return v
 
     @field_validator("booking_date")
@@ -83,6 +88,21 @@ class BookingCreate(BaseModel):
         if v and v not in valid_types:
             raise ValueError(f"location_type must be one of {valid_types}")
         return v or "neutral"
+
+    @model_validator(mode="after")
+    def validate_time_order(self):
+        """Ensure end_time is after start_time and calculate if needed."""
+        if self.end_time is None and self.start_time and self.selected_duration:
+            # Calculate end_time from start_time + duration
+            start_datetime = datetime.combine(date.today(), self.start_time)
+            end_datetime = start_datetime + timedelta(minutes=self.selected_duration)
+            self.end_time = end_datetime.time()
+
+        if self.start_time and self.end_time:
+            if self.end_time <= self.start_time:
+                raise ValueError("End time must be after start time")
+
+        return self
 
 
 class BookingUpdate(BaseModel):

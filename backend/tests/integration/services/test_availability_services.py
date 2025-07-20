@@ -302,8 +302,8 @@ class TestConflictChecker:
         service = Service(
             instructor_profile_id=profile.id,
             skill="Test Service",
-            hourly_rate=50.0
-            # No duration field - it's a property
+            hourly_rate=50.0,
+            duration_options=[60],  # Default duration options
         )
         db.add(service)
         db.commit()

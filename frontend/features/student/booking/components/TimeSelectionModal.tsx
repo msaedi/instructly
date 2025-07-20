@@ -19,8 +19,7 @@ interface TimeSelectionModalProps {
     user: { full_name: string };
     services: Array<{
       id?: number;
-      duration_options?: number[];
-      duration?: number;
+      duration_options: number[];
       hourly_rate: number;
       skill: string;
     }>;
@@ -43,23 +42,25 @@ export default function TimeSelectionModal({
   const router = useRouter();
   const { isAuthenticated, redirectToLogin } = useAuth();
 
-  // Get duration options - always show standard options
+  // Get duration options from the selected service
   const getDurationOptions = () => {
-    // Always use standard duration options for consistency
-    const standardDurations = [30, 60, 90, 120];
-
-    logger.debug('Using standard duration options', {
-      durations: standardDurations,
-    });
-
     // Get the selected service if serviceId is provided, otherwise use first
     const selectedService = serviceId
       ? instructor.services.find((s) => s.id === serviceId) || instructor.services[0]
       : instructor.services[0];
 
+    // Use duration_options from the service, or fallback to standard durations
+    const durations = selectedService?.duration_options || [30, 60, 90, 120];
+
+    logger.debug('Using service duration options', {
+      durations,
+      serviceId,
+      selectedService,
+    });
+
     const hourlyRate = selectedService?.hourly_rate || 100; // fallback rate
 
-    const result = standardDurations.map((duration) => ({
+    const result = durations.map((duration) => ({
       duration,
       price: Math.round((hourlyRate * duration) / 60),
     }));

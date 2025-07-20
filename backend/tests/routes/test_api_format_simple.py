@@ -32,7 +32,8 @@ class TestSchemaValidation:
         assert "instructor_id" in error_fields
         assert "booking_date" in error_fields
         assert "start_time" in error_fields
-        assert "end_time" in error_fields
+        assert "selected_duration" in error_fields
+        # end_time is not required as it can be calculated from start_time + selected_duration
 
         # The old field is simply ignored because required fields are missing
 
@@ -132,7 +133,7 @@ class TestAPIBehavior:
         errors = response.json()["detail"]
 
         # Should have clear error messages about missing fields
-        assert len(errors) >= 4  # At least 4 missing fields
+        assert len(errors) >= 4  # At least 4 missing required fields
 
         # Each error should indicate the field name
         for error in errors:
@@ -162,6 +163,7 @@ class TestCleanArchitectureValidation:
                 "booking_date": future_date,
                 "start_time": "09:00",
                 "end_time": "10:00",
+                "selected_duration": 60,
                 "student_note": "Test note",
                 "meeting_location": "Test location",
                 "location_type": "neutral",

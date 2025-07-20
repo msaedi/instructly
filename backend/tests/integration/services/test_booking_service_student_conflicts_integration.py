@@ -140,12 +140,15 @@ class TestStudentConflictValidationIntegration:
             booking_date=tomorrow,
             start_time=time(14, 0),
             end_time=time(15, 0),
+            selected_duration=60,
             service_id=math_service.id,
             location_type="neutral",
             meeting_location="Online",
         )
 
-        booking1 = await booking_service.create_booking(student_user, booking1_data)
+        booking1 = await booking_service.create_booking(
+            student_user, booking1_data, selected_duration=booking1_data.selected_duration
+        )
         assert booking1.id is not None
         assert booking1.status == BookingStatus.CONFIRMED
 
@@ -155,6 +158,7 @@ class TestStudentConflictValidationIntegration:
             booking_date=tomorrow,
             start_time=time(14, 30),
             end_time=time(15, 30),
+            selected_duration=60,
             service_id=piano_service.id,
             location_type="neutral",
             meeting_location="Online",
@@ -162,7 +166,9 @@ class TestStudentConflictValidationIntegration:
 
         # Should fail with student conflict
         with pytest.raises(ConflictException) as exc_info:
-            await booking_service.create_booking(student_user, booking2_data)
+            await booking_service.create_booking(
+                student_user, booking2_data, selected_duration=booking2_data.selected_duration
+            )
 
         assert str(exc_info.value) == "You already have a booking scheduled at this time"
 
@@ -185,12 +191,15 @@ class TestStudentConflictValidationIntegration:
             booking_date=tomorrow,
             start_time=time(14, 0),
             end_time=time(15, 0),
+            selected_duration=60,
             service_id=math_service.id,
             location_type="neutral",
             meeting_location="Online",
         )
 
-        booking1 = await booking_service.create_booking(student_user, booking1_data)
+        booking1 = await booking_service.create_booking(
+            student_user, booking1_data, selected_duration=booking1_data.selected_duration
+        )
         assert booking1.status == BookingStatus.CONFIRMED
 
         # Second booking: Piano at 3:00-4:00 PM (adjacent, no overlap)
@@ -199,13 +208,16 @@ class TestStudentConflictValidationIntegration:
             booking_date=tomorrow,
             start_time=time(15, 0),  # Starts exactly when first ends
             end_time=time(16, 0),
+            selected_duration=60,
             service_id=piano_service.id,
             location_type="neutral",
             meeting_location="Online",
         )
 
         # Should succeed
-        booking2 = await booking_service.create_booking(student_user, booking2_data)
+        booking2 = await booking_service.create_booking(
+            student_user, booking2_data, selected_duration=booking2_data.selected_duration
+        )
         assert booking2.id is not None
         assert booking2.status == BookingStatus.CONFIRMED
         assert booking2.start_time == booking1.end_time  # Verify adjacency
@@ -243,12 +255,15 @@ class TestStudentConflictValidationIntegration:
             booking_date=tomorrow,
             start_time=time(14, 0),
             end_time=time(15, 0),
+            selected_duration=60,
             service_id=math_service.id,
             location_type="neutral",
             meeting_location="Online",
         )
 
-        booking1 = await booking_service.create_booking(student1, booking1_data)
+        booking1 = await booking_service.create_booking(
+            student1, booking1_data, selected_duration=booking1_data.selected_duration
+        )
         assert booking1.status == BookingStatus.CONFIRMED
 
         # Student 2 tries to book 2:30-3:30 PM (overlaps)
@@ -257,6 +272,7 @@ class TestStudentConflictValidationIntegration:
             booking_date=tomorrow,
             start_time=time(14, 30),
             end_time=time(15, 30),
+            selected_duration=60,
             service_id=math_service.id,
             location_type="neutral",
             meeting_location="Online",
@@ -264,7 +280,9 @@ class TestStudentConflictValidationIntegration:
 
         # Should fail with instructor conflict (not student conflict)
         with pytest.raises(ConflictException) as exc_info:
-            await booking_service.create_booking(student2, booking2_data)
+            await booking_service.create_booking(
+                student2, booking2_data, selected_duration=booking2_data.selected_duration
+            )
 
         assert str(exc_info.value) == "This time slot conflicts with an existing booking"
 
@@ -287,12 +305,15 @@ class TestStudentConflictValidationIntegration:
             booking_date=tomorrow,
             start_time=time(14, 0),
             end_time=time(15, 0),
+            selected_duration=60,
             service_id=math_service.id,
             location_type="neutral",
             meeting_location="Online",
         )
 
-        booking1 = await booking_service.create_booking(student_user, booking1_data)
+        booking1 = await booking_service.create_booking(
+            student_user, booking1_data, selected_duration=booking1_data.selected_duration
+        )
         assert booking1.status == BookingStatus.CONFIRMED
 
         # Cancel the booking
@@ -307,12 +328,15 @@ class TestStudentConflictValidationIntegration:
             booking_date=tomorrow,
             start_time=time(14, 30),
             end_time=time(15, 30),
+            selected_duration=60,
             service_id=piano_service.id,
             location_type="neutral",
             meeting_location="Online",
         )
 
         # Should succeed since previous booking was cancelled
-        booking2 = await booking_service.create_booking(student_user, booking2_data)
+        booking2 = await booking_service.create_booking(
+            student_user, booking2_data, selected_duration=booking2_data.selected_duration
+        )
         assert booking2.id is not None
         assert booking2.status == BookingStatus.CONFIRMED

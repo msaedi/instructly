@@ -253,11 +253,14 @@ class TestSoftDeleteServices:
                     instructor_id=test_instructor.id,
                     booking_date=future_date,
                     start_time=slot.start_time,
+                    selected_duration=60,
                     end_time=slot.end_time,
                     service_id=inactive_service_id,
                     meeting_location="Test location",
                 )
-                await booking_service.create_booking(test_student, booking_data)
+                await booking_service.create_booking(
+                    test_student, booking_data, selected_duration=booking_data.selected_duration
+                )
 
             assert "Service not found or no longer available" in str(exc_info.value)
 

@@ -277,6 +277,7 @@ export interface CreateBookingRequest {
   booking_date: string; // ISO date string (YYYY-MM-DD)
   start_time: string; // HH:MM format
   end_time: string; // HH:MM format
+  selected_duration: number; // Duration in minutes
   student_note?: string;
   meeting_location?: string;
   location_type?: 'student_home' | 'instructor_location' | 'neutral';

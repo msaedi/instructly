@@ -32,6 +32,7 @@ class TestBookingRoutes:
             "booking_date": tomorrow.isoformat(),
             "start_time": "09:00",
             "end_time": "10:00",
+            "selected_duration": 60,
             "student_note": "Looking forward to the lesson!",
             "meeting_location": "Central Park",
             "location_type": "neutral",
@@ -852,6 +853,7 @@ class TestBookingRoutes:
             "service_id": 1,
             "booking_date": tomorrow.isoformat(),
             "start_time": "09:00",
+            "selected_duration": 60,
             "end_time": "10:00",
             "student_note": "x" * 1001,  # Too long
         }
@@ -1029,6 +1031,7 @@ class TestBookingIntegration:
             "service_id": service.id,
             "booking_date": tomorrow.isoformat(),
             "start_time": "10:00",
+            "selected_duration": 60,
             "end_time": "11:00",
             "meeting_location": "Test Location",
         }
@@ -1101,6 +1104,7 @@ class TestBookingIntegration:
             "service_id": service.id,
             "booking_date": tomorrow.isoformat(),
             "start_time": "10:00",
+            "selected_duration": 60,
             "end_time": "11:00",
             "meeting_location": "Test Location",
         }
@@ -1142,6 +1146,7 @@ class TestBookingIntegration:
             "service_id": service.id,
             "booking_date": tomorrow.isoformat(),
             "start_time": "14:00",
+            "selected_duration": 60,
             "end_time": "15:00",
             "meeting_location": "Park",
         }

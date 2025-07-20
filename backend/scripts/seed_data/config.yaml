@@ -1,5 +1,5 @@
 settings:
-  default_password: "Test123"
+  default_password: "Test1234"
   weeks_of_availability: 4
   booking_days_ahead: 7
 

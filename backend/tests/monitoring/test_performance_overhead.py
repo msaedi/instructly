@@ -53,7 +53,7 @@ class TestPerformanceOverhead:
 
         # Measure with metrics - use a more substantial operation to make overhead more realistic
         n_iterations = 100
-        n_operations = 50000  # Larger operation to reduce relative overhead
+        n_operations = 100000  # Even larger operation to reduce relative overhead
 
         times_with = []
         for _ in range(n_iterations):

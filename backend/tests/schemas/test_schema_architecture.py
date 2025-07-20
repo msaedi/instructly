@@ -31,6 +31,7 @@ class TestBookingCleanArchitecture:
             booking_date=date.today() + timedelta(days=1),
             start_time=time(9, 0),
             end_time=time(10, 0),
+            selected_duration=60,
         )
         assert booking.instructor_id == 1
         assert booking.service_id == 1
@@ -50,6 +51,7 @@ class TestBookingCleanArchitecture:
                 booking_date=date.today() + timedelta(days=1),
                 start_time=time(9, 0),
                 end_time=time(10, 0),
+                selected_duration=60,
             )
         assert "Extra inputs are not permitted" in str(exc.value)
 
@@ -62,6 +64,7 @@ class TestBookingCleanArchitecture:
                 booking_date=date.today() + timedelta(days=1),
                 start_time=time(10, 0),
                 end_time=time(9, 0),  # Before start time
+                selected_duration=60,
             )
         assert "End time must be after start time" in str(exc.value)
 
@@ -74,6 +77,7 @@ class TestBookingCleanArchitecture:
                 booking_date=date.today() - timedelta(days=1),  # Past date
                 start_time=time(9, 0),
                 end_time=time(10, 0),
+                selected_duration=60,
             )
         assert "Cannot book for past dates" in str(exc.value)
 

@@ -68,15 +68,16 @@ class BookingService(BaseService):
         self.cache_service = cache_service
 
     @BaseService.measure_operation("create_booking")
-    async def create_booking(self, student: User, booking_data: BookingCreate) -> Booking:
+    async def create_booking(self, student: User, booking_data: BookingCreate, selected_duration: int) -> Booking:
         """
-        Create an instant booking using time range.
+        Create an instant booking using selected duration.
 
         REFACTORED: Split into helper methods to stay under 50 lines.
 
         Args:
             student: The student creating the booking
             booking_data: Booking creation data with date/time range
+            selected_duration: Selected duration in minutes
 
         Returns:
             Created booking instance
@@ -92,20 +93,37 @@ class BookingService(BaseService):
             student_id=student.id,
             instructor_id=booking_data.instructor_id,
             date=booking_data.booking_date,
+            selected_duration=selected_duration,
         )
 
         # 1. Validate and load required data
         service, instructor_profile = await self._validate_booking_prerequisites(student, booking_data)
 
-        # 2. Check conflicts and apply business rules
+        # 2. Validate selected duration
+        if selected_duration not in service.duration_options:
+            raise ValidationException(
+                f"Invalid duration {selected_duration}. Available options: {service.duration_options}"
+            )
+
+        # 3. Calculate end time for conflict checking
+        start_datetime = datetime.combine(booking_data.booking_date, booking_data.start_time)
+        end_datetime = start_datetime + timedelta(minutes=selected_duration)
+        calculated_end_time = end_datetime.time()
+
+        # Update booking_data end_time for conflict checking
+        booking_data.end_time = calculated_end_time
+
+        # 4. Check conflicts and apply business rules
         await self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
 
-        # 3. Create the booking with transaction
+        # 5. Create the booking with transaction
         with self.transaction():
-            booking = await self._create_booking_record(student, booking_data, service, instructor_profile)
+            booking = await self._create_booking_record(
+                student, booking_data, service, instructor_profile, selected_duration
+            )
             self.db.commit()
 
-        # 4. Handle post-creation tasks
+        # 5. Handle post-creation tasks
         await self._handle_post_booking_tasks(booking)
 
         return booking
@@ -573,6 +591,7 @@ class BookingService(BaseService):
         booking_data: BookingCreate,
         service: Service,
         instructor_profile: InstructorProfile,
+        selected_duration: int,
     ) -> Booking:
         """
         Create the booking record with pricing calculation.
@@ -582,12 +601,18 @@ class BookingService(BaseService):
             booking_data: Booking data
             service: Service being booked
             instructor_profile: Instructor's profile
+            selected_duration: Selected duration in minutes
 
         Returns:
             Created booking instance
         """
-        # Calculate pricing
-        pricing = self._calculate_pricing(service, booking_data.start_time, booking_data.end_time)
+        # Calculate end time based on selected duration
+        start_datetime = datetime.combine(booking_data.booking_date, booking_data.start_time)
+        end_datetime = start_datetime + timedelta(minutes=selected_duration)
+        calculated_end_time = end_datetime.time()
+
+        # Calculate pricing based on selected duration
+        total_price = service.session_price(selected_duration)
 
         # Create the booking
         booking = self.repository.create(
@@ -596,11 +621,11 @@ class BookingService(BaseService):
             service_id=service.id,
             booking_date=booking_data.booking_date,
             start_time=booking_data.start_time,
-            end_time=booking_data.end_time,
+            end_time=calculated_end_time,
             service_name=service.skill,
             hourly_rate=service.hourly_rate,
-            total_price=pricing["total_price"],
-            duration_minutes=pricing["duration_minutes"],
+            total_price=total_price,
+            duration_minutes=selected_duration,
             status=BookingStatus.CONFIRMED,
             service_area=instructor_profile.areas_of_service,
             meeting_location=booking_data.meeting_location,
@@ -814,11 +839,7 @@ class BookingService(BaseService):
         duration = end - start
         duration_minutes = int(duration.total_seconds() / 60)
 
-        # Use service duration if specified
-        if service.duration_override:
-            duration_minutes = service.duration_override
-
-        # Calculate price
+        # Calculate price based on actual booking duration
         hours = duration_minutes / 60
         total_price = float(service.hourly_rate) * hours
 

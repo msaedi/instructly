@@ -162,6 +162,7 @@ export interface BookingCreate {
   booking_date: string;
   start_time: string;
   end_time: string;
+  selected_duration: number;
   student_note?: string | null;
   meeting_location?: string | null;
   location_type?: string | null;
@@ -289,7 +290,7 @@ export interface ServiceBase {
   skill: string;
   hourly_rate: number;
   description?: string | null;
-  duration_override?: number | null;
+  duration_options: number[];
 }
 
 export interface UserBasic {
@@ -467,7 +468,7 @@ export interface ServiceCreate {
   skill: string;
   hourly_rate: Money;
   description?: string | null;
-  duration_override?: number | null;
+  duration_options?: number[] | null;
 }
 
 export interface ServiceResponse {
@@ -475,7 +476,7 @@ export interface ServiceResponse {
   skill: string;
   hourly_rate: Money;
   description?: string | null;
-  duration_override?: number | null;
+  duration_options: number[];
   duration: number;
 }
 

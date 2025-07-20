@@ -353,13 +353,12 @@ class ConflictChecker(BaseService):
 
             if not service:
                 errors.append("Service not found or no longer available")
-            elif service.duration_override:
-                # Check if slot duration matches service duration
+            elif service.duration_options:
+                # Check if slot duration matches any of the service duration options
                 duration_minutes = time_validation.get("duration_minutes", 0)
-                if duration_minutes != service.duration_override:
+                if duration_minutes not in service.duration_options:
                     warnings.append(
-                        f"Service requires {service.duration_override} minutes, "
-                        f"but slot is {duration_minutes} minutes"
+                        f"Service offers {service.duration_options} minutes, " f"but slot is {duration_minutes} minutes"
                     )
 
         return {

@@ -5,6 +5,7 @@ from pathlib import Path
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
+import os  # noqa: E402
 from logging.config import fileConfig  # noqa: E402
 
 from sqlalchemy import engine_from_config, pool  # noqa: E402
@@ -16,7 +17,12 @@ from app.database import Base  # noqa: E402
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.database_url)
+
+# Use test database if USE_TEST_DATABASE is set
+if os.getenv("USE_TEST_DATABASE") == "true":
+    config.set_main_option("sqlalchemy.url", settings.test_database_url)
+else:
+    config.set_main_option("sqlalchemy.url", settings.database_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

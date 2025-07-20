@@ -71,6 +71,7 @@ class TestPublicAvailabilityIntegration:
             "service_id": service_id,
             "booking_date": tomorrow.isoformat(),
             "start_time": "09:00",
+            "selected_duration": 60,  # Use a common duration from service.duration_options
             "end_time": "10:00",
             "student_note": "Morning lesson",
         }
@@ -220,6 +221,7 @@ class TestPublicAvailabilityIntegration:
             "service_id": service_id,
             "booking_date": tomorrow.isoformat(),
             "start_time": "09:00",
+            "selected_duration": 60,  # Use a common duration from service.duration_options
             "end_time": "10:00",
         }
 

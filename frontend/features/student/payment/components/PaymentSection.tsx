@@ -97,6 +97,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack }: Paym
         booking_date: bookingDate,
         start_time: formattedStartTime,
         end_time: endTime,
+        selected_duration: bookingData.duration,
       });
 
       if (booking) {

@@ -10,11 +10,13 @@ while allowing instructors to manage their service offerings.
 """
 
 import logging
+from typing import List
 
 from sqlalchemy import Boolean, Column, Float, ForeignKey, Integer, String
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..database import Base
+from .types import IntegerArrayType
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +37,7 @@ class Service(Base):
         skill: The name of the skill/service (e.g., "Piano", "Yoga")
         hourly_rate: Rate per hour in USD
         description: Optional description of the service
-        duration_override: Optional custom duration in minutes
+        duration_options: List of available duration options in minutes (default: [60])
         is_active: Whether the service is currently offered (soft delete)
 
     Relationships:
@@ -49,7 +51,7 @@ class Service(Base):
     skill = Column(String, nullable=False)
     hourly_rate = Column(Float, nullable=False)
     description = Column(String, nullable=True)
-    duration_override = Column(Integer, nullable=True)  # in minutes
+    duration_options: Mapped[List[int]] = mapped_column(IntegerArrayType, nullable=False, default=[60])
     is_active = Column(Boolean, nullable=False, default=True, index=True)
 
     # Relationships
@@ -67,32 +69,17 @@ class Service(Base):
         status = " (inactive)" if not self.is_active else ""
         return f"<Service {self.skill} ${self.hourly_rate}/hr{status}>"
 
-    @property
-    def duration(self):
+    def session_price(self, duration_minutes: int) -> float:
         """
-        Get the effective duration for this service in minutes.
+        Calculate the price for a session of given duration.
 
-        Returns the duration_override if set, otherwise returns a default.
-        Since we removed default_session_duration from instructor profiles,
-        we'll use a sensible default of 60 minutes.
+        Args:
+            duration_minutes: Duration of the session in minutes
 
         Returns:
-            int: Duration in minutes
+            float: Price for the session
         """
-        if self.duration_override:
-            return self.duration_override
-        # Default to 60 minutes if no override specified
-        return 60
-
-    @property
-    def session_price(self):
-        """
-        Calculate the price for a single session of this service.
-
-        Returns:
-            float: Price for one session
-        """
-        return (self.hourly_rate * self.duration) / 60.0
+        return (self.hourly_rate * duration_minutes) / 60.0
 
     def deactivate(self) -> None:
         """

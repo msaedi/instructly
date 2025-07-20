@@ -53,11 +53,6 @@ class TestBookingServiceCreation:
             )
             .first()
         )
-        print(f"\n=== DEBUG INFO ===")
-        print(f"Instructor: {test_instructor_with_availability.email}")
-        print(f"Service: {service.skill}, Rate: ${service.hourly_rate}")
-        print(f"Duration override: {service.duration_override}")
-        print(f"Service ID: {service.id}")
 
         # Get an available slot for tomorrow directly (single-table design)
         tomorrow = date.today() + timedelta(days=1)
@@ -70,24 +65,26 @@ class TestBookingServiceCreation:
             .first()
         )
 
-        print(f"Slot: {slot.start_time} to {slot.end_time}")
-        slot_duration = (slot.end_time.hour - slot.start_time.hour) * 60
-        print(f"Slot duration (simple calc): {slot_duration} minutes")
-
         # Create booking with time-based approach (Work Stream #9)
         booking_service = BookingService(db, mock_notification_service)
+        # Use a valid duration from service.duration_options
+        selected_duration = 60  # Use 60 minutes which is in [30, 60, 90]
+
         booking_data = BookingCreate(
             instructor_id=test_instructor_with_availability.id,
             service_id=service.id,
             booking_date=tomorrow,
             start_time=slot.start_time,
-            end_time=slot.end_time,
+            selected_duration=selected_duration,
+            end_time=time(slot.start_time.hour + 1, slot.start_time.minute),  # Calculate end time based on duration
             location_type="neutral",
             meeting_location="Online",
             student_note="Looking forward to the lesson!",
         )
 
-        booking = await booking_service.create_booking(test_student, booking_data)
+        booking = await booking_service.create_booking(
+            test_student, booking_data, selected_duration=booking_data.selected_duration
+        )
 
         # Assertions
         assert booking.id is not None
@@ -96,17 +93,13 @@ class TestBookingServiceCreation:
         assert booking.service_id == service.id
         # Can't check availability_slot_id - no longer exists
         assert booking.status == BookingStatus.CONFIRMED
-        print(f"Debug: Slot time: {slot.start_time} to {slot.end_time}")
-        print(f"Debug: Service: {service.skill}, Rate: ${service.hourly_rate}")
-        print(f"Debug: Duration override: {service.duration_override}")
-        print(f"Debug: Booking duration: {booking.duration_minutes} minutes")
-        print(f"Debug: Total price: ${booking.total_price}")
-        expected_duration = 180  # What CI calculates
-        expected_price = Decimal("150.00")  # 3 hours * $50
-
+        # Check that booking uses selected_duration
         assert (
-            booking.duration_minutes == expected_duration
-        ), f"Expected {expected_duration} minutes but got {booking.duration_minutes}"
+            booking.duration_minutes == selected_duration
+        ), f"Expected {selected_duration} minutes but got {booking.duration_minutes}"
+
+        # Calculate expected price based on selected duration
+        expected_price = Decimal(str(service.hourly_rate * selected_duration / 60))
         assert booking.total_price == expected_price, f"Expected ${expected_price} but got ${booking.total_price}"
 
         # Verify notification was sent
@@ -151,12 +144,15 @@ class TestBookingServiceCreation:
             service_id=service.id,
             booking_date=tomorrow,
             start_time=slot.start_time,
+            selected_duration=60,
             end_time=slot.end_time,
             location_type="neutral",
         )
 
         with pytest.raises(NotFoundException, match="Service not found or no longer available"):
-            await booking_service.create_booking(test_student, booking_data)
+            await booking_service.create_booking(
+                test_student, booking_data, selected_duration=booking_data.selected_duration
+            )
 
     @pytest.mark.asyncio
     async def test_create_booking_slot_already_booked(
@@ -181,11 +177,14 @@ class TestBookingServiceCreation:
             booking_date=test_booking.booking_date,
             start_time=test_booking.start_time,
             end_time=test_booking.end_time,
+            selected_duration=60,
             location_type="neutral",
         )
 
         with pytest.raises(ConflictException, match="time slot conflicts"):
-            await booking_service.create_booking(another_student, booking_data)
+            await booking_service.create_booking(
+                another_student, booking_data, selected_duration=booking_data.selected_duration
+            )
 
     @pytest.mark.asyncio
     async def test_create_booking_student_role_validation(
@@ -199,11 +198,14 @@ class TestBookingServiceCreation:
             booking_date=date.today() + timedelta(days=1),
             start_time=time(9, 0),
             end_time=time(10, 0),
+            selected_duration=60,
             location_type="neutral",
         )
 
         with pytest.raises(ValidationException, match="Only students can create bookings"):
-            await booking_service.create_booking(test_instructor, booking_data)
+            await booking_service.create_booking(
+                test_instructor, booking_data, selected_duration=booking_data.selected_duration
+            )
 
     @pytest.mark.asyncio
     async def test_create_booking_minimum_advance_hours(
@@ -241,11 +243,14 @@ class TestBookingServiceCreation:
             booking_date=tomorrow,
             start_time=slot.start_time,
             end_time=slot.end_time,
+            selected_duration=60,
             location_type="neutral",
         )
 
         with pytest.raises(BusinessRuleException, match="at least 48 hours in advance"):
-            await booking_service.create_booking(test_student, booking_data)
+            await booking_service.create_booking(
+                test_student, booking_data, selected_duration=booking_data.selected_duration
+            )
 
 
 class TestBookingServiceCancellation:

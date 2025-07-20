@@ -17,6 +17,7 @@ def test_booking_create_validator_fix():
         service_id=1,
         booking_date=date.today() + timedelta(days=1),
         start_time=time(9, 0),
+        selected_duration=60,
         end_time=time(10, 0),
     )
     assert booking.start_time < booking.end_time
@@ -28,6 +29,7 @@ def test_booking_create_validator_fix():
             service_id=1,
             booking_date=date.today() + timedelta(days=1),
             start_time=time(10, 0),
+            selected_duration=60,
             end_time=time(9, 0),  # Before start
         )
     assert "End time must be after start time" in str(exc.value)

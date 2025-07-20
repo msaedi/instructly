@@ -70,13 +70,16 @@ class TestBookingServiceErrorHandling:
             booking_date=tomorrow,
             start_time=slot.start_time,
             end_time=slot.end_time,
+            selected_duration=60,
             service_id=service.id,
             location_type="neutral",
             meeting_location="Online",
         )
 
         # Should succeed despite notification failure
-        booking = await booking_service.create_booking(test_student, booking_data)
+        booking = await booking_service.create_booking(
+            test_student, booking_data, selected_duration=booking_data.selected_duration
+        )
 
         assert booking.id is not None
         assert booking.status == BookingStatus.CONFIRMED
@@ -503,8 +506,20 @@ class TestStudentDoubleBookingPrevention:
             db.query(Service).filter(Service.instructor_profile_id == profile1.id, Service.is_active == True).first()
         )
 
-        # Create second instructor with Piano service
-        second_instructor = test_instructor
+        # Create a truly different second instructor
+        from app.auth import get_password_hash
+        from app.models.user import User, UserRole
+
+        second_instructor = User(
+            email="second.instructor@example.com",
+            hashed_password=get_password_hash("password123"),
+            full_name="Second Instructor",
+            is_active=True,
+            role=UserRole.INSTRUCTOR,
+        )
+        db.add(second_instructor)
+        db.flush()
+
         profile2 = db.query(InstructorProfile).filter(InstructorProfile.user_id == second_instructor.id).first()
 
         # If no profile exists, create one
@@ -522,6 +537,7 @@ class TestStudentDoubleBookingPrevention:
             instructor_profile_id=profile2.id,
             skill="Piano",
             hourly_rate=100.0,
+            duration_options=[60],  # Add duration_options
             is_active=True,
         )
         db.add(piano_service)
@@ -539,7 +555,7 @@ class TestStudentDoubleBookingPrevention:
 
         booking_service = BookingService(db, mock_notification_service)
 
-        # First booking: Math lesson 3:00-4:00 PM
+        # First booking: Math lesson 10:00-11:00 AM
         # Get available slot for first instructor
         math_slot = (
             db.query(AvailabilitySlot)
@@ -553,14 +569,17 @@ class TestStudentDoubleBookingPrevention:
         booking1_data = BookingCreate(
             instructor_id=test_instructor_with_availability.id,
             booking_date=tomorrow,
-            start_time=math_slot.start_time if math_slot else time(10, 0),
-            end_time=time(11, 0) if math_slot else time(11, 0),
+            start_time=time(10, 0),  # Fixed time 10:00-11:00
+            end_time=time(11, 0),
+            selected_duration=60,
             service_id=service1.id,
             location_type="neutral",
             meeting_location="Online",
         )
 
-        booking1 = await booking_service.create_booking(test_student, booking1_data)
+        booking1 = await booking_service.create_booking(
+            test_student, booking1_data, selected_duration=booking1_data.selected_duration
+        )
         assert booking1.id is not None
         assert booking1.status == BookingStatus.CONFIRMED
 
@@ -570,6 +589,7 @@ class TestStudentDoubleBookingPrevention:
             booking_date=tomorrow,
             start_time=time(10, 30),  # Overlaps with first booking (10:00-11:00)
             end_time=time(11, 30),
+            selected_duration=60,
             service_id=piano_service.id,
             location_type="neutral",
             meeting_location="Online",
@@ -579,7 +599,9 @@ class TestStudentDoubleBookingPrevention:
         from app.core.exceptions import ConflictException
 
         with pytest.raises(ConflictException) as exc_info:
-            await booking_service.create_booking(test_student, booking2_data)
+            await booking_service.create_booking(
+                test_student, booking2_data, selected_duration=booking2_data.selected_duration
+            )
 
         # Verify the error message
         assert "already have a booking" in str(exc_info.value) or "conflicts with an existing booking" in str(
@@ -593,8 +615,6 @@ class TestStudentDoubleBookingPrevention:
         ]
         assert len(confirmed_tomorrow) == 1
         assert confirmed_tomorrow[0].id == booking1.id
-
-        print("SUCCESS: Student double-booking prevention is working correctly!")
 
     @pytest.mark.asyncio
     async def test_student_can_book_non_overlapping_sessions(
@@ -638,6 +658,7 @@ class TestStudentDoubleBookingPrevention:
             instructor_profile_id=profile2.id,
             skill="Piano",
             hourly_rate=100.0,
+            duration_options=[60],  # Add duration_options
             is_active=True,
         )
         db.add(piano_service)
@@ -661,12 +682,15 @@ class TestStudentDoubleBookingPrevention:
             booking_date=tomorrow,
             start_time=time(10, 0),
             end_time=time(11, 0),
+            selected_duration=60,
             service_id=service1.id,
             location_type="neutral",
             meeting_location="Online",
         )
 
-        booking1 = await booking_service.create_booking(test_student, booking1_data)
+        booking1 = await booking_service.create_booking(
+            test_student, booking1_data, selected_duration=booking1_data.selected_duration
+        )
         assert booking1.id is not None
         assert booking1.status == BookingStatus.CONFIRMED
 
@@ -676,13 +700,16 @@ class TestStudentDoubleBookingPrevention:
             booking_date=tomorrow,
             start_time=time(14, 0),  # 2:00 PM - no overlap with 10-11 AM
             end_time=time(15, 0),  # 3:00 PM
+            selected_duration=60,
             service_id=piano_service.id,
             location_type="neutral",
             meeting_location="Online",
         )
 
         # This should succeed - no overlap
-        booking2 = await booking_service.create_booking(test_student, booking2_data)
+        booking2 = await booking_service.create_booking(
+            test_student, booking2_data, selected_duration=booking2_data.selected_duration
+        )
 
         # Both bookings should exist
         assert booking2.id is not None

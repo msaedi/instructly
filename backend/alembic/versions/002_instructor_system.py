@@ -77,7 +77,7 @@ def upgrade() -> None:
         sa.Column("skill", sa.String(), nullable=False),
         sa.Column("hourly_rate", sa.Float(), nullable=False),
         sa.Column("description", sa.String(), nullable=True),
-        sa.Column("duration_override", sa.Integer(), nullable=True),
+        sa.Column("duration_options", sa.ARRAY(sa.Integer), nullable=False, server_default="{60}"),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
         sa.ForeignKeyConstraint(
             ["instructor_profile_id"],
@@ -110,10 +110,19 @@ def upgrade() -> None:
         postgresql_where=sa.text("is_active = true"),
     )
 
+    # Add duration constraints
+    op.create_check_constraint("check_duration_options_not_empty", "services", "array_length(duration_options, 1) > 0")
+
+    # Check that first element (and by extension all elements we'll validate in app) is in valid range
+    op.create_check_constraint(
+        "check_duration_options_range", "services", "duration_options[1] >= 15 AND duration_options[1] <= 720"
+    )
+
     print("Instructor system tables created successfully!")
     print("- Created instructor_profiles table with areas_of_service as VARCHAR")
-    print("- Created services table with is_active flag for soft delete")
+    print("- Created services table with duration_options array and soft delete")
     print("- Created unique constraint for active services only")
+    print("- Added constraint for non-empty duration arrays")
 
 
 def downgrade() -> None:

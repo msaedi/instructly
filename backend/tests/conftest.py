@@ -291,6 +291,7 @@ def test_instructor(db: Session, test_password: str) -> User:
             skill="Test Piano",
             hourly_rate=50.0,
             description="Test piano lessons",
+            duration_options=[30, 60, 90],
             is_active=True,
         ),
         Service(
@@ -298,6 +299,7 @@ def test_instructor(db: Session, test_password: str) -> User:
             skill="Test Guitar",
             hourly_rate=45.0,
             description="Test guitar lessons",
+            duration_options=[60],
             is_active=True,
         ),
     ]
@@ -459,6 +461,7 @@ def test_instructor_with_inactive_service(db: Session, test_instructor: User) ->
         skill="Inactive Test Service",
         hourly_rate=60.0,
         description="This service is inactive",
+        duration_options=[60],
         is_active=False,
     )
     db.add(inactive_service)

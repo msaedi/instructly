@@ -428,6 +428,7 @@ class TestSoftDeleteEdgeCases:
             service_id=service.id,
             booking_date=slot.specific_date,
             start_time=slot.start_time,
+            selected_duration=60,
             end_time=slot.end_time,
             location_type="neutral",
             meeting_location="Online",
@@ -435,7 +436,9 @@ class TestSoftDeleteEdgeCases:
 
         # Test async method - expect NotFoundException
         with pytest.raises(NotFoundException, match="Service not found or no longer available"):
-            await booking_service.create_booking(student, booking_data)
+            await booking_service.create_booking(
+                student, booking_data, selected_duration=booking_data.selected_duration
+            )
 
     def test_listing_services_excludes_soft_deleted(
         self, db: Session, instructor_user: User, instructor_service: InstructorService
