@@ -13,6 +13,9 @@ sys.path.append(str(Path(__file__).parent.parent))
 import random
 from datetime import date, datetime, time, timedelta
 
+# Add the scripts directory to Python path so imports work from anywhere
+sys.path.insert(0, str(Path(__file__).parent))
+
 from seed_catalog_only import seed_catalog
 from seed_yaml_loader import SeedDataLoader
 from sqlalchemy import create_engine, text
@@ -29,7 +32,9 @@ from app.models.user import User, UserRole
 
 class DatabaseSeeder:
     def __init__(self):
-        self.loader = SeedDataLoader(seed_data_dir="scripts/seed_data")
+        # Use absolute path based on script location
+        seed_data_path = Path(__file__).parent / "seed_data"
+        self.loader = SeedDataLoader(seed_data_dir=str(seed_data_path))
         self.engine = self._create_engine()
         self.created_users = {}
         self.created_services = {}
