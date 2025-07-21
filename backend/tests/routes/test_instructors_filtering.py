@@ -109,8 +109,12 @@ class TestInstructorsFilteringAPI:
                         service_catalog_id=catalog_service.id,
                         hourly_rate=rate,
                         is_active=True,
+                        duration_options=[60],  # Add default duration
                     )
                     db.add(service)
+                else:
+                    # Log missing catalog service for debugging
+                    print(f"Warning: Catalog service '{skill}' not found in database")
 
         db.commit()
         return instructors

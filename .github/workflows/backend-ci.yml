@@ -83,6 +83,20 @@ jobs:
         cd backend
         alembic upgrade head
 
+    - name: Seed service catalog
+      env:
+        SECRET_KEY: test-secret-key-for-ci
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+        TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+        IS_TESTING: true
+        RESEND_API_KEY: test-resend-key
+        FRONTEND_URL: http://localhost:3000
+        ENVIRONMENT: test
+        REDIS_URL: redis://localhost:6379
+      run: |
+        cd backend
+        python scripts/seed_catalog_only.py
+
     - name: Run ALL tests with coverage
       id: pytest-coverage
       continue-on-error: true

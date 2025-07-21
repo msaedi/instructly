@@ -246,7 +246,7 @@ def catalog_data(db: Session) -> dict:
 
     if not categories or not services:
         # If for some reason the catalog is empty, raise an error
-        raise RuntimeError("Service catalog is empty - run scripts/reset_and_seed_database_enhanced.py first")
+        raise RuntimeError("Service catalog is empty - run scripts/seed_catalog_only.py first")
 
     return {"categories": categories, "services": services}
 
@@ -274,7 +274,7 @@ def test_student(db: Session, test_password: str) -> User:
 
 
 @pytest.fixture
-def test_instructor(db: Session, test_password: str, catalog_data: dict) -> User:
+def test_instructor(db: Session, test_password: str) -> User:
     """Create a test instructor user with profile and services."""
     # Create instructor user
     instructor = User(
@@ -315,6 +315,7 @@ def test_instructor(db: Session, test_password: str, catalog_data: dict) -> User
         print(f"Total catalog services in DB: {len(all_catalog)}")
         for cs in all_catalog[:5]:  # Show first 5
             print(f"  - {cs.name} ({cs.slug})")
+        raise RuntimeError("Required catalog services (piano-lessons, guitar-lessons) not found")
 
     # Create instructor services linked to catalog
     services = []
