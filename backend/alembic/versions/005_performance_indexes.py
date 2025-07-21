@@ -100,35 +100,43 @@ def upgrade() -> None:
         # For non-PostgreSQL databases, we skip indexing TEXT columns
         print("- Skipped bio index (TEXT field, non-PostgreSQL)")
 
-    # Case-insensitive index on services.skill
+    # Case-insensitive index on service catalog name
     op.create_index(
-        "idx_services_skill_lower",
-        "services",
-        [sa.text("LOWER(skill)")],
+        "idx_service_catalog_name_lower",
+        "service_catalog",
+        [sa.text("LOWER(name)")],
     )
-    print("- Created case-insensitive index for skill search")
+    print("- Created case-insensitive index for service catalog search")
 
-    # Composite index for price range queries with active services
+    # Composite index for price range queries with active instructor services
     op.create_index(
-        "idx_services_active_price",
-        "services",
+        "idx_instructor_services_active_price",
+        "instructor_services",
         ["is_active", "hourly_rate"],
     )
     print("- Created composite index for price filtering")
 
     # Composite index for instructor profile lookups
     op.create_index(
-        "idx_services_profile_active",
-        "services",
+        "idx_instructor_services_profile_active",
+        "instructor_services",
         ["instructor_profile_id", "is_active"],
     )
     print("- Created composite index for instructor-service joins")
 
+    # Index for category-based filtering
+    op.create_index(
+        "idx_service_catalog_category_active",
+        "service_catalog",
+        ["category_id", "is_active"],
+    )
+    print("- Created composite index for category filtering")
+
     # Note: The following indexes were already created in previous migrations:
     # - idx_bookings_instructor_date_status (composite index for instructor dashboard)
-    # - idx_bookings_service_id (foreign key index)
-    # - idx_services_instructor_profile_id (foreign key index)
-    # - services.is_active (single column index)
+    # - idx_bookings_instructor_service_id (foreign key index)
+    # - idx_instructor_services_instructor_profile_id (foreign key index)
+    # - instructor_services.is_active (single column index)
 
     print("Performance indexes created successfully!")
     print("- Added composite indexes for common query patterns")
@@ -143,9 +151,10 @@ def downgrade() -> None:
 
     # Drop instructor search indexes
     print("Dropping instructor search indexes...")
-    op.drop_index("idx_services_profile_active", table_name="services")
-    op.drop_index("idx_services_active_price", table_name="services")
-    op.drop_index("idx_services_skill_lower", table_name="services")
+    op.drop_index("idx_service_catalog_category_active", table_name="service_catalog")
+    op.drop_index("idx_instructor_services_profile_active", table_name="instructor_services")
+    op.drop_index("idx_instructor_services_active_price", table_name="instructor_services")
+    op.drop_index("idx_service_catalog_name_lower", table_name="service_catalog")
 
     # Drop text search indexes with try/except for database compatibility
     try:

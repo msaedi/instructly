@@ -20,7 +20,7 @@ from app.core.exceptions import BusinessRuleException, ConflictException, NotFou
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
 from app.models.user import User, UserRole
 from app.repositories.booking_repository import BookingRepository
 from app.schemas.booking import BookingCreate, BookingUpdate
@@ -88,6 +88,11 @@ class TestBookingServiceUnit:
         service.transaction.return_value.__exit__ = Mock(return_value=None)
         # Replace the repository
         service.availability_repository = mock_availability_repository
+
+        # Mock conflict checker repository
+        mock_conflict_checker_repo = Mock()
+        service.conflict_checker_repository = mock_conflict_checker_repo
+
         return service
 
     @pytest.fixture
@@ -115,7 +120,10 @@ class TestBookingServiceUnit:
         """Create a mock service."""
         service = Mock(spec=Service)
         service.id = 1
-        service.skill = "Piano"
+        # Mock catalog_entry instead of skill
+        catalog_entry = Mock()
+        catalog_entry.name = "Piano"
+        service.catalog_entry = catalog_entry
         service.hourly_rate = 50.0
         service.is_active = True
         service.duration_options = [30, 60, 90]
@@ -150,7 +158,7 @@ class TestBookingServiceUnit:
         booking.id = 1
         booking.student_id = mock_student.id
         booking.instructor_id = mock_instructor.id
-        booking.service_id = mock_service.id
+        booking.instructor_service_id = mock_service.id
         booking.booking_date = date.today() + timedelta(days=2)
         booking.start_time = time(14, 0)
         booking.end_time = time(15, 0)
@@ -166,7 +174,7 @@ class TestBookingServiceUnit:
         # Mock relationships
         booking.student = mock_student
         booking.instructor = mock_instructor
-        booking.service = mock_service
+        booking.instructor_service = mock_service
 
         # Mock methods
         booking.cancel = Mock()
@@ -189,7 +197,7 @@ class TestBookingServiceUnit:
         # Setup booking data with time-based fields
         booking_data = BookingCreate(
             instructor_id=mock_instructor.id,
-            service_id=1,
+            instructor_service_id=1,
             booking_date=date.today() + timedelta(days=2),
             start_time=time(14, 0),
             selected_duration=60,
@@ -201,11 +209,11 @@ class TestBookingServiceUnit:
         # Mock repository responses
         booking_service.repository.check_time_conflict.return_value = False  # No conflicts
 
-        # Mock the service and instructor profile queries (still direct DB queries in the service)
-        mock_db.query.return_value.filter.return_value.first.side_effect = [
-            mock_service,  # For service query
-            mock_instructor_profile,  # For instructor profile query
-        ]
+        # Mock the conflict checker repository methods
+        booking_service.conflict_checker_repository.get_active_service.return_value = mock_service
+        booking_service.conflict_checker_repository.get_instructor_profile.return_value = mock_instructor_profile
+        booking_service.conflict_checker_repository.get_bookings_for_conflict_check.return_value = []
+        booking_service.conflict_checker_repository.get_blackout_date.return_value = None
 
         # Mock repository create and get_booking_with_details
         created_booking = Mock(spec=Booking, id=1, status=BookingStatus.CONFIRMED)
@@ -229,7 +237,7 @@ class TestBookingServiceUnit:
         """Test that instructors cannot create bookings."""
         booking_data = BookingCreate(
             instructor_id=2,
-            service_id=1,
+            instructor_service_id=1,
             booking_date=date.today() + timedelta(days=2),
             start_time=time(14, 0),
             selected_duration=60,
@@ -246,7 +254,7 @@ class TestBookingServiceUnit:
         """Test booking creation fails with inactive service."""
         booking_data = BookingCreate(
             instructor_id=2,
-            service_id=1,
+            instructor_service_id=1,
             booking_date=date.today() + timedelta(days=2),
             start_time=time(14, 0),
             selected_duration=60,
@@ -257,7 +265,7 @@ class TestBookingServiceUnit:
         booking_service.repository.check_time_conflict.return_value = False
 
         # Mock service not found (inactive)
-        mock_db.query.return_value.filter.return_value.first.return_value = None
+        booking_service.conflict_checker_repository.get_active_service.return_value = None
 
         with pytest.raises(NotFoundException, match="Service not found or no longer available"):
             await booking_service.create_booking(
@@ -271,7 +279,7 @@ class TestBookingServiceUnit:
         """Test booking creation fails when time conflicts with existing booking."""
         booking_data = BookingCreate(
             instructor_id=2,
-            service_id=1,
+            instructor_service_id=1,
             booking_date=date.today() + timedelta(days=2),
             start_time=time(14, 0),
             selected_duration=60,
@@ -281,8 +289,11 @@ class TestBookingServiceUnit:
         # Mock repository responses
         booking_service.repository.check_time_conflict.return_value = True  # Has conflicts!
 
-        # Mock the service and instructor profile queries
-        mock_db.query.return_value.filter.return_value.first.side_effect = [mock_service, mock_instructor_profile]
+        # Mock the conflict checker repository methods
+        booking_service.conflict_checker_repository.get_active_service.return_value = mock_service
+        booking_service.conflict_checker_repository.get_instructor_profile.return_value = mock_instructor_profile
+        booking_service.conflict_checker_repository.get_bookings_for_conflict_check.return_value = []
+        booking_service.conflict_checker_repository.get_blackout_date.return_value = None
 
         with pytest.raises(ConflictException, match="This time slot conflicts with an existing booking"):
             await booking_service.create_booking(
@@ -298,7 +309,7 @@ class TestBookingServiceUnit:
         # Use fixed times to avoid midnight wrap-around issues
         booking_data = BookingCreate(
             instructor_id=2,
-            service_id=1,
+            instructor_service_id=1,
             booking_date=date.today(),
             start_time=time(10, 0),  # 10:00 AM
             selected_duration=60,
@@ -308,8 +319,11 @@ class TestBookingServiceUnit:
         # Mock repository responses
         booking_service.repository.check_time_conflict.return_value = False
 
-        # Mock the service and instructor profile queries
-        mock_db.query.return_value.filter.return_value.first.side_effect = [mock_service, mock_instructor_profile]
+        # Mock the conflict checker repository methods
+        booking_service.conflict_checker_repository.get_active_service.return_value = mock_service
+        booking_service.conflict_checker_repository.get_instructor_profile.return_value = mock_instructor_profile
+        booking_service.conflict_checker_repository.get_bookings_for_conflict_check.return_value = []
+        booking_service.conflict_checker_repository.get_blackout_date.return_value = None
 
         with pytest.raises(BusinessRuleException, match="at least 24 hours in advance"):
             await booking_service.create_booking(

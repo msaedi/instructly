@@ -30,9 +30,9 @@ class InstructorFilterParams(BaseModel):
     """
 
     search: Optional[str] = Field(
-        None, description="Text search across instructor name, bio, and skills", min_length=1, max_length=100
+        None, description="Text search across instructor name, bio, and services", min_length=1, max_length=100
     )
-    skill: Optional[str] = Field(None, description="Filter by specific skill/service", min_length=1, max_length=100)
+    service_catalog_id: Optional[int] = Field(None, description="Filter by specific service catalog ID", gt=0)
     min_price: Optional[float] = Field(None, ge=0, le=1000, description="Minimum hourly rate filter")
     max_price: Optional[float] = Field(None, ge=0, le=1000, description="Maximum hourly rate filter")
 
@@ -45,7 +45,7 @@ class InstructorFilterParams(BaseModel):
                 raise ValueError("max_price must be greater than or equal to min_price")
         return v
 
-    @field_validator("search", "skill")
+    @field_validator("search")
     def clean_string_fields(cls, v):
         """Clean and normalize string fields."""
         if v is not None:
@@ -58,13 +58,13 @@ class ServiceBase(StandardizedModel):
     Base schema for instructor services.
 
     Attributes:
-        skill: The skill/service being offered (e.g., "Piano", "Yoga")
+        service_catalog_id: ID of the service from the catalog
         hourly_rate: Rate per hour in USD
         description: Optional description of the service
         duration_options: Available duration options for this service in minutes
     """
 
-    skill: str = Field(..., min_length=1, max_length=100)
+    service_catalog_id: int = Field(..., gt=0, description="ID of the service from catalog")
     hourly_rate: Money = Field(..., gt=0, le=1000, description="Hourly rate in USD")  # Changed from float
     description: Optional[str] = Field(None, max_length=500)
     duration_options: List[int] = Field(
@@ -83,11 +83,6 @@ class ServiceBase(StandardizedModel):
                 raise ValueError(f"Duration must be between {MIN_SESSION_DURATION} and {MAX_SESSION_DURATION} minutes")
         return v
 
-    @field_validator("skill")
-    def validate_skill(cls, v):
-        """Ensure skill name is properly formatted."""
-        return v.strip().title()
-
 
 class ServiceCreate(ServiceBase):
     """Schema for creating a new service."""
@@ -97,7 +92,7 @@ class ServiceResponse(ServiceBase):
     """
     Schema for service responses.
 
-    Includes the service ID and computed duration.
+    Includes the service ID and catalog information.
     """
 
     id: int
@@ -173,9 +168,9 @@ class InstructorProfileCreate(InstructorProfileBase):
 
     @field_validator("services")
     def validate_unique_services(cls, v):
-        """Ensure no duplicate service names."""
-        skills = [service.skill.lower() for service in v]
-        if len(skills) != len(set(skills)):
+        """Ensure no duplicate service catalog IDs."""
+        catalog_ids = [service.service_catalog_id for service in v]
+        if len(catalog_ids) != len(set(catalog_ids)):
             raise ValueError("Duplicate services are not allowed")
         return v
 
@@ -202,10 +197,10 @@ class InstructorProfileUpdate(BaseModel):
 
     @field_validator("services")
     def validate_unique_services(cls, v):
-        """Ensure no duplicate service names if provided."""
+        """Ensure no duplicate service catalog IDs if provided."""
         if v is not None:
-            skills = [service.skill.lower() for service in v]
-            if len(skills) != len(set(skills)):
+            catalog_ids = [service.service_catalog_id for service in v]
+            if len(catalog_ids) != len(set(catalog_ids)):
                 raise ValueError("Duplicate services are not allowed")
         return v
 
@@ -254,5 +249,5 @@ class InstructorProfileResponse(InstructorProfileBase):
 
     @field_validator("services")
     def sort_services(cls, v):
-        """Sort services by skill name for consistent display."""
-        return sorted(v, key=lambda s: s.skill)
+        """Sort services by catalog ID for consistent display."""
+        return sorted(v, key=lambda s: s.service_catalog_id)

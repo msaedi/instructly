@@ -338,7 +338,7 @@ class BookingRepository(BaseRepository[Booking]):
         try:
             query = (
                 self.db.query(Booking)
-                .options(joinedload(Booking.instructor), joinedload(Booking.service))
+                .options(joinedload(Booking.instructor), joinedload(Booking.instructor_service))
                 .filter(Booking.student_id == student_id)
             )
 
@@ -381,7 +381,7 @@ class BookingRepository(BaseRepository[Booking]):
         try:
             query = (
                 self.db.query(Booking)
-                .options(joinedload(Booking.student), joinedload(Booking.service))
+                .options(joinedload(Booking.student), joinedload(Booking.instructor_service))
                 .filter(Booking.instructor_id == instructor_id)
             )
 
@@ -422,7 +422,7 @@ class BookingRepository(BaseRepository[Booking]):
                 .options(
                     joinedload(Booking.student),
                     joinedload(Booking.instructor),
-                    joinedload(Booking.service),
+                    joinedload(Booking.instructor_service),
                     joinedload(Booking.cancelled_by),
                 )
                 .filter(Booking.id == booking_id)
@@ -530,7 +530,7 @@ class BookingRepository(BaseRepository[Booking]):
         return query.options(
             joinedload(Booking.student),
             joinedload(Booking.instructor),
-            joinedload(Booking.service),
+            joinedload(Booking.instructor_service),
         )
 
     # Additional Repository Methods (from BaseRepository)

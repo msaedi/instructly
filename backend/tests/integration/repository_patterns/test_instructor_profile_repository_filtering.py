@@ -13,7 +13,8 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
+from app.models.service_catalog import ServiceCatalog, ServiceCategory
 from app.models.user import User, UserRole
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 
@@ -116,21 +117,98 @@ class TestInstructorProfileRepositoryFiltering:
             test_db.add(profile)
         test_db.flush()
 
-        # Create services
+        # Get catalog services to link to
+        catalog_services = test_db.query(ServiceCatalog).all()
+        if not catalog_services:
+            # Create minimal catalog if empty
+            category = ServiceCategory(name="Test Category", slug="test-category")
+            test_db.add(category)
+            test_db.flush()
+
+            service_names = [
+                "Piano",
+                "Guitar",
+                "Music Theory",
+                "Yoga",
+                "Meditation",
+                "Violin",
+                "Ballet",
+                "Contemporary Dance",
+            ]
+            for name in service_names:
+                catalog_service = ServiceCatalog(
+                    name=name + " Lessons",
+                    slug=name.lower().replace(" ", "-") + "-lessons",
+                    category_id=category.id,
+                    description=f"{name} instruction",
+                )
+                test_db.add(catalog_service)
+            test_db.flush()
+            catalog_services = test_db.query(ServiceCatalog).all()
+
+        # Create a mapping of service names to catalog IDs
+        catalog_map = {cs.name.replace(" Lessons", ""): cs.id for cs in catalog_services}
+
+        # Create services linked to catalog
         services = [
             # John Doe's services
-            Service(instructor_profile_id=profiles[0].id, skill="Piano", hourly_rate=80.0, is_active=True),
-            Service(instructor_profile_id=profiles[0].id, skill="Guitar", hourly_rate=70.0, is_active=True),
-            Service(instructor_profile_id=profiles[0].id, skill="Music Theory", hourly_rate=60.0, is_active=False),
+            Service(
+                instructor_profile_id=profiles[0].id,
+                service_catalog_id=catalog_map.get("Piano", catalog_services[0].id),
+                hourly_rate=80.0,
+                is_active=True,
+            ),
+            Service(
+                instructor_profile_id=profiles[0].id,
+                service_catalog_id=catalog_map.get("Guitar", catalog_services[0].id),
+                hourly_rate=70.0,
+                is_active=True,
+            ),
+            Service(
+                instructor_profile_id=profiles[0].id,
+                service_catalog_id=catalog_map.get("Music Theory", catalog_services[0].id),
+                hourly_rate=60.0,
+                is_active=False,
+            ),
             # Jane Smith's services
-            Service(instructor_profile_id=profiles[1].id, skill="Yoga", hourly_rate=65.0, is_active=True),
-            Service(instructor_profile_id=profiles[1].id, skill="Meditation", hourly_rate=50.0, is_active=True),
+            Service(
+                instructor_profile_id=profiles[1].id,
+                service_catalog_id=catalog_map.get("Yoga", catalog_services[0].id),
+                hourly_rate=65.0,
+                is_active=True,
+            ),
+            Service(
+                instructor_profile_id=profiles[1].id,
+                service_catalog_id=catalog_map.get("Meditation", catalog_services[0].id),
+                hourly_rate=50.0,
+                is_active=True,
+            ),
             # Bob Wilson's services
-            Service(instructor_profile_id=profiles[2].id, skill="Piano", hourly_rate=100.0, is_active=True),
-            Service(instructor_profile_id=profiles[2].id, skill="Violin", hourly_rate=120.0, is_active=True),
+            Service(
+                instructor_profile_id=profiles[2].id,
+                service_catalog_id=catalog_map.get("Piano", catalog_services[0].id),
+                hourly_rate=100.0,
+                is_active=True,
+            ),
+            Service(
+                instructor_profile_id=profiles[2].id,
+                service_catalog_id=catalog_map.get("Violin", catalog_services[0].id),
+                hourly_rate=120.0,
+                is_active=True,
+            ),
             # Alice Brown's services
-            Service(instructor_profile_id=profiles[3].id, skill="Ballet", hourly_rate=90.0, is_active=True),
-            Service(instructor_profile_id=profiles[3].id, skill="Contemporary Dance", hourly_rate=85.0, is_active=True),
+            Service(
+                instructor_profile_id=profiles[3].id,
+                service_catalog_id=catalog_map.get("Ballet", catalog_services[0].id),
+                hourly_rate=90.0,
+                is_active=True,
+            ),
+            Service(
+                instructor_profile_id=profiles[3].id,
+                service_catalog_id=catalog_map.get("Contemporary Dance", catalog_services[0].id),
+                hourly_rate=85.0,
+                is_active=True,
+            ),
         ]
 
         for service in services:
@@ -138,7 +216,7 @@ class TestInstructorProfileRepositoryFiltering:
 
         test_db.commit()
 
-        return {"users": users, "profiles": profiles, "services": services}
+        return {"users": users, "profiles": profiles, "instructor_services": services}
 
     def test_no_filters_returns_all_profiles(self, repository, sample_data):
         """Test that calling without filters returns all profiles."""
@@ -148,9 +226,9 @@ class TestInstructorProfileRepositoryFiltering:
         # Verify eager loading worked
         for profile in results:
             assert hasattr(profile, "user")
-            assert hasattr(profile, "services")
+            assert hasattr(profile, "instructor_services")
             assert profile.user is not None
-            assert len(profile.services) > 0
+            assert len(profile.instructor_services) > 0
 
     def test_search_by_user_name(self, repository, sample_data):
         """Test search filter on user full name."""
@@ -173,20 +251,31 @@ class TestInstructorProfileRepositoryFiltering:
 
         assert len(results) == 1
         assert results[0].user.full_name == "Bob Wilson"
-        assert any(s.skill == "Violin" for s in results[0].services)
+        assert any(
+            (s.catalog_entry.name if s.catalog_entry else "Unknown Service") == "Violin Lessons"
+            for s in results[0].instructor_services
+        )
 
-    def test_skill_filter_exact(self, repository, sample_data):
+    def test_skill_filter_exact(self, repository, sample_data, test_db):
         """Test skill filter for exact matches."""
-        results = repository.find_by_filters(skill="Piano")
+        # Get the catalog ID for Piano Lessons
+        piano_catalog = test_db.query(ServiceCatalog).filter(ServiceCatalog.name == "Piano Lessons").first()
+        assert piano_catalog is not None
+
+        results = repository.find_by_filters(service_catalog_id=piano_catalog.id)
 
         assert len(results) == 2  # John and Bob teach piano
         names = [r.user.full_name for r in results]
         assert "John Doe" in names
         assert "Bob Wilson" in names
 
-    def test_skill_filter_case_insensitive(self, repository, sample_data):
-        """Test skill filter is case insensitive."""
-        results = repository.find_by_filters(skill="BALLET")
+    def test_skill_filter_case_insensitive(self, repository, sample_data, test_db):
+        """Test skill filter now uses catalog ID which is exact match."""
+        # Get the catalog ID for Ballet Lessons
+        ballet_catalog = test_db.query(ServiceCatalog).filter(ServiceCatalog.name == "Ballet Lessons").first()
+        assert ballet_catalog is not None
+
+        results = repository.find_by_filters(service_catalog_id=ballet_catalog.id)
 
         assert len(results) == 1
         assert results[0].user.full_name == "Alice Brown"
@@ -200,7 +289,7 @@ class TestInstructorProfileRepositoryFiltering:
 
         # Verify all services are within range
         for profile in results:
-            active_services = [s for s in profile.services if s.is_active]
+            active_services = [s for s in profile.instructor_services if s.is_active]
             assert any(70 <= s.hourly_rate <= 90 for s in active_services)
 
     def test_min_price_only(self, repository, sample_data):
@@ -217,9 +306,15 @@ class TestInstructorProfileRepositoryFiltering:
         assert len(results) == 1  # Only Jane has services <= 60
         assert results[0].user.full_name == "Jane Smith"
 
-    def test_combined_filters(self, repository, sample_data):
+    def test_combined_filters(self, repository, sample_data, test_db):
         """Test multiple filters applied together."""
-        results = repository.find_by_filters(search="music", skill="Piano", min_price=50, max_price=100)
+        # Get the catalog ID for Piano Lessons
+        piano_catalog = test_db.query(ServiceCatalog).filter(ServiceCatalog.name == "Piano Lessons").first()
+        assert piano_catalog is not None
+
+        results = repository.find_by_filters(
+            search="music", service_catalog_id=piano_catalog.id, min_price=50, max_price=100
+        )
 
         # Bob Wilson has "music" in bio and Piano at $100 (within range)
         # John Doe doesn't have "music" explicitly in bio
@@ -241,10 +336,15 @@ class TestInstructorProfileRepositoryFiltering:
         page2_ids = [p.id for p in page2]
         assert set(page1_ids).isdisjoint(set(page2_ids))
 
-    def test_only_active_services_considered(self, repository, sample_data):
+    def test_only_active_services_considered(self, repository, sample_data, test_db):
         """Test that only active services are considered in filters."""
         # Search for "Music Theory" which is inactive
-        results = repository.find_by_filters(skill="Music Theory")
+        music_theory_catalog = (
+            test_db.query(ServiceCatalog).filter(ServiceCatalog.name == "Music Theory Lessons").first()
+        )
+        assert music_theory_catalog is not None
+
+        results = repository.find_by_filters(service_catalog_id=music_theory_catalog.id)
 
         assert len(results) == 0  # Should not find John even though he has this service
 
@@ -258,7 +358,7 @@ class TestInstructorProfileRepositoryFiltering:
         # These should not trigger additional queries
         for profile in results:
             assert profile.user.full_name is not None
-            assert len(profile.services) >= 0
+            assert len(profile.instructor_services) >= 0
 
     def test_distinct_prevents_duplicates(self, repository, sample_data):
         """Test that distinct() prevents duplicate profiles from joins."""
@@ -301,7 +401,22 @@ class TestInstructorProfileRepositoryFiltering:
         repository.db.add(profile)
         repository.db.flush()
 
-        service = Service(instructor_profile_id=profile.id, skill="Rock & Roll", hourly_rate=75.0, is_active=True)
+        # Create a catalog service for Rock & Roll
+        category = repository.db.query(ServiceCategory).first()
+        if not category:
+            category = ServiceCategory(name="Music", slug="music")
+            repository.db.add(category)
+            repository.db.flush()
+
+        rock_catalog = ServiceCatalog(
+            name="Rock & Roll", slug="rock-and-roll", category_id=category.id, description="Rock and roll instruction"
+        )
+        repository.db.add(rock_catalog)
+        repository.db.flush()
+
+        service = Service(
+            instructor_profile_id=profile.id, service_catalog_id=rock_catalog.id, hourly_rate=75.0, is_active=True
+        )
         repository.db.add(service)
         repository.db.commit()
 
@@ -309,14 +424,22 @@ class TestInstructorProfileRepositoryFiltering:
         results = repository.find_by_filters(search="O'Brien")
         assert len(results) == 1
 
-        results = repository.find_by_filters(skill="Rock & Roll")
+        results = repository.find_by_filters(service_catalog_id=rock_catalog.id)
         assert len(results) == 1
 
     def test_complex_query_performance(self, repository, sample_data):
         """Test that complex queries with multiple joins perform well."""
         # This should generate a single efficient query
+        # Get Piano catalog for complex query test
+        piano_catalog = repository.db.query(ServiceCatalog).filter(ServiceCatalog.name == "Piano Lessons").first()
+
         results = repository.find_by_filters(
-            search="teacher", skill="Piano", min_price=50, max_price=150, skip=0, limit=50
+            search="teacher",
+            service_catalog_id=piano_catalog.id if piano_catalog else None,
+            min_price=50,
+            max_price=150,
+            skip=0,
+            limit=50,
         )
 
         # Should find instructors efficiently
@@ -324,4 +447,4 @@ class TestInstructorProfileRepositoryFiltering:
         # Verify relationships are loaded
         for profile in results:
             assert profile.user is not None
-            assert profile.services is not None
+            assert profile.instructor_services is not None

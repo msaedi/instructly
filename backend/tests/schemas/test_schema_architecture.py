@@ -27,14 +27,14 @@ class TestBookingCleanArchitecture:
         """Verify BookingCreate uses direct time fields."""
         booking = BookingCreate(
             instructor_id=1,
-            service_id=1,
+            instructor_service_id=1,
             booking_date=date.today() + timedelta(days=1),
             start_time=time(9, 0),
             end_time=time(10, 0),
             selected_duration=60,
         )
         assert booking.instructor_id == 1
-        assert booking.service_id == 1
+        assert booking.instructor_service_id == 1
         assert hasattr(booking, "booking_date")
         assert hasattr(booking, "start_time")
         assert hasattr(booking, "end_time")
@@ -47,7 +47,7 @@ class TestBookingCleanArchitecture:
             BookingCreate(
                 availability_slot_id=123,  # Should FAIL
                 instructor_id=1,
-                service_id=1,
+                instructor_service_id=1,
                 booking_date=date.today() + timedelta(days=1),
                 start_time=time(9, 0),
                 end_time=time(10, 0),
@@ -60,7 +60,7 @@ class TestBookingCleanArchitecture:
         with pytest.raises(ValidationError) as exc:
             BookingCreate(
                 instructor_id=1,
-                service_id=1,
+                instructor_service_id=1,
                 booking_date=date.today() + timedelta(days=1),
                 start_time=time(10, 0),
                 end_time=time(9, 0),  # Before start time
@@ -73,7 +73,7 @@ class TestBookingCleanArchitecture:
         with pytest.raises(ValidationError) as exc:
             BookingCreate(
                 instructor_id=1,
-                service_id=1,
+                instructor_service_id=1,
                 booking_date=date.today() - timedelta(days=1),  # Past date
                 start_time=time(9, 0),
                 end_time=time(10, 0),
@@ -85,13 +85,13 @@ class TestBookingCleanArchitecture:
         """Test AvailabilityCheckRequest uses instructor/date/time."""
         check = AvailabilityCheckRequest(
             instructor_id=1,
-            service_id=2,
+            instructor_service_id=2,
             booking_date=date.today() + timedelta(days=1),
             start_time=time(14, 0),
             end_time=time(15, 30),
         )
         assert check.instructor_id == 1
-        assert check.service_id == 2
+        assert check.instructor_service_id == 2
         assert hasattr(check, "booking_date")
         assert hasattr(check, "start_time")
         assert hasattr(check, "end_time")
@@ -102,12 +102,12 @@ class TestBookingCleanArchitecture:
         """Test new pattern for finding booking opportunities."""
         request = FindBookingOpportunitiesRequest(
             instructor_id=1,
-            service_id=2,
+            instructor_service_id=2,
             date_range_start=date.today(),
             date_range_end=date.today() + timedelta(days=7),
         )
         assert request.instructor_id == 1
-        assert request.service_id == 2
+        assert request.instructor_service_id == 2
         # Should not have any slot references
         assert not hasattr(request, "availability_slot_id")
 

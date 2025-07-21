@@ -27,7 +27,7 @@ class BookingCreate(BaseModel):
     """
 
     instructor_id: int = Field(..., description="Instructor to book")
-    service_id: int = Field(..., description="Service being booked")
+    instructor_service_id: int = Field(..., description="Instructor service being booked")
     booking_date: date = Field(..., description="Date of the booking")
     start_time: time = Field(..., description="Start time")
     selected_duration: int = Field(..., description="Selected duration in minutes from service's duration_options")
@@ -143,7 +143,7 @@ class BookingBase(StandardizedModel):
     id: int
     student_id: int
     instructor_id: int
-    service_id: int
+    instructor_service_id: int
 
     # Self-contained booking details
     booking_date: date
@@ -201,7 +201,7 @@ class ServiceInfo(StandardizedModel):
     """Basic service information for booking display."""
 
     id: int
-    skill: str
+    name: str  # From catalog
     description: Optional[str]
 
     model_config = ConfigDict(from_attributes=True)
@@ -217,7 +217,7 @@ class BookingResponse(BookingBase):
 
     student: StudentInfo
     instructor: InstructorInfo
-    service: ServiceInfo
+    instructor_service: ServiceInfo
 
     @property
     def is_cancellable(self) -> bool:
@@ -255,7 +255,7 @@ class AvailabilityCheckRequest(BaseModel):
     """
 
     instructor_id: int = Field(..., description="Instructor to check")
-    service_id: int = Field(..., description="Service to book")
+    instructor_service_id: int = Field(..., description="Service to book")
     booking_date: date = Field(..., description="Date to check")
     start_time: time = Field(..., description="Start time to check")
     end_time: time = Field(..., description="End time to check")
@@ -334,7 +334,7 @@ class FindBookingOpportunitiesRequest(BaseModel):
     """
 
     instructor_id: int = Field(..., description="Instructor to search")
-    service_id: int = Field(..., description="Service to book")
+    instructor_service_id: int = Field(..., description="Service to book")
     date_range_start: date = Field(..., description="Start of search range")
     date_range_end: date = Field(..., description="End of search range")
     preferred_times: Optional[List[time]] = Field(None, description="Preferred start times")

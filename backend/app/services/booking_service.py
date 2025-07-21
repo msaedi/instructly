@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from ..core.exceptions import BusinessRuleException, ConflictException, NotFoundException, ValidationException
 from ..models.booking import Booking, BookingStatus
 from ..models.instructor import InstructorProfile
-from ..models.service import Service
+from ..models.service_catalog import InstructorService
 from ..models.user import User, UserRole
 from ..repositories.factory import RepositoryFactory
 from ..schemas.booking import BookingCreate, BookingUpdate
@@ -494,7 +494,7 @@ class BookingService(BaseService):
 
     async def _validate_booking_prerequisites(
         self, student: User, booking_data: BookingCreate
-    ) -> Tuple[Service, InstructorProfile]:
+    ) -> Tuple[InstructorService, InstructorProfile]:
         """
         Validate student role and load required data.
 
@@ -514,7 +514,7 @@ class BookingService(BaseService):
             raise ValidationException("Only students can create bookings")
 
         # Use repositories instead of direct queries
-        service = self.conflict_checker_repository.get_active_service(booking_data.service_id)
+        service = self.conflict_checker_repository.get_active_service(booking_data.instructor_service_id)
         if not service:
             raise NotFoundException("Service not found or no longer available")
 
@@ -532,7 +532,7 @@ class BookingService(BaseService):
     async def _check_conflicts_and_rules(
         self,
         booking_data: BookingCreate,
-        service: Service,
+        service: InstructorService,
         instructor_profile: InstructorProfile,
         student: Optional[User] = None,
         exclude_booking_id: Optional[int] = None,
@@ -589,7 +589,7 @@ class BookingService(BaseService):
         self,
         student: User,
         booking_data: BookingCreate,
-        service: Service,
+        service: InstructorService,
         instructor_profile: InstructorProfile,
         selected_duration: int,
     ) -> Booking:
@@ -618,11 +618,11 @@ class BookingService(BaseService):
         booking = self.repository.create(
             student_id=student.id,
             instructor_id=booking_data.instructor_id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             booking_date=booking_data.booking_date,
             start_time=booking_data.start_time,
             end_time=calculated_end_time,
-            service_name=service.skill,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=total_price,
             duration_minutes=selected_duration,
@@ -831,7 +831,7 @@ class BookingService(BaseService):
             # Log late cancellation but allow it
             logger.warning(f"Late cancellation for booking {booking.id} by user {user.id}")
 
-    def _calculate_pricing(self, service: Service, start_time: time, end_time: time) -> Dict[str, Any]:
+    def _calculate_pricing(self, service: InstructorService, start_time: time, end_time: time) -> Dict[str, Any]:
         """Calculate booking pricing based on time range."""
         # Calculate duration
         start = datetime.combine(date.today(), start_time)

@@ -23,7 +23,8 @@ from app.core.exceptions import BusinessRuleException, NotFoundException, Valida
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
+from app.models.service_catalog import ServiceCatalog, ServiceCategory
 from app.models.user import User, UserRole
 from app.schemas.booking import BookingCreate, BookingUpdate
 from app.services.booking_service import BookingService
@@ -71,7 +72,7 @@ class TestBookingServiceErrorHandling:
             start_time=slot.start_time,
             end_time=slot.end_time,
             selected_duration=60,
-            service_id=service.id,
+            instructor_service_id=service.id,
             location_type="neutral",
             meeting_location="Online",
         )
@@ -127,11 +128,11 @@ class TestBookingServiceQueryVariations:
         cancelled_booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor_with_availability.id,
-            service_id=service.id,  # Required field
+            instructor_service_id=service.id,  # Required field
             booking_date=date.today() + timedelta(days=2),
             start_time=time(10, 0),
             end_time=time(11, 0),
-            service_name=service.skill,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=50.0,
             duration_minutes=60,
@@ -168,11 +169,11 @@ class TestBookingServiceQueryVariations:
             booking = Booking(
                 student_id=test_student.id,
                 instructor_id=test_instructor_with_availability.id,
-                service_id=service.id,  # Required field
+                instructor_service_id=service.id,  # Required field
                 booking_date=date.today() + timedelta(days=i + 1),
                 start_time=time(10, 0),
                 end_time=time(11, 0),
-                service_name=service.skill,
+                service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
                 hourly_rate=service.hourly_rate,
                 total_price=50.0,
                 duration_minutes=60,
@@ -225,11 +226,11 @@ class TestBookingServiceStatisticsEdgeCases:
         completed_booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor_with_availability.id,
-            service_id=service.id,  # Required field
+            instructor_service_id=service.id,  # Required field
             booking_date=date.today() - timedelta(days=1),
             start_time=time(10, 0),
             end_time=time(12, 0),
-            service_name=service.skill,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=100.0,  # 2 hours
             duration_minutes=120,
@@ -436,11 +437,11 @@ class TestBookingServiceReminders:
         another_booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor_with_availability.id,
-            service_id=service.id,  # Required field
+            instructor_service_id=service.id,  # Required field
             booking_date=tomorrow,
             start_time=time(14, 0),
             end_time=time(15, 0),
-            service_name=service.skill,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=50.0,
             duration_minutes=60,
@@ -532,15 +533,36 @@ class TestStudentDoubleBookingPrevention:
             db.add(profile2)
             db.flush()
 
-        # Create Piano service for second instructor
-        piano_service = Service(
-            instructor_profile_id=profile2.id,
-            skill="Piano",
-            hourly_rate=100.0,
-            duration_options=[60],  # Add duration_options
-            is_active=True,
+        # Get or create Piano service for second instructor
+        # Get Piano catalog service
+        piano_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.name.ilike("%piano%")).first()
+        if not piano_catalog:
+            # Create one if it doesn't exist
+            category = db.query(ServiceCategory).first()
+            piano_catalog = ServiceCatalog(name="Piano Lessons", slug="piano-lessons", category_id=category.id)
+            db.add(piano_catalog)
+            db.flush()
+
+        # Check if service already exists for this instructor
+        piano_service = (
+            db.query(Service)
+            .filter(
+                Service.instructor_profile_id == profile2.id,
+                Service.service_catalog_id == piano_catalog.id,
+                Service.is_active == True,
+            )
+            .first()
         )
-        db.add(piano_service)
+
+        if not piano_service:
+            piano_service = Service(
+                instructor_profile_id=profile2.id,
+                service_catalog_id=piano_catalog.id,
+                hourly_rate=100.0,
+                duration_options=[60],  # Add duration_options
+                is_active=True,
+            )
+            db.add(piano_service)
 
         # Add availability for second instructor
         tomorrow = date.today() + timedelta(days=1)
@@ -572,7 +594,7 @@ class TestStudentDoubleBookingPrevention:
             start_time=time(10, 0),  # Fixed time 10:00-11:00
             end_time=time(11, 0),
             selected_duration=60,
-            service_id=service1.id,
+            instructor_service_id=service1.id,
             location_type="neutral",
             meeting_location="Online",
         )
@@ -590,7 +612,7 @@ class TestStudentDoubleBookingPrevention:
             start_time=time(10, 30),  # Overlaps with first booking (10:00-11:00)
             end_time=time(11, 30),
             selected_duration=60,
-            service_id=piano_service.id,
+            instructor_service_id=piano_service.id,
             location_type="neutral",
             meeting_location="Online",
         )
@@ -653,15 +675,36 @@ class TestStudentDoubleBookingPrevention:
             db.add(profile2)
             db.flush()
 
-        # Create Piano service for second instructor
-        piano_service = Service(
-            instructor_profile_id=profile2.id,
-            skill="Piano",
-            hourly_rate=100.0,
-            duration_options=[60],  # Add duration_options
-            is_active=True,
+        # Get or create Piano service for second instructor
+        # Get Piano catalog service
+        piano_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.name.ilike("%piano%")).first()
+        if not piano_catalog:
+            # Create one if it doesn't exist
+            category = db.query(ServiceCategory).first()
+            piano_catalog = ServiceCatalog(name="Piano Lessons", slug="piano-lessons", category_id=category.id)
+            db.add(piano_catalog)
+            db.flush()
+
+        # Check if service already exists for this instructor
+        piano_service = (
+            db.query(Service)
+            .filter(
+                Service.instructor_profile_id == profile2.id,
+                Service.service_catalog_id == piano_catalog.id,
+                Service.is_active == True,
+            )
+            .first()
         )
-        db.add(piano_service)
+
+        if not piano_service:
+            piano_service = Service(
+                instructor_profile_id=profile2.id,
+                service_catalog_id=piano_catalog.id,
+                hourly_rate=100.0,
+                duration_options=[60],  # Add duration_options
+                is_active=True,
+            )
+            db.add(piano_service)
 
         # Add availability for second instructor
         tomorrow = date.today() + timedelta(days=1)
@@ -683,7 +726,7 @@ class TestStudentDoubleBookingPrevention:
             start_time=time(10, 0),
             end_time=time(11, 0),
             selected_duration=60,
-            service_id=service1.id,
+            instructor_service_id=service1.id,
             location_type="neutral",
             meeting_location="Online",
         )
@@ -701,7 +744,7 @@ class TestStudentDoubleBookingPrevention:
             start_time=time(14, 0),  # 2:00 PM - no overlap with 10-11 AM
             end_time=time(15, 0),  # 3:00 PM
             selected_duration=60,
-            service_id=piano_service.id,
+            instructor_service_id=piano_service.id,
             location_type="neutral",
             meeting_location="Online",
         )

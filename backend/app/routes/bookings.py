@@ -129,13 +129,13 @@ async def check_availability(
     Rate limited to prevent abuse of expensive availability checks.
     """
     try:
-        # AvailabilityCheckRequest now has: instructor_id, booking_date, start_time, end_time, service_id
+        # AvailabilityCheckRequest now has: instructor_id, booking_date, start_time, end_time, instructor_service_id
         result = await booking_service.check_availability(
             instructor_id=check_data.instructor_id,
             booking_date=check_data.booking_date,
             start_time=check_data.start_time,
             end_time=check_data.end_time,
-            service_id=check_data.service_id,
+            service_id=check_data.instructor_service_id,
         )
 
         return AvailabilityCheckResponse(**result)

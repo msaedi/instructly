@@ -20,7 +20,7 @@ import pytest
 
 from app.models.availability import AvailabilitySlot, BlackoutDate
 from app.models.booking import Booking, BookingStatus
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
 from app.schemas.availability_window import SpecificDateAvailabilityCreate
 from app.services.availability_service import AvailabilityService
 from app.services.booking_service import BookingService
@@ -298,15 +298,12 @@ class TestConflictChecker:
 
         profile = db.query(InstructorProfile).filter_by(user_id=test_instructor.id).first()
 
-        # Create a service for testing
-        service = Service(
-            instructor_profile_id=profile.id,
-            skill="Test Service",
-            hourly_rate=50.0,
-            duration_options=[60],  # Default duration options
-        )
-        db.add(service)
-        db.commit()
+        # Use existing service from test_instructor fixture instead of creating new one
+        # to avoid unique constraint violation
+        service = db.query(Service).filter_by(instructor_profile_id=profile.id, is_active=True).first()
+
+        if not service:
+            raise RuntimeError("No instructor service found from test_instructor fixture")
 
         # Use validate_booking_constraints for comprehensive check
         result = conflict_checker.validate_booking_constraints(
@@ -336,16 +333,17 @@ class TestConflictChecker:
 
         profile = db.query(InstructorProfile).filter_by(user_id=test_instructor.id).first()
 
-        # Create a service
-        service = Service(instructor_profile_id=profile.id, skill="Test Service", hourly_rate=50.0)
-        db.add(service)
-        db.commit()
+        # Use existing service from test_instructor fixture instead of creating new one
+        service = db.query(Service).filter_by(instructor_profile_id=profile.id, is_active=True).first()
+
+        if not service:
+            raise RuntimeError("No instructor service found from test_instructor fixture")
 
         # Create an existing booking
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             booking_date=test_date,
             start_time=time(10, 0),
             end_time=time(11, 0),
@@ -391,16 +389,18 @@ class TestConflictChecker:
 
         profile = db.query(InstructorProfile).filter_by(user_id=test_instructor.id).first()
 
-        # Create a service
-        service = Service(instructor_profile_id=profile.id, skill="Test Service", hourly_rate=50.0)
-        db.add(service)
-        db.commit()
+        # Use existing service from test_instructor fixture instead of creating new one
+        # to avoid unique constraint violation
+        service = db.query(Service).filter_by(instructor_profile_id=profile.id, is_active=True).first()
+
+        if not service:
+            raise RuntimeError("No instructor service found from test_instructor fixture")
 
         # Create bookings
         booking1 = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             booking_date=test_date,
             start_time=time(9, 0),
             end_time=time(10, 0),
@@ -414,7 +414,7 @@ class TestConflictChecker:
         booking2 = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             booking_date=test_date,
             start_time=time(14, 0),
             end_time=time(15, 0),

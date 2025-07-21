@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import ConflictException
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
 from app.models.user import User, UserRole
 from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
@@ -50,7 +50,10 @@ class TestStudentConflictValidation:
         service = Mock(spec=Service)
         service.id = 1
         service.instructor_profile_id = 1
-        service.skill = "Math"
+        # Mock catalog_entry instead of skill
+        catalog_entry = Mock()
+        catalog_entry.name = "Math"
+        service.catalog_entry = catalog_entry
         service.hourly_rate = 50.0
         service.duration_options = [60]
         service.is_active = True
@@ -120,7 +123,7 @@ class TestStudentConflictValidation:
             start_time=time(15, 30),
             end_time=time(16, 30),
             selected_duration=60,
-            service_id=1,
+            instructor_service_id=1,
             location_type="neutral",
             meeting_location="Online",
         )
@@ -170,7 +173,7 @@ class TestStudentConflictValidation:
             start_time=time(16, 0),  # Exactly when previous ends
             end_time=time(17, 0),
             selected_duration=60,
-            service_id=1,
+            instructor_service_id=1,
             location_type="neutral",
             meeting_location="Online",
         )
@@ -221,7 +224,7 @@ class TestStudentConflictValidation:
             start_time=time(15, 0),
             end_time=time(16, 0),
             selected_duration=60,
-            service_id=1,
+            instructor_service_id=1,
             location_type="neutral",
             meeting_location="Online",
         )
@@ -241,7 +244,7 @@ class TestStudentConflictValidation:
             start_time=time(15, 30),
             end_time=time(16, 30),
             selected_duration=60,
-            service_id=1,
+            instructor_service_id=1,
             location_type="neutral",
             meeting_location="Online",
         )
@@ -275,7 +278,7 @@ class TestStudentConflictValidation:
             start_time=time(15, 59),  # 1 minute before existing ends
             end_time=time(17, 0),
             selected_duration=60,
-            service_id=1,
+            instructor_service_id=1,
             location_type="neutral",
             meeting_location="Online",
         )
@@ -310,7 +313,7 @@ class TestStudentConflictValidation:
             start_time=time(15, 0),
             end_time=time(16, 0),
             selected_duration=60,
-            service_id=1,
+            instructor_service_id=1,
             location_type="neutral",
             meeting_location="Online",
         )

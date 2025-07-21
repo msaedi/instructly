@@ -15,7 +15,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
+from app.models.service_catalog import ServiceCatalog, ServiceCategory
 from app.models.user import User, UserRole
 from app.repositories import RepositoryFactory
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
@@ -85,8 +86,8 @@ class TestInstructorProfileRepositoryEagerLoading:
         # Check relationships are loaded (no new queries should be triggered)
         assert profile.user is not None
         assert profile.user.full_name == test_instructor.full_name
-        assert len(profile.services) == 2  # Test instructor has 2 services
-        assert all(isinstance(s, Service) for s in profile.services)
+        assert len(profile.instructor_services) == 2  # Test instructor has 2 services
+        assert all(isinstance(s, Service) for s in profile.instructor_services)
 
     def test_active_service_filtering(self, db):
         """Verify repository loads all services and service layer handles filtering."""
@@ -106,11 +107,27 @@ class TestInstructorProfileRepositoryEagerLoading:
         db.add(profile)
         db.flush()
 
+        # Get or create catalog services
+        category = db.query(ServiceCategory).first()
+        if not category:
+            category = ServiceCategory(name="Test Category", slug="test-category")
+            db.add(category)
+            db.flush()
+
         # Create 2 active and 2 inactive services
         for i in range(4):
+            # Get or create a catalog service for each test service
+            catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.slug == f"test-skill-{i}").first()
+            if not catalog_service:
+                catalog_service = ServiceCatalog(
+                    name=f"Test Skill {i}", slug=f"test-skill-{i}", category_id=category.id
+                )
+                db.add(catalog_service)
+                db.flush()
+
             service = Service(
                 instructor_profile_id=profile.id,
-                skill=f"Test Skill {i}",
+                service_catalog_id=catalog_service.id,
                 hourly_rate=50.0 + i * 10,
                 is_active=(i < 2),  # First 2 are active
             )
@@ -131,13 +148,13 @@ class TestInstructorProfileRepositoryEagerLoading:
         )
 
         # Should have ALL services (repository doesn't filter)
-        assert len(profile_result.services) == 4
+        assert len(profile_result.instructor_services) == 4
 
         # Another call with different parameter should return same result
         profile_result2 = repo.get_by_user_id_with_details(user.id, include_inactive_services=True)
 
         # Should still have ALL services
-        assert len(profile_result2.services) == 4
+        assert len(profile_result2.instructor_services) == 4
 
         # The service layer (InstructorService) is responsible for filtering
         # when converting to DTOs
@@ -246,8 +263,23 @@ class TestInstructorProfileRepositoryIntegration:
         # Add an inactive service to test filtering
         profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).first()
 
+        # Get or create catalog service for inactive service
+        category = db.query(ServiceCategory).first()
+        if not category:
+            category = ServiceCategory(name="Test Category", slug="test-category")
+            db.add(category)
+            db.flush()
+
+        inactive_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "inactive-test-service").first()
+        if not inactive_catalog:
+            inactive_catalog = ServiceCatalog(
+                name="Inactive Test Service", slug="inactive-test-service", category_id=category.id
+            )
+            db.add(inactive_catalog)
+            db.flush()
+
         inactive_service = Service(
-            instructor_profile_id=profile.id, skill="Inactive Test Service", hourly_rate=100.0, is_active=False
+            instructor_profile_id=profile.id, service_catalog_id=inactive_catalog.id, hourly_rate=100.0, is_active=False
         )
         db.add(inactive_service)
         db.flush()
@@ -265,7 +297,7 @@ class TestInstructorProfileRepositoryIntegration:
         for instructor in instructors:
             assert "user" in instructor
             assert instructor["user"]["full_name"] is not None
-            assert "services" in instructor
+            assert "services" in instructor  # Updated to match new API format
             # The service layer should filter out inactive services
             # when converting to DTOs
             for svc in instructor["services"]:
@@ -313,11 +345,27 @@ class TestPerformanceImprovement:
             db.add(profile)
             db.flush()
 
+            # Get or create catalog services
+            category = db.query(ServiceCategory).first()
+            if not category:
+                category = ServiceCategory(name="Test Category", slug="test-category")
+                db.add(category)
+                db.flush()
+
             # Add services
             for j in range(2):
+                # Get or create a catalog service
+                catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.slug == f"skill-{i}-{j}").first()
+                if not catalog_service:
+                    catalog_service = ServiceCatalog(
+                        name=f"Skill {i}-{j}", slug=f"skill-{i}-{j}", category_id=category.id
+                    )
+                    db.add(catalog_service)
+                    db.flush()
+
                 service = Service(
                     instructor_profile_id=profile.id,
-                    skill=f"Skill {i}-{j}",
+                    service_catalog_id=catalog_service.id,
                     hourly_rate=50.0 + (i * 10),
                     is_active=True,
                 )
@@ -366,7 +414,7 @@ class TestPerformanceImprovement:
         assert len(profiles_optimized) == 3
         for profile in profiles_optimized:
             assert profile.user is not None
-            assert len(profile.services) == 2
+            assert len(profile.instructor_services) == 2
 
         # Verify query reduction
         assert query_count < old_query_count
@@ -393,7 +441,7 @@ class TestEagerLoadingOverride:
         assert loaded_profile is not None
         assert loaded_profile.user is not None
         assert loaded_profile.user.full_name == test_instructor.full_name
-        assert len(loaded_profile.services) >= 2
+        assert len(loaded_profile.instructor_services) >= 2
 
         # Test without eager loading
         basic_profile = repo.get_by_id(profile.id, load_relationships=False)
@@ -409,7 +457,8 @@ class TestDiagnosticAndDebugging:
     def test_debug_service_filtering(self, db):
         """Debug test to understand service filtering issue."""
         from app.models.instructor import InstructorProfile
-        from app.models.service import Service
+        from app.models.service_catalog import InstructorService as Service
+        from app.models.service_catalog import ServiceCatalog, ServiceCategory
         from app.models.user import User, UserRole
         from app.repositories.instructor_profile_repository import InstructorProfileRepository
 
@@ -424,12 +473,28 @@ class TestDiagnosticAndDebugging:
         db.add(profile)
         db.flush()
 
+        # Get or create catalog services
+        category = db.query(ServiceCategory).first()
+        if not category:
+            category = ServiceCategory(name="Test Category", slug="test-category")
+            db.add(category)
+            db.flush()
+
         # Create 4 services: 2 active, 2 inactive
         services = []
         for i in range(4):
+            # Get or create catalog service for debug test
+            catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.slug == f"debug-skill-{i}").first()
+            if not catalog_service:
+                catalog_service = ServiceCatalog(
+                    name=f"Debug Skill {i}", slug=f"debug-skill-{i}", category_id=category.id
+                )
+                db.add(catalog_service)
+                db.flush()
+
             service = Service(
                 instructor_profile_id=profile.id,
-                skill=f"Debug Skill {i}",
+                service_catalog_id=catalog_service.id,
                 hourly_rate=60.0,
                 is_active=(i < 2),  # First 2 are active
             )
@@ -442,14 +507,14 @@ class TestDiagnosticAndDebugging:
         all_services = db.query(Service).filter(Service.instructor_profile_id == profile.id).all()
         print(f"Total services in DB: {len(all_services)}")
         for s in all_services:
-            print(f"  - {s.skill}: active={s.is_active}")
+            print(f"  - {(s.catalog_entry.name if s.catalog_entry else 'Unknown Service')}: active={s.is_active}")
 
         # Check via relationship
         print("\n=== Via Relationship ===")
         profile_check = db.query(InstructorProfile).filter(InstructorProfile.id == profile.id).first()
-        print(f"Services via relationship: {len(profile_check.services)}")
-        for s in profile_check.services:
-            print(f"  - {s.skill}: active={s.is_active}")
+        print(f"Services via relationship: {len(profile_check.instructor_services)}")
+        for s in profile_check.instructor_services:
+            print(f"  - {(s.catalog_entry.name if s.catalog_entry else 'Unknown Service')}: active={s.is_active}")
 
         # Now test repository
         print("\n=== Repository Tests ===")
@@ -457,27 +522,29 @@ class TestDiagnosticAndDebugging:
 
         # Test with include_inactive_services=True
         profile_all = repo.get_by_user_id_with_details(user.id, include_inactive_services=True)
-        print(f"Repository (include all): {len(profile_all.services)} services")
-        for s in profile_all.services:
-            print(f"  - {s.skill}: active={s.is_active}")
+        print(f"Repository (include all): {len(profile_all.instructor_services)} services")
+        for s in profile_all.instructor_services:
+            print(f"  - {(s.catalog_entry.name if s.catalog_entry else 'Unknown Service')}: active={s.is_active}")
 
         # Test with include_inactive_services=False
         profile_active = repo.get_by_user_id_with_details(user.id, include_inactive_services=False)
-        print(f"Repository (active only): {len(profile_active.services)} services")
-        for s in profile_active.services:
-            print(f"  - {s.skill}: active={s.is_active}")
+        print(f"Repository (active only): {len(profile_active.instructor_services)} services")
+        for s in profile_active.instructor_services:
+            print(f"  - {(s.catalog_entry.name if s.catalog_entry else 'Unknown Service')}: active={s.is_active}")
 
         # Assertions
         assert len(all_services) == 4, "Should have 4 services in database"
-        assert len(profile_all.services) == 4, "Should load all 4 services when include_inactive_services=True"
-        assert len(profile_active.services) == 4, "Repository now always returns all services"
+        assert (
+            len(profile_all.instructor_services) == 4
+        ), "Should load all 4 services when include_inactive_services=True"
+        assert len(profile_active.instructor_services) == 4, "Repository now always returns all services"
 
         print("\n✅ Debug test passed!")
 
     def test_verify_instructor_with_inactive_service_fixture(self, db, test_instructor_with_inactive_service):
         """Verify the test fixture actually creates inactive services."""
         from app.models.instructor import InstructorProfile
-        from app.models.service import Service
+        from app.models.service_catalog import InstructorService as Service
 
         # Get the instructor's profile
         profile = (
@@ -493,7 +560,9 @@ class TestDiagnosticAndDebugging:
 
         print(f"\nTotal services found: {len(all_services)}")
         for service in all_services:
-            print(f"- {service.skill}: active={service.is_active}, id={service.id}")
+            print(
+                f"- {service.catalog_entry.name if service.catalog_entry else 'Unknown Service'}: active={service.is_active}, id={service.id}"
+            )
 
         # Count active and inactive
         active_services = [s for s in all_services if s.is_active]
@@ -509,7 +578,8 @@ class TestDiagnosticAndDebugging:
     def test_diagnose_service_loading_issue(self, db):
         """Diagnose why services aren't loading correctly."""
         from app.models.instructor import InstructorProfile
-        from app.models.service import Service
+        from app.models.service_catalog import InstructorService as Service
+        from app.models.service_catalog import ServiceCatalog, ServiceCategory
         from app.models.user import User, UserRole
         from app.repositories.instructor_profile_repository import InstructorProfileRepository
 
@@ -524,12 +594,26 @@ class TestDiagnosticAndDebugging:
         db.add(profile)
         db.flush()
 
+        # Get or create catalog services
+        category = db.query(ServiceCategory).first()
+        if not category:
+            category = ServiceCategory(name="Test Category", slug="test-category")
+            db.add(category)
+            db.flush()
+
         # Create services
         services_created = []
         for i in range(4):
+            # Get or create catalog service for diagnosis test
+            catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.slug == f"skill-diag-{i}").first()
+            if not catalog_service:
+                catalog_service = ServiceCatalog(name=f"Skill {i}", slug=f"skill-diag-{i}", category_id=category.id)
+                db.add(catalog_service)
+                db.flush()
+
             service = Service(
                 instructor_profile_id=profile.id,
-                skill=f"Skill {i}",
+                service_catalog_id=catalog_service.id,
                 hourly_rate=50.0,
                 is_active=(i < 2),  # First 2 active, last 2 inactive
             )
@@ -540,21 +624,23 @@ class TestDiagnosticAndDebugging:
 
         print("\n=== Created Services ===")
         for s in services_created:
-            print(f"- {s.skill}: active={s.is_active}, id={s.id}")
+            print(
+                f"- {(s.catalog_entry.name if s.catalog_entry else 'Unknown Service')}: active={s.is_active}, id={s.id}"
+            )
 
         # Test 1: Direct query
         print("\n=== Test 1: Direct Query ===")
         direct_services = db.query(Service).filter(Service.instructor_profile_id == profile.id).all()
         print(f"Found {len(direct_services)} services")
         for s in direct_services:
-            print(f"- {s.skill}: active={s.is_active}")
+            print(f"- {(s.catalog_entry.name if s.catalog_entry else 'Unknown Service')}: active={s.is_active}")
 
         # Test 2: Through relationship
         print("\n=== Test 2: Through Relationship ===")
         profile_rel = db.query(InstructorProfile).filter(InstructorProfile.id == profile.id).first()
-        print(f"Services via relationship: {len(profile_rel.services)}")
-        for s in profile_rel.services:
-            print(f"- {s.skill}: active={s.is_active}")
+        print(f"Services via relationship: {len(profile_rel.instructor_services)}")
+        for s in profile_rel.instructor_services:
+            print(f"- {(s.catalog_entry.name if s.catalog_entry else 'Unknown Service')}: active={s.is_active}")
 
         # Test 3: Repository with eager loading
         print("\n=== Test 3: Repository Eager Loading ===")
@@ -562,32 +648,32 @@ class TestDiagnosticAndDebugging:
 
         # First call - all services
         profile_all = repo.get_by_user_id_with_details(user.id, include_inactive_services=True)
-        print(f"First call (all): {len(profile_all.services)} services")
-        for s in profile_all.services:
-            print(f"- {s.skill}: active={s.is_active}")
+        print(f"First call (all): {len(profile_all.instructor_services)} services")
+        for s in profile_all.instructor_services:
+            print(f"- {(s.catalog_entry.name if s.catalog_entry else 'Unknown Service')}: active={s.is_active}")
 
         # Clear session to avoid caching issues
         db.expire_all()
 
         # Second call - active only (but repository returns all now)
         profile_active = repo.get_by_user_id_with_details(user.id, include_inactive_services=False)
-        print(f"\nSecond call (active): {len(profile_active.services)} services")
-        for s in profile_active.services:
-            print(f"- {s.skill}: active={s.is_active}")
+        print(f"\nSecond call (active): {len(profile_active.instructor_services)} services")
+        for s in profile_active.instructor_services:
+            print(f"- {(s.catalog_entry.name if s.catalog_entry else 'Unknown Service')}: active={s.is_active}")
 
         # Clear session again
         db.expire_all()
 
         # Third call - all services again
         profile_all_2 = repo.get_by_user_id_with_details(user.id, include_inactive_services=True)
-        print(f"\nThird call (all): {len(profile_all_2.services)} services")
-        for s in profile_all_2.services:
-            print(f"- {s.skill}: active={s.is_active}")
+        print(f"\nThird call (all): {len(profile_all_2.instructor_services)} services")
+        for s in profile_all_2.instructor_services:
+            print(f"- {(s.catalog_entry.name if s.catalog_entry else 'Unknown Service')}: active={s.is_active}")
 
         # Assertions (updated for new behavior)
         assert len(direct_services) == 4
-        assert len(profile_all.services) == 4
-        assert len(profile_active.services) == 4  # Repository always returns all
-        assert len(profile_all_2.services) == 4
+        assert len(profile_all.instructor_services) == 4
+        assert len(profile_active.instructor_services) == 4  # Repository always returns all
+        assert len(profile_all_2.instructor_services) == 4
 
         print("\n✅ All assertions passed!")

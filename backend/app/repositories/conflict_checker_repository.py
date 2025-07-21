@@ -24,7 +24,7 @@ from ..core.exceptions import RepositoryException
 from ..models.availability import BlackoutDate
 from ..models.booking import Booking, BookingStatus
 from ..models.instructor import InstructorProfile
-from ..models.service import Service
+from ..models.service_catalog import InstructorService
 from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
@@ -186,7 +186,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             self.logger.error(f"Error getting instructor profile: {str(e)}")
             raise RepositoryException(f"Failed to get profile: {str(e)}")
 
-    def get_active_service(self, service_id: int) -> Optional[Service]:
+    def get_active_service(self, service_id: int) -> Optional[InstructorService]:
         """
         Get an active service by ID.
 
@@ -194,10 +194,15 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             service_id: The service ID
 
         Returns:
-            Service if active and exists, None otherwise
+            InstructorService if active and exists, None otherwise
         """
         try:
-            return self.db.query(Service).filter(Service.id == service_id, Service.is_active == True).first()
+            return (
+                self.db.query(InstructorService)
+                .options(joinedload(InstructorService.catalog_entry))
+                .filter(InstructorService.id == service_id, InstructorService.is_active == True)
+                .first()
+            )
         except Exception as e:
             self.logger.error(f"Error getting active service: {str(e)}")
             raise RepositoryException(f"Failed to get service: {str(e)}")

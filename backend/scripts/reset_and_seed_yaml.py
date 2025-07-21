@@ -13,6 +13,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 import random
 from datetime import date, datetime, time, timedelta
 
+from seed_catalog_only import seed_catalog
 from seed_yaml_loader import SeedDataLoader
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
@@ -22,7 +23,7 @@ from app.core.config import settings
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService, ServiceCatalog
 from app.models.user import User, UserRole
 
 
@@ -62,7 +63,7 @@ class DatabaseSeeder:
             )
             session.execute(
                 text(
-                    "DELETE FROM services WHERE instructor_profile_id IN (SELECT id FROM instructor_profiles WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@example.com'))"
+                    "DELETE FROM instructor_services WHERE instructor_profile_id IN (SELECT id FROM instructor_profiles WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@example.com'))"
                 )
             )
             session.execute(
@@ -78,6 +79,12 @@ class DatabaseSeeder:
         """Main seeding function"""
         print("🌱 Starting database seeding...")
         self.reset_database()
+
+        # Seed service catalog first
+        print("\n📚 Seeding service catalog...")
+        db_url = self.engine.url.render_as_string(hide_password=False)
+        catalog_stats = seed_catalog(db_url=db_url, verbose=True)
+
         self.create_students()
         self.create_instructors()
         self.create_availability()
@@ -138,20 +145,33 @@ class DatabaseSeeder:
                 session.add(profile)
                 session.flush()
 
-                # Create services
+                # Create services from catalog
                 service_count = 0
+                # Get catalog services for mapping
+                catalog_services = session.query(ServiceCatalog).all()
+                service_map = {s.name: s for s in catalog_services}
+
                 for service_data in profile_data.get("services", []):
-                    service = Service(
+                    service_name = service_data["name"]
+
+                    # Find matching catalog service
+                    catalog_service = service_map.get(service_name)
+                    if not catalog_service:
+                        print(f"  ⚠️  Service '{service_name}' not found in catalog, skipping")
+                        continue
+
+                    # Create instructor service linked to catalog
+                    service = InstructorService(
                         instructor_profile_id=profile.id,
-                        skill=service_data["name"],
-                        description=service_data["description"],
+                        service_catalog_id=catalog_service.id,
                         hourly_rate=service_data["price"],
-                        duration_options=service_data["duration_options"],
+                        description=service_data.get("description"),
+                        duration_options=service_data.get("duration_options", [60]),
                         is_active=True,
                     )
                     session.add(service)
                     session.flush()
-                    self.created_services[f"{user.email}:{service.skill}"] = service.id
+                    self.created_services[f"{user.email}:{service_name}"] = service.id
                     service_count += 1
 
                 self.created_users[user.email] = user.id
@@ -245,7 +265,7 @@ class DatabaseSeeder:
 
                 # Get instructor's services
                 services = (
-                    session.query(Service)
+                    session.query(InstructorService)
                     .join(InstructorProfile)
                     .filter(InstructorProfile.user_id == instructor_id)
                     .all()
@@ -304,19 +324,22 @@ class DatabaseSeeder:
                     if existing:
                         continue
 
+                    # Get service details from catalog
+                    catalog_service = session.query(ServiceCatalog).filter_by(id=service.service_catalog_id).first()
+
                     # Create booking
                     booking = Booking(
                         student_id=student.id,
                         instructor_id=instructor_id,
-                        service_id=service.id,
+                        instructor_service_id=service.id,
                         booking_date=slot.specific_date,
                         start_time=slot.start_time,
                         end_time=end_datetime.time(),
                         duration_minutes=duration,
+                        service_name=catalog_service.name if catalog_service else "Service",
                         hourly_rate=service.hourly_rate,
                         total_price=service.hourly_rate * (duration / 60),
                         status=BookingStatus.CONFIRMED,
-                        service_name=service.skill,
                         service_area=instructor.instructor_profile.areas_of_service
                         if instructor.instructor_profile
                         else None,
@@ -339,7 +362,7 @@ class DatabaseSeeder:
                 session.query(User).filter(User.role == UserRole.INSTRUCTOR, User.email.like("%@example.com")).count()
             )
             service_count = (
-                session.query(Service)
+                session.query(InstructorService)
                 .join(InstructorProfile)
                 .join(User)
                 .filter(User.email.like("%@example.com"))

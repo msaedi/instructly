@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import ConflictException, NotFoundException, ValidationException
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
 from app.services.conflict_checker import ConflictChecker
 from app.services.slot_manager import SlotManager
@@ -290,7 +290,7 @@ class TestSlotManagerDatabaseOperations:
         booking = Booking(
             student_id=test_instructor_with_availability.id,
             instructor_id=test_instructor_with_availability.id,
-            service_id=service_obj.id,
+            instructor_service_id=service_obj.id,
             # availability_slot_id removed - no longer exists
             booking_date=slot.specific_date,
             start_time=slot.start_time,

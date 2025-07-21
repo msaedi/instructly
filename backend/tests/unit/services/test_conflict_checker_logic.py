@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.models.availability import BlackoutDate
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
 from app.repositories.conflict_checker_repository import ConflictCheckerRepository
 from app.services.conflict_checker import ConflictChecker
 

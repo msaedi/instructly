@@ -16,7 +16,8 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
+from app.models.service_catalog import ServiceCatalog, ServiceCategory
 from app.models.user import User, UserRole
 
 
@@ -33,9 +34,22 @@ def test_service(db: Session, test_instructor: User) -> Service:
         db.add(profile)
         db.flush()
 
+    # Get or create catalog service
+    category = db.query(ServiceCategory).first()
+    if not category:
+        category = ServiceCategory(name="Test Category", slug="test-category")
+        db.add(category)
+        db.flush()
+
+    catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "test-service").first()
+    if not catalog_service:
+        catalog_service = ServiceCatalog(name="Test Service", slug="test-service", category_id=category.id)
+        db.add(catalog_service)
+        db.flush()
+
     service = Service(
         instructor_profile_id=profile.id,
-        skill="Test Service",
+        service_catalog_id=catalog_service.id,
         hourly_rate=50.0,
         description="Test service",
         is_active=True,
@@ -58,7 +72,7 @@ def test_instructors_with_profiles(db: Session) -> List[User]:
             "years_experience": 10,
             "bio": "Experienced instructor with 10 years",
             "areas_of_service": "Manhattan",
-            "services": ["Advanced Math", "Physics"],
+            "instructor_services": ["Advanced Math", "Physics"],
             "rates": [100.0, 120.0],
         },
         {
@@ -67,7 +81,7 @@ def test_instructors_with_profiles(db: Session) -> List[User]:
             "years_experience": 5,
             "bio": "Skilled instructor with 5 years",
             "areas_of_service": "Brooklyn",
-            "services": ["Basic Math", "Chemistry"],
+            "instructor_services": ["Basic Math", "Chemistry"],
             "rates": [70.0, 80.0],
         },
         {
@@ -76,7 +90,7 @@ def test_instructors_with_profiles(db: Session) -> List[User]:
             "years_experience": 2,
             "bio": "Enthusiastic new instructor",
             "areas_of_service": "Manhattan",
-            "services": ["Elementary Math"],
+            "instructor_services": ["Elementary Math"],
             "rates": [50.0],
         },
         {
@@ -85,7 +99,7 @@ def test_instructors_with_profiles(db: Session) -> List[User]:
             "years_experience": 8,
             "bio": "Specialist in advanced topics",
             "areas_of_service": "Queens",
-            "services": ["Quantum Physics", "Advanced Calculus", "Research Methods"],
+            "instructor_services": ["Quantum Physics", "Advanced Calculus", "Research Methods"],
             "rates": [150.0, 140.0, 160.0],
         },
     ]
@@ -114,11 +128,26 @@ def test_instructors_with_profiles(db: Session) -> List[User]:
         db.add(profile)
         db.flush()
 
+        # Get or create category for services
+        category = db.query(ServiceCategory).first()
+        if not category:
+            category = ServiceCategory(name="Test Category", slug="test-category")
+            db.add(category)
+            db.flush()
+
         # Create services
-        for i, (skill, rate) in enumerate(zip(data["services"], data["rates"])):
+        for i, (skill, rate) in enumerate(zip(data["instructor_services"], data["rates"])):
+            # Get or create catalog service
+            skill_slug = skill.lower().replace(" ", "-")
+            catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.slug == skill_slug).first()
+            if not catalog_service:
+                catalog_service = ServiceCatalog(name=skill, slug=skill_slug, category_id=category.id)
+                db.add(catalog_service)
+                db.flush()
+
             service = Service(
                 instructor_profile_id=profile.id,
-                skill=skill,
+                service_catalog_id=catalog_service.id,
                 hourly_rate=rate,
                 description=f"{skill} tutoring service",
                 is_active=True,
@@ -139,7 +168,7 @@ class TestInstructorProfileQueryPatterns:
         # Document the exact query pattern with eager loading
         query = (
             db.query(InstructorProfile)
-            .options(joinedload(InstructorProfile.user), selectinload(InstructorProfile.services))
+            .options(joinedload(InstructorProfile.user), selectinload(InstructorProfile.instructor_services))
             .join(User)
             .filter(User.is_active == True)
             .order_by(InstructorProfile.created_at.desc())
@@ -154,7 +183,7 @@ class TestInstructorProfileQueryPatterns:
         assert len(results) >= 4
         for profile in results:
             assert profile.user is not None
-            assert hasattr(profile, "services")
+            assert hasattr(profile, "instructor_services")
             assert profile.user.is_active == True
 
     def test_query_pattern_get_by_user_id_with_details(self, db: Session, test_instructors_with_profiles: List[User]):
@@ -165,7 +194,7 @@ class TestInstructorProfileQueryPatterns:
         # Document the query pattern
         query = (
             db.query(InstructorProfile)
-            .options(joinedload(InstructorProfile.user), selectinload(InstructorProfile.services))
+            .options(joinedload(InstructorProfile.user), selectinload(InstructorProfile.instructor_services))
             .filter(InstructorProfile.user_id == user_id)
         )
 
@@ -177,7 +206,7 @@ class TestInstructorProfileQueryPatterns:
         assert result is not None
         assert result.user_id == user_id
         assert result.user is not None
-        assert len(result.services) > 0
+        assert len(result.instructor_services) > 0
 
     def test_query_pattern_get_profiles_by_area(self, db: Session, test_instructors_with_profiles: List[User]):
         """Document query for filtering profiles by geographic area."""
@@ -186,7 +215,7 @@ class TestInstructorProfileQueryPatterns:
         # Document the query pattern
         query = (
             db.query(InstructorProfile)
-            .options(joinedload(InstructorProfile.user), selectinload(InstructorProfile.services))
+            .options(joinedload(InstructorProfile.user), selectinload(InstructorProfile.instructor_services))
             .filter(InstructorProfile.areas_of_service == target_area)
             .join(User)
             .filter(User.is_active == True)
@@ -210,7 +239,7 @@ class TestInstructorProfileQueryPatterns:
         # Document the query pattern
         query = (
             db.query(InstructorProfile)
-            .options(joinedload(InstructorProfile.user), selectinload(InstructorProfile.services))
+            .options(joinedload(InstructorProfile.user), selectinload(InstructorProfile.instructor_services))
             .filter(InstructorProfile.years_experience >= min_years)
             .join(User)
             .filter(User.is_active == True)
@@ -230,13 +259,14 @@ class TestInstructorProfileQueryPatterns:
         """Document query for searching profiles by service skill."""
         search_skill = "Math"
 
-        # Complex query joining services
+        # Complex query joining services and catalog
         query = (
             db.query(InstructorProfile)
             .distinct()
-            .options(joinedload(InstructorProfile.user), selectinload(InstructorProfile.services))
+            .options(joinedload(InstructorProfile.user), selectinload(InstructorProfile.instructor_services))
             .join(Service)
-            .filter(and_(Service.skill.ilike(f"%{search_skill}%"), Service.is_active == True))
+            .join(ServiceCatalog, Service.service_catalog_id == ServiceCatalog.id)
+            .filter(and_(ServiceCatalog.name.ilike(f"%{search_skill}%"), Service.is_active == True))
             .join(User)
             .filter(User.is_active == True)
         )
@@ -249,7 +279,11 @@ class TestInstructorProfileQueryPatterns:
         assert len(results) >= 3  # All except Specialist have Math services
         for profile in results:
             # Verify at least one service matches
-            matching_services = [s for s in profile.services if search_skill.lower() in s.skill.lower()]
+            matching_services = [
+                s
+                for s in profile.instructor_services
+                if s.catalog_entry and search_skill.lower() in s.catalog_entry.name.lower()
+            ]
             assert len(matching_services) > 0
 
     def test_query_pattern_get_profiles_by_rate_range(self, db: Session, test_instructors_with_profiles: List[User]):
@@ -261,7 +295,7 @@ class TestInstructorProfileQueryPatterns:
         query = (
             db.query(InstructorProfile)
             .distinct()
-            .options(joinedload(InstructorProfile.user), selectinload(InstructorProfile.services))
+            .options(joinedload(InstructorProfile.user), selectinload(InstructorProfile.instructor_services))
             .join(Service)
             .filter(and_(Service.hourly_rate >= min_rate, Service.hourly_rate <= max_rate, Service.is_active == True))
             .join(User)
@@ -276,7 +310,7 @@ class TestInstructorProfileQueryPatterns:
         assert len(results) >= 3  # Junior, Mid, Senior have services in range
         for profile in results:
             # Verify at least one service is in range
-            services_in_range = [s for s in profile.services if min_rate <= s.hourly_rate <= max_rate]
+            services_in_range = [s for s in profile.instructor_services if min_rate <= s.hourly_rate <= max_rate]
             assert len(services_in_range) > 0
 
     def test_query_pattern_count_profiles(self, db: Session, test_instructors_with_profiles: List[User]):
@@ -347,22 +381,23 @@ class TestInstructorProfileQueryPatterns:
     ):
         """Document query for profiles with booking statistics."""
         # Create some bookings for testing
-        for i, instructor in enumerate(test_instructors_with_profiles[:2]):
+        instructor_ids = [instructor.id for instructor in test_instructors_with_profiles[:2]]
+        for i, instructor_id in enumerate(instructor_ids):
             # Get service for this instructor
-            profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
+            profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor_id).first()
             service = (
                 db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
             )
 
             for j in range(i + 1):  # Different number of bookings
                 booking = Booking(
-                    instructor_id=instructor.id,
+                    instructor_id=instructor_id,
                     student_id=test_student.id,
                     booking_date=date.today() - timedelta(days=j),
                     start_time=time(10, 0),
                     end_time=time(11, 0),
                     status=BookingStatus.COMPLETED,
-                    service_id=service.id,
+                    instructor_service_id=service.id,
                     service_name="Test Service",
                     hourly_rate=50.0,
                     total_price=50.0,
@@ -390,7 +425,7 @@ class TestInstructorProfileQueryPatterns:
                 func.coalesce(booking_stats.c.unique_students, 0).label("unique_students"),
             )
             .outerjoin(booking_stats, InstructorProfile.user_id == booking_stats.c.instructor_id)
-            .options(joinedload(InstructorProfile.user), selectinload(InstructorProfile.services))
+            .options(joinedload(InstructorProfile.user), selectinload(InstructorProfile.instructor_services))
             .order_by(booking_stats.c.total_bookings.desc().nullslast())
         )
 
@@ -420,7 +455,7 @@ class TestInstructorProfileQueryPatterns:
         query = db.query(InstructorProfile).distinct()
 
         # Join necessary tables
-        query = query.join(User).join(Service)
+        query = query.join(User).join(Service).join(ServiceCatalog, Service.service_catalog_id == ServiceCatalog.id)
 
         # Apply filters
         filters = [User.is_active == True, Service.is_active == True]
@@ -428,7 +463,7 @@ class TestInstructorProfileQueryPatterns:
         # Keyword search (in bio or service skills)
         if search_params["keyword"]:
             keyword = search_params["keyword"]
-            filters.append(or_(InstructorProfile.bio.ilike(f"%{keyword}%"), Service.skill.ilike(f"%{keyword}%")))
+            filters.append(or_(InstructorProfile.bio.ilike(f"%{keyword}%"), ServiceCatalog.name.ilike(f"%{keyword}%")))
 
         # Experience filter
         if search_params["min_experience"]:
@@ -445,7 +480,7 @@ class TestInstructorProfileQueryPatterns:
         query = query.filter(and_(*filters))
 
         # Add eager loading
-        query = query.options(joinedload(InstructorProfile.user), selectinload(InstructorProfile.services))
+        query = query.options(joinedload(InstructorProfile.user), selectinload(InstructorProfile.instructor_services))
 
         results = query.all()
 

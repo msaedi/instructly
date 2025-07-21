@@ -33,10 +33,10 @@ from app.models import (
     BookingStatus,
     InstructorProfile,
     PasswordResetToken,
-    Service,
     User,
     UserRole,
 )
+from app.models.service_catalog import InstructorService as Service
 
 
 class TestArchitecturalValidation:
@@ -172,14 +172,27 @@ class TestModelInstantiation:
         assert profile.user_id == instructor_user.id
         assert profile.min_advance_booking_hours == 24
 
-    def test_service_creation(self, db, test_instructor):
+    def test_service_creation(self, db, test_instructor, catalog_data):
         """Test Service model instantiation."""
         profile = test_instructor.instructor_profile
+        # Find a catalog service that's not already used by test_instructor
+        used_catalog_ids = [s.service_catalog_id for s in profile.instructor_services]
+        catalog_service = None
+        for service in catalog_data["services"]:
+            if service.id not in used_catalog_ids:
+                catalog_service = service
+                break
+
+        if not catalog_service:
+            # If all are used, skip this test
+            pytest.skip("All catalog services already used by test instructor")
+
         service = Service(
             instructor_profile_id=profile.id,
-            skill="Python Programming",
+            service_catalog_id=catalog_service.id,
             hourly_rate=75.0,
             description="Learn Python from basics to advanced",
+            duration_options=[60, 90],
         )
         db.add(service)
         db.flush()
@@ -187,6 +200,7 @@ class TestModelInstantiation:
         assert service.id is not None
         assert service.is_active is True  # Default
         assert service.hourly_rate == 75.0
+        assert service.catalog_entry.name == catalog_service.name  # catalog_entry relationship should work
 
     def test_availability_slot_creation_single_table(self, db, test_instructor):
         """
@@ -219,12 +233,12 @@ class TestModelInstantiation:
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             # No availability_slot_id!
             booking_date=date.today(),
             start_time=time(14, 0),
             end_time=time(15, 0),
-            service_name=service.skill,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Uses catalog
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
             duration_minutes=60,
@@ -281,7 +295,7 @@ class TestCleanArchitectureVerification:
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             booking_date=date(2024, 7, 15),
             start_time=time(10, 30),
             end_time=time(11, 30),
@@ -361,11 +375,11 @@ class TestCleanArchitectureVerification:
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             booking_date=date.today(),
             start_time=time(15, 0),
             end_time=time(16, 0),
-            service_name=service.skill,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Uses catalog
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
             duration_minutes=60,
@@ -419,7 +433,7 @@ class TestRelationships:
     def test_instructor_profile_services_one_to_many(self, db, test_instructor):
         """Test InstructorProfile → Services one-to-many relationship."""
         profile = test_instructor.instructor_profile
-        services = profile.services
+        services = profile.instructor_services
 
         assert len(services) > 0
         for service in services:
@@ -435,11 +449,11 @@ class TestRelationships:
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             booking_date=date.today(),
             start_time=time(13, 0),
             end_time=time(14, 0),
-            service_name=service.skill,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Uses catalog
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
             duration_minutes=60,
@@ -453,8 +467,8 @@ class TestRelationships:
         assert booking.student.id == test_student.id
         assert booking.instructor is not None
         assert booking.instructor.id == test_instructor.id
-        assert booking.service is not None
-        assert booking.service.id == service.id
+        assert booking.instructor_service is not None
+        assert booking.instructor_service.id == service.id
 
         # Should NOT have slot relationship
         assert not hasattr(booking, "availability_slot")
@@ -468,11 +482,11 @@ class TestRelationships:
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             booking_date=date.today(),
             start_time=time(14, 0),
             end_time=time(15, 0),
-            service_name=service.skill,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Uses catalog
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
             duration_minutes=60,
@@ -502,7 +516,7 @@ class TestFieldValidation:
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             # Missing: booking_date, start_time, end_time, etc.
         )
         db.add(booking)
@@ -571,7 +585,7 @@ class TestFieldValidation:
             booking = Booking(
                 student_id=test_student.id,
                 instructor_id=test_instructor.id,
-                service_id=service.id,
+                instructor_service_id=service.id,
                 booking_date=date.today(),
                 start_time=time(9, 0),
                 end_time=time(10, 0),
@@ -600,10 +614,22 @@ class TestDefaultValues:
         assert user.is_active is True  # Default
         assert user.created_at is not None  # Auto-set
 
-    def test_service_defaults(self, db, test_instructor):
+    def test_service_defaults(self, db, test_instructor, catalog_data):
         """Test Service model defaults."""
         profile = test_instructor.instructor_profile
-        service = Service(instructor_profile_id=profile.id, skill="Test Skill", hourly_rate=50.0)
+        # Find a catalog service that's not already used by test_instructor
+        used_catalog_ids = [s.service_catalog_id for s in profile.instructor_services]
+        catalog_service = None
+        for service in catalog_data["services"]:
+            if service.id not in used_catalog_ids:
+                catalog_service = service
+                break
+
+        if not catalog_service:
+            # If all are used, skip this test
+            pytest.skip("All catalog services already used by test instructor")
+
+        service = Service(instructor_profile_id=profile.id, service_catalog_id=catalog_service.id, hourly_rate=50.0)
         db.add(service)
         db.flush()
 
@@ -619,11 +645,11 @@ class TestDefaultValues:
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             booking_date=date.today(),
             start_time=time(14, 0),
             end_time=time(15, 0),
-            service_name=service.skill,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Uses catalog
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
             duration_minutes=60
@@ -664,11 +690,11 @@ class TestArchitecturalIntegrity:
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             booking_date=date.today(),
             start_time=time(16, 0),
             end_time=time(17, 0),
-            service_name=service.skill,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Uses catalog
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
             duration_minutes=60,

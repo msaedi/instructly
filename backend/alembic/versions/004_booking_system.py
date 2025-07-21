@@ -37,7 +37,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("student_id", sa.Integer(), nullable=False),
         sa.Column("instructor_id", sa.Integer(), nullable=False),
-        sa.Column("service_id", sa.Integer(), nullable=False),
+        sa.Column("instructor_service_id", sa.Integer(), nullable=False),
         # NO availability_slot_id - bookings are self-contained
         # Booking snapshot data
         sa.Column("booking_date", sa.Date(), nullable=False),
@@ -78,7 +78,7 @@ def upgrade() -> None:
         # Foreign keys
         sa.ForeignKeyConstraint(["student_id"], ["users.id"]),
         sa.ForeignKeyConstraint(["instructor_id"], ["users.id"]),
-        sa.ForeignKeyConstraint(["service_id"], ["services.id"]),
+        sa.ForeignKeyConstraint(["instructor_service_id"], ["instructor_services.id"]),
         sa.ForeignKeyConstraint(["cancelled_by_id"], ["users.id"]),
         sa.PrimaryKeyConstraint("id"),
         comment="Self-contained booking records - no dependency on availability slots",
@@ -103,7 +103,7 @@ def upgrade() -> None:
         ["instructor_id", "booking_date", "status"],
     )
     op.create_index("idx_bookings_student_status", "bookings", ["student_id", "status"])
-    op.create_index("idx_bookings_service_id", "bookings", ["service_id"])
+    op.create_index("idx_bookings_instructor_service_id", "bookings", ["instructor_service_id"])
     op.create_index("idx_bookings_cancelled_by_id", "bookings", ["cancelled_by_id"])
 
     # Add check constraints
@@ -164,7 +164,7 @@ def downgrade() -> None:
 
     # Drop bookings indexes
     op.drop_index("idx_bookings_cancelled_by_id", table_name="bookings")
-    op.drop_index("idx_bookings_service_id", table_name="bookings")
+    op.drop_index("idx_bookings_instructor_service_id", table_name="bookings")
     op.drop_index("idx_bookings_student_status", table_name="bookings")
     op.drop_index("idx_bookings_instructor_date_status", table_name="bookings")
     op.drop_index("idx_bookings_instructor_datetime", table_name="bookings")

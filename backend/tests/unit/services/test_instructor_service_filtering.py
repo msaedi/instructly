@@ -13,7 +13,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
 from app.services.instructor_service import InstructorService
 
@@ -64,7 +64,11 @@ class TestInstructorServiceFiltering:
         for idx, (skill, rate) in enumerate(services):
             service = Mock(spec=Service)
             service.id = idx + 1
-            service.skill = skill
+            service.service_catalog_id = idx + 1  # Add this for sorting
+            # Mock catalog_entry instead of skill
+            catalog_entry = Mock()
+            catalog_entry.name = skill
+            service.catalog_entry = catalog_entry
             service.hourly_rate = rate
             service.description = f"{skill} lessons"
             service.duration_options = [60]
@@ -72,7 +76,7 @@ class TestInstructorServiceFiltering:
             service.is_active = True
             mock_services.append(service)
 
-        profile.services = mock_services
+        profile.instructor_services = mock_services
         return profile
 
     def test_no_filters_returns_all_instructors(self, instructor_service, mock_profile_repository):
@@ -89,7 +93,7 @@ class TestInstructorServiceFiltering:
 
         # Assert
         mock_profile_repository.find_by_filters.assert_called_once_with(
-            search=None, skill=None, min_price=None, max_price=None, skip=0, limit=100
+            search=None, service_catalog_id=None, min_price=None, max_price=None, skip=0, limit=100
         )
         assert len(result["instructors"]) == 2
         assert result["metadata"]["filters_applied"] == {}
@@ -109,7 +113,7 @@ class TestInstructorServiceFiltering:
 
         # Assert
         mock_profile_repository.find_by_filters.assert_called_once_with(
-            search="piano", skill=None, min_price=None, max_price=None, skip=0, limit=100
+            search="piano", service_catalog_id=None, min_price=None, max_price=None, skip=0, limit=100
         )
         assert len(result["instructors"]) == 1
         assert result["metadata"]["filters_applied"] == {"search": "piano"}
@@ -123,14 +127,14 @@ class TestInstructorServiceFiltering:
         mock_profile_repository.find_by_filters.return_value = mock_profiles
 
         # Act
-        result = instructor_service.get_instructors_filtered(skill="Yoga")
+        result = instructor_service.get_instructors_filtered(service_catalog_id=3)
 
         # Assert
         mock_profile_repository.find_by_filters.assert_called_once_with(
-            search=None, skill="Yoga", min_price=None, max_price=None, skip=0, limit=100
+            search=None, service_catalog_id=3, min_price=None, max_price=None, skip=0, limit=100
         )
         assert len(result["instructors"]) == 1
-        assert result["metadata"]["filters_applied"] == {"skill": "Yoga"}
+        assert result["metadata"]["filters_applied"] == {"service_catalog_id": 3}
 
     def test_price_range_filter(self, instructor_service, mock_profile_repository):
         """Test filtering by price range."""
@@ -145,7 +149,7 @@ class TestInstructorServiceFiltering:
 
         # Assert
         mock_profile_repository.find_by_filters.assert_called_once_with(
-            search=None, skill=None, min_price=70.0, max_price=90.0, skip=0, limit=100
+            search=None, service_catalog_id=None, min_price=70.0, max_price=90.0, skip=0, limit=100
         )
         assert len(result["instructors"]) == 1
         assert result["metadata"]["filters_applied"] == {"min_price": 70.0, "max_price": 90.0}
@@ -160,17 +164,17 @@ class TestInstructorServiceFiltering:
 
         # Act
         result = instructor_service.get_instructors_filtered(
-            search="experienced", skill="Piano", min_price=50.0, max_price=100.0
+            search="experienced", service_catalog_id=1, min_price=50.0, max_price=100.0
         )
 
         # Assert
         mock_profile_repository.find_by_filters.assert_called_once_with(
-            search="experienced", skill="Piano", min_price=50.0, max_price=100.0, skip=0, limit=100
+            search="experienced", service_catalog_id=1, min_price=50.0, max_price=100.0, skip=0, limit=100
         )
         assert len(result["instructors"]) == 1
         assert result["metadata"]["filters_applied"] == {
             "search": "experienced",
-            "skill": "Piano",
+            "service_catalog_id": 1,
             "min_price": 50.0,
             "max_price": 100.0,
         }
@@ -188,7 +192,7 @@ class TestInstructorServiceFiltering:
 
         # Assert
         mock_profile_repository.find_by_filters.assert_called_once_with(
-            search=None, skill=None, min_price=None, max_price=None, skip=10, limit=5
+            search=None, service_catalog_id=None, min_price=None, max_price=None, skip=10, limit=5
         )
         assert result["metadata"]["pagination"]["skip"] == 10
         assert result["metadata"]["pagination"]["limit"] == 5
@@ -211,7 +215,7 @@ class TestInstructorServiceFiltering:
         # Arrange
         profile = self.create_mock_profile(1, "John Doe", "Teacher", [("Piano", 80.0)])
         # Mark all services as inactive
-        for service in profile.services:
+        for service in profile.instructor_services:
             service.is_active = False
 
         mock_profile_repository.find_by_filters.return_value = [profile]
@@ -231,7 +235,7 @@ class TestInstructorServiceFiltering:
             1, "John Doe", "Multi-skill teacher", [("Piano", 80.0), ("Guitar", 70.0), ("Violin", 90.0)]
         )
         # Mark some services as inactive
-        profile.services[1].is_active = False  # Guitar inactive
+        profile.instructor_services[1].is_active = False  # Guitar inactive
 
         mock_profile_repository.find_by_filters.return_value = [profile]
 
@@ -242,7 +246,7 @@ class TestInstructorServiceFiltering:
         assert len(result["instructors"]) == 1
         instructor = result["instructors"][0]
         assert len(instructor["services"]) == 2  # Only active services
-        assert all(s["skill"] != "Guitar" for s in instructor["services"])  # Guitar excluded
+        assert all(s["name"] != "Guitar" for s in instructor["services"])  # Guitar excluded
 
     def test_service_method_integration(self, instructor_service, mock_profile_repository):
         """Test that the service method properly formats the response."""
@@ -253,15 +257,17 @@ class TestInstructorServiceFiltering:
         mock_profile_repository.find_by_filters.return_value = [profile]
 
         # Act
-        result = instructor_service.get_instructors_filtered(skill="Piano")
+        result = instructor_service.get_instructors_filtered(service_catalog_id=1)
 
         # Assert
         instructor = result["instructors"][0]
         assert instructor["user"]["full_name"] == "John Doe"
         assert instructor["bio"] == "Experienced teacher"
         assert len(instructor["services"]) == 2
-        assert instructor["services"][0]["skill"] == "Music Theory"  # Sorted alphabetically
-        assert instructor["services"][1]["skill"] == "Piano"
+        # Services are sorted by service_catalog_id, not alphabetically
+        # In our mock, Piano has catalog_id=1 and Music Theory has catalog_id=2
+        assert instructor["services"][0]["name"] == "Piano"
+        assert instructor["services"][1]["name"] == "Music Theory"
 
     def test_price_filter_edge_cases(self, instructor_service, mock_profile_repository):
         """Test edge cases for price filtering."""

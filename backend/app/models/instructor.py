@@ -9,7 +9,7 @@ booking preferences.
 """
 
 import logging
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional, Set
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
@@ -18,7 +18,7 @@ from sqlalchemy.sql import func
 from ..database import Base
 
 if TYPE_CHECKING:
-    from .service import Service
+    from .service_catalog import InstructorService
 
 logger = logging.getLogger(__name__)
 
@@ -89,8 +89,8 @@ class InstructorProfile(Base):
 
     # IMPORTANT: Do NOT cascade delete services automatically
     # The service layer handles soft/hard delete logic
-    services = relationship(
-        "Service",
+    instructor_services = relationship(
+        "InstructorService",
         back_populates="instructor_profile",
         cascade="save-update, merge",  # Only cascade saves and merges, NOT deletes
         passive_deletes=True,  # Don't load services just to delete them
@@ -106,14 +106,14 @@ class InstructorProfile(Base):
         return f"<InstructorProfile {self.user_id} - {self.years_experience} years>"
 
     @property
-    def active_services(self) -> List["Service"]:
+    def active_services(self) -> List["InstructorService"]:
         """
         Get only active services for this instructor.
 
         Returns:
-            List of active Service objects
+            List of active InstructorService objects
         """
-        return [s for s in self.services if s.is_active]
+        return [s for s in self.instructor_services if s.is_active]
 
     @property
     def has_active_services(self) -> bool:
@@ -123,7 +123,7 @@ class InstructorProfile(Base):
         Returns:
             bool: True if at least one service is active
         """
-        return any(s.is_active for s in self.services)
+        return any(s.is_active for s in self.instructor_services)
 
     @property
     def total_services(self) -> int:
@@ -133,7 +133,62 @@ class InstructorProfile(Base):
         Returns:
             int: Total service count
         """
-        return len(self.services)
+        return len(self.instructor_services)
+
+    @property
+    def offered_categories(self) -> Set[str]:
+        """
+        Get unique categories offered by this instructor.
+
+        Returns:
+            Set of category names
+        """
+        categories = set()
+        for service in self.active_services:
+            if service.catalog_entry and service.catalog_entry.category:
+                categories.add(service.catalog_entry.category.name)
+        return categories
+
+    @property
+    def offered_category_slugs(self) -> Set[str]:
+        """
+        Get unique category slugs offered by this instructor.
+
+        Returns:
+            Set of category slugs
+        """
+        slugs = set()
+        for service in self.active_services:
+            if service.catalog_entry and service.catalog_entry.category:
+                slugs.add(service.catalog_entry.category.slug)
+        return slugs
+
+    def offers_service(self, service_catalog_id: int) -> bool:
+        """
+        Check if instructor offers a specific catalog service.
+
+        Args:
+            service_catalog_id: The catalog service ID to check
+
+        Returns:
+            bool: True if instructor offers this service actively
+        """
+        return any(s.service_catalog_id == service_catalog_id and s.is_active for s in self.instructor_services)
+
+    def get_service_by_catalog_id(self, service_catalog_id: int) -> Optional["InstructorService"]:
+        """
+        Get instructor's service by catalog ID.
+
+        Args:
+            service_catalog_id: The catalog service ID
+
+        Returns:
+            InstructorService or None if not found/inactive
+        """
+        for service in self.instructor_services:
+            if service.service_catalog_id == service_catalog_id and service.is_active:
+                return service
+        return None
 
     @property
     def service_areas_list(self) -> List[str]:

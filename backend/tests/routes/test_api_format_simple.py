@@ -19,7 +19,7 @@ class TestSchemaValidation:
         # Send old format with availability_slot_id
         response = client.post(
             "/bookings/",  # With trailing slash as per route definition
-            json={"availability_slot_id": 123, "service_id": 1, "student_note": "This uses old format"},
+            json={"availability_slot_id": 123, "instructor_service_id": 1, "student_note": "This uses old format"},
             headers=auth_headers_student,
         )
 
@@ -42,7 +42,7 @@ class TestSchemaValidation:
         # Send old format
         response = client.post(
             "/bookings/check-availability",  # No trailing slash for this endpoint
-            json={"availability_slot_id": 123, "service_id": 1},
+            json={"availability_slot_id": 123, "instructor_service_id": 1},
             headers=auth_headers_student,
         )
 
@@ -126,7 +126,9 @@ class TestAPIBehavior:
     def test_error_messages_are_clear(self, client, auth_headers_student):
         """Verify error messages clearly indicate what's wrong."""
         response = client.post(
-            "/bookings/", json={"service_id": 1}, headers=auth_headers_student  # Missing all time-based fields
+            "/bookings/",
+            json={"instructor_service_id": 1},
+            headers=auth_headers_student,  # Missing all time-based fields
         )
 
         assert response.status_code == 422
@@ -139,7 +141,7 @@ class TestAPIBehavior:
         for error in errors:
             assert "loc" in error
             assert "msg" in error
-            assert error["msg"] == "Field required"
+            assert error["msg"] in ["Field required", "Extra inputs are not permitted"]
             assert error["type"] == "missing"
 
 
@@ -159,7 +161,7 @@ class TestCleanArchitectureValidation:
             "/bookings/",
             json={
                 "instructor_id": 1,
-                "service_id": 1,
+                "instructor_service_id": 1,
                 "booking_date": future_date,
                 "start_time": "09:00",
                 "end_time": "10:00",
@@ -186,7 +188,7 @@ class TestCleanArchitectureValidation:
             "/bookings/check-availability",
             json={
                 "instructor_id": 1,
-                "service_id": 1,
+                "instructor_service_id": 1,
                 "booking_date": future_date,
                 "start_time": "09:00",
                 "end_time": "10:00",

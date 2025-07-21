@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.availability import BlackoutDate
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
 
 
@@ -97,7 +97,7 @@ class TestConflictCheckerEnhancedPatterns:
                 start_time=time(10, 0),
                 end_time=time(11, 0),
                 status=BookingStatus.CONFIRMED,
-                service_id=test_service.id,
+                instructor_service_id=test_service.id,
                 service_name="Test Service",
                 hourly_rate=50.0,
                 total_price=50.0,
@@ -144,7 +144,7 @@ class TestConflictCheckerEnhancedPatterns:
                 start_time=time(9 + i * 2, 0),
                 end_time=time(10 + i * 2, 0),
                 status=BookingStatus.CONFIRMED,
-                service_id=test_service.id,
+                instructor_service_id=test_service.id,
                 service_name="Test Service",
                 hourly_rate=50.0,
                 total_price=50.0,
@@ -156,7 +156,10 @@ class TestConflictCheckerEnhancedPatterns:
         # Complex query with all details needed for conflict checking
         query = (
             db.query(Booking)
-            .options(joinedload(Booking.student), joinedload(Booking.service).joinedload(Service.instructor_profile))
+            .options(
+                joinedload(Booking.student),
+                joinedload(Booking.instructor_service).joinedload(Service.instructor_profile),
+            )
             .filter(
                 and_(
                     Booking.instructor_id == instructor_id,
@@ -176,7 +179,7 @@ class TestConflictCheckerEnhancedPatterns:
         # Verify eager loading worked
         for booking in results:
             assert booking.student is not None
-            assert booking.service is not None
+            assert booking.instructor_service is not None
             assert hasattr(booking.student, "full_name")  # No additional query
 
     def test_query_pattern_get_instructor_booking_summary(self, db: Session, test_instructor: User, test_student: User):
@@ -197,7 +200,7 @@ class TestConflictCheckerEnhancedPatterns:
                 start_time=time(10, 0),
                 end_time=time(11 + (i % 2), 0),  # Vary duration
                 status=status,
-                service_id=test_service.id,
+                instructor_service_id=test_service.id,
                 service_name="Test Service",
                 hourly_rate=50.0,
                 total_price=50.0,
@@ -214,7 +217,7 @@ class TestConflictCheckerEnhancedPatterns:
                 start_time=time(14, 0),
                 end_time=time(15, 0),
                 status=BookingStatus.CANCELLED,
-                service_id=test_service.id,
+                instructor_service_id=test_service.id,
                 service_name="Test Service",
                 hourly_rate=50.0,
                 total_price=50.0,
@@ -280,7 +283,7 @@ class TestConflictCheckerEnhancedPatterns:
                     start_time=start,
                     end_time=end,
                     status=BookingStatus.CONFIRMED,
-                    service_id=test_service.id,
+                    instructor_service_id=test_service.id,
                     service_name="Test Service",
                     hourly_rate=50.0,
                     total_price=50.0,
@@ -346,7 +349,7 @@ class TestConflictCheckerEnhancedPatterns:
                 start_time=time(10, 0),
                 end_time=time(11, 0),
                 status=BookingStatus.CONFIRMED,
-                service_id=test_service.id,
+                instructor_service_id=test_service.id,
                 service_name="Test Service",
                 hourly_rate=50.0,
                 total_price=50.0,
@@ -399,7 +402,7 @@ class TestConflictCheckerEnhancedPatterns:
                     start_time=time(9, 0),
                     end_time=time(10, 0),
                     status=BookingStatus.COMPLETED,
-                    service_id=test_service.id,
+                    instructor_service_id=test_service.id,
                     service_name="Test Service",
                     hourly_rate=50.0,
                     total_price=50.0,
@@ -416,7 +419,7 @@ class TestConflictCheckerEnhancedPatterns:
                     start_time=time(14, 0),
                     end_time=time(15, 0),
                     status=BookingStatus.COMPLETED,
-                    service_id=test_service.id,
+                    instructor_service_id=test_service.id,
                     service_name="Test Service",
                     hourly_rate=50.0,
                     total_price=50.0,
@@ -471,7 +474,7 @@ class TestConflictCheckerEnhancedPatterns:
             start_time=time(10, 0),
             end_time=time(11, 0),
             status=BookingStatus.CONFIRMED,
-            service_id=test_service.id,
+            instructor_service_id=test_service.id,
             service_name="Test Service",
             hourly_rate=50.0,
             total_price=50.0,

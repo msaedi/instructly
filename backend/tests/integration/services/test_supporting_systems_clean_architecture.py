@@ -30,7 +30,7 @@ class TestSupportingSystemsIntegration:
 
         # Get instructor's profile and service
         from app.models.instructor import InstructorProfile
-        from app.models.service import Service
+        from app.models.service_catalog import InstructorService as Service
 
         profile = (
             db.query(InstructorProfile)
@@ -46,12 +46,12 @@ class TestSupportingSystemsIntegration:
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor_with_availability.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             # Remove availability_slot_id - not part of new architecture
             booking_date=tomorrow,
             start_time=time(9, 0),
             end_time=time(10, 0),
-            service_name=service.skill,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
             duration_minutes=60,
@@ -63,7 +63,7 @@ class TestSupportingSystemsIntegration:
         # Add relationships for email templates
         booking.student = test_student
         booking.instructor = test_instructor_with_availability
-        booking.service = service
+        booking.instructor_service = service
 
         db.add(booking)
         db.commit()

@@ -15,7 +15,7 @@ from app.core.exceptions import RepositoryException
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
 from app.repositories.availability_repository import AvailabilityRepository
 
@@ -94,7 +94,7 @@ class TestAvailabilityRepositoryBulkOperations:
                 start_time=booked_slot.start_time,
                 end_time=booked_slot.end_time,
                 status=BookingStatus.CONFIRMED,
-                service_id=test_service.id,
+                instructor_service_id=test_service.id,
                 service_name="Test Service",
                 hourly_rate=50.0,
                 total_price=50.0,

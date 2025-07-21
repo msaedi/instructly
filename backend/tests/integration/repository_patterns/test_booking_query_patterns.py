@@ -19,7 +19,8 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
+from app.models.service_catalog import ServiceCatalog, ServiceCategory
 from app.models.user import User
 
 
@@ -41,10 +42,25 @@ def test_service(db: Session, test_instructor: User) -> Service:
         db.add(profile)
         db.flush()
 
+    # Get or create catalog service
+    category = db.query(ServiceCategory).first()
+    if not category:
+        category = ServiceCategory(name="Test Category", slug="test-category")
+        db.add(category)
+        db.flush()
+
+    catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "test-service").first()
+    if not catalog_service:
+        catalog_service = ServiceCatalog(
+            name="Test Service", slug="test-service", category_id=category.id, description="Test service description"
+        )
+        db.add(catalog_service)
+        db.flush()
+
     # Create service
     service = Service(
         instructor_profile_id=profile.id,
-        skill="Test Service",
+        service_catalog_id=catalog_service.id,
         hourly_rate=50.0,
         description="Test service description",
         is_active=True,
@@ -100,7 +116,7 @@ class TestBookingQueryPatterns:
         query = db.query(Booking).options(
             joinedload(Booking.student),
             joinedload(Booking.instructor),
-            joinedload(Booking.service),
+            joinedload(Booking.instructor_service),
             # REMOVED: joinedload(Booking.availability_slot) - relationship no longer exists
         )
 
@@ -141,7 +157,7 @@ class TestBookingQueryPatterns:
             .options(
                 joinedload(Booking.student),
                 joinedload(Booking.instructor),
-                joinedload(Booking.service).joinedload(Service.instructor_profile),
+                joinedload(Booking.instructor_service).joinedload(Service.instructor_profile),
                 # REMOVED: joinedload(Booking.availability_slot)
                 joinedload(Booking.cancelled_by),
             )
@@ -229,7 +245,7 @@ class TestBookingQueryPatterns:
             db.query(Booking)
             .options(
                 joinedload(Booking.instructor),
-                joinedload(Booking.service),
+                joinedload(Booking.instructor_service),
                 # REMOVED: joinedload(Booking.availability_slot) - relationship no longer exists
             )
             .filter(

@@ -34,7 +34,7 @@ class TestBookingRoutesNewFormat:
 
         # Get service from database
         from app.models.instructor import InstructorProfile
-        from app.models.service import Service
+        from app.models.service_catalog import InstructorService as Service
 
         profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
         service = (
@@ -48,7 +48,7 @@ class TestBookingRoutesNewFormat:
             "/bookings/",  # With trailing slash
             json={
                 "instructor_id": instructor.id,
-                "service_id": service.id,
+                "instructor_service_id": service.id,
                 "booking_date": tomorrow.isoformat(),
                 "start_time": "09:00",
                 "end_time": "10:00",
@@ -76,7 +76,7 @@ class TestBookingRoutesNewFormat:
         """Verify old slot-based format is rejected."""
         response = client.post(
             "/bookings/",  # With trailing slash
-            json={"availability_slot_id": 123, "service_id": 1, "student_note": "This should fail"},
+            json={"availability_slot_id": 123, "instructor_service_id": 1, "student_note": "This should fail"},
             headers=auth_headers_student,
         )
 
@@ -93,7 +93,7 @@ class TestBookingRoutesNewFormat:
 
         # Get service
         from app.models.instructor import InstructorProfile
-        from app.models.service import Service
+        from app.models.service_catalog import InstructorService as Service
 
         profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
         service = (
@@ -106,7 +106,7 @@ class TestBookingRoutesNewFormat:
             "/bookings/check-availability",
             json={
                 "instructor_id": instructor.id,
-                "service_id": service.id,
+                "instructor_service_id": service.id,
                 "booking_date": tomorrow.isoformat(),
                 "start_time": "09:00",
                 "selected_duration": 60,
@@ -124,7 +124,7 @@ class TestBookingRoutesNewFormat:
         """Verify old availability check format is rejected."""
         response = client.post(
             "/bookings/check-availability",
-            json={"availability_slot_id": 123, "service_id": 1},
+            json={"availability_slot_id": 123, "instructor_service_id": 1},
             headers=auth_headers_student,
         )
 
@@ -241,7 +241,7 @@ class TestBookingResponseFormat:
 
         # Get service
         from app.models.instructor import InstructorProfile
-        from app.models.service import Service
+        from app.models.service_catalog import InstructorService as Service
 
         profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
         service = (
@@ -256,7 +256,7 @@ class TestBookingResponseFormat:
             "/bookings/",
             json={
                 "instructor_id": instructor.id,
-                "service_id": service.id,
+                "instructor_service_id": service.id,
                 "booking_date": book_date.isoformat(),
                 "start_time": "14:00",
                 "selected_duration": 60,
@@ -296,7 +296,7 @@ def test_full_booking_flow_clean_architecture(
 
     # Get service
     from app.models.instructor import InstructorProfile
-    from app.models.service import Service
+    from app.models.service_catalog import InstructorService as Service
 
     profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == instructor.id).first()
     service = db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
@@ -324,7 +324,7 @@ def test_full_booking_flow_clean_architecture(
         "/bookings/check-availability",
         json={
             "instructor_id": instructor.id,
-            "service_id": service.id,
+            "instructor_service_id": service.id,
             "booking_date": future_date.isoformat(),
             "start_time": "10:00",
             "selected_duration": 60,
@@ -342,7 +342,7 @@ def test_full_booking_flow_clean_architecture(
         "/bookings/",
         json={
             "instructor_id": instructor.id,
-            "service_id": service.id,
+            "instructor_service_id": service.id,
             "booking_date": future_date.isoformat(),
             "start_time": "10:00",
             "selected_duration": 60,

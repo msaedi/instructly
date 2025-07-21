@@ -16,7 +16,8 @@ from sqlalchemy.orm import Session
 
 from ..core.exceptions import BusinessRuleException, NotFoundException
 from ..models.instructor import InstructorProfile
-from ..models.service import Service
+from ..models.service_catalog import InstructorService as Service
+from ..models.service_catalog import ServiceCatalog, ServiceCategory
 from ..models.user import User, UserRole
 from ..repositories.factory import RepositoryFactory
 from ..schemas.instructor import InstructorProfileCreate, InstructorProfileUpdate, ServiceCreate
@@ -55,6 +56,9 @@ class InstructorService(BaseService):
         self.service_repository = service_repository or RepositoryFactory.create_base_repository(db, Service)
         self.user_repository = user_repository or RepositoryFactory.create_base_repository(db, User)
         self.booking_repository = booking_repository or RepositoryFactory.create_booking_repository(db)
+        # Add catalog repositories
+        self.catalog_repository = RepositoryFactory.create_base_repository(db, ServiceCatalog)
+        self.category_repository = RepositoryFactory.create_base_repository(db, ServiceCategory)
 
     @BaseService.measure_operation("get_instructor_profile")
     def get_instructor_profile(self, user_id: int, include_inactive_services: bool = False) -> Dict:
@@ -116,7 +120,7 @@ class InstructorService(BaseService):
     def get_instructors_filtered(
         self,
         search: Optional[str] = None,
-        skill: Optional[str] = None,
+        service_catalog_id: Optional[int] = None,
         min_price: Optional[float] = None,
         max_price: Optional[float] = None,
         skip: int = 0,
@@ -129,8 +133,8 @@ class InstructorService(BaseService):
         matching the provided filters. Only returns instructors with active services.
 
         Args:
-            search: Text search across name, bio, and skills
-            skill: Filter by specific skill/service
+            search: Text search across name, bio, and services
+            service_catalog_id: Filter by specific service catalog ID
             min_price: Minimum hourly rate filter
             max_price: Maximum hourly rate filter
             skip: Number of records to skip for pagination
@@ -144,23 +148,30 @@ class InstructorService(BaseService):
         # Log filter usage for analytics
         filter_info = {
             "search": search is not None,
-            "skill": skill is not None,
+            "service_catalog": service_catalog_id is not None,
             "price_range": min_price is not None or max_price is not None,
-            "filters_count": sum([search is not None, skill is not None, min_price is not None, max_price is not None]),
+            "filters_count": sum(
+                [search is not None, service_catalog_id is not None, min_price is not None, max_price is not None]
+            ),
         }
 
         logger.info(
             f"Instructor filter request - "
             f"Filters used: {filter_info['filters_count']}, "
             f"Search: {filter_info['search']}, "
-            f"Skill: {filter_info['skill']}, "
+            f"Service Catalog: {filter_info['service_catalog']}, "
             f"Price: {filter_info['price_range']}, "
             f"Pagination: skip={skip}, limit={limit}"
         )
 
         # Call repository method with filters
         profiles = self.profile_repository.find_by_filters(
-            search=search, skill=skill, min_price=min_price, max_price=max_price, skip=skip, limit=limit
+            search=search,
+            service_catalog_id=service_catalog_id,
+            min_price=min_price,
+            max_price=max_price,
+            skip=skip,
+            limit=limit,
         )
 
         # Convert to dictionaries, ensuring only active services are included
@@ -177,8 +188,8 @@ class InstructorService(BaseService):
         applied_filters = {}
         if search:
             applied_filters["search"] = search
-        if skill:
-            applied_filters["skill"] = skill
+        if service_catalog_id:
+            applied_filters["service_catalog_id"] = service_catalog_id
         if min_price is not None:
             applied_filters["min_price"] = min_price
         if max_price is not None:
@@ -198,8 +209,8 @@ class InstructorService(BaseService):
                 f"(from {len(profiles)} total matches)"
             )
 
-        if skill:
-            logger.info(f"Skill filter '{skill}' returned {len(instructors)} instructors")
+        if service_catalog_id:
+            logger.info(f"Service catalog filter '{service_catalog_id}' returned {len(instructors)} instructors")
 
         if min_price is not None or max_price is not None:
             price_range = f"${min_price or 0}-${max_price or 'unlimited'}"
@@ -229,6 +240,11 @@ class InstructorService(BaseService):
             raise BusinessRuleException("Instructor profile already exists")
 
         with self.transaction():
+            # Validate catalog IDs before creating anything
+            if profile_data.services:
+                catalog_ids = [service.service_catalog_id for service in profile_data.services]
+                self._validate_catalog_ids(catalog_ids)
+
             # Create profile
             profile_dict = profile_data.model_dump(exclude={"services"})
             profile_dict["user_id"] = user.id
@@ -254,7 +270,7 @@ class InstructorService(BaseService):
             # Load user for response
             user = self.user_repository.get_by_id(user.id)
             profile.user = user
-            profile.services = services
+            profile.instructor_services = services
 
             logger.info(f"Created instructor profile for user {user.id}")
 
@@ -345,6 +361,27 @@ class InstructorService(BaseService):
 
     # Private helper methods
 
+    def _validate_catalog_ids(self, catalog_ids: List[int]) -> None:
+        """
+        Validate that all catalog IDs exist in the database.
+
+        Args:
+            catalog_ids: List of catalog IDs to validate
+
+        Raises:
+            ValidationException: If any catalog ID is invalid
+        """
+        from app.models.service_catalog import ServiceCatalog
+
+        # Get all valid catalog IDs
+        valid_ids = set(self.db.query(ServiceCatalog.id).filter(ServiceCatalog.id.in_(catalog_ids)).all())
+        valid_ids = {id[0] for id in valid_ids}  # Extract IDs from tuples
+
+        # Check for invalid IDs
+        invalid_ids = set(catalog_ids) - valid_ids
+        if invalid_ids:
+            raise BusinessRuleException(f"Invalid service catalog IDs: {', '.join(map(str, invalid_ids))}")
+
     def _update_services(self, profile_id: int, services_data: List[ServiceCreate]) -> None:
         """
         Update services with soft/hard delete logic.
@@ -353,23 +390,28 @@ class InstructorService(BaseService):
             profile_id: Instructor profile ID
             services_data: List of service updates
         """
+        # Validate all catalog IDs exist
+        if services_data:
+            catalog_ids = [service.service_catalog_id for service in services_data]
+            self._validate_catalog_ids(catalog_ids)
+
         # Get all existing services (including inactive)
         existing_services = self.service_repository.find_by(instructor_profile_id=profile_id)
 
-        # Create lookup map
-        services_by_skill = {service.skill.lower(): service for service in existing_services}
+        # Create lookup map by catalog ID
+        services_by_catalog_id = {service.service_catalog_id: service for service in existing_services}
 
         # Track which services are in the update
-        updated_skills: Set[str] = set()
+        updated_catalog_ids: Set[int] = set()
 
         # Process updates and new services
         for service_data in services_data:
-            skill_lower = service_data.skill.lower()
-            updated_skills.add(skill_lower)
+            catalog_id = service_data.service_catalog_id
+            updated_catalog_ids.add(catalog_id)
 
-            if skill_lower in services_by_skill:
+            if catalog_id in services_by_catalog_id:
                 # Update existing service
-                existing_service = services_by_skill[skill_lower]
+                existing_service = services_by_catalog_id[catalog_id]
 
                 # Prepare updates
                 updates = service_data.model_dump()
@@ -377,7 +419,7 @@ class InstructorService(BaseService):
                 # Reactivate if needed
                 if not existing_service.is_active:
                     updates["is_active"] = True
-                    logger.info(f"Reactivated service: {existing_service.skill}")
+                    logger.info(f"Reactivated service: catalog_id {catalog_id}")
 
                 # Update service
                 self.service_repository.update(existing_service.id, **updates)
@@ -386,24 +428,24 @@ class InstructorService(BaseService):
                 service_dict = service_data.model_dump()
                 service_dict["instructor_profile_id"] = profile_id
                 self.service_repository.create(**service_dict)
-                logger.info(f"Created new service: {service_data.skill}")
+                logger.info(f"Created new service: catalog_id {catalog_id}")
 
         # Handle removed services (only process active ones)
-        for skill_lower, service in services_by_skill.items():
-            if skill_lower not in updated_skills and service.is_active:
+        for catalog_id, service in services_by_catalog_id.items():
+            if catalog_id not in updated_catalog_ids and service.is_active:
                 # Check for bookings using BookingRepository
-                has_bookings = self.booking_repository.exists(service_id=service.id)
+                has_bookings = self.booking_repository.exists(instructor_service_id=service.id)
 
                 if has_bookings:
                     # Soft delete
                     self.service_repository.update(service.id, is_active=False)
-                    logger.info(
-                        f"Soft deleted service '{service.skill}' (ID: {service.id}) " f"- has existing bookings"
-                    )
+                    catalog_name = service.catalog_entry.name if service.catalog_entry else "Unknown"
+                    logger.info(f"Soft deleted service '{catalog_name}' (ID: {service.id}) " f"- has existing bookings")
                 else:
                     # Hard delete
                     self.service_repository.delete(service.id)
-                    logger.info(f"Hard deleted service '{service.skill}' (ID: {service.id}) " f"- no bookings")
+                    catalog_name = service.catalog_entry.name if service.catalog_entry else "Unknown"
+                    logger.info(f"Hard deleted service '{catalog_name}' (ID: {service.id}) " f"- no bookings")
 
     def _profile_to_dict(self, profile: InstructorProfile, include_inactive_services: bool = False) -> Dict:
         """
@@ -417,11 +459,11 @@ class InstructorService(BaseService):
             Dictionary representation of profile
         """
         # Filter services based on include_inactive_services
-        if hasattr(profile, "services"):
+        if hasattr(profile, "instructor_services"):
             if include_inactive_services:
-                services = profile.services
+                services = profile.instructor_services
             else:
-                services = [s for s in profile.services if s.is_active]
+                services = [s for s in profile.instructor_services if s.is_active]
         else:
             services = []
 
@@ -441,13 +483,14 @@ class InstructorService(BaseService):
             "services": [
                 {
                     "id": service.id,
-                    "skill": service.skill,
+                    "service_catalog_id": service.service_catalog_id,
+                    "name": service.catalog_entry.name if service.catalog_entry else "Unknown Service",
                     "hourly_rate": service.hourly_rate,
                     "description": service.description,
                     "duration_options": service.duration_options,
                     "is_active": service.is_active,
                 }
-                for service in sorted(services, key=lambda s: s.skill)
+                for service in sorted(services, key=lambda s: s.service_catalog_id)
             ],
         }
 
@@ -466,6 +509,139 @@ class InstructorService(BaseService):
         self.cache_service.delete_pattern("instructors:list:*")
 
         logger.debug(f"Invalidated caches for instructor {user_id}")
+
+    # Catalog-aware methods
+    @BaseService.measure_operation("get_available_catalog_services")
+    def get_available_catalog_services(self, category_slug: Optional[str] = None) -> List[Dict]:
+        """
+        Get available services from the catalog.
+
+        Args:
+            category_slug: Optional category filter
+
+        Returns:
+            List of catalog service dictionaries
+        """
+        if category_slug:
+            category = self.category_repository.find_one_by(slug=category_slug)
+            if not category:
+                raise NotFoundException(f"Category '{category_slug}' not found")
+            services = self.catalog_repository.find_by(category_id=category.id, is_active=True)
+        else:
+            services = self.catalog_repository.find_by(is_active=True)
+
+        return [self._catalog_service_to_dict(service) for service in services]
+
+    @BaseService.measure_operation("get_service_categories")
+    def get_service_categories(self) -> List[Dict]:
+        """Get all service categories."""
+        categories = self.category_repository.get_all()
+        return [
+            {
+                "id": cat.id,
+                "name": cat.name,
+                "slug": cat.slug,
+                "description": cat.description,
+                "display_order": cat.display_order,
+            }
+            for cat in sorted(categories, key=lambda x: x.display_order)
+        ]
+
+    @BaseService.measure_operation("create_instructor_service_from_catalog")
+    def create_instructor_service_from_catalog(
+        self,
+        instructor_id: int,
+        catalog_service_id: int,
+        hourly_rate: float,
+        custom_description: Optional[str] = None,
+        duration_options: Optional[List[int]] = None,
+    ) -> Dict:
+        """
+        Create an instructor service linked to a catalog entry.
+
+        Args:
+            instructor_id: Instructor's user ID
+            catalog_service_id: ID of the catalog service
+            hourly_rate: Instructor's rate for this service
+            custom_description: Optional custom description
+            duration_options: Optional custom durations (uses catalog defaults if not provided)
+
+        Returns:
+            Created service dictionary
+
+        Raises:
+            NotFoundException: If instructor or catalog service not found
+            BusinessRuleException: If service already exists
+        """
+        # Get instructor profile
+        profile = self.profile_repository.find_one_by(user_id=instructor_id)
+        if not profile:
+            raise NotFoundException("Instructor profile not found")
+
+        # Get catalog service
+        catalog_service = self.catalog_repository.get_by_id(catalog_service_id)
+        if not catalog_service:
+            raise NotFoundException("Catalog service not found")
+
+        # Check if already exists
+        existing = self.service_repository.find_one_by(
+            instructor_profile_id=profile.id, service_catalog_id=catalog_service_id, is_active=True
+        )
+        if existing:
+            raise BusinessRuleException(f"You already offer {catalog_service.name}")
+
+        with self.transaction():
+            # Create the instructor service
+            service = self.service_repository.create(
+                instructor_profile_id=profile.id,
+                service_catalog_id=catalog_service_id,
+                hourly_rate=hourly_rate,
+                description=custom_description,
+                duration_options=duration_options or catalog_service.typical_duration_options,
+                is_active=True,
+            )
+
+            self.db.commit()
+
+            # Invalidate caches
+            if self.cache_service:
+                self._invalidate_instructor_caches(instructor_id)
+
+            logger.info(f"Created service {catalog_service.name} for instructor {instructor_id}")
+
+            # Return with catalog details
+            service.catalog_entry = catalog_service
+            return self._instructor_service_to_dict(service)
+
+    def _catalog_service_to_dict(self, service: ServiceCatalog) -> Dict:
+        """Convert catalog service to dictionary."""
+        return {
+            "id": service.id,
+            "category_id": service.category_id,
+            "category": service.category.name if service.category else None,
+            "name": service.name,
+            "slug": service.slug,
+            "description": service.description,
+            "search_terms": service.search_terms or [],  # Default to empty list if None
+            "typical_duration_options": service.typical_duration_options or [60],  # Default if None
+            "min_recommended_price": service.min_recommended_price,
+            "max_recommended_price": service.max_recommended_price,
+        }
+
+    def _instructor_service_to_dict(self, service: Service) -> Dict:
+        """Convert instructor service to dictionary with catalog info."""
+        return {
+            "id": service.id,
+            "catalog_service_id": service.service_catalog_id,
+            "name": service.catalog_entry.name if service.catalog_entry else "Unknown",  # From catalog
+            "category": service.category,  # From catalog
+            "hourly_rate": service.hourly_rate,
+            "description": service.description or service.catalog_entry.description,
+            "duration_options": service.duration_options,
+            "is_active": service.is_active,
+            "created_at": service.created_at,
+            "updated_at": service.updated_at,
+        }
 
 
 # Dependency injection

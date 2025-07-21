@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.availability import BlackoutDate
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
 
 
@@ -256,6 +256,7 @@ class TestConflictCheckerComplexQueries:
         check_date = test_booking.booking_date
 
         # Direct booking query with related data - NO SLOT JOINS
+        # Note: Booking.service_name already stores the service name, so we don't need to join Service table
         conflicts = (
             db.query(
                 Booking.id,
@@ -265,10 +266,9 @@ class TestConflictCheckerComplexQueries:
                 Booking.status,
                 Booking.duration_minutes,
                 User.full_name.label("student_name"),
-                Service.skill.label("service_skill"),
+                Booking.service_name.label("service_skill"),  # Use the denormalized field
             )
             .join(User, Booking.student_id == User.id)
-            .join(Service, Booking.service_id == Service.id)
             .filter(
                 Booking.instructor_id == instructor_id,
                 Booking.booking_date == check_date,

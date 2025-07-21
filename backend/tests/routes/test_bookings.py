@@ -4,6 +4,16 @@ Comprehensive test suite for booking routes.
 Target: Increase coverage from 49% to 80%+
 Focus on time-based booking (NO slot IDs per Work Stream #9)
 FIXED: Correct route paths, auth requirements, and dependency overrides
+
+TEST FAILURE ANALYSIS - test_bookings.py
+
+1. booking_data fixture: EXPECTED
+   - Used old 'service_id' field
+   - Fix: Changed to 'instructor_service_id'
+
+2. All tests using booking_data: EXPECTED
+   - Will now use correct field name
+   - Fix: Already fixed via fixture update
 """
 
 from datetime import date, datetime, time, timedelta
@@ -22,13 +32,23 @@ from app.models.user import UserRole
 class TestBookingRoutes:
     """Test booking API endpoints with time-based pattern."""
 
+    def _create_mock_instructor_service(self, service_id=1, name="Piano Lessons", description="Piano lessons"):
+        """Helper to create a properly mocked instructor service with catalog entry."""
+        mock_catalog_entry = Mock(name=name)
+        mock_instructor_service = Mock(id=service_id, catalog_entry=mock_catalog_entry, description=description)
+        # Make the mock service return proper values for ServiceInfo
+        mock_instructor_service.configure_mock(
+            id=service_id, name=name, description=description  # This is what ServiceInfo expects
+        )
+        return mock_instructor_service
+
     @pytest.fixture
     def booking_data(self):
         """Standard booking data following time-based pattern."""
         tomorrow = date.today() + timedelta(days=1)
         return {
             "instructor_id": 1,
-            "service_id": 1,
+            "instructor_service_id": 1,
             "booking_date": tomorrow.isoformat(),
             "start_time": "09:00",
             "end_time": "10:00",
@@ -74,7 +94,7 @@ class TestBookingRoutes:
         mock_booking.id = 123
         mock_booking.student_id = 1
         mock_booking.instructor_id = 1
-        mock_booking.service_id = 1
+        mock_booking.instructor_service_id = 1
         mock_booking.booking_date = date.today() + timedelta(days=1)
         mock_booking.start_time = time(9, 0)
         mock_booking.end_time = time(10, 0)
@@ -98,7 +118,7 @@ class TestBookingRoutes:
         # Setup related objects
         mock_booking.student = Mock(id=1, full_name="Test Student", email="student@test.com")
         mock_booking.instructor = Mock(id=1, full_name="Test Instructor", email="instructor@test.com")
-        mock_booking.service = Mock(id=1, skill="Piano", description="Piano lessons")
+        mock_booking.instructor_service = self._create_mock_instructor_service()
 
         mock_booking_service.create_booking.return_value = mock_booking
 
@@ -106,6 +126,8 @@ class TestBookingRoutes:
         response = client_with_mock_booking_service.post("/bookings/", json=booking_data, headers=auth_headers_student)
 
         # Verify
+        if response.status_code == 422:
+            print("Validation error:", response.json())
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
         assert data["id"] == 123
@@ -194,7 +216,7 @@ class TestBookingRoutes:
             booking.instructor_note = None
             booking.student_id = 1
             booking.instructor_id = 2
-            booking.service_id = 1
+            booking.instructor_service_id = 1
             booking.created_at = datetime.now()
             booking.confirmed_at = datetime.now()
             booking.completed_at = None
@@ -203,7 +225,9 @@ class TestBookingRoutes:
             booking.cancellation_reason = None
             booking.student = Mock(id=1, full_name="Student", email="student@test.com")
             booking.instructor = Mock(id=2, full_name="Instructor", email="instructor@test.com")
-            booking.service = Mock(id=1, skill="Service", description="Description")
+            booking.instructor_service = self._create_mock_instructor_service(
+                name=f"Service {i+1}", description="Description"
+            )
             mock_bookings.append(booking)
 
         mock_booking_service.get_bookings_for_user.return_value = mock_bookings
@@ -257,7 +281,7 @@ class TestBookingRoutes:
         cancelled_booking.instructor_note = None
         cancelled_booking.student_id = 1
         cancelled_booking.instructor_id = 2
-        cancelled_booking.service_id = 1
+        cancelled_booking.instructor_service_id = 1
         cancelled_booking.created_at = datetime.now()
         cancelled_booking.confirmed_at = datetime.now()
         cancelled_booking.completed_at = None
@@ -266,7 +290,7 @@ class TestBookingRoutes:
         cancelled_booking.cancellation_reason = "Schedule conflict"
         cancelled_booking.student = Mock(id=1, full_name="Student", email="student@test.com")
         cancelled_booking.instructor = Mock(id=2, full_name="Instructor", email="instructor@test.com")
-        cancelled_booking.service = Mock(id=1, skill="Piano", description="Piano lessons")
+        cancelled_booking.instructor_service = self._create_mock_instructor_service()
 
         mock_booking_service.cancel_booking.return_value = cancelled_booking
 
@@ -329,7 +353,7 @@ class TestBookingRoutes:
         completed_booking.instructor_note = "Great progress!"
         completed_booking.student_id = 1
         completed_booking.instructor_id = 2
-        completed_booking.service_id = 1
+        completed_booking.instructor_service_id = 1
         completed_booking.created_at = datetime.now()
         completed_booking.confirmed_at = datetime.now()
         completed_booking.completed_at = datetime.now()
@@ -338,7 +362,7 @@ class TestBookingRoutes:
         completed_booking.cancellation_reason = None
         completed_booking.student = Mock(id=1, full_name="Student", email="student@test.com")
         completed_booking.instructor = Mock(id=2, full_name="Instructor", email="instructor@test.com")
-        completed_booking.service = Mock(id=1, skill="Piano", description="Piano lessons")
+        completed_booking.instructor_service = self._create_mock_instructor_service()
 
         mock_booking_service.complete_booking.return_value = completed_booking
 
@@ -358,7 +382,7 @@ class TestBookingRoutes:
             "/bookings/check-availability",
             json={
                 "instructor_id": 1,
-                "service_id": 1,
+                "instructor_service_id": 1,
                 "booking_date": date.today().isoformat(),
                 "start_time": "14:00",
                 "end_time": "15:00",
@@ -384,7 +408,7 @@ class TestBookingRoutes:
             "/bookings/check-availability",
             json={
                 "instructor_id": 1,
-                "service_id": 1,
+                "instructor_service_id": 1,
                 "booking_date": (date.today() + timedelta(days=1)).isoformat(),
                 "start_time": "14:00",
                 "end_time": "15:00",
@@ -526,7 +550,7 @@ class TestBookingRoutes:
         # Add all required fields for response
         updated_booking.student_id = 1
         updated_booking.instructor_id = 2
-        updated_booking.service_id = 1
+        updated_booking.instructor_service_id = 1
         updated_booking.booking_date = date.today() + timedelta(days=1)
         updated_booking.start_time = time(9, 0)
         updated_booking.end_time = time(10, 0)
@@ -546,7 +570,7 @@ class TestBookingRoutes:
         updated_booking.cancellation_reason = None
         updated_booking.student = Mock(id=1, full_name="Student", email="student@test.com")
         updated_booking.instructor = Mock(id=2, full_name="Instructor", email="instructor@test.com")
-        updated_booking.service = Mock(id=1, skill="Piano", description="Piano lessons")
+        updated_booking.instructor_service = self._create_mock_instructor_service()
 
         mock_booking_service.update_booking.return_value = updated_booking
 
@@ -571,7 +595,7 @@ class TestBookingRoutes:
         mock_booking.id = 123
         mock_booking.student_id = 1
         mock_booking.instructor_id = 2
-        mock_booking.service_id = 1
+        mock_booking.instructor_service_id = 1
         mock_booking.booking_date = date.today() + timedelta(days=1)
         mock_booking.start_time = time(9, 0)
         mock_booking.end_time = time(10, 0)
@@ -593,7 +617,7 @@ class TestBookingRoutes:
         mock_booking.cancellation_reason = None
         mock_booking.student = Mock(id=1, full_name="Test Student", email="student@test.com")
         mock_booking.instructor = Mock(id=2, full_name="Test Instructor", email="instructor@test.com")
-        mock_booking.service = Mock(id=1, skill="Piano", description="Piano lessons")
+        mock_booking.instructor_service = self._create_mock_instructor_service()
 
         mock_booking_service.get_booking_for_user.return_value = mock_booking
 
@@ -675,7 +699,7 @@ class TestBookingRoutes:
                 "/bookings/",
                 {
                     "instructor_id": 1,
-                    "service_id": 1,
+                    "instructor_service_id": 1,
                     "booking_date": tomorrow.isoformat(),
                     "start_time": "09:00",
                     "end_time": "10:00",
@@ -689,7 +713,7 @@ class TestBookingRoutes:
                 "/bookings/check-availability",
                 {
                     "instructor_id": 1,
-                    "service_id": 1,
+                    "instructor_service_id": 1,
                     "booking_date": tomorrow.isoformat(),
                     "start_time": "09:00",
                     "end_time": "10:00",
@@ -738,7 +762,7 @@ class TestBookingRoutes:
             "/bookings/check-availability",
             json={
                 "instructor_id": 1,
-                "service_id": 1,
+                "instructor_service_id": 1,
                 "booking_date": tomorrow.isoformat(),
                 "start_time": "09:00",
                 "end_time": "10:00",
@@ -901,7 +925,7 @@ class TestBookingRoutes:
             booking.instructor_note = None
             booking.student_id = 1
             booking.instructor_id = 2
-            booking.service_id = 2
+            booking.instructor_service_id = 2
             booking.created_at = datetime.now()
             booking.confirmed_at = datetime.now()
             booking.completed_at = None
@@ -910,7 +934,9 @@ class TestBookingRoutes:
             booking.cancellation_reason = None
             booking.student = Mock(id=1, full_name="John Doe", email="john@example.com")
             booking.instructor = Mock(id=2, full_name="Jane Smith", email="jane@example.com")
-            booking.service = Mock(id=2, skill="Guitar", description="Guitar lessons")
+            booking.instructor_service = self._create_mock_instructor_service(
+                service_id=2, name="Guitar Lessons", description="Guitar lessons"
+            )
             mock_bookings.append(booking)
 
         mock_booking_service.get_bookings_for_user.return_value = mock_bookings
@@ -936,7 +962,7 @@ class TestBookingRoutes:
             "/bookings/check-availability",
             json={
                 "instructor_id": 1,
-                "service_id": 1,
+                "instructor_service_id": 1,
                 "booking_date": (date.today() + timedelta(days=7)).isoformat(),
                 "start_time": "10:00",
                 "end_time": "11:00",
@@ -971,7 +997,7 @@ class TestBookingRoutes:
         cancelled_booking.instructor_note = None
         cancelled_booking.student_id = 1
         cancelled_booking.instructor_id = 2
-        cancelled_booking.service_id = 1
+        cancelled_booking.instructor_service_id = 1
         cancelled_booking.created_at = datetime.now()
         cancelled_booking.confirmed_at = datetime.now()
         cancelled_booking.completed_at = None
@@ -980,7 +1006,7 @@ class TestBookingRoutes:
         cancelled_booking.cancellation_reason = "Emergency"
         cancelled_booking.student = Mock(id=1, full_name="Student", email="student@test.com")
         cancelled_booking.instructor = Mock(id=2, full_name="Instructor", email="instructor@test.com")
-        cancelled_booking.service = Mock(id=1, skill="Piano", description="Piano lessons")
+        cancelled_booking.instructor_service = self._create_mock_instructor_service()
 
         mock_booking_service.cancel_booking.return_value = cancelled_booking
 
@@ -1016,7 +1042,7 @@ class TestBookingIntegration:
         instructor_headers = {"Authorization": f"Bearer {instructor_token}"}
 
         # Get service
-        from app.models.service import Service
+        from app.models.service_catalog import InstructorService as Service
 
         service = (
             db.query(Service)
@@ -1028,7 +1054,7 @@ class TestBookingIntegration:
         tomorrow = date.today() + timedelta(days=1)
         booking_data = {
             "instructor_id": test_instructor_with_availability.id,
-            "service_id": service.id,
+            "instructor_service_id": service.id,
             "booking_date": tomorrow.isoformat(),
             "start_time": "10:00",
             "selected_duration": 60,
@@ -1067,7 +1093,7 @@ class TestBookingIntegration:
     async def test_double_booking_prevention(self, client, db, test_student, test_instructor_with_availability):
         """Test that double booking same time slot is prevented."""
         from app.auth import create_access_token
-        from app.models.service import Service
+        from app.models.service_catalog import InstructorService as Service
 
         # Create two students
         student1_token = create_access_token(data={"sub": test_student.email})
@@ -1101,7 +1127,7 @@ class TestBookingIntegration:
         tomorrow = date.today() + timedelta(days=1)
         booking_data = {
             "instructor_id": test_instructor_with_availability.id,
-            "service_id": service.id,
+            "instructor_service_id": service.id,
             "booking_date": tomorrow.isoformat(),
             "start_time": "10:00",
             "selected_duration": 60,
@@ -1124,7 +1150,7 @@ class TestBookingIntegration:
     async def test_booking_cancellation_flow(self, client, db, test_student, test_instructor_with_availability):
         """Test booking cancellation by both student and instructor."""
         from app.auth import create_access_token
-        from app.models.service import Service
+        from app.models.service_catalog import InstructorService as Service
 
         student_token = create_access_token(data={"sub": test_student.email})
         student_headers = {"Authorization": f"Bearer {student_token}"}
@@ -1143,7 +1169,7 @@ class TestBookingIntegration:
         tomorrow = date.today() + timedelta(days=1)
         booking_data = {
             "instructor_id": test_instructor_with_availability.id,
-            "service_id": service.id,
+            "instructor_service_id": service.id,
             "booking_date": tomorrow.isoformat(),
             "start_time": "14:00",
             "selected_duration": 60,
@@ -1182,7 +1208,7 @@ class TestBookingIntegration:
         """Test booking statistics calculation for instructors."""
         from app.auth import create_access_token
         from app.models.booking import Booking, BookingStatus
-        from app.models.service import Service
+        from app.models.service_catalog import InstructorService as Service
 
         instructor_token = create_access_token(data={"sub": test_instructor_with_availability.email})
         instructor_headers = {"Authorization": f"Bearer {instructor_token}"}
@@ -1199,11 +1225,11 @@ class TestBookingIntegration:
             booking = Booking(
                 student_id=test_student.id,
                 instructor_id=test_instructor_with_availability.id,
-                service_id=service.id,
+                instructor_service_id=service.id,
                 booking_date=date.today() - timedelta(days=i + 1),
                 start_time=time(10, 0),
                 end_time=time(11, 0),
-                service_name=service.skill,
+                service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
                 hourly_rate=service.hourly_rate,
                 total_price=service.hourly_rate,
                 duration_minutes=60,
@@ -1218,11 +1244,11 @@ class TestBookingIntegration:
         upcoming = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor_with_availability.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             booking_date=date.today() + timedelta(days=1),
             start_time=time(14, 0),
             end_time=time(15, 0),
-            service_name=service.skill,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown",
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
             duration_minutes=60,
@@ -1236,11 +1262,11 @@ class TestBookingIntegration:
         cancelled = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor_with_availability.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             booking_date=date.today() + timedelta(days=2),
             start_time=time(16, 0),
             end_time=time(17, 0),
-            service_name=service.skill,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown",
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
             duration_minutes=60,

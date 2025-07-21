@@ -1,0 +1,43 @@
+# Service Categories for InstaInstru Platform
+# These organize services into logical groups for easier discovery
+
+categories:
+  - name: "Music & Arts"
+    slug: "music-arts"
+    description: "Musical instruments, theory, performance, and visual arts"
+    display_order: 1
+
+  - name: "Academic"
+    slug: "academic"
+    description: "K-12 subjects, test preparation, and homework help"
+    display_order: 2
+
+  - name: "Languages"
+    slug: "languages"
+    description: "Foreign languages, ESL, and conversation practice"
+    display_order: 3
+
+  - name: "Fitness & Wellness"
+    slug: "fitness-wellness"
+    description: "Personal training, yoga, pilates, and wellness coaching"
+    display_order: 4
+
+  - name: "Technology"
+    slug: "technology"
+    description: "Programming, design, data science, and digital skills"
+    display_order: 5
+
+  - name: "Sports & Games"
+    slug: "sports-games"
+    description: "Athletic training, sports coaching, and strategic games"
+    display_order: 6
+
+  - name: "Life Skills"
+    slug: "life-skills"
+    description: "Cooking, public speaking, and practical life skills"
+    display_order: 7
+
+  - name: "Business & Career"
+    slug: "business-career"
+    description: "Professional development, finance, and career coaching"
+    display_order: 8

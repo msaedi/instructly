@@ -20,7 +20,8 @@ from app.core.exceptions import RepositoryException
 from app.models.availability import AvailabilitySlot, BlackoutDate
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
+from app.models.service_catalog import ServiceCatalog, ServiceCategory
 from app.repositories import RepositoryFactory
 from app.repositories.availability_repository import AvailabilityRepository
 
@@ -43,10 +44,25 @@ def test_service(db, test_instructor):
         db.add(profile)
         db.flush()
 
+    # Get or create catalog service
+    category = db.query(ServiceCategory).first()
+    if not category:
+        category = ServiceCategory(name="Test Category", slug="test-category")
+        db.add(category)
+        db.flush()
+
+    catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "test-service").first()
+    if not catalog_service:
+        catalog_service = ServiceCatalog(
+            name="Test Service", slug="test-service", category_id=category.id, description="Test service description"
+        )
+        db.add(catalog_service)
+        db.flush()
+
     # Create service
     service = Service(
         instructor_profile_id=profile.id,
-        skill="Test Service",
+        service_catalog_id=catalog_service.id,
         hourly_rate=50.0,
         description="Test service description",
         is_active=True,
@@ -109,7 +125,7 @@ class TestAvailabilityRepositoryQueries:
             booking = Booking(
                 student_id=test_student.id,
                 instructor_id=test_instructor.id,
-                service_id=test_service.id,
+                instructor_service_id=test_service.id,
                 booking_date=today + timedelta(days=day_offset),
                 start_time=time(10, 0),
                 end_time=time(11, 0),
@@ -126,7 +142,7 @@ class TestAvailabilityRepositoryQueries:
         cancelled = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
-            service_id=test_service.id,
+            instructor_service_id=test_service.id,
             booking_date=today,
             start_time=time(14, 0),
             end_time=time(15, 0),
@@ -168,7 +184,7 @@ class TestAvailabilityRepositoryQueries:
             booking = Booking(
                 student_id=test_student.id,
                 instructor_id=test_instructor.id,
-                service_id=test_service.id,
+                instructor_service_id=test_service.id,
                 booking_date=target_date,
                 start_time=start,
                 end_time=end,
@@ -184,7 +200,7 @@ class TestAvailabilityRepositoryQueries:
         other_booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
-            service_id=test_service.id,
+            instructor_service_id=test_service.id,
             booking_date=target_date + timedelta(days=1),
             start_time=time(10, 0),
             end_time=time(11, 0),
@@ -295,7 +311,7 @@ class TestAvailabilityRepositoryQueries:
             booking = Booking(
                 student_id=test_student.id,
                 instructor_id=test_instructor.id,
-                service_id=test_service.id,
+                instructor_service_id=test_service.id,
                 booking_date=future_dates[i],
                 start_time=time(9, 0),
                 end_time=time(10, 0),

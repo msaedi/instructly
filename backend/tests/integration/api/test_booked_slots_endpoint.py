@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
 
 
@@ -67,12 +67,12 @@ def test_booked_slots_endpoint(
     booking = Booking(
         student_id=test_student.id,
         instructor_id=test_instructor_with_availability.id,
-        service_id=service.id,
+        instructor_service_id=service.id,
         # availability_slot_id completely removed from architecture
         booking_date=monday,
         start_time=slot.start_time,
         end_time=slot.end_time,
-        service_name=service.skill,
+        service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
         hourly_rate=service.hourly_rate,
         total_price=service.hourly_rate,
         duration_minutes=60,
@@ -122,7 +122,7 @@ def test_booked_slots_endpoint(
     assert slot_data["date"] == monday.isoformat()
     assert slot_data["student_first_name"] == "Test"
     assert slot_data["student_last_initial"] == "S."
-    assert slot_data["service_name"] == service.skill
+    assert slot_data["service_name"] == (service.catalog_entry.name if service.catalog_entry else "Unknown Service")
     assert slot_data["duration_minutes"] == 60
     assert slot_data["location_type"] == "student_home"
 

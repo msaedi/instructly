@@ -18,7 +18,8 @@ from sqlalchemy.orm import Session
 
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
+from app.models.service_catalog import ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.repositories.booking_repository import BookingRepository
 
@@ -41,10 +42,38 @@ def test_service(db, test_instructor):
         db.add(profile)
         db.flush()
 
-    # Create service
+    # Check if instructor already has a service
+    existing_service = (
+        db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
+    )
+
+    if existing_service:
+        return existing_service
+
+    # Get or create catalog service
+    catalog_service = db.query(ServiceCatalog).first()
+    if not catalog_service:
+        category = ServiceCategory(name="Test Category", slug="test-category")
+        db.add(category)
+        db.flush()
+        catalog_service = ServiceCatalog(name="Test Service", slug="test-service", category_id=category.id)
+        db.add(catalog_service)
+        db.flush()
+
+    # Check if service already exists for this instructor and catalog
+    existing_service = (
+        db.query(Service)
+        .filter(Service.instructor_profile_id == profile.id, Service.service_catalog_id == catalog_service.id)
+        .first()
+    )
+
+    if existing_service:
+        return existing_service
+
+    # Create service using catalog system
     service = Service(
         instructor_profile_id=profile.id,
-        skill="Test Service",
+        service_catalog_id=catalog_service.id,
         hourly_rate=50.0,
         description="Test service description",
         is_active=True,
@@ -78,7 +107,7 @@ class TestBookingRepositoryConcurrency:
                     start_time=start_time,
                     end_time=end_time,
                     status=BookingStatus.CONFIRMED,
-                    service_id=test_service.id,
+                    instructor_service_id=test_service.id,
                     service_name="Test Service",
                     hourly_rate=50.0,
                     total_price=50.0,
@@ -129,7 +158,7 @@ class TestBookingRepositoryConcurrency:
             start_time=time(10, 0),
             end_time=time(11, 0),
             status=BookingStatus.CONFIRMED,
-            service_id=test_service.id,
+            instructor_service_id=test_service.id,
             service_name="Test Service",
             hourly_rate=50.0,
             total_price=50.0,
@@ -178,7 +207,7 @@ class TestBookingRepositoryConcurrency:
                 start_time=time(9 + i, 0),
                 end_time=time(10 + i, 0),
                 status=status,
-                service_id=test_service.id,
+                instructor_service_id=test_service.id,
                 service_name="Test Service",
                 hourly_rate=50.0,
                 total_price=50.0,
@@ -267,7 +296,7 @@ class TestBookingRepositoryEdgeCases:
                 start_time=time(current_hour, 0),
                 end_time=time(current_hour + 1, 0),
                 status=BookingStatus.CONFIRMED,
-                service_id=test_service.id,
+                instructor_service_id=test_service.id,
                 service_name="Test Service",
                 hourly_rate=50.0,
                 total_price=50.0,
@@ -311,7 +340,7 @@ class TestBookingRepositoryEdgeCases:
             start_time=time(0, 0),
             end_time=time(1, 0),
             status=BookingStatus.CONFIRMED,
-            service_id=test_service.id,
+            instructor_service_id=test_service.id,
             service_name="Test Service",
             hourly_rate=50.0,
             total_price=50.0,
@@ -327,7 +356,7 @@ class TestBookingRepositoryEdgeCases:
             start_time=time(23, 0),
             end_time=time(23, 59),
             status=BookingStatus.CONFIRMED,
-            service_id=test_service.id,
+            instructor_service_id=test_service.id,
             service_name="Test Service",
             hourly_rate=50.0,
             total_price=50.0,
@@ -366,7 +395,7 @@ class TestBookingRepositoryEdgeCases:
                 start_time=start,
                 end_time=end,
                 status=BookingStatus.CONFIRMED,
-                service_id=test_service.id,
+                instructor_service_id=test_service.id,
                 service_name="Test Service",
                 hourly_rate=50.0,
                 total_price=50.0,
@@ -403,7 +432,7 @@ class TestBookingRepositoryEdgeCases:
                 start_time=time(10, 0),
                 end_time=time(11, 0),
                 status=BookingStatus.COMPLETED,
-                service_id=test_service.id,
+                instructor_service_id=test_service.id,
                 service_name="Test Service",
                 hourly_rate=50.0,
                 total_price=50.0,
@@ -420,7 +449,7 @@ class TestBookingRepositoryEdgeCases:
                 start_time=time(14, 0),
                 end_time=time(15, 0),
                 status=BookingStatus.CONFIRMED,
-                service_id=test_service.id,
+                instructor_service_id=test_service.id,
                 service_name="Test Service",
                 hourly_rate=50.0,
                 total_price=50.0,
@@ -437,7 +466,7 @@ class TestBookingRepositoryEdgeCases:
                 start_time=time(16 + i, 0),
                 end_time=time(17 + i, 0),
                 status=BookingStatus.CANCELLED,
-                service_id=test_service.id,
+                instructor_service_id=test_service.id,
                 service_name="Test Service",
                 hourly_rate=50.0,
                 total_price=50.0,
@@ -480,7 +509,7 @@ class TestBookingRepositoryEdgeCases:
                 start_time=start,
                 end_time=end,
                 status=BookingStatus.CONFIRMED,
-                service_id=test_service.id,
+                instructor_service_id=test_service.id,
                 service_name="Test Service",
                 hourly_rate=50.0,
                 total_price=50.0,
@@ -538,7 +567,7 @@ class TestBookingRepositoryEdgeCases:
                     start_time=start,
                     end_time=end,
                     status=BookingStatus.CONFIRMED if day_offset < 5 else BookingStatus.PENDING,
-                    service_id=test_service.id,
+                    instructor_service_id=test_service.id,
                     service_name="Test Service",
                     hourly_rate=50.0,
                     total_price=50.0,
@@ -598,7 +627,7 @@ class TestBookingRepositoryEdgeCases:
                 start_time=start_time,
                 end_time=end_time,
                 status=BookingStatus.CONFIRMED,
-                service_id=test_service.id,
+                instructor_service_id=test_service.id,
                 service_name="Test Service",
                 hourly_rate=50.0,
                 total_price=50.0,

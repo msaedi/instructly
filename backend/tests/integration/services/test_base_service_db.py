@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import ServiceException
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
+from app.models.service_catalog import ServiceCatalog
 from app.models.user import User
 from app.services.base import BaseService
 from app.services.cache_service import CacheService
@@ -69,26 +70,51 @@ class TestBaseServiceTransactions:
         user = db.query(User).filter(User.email == "rollback_test@example.com").first()
         assert user is None
 
-    def test_transaction_with_multiple_operations(self, db: Session, test_instructor: User):
+    def test_transaction_with_multiple_operations(self, db: Session, test_instructor: User, catalog_data: dict):
         """Test transaction with multiple database operations."""
         service = BaseService(db)
 
         with service.transaction():
-            # Create a new service
-            new_service = Service(
-                instructor_profile_id=test_instructor.instructor_profile.id,
-                skill="Transaction Test",
-                hourly_rate=100.0,
-                description="Testing transactions",
-                is_active=True,
+            # Update an existing service instead of creating a new one
+            existing_service = (
+                db.query(Service)
+                .filter(
+                    Service.instructor_profile_id == test_instructor.instructor_profile.id, Service.is_active == True
+                )
+                .first()
             )
-            db.add(new_service)
+
+            if existing_service:
+                # Update the existing service
+                existing_service.hourly_rate = 100.0
+                existing_service.description = "Testing transactions"
+            else:
+                # Only create if no service exists (shouldn't happen with fixtures)
+                catalog_service = db.query(ServiceCatalog).first()
+                if not catalog_service:
+                    raise RuntimeError("No catalog services found")
+
+                new_service = Service(
+                    instructor_profile_id=test_instructor.instructor_profile.id,
+                    service_catalog_id=catalog_service.id,
+                    hourly_rate=100.0,
+                    description="Testing transactions",
+                    is_active=True,
+                )
+                db.add(new_service)
 
             # Update instructor profile
             test_instructor.instructor_profile.bio = "Updated in transaction"
 
         # Verify both operations completed
-        saved_service = db.query(Service).filter(Service.skill == "Transaction Test").first()
+        saved_service = (
+            db.query(Service)
+            .filter(
+                Service.instructor_profile_id == test_instructor.instructor_profile.id,
+                Service.description == "Testing transactions",
+            )
+            .first()
+        )
         assert saved_service is not None
 
         updated_profile = (

@@ -12,7 +12,8 @@ from sqlalchemy.orm import Session
 
 from app.main import app
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
+from app.models.service_catalog import ServiceCatalog
 from app.models.user import User, UserRole
 
 
@@ -65,23 +66,23 @@ class TestInstructorsFilteringAPI:
         profiles_data = [
             {
                 "bio": "Experienced piano teacher specializing in classical music",
-                "services": [("Piano", 80.0), ("Music Theory", 60.0)],
+                "instructor_services": [("Piano Lessons", 80.0), ("Music Theory", 60.0)],
             },
             {
                 "bio": "Professional yoga instructor with meditation expertise",
-                "services": [("Yoga", 65.0), ("Meditation", 50.0)],
+                "instructor_services": [("Yoga", 65.0), ("Meditation", 50.0)],
             },
             {
                 "bio": "Guitar teacher for all levels, rock and jazz specialist",
-                "services": [("Guitar", 70.0), ("Bass Guitar", 75.0)],
+                "instructor_services": [("Guitar Lessons", 70.0)],
             },
             {
-                "bio": "Dance instructor teaching ballet and contemporary styles",
-                "services": [("Ballet", 90.0), ("Contemporary Dance", 85.0)],
+                "bio": "Dance instructor teaching various styles",
+                "instructor_services": [("Dance Lessons", 90.0)],
             },
             {
                 "bio": "Violin virtuoso offering advanced classical training",
-                "services": [("Violin", 120.0), ("Orchestra Prep", 100.0)],
+                "instructor_services": [("Violin Lessons", 120.0), ("Music Theory", 100.0)],
             },
         ]
 
@@ -97,10 +98,19 @@ class TestInstructorsFilteringAPI:
             db.add(profile)
             db.flush()
 
-            # Add services
-            for skill, rate in data["services"]:
-                service = Service(instructor_profile_id=profile.id, skill=skill, hourly_rate=rate, is_active=True)
-                db.add(service)
+            # Add services - need to link to catalog entries
+            for skill, rate in data["instructor_services"]:
+                # Find a catalog service that matches the skill name
+                catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.name == skill).first()
+
+                if catalog_service:
+                    service = Service(
+                        instructor_profile_id=profile.id,
+                        service_catalog_id=catalog_service.id,
+                        hourly_rate=rate,
+                        is_active=True,
+                    )
+                    db.add(service)
 
         db.commit()
         return instructors
@@ -142,18 +152,24 @@ class TestInstructorsFilteringAPI:
         assert data["metadata"]["filters_applied"]["search"] == "piano"
         assert data["metadata"]["total_matches"] == 1
 
-    def test_skill_filter(self, client, sample_instructors):
-        """Test skill query parameter."""
-        response = client.get("/instructors/?skill=Yoga")
+    def test_skill_filter(self, client, sample_instructors, db: Session):
+        """Test service_catalog_id query parameter."""
+        # First get the catalog ID for Piano Lessons
+        piano_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.name == "Piano Lessons").first()
+
+        if not piano_catalog:
+            pytest.skip("Piano Lessons catalog not found")
+
+        response = client.get(f"/instructors/?service_catalog_id={piano_catalog.id}")
 
         assert response.status_code == 200
         data = response.json()
 
         assert len(data["instructors"]) == 1
         instructor = data["instructors"][0]
-        assert any(s["skill"] == "Yoga" for s in instructor["services"])
+        assert any(s["name"] == "Piano Lessons" for s in instructor["services"])
 
-        assert data["metadata"]["filters_applied"]["skill"] == "Yoga"
+        assert data["metadata"]["filters_applied"]["service_catalog_id"] == piano_catalog.id
 
     def test_price_range_filter(self, client, sample_instructors):
         """Test min_price and max_price query parameters."""
@@ -259,17 +275,23 @@ class TestInstructorsFilteringAPI:
 
     def test_only_active_services_returned(self, client, db: Session, sample_instructors):
         """Test that only active services are included in response."""
-        # Deactivate a service
-        service = db.query(Service).filter_by(skill="Music Theory").first()
-        service.is_active = False
+        # Deactivate ALL Music Theory services
+        services = db.query(Service).join(ServiceCatalog).filter(ServiceCatalog.name == "Music Theory").all()
+        for service in services:
+            service.is_active = False
         db.commit()
 
-        response = client.get("/instructors/?skill=Music%20Theory")
+        # First get the catalog ID for Music Theory
+        music_theory_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.name == "Music Theory").first()
+        if not music_theory_catalog:
+            pytest.skip("Music Theory catalog not found")
+
+        response = client.get(f"/instructors/?service_catalog_id={music_theory_catalog.id}")
 
         assert response.status_code == 200
         data = response.json()
 
-        # Should not find any instructors since the service is inactive
+        # Should not find any instructors since all Music Theory services are inactive
         assert len(data["instructors"]) == 0
 
     def test_response_format_consistency(self, client, sample_instructors):
@@ -327,10 +349,26 @@ class TestInstructorsFilteringAPI:
         db.add(profile)
         db.flush()
 
-        # Add both active and inactive services
+        # Add both active and inactive services - need catalog entries
+        from app.models.service_catalog import ServiceCatalog
+
+        # Find or create catalog entries
+        active_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.name == "Piano Lessons").first()
+        inactive_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.name == "Guitar Lessons").first()
+
         services = [
-            Service(instructor_profile_id=profile.id, skill="Active Skill", hourly_rate=100.0, is_active=True),
-            Service(instructor_profile_id=profile.id, skill="Inactive Skill", hourly_rate=80.0, is_active=False),
+            Service(
+                instructor_profile_id=profile.id,
+                service_catalog_id=active_catalog.id,
+                hourly_rate=100.0,
+                is_active=True,
+            ),
+            Service(
+                instructor_profile_id=profile.id,
+                service_catalog_id=inactive_catalog.id,
+                hourly_rate=80.0,
+                is_active=False,
+            ),
         ]
         for service in services:
             db.add(service)

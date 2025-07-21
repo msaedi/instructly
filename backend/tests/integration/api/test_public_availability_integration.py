@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.availability import AvailabilitySlot
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
 
 
 @pytest.fixture
@@ -49,7 +49,7 @@ class TestPublicAvailabilityIntegration:
             db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
         )
 
-        service_id = service.id
+        instructor_service_id = service.id
         today = date.today()
         tomorrow = today + timedelta(days=1)
 
@@ -68,7 +68,7 @@ class TestPublicAvailabilityIntegration:
         # Step 2: Student books morning slot
         booking_data = {
             "instructor_id": instructor_id,
-            "service_id": service_id,
+            "instructor_service_id": instructor_service_id,
             "booking_date": tomorrow.isoformat(),
             "start_time": "09:00",
             "selected_duration": 60,  # Use a common duration from service.duration_options
@@ -190,7 +190,7 @@ class TestPublicAvailabilityIntegration:
         service = (
             db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
         )
-        service_id = service.id
+        instructor_service_id = service.id
 
         tomorrow = date.today() + timedelta(days=1)
 
@@ -218,7 +218,7 @@ class TestPublicAvailabilityIntegration:
         # Make a booking
         booking_data = {
             "instructor_id": instructor_id,
-            "service_id": service_id,
+            "instructor_service_id": instructor_service_id,
             "booking_date": tomorrow.isoformat(),
             "start_time": "09:00",
             "selected_duration": 60,  # Use a common duration from service.duration_options

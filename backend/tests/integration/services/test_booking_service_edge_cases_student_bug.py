@@ -13,14 +13,15 @@ from app.auth import get_password_hash
 from app.models.availability import AvailabilitySlot
 from app.models.booking import BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
+from app.models.service_catalog import ServiceCatalog, ServiceCategory
 from app.models.user import User, UserRole
 from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
 
 
 @pytest.mark.asyncio
-async def test_student_cannot_double_book_overlapping_sessions(db: Session):
+async def test_student_cannot_double_book_overlapping_sessions(db: Session, catalog_data: dict):
     """
     Test that students cannot book overlapping sessions with different instructors.
     This verifies the double-booking prevention is working correctly.
@@ -54,9 +55,18 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session):
     db.add(profile1)
     db.flush()
 
+    # Get Math catalog service
+    math_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.name.ilike("%math%")).first()
+    if not math_catalog:
+        # Create one if it doesn't exist
+        category = db.query(ServiceCategory).first()
+        math_catalog = ServiceCatalog(name="Math Tutoring", slug="math-tutoring", category_id=category.id)
+        db.add(math_catalog)
+        db.flush()
+
     math_service = Service(
         instructor_profile_id=profile1.id,
-        skill="Math",
+        service_catalog_id=math_catalog.id,
         hourly_rate=50.0,
         is_active=True,
     )
@@ -81,9 +91,18 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session):
     db.add(profile2)
     db.flush()
 
+    # Get Piano catalog service
+    piano_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.name.ilike("%piano%")).first()
+    if not piano_catalog:
+        # Create one if it doesn't exist
+        category = db.query(ServiceCategory).first()
+        piano_catalog = ServiceCatalog(name="Piano Lessons", slug="piano-lessons", category_id=category.id)
+        db.add(piano_catalog)
+        db.flush()
+
     piano_service = Service(
         instructor_profile_id=profile2.id,
-        skill="Piano",
+        service_catalog_id=piano_catalog.id,
         hourly_rate=75.0,
         is_active=True,
     )
@@ -121,7 +140,7 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session):
         start_time=time(15, 0),  # 3:00 PM
         end_time=time(16, 0),  # 4:00 PM
         selected_duration=60,
-        service_id=math_service.id,
+        instructor_service_id=math_service.id,
         location_type="neutral",
         meeting_location="Online",
     )
@@ -139,7 +158,7 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session):
         start_time=time(15, 30),  # 3:30 PM - overlaps with Math lesson
         end_time=time(16, 30),  # 4:30 PM
         selected_duration=60,
-        service_id=piano_service.id,
+        instructor_service_id=piano_service.id,
         location_type="neutral",
         meeting_location="Online",
     )

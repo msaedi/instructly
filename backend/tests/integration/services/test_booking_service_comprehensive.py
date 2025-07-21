@@ -23,7 +23,7 @@ from app.core.exceptions import BusinessRuleException, ConflictException, NotFou
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
 from app.models.user import User, UserRole
 from app.schemas.booking import BookingCreate, BookingUpdate
 from app.services.booking_service import BookingService
@@ -38,21 +38,23 @@ class TestBookingServiceCreation:
         self, db: Session, test_instructor_with_availability: User, test_student: User, mock_notification_service: Mock
     ):
         """Test successful booking creation with time-based booking."""
-        # Get instructor's profile and service
-        profile = (
-            db.query(InstructorProfile)
-            .filter(InstructorProfile.user_id == test_instructor_with_availability.id)
-            .first()
-        )
-        service = (
-            db.query(Service)
-            .filter(
-                Service.instructor_profile_id == profile.id,
-                Service.skill == "Test Piano",  # Specifically get Piano
-                Service.is_active == True,
-            )
-            .first()
-        )
+        # Get instructor's profile - it should already exist from the fixture
+        profile = test_instructor_with_availability.instructor_profile
+
+        if not profile:
+            raise ValueError("Instructor has no profile!")
+
+        # Get the first active service
+        services = profile.instructor_services
+        active_services = [s for s in services if s.is_active]
+
+        if not active_services:
+            print(f"No active services found. Total services: {len(services)}")
+            for s in services:
+                print(f"  - Service ID: {s.id}, Active: {s.is_active}, Catalog ID: {s.service_catalog_id}")
+            raise ValueError("No active service found for instructor")
+
+        service = active_services[0]
 
         # Get an available slot for tomorrow directly (single-table design)
         tomorrow = date.today() + timedelta(days=1)
@@ -72,7 +74,7 @@ class TestBookingServiceCreation:
 
         booking_data = BookingCreate(
             instructor_id=test_instructor_with_availability.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             booking_date=tomorrow,
             start_time=slot.start_time,
             selected_duration=selected_duration,
@@ -90,7 +92,7 @@ class TestBookingServiceCreation:
         assert booking.id is not None
         assert booking.student_id == test_student.id
         assert booking.instructor_id == test_instructor_with_availability.id
-        assert booking.service_id == service.id
+        assert booking.instructor_service_id == service.id
         # Can't check availability_slot_id - no longer exists
         assert booking.status == BookingStatus.CONFIRMED
         # Check that booking uses selected_duration
@@ -141,7 +143,7 @@ class TestBookingServiceCreation:
         # Now use time-based booking
         booking_data = BookingCreate(
             instructor_id=test_instructor_with_inactive_service.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             booking_date=tomorrow,
             start_time=slot.start_time,
             selected_duration=60,
@@ -173,7 +175,7 @@ class TestBookingServiceCreation:
         booking_service = BookingService(db, mock_notification_service)
         booking_data = BookingCreate(
             instructor_id=test_booking.instructor_id,
-            service_id=test_booking.service_id,
+            instructor_service_id=test_booking.instructor_service_id,
             booking_date=test_booking.booking_date,
             start_time=test_booking.start_time,
             end_time=test_booking.end_time,
@@ -194,7 +196,7 @@ class TestBookingServiceCreation:
         booking_service = BookingService(db, mock_notification_service)
         booking_data = BookingCreate(
             instructor_id=1,
-            service_id=1,
+            instructor_service_id=1,
             booking_date=date.today() + timedelta(days=1),
             start_time=time(9, 0),
             end_time=time(10, 0),
@@ -239,7 +241,7 @@ class TestBookingServiceCreation:
         booking_service = BookingService(db, mock_notification_service)
         booking_data = BookingCreate(
             instructor_id=test_instructor_with_availability.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             booking_date=tomorrow,
             start_time=slot.start_time,
             end_time=slot.end_time,
@@ -542,7 +544,7 @@ class TestBookingServiceAvailabilityCheck:
         # Use time-based check
         result = await booking_service.check_availability(
             instructor_id=test_booking.instructor_id,
-            service_id=test_booking.service_id,
+            service_id=test_booking.instructor_service_id,
             booking_date=test_booking.booking_date,
             start_time=test_booking.start_time,
             end_time=test_booking.end_time,

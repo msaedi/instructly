@@ -27,7 +27,8 @@ import pytest
 
 from app.core.exceptions import RepositoryException
 from app.models import AvailabilitySlot, Booking, BookingStatus, InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
+from app.models.service_catalog import ServiceCatalog, ServiceCategory
 from app.models.user import User, UserRole
 from app.repositories import (
     AvailabilityRepository,
@@ -152,18 +153,18 @@ class TestBookingRepositoryNoSlotReferences:
     def test_create_booking_without_slot_id(self, db, test_student, test_instructor):
         """Verify bookings can be created without availability_slot_id."""
         repo = BookingRepository(db)
-        service = test_instructor.instructor_profile.services[0]
+        service = test_instructor.instructor_profile.instructor_services[0]
 
         # Create booking with self-contained time data
         booking = repo.create(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             # NO availability_slot_id!
             booking_date=date.today(),
             start_time=time(15, 0),
             end_time=time(16, 0),
-            service_name=service.skill,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
             duration_minutes=60,
@@ -179,17 +180,17 @@ class TestBookingRepositoryNoSlotReferences:
     def test_time_based_conflict_checking(self, db, test_student, test_instructor):
         """Verify new time-based conflict checking works."""
         repo = BookingRepository(db)
-        service = test_instructor.instructor_profile.services[0]
+        service = test_instructor.instructor_profile.instructor_services[0]
 
         # Create an existing booking
         existing = repo.create(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             booking_date=date.today(),
             start_time=time(10, 0),
             end_time=time(11, 0),
-            service_name=service.skill,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
             duration_minutes=60,
@@ -301,17 +302,17 @@ class TestConflictCheckerNoSlotJoins:
     def test_get_bookings_for_conflict_check_no_slots(self, db, test_student, test_instructor):
         """Verify conflict checking uses booking fields directly."""
         repo = ConflictCheckerRepository(db)
-        service = test_instructor.instructor_profile.services[0]
+        service = test_instructor.instructor_profile.instructor_services[0]
 
         # Create a booking
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             booking_date=date.today(),
             start_time=time(10, 0),
             end_time=time(11, 0),
-            service_name=service.skill,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
             duration_minutes=60,
@@ -336,17 +337,17 @@ class TestWeekOperationSimplified:
     def test_get_week_bookings_simplified(self, db, test_student, test_instructor):
         """Verify week bookings query is simplified."""
         repo = WeekOperationRepository(db)
-        service = test_instructor.instructor_profile.services[0]
+        service = test_instructor.instructor_profile.instructor_services[0]
 
         # Create test booking
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             booking_date=date.today(),
             start_time=time(10, 0),
             end_time=time(11, 0),
-            service_name=service.skill,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
             duration_minutes=60,
@@ -429,17 +430,17 @@ class TestRepositoryIntegration:
 
         # Create a booking for same time using BookingRepository
         booking_repo = BookingRepository(db)
-        service = test_instructor.instructor_profile.services[0]
+        service = test_instructor.instructor_profile.instructor_services[0]
 
         booking = booking_repo.create(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
-            service_id=service.id,
+            instructor_service_id=service.id,
             # Same time as slot, but no reference to it!
             booking_date=date.today(),
             start_time=time(10, 0),
             end_time=time(11, 0),
-            service_name=service.skill,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
             duration_minutes=60,
@@ -640,9 +641,9 @@ class TestInstructorProfileRepositoryValidation:
         for profile in profiles:
             # These should already be loaded
             _ = profile.user.full_name
-            _ = len(profile.services)
-            for service in profile.services:
-                _ = service.skill
+            _ = len(profile.instructor_services)
+            for service in profile.instructor_services:
+                _ = service.catalog_entry.name if service.catalog_entry else "Unknown Service"
 
         # If N+1 was happening, the above would trigger many queries
         # With eager loading, it should all be loaded already
@@ -672,7 +673,7 @@ class TestInstructorProfileRepositoryValidation:
 
         # Should have user and services, but NO availability references
         assert profile.user is not None
-        assert len(profile.services) > 0
+        assert len(profile.instructor_services) > 0
 
         # Should NOT have any availability-related attributes
         assert not hasattr(profile, "availability_slots")
@@ -686,7 +687,7 @@ class TestInstructorProfileRepositoryValidation:
 
         # Create instructor with mixed active/inactive services
         user = User(
-            email="mixed.services@test.com",
+            email="mixed.instructor_services@test.com",
             hashed_password="hashed",
             full_name="Mixed Services",
             role=UserRole.INSTRUCTOR,
@@ -698,11 +699,27 @@ class TestInstructorProfileRepositoryValidation:
         db.add(profile)
         db.flush()
 
+        # Get or create catalog services
+        category = db.query(ServiceCategory).first()
+        if not category:
+            category = ServiceCategory(name="Test Category", slug="test-category")
+            db.add(category)
+            db.flush()
+
         # Add both active and inactive services
         for i in range(4):
+            # Get or create catalog service for test
+            catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.slug == f"validation-skill-{i}").first()
+            if not catalog_service:
+                catalog_service = ServiceCatalog(
+                    name=f"Skill {i}", slug=f"validation-skill-{i}", category_id=category.id
+                )
+                db.add(catalog_service)
+                db.flush()
+
             service = Service(
                 instructor_profile_id=profile.id,
-                skill=f"Skill {i}",
+                service_catalog_id=catalog_service.id,
                 hourly_rate=50.0,
                 is_active=(i % 2 == 0),  # Even indices are active
             )
@@ -721,17 +738,17 @@ class TestInstructorProfileRepositoryValidation:
         profile_result1 = repo.get_by_user_id_with_details(user.id, include_inactive_services=False)
 
         # Should have ALL services (repository doesn't filter)
-        assert len(profile_result1.services) == 4
+        assert len(profile_result1.instructor_services) == 4
 
         # Get profile again with different parameter
         profile_result2 = repo.get_by_user_id_with_details(user.id, include_inactive_services=True)
 
         # Should still have ALL services
-        assert len(profile_result2.services) == 4
+        assert len(profile_result2.instructor_services) == 4
 
         # Verify both active and inactive services are present
-        active_in_result = sum(1 for s in profile_result2.services if s.is_active)
-        inactive_in_result = sum(1 for s in profile_result2.services if not s.is_active)
+        active_in_result = sum(1 for s in profile_result2.instructor_services if s.is_active)
+        inactive_in_result = sum(1 for s in profile_result2.instructor_services if not s.is_active)
         assert active_in_result == 2
         assert inactive_in_result == 2
 

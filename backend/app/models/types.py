@@ -75,3 +75,38 @@ class IntegerArrayType(TypeDecorator):
         if isinstance(value, str):
             return json.loads(value)
         return value
+
+
+class StringArrayType(TypeDecorator):
+    """
+    A custom type for string arrays that works across different database backends.
+    Uses PostgreSQL ARRAY when available, falls back to JSON for others.
+    """
+
+    impl = String
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == "postgresql":
+            return dialect.type_descriptor(ARRAY(String))
+        else:
+            return dialect.type_descriptor(String(1024))  # Larger size for string arrays
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return value
+        if dialect.name == "postgresql":
+            return value
+        # Ensure we have a list of strings
+        if isinstance(value, (list, tuple)):
+            return json.dumps([str(v) for v in value])
+        return json.dumps([str(value)])
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return value
+        if dialect.name == "postgresql":
+            return value
+        if isinstance(value, str):
+            return json.loads(value)
+        return value

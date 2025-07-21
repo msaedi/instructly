@@ -20,7 +20,7 @@ from app.core.config import settings
 from app.models.availability import AvailabilitySlot, BlackoutDate
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
 
 
 @pytest.fixture
@@ -103,8 +103,8 @@ class TestPublicAvailability:
             start_time=time(9, 0),
             end_time=time(10, 0),
             status=BookingStatus.CONFIRMED,
-            service_id=service.id,
-            service_name=service.skill,
+            instructor_service_id=service.id,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Uses catalog
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
             duration_minutes=60,
@@ -271,8 +271,8 @@ class TestPublicAvailability:
             start_time=time(9, 0),
             end_time=time(10, 0),
             status=BookingStatus.CANCELLED,  # Cancelled!
-            service_id=service.id,
-            service_name=service.skill,
+            instructor_service_id=service.id,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Uses catalog
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
             duration_minutes=60,
@@ -356,8 +356,8 @@ class TestPublicAvailability:
             start_time=time(9, 0),
             end_time=time(10, 0),
             status=BookingStatus.CONFIRMED,
-            service_id=service.id,
-            service_name=service.skill,
+            instructor_service_id=service.id,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Uses catalog
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
             duration_minutes=60,
@@ -424,8 +424,8 @@ class TestPublicAvailability:
             start_time=time(9, 0),
             end_time=time(10, 0),
             status=BookingStatus.CONFIRMED,
-            service_id=service.id,
-            service_name=service.skill,
+            instructor_service_id=service.id,
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Uses catalog
             hourly_rate=service.hourly_rate,
             total_price=service.hourly_rate,
             duration_minutes=60,

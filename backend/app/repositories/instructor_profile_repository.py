@@ -12,12 +12,13 @@ for commonly accessed relationships.
 import logging
 from typing import List, Optional
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from ..core.exceptions import RepositoryException
 from ..models.instructor import InstructorProfile
-from ..models.service import Service
+from ..models.service_catalog import InstructorService as Service
+from ..models.service_catalog import ServiceCatalog, ServiceCategory
 from ..models.user import User
 from .base_repository import BaseRepository
 
@@ -60,7 +61,10 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         try:
             query = (
                 self.db.query(InstructorProfile)
-                .options(joinedload(InstructorProfile.user), joinedload(InstructorProfile.services))
+                .options(
+                    joinedload(InstructorProfile.user),
+                    joinedload(InstructorProfile.instructor_services).joinedload(Service.catalog_entry),
+                )
                 .offset(skip)
                 .limit(limit)
             )
@@ -94,7 +98,10 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         try:
             profile = (
                 self.db.query(InstructorProfile)
-                .options(joinedload(InstructorProfile.user), joinedload(InstructorProfile.services))
+                .options(
+                    joinedload(InstructorProfile.user),
+                    joinedload(InstructorProfile.instructor_services).joinedload(Service.catalog_entry),
+                )
                 .filter(InstructorProfile.user_id == user_id)
                 .first()
             )
@@ -122,7 +129,10 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         try:
             return (
                 self.db.query(InstructorProfile)
-                .options(joinedload(InstructorProfile.user), joinedload(InstructorProfile.services))
+                .options(
+                    joinedload(InstructorProfile.user),
+                    joinedload(InstructorProfile.instructor_services).joinedload(Service.catalog_entry),
+                )
                 .filter(InstructorProfile.areas_of_service.ilike(f"%{area}%"))
                 .offset(skip)
                 .limit(limit)
@@ -147,7 +157,10 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         try:
             return (
                 self.db.query(InstructorProfile)
-                .options(joinedload(InstructorProfile.user), joinedload(InstructorProfile.services))
+                .options(
+                    joinedload(InstructorProfile.user),
+                    joinedload(InstructorProfile.instructor_services).joinedload(Service.catalog_entry),
+                )
                 .filter(InstructorProfile.years_experience >= min_years)
                 .offset(skip)
                 .limit(limit)
@@ -173,7 +186,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
     def find_by_filters(
         self,
         search: Optional[str] = None,
-        skill: Optional[str] = None,
+        service_catalog_id: Optional[int] = None,
         min_price: Optional[float] = None,
         max_price: Optional[float] = None,
         skip: int = 0,
@@ -186,7 +199,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
 
         Args:
             search: Text search across user.full_name, bio, and service skills (case-insensitive)
-            skill: Filter by specific skill/service (case-insensitive)
+            service_catalog_id: Filter by specific service catalog ID
             min_price: Minimum hourly rate filter
             max_price: Maximum hourly rate filter
             skip: Number of records to skip for pagination
@@ -205,23 +218,40 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                 self.db.query(InstructorProfile)
                 .join(User, InstructorProfile.user_id == User.id)
                 .join(Service, InstructorProfile.id == Service.instructor_profile_id)
-                .options(joinedload(InstructorProfile.user), joinedload(InstructorProfile.services))
+                .join(ServiceCatalog, Service.service_catalog_id == ServiceCatalog.id)
+                .join(ServiceCategory, ServiceCatalog.category_id == ServiceCategory.id)
+                .options(
+                    joinedload(InstructorProfile.user),
+                    joinedload(InstructorProfile.instructor_services)
+                    .joinedload(Service.catalog_entry)
+                    .joinedload(ServiceCatalog.category),
+                )
             )
 
             # Apply search filter if provided
             if search:
                 search_term = f"%{search}%"
-                query = query.filter(
-                    or_(
-                        User.full_name.ilike(search_term),
-                        InstructorProfile.bio.ilike(search_term),
-                        Service.skill.ilike(search_term),
-                    )
-                )
+                search.lower()
 
-            # Apply skill filter if provided
-            if skill:
-                query = query.filter(Service.skill.ilike(f"%{skill}%"))
+                # Build search conditions
+                search_conditions = [
+                    User.full_name.ilike(search_term),
+                    InstructorProfile.bio.ilike(search_term),
+                    ServiceCatalog.name.ilike(search_term),
+                    ServiceCatalog.description.ilike(search_term),
+                    ServiceCategory.name.ilike(search_term),
+                ]
+
+                # Only use array_to_string for PostgreSQL
+                # Check if we're using PostgreSQL by looking at the dialect
+                if hasattr(self.db.bind, "dialect") and self.db.bind.dialect.name == "postgresql":
+                    search_conditions.append(func.array_to_string(ServiceCatalog.search_terms, " ").ilike(search_term))
+
+                query = query.filter(or_(*search_conditions))
+
+            # Apply service catalog filter if provided
+            if service_catalog_id:
+                query = query.filter(Service.service_catalog_id == service_catalog_id)
 
             # Apply price range filters if provided
             if min_price is not None:
@@ -241,7 +271,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             query_time = time.time() - start_time
             self.logger.info(
                 f"Filter query completed in {query_time:.3f}s - "
-                f"Filters: search={bool(search)}, skill={bool(skill)}, "
+                f"Filters: search={bool(search)}, service_catalog_id={bool(service_catalog_id)}, "
                 f"price_range={bool(min_price or max_price)}, "
                 f"Results: {len(profiles)} profiles"
             )
@@ -252,7 +282,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
                     f"Slow filter query detected ({query_time:.3f}s) - "
                     f"Consider adding indexes for: "
                     f"{'search' if search else ''} "
-                    f"{'skill' if skill else ''} "
+                    f"{'service_catalog_id' if service_catalog_id else ''} "
                     f"{'price' if min_price or max_price else ''}"
                 )
 
@@ -270,4 +300,4 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         This is called by BaseRepository methods like get_by_id()
         when load_relationships=True.
         """
-        return query.options(joinedload(InstructorProfile.user), joinedload(InstructorProfile.services))
+        return query.options(joinedload(InstructorProfile.user), joinedload(InstructorProfile.instructor_services))

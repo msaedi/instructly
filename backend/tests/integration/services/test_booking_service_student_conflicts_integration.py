@@ -14,7 +14,8 @@ from app.core.exceptions import ConflictException
 from app.models.availability import AvailabilitySlot
 from app.models.booking import BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
+from app.models.service_catalog import ServiceCatalog, ServiceCategory
 from app.models.user import User, UserRole
 from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
@@ -58,9 +59,21 @@ class TestStudentConflictValidationIntegration:
         db.add(profile)
         db.flush()
 
+        # Get or create Math catalog service
+        math_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "math-tutoring").first()
+        if not math_catalog:
+            category = db.query(ServiceCategory).first()
+            if not category:
+                category = ServiceCategory(name="Academic", slug="academic")
+                db.add(category)
+                db.flush()
+            math_catalog = ServiceCatalog(name="Math Tutoring", slug="math-tutoring", category_id=category.id)
+            db.add(math_catalog)
+            db.flush()
+
         service = Service(
             instructor_profile_id=profile.id,
-            skill="Math",
+            service_catalog_id=math_catalog.id,
             hourly_rate=60.0,
             is_active=True,
         )
@@ -100,9 +113,21 @@ class TestStudentConflictValidationIntegration:
         db.add(profile)
         db.flush()
 
+        # Get or create Piano catalog service
+        piano_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "piano-lessons").first()
+        if not piano_catalog:
+            category = db.query(ServiceCategory).first()
+            if not category:
+                category = ServiceCategory(name="Music & Arts", slug="music-arts")
+                db.add(category)
+                db.flush()
+            piano_catalog = ServiceCatalog(name="Piano Lessons", slug="piano-lessons", category_id=category.id)
+            db.add(piano_catalog)
+            db.flush()
+
         service = Service(
             instructor_profile_id=profile.id,
-            skill="Piano",
+            service_catalog_id=piano_catalog.id,
             hourly_rate=80.0,
             is_active=True,
         )
@@ -126,25 +151,45 @@ class TestStudentConflictValidationIntegration:
         self, db: Session, student_user: User, math_instructor: User, piano_instructor: User
     ):
         """Integration test: Student cannot book overlapping sessions."""
+        # Store IDs immediately to avoid session issues
+        math_instructor_id = math_instructor.id
+        piano_instructor_id = piano_instructor.id
+        student_id = student_user.id
+
         booking_service = BookingService(db)
         tomorrow = date.today() + timedelta(days=1)
 
-        # Get services
-        math_service = db.query(Service).filter(Service.skill == "Math", Service.is_active == True).first()
+        # Get instructor profiles by ID
+        math_profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == math_instructor_id).first()
+        piano_profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == piano_instructor_id).first()
 
-        piano_service = db.query(Service).filter(Service.skill == "Piano", Service.is_active == True).first()
+        # Get services by instructor profile
+        math_service = (
+            db.query(Service)
+            .filter(Service.instructor_profile_id == math_profile.id, Service.is_active == True)
+            .first()
+        )
+
+        piano_service = (
+            db.query(Service)
+            .filter(Service.instructor_profile_id == piano_profile.id, Service.is_active == True)
+            .first()
+        )
 
         # First booking: Math at 2:00-3:00 PM
         booking1_data = BookingCreate(
-            instructor_id=math_instructor.id,
+            instructor_id=math_instructor_id,
             booking_date=tomorrow,
             start_time=time(14, 0),
             end_time=time(15, 0),
             selected_duration=60,
-            service_id=math_service.id,
+            instructor_service_id=math_service.id,
             location_type="neutral",
             meeting_location="Online",
         )
+
+        # Refresh student_user from database to avoid session issues
+        student_user = db.query(User).filter(User.id == student_id).first()
 
         booking1 = await booking_service.create_booking(
             student_user, booking1_data, selected_duration=booking1_data.selected_duration
@@ -154,12 +199,12 @@ class TestStudentConflictValidationIntegration:
 
         # Second booking attempt: Piano at 2:30-3:30 PM (overlaps)
         booking2_data = BookingCreate(
-            instructor_id=piano_instructor.id,
+            instructor_id=piano_instructor_id,
             booking_date=tomorrow,
             start_time=time(14, 30),
             end_time=time(15, 30),
             selected_duration=60,
-            service_id=piano_service.id,
+            instructor_service_id=piano_service.id,
             location_type="neutral",
             meeting_location="Online",
         )
@@ -177,13 +222,30 @@ class TestStudentConflictValidationIntegration:
         self, db: Session, student_user: User, math_instructor: User, piano_instructor: User
     ):
         """Integration test: Student can book back-to-back sessions."""
+        # Store IDs immediately to avoid session issues
+        math_instructor_id = math_instructor.id
+        piano_instructor_id = piano_instructor.id
+        student_user.id
+
         booking_service = BookingService(db)
         tomorrow = date.today() + timedelta(days=1)
 
-        # Get services
-        math_service = db.query(Service).filter(Service.skill == "Math", Service.is_active == True).first()
+        # Get instructor profiles by ID
+        math_profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == math_instructor_id).first()
+        piano_profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == piano_instructor_id).first()
 
-        piano_service = db.query(Service).filter(Service.skill == "Piano", Service.is_active == True).first()
+        # Get services by instructor profile
+        math_service = (
+            db.query(Service)
+            .filter(Service.instructor_profile_id == math_profile.id, Service.is_active == True)
+            .first()
+        )
+
+        piano_service = (
+            db.query(Service)
+            .filter(Service.instructor_profile_id == piano_profile.id, Service.is_active == True)
+            .first()
+        )
 
         # First booking: Math at 2:00-3:00 PM
         booking1_data = BookingCreate(
@@ -192,7 +254,7 @@ class TestStudentConflictValidationIntegration:
             start_time=time(14, 0),
             end_time=time(15, 0),
             selected_duration=60,
-            service_id=math_service.id,
+            instructor_service_id=math_service.id,
             location_type="neutral",
             meeting_location="Online",
         )
@@ -209,7 +271,7 @@ class TestStudentConflictValidationIntegration:
             start_time=time(15, 0),  # Starts exactly when first ends
             end_time=time(16, 0),
             selected_duration=60,
-            service_id=piano_service.id,
+            instructor_service_id=piano_service.id,
             location_type="neutral",
             meeting_location="Online",
         )
@@ -246,8 +308,15 @@ class TestStudentConflictValidationIntegration:
         booking_service = BookingService(db)
         tomorrow = date.today() + timedelta(days=1)
 
-        # Get math service
-        math_service = db.query(Service).filter(Service.skill == "Math", Service.is_active == True).first()
+        # Get instructor profile
+        math_profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == math_instructor.id).first()
+
+        # Get math service by instructor profile
+        math_service = (
+            db.query(Service)
+            .filter(Service.instructor_profile_id == math_profile.id, Service.is_active == True)
+            .first()
+        )
 
         # Student 1 books 2:00-3:00 PM
         booking1_data = BookingCreate(
@@ -256,7 +325,7 @@ class TestStudentConflictValidationIntegration:
             start_time=time(14, 0),
             end_time=time(15, 0),
             selected_duration=60,
-            service_id=math_service.id,
+            instructor_service_id=math_service.id,
             location_type="neutral",
             meeting_location="Online",
         )
@@ -273,7 +342,7 @@ class TestStudentConflictValidationIntegration:
             start_time=time(14, 30),
             end_time=time(15, 30),
             selected_duration=60,
-            service_id=math_service.id,
+            instructor_service_id=math_service.id,
             location_type="neutral",
             meeting_location="Online",
         )
@@ -294,10 +363,22 @@ class TestStudentConflictValidationIntegration:
         booking_service = BookingService(db)
         tomorrow = date.today() + timedelta(days=1)
 
-        # Get services
-        math_service = db.query(Service).filter(Service.skill == "Math", Service.is_active == True).first()
+        # Get instructor profiles
+        math_profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == math_instructor.id).first()
+        piano_profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == piano_instructor.id).first()
 
-        piano_service = db.query(Service).filter(Service.skill == "Piano", Service.is_active == True).first()
+        # Get services by instructor profile
+        math_service = (
+            db.query(Service)
+            .filter(Service.instructor_profile_id == math_profile.id, Service.is_active == True)
+            .first()
+        )
+
+        piano_service = (
+            db.query(Service)
+            .filter(Service.instructor_profile_id == piano_profile.id, Service.is_active == True)
+            .first()
+        )
 
         # First booking: Math at 2:00-3:00 PM
         booking1_data = BookingCreate(
@@ -306,7 +387,7 @@ class TestStudentConflictValidationIntegration:
             start_time=time(14, 0),
             end_time=time(15, 0),
             selected_duration=60,
-            service_id=math_service.id,
+            instructor_service_id=math_service.id,
             location_type="neutral",
             meeting_location="Online",
         )
@@ -329,7 +410,7 @@ class TestStudentConflictValidationIntegration:
             start_time=time(14, 30),
             end_time=time(15, 30),
             selected_duration=60,
-            service_id=piano_service.id,
+            instructor_service_id=piano_service.id,
             location_type="neutral",
             meeting_location="Online",
         )

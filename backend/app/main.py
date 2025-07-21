@@ -13,7 +13,17 @@ from .middleware.monitoring import MonitoringMiddleware
 from .middleware.prometheus_middleware import PrometheusMiddleware
 from .middleware.rate_limiter import RateLimitMiddleware
 from .middleware.timing import TimingMiddleware
-from .routes import auth, availability_windows, bookings, instructors, metrics, password_reset, prometheus, public
+from .routes import (
+    auth,
+    availability_windows,
+    bookings,
+    instructors,
+    metrics,
+    password_reset,
+    prometheus,
+    public,
+    services,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -92,6 +102,7 @@ app.add_middleware(GZipMiddleware, minimum_size=500)  # Compress responses large
 # Include routers
 app.include_router(auth.router)
 app.include_router(instructors.router)
+app.include_router(services.router)
 app.include_router(availability_windows.router)
 app.include_router(password_reset.router)
 app.include_router(bookings.router)

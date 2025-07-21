@@ -14,7 +14,7 @@ def test_booking_create_validator_fix():
     # Valid booking
     booking = BookingCreate(
         instructor_id=1,
-        service_id=1,
+        instructor_service_id=1,
         booking_date=date.today() + timedelta(days=1),
         start_time=time(9, 0),
         selected_duration=60,
@@ -26,7 +26,7 @@ def test_booking_create_validator_fix():
     with pytest.raises(ValidationError) as exc:
         BookingCreate(
             instructor_id=1,
-            service_id=1,
+            instructor_service_id=1,
             booking_date=date.today() + timedelta(days=1),
             start_time=time(10, 0),
             selected_duration=60,

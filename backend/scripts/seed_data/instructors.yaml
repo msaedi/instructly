@@ -12,7 +12,7 @@ instructors:
           description: "Algebra, Calculus, Statistics - all levels"
           price: 80.00
           duration_options: [30, 60, 90]  # Multiple durations
-        - name: "Physics Tutoring"
+        - name: "Science Tutoring"
           description: "AP Physics, College Physics, Quantum Mechanics"
           price: 90.00
           duration_options: [60, 90]  # Multiple durations
@@ -26,11 +26,11 @@ instructors:
       years_experience: 8
       areas: ["Queens", "Manhattan"]
       services:
-        - name: "English & Writing"
+        - name: "English Tutoring"
           description: "Essay writing, literature analysis, grammar"
           price: 70.00
           duration_options: [60]  # Single duration
-        - name: "College Essay Coaching"
+        - name: "College Essay Help"
           description: "Brainstorming, editing, and perfecting college applications"
           price: 100.00
           duration_options: [90]  # Single duration
@@ -121,7 +121,7 @@ instructors:
       years_experience: 8
       areas: ["Brooklyn", "Manhattan"]
       services:
-        - name: "Photography Lessons"
+        - name: "Photography"
           description: "Camera basics, composition, editing in Lightroom"
           price: 85.00
           duration_options: [90]  # Single duration - need time for practice
@@ -136,7 +136,7 @@ instructors:
       years_experience: 7
       areas: ["Manhattan", "Brooklyn"]
       services:
-        - name: "Private Yoga"
+        - name: "Yoga"
           description: "Customized yoga sessions for your level and goals"
           price: 90.00
           duration_options: [60, 90]  # Multiple durations
@@ -169,7 +169,7 @@ instructors:
           description: "Python, JavaScript, web development basics"
           price: 95.00
           duration_options: [60, 90, 120]  # Multiple - projects take time
-        - name: "Data Science Intro"
+        - name: "Data Science"
           description: "Python for data analysis, pandas, visualization"
           price: 110.00
           duration_options: [90]  # Single duration
@@ -188,8 +188,8 @@ instructors:
           description: "Complete SAT prep - Math, Reading, Writing"
           price: 150.00
           duration_options: [90, 120]  # Multiple - full practice tests
-        - name: "SAT Math Focus"
-          description: "Intensive math section preparation"
+        - name: "ACT Prep"
+          description: "Intensive ACT test preparation"
           price: 130.00
           duration_options: [60]  # Single duration
     availability_pattern: "flexible_academic"

@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
 from app.services.availability_service import AvailabilityService
 from app.services.cache_service import CacheService
@@ -232,12 +232,12 @@ class TestWeekOperationEdgeCases:
             booking = Booking(
                 student_id=test_student.id,
                 instructor_id=instructor.id,
-                service_id=service_obj.id,
+                instructor_service_id=service_obj.id,
                 booking_date=target_date,
                 start_time=time(9, 0),
                 end_time=time(10, 0),
                 status=BookingStatus.CONFIRMED,
-                service_name=service_obj.skill,
+                service_name=service_obj.catalog_entry.name if service_obj.catalog_entry else "Unknown Service",
                 hourly_rate=service_obj.hourly_rate,
                 total_price=service_obj.hourly_rate,
                 duration_minutes=60,

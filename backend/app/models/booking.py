@@ -60,7 +60,7 @@ class Booking(Base):
     # Core relationships
     student_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     instructor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    service_id = Column(Integer, ForeignKey("services.id"), nullable=False)
+    instructor_service_id = Column(Integer, ForeignKey("instructor_services.id"), nullable=False)
 
     # Self-contained booking data
     booking_date = Column(Date, nullable=False, index=True)
@@ -95,7 +95,7 @@ class Booking(Base):
     # Relationships
     student = relationship("User", foreign_keys=[student_id], backref="student_bookings")
     instructor = relationship("User", foreign_keys=[instructor_id], backref="instructor_bookings")
-    service = relationship("Service", backref="bookings")
+    instructor_service = relationship("InstructorService", backref="bookings")
     cancelled_by = relationship("User", foreign_keys=[cancelled_by_id])
 
     # Data integrity constraints
@@ -187,7 +187,7 @@ class Booking(Base):
             "id": self.id,
             "student_id": self.student_id,
             "instructor_id": self.instructor_id,
-            "service_id": self.service_id,
+            "instructor_service_id": self.instructor_service_id,
             "booking_date": self.booking_date.isoformat() if self.booking_date else None,
             "start_time": str(self.start_time) if self.start_time else None,
             "end_time": str(self.end_time) if self.end_time else None,

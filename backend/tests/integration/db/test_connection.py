@@ -56,7 +56,7 @@ def test_database_tables_exist():
     required_tables = [
         "users",
         "instructor_profiles",
-        "services",
+        "instructor_services",
         # "instructor_availability",  # REMOVED in Work Stream #10
         "availability_slots",
         "blackout_dates",

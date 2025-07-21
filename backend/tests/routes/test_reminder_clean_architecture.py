@@ -21,7 +21,7 @@ import pytest
 
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
 
 
@@ -107,11 +107,11 @@ class TestReminderQueryLogic:
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
-            service_id=service.id,  # Use actual service ID instead of hardcoded 1
+            instructor_service_id=service.id,  # Use actual service ID instead of hardcoded 1
             booking_date=tomorrow,
             start_time=time(9, 0),
             end_time=time(10, 0),
-            service_name=service.skill,  # Use actual service name
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Use catalog name
             hourly_rate=service.hourly_rate,  # Use actual hourly rate
             total_price=service.hourly_rate,  # Use actual rate for total
             duration_minutes=60,
@@ -237,11 +237,13 @@ class TestReminderQueryLogic:
             booking = Booking(
                 student_id=test_student.id,
                 instructor_id=test_instructor.id,
-                service_id=service.id,  # Use actual service ID
+                instructor_service_id=service.id,  # Use actual service ID
                 booking_date=tomorrow,
                 start_time=time(9 + i, 0),
                 end_time=time(10 + i, 0),
-                service_name=service.skill,  # Use actual service name
+                service_name=service.catalog_entry.name
+                if service.catalog_entry
+                else "Unknown Service",  # Use catalog name
                 hourly_rate=service.hourly_rate,  # Use actual rate
                 total_price=service.hourly_rate,
                 duration_minutes=60,
@@ -285,11 +287,11 @@ class TestReminderIntegration:
         booking = Booking(
             student_id=test_student.id,
             instructor_id=test_instructor.id,
-            service_id=service.id,  # Use actual service ID
+            instructor_service_id=service.id,  # Use actual service ID
             booking_date=tomorrow,
             start_time=time(14, 0),
             end_time=time(15, 0),
-            service_name=service.skill,  # Use actual service name
+            service_name=service.catalog_entry.name if service.catalog_entry else "Unknown Service",  # Use catalog name
             hourly_rate=service.hourly_rate,  # Use actual rate
             total_price=service.hourly_rate,
             duration_minutes=60,
@@ -322,7 +324,9 @@ class TestReminderIntegration:
             html_content = call.kwargs["html_content"]
 
             # Should contain actual booking info (not placeholders!)
-            assert service.skill in html_content  # The actual service name
+            assert (
+                service.catalog_entry.name if service.catalog_entry else "Unknown Service"
+            ) in html_content  # The actual service name
             assert "tomorrow" in html_content.lower()
 
             # Check for actual formatted time (2:00 PM format)

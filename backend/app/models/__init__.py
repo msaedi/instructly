@@ -5,18 +5,21 @@ This module exports all SQLAlchemy models used in the application.
 The models are organized by functionality:
 - User authentication and roles
 - Instructor profiles and services
+- Service catalog system
 - Availability management
 - Password reset functionality
 
-Note: RecurringAvailability has been removed as part of the refactoring
-to use only date-specific availability.
+Note: The Service model has been replaced with a three-table catalog system:
+- ServiceCategory: Categories for organizing services
+- ServiceCatalog: Predefined services with standardized names
+- InstructorService: Links instructors to catalog services
 """
 
 from .availability import AvailabilitySlot, BlackoutDate
 from .booking import Booking, BookingStatus
 from .instructor import InstructorProfile
 from .password_reset import PasswordResetToken
-from .service import Service
+from .service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from .user import User, UserRole
 
 __all__ = [
@@ -25,7 +28,10 @@ __all__ = [
     "UserRole",
     # Instructor models
     "InstructorProfile",
-    "Service",
+    # Service catalog models
+    "ServiceCategory",
+    "ServiceCatalog",
+    "InstructorService",
     # Availability models
     "AvailabilitySlot",
     "BlackoutDate",

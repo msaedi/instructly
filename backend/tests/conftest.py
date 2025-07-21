@@ -44,7 +44,8 @@ from app.main import app
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.service import Service
+from app.models.service_catalog import InstructorService as Service
+from app.models.service_catalog import ServiceCatalog, ServiceCategory
 from app.models.user import User, UserRole
 from app.services.template_service import TemplateService
 
@@ -236,6 +237,20 @@ def db():
 # ============================================================================
 
 
+@pytest.fixture(scope="function")
+def catalog_data(db: Session) -> dict:
+    """Ensure service catalog data exists for tests."""
+    # The YAML seeding has already loaded the catalog, just return it
+    categories = db.query(ServiceCategory).all()
+    services = db.query(ServiceCatalog).all()
+
+    if not categories or not services:
+        # If for some reason the catalog is empty, raise an error
+        raise RuntimeError("Service catalog is empty - run scripts/reset_and_seed_database_enhanced.py first")
+
+    return {"categories": categories, "services": services}
+
+
 @pytest.fixture
 def test_password():
     """Standard test password for all test users."""
@@ -259,7 +274,7 @@ def test_student(db: Session, test_password: str) -> User:
 
 
 @pytest.fixture
-def test_instructor(db: Session, test_password: str) -> User:
+def test_instructor(db: Session, test_password: str, catalog_data: dict) -> User:
     """Create a test instructor user with profile and services."""
     # Create instructor user
     instructor = User(
@@ -284,25 +299,42 @@ def test_instructor(db: Session, test_password: str) -> User:
     db.add(profile)
     db.flush()
 
-    # Create services
-    services = [
-        Service(
+    # Get catalog services - use actual services from seeded data
+    catalog_services = (
+        db.query(ServiceCatalog).filter(ServiceCatalog.slug.in_(["piano-lessons", "guitar-lessons"])).all()
+    )
+
+    print(f"Found {len(catalog_services)} catalog services")
+    for cs in catalog_services:
+        print(f"  - {cs.name} ({cs.slug})")
+
+    # If no catalog services found, the catalog_data fixture may have failed
+    if not catalog_services:
+        print("WARNING: No catalog services found. Checking if any exist...")
+        all_catalog = db.query(ServiceCatalog).all()
+        print(f"Total catalog services in DB: {len(all_catalog)}")
+        for cs in all_catalog[:5]:  # Show first 5
+            print(f"  - {cs.name} ({cs.slug})")
+
+    # Create instructor services linked to catalog
+    services = []
+    for catalog_service in catalog_services:
+        if catalog_service.slug == "piano-lessons":
+            hourly_rate = 50.0
+            duration_options = [30, 60, 90]
+        else:  # guitar-lessons
+            hourly_rate = 45.0
+            duration_options = [60]
+
+        service = Service(
             instructor_profile_id=profile.id,
-            skill="Test Piano",
-            hourly_rate=50.0,
-            description="Test piano lessons",
-            duration_options=[30, 60, 90],
+            service_catalog_id=catalog_service.id,
+            hourly_rate=hourly_rate,
+            description=catalog_service.description,
+            duration_options=duration_options,
             is_active=True,
-        ),
-        Service(
-            instructor_profile_id=profile.id,
-            skill="Test Guitar",
-            hourly_rate=45.0,
-            description="Test guitar lessons",
-            duration_options=[60],
-            is_active=True,
-        ),
-    ]
+        )
+        services.append(service)
     for service in services:
         db.add(service)
 
@@ -361,16 +393,20 @@ def test_booking(db: Session, test_student: User, test_instructor_with_availabil
 
     service = db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
 
+    # Get service name from catalog
+    catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.id == service.service_catalog_id).first()
+    service_name = catalog_service.name if catalog_service else "Test Service"
+
     # Create booking with self-contained time data (no slot reference!)
     booking = Booking(
         student_id=test_student.id,
         instructor_id=test_instructor_with_availability.id,
-        service_id=service.id,
+        instructor_service_id=service.id,
         # NO availability_slot_id - this field no longer exists!
         booking_date=tomorrow,
         start_time=time(9, 0),  # Self-contained time
         end_time=time(12, 0),  # Self-contained time
-        service_name=service.skill,
+        service_name=service_name,  # From catalog
         hourly_rate=service.hourly_rate,
         total_price=service.hourly_rate * 3,  # 3 hour booking
         duration_minutes=180,
@@ -422,18 +458,22 @@ def test_instructor_with_bookings(db: Session, test_instructor_with_availability
     if not service:
         raise ValueError(f"No active service found for profile {profile.id}")
 
+    # Get service name from catalog
+    catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.id == service.service_catalog_id).first()
+    service_name = catalog_service.name if catalog_service else "Test Service"
+
     # Create a booking for tomorrow (self-contained, no slot reference)
     tomorrow = date.today() + timedelta(days=1)
 
     booking = Booking(
         student_id=test_student.id,
         instructor_id=test_instructor_with_availability.id,
-        service_id=service.id,
+        instructor_service_id=service.id,
         # NO availability_slot_id!
         booking_date=tomorrow,
         start_time=time(9, 0),  # Direct time specification
         end_time=time(12, 0),  # Direct time specification
-        service_name=service.skill,
+        service_name=service_name,  # From catalog
         hourly_rate=service.hourly_rate,
         total_price=service.hourly_rate * 3,  # 3 hour booking
         duration_minutes=180,
@@ -455,10 +495,15 @@ def test_instructor_with_inactive_service(db: Session, test_instructor: User) ->
     if not profile:
         raise ValueError(f"No profile found for instructor {test_instructor.id}")
 
-    # Create an inactive service
+    # Get a catalog service to link to - use any existing one
+    catalog_service = db.query(ServiceCatalog).first()
+    if not catalog_service:
+        raise RuntimeError("No catalog services found - database not seeded properly")
+
+    # Create an inactive service linked to catalog
     inactive_service = Service(
         instructor_profile_id=profile.id,
-        skill="Inactive Test Service",
+        service_catalog_id=catalog_service.id,
         hourly_rate=60.0,
         description="This service is inactive",
         duration_options=[60],

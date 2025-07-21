@@ -27,7 +27,7 @@ def test_booking():
         id=100,
         student_id=1,
         instructor_id=2,
-        service_id=10,
+        instructor_service_id=10,
         booking_date=date.today() + timedelta(days=1),
         start_time=time(14, 0),
         end_time=time(15, 0),
