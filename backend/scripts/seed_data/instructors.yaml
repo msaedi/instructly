@@ -227,3 +227,57 @@ instructors:
           price: 110.00
           duration_options: [60]  # Single duration
     availability_pattern: "evenings_weekends"
+
+  # TEST INSTRUCTORS - Different Account Statuses for Testing
+
+  # SUSPENDED INSTRUCTOR 1 - Has past bookings, temporarily unavailable
+  - email: david.martinez@example.com
+    full_name: David Martinez
+    phone: "+12125551115"
+    account_status: "suspended"  # SUSPENDED for testing - verify doesn't appear in search
+    profile:
+      bio: "Experienced music teacher specializing in classical guitar. Currently on temporary leave."
+      years_experience: 12
+      areas: ["Brooklyn", "Manhattan"]
+      services:
+        - name: "Classical Guitar"
+          description: "Classical technique, music theory, performance prep"
+          price: 85.00
+          duration_options: [45, 60]
+    availability_pattern: "flexible_music"  # Has availability but shouldn't be bookable
+
+  # SUSPENDED INSTRUCTOR 2 - Popular instructor, temporarily suspended
+  - email: lisa.thompson@example.com
+    full_name: Lisa Thompson
+    phone: "+12125551116"
+    account_status: "suspended"  # SUSPENDED for testing - has historical bookings
+    profile:
+      bio: "Award-winning yoga instructor with certifications in multiple styles. Taking a brief sabbatical."
+      years_experience: 15
+      areas: ["Manhattan", "Queens", "Brooklyn"]
+      services:
+        - name: "Private Yoga Sessions"
+          description: "Vinyasa, Hatha, Restorative yoga - all levels"
+          price: 95.00
+          duration_options: [60, 90]
+        - name: "Meditation & Mindfulness"
+          description: "Guided meditation and mindfulness techniques"
+          price: 75.00
+          duration_options: [30, 45]
+    availability_pattern: "mornings_evenings"  # Extensive availability that won't show
+
+  # DEACTIVATED INSTRUCTOR - Permanently inactive, retains historical data
+  - email: michael.brown@example.com
+    full_name: Michael Brown
+    phone: "+12125551117"
+    account_status: "deactivated"  # DEACTIVATED for testing - cannot login or be booked
+    profile:
+      bio: "Former professional chef offering culinary instruction. No longer taking students."
+      years_experience: 20
+      areas: ["Manhattan"]
+      services:
+        - name: "Culinary Arts"
+          description: "Professional cooking techniques, menu planning"
+          price: 120.00
+          duration_options: [90, 120]
+    availability_pattern: "flexible_music"  # Any availability is irrelevant

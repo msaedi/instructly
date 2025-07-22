@@ -110,6 +110,7 @@ class DatabaseSeeder:
                     role=UserRole.STUDENT,
                     hashed_password=get_password_hash(password),
                     is_active=True,
+                    account_status="active",
                 )
                 session.add(user)
                 session.flush()
@@ -127,12 +128,15 @@ class DatabaseSeeder:
         with Session(self.engine) as session:
             for instructor_data in instructors:
                 # Create user account
+                # Allow account_status to be specified in YAML, default to "active"
+                account_status = instructor_data.get("account_status", "active")
                 user = User(
                     email=instructor_data["email"],
                     full_name=instructor_data["full_name"],
                     role=UserRole.INSTRUCTOR,
                     hashed_password=get_password_hash(password),
                     is_active=True,
+                    account_status=account_status,
                 )
                 session.add(user)
                 session.flush()
@@ -180,10 +184,22 @@ class DatabaseSeeder:
                     service_count += 1
 
                 self.created_users[user.email] = user.id
-                print(f"  ✅ Created instructor: {user.full_name} with {service_count} services")
+                status_info = f" [{account_status.upper()}]" if account_status != "active" else ""
+                print(f"  ✅ Created instructor: {user.full_name} with {service_count} services{status_info}")
 
             session.commit()
+
+        # Count instructors by status
+        status_counts = {"active": 0, "suspended": 0, "deactivated": 0}
+        for instructor_data in instructors:
+            status = instructor_data.get("account_status", "active")
+            status_counts[status] += 1
+
         print(f"✅ Created {len(instructors)} instructors")
+        if status_counts["suspended"] > 0 or status_counts["deactivated"] > 0:
+            print(
+                f"   ⚠️  Including test instructors: {status_counts['suspended']} suspended, {status_counts['deactivated']} deactivated"
+            )
 
     def create_availability(self):
         """Create availability slots based on patterns"""
@@ -356,6 +372,87 @@ class DatabaseSeeder:
 
             session.commit()
             print(f"✅ Created {booking_count} sample bookings")
+
+            # Create historical bookings for suspended/deactivated instructors
+            self._create_historical_bookings_for_inactive_instructors(session)
+
+    def _create_historical_bookings_for_inactive_instructors(self, session):
+        """Create past bookings for suspended/deactivated instructors for testing"""
+        historical_count = 0
+
+        # Get suspended/deactivated instructors
+        inactive_instructors = (
+            session.query(User)
+            .filter(
+                User.role == UserRole.INSTRUCTOR,
+                User.email.like("%@example.com"),
+                User.account_status.in_(["suspended", "deactivated"]),
+            )
+            .all()
+        )
+
+        if not inactive_instructors:
+            return
+
+        # Get some students
+        students = (
+            session.query(User).filter(User.role == UserRole.STUDENT, User.email.like("%@example.com")).limit(3).all()
+        )
+
+        if not students:
+            return
+
+        for instructor in inactive_instructors:
+            # Get instructor's services
+            services = (
+                session.query(InstructorService)
+                .join(InstructorProfile)
+                .filter(InstructorProfile.user_id == instructor.id)
+                .all()
+            )
+
+            if not services:
+                continue
+
+            # Create 2-3 past bookings (completed)
+            num_past_bookings = random.randint(2, 3)
+            for i in range(num_past_bookings):
+                service = random.choice(services)
+                student = random.choice(students)
+                duration = random.choice(service.duration_options)
+
+                # Create a booking from 1-4 weeks ago
+                days_ago = random.randint(7, 28)
+                booking_date = date.today() - timedelta(days=days_ago)
+
+                # Random time between 10 AM and 6 PM
+                hour = random.randint(10, 17)
+                start_time = time(hour, 0)
+                end_time = (datetime.combine(date.today(), start_time) + timedelta(minutes=duration)).time()
+
+                booking = Booking(
+                    student_id=student.id,
+                    instructor_id=instructor.id,
+                    instructor_service_id=service.id,
+                    booking_date=booking_date,
+                    start_time=start_time,
+                    end_time=end_time,
+                    status=BookingStatus.COMPLETED,
+                    location_type="online",
+                    meeting_location="Zoom",
+                    service_name=service.catalog_entry.name if service.catalog_entry else "Service",
+                    service_area="Manhattan",
+                    hourly_rate=service.hourly_rate,
+                    total_price=service.session_price(duration),
+                    duration_minutes=duration,
+                    student_note=f"Historical booking for testing - {instructor.account_status} instructor",
+                )
+                session.add(booking)
+                historical_count += 1
+
+        session.commit()
+        if historical_count > 0:
+            print(f"  📚 Created {historical_count} historical bookings for inactive instructors")
 
     def print_summary(self):
         """Print summary of created data"""
