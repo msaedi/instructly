@@ -19,7 +19,7 @@ from .availability import AvailabilitySlot, BlackoutDate
 from .booking import Booking, BookingStatus
 from .instructor import InstructorProfile
 from .password_reset import PasswordResetToken
-from .service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+from .service_catalog import InstructorService, ServiceAnalytics, ServiceCatalog, ServiceCategory
 from .user import User, UserRole
 
 __all__ = [
@@ -32,6 +32,7 @@ __all__ = [
     "ServiceCategory",
     "ServiceCatalog",
     "InstructorService",
+    "ServiceAnalytics",
     # Availability models
     "AvailabilitySlot",
     "BlackoutDate",

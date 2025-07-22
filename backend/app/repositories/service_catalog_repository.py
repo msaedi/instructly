@@ -1,0 +1,376 @@
+# backend/app/repositories/service_catalog_repository.py
+"""
+Service Catalog Repository for Natural Language Search and Analytics
+
+Provides specialized queries for:
+- Vector similarity search using pgvector
+- Analytics data retrieval and updates
+- Filtering services by various criteria
+- Optimized queries for service discovery
+
+This repository extends BaseRepository with search and analytics capabilities.
+"""
+
+import logging
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
+
+from sqlalchemy import or_, text
+from sqlalchemy.orm import Session, joinedload
+
+from ..models.service_catalog import ServiceAnalytics, ServiceCatalog
+from .base_repository import BaseRepository
+
+logger = logging.getLogger(__name__)
+
+
+class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
+    """Repository for service catalog with vector search capabilities."""
+
+    def __init__(self, db: Session):
+        """Initialize with ServiceCatalog model."""
+        super().__init__(db, ServiceCatalog)
+
+    def find_similar_by_embedding(
+        self, embedding: List[float], limit: int = 10, threshold: float = 0.8
+    ) -> List[Tuple[ServiceCatalog, float]]:
+        """
+        Find services similar to the given embedding using cosine similarity.
+
+        Args:
+            embedding: Query embedding vector (384 dimensions)
+            limit: Maximum number of results
+            threshold: Minimum similarity threshold (0-1)
+
+        Returns:
+            List of tuples (service, similarity_score)
+        """
+        try:
+            # Convert embedding to PostgreSQL array format
+            embedding_str = f"[{','.join(map(str, embedding))}]"
+
+            # Use raw SQL for vector similarity search
+            sql = text(
+                """
+                SELECT id, 1 - (embedding <=> CAST(:embedding AS vector)) as similarity
+                FROM service_catalog
+                WHERE is_active = true
+                  AND embedding IS NOT NULL
+                  AND 1 - (embedding <=> CAST(:embedding AS vector)) >= :threshold
+                ORDER BY similarity DESC
+                LIMIT :limit
+            """
+            )
+
+            result = self.db.execute(sql, {"embedding": embedding_str, "threshold": threshold, "limit": limit})
+
+            # Fetch services by IDs
+            rows = result.fetchall()
+            if not rows:
+                return []
+
+            # Get services
+            service_ids = [row.id for row in rows]
+            services = self.db.query(ServiceCatalog).filter(ServiceCatalog.id.in_(service_ids)).all()
+
+            # Create service lookup
+            service_map = {s.id: s for s in services}
+
+            # Return services with scores in order
+            return [(service_map[row.id], row.similarity) for row in rows if row.id in service_map]
+
+        except Exception as e:
+            logger.error(f"Error in vector similarity search: {str(e)}")
+            return []
+
+    def search_services(
+        self,
+        query_text: Optional[str] = None,
+        category_id: Optional[int] = None,
+        online_capable: Optional[bool] = None,
+        requires_certification: Optional[bool] = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> List[ServiceCatalog]:
+        """
+        Search services with text and filters.
+
+        Args:
+            query_text: Text to search in name, description, and search_terms
+            category_id: Filter by category
+            online_capable: Filter by online capability
+            requires_certification: Filter by certification requirement
+            skip: Pagination offset
+            limit: Maximum results
+
+        Returns:
+            List of matching services
+        """
+        query = self.db.query(ServiceCatalog).filter(ServiceCatalog.is_active == True)
+
+        # Text search across multiple fields
+        if query_text:
+            search_pattern = f"%{query_text}%"
+            # For array search, use PostgreSQL's array containment
+            query = query.filter(
+                or_(
+                    ServiceCatalog.name.ilike(search_pattern),
+                    ServiceCatalog.description.ilike(search_pattern),
+                    # Check if any search term contains the query
+                    text(
+                        f"EXISTS (SELECT 1 FROM unnest(search_terms) AS term WHERE lower(term) LIKE lower(:pattern))"
+                    ).params(pattern=search_pattern),
+                )
+            )
+
+        # Apply filters
+        if category_id is not None:
+            query = query.filter(ServiceCatalog.category_id == category_id)
+
+        if online_capable is not None:
+            query = query.filter(ServiceCatalog.online_capable == online_capable)
+
+        if requires_certification is not None:
+            query = query.filter(ServiceCatalog.requires_certification == requires_certification)
+
+        # Order by display_order and name
+        query = query.order_by(ServiceCatalog.display_order, ServiceCatalog.name)
+
+        # Apply pagination
+        return query.offset(skip).limit(limit).all()
+
+    def get_popular_services(self, limit: int = 10, days: int = 30) -> List[Dict]:
+        """
+        Get most popular services based on analytics.
+
+        Args:
+            limit: Number of services to return
+            days: Look back period for analytics
+
+        Returns:
+            List of services with popularity metrics
+        """
+        # Join with analytics table
+        query = (
+            self.db.query(ServiceCatalog, ServiceAnalytics)
+            .join(ServiceAnalytics, ServiceCatalog.id == ServiceAnalytics.service_catalog_id)
+            .filter(ServiceCatalog.is_active == True)
+        )
+
+        # Order by booking count
+        if days == 7:
+            query = query.order_by(ServiceAnalytics.booking_count_7d.desc())
+        else:
+            query = query.order_by(ServiceAnalytics.booking_count_30d.desc())
+
+        results = query.limit(limit).all()
+
+        return [
+            {"service": service, "analytics": analytics, "popularity_score": analytics.demand_score}
+            for service, analytics in results
+        ]
+
+    def get_trending_services(self, limit: int = 10) -> List[ServiceCatalog]:
+        """
+        Get services that are trending upward in demand.
+
+        Args:
+            limit: Number of services to return
+
+        Returns:
+            List of trending services
+        """
+        # Subquery to calculate trend
+        trend_subquery = self.db.query(
+            ServiceAnalytics.service_catalog_id,
+            (ServiceAnalytics.search_count_7d / 7.0).label("avg_7d"),
+            (ServiceAnalytics.search_count_30d / 30.0).label("avg_30d"),
+        ).subquery()
+
+        # Main query joining with trend calculation
+        query = (
+            self.db.query(ServiceCatalog)
+            .join(trend_subquery, ServiceCatalog.id == trend_subquery.c.service_catalog_id)
+            .filter(
+                ServiceCatalog.is_active == True, trend_subquery.c.avg_7d > trend_subquery.c.avg_30d * 1.2  # 20% growth
+            )
+            .order_by((trend_subquery.c.avg_7d - trend_subquery.c.avg_30d).desc())
+        )
+
+        return query.limit(limit).all()
+
+    def update_display_order_by_popularity(self) -> int:
+        """
+        Update display_order based on popularity metrics.
+
+        Returns:
+            Number of services updated
+        """
+        # Get services with analytics ordered by demand
+        query = (
+            self.db.query(ServiceCatalog.id, ServiceAnalytics.booking_count_30d, ServiceAnalytics.search_count_30d)
+            .join(ServiceAnalytics, ServiceCatalog.id == ServiceAnalytics.service_catalog_id)
+            .filter(ServiceCatalog.is_active == True)
+            .order_by((ServiceAnalytics.booking_count_30d * 2 + ServiceAnalytics.search_count_30d).desc())
+            .all()
+        )
+
+        # Update display orders
+        updates = []
+        for idx, (service_id, _, _) in enumerate(query):
+            updates.append({"id": service_id, "display_order": idx + 1})  # 1-based ordering
+
+        # Bulk update
+        if updates:
+            return self.bulk_update(updates)
+
+        return 0
+
+    def _apply_eager_loading(self, query):
+        """Apply eager loading for category relationship."""
+        return query.options(joinedload(ServiceCatalog.category))
+
+
+class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
+    """Repository for service analytics data."""
+
+    def __init__(self, db: Session):
+        """Initialize with ServiceAnalytics model."""
+        super().__init__(db, ServiceAnalytics)
+
+    def get_by_id(self, service_catalog_id: int, load_relationships: bool = True) -> Optional[ServiceAnalytics]:
+        """
+        Override get_by_id to use service_catalog_id as primary key.
+
+        Args:
+            service_catalog_id: The service catalog ID (primary key)
+            load_relationships: Whether to load relationships
+
+        Returns:
+            ServiceAnalytics instance or None
+        """
+        return self.find_one_by(service_catalog_id=service_catalog_id)
+
+    def update(self, service_catalog_id: int, **kwargs) -> Optional[ServiceAnalytics]:
+        """
+        Override update to use service_catalog_id as primary key.
+
+        Args:
+            service_catalog_id: The service catalog ID (primary key)
+            **kwargs: Fields to update
+
+        Returns:
+            Updated ServiceAnalytics instance
+        """
+        entity = self.find_one_by(service_catalog_id=service_catalog_id)
+        if not entity:
+            return None
+
+        for key, value in kwargs.items():
+            setattr(entity, key, value)
+
+        self.db.commit()
+        self.db.refresh(entity)
+        return entity
+
+    def get_or_create(self, service_catalog_id: int) -> ServiceAnalytics:
+        """
+        Get existing analytics or create new with defaults.
+
+        Args:
+            service_catalog_id: Service catalog ID
+
+        Returns:
+            ServiceAnalytics instance
+        """
+        analytics = self.find_one_by(service_catalog_id=service_catalog_id)
+
+        if not analytics:
+            analytics = self.create(
+                service_catalog_id=service_catalog_id,
+                search_count_7d=0,
+                search_count_30d=0,
+                booking_count_7d=0,
+                booking_count_30d=0,
+                active_instructors=0,
+                last_calculated=datetime.utcnow(),
+            )
+
+        return analytics
+
+    def increment_search_count(self, service_catalog_id: int) -> None:
+        """
+        Increment search count for a service.
+
+        Args:
+            service_catalog_id: Service catalog ID
+        """
+        analytics = self.get_or_create(service_catalog_id)
+
+        # Increment both 7d and 30d counters
+        self.update(
+            analytics.service_catalog_id,
+            search_count_7d=analytics.search_count_7d + 1,
+            search_count_30d=analytics.search_count_30d + 1,
+        )
+
+    def get_stale_analytics(self, hours: int = 24) -> List[ServiceAnalytics]:
+        """
+        Get analytics records that need updating.
+
+        Args:
+            hours: Consider stale if older than this many hours
+
+        Returns:
+            List of stale analytics records
+        """
+        cutoff = datetime.utcnow() - timedelta(hours=hours)
+
+        return self.db.query(ServiceAnalytics).filter(ServiceAnalytics.last_calculated < cutoff).all()
+
+    def update_from_bookings(self, service_catalog_id: int, booking_stats: Dict) -> None:
+        """
+        Update analytics from booking statistics.
+
+        Args:
+            service_catalog_id: Service catalog ID
+            booking_stats: Dictionary with booking metrics
+        """
+        analytics = self.get_or_create(service_catalog_id)
+
+        updates = {
+            "booking_count_7d": booking_stats.get("count_7d", 0),
+            "booking_count_30d": booking_stats.get("count_30d", 0),
+            "avg_price_booked": booking_stats.get("avg_price"),
+            "price_percentile_25": booking_stats.get("price_p25"),
+            "price_percentile_50": booking_stats.get("price_p50"),
+            "price_percentile_75": booking_stats.get("price_p75"),
+            "most_booked_duration": booking_stats.get("most_popular_duration"),
+            "completion_rate": booking_stats.get("completion_rate"),
+            "avg_rating": booking_stats.get("avg_rating"),
+            "last_calculated": datetime.utcnow(),
+        }
+
+        # Remove None values
+        updates = {k: v for k, v in updates.items() if v is not None}
+
+        self.update(analytics.service_catalog_id, **updates)
+
+    def get_services_needing_analytics(self) -> List[int]:
+        """
+        Get service IDs that don't have analytics records.
+
+        Returns:
+            List of service catalog IDs
+        """
+        # Subquery for existing analytics
+        existing = self.db.query(ServiceAnalytics.service_catalog_id).subquery()
+
+        # Find active services without analytics
+        missing = (
+            self.db.query(ServiceCatalog.id)
+            .filter(ServiceCatalog.is_active == True, ~ServiceCatalog.id.in_(existing))
+            .all()
+        )
+
+        return [service_id[0] for service_id in missing]

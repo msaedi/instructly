@@ -56,9 +56,10 @@ class InstructorService(BaseService):
         self.service_repository = service_repository or RepositoryFactory.create_base_repository(db, Service)
         self.user_repository = user_repository or RepositoryFactory.create_base_repository(db, User)
         self.booking_repository = booking_repository or RepositoryFactory.create_booking_repository(db)
-        # Add catalog repositories
-        self.catalog_repository = RepositoryFactory.create_base_repository(db, ServiceCatalog)
+        # Add catalog repositories - use specialized repository for search capabilities
+        self.catalog_repository = RepositoryFactory.create_service_catalog_repository(db)
         self.category_repository = RepositoryFactory.create_base_repository(db, ServiceCategory)
+        self.analytics_repository = RepositoryFactory.create_service_analytics_repository(db)
 
     @BaseService.measure_operation("get_instructor_profile")
     def get_instructor_profile(self, user_id: int, include_inactive_services: bool = False) -> Dict:
@@ -371,11 +372,11 @@ class InstructorService(BaseService):
         Raises:
             ValidationException: If any catalog ID is invalid
         """
-        from app.models.service_catalog import ServiceCatalog
-
-        # Get all valid catalog IDs
-        valid_ids = set(self.db.query(ServiceCatalog.id).filter(ServiceCatalog.id.in_(catalog_ids)).all())
-        valid_ids = {id[0] for id in valid_ids}  # Extract IDs from tuples
+        # Use repository to check existence
+        valid_ids = set()
+        for catalog_id in catalog_ids:
+            if self.catalog_repository.exists(id=catalog_id, is_active=True):
+                valid_ids.add(catalog_id)
 
         # Check for invalid IDs
         invalid_ids = set(catalog_ids) - valid_ids
@@ -597,7 +598,7 @@ class InstructorService(BaseService):
                 service_catalog_id=catalog_service_id,
                 hourly_rate=hourly_rate,
                 description=custom_description,
-                duration_options=duration_options or catalog_service.typical_duration_options,
+                duration_options=duration_options or [60],  # Default to 60 minutes if not specified
                 is_active=True,
             )
 
@@ -623,9 +624,9 @@ class InstructorService(BaseService):
             "slug": service.slug,
             "description": service.description,
             "search_terms": service.search_terms or [],  # Default to empty list if None
-            "typical_duration_options": service.typical_duration_options or [60],  # Default if None
-            "min_recommended_price": service.min_recommended_price,
-            "max_recommended_price": service.max_recommended_price,
+            "display_order": service.display_order,
+            "online_capable": service.online_capable,
+            "requires_certification": service.requires_certification,
         }
 
     def _instructor_service_to_dict(self, service: Service) -> Dict:
@@ -642,6 +643,205 @@ class InstructorService(BaseService):
             "created_at": service.created_at,
             "updated_at": service.updated_at,
         }
+
+    # New methods for enhanced search and analytics
+
+    @BaseService.measure_operation("search_services_semantic")
+    def search_services_semantic(
+        self,
+        query_embedding: List[float],
+        category_id: Optional[int] = None,
+        online_capable: Optional[bool] = None,
+        limit: int = 10,
+        threshold: float = 0.7,
+    ) -> List[Dict]:
+        """
+        Search services using semantic similarity.
+
+        Args:
+            query_embedding: 384-dimension embedding vector
+            category_id: Optional category filter
+            online_capable: Optional online capability filter
+            limit: Maximum results to return
+            threshold: Minimum similarity threshold (0-1)
+
+        Returns:
+            List of services with similarity scores
+        """
+        # Get similar services using vector search
+        similar_services = self.catalog_repository.find_similar_by_embedding(
+            embedding=query_embedding, limit=limit * 2, threshold=threshold  # Get more to filter
+        )
+
+        # Apply additional filters if provided
+        filtered_results = []
+        for service, score in similar_services:
+            if category_id and service.category_id != category_id:
+                continue
+            if online_capable is not None and service.online_capable != online_capable:
+                continue
+
+            # Increment search analytics
+            self.analytics_repository.increment_search_count(service.id)
+
+            # Add to results
+            service_dict = self._catalog_service_to_dict(service)
+            service_dict["similarity_score"] = score
+            service_dict["analytics"] = self._get_service_analytics(service.id)
+            filtered_results.append(service_dict)
+
+            if len(filtered_results) >= limit:
+                break
+
+        return filtered_results
+
+    @BaseService.measure_operation("get_popular_services")
+    def get_popular_services(self, limit: int = 10, days: int = 30) -> List[Dict]:
+        """
+        Get most popular services based on booking data.
+
+        Args:
+            limit: Number of services to return
+            days: Time period (7 or 30 days)
+
+        Returns:
+            List of popular services with metrics
+        """
+        popular = self.catalog_repository.get_popular_services(limit=limit, days=days)
+
+        results = []
+        for item in popular:
+            service_dict = self._catalog_service_to_dict(item["service"])
+            service_dict["analytics"] = item["analytics"].to_dict()
+            service_dict["popularity_score"] = item["popularity_score"]
+            results.append(service_dict)
+
+        return results
+
+    @BaseService.measure_operation("get_trending_services")
+    def get_trending_services(self, limit: int = 10) -> List[Dict]:
+        """
+        Get services trending upward in demand.
+
+        Args:
+            limit: Number of services to return
+
+        Returns:
+            List of trending services
+        """
+        trending = self.catalog_repository.get_trending_services(limit=limit)
+
+        results = []
+        for service in trending:
+            service_dict = self._catalog_service_to_dict(service)
+            service_dict["analytics"] = self._get_service_analytics(service.id)
+            results.append(service_dict)
+
+        return results
+
+    @BaseService.measure_operation("search_services_enhanced")
+    def search_services_enhanced(
+        self,
+        query_text: Optional[str] = None,
+        category_id: Optional[int] = None,
+        online_capable: Optional[bool] = None,
+        requires_certification: Optional[bool] = None,
+        min_price: Optional[float] = None,
+        max_price: Optional[float] = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> Dict:
+        """
+        Enhanced service search with multiple filters and analytics.
+
+        Args:
+            query_text: Text search query
+            category_id: Filter by category
+            online_capable: Filter by online capability
+            requires_certification: Filter by certification requirement
+            min_price: Minimum price filter
+            max_price: Maximum price filter
+            skip: Pagination offset
+            limit: Maximum results
+
+        Returns:
+            Dictionary with services and metadata
+        """
+        # Search services using repository
+        services = self.catalog_repository.search_services(
+            query_text=query_text,
+            category_id=category_id,
+            online_capable=online_capable,
+            requires_certification=requires_certification,
+            skip=skip,
+            limit=limit,
+        )
+
+        # Build results with analytics
+        results = []
+        for service in services:
+            service_dict = self._catalog_service_to_dict(service)
+
+            # Add analytics data
+            service_dict["analytics"] = self._get_service_analytics(service.id)
+
+            # Add instructor count and price range if needed
+            if min_price is not None or max_price is not None:
+                instructors = self._get_instructors_for_service_in_price_range(service.id, min_price, max_price)
+                service_dict["matching_instructors"] = len(instructors)
+                service_dict["actual_price_range"] = self._calculate_price_range(instructors)
+
+            results.append(service_dict)
+
+            # Track search analytics
+            if query_text:
+                self.analytics_repository.increment_search_count(service.id)
+
+        # Build metadata
+        metadata = {
+            "query": query_text,
+            "filters": {
+                "category_id": category_id,
+                "online_capable": online_capable,
+                "requires_certification": requires_certification,
+                "price_range": {"min": min_price, "max": max_price} if min_price or max_price else None,
+            },
+            "pagination": {"skip": skip, "limit": limit, "count": len(results)},
+        }
+
+        return {"services": results, "metadata": metadata}
+
+    def _get_service_analytics(self, service_catalog_id: int) -> Dict:
+        """Get or create analytics for a service."""
+        analytics = self.analytics_repository.get_or_create(service_catalog_id)
+        return analytics.to_dict() if analytics else {}
+
+    def _get_instructors_for_service_in_price_range(
+        self, service_catalog_id: int, min_price: Optional[float], max_price: Optional[float]
+    ) -> List[Service]:
+        """Get instructors offering a service within price range."""
+        query_filters = {"service_catalog_id": service_catalog_id, "is_active": True}
+
+        all_services = self.service_repository.find_by(**query_filters)
+
+        # Filter by price
+        filtered = []
+        for service in all_services:
+            if min_price and service.hourly_rate < min_price:
+                continue
+            if max_price and service.hourly_rate > max_price:
+                continue
+            filtered.append(service)
+
+        return filtered
+
+    def _calculate_price_range(self, instructor_services: List[Service]) -> Dict:
+        """Calculate actual price range from instructor services."""
+        if not instructor_services:
+            return {"min": None, "max": None}
+
+        prices = [s.hourly_rate for s in instructor_services]
+        return {"min": min(prices), "max": max(prices), "avg": sum(prices) / len(prices)}
 
 
 # Dependency injection

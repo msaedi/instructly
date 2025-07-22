@@ -6,38 +6,46 @@ categories:
     slug: "music-arts"
     description: "Musical instruments, theory, performance, and visual arts"
     display_order: 1
+    icon_name: "music-note"
 
   - name: "Academic"
     slug: "academic"
     description: "K-12 subjects, test preparation, and homework help"
     display_order: 2
+    icon_name: "book"
 
   - name: "Languages"
     slug: "languages"
     description: "Foreign languages, ESL, and conversation practice"
     display_order: 3
+    icon_name: "globe"
 
   - name: "Fitness & Wellness"
     slug: "fitness-wellness"
     description: "Personal training, yoga, pilates, and wellness coaching"
     display_order: 4
+    icon_name: "heart"
 
   - name: "Technology"
     slug: "technology"
     description: "Programming, design, data science, and digital skills"
     display_order: 5
+    icon_name: "laptop"
 
   - name: "Sports & Games"
     slug: "sports-games"
     description: "Athletic training, sports coaching, and strategic games"
     display_order: 6
+    icon_name: "basketball"
 
   - name: "Life Skills"
     slug: "life-skills"
     description: "Cooking, public speaking, and practical life skills"
     display_order: 7
+    icon_name: "lightbulb"
 
   - name: "Business & Career"
     slug: "business-career"
     description: "Professional development, finance, and career coaching"
     display_order: 8
+    icon_name: "briefcase"

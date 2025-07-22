@@ -18,6 +18,7 @@ better organization and search capabilities.
 from typing import Sequence, Union
 
 import sqlalchemy as sa
+from pgvector.sqlalchemy import Vector
 
 from alembic import op
 
@@ -31,6 +32,9 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Create instructor profiles and services tables."""
     print("Creating instructor system tables...")
+
+    # Enable pgvector extension for semantic search
+    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
     # Create instructor_profiles table
     op.create_table(
@@ -83,6 +87,7 @@ def upgrade() -> None:
         sa.Column("slug", sa.String(), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("display_order", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("icon_name", sa.String(50), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -114,9 +119,11 @@ def upgrade() -> None:
         sa.Column("slug", sa.String(), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("search_terms", sa.ARRAY(sa.String), nullable=True),
-        sa.Column("typical_duration_options", sa.ARRAY(sa.Integer), nullable=False, server_default="{60}"),
-        sa.Column("min_recommended_price", sa.Float(), nullable=True),
-        sa.Column("max_recommended_price", sa.Float(), nullable=True),
+        sa.Column("display_order", sa.Integer(), nullable=False, server_default="999"),
+        sa.Column("embedding", Vector(384), nullable=True),
+        sa.Column("related_services", sa.ARRAY(sa.Integer), nullable=True),
+        sa.Column("online_capable", sa.Boolean(), nullable=False, server_default="true"),
+        sa.Column("requires_certification", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
         sa.Column(
             "created_at",
@@ -154,6 +161,19 @@ def upgrade() -> None:
         postgresql_using="gin",
     )
 
+    # Add indexes for new columns
+    op.create_index("idx_service_catalog_display_order", "service_catalog", ["display_order"])
+    op.create_index("idx_service_catalog_online_capable", "service_catalog", ["online_capable"])
+
+    # Index for vector similarity search
+    op.create_index(
+        "idx_service_catalog_embedding",
+        "service_catalog",
+        ["embedding"],
+        postgresql_using="ivfflat",
+        postgresql_ops={"embedding": "vector_cosine_ops"},
+    )
+
     # Create instructor services table (replaces old services table)
     op.create_table(
         "instructor_services",
@@ -161,8 +181,15 @@ def upgrade() -> None:
         sa.Column("instructor_profile_id", sa.Integer(), nullable=False),
         sa.Column("service_catalog_id", sa.Integer(), nullable=False),
         sa.Column("hourly_rate", sa.Float(), nullable=False),
+        sa.Column("experience_level", sa.String(50), nullable=True),
         sa.Column("description", sa.Text(), nullable=True),
+        sa.Column("requirements", sa.Text(), nullable=True),
         sa.Column("duration_options", sa.ARRAY(sa.Integer), nullable=False, server_default="{60}"),
+        sa.Column("equipment_required", sa.ARRAY(sa.Text), nullable=True),
+        sa.Column("levels_taught", sa.ARRAY(sa.Text), nullable=True),
+        sa.Column("age_groups", sa.ARRAY(sa.Text), nullable=True),
+        sa.Column("location_types", sa.ARRAY(sa.Text), nullable=True),
+        sa.Column("max_distance_miles", sa.Integer(), nullable=True),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
         sa.Column(
             "created_at",
@@ -213,6 +240,50 @@ def upgrade() -> None:
         postgresql_where=sa.text("is_active = true"),
     )
 
+    # Create service analytics table
+    op.create_table(
+        "service_analytics",
+        sa.Column("service_catalog_id", sa.Integer(), nullable=False),
+        sa.Column("search_count_7d", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("search_count_30d", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("booking_count_7d", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("booking_count_30d", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("search_to_view_rate", sa.Float(), nullable=True),
+        sa.Column("view_to_booking_rate", sa.Float(), nullable=True),
+        sa.Column("avg_price_booked", sa.Float(), nullable=True),
+        sa.Column("price_percentile_25", sa.Float(), nullable=True),
+        sa.Column("price_percentile_50", sa.Float(), nullable=True),
+        sa.Column("price_percentile_75", sa.Float(), nullable=True),
+        sa.Column("most_booked_duration", sa.Integer(), nullable=True),
+        sa.Column("duration_distribution", sa.JSON(), nullable=True),
+        sa.Column("peak_hours", sa.JSON(), nullable=True),
+        sa.Column("peak_days", sa.JSON(), nullable=True),
+        sa.Column("seasonality_index", sa.JSON(), nullable=True),
+        sa.Column("avg_rating", sa.Float(), nullable=True),
+        sa.Column("completion_rate", sa.Float(), nullable=True),
+        sa.Column("active_instructors", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("total_weekly_hours", sa.Float(), nullable=True),
+        sa.Column("supply_demand_ratio", sa.Float(), nullable=True),
+        sa.Column(
+            "last_calculated",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["service_catalog_id"],
+            ["service_catalog.id"],
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("service_catalog_id"),
+        comment="Analytics and intelligence data for each service in the catalog",
+    )
+
+    # Create indexes for service_analytics
+    op.create_index("idx_service_analytics_search_count_7d", "service_analytics", ["search_count_7d"])
+    op.create_index("idx_service_analytics_booking_count_30d", "service_analytics", ["booking_count_30d"])
+    op.create_index("idx_service_analytics_last_calculated", "service_analytics", ["last_calculated"])
+
     # Add constraints
     op.create_check_constraint("check_hourly_rate_positive", "instructor_services", "hourly_rate > 0")
     op.create_check_constraint(
@@ -223,25 +294,28 @@ def upgrade() -> None:
         "instructor_services",
         "duration_options[1] >= 15 AND duration_options[1] <= 720",
     )
-    op.create_check_constraint("check_min_price_positive", "service_catalog", "min_recommended_price > 0")
-    op.create_check_constraint("check_max_price_positive", "service_catalog", "max_recommended_price > 0")
-    op.create_check_constraint(
-        "check_price_range_valid", "service_catalog", "min_recommended_price <= max_recommended_price"
-    )
 
     print("Instructor system tables created successfully!")
+    print("- Enabled pgvector extension for semantic search")
     print("- Created instructor_profiles table with areas_of_service as VARCHAR")
-    print("- Created service catalog system with three tables:")
-    print("  - service_categories: Organize services by category")
-    print("  - service_catalog: Predefined services with standardized names")
-    print("  - instructor_services: Links instructors to catalog services")
-    print("- Added unique constraint for active instructor services only")
+    print("- Enhanced service catalog system with:")
+    print("  - service_categories: Categories with icon_name support")
+    print("  - service_catalog: Services with embeddings, display_order, and online capability")
+    print("  - instructor_services: Enhanced with experience level, requirements, and location info")
+    print("  - service_analytics: Intelligence data for demand signals and pricing")
+    print("- Added vector similarity search index for natural language queries")
     print("- Added constraints for pricing and duration validation")
 
 
 def downgrade() -> None:
     """Drop instructor system tables."""
     print("Dropping instructor system tables...")
+
+    # Drop service_analytics indexes and table
+    op.drop_index("idx_service_analytics_last_calculated", table_name="service_analytics")
+    op.drop_index("idx_service_analytics_booking_count_30d", table_name="service_analytics")
+    op.drop_index("idx_service_analytics_search_count_7d", table_name="service_analytics")
+    op.drop_table("service_analytics")
 
     # Drop instructor_services indexes and table
     op.drop_index("unique_instructor_catalog_service_active", table_name="instructor_services")
@@ -252,6 +326,9 @@ def downgrade() -> None:
     op.drop_table("instructor_services")
 
     # Drop service_catalog indexes and table
+    op.drop_index("idx_service_catalog_embedding", table_name="service_catalog")
+    op.drop_index("idx_service_catalog_online_capable", table_name="service_catalog")
+    op.drop_index("idx_service_catalog_display_order", table_name="service_catalog")
     op.drop_index("idx_service_catalog_search_terms", table_name="service_catalog")
     op.drop_index("idx_service_catalog_is_active", table_name="service_catalog")
     op.drop_index("idx_service_catalog_slug", table_name="service_catalog")
@@ -270,5 +347,8 @@ def downgrade() -> None:
     op.drop_index("idx_instructor_profiles_user_id", table_name="instructor_profiles")
     op.drop_index("ix_instructor_profiles_id", table_name="instructor_profiles")
     op.drop_table("instructor_profiles")
+
+    # Drop pgvector extension
+    op.execute("DROP EXTENSION IF EXISTS vector")
 
     print("Instructor system tables dropped successfully!")

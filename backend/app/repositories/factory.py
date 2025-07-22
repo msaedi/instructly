@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from .bulk_operation_repository import BulkOperationRepository
     from .conflict_checker_repository import ConflictCheckerRepository
     from .instructor_profile_repository import InstructorProfileRepository
+    from .service_catalog_repository import ServiceAnalyticsRepository, ServiceCatalogRepository
     from .slot_manager_repository import SlotManagerRepository
     from .week_operation_repository import WeekOperationRepository
 
@@ -95,3 +96,17 @@ class RepositoryFactory:
         from .instructor_profile_repository import InstructorProfileRepository
 
         return InstructorProfileRepository(db)
+
+    @staticmethod
+    def create_service_catalog_repository(db: Session) -> "ServiceCatalogRepository":
+        """Create repository for service catalog operations with vector search."""
+        from .service_catalog_repository import ServiceCatalogRepository
+
+        return ServiceCatalogRepository(db)
+
+    @staticmethod
+    def create_service_analytics_repository(db: Session) -> "ServiceAnalyticsRepository":
+        """Create repository for service analytics operations."""
+        from .service_catalog_repository import ServiceAnalyticsRepository
+
+        return ServiceAnalyticsRepository(db)

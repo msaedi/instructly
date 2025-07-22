@@ -1,434 +1,498 @@
-# Service Catalog for InstaInstru Platform
-# Predefined services with standardized names and pricing guidelines
-
 services:
-  # Music & Arts Services
-  - category_slug: "music-arts"
-    name: "Piano Lessons"
-    slug: "piano-lessons"
-    description: "Learn piano from beginner to advanced levels, including classical, jazz, and contemporary styles"
-    search_terms: ["piano", "keyboard", "music lessons", "classical piano", "jazz piano", "piano teacher"]
-    typical_duration_options: [30, 45, 60, 90]
-    min_recommended_price: 50
-    max_recommended_price: 150
-
-  - category_slug: "music-arts"
-    name: "Guitar Lessons"
-    slug: "guitar-lessons"
-    description: "Acoustic and electric guitar instruction for all skill levels and musical styles"
-    search_terms: ["guitar", "acoustic guitar", "electric guitar", "rock guitar", "classical guitar", "guitar teacher"]
-    typical_duration_options: [30, 45, 60]
-    min_recommended_price: 45
-    max_recommended_price: 120
-
-  - category_slug: "music-arts"
-    name: "Voice Lessons"
-    slug: "voice-lessons"
-    description: "Vocal training for singing, including breath control, pitch, and performance techniques"
-    search_terms: ["singing", "voice", "vocal", "singing lessons", "voice coach", "vocal training"]
-    typical_duration_options: [30, 45, 60]
-    min_recommended_price: 60
-    max_recommended_price: 150
-
-  - category_slug: "music-arts"
-    name: "Violin Lessons"
-    slug: "violin-lessons"
-    description: "Classical and contemporary violin instruction with focus on technique and musicality"
-    search_terms: ["violin", "fiddle", "strings", "classical violin", "violin teacher"]
-    typical_duration_options: [30, 45, 60]
-    min_recommended_price: 60
-    max_recommended_price: 140
-
-  - category_slug: "music-arts"
-    name: "Drums Lessons"
-    slug: "drums-lessons"
-    description: "Drum kit and percussion instruction covering various styles and techniques"
-    search_terms: ["drums", "percussion", "drumming", "drum set", "drum teacher"]
-    typical_duration_options: [30, 45, 60]
-    min_recommended_price: 50
-    max_recommended_price: 120
-
-  - category_slug: "music-arts"
-    name: "Music Theory"
-    slug: "music-theory"
-    description: "Comprehensive music theory including notation, harmony, and composition"
-    search_terms: ["music theory", "composition", "harmony", "music notation", "theory lessons"]
-    typical_duration_options: [45, 60, 90]
-    min_recommended_price: 50
-    max_recommended_price: 100
-
-  - category_slug: "music-arts"
-    name: "Drawing Lessons"
-    slug: "drawing-lessons"
-    description: "Learn drawing techniques including sketching, shading, and various mediums"
-    search_terms: ["drawing", "sketching", "art", "pencil drawing", "art lessons"]
-    typical_duration_options: [60, 90, 120]
-    min_recommended_price: 50
-    max_recommended_price: 120
-
-  - category_slug: "music-arts"
-    name: "Painting Lessons"
-    slug: "painting-lessons"
-    description: "Oil, acrylic, and watercolor painting techniques for all skill levels"
-    search_terms: ["painting", "oil painting", "acrylic", "watercolor", "art class"]
-    typical_duration_options: [90, 120, 180]
-    min_recommended_price: 60
-    max_recommended_price: 150
-
-  - category_slug: "music-arts"
-    name: "Photography"
-    slug: "photography"
-    description: "Digital photography skills including composition, lighting, and editing"
-    search_terms: ["photography", "camera", "photo", "digital photography", "photo editing"]
-    typical_duration_options: [60, 90, 120]
-    min_recommended_price: 75
-    max_recommended_price: 200
-
-  - category_slug: "music-arts"
-    name: "Dance Lessons"
-    slug: "dance-lessons"
-    description: "Various dance styles including ballet, contemporary, jazz, and hip-hop"
-    search_terms: ["dance", "dancing", "ballet", "jazz dance", "hip hop", "dance class"]
-    typical_duration_options: [45, 60, 90]
-    min_recommended_price: 60
-    max_recommended_price: 150
-
-  # Academic Services
-  - category_slug: "academic"
-    name: "Math Tutoring"
-    slug: "math-tutoring"
-    description: "Mathematics tutoring from elementary through calculus and statistics"
-    search_terms: ["math", "mathematics", "algebra", "geometry", "calculus", "math tutor"]
-    typical_duration_options: [45, 60, 90]
-    min_recommended_price: 60
-    max_recommended_price: 150
-
-  - category_slug: "academic"
-    name: "Science Tutoring"
-    slug: "science-tutoring"
-    description: "Physics, chemistry, and biology tutoring for middle school through college"
-    search_terms: ["science", "physics", "chemistry", "biology", "science tutor"]
-    typical_duration_options: [45, 60, 90]
-    min_recommended_price: 60
-    max_recommended_price: 150
-
-  - category_slug: "academic"
-    name: "English Tutoring"
-    slug: "english-tutoring"
-    description: "English language arts including reading, writing, and literature"
-    search_terms: ["english", "writing", "reading", "literature", "english tutor", "essay help"]
-    typical_duration_options: [45, 60, 90]
-    min_recommended_price: 50
-    max_recommended_price: 120
-
-  - category_slug: "academic"
-    name: "SAT Prep"
-    slug: "sat-prep"
-    description: "Comprehensive SAT preparation including strategies and practice tests"
-    search_terms: ["sat", "sat prep", "test prep", "college prep", "sat tutor"]
-    typical_duration_options: [60, 90, 120]
-    min_recommended_price: 80
-    max_recommended_price: 200
-
-  - category_slug: "academic"
-    name: "ACT Prep"
-    slug: "act-prep"
-    description: "Complete ACT preparation covering all sections and test strategies"
-    search_terms: ["act", "act prep", "test prep", "college prep", "act tutor"]
-    typical_duration_options: [60, 90, 120]
-    min_recommended_price: 80
-    max_recommended_price: 200
-
-  - category_slug: "academic"
-    name: "History Tutoring"
-    slug: "history-tutoring"
-    description: "World history, US history, and social studies tutoring"
-    search_terms: ["history", "social studies", "world history", "us history", "history tutor"]
-    typical_duration_options: [45, 60]
-    min_recommended_price: 50
-    max_recommended_price: 120
-
-  - category_slug: "academic"
-    name: "Homework Help"
-    slug: "homework-help"
-    description: "General homework assistance and study skills for K-12 students"
-    search_terms: ["homework", "homework help", "study skills", "tutoring", "academic support"]
-    typical_duration_options: [30, 45, 60]
-    min_recommended_price: 40
-    max_recommended_price: 80
-
-  - category_slug: "academic"
-    name: "College Essay Help"
-    slug: "college-essay-help"
-    description: "College application essay brainstorming, writing, and editing"
-    search_terms: ["college essay", "application essay", "personal statement", "college counseling"]
-    typical_duration_options: [60, 90]
-    min_recommended_price: 75
-    max_recommended_price: 200
-
-  # Language Services
-  - category_slug: "languages"
-    name: "Spanish Lessons"
-    slug: "spanish-lessons"
-    description: "Spanish language instruction for all levels, including conversation practice"
-    search_terms: ["spanish", "español", "spanish lessons", "spanish tutor", "spanish conversation"]
-    typical_duration_options: [45, 60, 90]
-    min_recommended_price: 50
-    max_recommended_price: 120
-
-  - category_slug: "languages"
-    name: "French Lessons"
-    slug: "french-lessons"
-    description: "French language and culture instruction from beginner to advanced"
-    search_terms: ["french", "français", "french lessons", "french tutor", "french conversation"]
-    typical_duration_options: [45, 60, 90]
-    min_recommended_price: 50
-    max_recommended_price: 120
-
-  - category_slug: "languages"
-    name: "Mandarin Chinese"
-    slug: "mandarin-chinese"
-    description: "Mandarin Chinese lessons including speaking, reading, and writing"
-    search_terms: ["mandarin", "chinese", "中文", "chinese lessons", "mandarin tutor"]
-    typical_duration_options: [45, 60, 90]
-    min_recommended_price: 55
-    max_recommended_price: 130
-
-  - category_slug: "languages"
-    name: "ESL (English as Second Language)"
-    slug: "esl"
-    description: "English language instruction for non-native speakers"
-    search_terms: ["esl", "english", "english lessons", "english tutor", "learn english"]
-    typical_duration_options: [45, 60, 90]
-    min_recommended_price: 45
-    max_recommended_price: 100
-
-  - category_slug: "languages"
-    name: "Italian Lessons"
-    slug: "italian-lessons"
-    description: "Italian language and culture for travelers and language enthusiasts"
-    search_terms: ["italian", "italiano", "italian lessons", "italian tutor"]
-    typical_duration_options: [45, 60]
-    min_recommended_price: 50
-    max_recommended_price: 110
-
-  - category_slug: "languages"
-    name: "Japanese Lessons"
-    slug: "japanese-lessons"
-    description: "Japanese language including hiragana, katakana, and kanji"
-    search_terms: ["japanese", "日本語", "japanese lessons", "japanese tutor"]
-    typical_duration_options: [45, 60, 90]
-    min_recommended_price: 55
-    max_recommended_price: 130
-
-  # Fitness & Wellness Services
-  - category_slug: "fitness-wellness"
-    name: "Personal Training"
-    slug: "personal-training"
-    description: "One-on-one fitness training customized to your goals and fitness level"
-    search_terms: ["personal trainer", "fitness", "workout", "gym", "strength training", "personal training"]
-    typical_duration_options: [45, 60, 90]
-    min_recommended_price: 75
-    max_recommended_price: 200
-
-  - category_slug: "fitness-wellness"
-    name: "Yoga"
-    slug: "yoga"
-    description: "Various yoga styles including Vinyasa, Hatha, and restorative yoga"
-    search_terms: ["yoga", "vinyasa", "hatha", "yoga class", "yoga instructor", "private yoga"]
-    typical_duration_options: [60, 75, 90]
-    min_recommended_price: 70
-    max_recommended_price: 150
-
-  - category_slug: "fitness-wellness"
-    name: "Pilates"
-    slug: "pilates"
-    description: "Mat and equipment-based Pilates for core strength and flexibility"
-    search_terms: ["pilates", "core workout", "pilates class", "pilates instructor"]
-    typical_duration_options: [45, 60]
-    min_recommended_price: 70
-    max_recommended_price: 140
-
-  - category_slug: "fitness-wellness"
-    name: "Swimming Lessons"
-    slug: "swimming-lessons"
-    description: "Swimming instruction for all ages and skill levels"
-    search_terms: ["swimming", "swim lessons", "swim coach", "learn to swim", "swimming instructor"]
-    typical_duration_options: [30, 45, 60]
-    min_recommended_price: 70
-    max_recommended_price: 150
-
-  - category_slug: "fitness-wellness"
-    name: "Nutrition Coaching"
-    slug: "nutrition-coaching"
-    description: "Personalized nutrition planning and dietary guidance"
-    search_terms: ["nutrition", "diet", "nutritionist", "meal planning", "nutrition coach"]
-    typical_duration_options: [45, 60]
-    min_recommended_price: 75
-    max_recommended_price: 150
-
-  - category_slug: "fitness-wellness"
-    name: "Meditation"
-    slug: "meditation"
-    description: "Guided meditation and mindfulness practices for stress reduction"
-    search_terms: ["meditation", "mindfulness", "stress relief", "meditation teacher", "guided meditation"]
-    typical_duration_options: [30, 45, 60]
-    min_recommended_price: 50
-    max_recommended_price: 100
-
-  # Technology Services
-  - category_slug: "technology"
-    name: "Programming Lessons"
-    slug: "programming-lessons"
-    description: "Learn programming languages including Python, JavaScript, and Java"
-    search_terms: ["programming", "coding", "python", "javascript", "java", "code", "programming tutor"]
-    typical_duration_options: [60, 90, 120]
-    min_recommended_price: 75
-    max_recommended_price: 200
-
-  - category_slug: "technology"
-    name: "Web Development"
-    slug: "web-development"
-    description: "HTML, CSS, JavaScript, and modern web frameworks"
-    search_terms: ["web development", "html", "css", "website", "web design", "frontend", "backend"]
-    typical_duration_options: [60, 90, 120]
-    min_recommended_price: 75
-    max_recommended_price: 180
-
-  - category_slug: "technology"
-    name: "Data Science"
-    slug: "data-science"
-    description: "Data analysis, machine learning, and statistical programming"
-    search_terms: ["data science", "machine learning", "data analysis", "python", "statistics", "ai"]
-    typical_duration_options: [60, 90, 120]
-    min_recommended_price: 100
-    max_recommended_price: 250
-
-  - category_slug: "technology"
-    name: "Graphic Design"
-    slug: "graphic-design"
-    description: "Adobe Creative Suite, design principles, and digital art"
-    search_terms: ["graphic design", "photoshop", "illustrator", "design", "adobe", "digital design"]
-    typical_duration_options: [60, 90]
-    min_recommended_price: 70
-    max_recommended_price: 150
-
-  - category_slug: "technology"
-    name: "Excel Training"
-    slug: "excel-training"
-    description: "Microsoft Excel from basics to advanced formulas and macros"
-    search_terms: ["excel", "microsoft excel", "spreadsheet", "excel training", "office"]
-    typical_duration_options: [45, 60, 90]
-    min_recommended_price: 60
-    max_recommended_price: 120
-
-  # Sports & Games Services
-  - category_slug: "sports-games"
-    name: "Tennis Lessons"
-    slug: "tennis-lessons"
-    description: "Tennis instruction for all skill levels, from beginner to competitive"
-    search_terms: ["tennis", "tennis lessons", "tennis coach", "tennis instructor"]
-    typical_duration_options: [60, 90]
-    min_recommended_price: 75
-    max_recommended_price: 175
-
-  - category_slug: "sports-games"
-    name: "Golf Lessons"
-    slug: "golf-lessons"
-    description: "Golf instruction including swing mechanics, course strategy, and putting"
-    search_terms: ["golf", "golf lessons", "golf coach", "golf instructor", "golf swing"]
-    typical_duration_options: [45, 60, 90]
-    min_recommended_price: 80
-    max_recommended_price: 200
-
-  - category_slug: "sports-games"
-    name: "Basketball Training"
-    slug: "basketball-training"
-    description: "Basketball skills development and conditioning"
-    search_terms: ["basketball", "hoops", "basketball training", "basketball coach"]
-    typical_duration_options: [60, 90]
-    min_recommended_price: 60
-    max_recommended_price: 150
-
-  - category_slug: "sports-games"
-    name: "Chess Lessons"
-    slug: "chess-lessons"
-    description: "Chess strategy and tactics for beginners through tournament players"
-    search_terms: ["chess", "chess lessons", "chess tutor", "chess strategy", "chess coach"]
-    typical_duration_options: [45, 60, 90]
-    min_recommended_price: 50
-    max_recommended_price: 120
-
-  - category_slug: "sports-games"
-    name: "Soccer Training"
-    slug: "soccer-training"
-    description: "Soccer skills, drills, and game strategy"
-    search_terms: ["soccer", "football", "soccer training", "soccer coach", "futbol"]
-    typical_duration_options: [60, 90]
-    min_recommended_price: 60
-    max_recommended_price: 140
-
-  # Life Skills Services
-  - category_slug: "life-skills"
-    name: "Cooking Lessons"
-    slug: "cooking-lessons"
-    description: "Culinary skills from basic cooking to gourmet cuisine"
-    search_terms: ["cooking", "culinary", "cooking class", "chef", "cooking lessons", "learn to cook"]
-    typical_duration_options: [90, 120, 180]
-    min_recommended_price: 75
-    max_recommended_price: 175
-
-  - category_slug: "life-skills"
-    name: "Public Speaking"
-    slug: "public-speaking"
-    description: "Presentation skills, speech writing, and confidence building"
-    search_terms: ["public speaking", "presentation", "speech", "communication", "speaking coach"]
-    typical_duration_options: [60, 90]
-    min_recommended_price: 75
-    max_recommended_price: 200
-
-  - category_slug: "life-skills"
-    name: "Life Coaching"
-    slug: "life-coaching"
-    description: "Personal development, goal setting, and life strategy"
-    search_terms: ["life coach", "personal development", "coaching", "life coaching", "self improvement"]
-    typical_duration_options: [60, 90]
-    min_recommended_price: 100
-    max_recommended_price: 250
-
-  # Business & Career Services
-  - category_slug: "business-career"
-    name: "Business Consulting"
-    slug: "business-consulting"
-    description: "Business strategy, planning, and operations consulting"
-    search_terms: ["business", "consulting", "business strategy", "business coach", "entrepreneurship"]
-    typical_duration_options: [60, 90, 120]
-    min_recommended_price: 150
-    max_recommended_price: 400
-
-  - category_slug: "business-career"
-    name: "Finance Tutoring"
-    slug: "finance-tutoring"
-    description: "Personal finance, investing, and financial planning education"
-    search_terms: ["finance", "investing", "financial planning", "finance tutor", "investment"]
-    typical_duration_options: [60, 90]
-    min_recommended_price: 100
-    max_recommended_price: 250
-
-  - category_slug: "business-career"
-    name: "Career Coaching"
-    slug: "career-coaching"
-    description: "Career planning, job search strategies, and interview preparation"
-    search_terms: ["career coach", "job search", "interview prep", "career counseling", "resume help"]
-    typical_duration_options: [60, 90]
-    min_recommended_price: 100
-    max_recommended_price: 300
-
-  - category_slug: "business-career"
-    name: "LinkedIn Optimization"
-    slug: "linkedin-optimization"
-    description: "Professional profile optimization and networking strategies"
-    search_terms: ["linkedin", "professional profile", "networking", "personal branding"]
-    typical_duration_options: [45, 60]
-    min_recommended_price: 75
-    max_recommended_price: 200
+- category_slug: music-arts
+  name: Piano Lessons
+  slug: piano-lessons
+  description: Learn piano from beginner to advanced levels, including classical,
+    jazz, and contemporary styles
+  search_terms:
+  - piano
+  - keyboard
+  - music lessons
+  - classical piano
+  - jazz piano
+  - piano teacher
+  display_order: 1
+  online_capable: true
+  requires_certification: false
+  related_services: []
+- category_slug: music-arts
+  name: Guitar Lessons
+  slug: guitar-lessons
+  description: Acoustic and electric guitar instruction for all skill levels and musical
+    styles
+  search_terms:
+  - guitar
+  - acoustic guitar
+  - electric guitar
+  - rock guitar
+  - classical guitar
+  - guitar teacher
+  display_order: 2
+  online_capable: true
+  requires_certification: false
+  related_services: []
+- category_slug: music-arts
+  name: Voice Lessons
+  slug: voice-lessons
+  description: Vocal training for singing, including breath control, pitch, and performance
+    techniques
+  search_terms:
+  - singing
+  - voice
+  - vocal
+  - singing lessons
+  - voice coach
+  - vocal training
+- category_slug: music-arts
+  name: Violin Lessons
+  slug: violin-lessons
+  description: Classical and contemporary violin instruction with focus on technique
+    and musicality
+  search_terms:
+  - violin
+  - fiddle
+  - strings
+  - classical violin
+  - violin teacher
+- category_slug: music-arts
+  name: Drums Lessons
+  slug: drums-lessons
+  description: Drum kit and percussion instruction covering various styles and techniques
+  search_terms:
+  - drums
+  - percussion
+  - drumming
+  - drum set
+  - drum teacher
+- category_slug: music-arts
+  name: Music Theory
+  slug: music-theory
+  description: Comprehensive music theory including notation, harmony, and composition
+  search_terms:
+  - music theory
+  - composition
+  - harmony
+  - music notation
+  - theory lessons
+- category_slug: music-arts
+  name: Drawing Lessons
+  slug: drawing-lessons
+  description: Learn drawing techniques including sketching, shading, and various
+    mediums
+  search_terms:
+  - drawing
+  - sketching
+  - art
+  - pencil drawing
+  - art lessons
+- category_slug: music-arts
+  name: Painting Lessons
+  slug: painting-lessons
+  description: Oil, acrylic, and watercolor painting techniques for all skill levels
+  search_terms:
+  - painting
+  - oil painting
+  - acrylic
+  - watercolor
+  - art class
+- category_slug: music-arts
+  name: Photography
+  slug: photography
+  description: Digital photography skills including composition, lighting, and editing
+  search_terms:
+  - photography
+  - camera
+  - photo
+  - digital photography
+  - photo editing
+- category_slug: music-arts
+  name: Dance Lessons
+  slug: dance-lessons
+  description: Various dance styles including ballet, contemporary, jazz, and hip-hop
+  search_terms:
+  - dance
+  - dancing
+  - ballet
+  - jazz dance
+  - hip hop
+  - dance class
+- category_slug: academic
+  name: Math Tutoring
+  slug: math-tutoring
+  description: Mathematics tutoring from elementary through calculus and statistics
+  search_terms:
+  - math
+  - mathematics
+  - algebra
+  - geometry
+  - calculus
+  - math tutor
+  display_order: 3
+  online_capable: true
+  requires_certification: false
+  related_services: []
+- category_slug: academic
+  name: Science Tutoring
+  slug: science-tutoring
+  description: Physics, chemistry, and biology tutoring for middle school through
+    college
+  search_terms:
+  - science
+  - physics
+  - chemistry
+  - biology
+  - science tutor
+- category_slug: academic
+  name: English Tutoring
+  slug: english-tutoring
+  description: English language arts including reading, writing, and literature
+  search_terms:
+  - english
+  - writing
+  - reading
+  - literature
+  - english tutor
+  - essay help
+- category_slug: academic
+  name: SAT Prep
+  slug: sat-prep
+  description: Comprehensive SAT preparation including strategies and practice tests
+  search_terms:
+  - sat
+  - sat prep
+  - test prep
+  - college prep
+  - sat tutor
+- category_slug: academic
+  name: ACT Prep
+  slug: act-prep
+  description: Complete ACT preparation covering all sections and test strategies
+  search_terms:
+  - act
+  - act prep
+  - test prep
+  - college prep
+  - act tutor
+- category_slug: academic
+  name: History Tutoring
+  slug: history-tutoring
+  description: World history, US history, and social studies tutoring
+  search_terms:
+  - history
+  - social studies
+  - world history
+  - us history
+  - history tutor
+- category_slug: academic
+  name: Homework Help
+  slug: homework-help
+  description: General homework assistance and study skills for K-12 students
+  search_terms:
+  - homework
+  - homework help
+  - study skills
+  - tutoring
+  - academic support
+- category_slug: academic
+  name: College Essay Help
+  slug: college-essay-help
+  description: College application essay brainstorming, writing, and editing
+  search_terms:
+  - college essay
+  - application essay
+  - personal statement
+  - college counseling
+- category_slug: languages
+  name: Spanish Lessons
+  slug: spanish-lessons
+  description: Spanish language instruction for all levels, including conversation
+    practice
+  search_terms:
+  - spanish
+  - español
+  - spanish lessons
+  - spanish tutor
+  - spanish conversation
+- category_slug: languages
+  name: French Lessons
+  slug: french-lessons
+  description: French language and culture instruction from beginner to advanced
+  search_terms:
+  - french
+  - français
+  - french lessons
+  - french tutor
+  - french conversation
+- category_slug: languages
+  name: Mandarin Chinese
+  slug: mandarin-chinese
+  description: Mandarin Chinese lessons including speaking, reading, and writing
+  search_terms:
+  - mandarin
+  - chinese
+  - 中文
+  - chinese lessons
+  - mandarin tutor
+- category_slug: languages
+  name: ESL (English as Second Language)
+  slug: esl
+  description: English language instruction for non-native speakers
+  search_terms:
+  - esl
+  - english
+  - english lessons
+  - english tutor
+  - learn english
+- category_slug: languages
+  name: Italian Lessons
+  slug: italian-lessons
+  description: Italian language and culture for travelers and language enthusiasts
+  search_terms:
+  - italian
+  - italiano
+  - italian lessons
+  - italian tutor
+- category_slug: languages
+  name: Japanese Lessons
+  slug: japanese-lessons
+  description: Japanese language including hiragana, katakana, and kanji
+  search_terms:
+  - japanese
+  - 日本語
+  - japanese lessons
+  - japanese tutor
+- category_slug: fitness-wellness
+  name: Personal Training
+  slug: personal-training
+  description: One-on-one fitness training customized to your goals and fitness level
+  search_terms:
+  - personal trainer
+  - fitness
+  - workout
+  - gym
+  - strength training
+  - personal training
+- category_slug: fitness-wellness
+  name: Yoga
+  slug: yoga
+  description: Various yoga styles including Vinyasa, Hatha, and restorative yoga
+  search_terms:
+  - yoga
+  - vinyasa
+  - hatha
+  - yoga class
+  - yoga instructor
+  - private yoga
+- category_slug: fitness-wellness
+  name: Pilates
+  slug: pilates
+  description: Mat and equipment-based Pilates for core strength and flexibility
+  search_terms:
+  - pilates
+  - core workout
+  - pilates class
+  - pilates instructor
+- category_slug: fitness-wellness
+  name: Swimming Lessons
+  slug: swimming-lessons
+  description: Swimming instruction for all ages and skill levels
+  search_terms:
+  - swimming
+  - swim lessons
+  - swim coach
+  - learn to swim
+  - swimming instructor
+- category_slug: fitness-wellness
+  name: Nutrition Coaching
+  slug: nutrition-coaching
+  description: Personalized nutrition planning and dietary guidance
+  search_terms:
+  - nutrition
+  - diet
+  - nutritionist
+  - meal planning
+  - nutrition coach
+- category_slug: fitness-wellness
+  name: Meditation
+  slug: meditation
+  description: Guided meditation and mindfulness practices for stress reduction
+  search_terms:
+  - meditation
+  - mindfulness
+  - stress relief
+  - meditation teacher
+  - guided meditation
+- category_slug: technology
+  name: Programming Lessons
+  slug: programming-lessons
+  description: Learn programming languages including Python, JavaScript, and Java
+  search_terms:
+  - programming
+  - coding
+  - python
+  - javascript
+  - java
+  - code
+  - programming tutor
+- category_slug: technology
+  name: Web Development
+  slug: web-development
+  description: HTML, CSS, JavaScript, and modern web frameworks
+  search_terms:
+  - web development
+  - html
+  - css
+  - website
+  - web design
+  - frontend
+  - backend
+- category_slug: technology
+  name: Data Science
+  slug: data-science
+  description: Data analysis, machine learning, and statistical programming
+  search_terms:
+  - data science
+  - machine learning
+  - data analysis
+  - python
+  - statistics
+  - ai
+- category_slug: technology
+  name: Graphic Design
+  slug: graphic-design
+  description: Adobe Creative Suite, design principles, and digital art
+  search_terms:
+  - graphic design
+  - photoshop
+  - illustrator
+  - design
+  - adobe
+  - digital design
+- category_slug: technology
+  name: Excel Training
+  slug: excel-training
+  description: Microsoft Excel from basics to advanced formulas and macros
+  search_terms:
+  - excel
+  - microsoft excel
+  - spreadsheet
+  - excel training
+  - office
+- category_slug: sports-games
+  name: Tennis Lessons
+  slug: tennis-lessons
+  description: Tennis instruction for all skill levels, from beginner to competitive
+  search_terms:
+  - tennis
+  - tennis lessons
+  - tennis coach
+  - tennis instructor
+- category_slug: sports-games
+  name: Golf Lessons
+  slug: golf-lessons
+  description: Golf instruction including swing mechanics, course strategy, and putting
+  search_terms:
+  - golf
+  - golf lessons
+  - golf coach
+  - golf instructor
+  - golf swing
+- category_slug: sports-games
+  name: Basketball Training
+  slug: basketball-training
+  description: Basketball skills development and conditioning
+  search_terms:
+  - basketball
+  - hoops
+  - basketball training
+  - basketball coach
+- category_slug: sports-games
+  name: Chess Lessons
+  slug: chess-lessons
+  description: Chess strategy and tactics for beginners through tournament players
+  search_terms:
+  - chess
+  - chess lessons
+  - chess tutor
+  - chess strategy
+  - chess coach
+- category_slug: sports-games
+  name: Soccer Training
+  slug: soccer-training
+  description: Soccer skills, drills, and game strategy
+  search_terms:
+  - soccer
+  - football
+  - soccer training
+  - soccer coach
+  - futbol
+- category_slug: life-skills
+  name: Cooking Lessons
+  slug: cooking-lessons
+  description: Culinary skills from basic cooking to gourmet cuisine
+  search_terms:
+  - cooking
+  - culinary
+  - cooking class
+  - chef
+  - cooking lessons
+  - learn to cook
+- category_slug: life-skills
+  name: Public Speaking
+  slug: public-speaking
+  description: Presentation skills, speech writing, and confidence building
+  search_terms:
+  - public speaking
+  - presentation
+  - speech
+  - communication
+  - speaking coach
+- category_slug: life-skills
+  name: Life Coaching
+  slug: life-coaching
+  description: Personal development, goal setting, and life strategy
+  search_terms:
+  - life coach
+  - personal development
+  - coaching
+  - life coaching
+  - self improvement
+- category_slug: business-career
+  name: Business Consulting
+  slug: business-consulting
+  description: Business strategy, planning, and operations consulting
+  search_terms:
+  - business
+  - consulting
+  - business strategy
+  - business coach
+  - entrepreneurship
+- category_slug: business-career
+  name: Finance Tutoring
+  slug: finance-tutoring
+  description: Personal finance, investing, and financial planning education
+  search_terms:
+  - finance
+  - investing
+  - financial planning
+  - finance tutor
+  - investment
+- category_slug: business-career
+  name: Career Coaching
+  slug: career-coaching
+  description: Career planning, job search strategies, and interview preparation
+  search_terms:
+  - career coach
+  - job search
+  - interview prep
+  - career counseling
+  - resume help
+- category_slug: business-career
+  name: LinkedIn Optimization
+  slug: linkedin-optimization
+  description: Professional profile optimization and networking strategies
+  search_terms:
+  - linkedin
+  - professional profile
+  - networking
+  - personal branding

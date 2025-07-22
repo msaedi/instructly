@@ -12,10 +12,24 @@ instructors:
           description: "Algebra, Calculus, Statistics - all levels"
           price: 80.00
           duration_options: [30, 60, 90]  # Multiple durations
+          experience_level: "expert"
+          requirements: "Students should have basic algebra knowledge for calculus courses"
+          equipment_required: ["Calculator", "Notebook", "Textbook"]
+          levels_taught: ["High School", "AP", "College"]
+          age_groups: ["14-18", "18+"]
+          location_types: ["in-person", "online"]
+          max_distance_miles: 10
         - name: "Science Tutoring"
           description: "AP Physics, College Physics, Quantum Mechanics"
           price: 90.00
           duration_options: [60, 90]  # Multiple durations
+          experience_level: "expert"
+          requirements: "Strong math background required for physics"
+          equipment_required: ["Scientific Calculator", "Lab Notebook"]
+          levels_taught: ["AP", "College", "Graduate"]
+          age_groups: ["16-18", "18+"]
+          location_types: ["in-person", "online"]
+          max_distance_miles: 15
     availability_pattern: "flexible_academic"
 
   - email: robert.kim@example.com

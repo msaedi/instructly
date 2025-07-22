@@ -176,6 +176,13 @@ class DatabaseSeeder:
                         hourly_rate=service_data["price"],
                         description=service_data.get("description"),
                         duration_options=service_data.get("duration_options", [60]),
+                        experience_level=service_data.get("experience_level"),
+                        requirements=service_data.get("requirements"),
+                        equipment_required=service_data.get("equipment_required"),
+                        levels_taught=service_data.get("levels_taught"),
+                        age_groups=service_data.get("age_groups"),
+                        location_types=service_data.get("location_types"),
+                        max_distance_miles=service_data.get("max_distance_miles"),
                         is_active=True,
                     )
                     session.add(service)

@@ -109,6 +109,7 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
                 existing.name = cat_data["name"]
                 existing.description = cat_data["description"]
                 existing.display_order = cat_data["display_order"]
+                existing.icon_name = cat_data.get("icon_name")
                 category_map[cat_data["slug"]] = existing
                 stats["categories_updated"] += 1
                 if verbose:
@@ -120,6 +121,7 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
                     slug=cat_data["slug"],
                     description=cat_data["description"],
                     display_order=cat_data["display_order"],
+                    icon_name=cat_data.get("icon_name"),
                 )
                 session.add(category)
                 session.flush()
@@ -149,9 +151,10 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
                 existing.name = svc_data["name"]
                 existing.description = svc_data["description"]
                 existing.search_terms = svc_data["search_terms"]
-                existing.typical_duration_options = svc_data["typical_duration_options"]
-                existing.min_recommended_price = svc_data["min_recommended_price"]
-                existing.max_recommended_price = svc_data["max_recommended_price"]
+                existing.display_order = svc_data.get("display_order", 999)
+                existing.online_capable = svc_data.get("online_capable", True)
+                existing.requires_certification = svc_data.get("requires_certification", False)
+                existing.related_services = svc_data.get("related_services", [])
                 stats["services_updated"] += 1
                 if verbose:
                     print(f"  ✓ Updated service: {svc_data['name']}")
@@ -163,9 +166,10 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
                     slug=svc_data["slug"],
                     description=svc_data["description"],
                     search_terms=svc_data["search_terms"],
-                    typical_duration_options=svc_data["typical_duration_options"],
-                    min_recommended_price=svc_data["min_recommended_price"],
-                    max_recommended_price=svc_data["max_recommended_price"],
+                    display_order=svc_data.get("display_order", 999),
+                    online_capable=svc_data.get("online_capable", True),
+                    requires_certification=svc_data.get("requires_certification", False),
+                    related_services=svc_data.get("related_services", []),
                     is_active=True,
                 )
                 session.add(service)
