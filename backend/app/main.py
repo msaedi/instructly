@@ -22,6 +22,7 @@ from .routes import (
     password_reset,
     prometheus,
     public,
+    search,
     services,
 )
 
@@ -108,6 +109,7 @@ app.include_router(password_reset.router)
 app.include_router(bookings.router)
 app.include_router(metrics.router)
 app.include_router(public.router)
+app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(prometheus.router)
 
 
