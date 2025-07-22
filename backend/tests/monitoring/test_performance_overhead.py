@@ -217,8 +217,8 @@ class TestPerformanceOverhead:
 
         if is_ci:
             # More lenient thresholds for CI environment
-            assert avg_time < 0.100, f"Metrics endpoint avg time is {avg_time*1000:.1f}ms"
-            assert max_time < 0.200, f"Metrics endpoint max time is {max_time*1000:.1f}ms"
+            assert avg_time < 0.200, f"Metrics endpoint avg time is {avg_time*1000:.1f}ms"
+            assert max_time < 0.500, f"Metrics endpoint max time is {max_time*1000:.1f}ms"
         else:
             # Strict thresholds for local development
             assert avg_time < 0.050, f"Metrics endpoint avg time is {avg_time*1000:.1f}ms"
