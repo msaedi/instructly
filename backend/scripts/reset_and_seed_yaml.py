@@ -48,6 +48,9 @@ class DatabaseSeeder:
         """Clean test data from database"""
         with Session(self.engine) as session:
             # Delete in order to respect foreign key constraints
+            print("🧹 Cleaning database...")
+
+            # 1. Clean user-related data
             session.execute(
                 text("DELETE FROM bookings WHERE student_id IN (SELECT id FROM users WHERE email LIKE '%@example.com')")
             )
@@ -66,19 +69,39 @@ class DatabaseSeeder:
                     "DELETE FROM blackout_dates WHERE instructor_id IN (SELECT id FROM users WHERE email LIKE '%@example.com')"
                 )
             )
-            session.execute(
-                text(
-                    "DELETE FROM instructor_services WHERE instructor_profile_id IN (SELECT id FROM instructor_profiles WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@example.com'))"
-                )
-            )
+
+            # 2. Clean service catalog data COMPLETELY
+            print("  - Cleaning service catalog...")
+            # Delete instructor services first (foreign key constraint)
+            result = session.execute(text("DELETE FROM instructor_services"))
+            print(f"    Deleted {result.rowcount} instructor services")
+
+            # Delete service analytics
+            result = session.execute(text("DELETE FROM service_analytics"))
+            print(f"    Deleted {result.rowcount} service analytics")
+
+            # Delete all services from catalog
+            result = session.execute(text("DELETE FROM service_catalog"))
+            print(f"    Deleted {result.rowcount} catalog services")
+
+            # Delete all categories
+            result = session.execute(text("DELETE FROM service_categories"))
+            print(f"    Deleted {result.rowcount} service categories")
+
+            # Reset sequences
+            session.execute(text("ALTER SEQUENCE service_catalog_id_seq RESTART WITH 1"))
+            session.execute(text("ALTER SEQUENCE service_categories_id_seq RESTART WITH 1"))
+
+            # 3. Clean instructor profiles and users
             session.execute(
                 text(
                     "DELETE FROM instructor_profiles WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@example.com')"
                 )
             )
             session.execute(text("DELETE FROM users WHERE email LIKE '%@example.com'"))
+
             session.commit()
-            print("✅ Cleaned test data from database")
+            print("✅ Cleaned all test data and service catalog from database")
 
     def seed_all(self):
         """Main seeding function"""

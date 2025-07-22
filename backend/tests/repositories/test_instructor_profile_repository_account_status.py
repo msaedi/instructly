@@ -108,10 +108,18 @@ class TestInstructorProfileRepositoryAccountStatus:
         self, db: Session, repository: InstructorProfileRepository, create_instructor_with_status
     ):
         """Test that find_by_filters excludes suspended/deactivated instructors."""
-        # Create instructors with different statuses
-        active_user, _ = create_instructor_with_status("active@example.com", "active", "Piano")
-        suspended_user, _ = create_instructor_with_status("suspended@example.com", "suspended", "Piano")
-        deactivated_user, _ = create_instructor_with_status("deactivated@example.com", "deactivated", "Piano")
+        # Update the bio to include searchable text
+        active_user, active_profile = create_instructor_with_status("active@example.com", "active", "Piano")
+        active_profile.bio = "Expert Piano instructor with classical training"
+
+        suspended_user, suspended_profile = create_instructor_with_status("suspended@example.com", "suspended", "Piano")
+        suspended_profile.bio = "Professional Piano teacher for all levels"
+
+        deactivated_user, deactivated_profile = create_instructor_with_status(
+            "deactivated@example.com", "deactivated", "Piano"
+        )
+        deactivated_profile.bio = "Piano lessons for beginners and advanced students"
+
         db.commit()
 
         # Search for "Piano" - should only find active instructor

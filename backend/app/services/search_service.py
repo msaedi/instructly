@@ -249,7 +249,7 @@ class SearchService(BaseService):
 
         # Semantic search
         similar_services = self.catalog_repository.find_similar_by_embedding(
-            embedding=query_embedding, limit=limit, threshold=0.5  # Lower threshold for broader results
+            embedding=query_embedding, limit=limit, threshold=0.3  # Lower threshold for broader results
         )
 
         # Convert to service dicts with scores

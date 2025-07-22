@@ -221,7 +221,17 @@ def db():
         # Delete in dependency order to avoid FK violations
         cleanup_db.query(Booking).delete()
         cleanup_db.query(AvailabilitySlot).delete()
-        cleanup_db.query(Service).delete()
+        cleanup_db.query(Service).delete()  # This is InstructorService
+
+        # Clean up service catalog test data
+        # Only delete services created during tests (ID > 47 or test patterns)
+        from app.models.service_catalog import ServiceAnalytics
+
+        cleanup_db.query(ServiceAnalytics).filter(ServiceAnalytics.service_catalog_id > 47).delete()
+        cleanup_db.query(ServiceCatalog).filter(
+            (ServiceCatalog.id > 47) | (ServiceCatalog.name.like("Service %")) | (ServiceCatalog.name.like("%Test%"))
+        ).delete()
+
         cleanup_db.query(InstructorProfile).delete()
         cleanup_db.query(User).delete()
         cleanup_db.commit()
