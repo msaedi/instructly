@@ -118,7 +118,7 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
                     ServiceCatalog.description.ilike(search_pattern),
                     # Check if any search term contains the query
                     text(
-                        f"EXISTS (SELECT 1 FROM unnest(search_terms) AS term WHERE lower(term) LIKE lower(:pattern))"
+                        "EXISTS (SELECT 1 FROM unnest(search_terms) AS term WHERE lower(term) LIKE lower(:pattern))"
                     ).params(pattern=search_pattern),
                 )
             )
