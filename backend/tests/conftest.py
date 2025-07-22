@@ -345,6 +345,34 @@ def test_instructor(db: Session, test_password: str) -> User:
 
 
 @pytest.fixture
+def test_instructor_2(db: Session, test_password: str) -> User:
+    """Create a second test instructor user with profile."""
+    # Create instructor user
+    instructor = User(
+        email="test.instructor2@example.com",
+        hashed_password=get_password_hash(test_password),
+        full_name="Test Instructor 2",
+        is_active=True,
+        role=UserRole.INSTRUCTOR,
+    )
+    db.add(instructor)
+    db.flush()
+
+    # Create instructor profile
+    profile = InstructorProfile(
+        user_id=instructor.id,
+        bio="Second test instructor bio",
+        areas_of_service="Queens, Bronx",
+        years_experience=3,
+        min_advance_booking_hours=1,
+        buffer_time_minutes=10,
+    )
+    db.add(profile)
+    db.commit()
+    return instructor
+
+
+@pytest.fixture
 def test_instructor_with_availability(db: Session, test_instructor: User) -> User:
     """
     Create a test instructor with availability for the next 7 days.
@@ -435,6 +463,15 @@ def auth_headers_instructor(test_instructor: User) -> dict:
     from app.auth import create_access_token
 
     token = create_access_token(data={"sub": test_instructor.email})
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def auth_headers_instructor_2(test_instructor_2: User) -> dict:
+    """Get auth headers for second test instructor."""
+    from app.auth import create_access_token
+
+    token = create_access_token(data={"sub": test_instructor_2.email})
     return {"Authorization": f"Bearer {token}"}
 
 

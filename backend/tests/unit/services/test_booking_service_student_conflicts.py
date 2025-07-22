@@ -86,6 +86,7 @@ class TestStudentConflictValidation:
         instructor.email = "instructor@test.com"
         instructor.full_name = "Test Instructor"
         instructor.role = UserRole.INSTRUCTOR
+        instructor.account_status = "active"
         return instructor
 
     @pytest.fixture
@@ -127,6 +128,12 @@ class TestStudentConflictValidation:
             location_type="neutral",
             meeting_location="Online",
         )
+
+        # Mock the prerequisites validation to bypass instructor status check
+        service = Mock()
+        service.duration_options = [60]
+        profile = Mock()
+        booking_service._validate_booking_prerequisites = AsyncMock(return_value=(service, profile))
 
         # Should raise ConflictException
         with pytest.raises(ConflictException) as exc_info:
@@ -178,6 +185,16 @@ class TestStudentConflictValidation:
             meeting_location="Online",
         )
 
+        # Mock the prerequisites validation to bypass instructor status check
+        service = Mock()
+        service.duration_options = [60]
+        service.hourly_rate = 50.0
+        service.catalog_entry = Mock(name="Test Service")
+        profile = Mock()
+        profile.min_advance_booking_hours = 0
+        profile.areas_of_service = "Manhattan"
+        booking_service._validate_booking_prerequisites = AsyncMock(return_value=(service, profile))
+
         # Should succeed
         result = await booking_service.create_booking(
             student, booking_data, selected_duration=booking_data.selected_duration
@@ -204,6 +221,16 @@ class TestStudentConflictValidation:
 
         # No conflicts for either student
         mock_repository.check_student_time_conflict.return_value = []
+
+        # Mock the prerequisites validation to bypass instructor status check
+        service = Mock()
+        service.duration_options = [60]
+        service.hourly_rate = 50.0
+        service.catalog_entry = Mock(name="Test Service")
+        profile = Mock()
+        profile.min_advance_booking_hours = 0
+        profile.areas_of_service = "Manhattan"
+        booking_service._validate_booking_prerequisites = AsyncMock(return_value=(service, profile))
 
         # Create bookings
         booking1 = Mock(spec=Booking)
@@ -271,6 +298,12 @@ class TestStudentConflictValidation:
 
         mock_repository.check_student_time_conflict.return_value = [existing_booking]
 
+        # Mock the prerequisites validation to bypass instructor status check
+        service = Mock()
+        service.duration_options = [60]
+        profile = Mock()
+        booking_service._validate_booking_prerequisites = AsyncMock(return_value=(service, profile))
+
         # Try to book 3:59-5:00 PM (1 minute overlap)
         booking_data = BookingCreate(
             instructor_id=instructor.id,
@@ -298,6 +331,16 @@ class TestStudentConflictValidation:
         """Test that cancelled bookings are not considered as conflicts."""
         # No conflicts returned (repository should filter out cancelled bookings)
         mock_repository.check_student_time_conflict.return_value = []
+
+        # Mock the prerequisites validation to bypass instructor status check
+        service = Mock()
+        service.duration_options = [60]
+        service.hourly_rate = 50.0
+        service.catalog_entry = Mock(name="Test Service")
+        profile = Mock()
+        profile.min_advance_booking_hours = 0
+        profile.areas_of_service = "Manhattan"
+        booking_service._validate_booking_prerequisites = AsyncMock(return_value=(service, profile))
 
         # Create new booking
         new_booking = Mock(spec=Booking)

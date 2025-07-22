@@ -56,9 +56,11 @@ class TestInstructorProfileRepositoryEagerLoading:
 
         # Mock the query to track method calls
         with patch.object(repo, "db") as mock_db:
-            # Set up the mock chain
+            # Set up the mock chain - need to include join and filter methods
             mock_query = MagicMock()
             mock_db.query.return_value = mock_query
+            mock_query.join.return_value = mock_query
+            mock_query.filter.return_value = mock_query
             mock_query.options.return_value = mock_query
             mock_query.offset.return_value = mock_query
             mock_query.limit.return_value = mock_query
@@ -69,6 +71,10 @@ class TestInstructorProfileRepositoryEagerLoading:
 
             # Verify joinedload was called for both relationships
             mock_query.options.assert_called()
+            # Verify join was called (for account status filtering)
+            mock_query.join.assert_called()
+            # Verify filter was called (for account status = "active")
+            mock_query.filter.assert_called()
             # Check that query was called only once
             mock_db.query.assert_called_once_with(InstructorProfile)
 

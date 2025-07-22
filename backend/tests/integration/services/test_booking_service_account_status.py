@@ -278,34 +278,114 @@ class TestBookingServiceAccountStatus:
         assert cancelled_booking.status == BookingStatus.CANCELLED
         assert cancelled_booking.cancellation_reason == "Instructor suspended"
 
-    def test_instructor_search_excludes_suspended(self, db: Session, test_instructor: User, suspended_instructor: User):
+    def test_instructor_search_excludes_suspended(self, db: Session, catalog_data: dict, suspended_instructor: User):
         """Test that instructor search excludes suspended instructors."""
+        from app.auth import get_password_hash
+        from app.models.instructor import InstructorProfile
+        from app.models.service_catalog import InstructorService as Service
+        from app.models.user import User, UserRole
         from app.repositories.instructor_profile_repository import InstructorProfileRepository
+
+        # Create an active instructor with services
+        active_instructor = User(
+            email="active.instructor@example.com",
+            hashed_password=get_password_hash("TestPassword123!"),
+            full_name="Active Instructor",
+            is_active=True,
+            role=UserRole.INSTRUCTOR,
+            account_status="active",
+        )
+        db.add(active_instructor)
+        db.flush()
+
+        # Create profile
+        profile = InstructorProfile(
+            user_id=active_instructor.id,
+            bio="Active instructor bio",
+            areas_of_service="Manhattan",
+            years_experience=5,
+            min_advance_booking_hours=2,
+            buffer_time_minutes=15,
+        )
+        db.add(profile)
+        db.flush()
+
+        # Add a service
+        piano_service = next((s for s in catalog_data["services"] if s.slug == "piano-lessons"), None)
+        service = Service(
+            instructor_profile_id=profile.id,
+            service_catalog_id=piano_service.id,
+            hourly_rate=100,
+            duration_options=[60],
+            is_active=True,
+        )
+        db.add(service)
+        db.commit()
 
         repo = InstructorProfileRepository(db)
 
         # Get all instructors - should exclude suspended
         all_instructors = repo.get_all_with_details()
 
-        # Should include active instructor
-        assert any(p.user_id == test_instructor.id for p in all_instructors)
+        # Should include active instructor (who has services)
+        assert any(p.user_id == active_instructor.id for p in all_instructors)
 
         # Should exclude suspended instructor
         assert not any(p.user_id == suspended_instructor.id for p in all_instructors)
 
     def test_instructor_search_excludes_deactivated(
-        self, db: Session, test_instructor: User, deactivated_instructor: User
+        self, db: Session, catalog_data: dict, deactivated_instructor: User
     ):
         """Test that instructor search excludes deactivated instructors."""
+        from app.auth import get_password_hash
+        from app.models.instructor import InstructorProfile
+        from app.models.service_catalog import InstructorService as Service
+        from app.models.user import User, UserRole
         from app.repositories.instructor_profile_repository import InstructorProfileRepository
+
+        # Create an active instructor with services
+        active_instructor = User(
+            email="active2.instructor@example.com",
+            hashed_password=get_password_hash("TestPassword123!"),
+            full_name="Active Instructor 2",
+            is_active=True,
+            role=UserRole.INSTRUCTOR,
+            account_status="active",
+        )
+        db.add(active_instructor)
+        db.flush()
+
+        # Create profile
+        profile = InstructorProfile(
+            user_id=active_instructor.id,
+            bio="Another active instructor bio",
+            areas_of_service="Brooklyn",
+            years_experience=3,
+            min_advance_booking_hours=1,
+            buffer_time_minutes=10,
+        )
+        db.add(profile)
+        db.flush()
+
+        # Add a service
+        guitar_service = next((s for s in catalog_data["services"] if s.slug == "guitar-lessons"), None)
+        service = Service(
+            instructor_profile_id=profile.id,
+            service_catalog_id=guitar_service.id,
+            hourly_rate=90,
+            duration_options=[60],
+            is_active=True,
+        )
+        db.add(service)
+        db.commit()
 
         repo = InstructorProfileRepository(db)
 
         # Get all instructors - should exclude deactivated
         all_instructors = repo.get_all_with_details()
 
-        # Should include active instructor
-        assert any(p.user_id == test_instructor.id for p in all_instructors)
+        # Should include active instructor (who has services)
+        assert any(p.user_id == active_instructor.id for p in all_instructors)
 
         # Should exclude deactivated instructor
         assert not any(p.user_id == deactivated_instructor.id for p in all_instructors)

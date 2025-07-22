@@ -59,6 +59,7 @@ class TestInstructorProfileRepositoryAccountStatus:
                     instructor_profile_id=profile.id,
                     service_catalog_id=catalog_service.id,
                     hourly_rate=75.0,
+                    duration_options=[60],
                     is_active=True,
                     description=f"{service_name} by {account_status} instructor",
                 )
@@ -236,16 +237,20 @@ class TestInstructorProfileRepositoryAccountStatus:
         """Test complex filtering still respects account status."""
         # Create active instructor matching all criteria
         active_user, active_profile = create_instructor_with_status("active@example.com", "active", "Guitar")
+        # Update bio to include search term
+        active_profile.bio = "Expert Guitar instructor with years of experience"
 
         # Create suspended instructor also matching criteria
         suspended_user, suspended_profile = create_instructor_with_status(
             "suspended@example.com", "suspended", "Guitar"
         )
+        # Update bio to include search term
+        suspended_profile.bio = "Professional Guitar teacher"
 
         db.commit()
 
-        # Search with multiple filters
-        profiles = repository.find_by_filters(search="Guitar", min_price=70.0, max_price=80.0)
+        # Search with multiple filters - searching for "instructor" which is in the bio
+        profiles = repository.find_by_filters(search="instructor", min_price=70.0, max_price=80.0)
 
         # Should only find active instructor
         assert len(profiles) == 1

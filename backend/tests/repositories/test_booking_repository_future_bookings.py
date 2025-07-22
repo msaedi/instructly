@@ -308,12 +308,38 @@ class TestBookingRepositoryFutureBookings:
         db: Session,
         booking_repository: BookingRepository,
         test_instructor: User,
-        test_instructor_2: User,
         test_student: User,
         instructor_service: Service,
     ):
         """Test that method only returns bookings for specified instructor."""
         tomorrow = date.today() + timedelta(days=1)
+
+        # Create a second instructor
+        from app.auth import get_password_hash
+        from app.models.instructor import InstructorProfile
+        from app.models.user import UserRole
+
+        second_instructor = User(
+            email="second.instructor@example.com",
+            hashed_password=get_password_hash("TestPassword123!"),
+            full_name="Second Instructor",
+            is_active=True,
+            role=UserRole.INSTRUCTOR,
+        )
+        db.add(second_instructor)
+        db.flush()
+
+        # Create profile for second instructor
+        profile = InstructorProfile(
+            user_id=second_instructor.id,
+            bio="Second instructor bio",
+            areas_of_service="Manhattan",
+            years_experience=3,
+            min_advance_booking_hours=2,
+            buffer_time_minutes=15,
+        )
+        db.add(profile)
+        db.commit()
 
         # Create booking for first instructor
         self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, tomorrow)
@@ -321,7 +347,7 @@ class TestBookingRepositoryFutureBookings:
         db.commit()
 
         # Query for second instructor
-        future_bookings = booking_repository.get_instructor_future_bookings(instructor_id=test_instructor_2.id)
+        future_bookings = booking_repository.get_instructor_future_bookings(instructor_id=second_instructor.id)
 
         assert len(future_bookings) == 0
 

@@ -113,6 +113,7 @@ class TestBookingServiceUnit:
         instructor.email = "instructor@example.com"
         instructor.full_name = "Test Instructor"
         instructor.role = UserRole.INSTRUCTOR
+        instructor.account_status = "active"
         return instructor
 
     @pytest.fixture
@@ -215,6 +216,11 @@ class TestBookingServiceUnit:
         booking_service.conflict_checker_repository.get_bookings_for_conflict_check.return_value = []
         booking_service.conflict_checker_repository.get_blackout_date.return_value = None
 
+        # Mock the _validate_booking_prerequisites to bypass instructor status check
+        booking_service._validate_booking_prerequisites = AsyncMock(
+            return_value=(mock_service, mock_instructor_profile)
+        )
+
         # Mock repository create and get_booking_with_details
         created_booking = Mock(spec=Booking, id=1, status=BookingStatus.CONFIRMED)
         booking_service.repository.create.return_value = created_booking
@@ -274,7 +280,14 @@ class TestBookingServiceUnit:
 
     @pytest.mark.asyncio
     async def test_create_booking_time_conflict(
-        self, booking_service, mock_db, mock_student, mock_booking, mock_service, mock_instructor_profile
+        self,
+        booking_service,
+        mock_db,
+        mock_student,
+        mock_booking,
+        mock_service,
+        mock_instructor_profile,
+        mock_instructor,
     ):
         """Test booking creation fails when time conflicts with existing booking."""
         booking_data = BookingCreate(
@@ -295,6 +308,11 @@ class TestBookingServiceUnit:
         booking_service.conflict_checker_repository.get_bookings_for_conflict_check.return_value = []
         booking_service.conflict_checker_repository.get_blackout_date.return_value = None
 
+        # Mock the _validate_booking_prerequisites to bypass instructor status check
+        booking_service._validate_booking_prerequisites = AsyncMock(
+            return_value=(mock_service, mock_instructor_profile)
+        )
+
         with pytest.raises(ConflictException, match="This time slot conflicts with an existing booking"):
             await booking_service.create_booking(
                 mock_student, booking_data, selected_duration=booking_data.selected_duration
@@ -302,7 +320,7 @@ class TestBookingServiceUnit:
 
     @pytest.mark.asyncio
     async def test_create_booking_minimum_advance_hours(
-        self, booking_service, mock_db, mock_student, mock_service, mock_instructor_profile
+        self, booking_service, mock_db, mock_student, mock_service, mock_instructor_profile, mock_instructor
     ):
         """Test minimum advance booking hours validation."""
         # Set booking to be too soon
@@ -324,6 +342,11 @@ class TestBookingServiceUnit:
         booking_service.conflict_checker_repository.get_instructor_profile.return_value = mock_instructor_profile
         booking_service.conflict_checker_repository.get_bookings_for_conflict_check.return_value = []
         booking_service.conflict_checker_repository.get_blackout_date.return_value = None
+
+        # Mock the _validate_booking_prerequisites to bypass instructor status check
+        booking_service._validate_booking_prerequisites = AsyncMock(
+            return_value=(mock_service, mock_instructor_profile)
+        )
 
         with pytest.raises(BusinessRuleException, match="at least 24 hours in advance"):
             await booking_service.create_booking(
