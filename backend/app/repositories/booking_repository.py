@@ -402,6 +402,42 @@ class BookingRepository(BaseRepository[Booking]):
             self.logger.error(f"Error getting instructor bookings: {str(e)}")
             raise RepositoryException(f"Failed to get instructor bookings: {str(e)}")
 
+    def get_instructor_future_bookings(
+        self,
+        instructor_id: int,
+        from_date: Optional[date] = None,
+        exclude_cancelled: bool = True,
+    ) -> List[Booking]:
+        """
+        Get all future bookings for an instructor, excluding cancelled ones by default.
+
+        Used for checking if an instructor can change their account status.
+
+        Args:
+            instructor_id: The instructor's user ID
+            from_date: The date to start from (defaults to today)
+            exclude_cancelled: Whether to exclude cancelled bookings (default True)
+
+        Returns:
+            List of future bookings for the instructor
+        """
+        try:
+            if from_date is None:
+                from_date = date.today()
+
+            query = self.db.query(Booking).filter(
+                Booking.instructor_id == instructor_id, Booking.booking_date >= from_date
+            )
+
+            if exclude_cancelled:
+                query = query.filter(Booking.status != BookingStatus.CANCELLED)
+
+            return query.order_by(Booking.booking_date, Booking.start_time).all()
+
+        except Exception as e:
+            self.logger.error(f"Error getting instructor future bookings: {str(e)}")
+            raise RepositoryException(f"Failed to get future bookings: {str(e)}")
+
     # Detailed Booking Queries (unchanged)
 
     def get_booking_with_details(self, booking_id: int) -> Optional[Booking]:

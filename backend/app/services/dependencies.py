@@ -12,6 +12,7 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from .account_lifecycle_service import AccountLifecycleService
 from .booking_service import BookingService
 from .cache_service import CacheService, get_cache_service
 from .notification_service import NotificationService
@@ -62,6 +63,21 @@ def get_booking_service(
         notification_service=notification_service,
         cache_service=cache,
     )
+
+
+def get_account_lifecycle_service(
+    db: Session = Depends(get_db),
+    cache: Optional[CacheService] = Depends(get_cache_service),
+) -> AccountLifecycleService:
+    """
+    Dependency injection function for AccountLifecycleService.
+
+    Handles instructor account status changes (suspend, deactivate, reactivate).
+
+    Usage in routes:
+        account_service: AccountLifecycleService = Depends(get_account_lifecycle_service)
+    """
+    return AccountLifecycleService(db, cache)
 
 
 # Example of how to use in a route:

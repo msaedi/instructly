@@ -1,0 +1,382 @@
+# backend/tests/repositories/test_booking_repository_future_bookings.py
+"""
+Tests for BookingRepository.get_instructor_future_bookings() method.
+
+Tests various scenarios including:
+- No future bookings
+- Multiple future bookings
+- Mix of past and future bookings
+- Cancelled bookings exclusion
+- Date filtering
+"""
+
+from datetime import date, time, timedelta
+
+import pytest
+from sqlalchemy.orm import Session
+
+from app.models.booking import Booking, BookingStatus
+from app.models.service_catalog import InstructorService as Service
+from app.models.user import User
+from app.repositories.booking_repository import BookingRepository
+
+
+class TestBookingRepositoryFutureBookings:
+    """Test the get_instructor_future_bookings method."""
+
+    @pytest.fixture
+    def booking_repository(self, db: Session):
+        """Create a BookingRepository instance."""
+        return BookingRepository(db)
+
+    @pytest.fixture
+    def instructor_service(self, db: Session, test_instructor: User):
+        """Get or create a service for the test instructor."""
+        profile = test_instructor.instructor_profile
+        if not profile:
+            raise ValueError("Test instructor has no profile")
+
+        service = next((s for s in profile.instructor_services if s.is_active), None)
+        if not service:
+            raise ValueError("Test instructor has no active services")
+
+        return service
+
+    def create_booking(
+        self,
+        db: Session,
+        instructor_id: int,
+        student_id: int,
+        service_id: int,
+        booking_date: date,
+        status: BookingStatus = BookingStatus.CONFIRMED,
+    ) -> Booking:
+        """Helper to create a booking."""
+        booking = Booking(
+            instructor_id=instructor_id,
+            student_id=student_id,
+            instructor_service_id=service_id,
+            booking_date=booking_date,
+            start_time=time(14, 0),
+            end_time=time(15, 0),
+            service_name="Test Service",
+            hourly_rate=50.0,
+            total_price=50.0,
+            duration_minutes=60,
+            status=status,
+            meeting_location="Online",
+            location_type="neutral",
+        )
+        db.add(booking)
+        db.flush()
+        return booking
+
+    def test_no_future_bookings(self, booking_repository: BookingRepository, test_instructor: User):
+        """Test when instructor has no future bookings."""
+        future_bookings = booking_repository.get_instructor_future_bookings(instructor_id=test_instructor.id)
+
+        assert future_bookings == []
+
+    def test_single_future_booking(
+        self,
+        db: Session,
+        booking_repository: BookingRepository,
+        test_instructor: User,
+        test_student: User,
+        instructor_service: Service,
+    ):
+        """Test with a single future booking."""
+        tomorrow = date.today() + timedelta(days=1)
+        booking = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, tomorrow)
+        db.commit()
+
+        future_bookings = booking_repository.get_instructor_future_bookings(instructor_id=test_instructor.id)
+
+        assert len(future_bookings) == 1
+        assert future_bookings[0].id == booking.id
+        assert future_bookings[0].booking_date == tomorrow
+
+    def test_multiple_future_bookings(
+        self,
+        db: Session,
+        booking_repository: BookingRepository,
+        test_instructor: User,
+        test_student: User,
+        instructor_service: Service,
+    ):
+        """Test with multiple future bookings."""
+        # Create bookings for next 3 days
+        bookings = []
+        for i in range(1, 4):
+            future_date = date.today() + timedelta(days=i)
+            booking = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, future_date)
+            bookings.append(booking)
+        db.commit()
+
+        future_bookings = booking_repository.get_instructor_future_bookings(instructor_id=test_instructor.id)
+
+        assert len(future_bookings) == 3
+        # Should be ordered by date
+        assert future_bookings[0].booking_date < future_bookings[1].booking_date
+        assert future_bookings[1].booking_date < future_bookings[2].booking_date
+
+    def test_mix_of_past_and_future_bookings(
+        self,
+        db: Session,
+        booking_repository: BookingRepository,
+        test_instructor: User,
+        test_student: User,
+        instructor_service: Service,
+    ):
+        """Test that only future bookings are returned when past bookings exist."""
+        # Create past bookings
+        yesterday = date.today() - timedelta(days=1)
+        last_week = date.today() - timedelta(days=7)
+
+        past_booking1 = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, yesterday)
+        past_booking2 = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, last_week)
+
+        # Create future bookings
+        tomorrow = date.today() + timedelta(days=1)
+        next_week = date.today() + timedelta(days=7)
+
+        future_booking1 = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, tomorrow)
+        future_booking2 = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, next_week)
+
+        db.commit()
+
+        future_bookings = booking_repository.get_instructor_future_bookings(instructor_id=test_instructor.id)
+
+        # Should only get future bookings
+        assert len(future_bookings) == 2
+        booking_ids = [b.id for b in future_bookings]
+        assert future_booking1.id in booking_ids
+        assert future_booking2.id in booking_ids
+        assert past_booking1.id not in booking_ids
+        assert past_booking2.id not in booking_ids
+
+    def test_cancelled_bookings_excluded_by_default(
+        self,
+        db: Session,
+        booking_repository: BookingRepository,
+        test_instructor: User,
+        test_student: User,
+        instructor_service: Service,
+    ):
+        """Test that cancelled bookings are excluded by default."""
+        tomorrow = date.today() + timedelta(days=1)
+
+        # Create confirmed and cancelled bookings
+        confirmed_booking = self.create_booking(
+            db, test_instructor.id, test_student.id, instructor_service.id, tomorrow, BookingStatus.CONFIRMED
+        )
+
+        cancelled_booking = self.create_booking(
+            db, test_instructor.id, test_student.id, instructor_service.id, tomorrow, BookingStatus.CANCELLED
+        )
+
+        db.commit()
+
+        future_bookings = booking_repository.get_instructor_future_bookings(instructor_id=test_instructor.id)
+
+        assert len(future_bookings) == 1
+        assert future_bookings[0].id == confirmed_booking.id
+        assert future_bookings[0].status == BookingStatus.CONFIRMED
+
+    def test_cancelled_bookings_included_when_requested(
+        self,
+        db: Session,
+        booking_repository: BookingRepository,
+        test_instructor: User,
+        test_student: User,
+        instructor_service: Service,
+    ):
+        """Test that cancelled bookings can be included when requested."""
+        tomorrow = date.today() + timedelta(days=1)
+
+        # Create confirmed and cancelled bookings
+        confirmed_booking = self.create_booking(
+            db, test_instructor.id, test_student.id, instructor_service.id, tomorrow, BookingStatus.CONFIRMED
+        )
+
+        cancelled_booking = self.create_booking(
+            db, test_instructor.id, test_student.id, instructor_service.id, tomorrow, BookingStatus.CANCELLED
+        )
+
+        db.commit()
+
+        future_bookings = booking_repository.get_instructor_future_bookings(
+            instructor_id=test_instructor.id, exclude_cancelled=False
+        )
+
+        assert len(future_bookings) == 2
+        booking_statuses = {b.status for b in future_bookings}
+        assert BookingStatus.CONFIRMED in booking_statuses
+        assert BookingStatus.CANCELLED in booking_statuses
+
+    def test_custom_from_date(
+        self,
+        db: Session,
+        booking_repository: BookingRepository,
+        test_instructor: User,
+        test_student: User,
+        instructor_service: Service,
+    ):
+        """Test using a custom from_date parameter."""
+        # Create bookings at different points in the future
+        tomorrow = date.today() + timedelta(days=1)
+        in_3_days = date.today() + timedelta(days=3)
+        in_5_days = date.today() + timedelta(days=5)
+
+        booking1 = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, tomorrow)
+        booking2 = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, in_3_days)
+        booking3 = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, in_5_days)
+
+        db.commit()
+
+        # Get bookings from 3 days in the future
+        future_bookings = booking_repository.get_instructor_future_bookings(
+            instructor_id=test_instructor.id, from_date=in_3_days
+        )
+
+        assert len(future_bookings) == 2
+        booking_ids = [b.id for b in future_bookings]
+        assert booking1.id not in booking_ids  # Before from_date
+        assert booking2.id in booking_ids
+        assert booking3.id in booking_ids
+
+    def test_booking_on_today_is_future(
+        self,
+        db: Session,
+        booking_repository: BookingRepository,
+        test_instructor: User,
+        test_student: User,
+        instructor_service: Service,
+    ):
+        """Test that bookings on today's date are considered future bookings."""
+        today = date.today()
+
+        booking = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, today)
+
+        db.commit()
+
+        future_bookings = booking_repository.get_instructor_future_bookings(instructor_id=test_instructor.id)
+
+        assert len(future_bookings) == 1
+        assert future_bookings[0].id == booking.id
+        assert future_bookings[0].booking_date == today
+
+    def test_different_booking_statuses(
+        self,
+        db: Session,
+        booking_repository: BookingRepository,
+        test_instructor: User,
+        test_student: User,
+        instructor_service: Service,
+    ):
+        """Test handling of different booking statuses."""
+        tomorrow = date.today() + timedelta(days=1)
+
+        # Create bookings with different statuses
+        statuses = [
+            BookingStatus.CONFIRMED,
+            BookingStatus.PENDING,
+            BookingStatus.COMPLETED,
+            BookingStatus.NO_SHOW,
+            BookingStatus.CANCELLED,
+        ]
+
+        bookings = []
+        for status in statuses:
+            booking = self.create_booking(
+                db, test_instructor.id, test_student.id, instructor_service.id, tomorrow, status
+            )
+            bookings.append(booking)
+
+        db.commit()
+
+        # Default: exclude cancelled
+        future_bookings = booking_repository.get_instructor_future_bookings(instructor_id=test_instructor.id)
+
+        # Should get all except cancelled
+        assert len(future_bookings) == 4
+        returned_statuses = {b.status for b in future_bookings}
+        assert BookingStatus.CANCELLED not in returned_statuses
+
+    def test_no_bookings_for_instructor(
+        self,
+        db: Session,
+        booking_repository: BookingRepository,
+        test_instructor: User,
+        test_instructor_2: User,
+        test_student: User,
+        instructor_service: Service,
+    ):
+        """Test that method only returns bookings for specified instructor."""
+        tomorrow = date.today() + timedelta(days=1)
+
+        # Create booking for first instructor
+        self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, tomorrow)
+
+        db.commit()
+
+        # Query for second instructor
+        future_bookings = booking_repository.get_instructor_future_bookings(instructor_id=test_instructor_2.id)
+
+        assert len(future_bookings) == 0
+
+    def test_ordering_by_date_and_time(
+        self,
+        db: Session,
+        booking_repository: BookingRepository,
+        test_instructor: User,
+        test_student: User,
+        instructor_service: Service,
+    ):
+        """Test that bookings are ordered by date and start time."""
+        tomorrow = date.today() + timedelta(days=1)
+
+        # Create bookings at different times on same day
+        booking_afternoon = Booking(
+            instructor_id=test_instructor.id,
+            student_id=test_student.id,
+            instructor_service_id=instructor_service.id,
+            booking_date=tomorrow,
+            start_time=time(14, 0),
+            end_time=time(15, 0),
+            service_name="Test Service",
+            hourly_rate=50.0,
+            total_price=50.0,
+            duration_minutes=60,
+            status=BookingStatus.CONFIRMED,
+            meeting_location="Online",
+            location_type="neutral",
+        )
+
+        booking_morning = Booking(
+            instructor_id=test_instructor.id,
+            student_id=test_student.id,
+            instructor_service_id=instructor_service.id,
+            booking_date=tomorrow,
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            service_name="Test Service",
+            hourly_rate=50.0,
+            total_price=50.0,
+            duration_minutes=60,
+            status=BookingStatus.CONFIRMED,
+            meeting_location="Online",
+            location_type="neutral",
+        )
+
+        # Add in reverse order
+        db.add(booking_afternoon)
+        db.add(booking_morning)
+        db.commit()
+
+        future_bookings = booking_repository.get_instructor_future_bookings(instructor_id=test_instructor.id)
+
+        assert len(future_bookings) == 2
+        # Should be ordered by time
+        assert future_bookings[0].start_time == time(9, 0)
+        assert future_bookings[1].start_time == time(14, 0)

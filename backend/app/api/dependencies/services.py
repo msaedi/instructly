@@ -11,6 +11,7 @@ from functools import lru_cache
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
+from ...services.account_lifecycle_service import AccountLifecycleService
 from ...services.auth_service import AuthService
 from ...services.availability_service import AvailabilityService
 from ...services.booking_service import BookingService
@@ -230,3 +231,22 @@ def get_password_reset_service(
         PasswordResetService instance
     """
     return PasswordResetService(db, email_service=email_service)
+
+
+def get_account_lifecycle_service(
+    db: Session = Depends(get_db),
+    cache_service: CacheService = Depends(get_cache_service_dep),
+) -> AccountLifecycleService:
+    """
+    Get AccountLifecycleService instance with dependencies.
+
+    Handles instructor account status changes (suspend, deactivate, reactivate).
+
+    Args:
+        db: Database session
+        cache_service: Cache service for invalidation
+
+    Returns:
+        AccountLifecycleService instance
+    """
+    return AccountLifecycleService(db, cache_service)

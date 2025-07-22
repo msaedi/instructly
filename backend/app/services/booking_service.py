@@ -527,6 +527,18 @@ class BookingService(BaseService):
         if service.instructor_profile_id != instructor_profile.id:
             raise ValidationException("Service does not belong to this instructor")
 
+        # Check instructor account status - only active instructors can receive bookings
+        # Use repository to get user data
+        user_repository = RepositoryFactory.create_base_repository(self.db, User)
+        instructor_user = user_repository.get_by_id(booking_data.instructor_id)
+        if instructor_user and instructor_user.account_status != "active":
+            if instructor_user.account_status == "suspended":
+                raise BusinessRuleException("This instructor is temporarily suspended and cannot receive new bookings")
+            elif instructor_user.account_status == "deactivated":
+                raise BusinessRuleException("This instructor account has been deactivated and cannot receive bookings")
+            else:
+                raise BusinessRuleException("This instructor cannot receive bookings at this time")
+
         return service, instructor_profile
 
     async def _check_conflicts_and_rules(

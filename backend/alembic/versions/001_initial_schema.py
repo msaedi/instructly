@@ -10,6 +10,7 @@ and role management. All columns are created in their final form to
 avoid future modifications.
 
 UPDATED: Using VARCHAR for role instead of ENUM to avoid SQLAlchemy issues
+UPDATED: Added account_status field for lifecycle management (active, suspended, deactivated)
 """
 from typing import Sequence, Union
 
@@ -42,6 +43,12 @@ def upgrade() -> None:
             "role",
             sa.String(10),  # VARCHAR(10) instead of ENUM
             nullable=False,
+        ),
+        sa.Column(
+            "account_status",
+            sa.String(20),
+            nullable=False,
+            server_default="active",
         ),
         sa.Column(
             "created_at",
@@ -86,9 +93,16 @@ def upgrade() -> None:
         "role IN ('instructor', 'student')",
     )
 
+    # Add check constraint for account_status values
+    op.create_check_constraint(
+        "ck_users_account_status",
+        "users",
+        "account_status IN ('active', 'suspended', 'deactivated')",
+    )
+
     print("Initial schema created successfully!")
-    print("- Created users table with VARCHAR role field")
-    print("- Added check constraint for role values")
+    print("- Created users table with VARCHAR role field and account_status")
+    print("- Added check constraints for role and account_status values")
     print("- Created indexes for email lookups")
 
 
@@ -96,7 +110,8 @@ def downgrade() -> None:
     """Drop all tables and types created in upgrade."""
     print("Dropping initial schema...")
 
-    # Drop check constraint first
+    # Drop check constraints first
+    op.drop_constraint("ck_users_account_status", "users", type_="check")
     op.drop_constraint("ck_users_role", "users", type_="check")
 
     # Drop indexes first

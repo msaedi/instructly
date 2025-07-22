@@ -127,6 +127,11 @@ class AuthService(BaseService):
             self.logger.warning(f"Authentication failed - incorrect password: {email}")
             return None
 
+        # Check account status - deactivated users cannot login
+        if hasattr(user, "account_status") and user.account_status == "deactivated":
+            self.logger.warning(f"Authentication failed - account deactivated: {email}")
+            return None
+
         self.logger.info(f"Successful authentication for user: {email}")
         return user
 

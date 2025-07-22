@@ -50,6 +50,8 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         Note: This method returns ALL services regardless of the include_inactive_services
         parameter. The service layer should handle filtering when converting to DTOs.
 
+        UPDATED: Now filters to only include instructors with active account status.
+
         Args:
             skip: Number of records to skip
             limit: Maximum number of records to return
@@ -61,6 +63,8 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         try:
             query = (
                 self.db.query(InstructorProfile)
+                .join(User, InstructorProfile.user_id == User.id)
+                .filter(User.account_status == "active")
                 .options(
                     joinedload(InstructorProfile.user),
                     joinedload(InstructorProfile.instructor_services).joinedload(Service.catalog_entry),
@@ -118,6 +122,8 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         """
         Get instructor profiles that service a specific area.
 
+        UPDATED: Now filters to only include instructors with active account status.
+
         Args:
             area: The area to search for
             skip: Number of records to skip
@@ -129,6 +135,8 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         try:
             return (
                 self.db.query(InstructorProfile)
+                .join(User, InstructorProfile.user_id == User.id)
+                .filter(User.account_status == "active")
                 .options(
                     joinedload(InstructorProfile.user),
                     joinedload(InstructorProfile.instructor_services).joinedload(Service.catalog_entry),
@@ -157,6 +165,8 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         try:
             return (
                 self.db.query(InstructorProfile)
+                .join(User, InstructorProfile.user_id == User.id)
+                .filter(User.account_status == "active")
                 .options(
                     joinedload(InstructorProfile.user),
                     joinedload(InstructorProfile.instructor_services).joinedload(Service.catalog_entry),
@@ -260,8 +270,9 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             if max_price is not None:
                 query = query.filter(Service.hourly_rate <= max_price)
 
-            # Ensure we only get active services
+            # Ensure we only get active services and active instructors
             query = query.filter(Service.is_active == True)
+            query = query.filter(User.account_status == "active")
 
             # Remove duplicates (since joins can create multiple rows per profile)
             # and apply pagination
