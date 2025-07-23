@@ -119,10 +119,104 @@ async function authFetch<T>(endpoint: string, options: FetchOptions = {}): Promi
 }
 
 /**
+ * Natural language search response type
+ */
+export interface NaturalLanguageSearchResponse {
+  query?: string;
+  parsed: {
+    original_query: string;
+    cleaned_query: string;
+    service_query?: string;
+    price: {
+      max?: number;
+      min?: number;
+    };
+    time: {
+      date?: string;
+      time_of_day?: string;
+    };
+    location: {
+      area?: string;
+      type?: string;
+    };
+    level: {
+      skill_level?: string;
+    };
+    constraints?: {
+      max_price?: number;
+      date?: string;
+      location?: string;
+    };
+  };
+  results: Array<{
+    service: {
+      id: number;
+      category_id: number;
+      category_name: string;
+      category_slug: string;
+      name: string;
+      slug: string;
+      description: string;
+      search_terms: string[];
+      actual_min_price: number;
+      actual_max_price: number;
+      display_order: number;
+      related_services: any[];
+      online_capable: boolean;
+      requires_certification: boolean;
+      is_active: boolean;
+      is_offered: boolean;
+      instructor_count: number;
+      relevance_score: number;
+      demand_score: number;
+      is_trending: boolean;
+    };
+    instructor: {
+      id: number;
+      name: string;
+      bio: string;
+      years_experience: number;
+      areas_of_service: string;
+    };
+    offering: {
+      id: number;
+      hourly_rate: number;
+      experience_level: string;
+      description: string;
+      duration_options: number[];
+      equipment_required: string[];
+      levels_taught: string[];
+      age_groups: string[];
+      location_types: string[];
+      max_distance_miles: number;
+    };
+    match_score: number;
+  }>;
+  total_found: number;
+  search_metadata?: {
+    search_time_ms: number;
+    embedding_time_ms: number;
+  };
+}
+
+/**
  * Public API client for student features
  */
 export const publicApi = {
   /**
+   * Natural language search for instructors and services
+   * Uses AI-powered search to understand queries like "piano lessons under $50 today"
+   */
+  async searchWithNaturalLanguage(
+    query: string
+  ): Promise<ApiResponse<NaturalLanguageSearchResponse>> {
+    return cleanFetch<NaturalLanguageSearchResponse>('/api/search/instructors', {
+      params: { q: query },
+    });
+  },
+
+  /**
+   * @deprecated Use searchWithNaturalLanguage instead for better search results
    * Search for instructors with backend filtering
    */
   async searchInstructors(params: {

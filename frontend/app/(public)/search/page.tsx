@@ -4,10 +4,8 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Star, MapPin, Check, ChevronLeft, Filter } from 'lucide-react';
+import { ChevronLeft, Filter } from 'lucide-react';
 import { publicApi } from '@/features/shared/api/client';
-import { parseSearchQuery } from '@/features/shared/utils/search-parser';
 import { logger } from '@/lib/logger';
 import InstructorCard from '@/components/InstructorCard';
 
@@ -75,86 +73,162 @@ function SearchPageContent() {
       });
 
       try {
-        // Build API parameters
-        const limit = 20;
-        const skip = (page - 1) * limit;
-        let apiParams: Record<string, any> = { skip, limit };
+        let response;
+        let instructorsData: Instructor[] = [];
+        let totalResults = 0;
 
-        // Handle search query
+        // Use natural language search if we have a query
         if (query) {
-          // Parse natural language query
-          const parsed = parseSearchQuery(query);
-          logger.debug('Parsed search query', {
-            originalQuery: query,
-            parsedQuery: parsed,
+          logger.info('Using natural language search', {
+            query,
+            endpoint: '/api/search/instructors',
           });
 
-          // If parser found specific skills, use skill parameter
-          // Otherwise use general text search
-          if (parsed.subjects.length > 0) {
-            // Use the first subject as the skill filter
-            apiParams.skill = parsed.subjects[0];
-          } else {
-            // Use general text search
-            apiParams.search = query;
-          }
+          // Use the new natural language search endpoint
+          const nlResponse = await publicApi.searchWithNaturalLanguage(query);
 
-          // Add price filters if parsed
-          if (parsed.min_rate !== undefined) {
-            apiParams.min_price = parsed.min_rate;
-          }
-          if (parsed.max_rate !== undefined) {
-            apiParams.max_price = parsed.max_rate;
-          }
-        }
+          logger.info('Natural language API Response received', {
+            hasError: !!nlResponse.error,
+            hasData: !!nlResponse.data,
+            status: nlResponse.status,
+          });
 
-        // Handle category filter
-        if (category) {
-          apiParams.skill = category;
-          logger.info('Filtering by category', { category });
-        }
+          if (nlResponse.error) {
+            logger.error('API Error', new Error(nlResponse.error), { status: nlResponse.status });
+            setError(nlResponse.error);
+            return;
+          } else if (nlResponse.data) {
+            // Map the new response format to the existing instructor format
+            // For now, we'll need to fetch full instructor details for each result
+            // This is a temporary solution until we update the UI to work with the new format
 
-        // Log the API call parameters
-        logger.info('Calling instructor API', {
-          endpoint: '/instructors',
-          params: apiParams,
-        });
-
-        // Fetch results from backend
-        const response = await publicApi.searchInstructors(apiParams);
-
-        logger.info('API Response received', {
-          hasError: !!response.error,
-          hasData: !!response.data,
-          status: response.status,
-        });
-
-        if (response.error) {
-          logger.error('API Error', new Error(response.error), { status: response.status });
-          setError(response.error);
-        } else if (response.data) {
-          // Check if response has metadata (filtered results) or is just an array
-          if (Array.isArray(response.data)) {
-            // No filters applied - simple array response
-            logger.info('Received simple array response', {
-              count: response.data.length,
+            logger.info('Natural language search results', {
+              totalFound: nlResponse.data.total_found,
+              resultsCount: nlResponse.data.results.length,
+              parsed: nlResponse.data.parsed,
             });
 
-            setInstructors(response.data);
-            setTotal(response.data.length);
-            setMetadata(null);
-          } else {
-            // Filters applied - response with metadata
-            logger.info('Received filtered response with metadata', {
-              instructorCount: response.data.instructors.length,
-              metadata: response.data.metadata,
-            });
+            // Map the new API response format to the existing instructor format
+            instructorsData = nlResponse.data.results.map(
+              (result: any) =>
+                ({
+                  id: result.instructor?.id || 0,
+                  user_id: result.instructor?.id || 0, // Using instructor.id as user_id
+                  bio: result.instructor?.bio || '',
+                  areas_of_service: result.instructor?.areas_of_service
+                    ? result.instructor.areas_of_service.split(', ')
+                    : [],
+                  years_experience: result.instructor?.years_experience || 0,
+                  user: {
+                    full_name: result.instructor?.name || 'Unknown Instructor',
+                    email: '',
+                  },
+                  services: [
+                    {
+                      id: result.service?.id || 1,
+                      skill: result.service?.name || 'Service',
+                      hourly_rate:
+                        result.offering?.hourly_rate || result.service?.actual_min_price || 0,
+                      description:
+                        result.offering?.description || result.service?.description || '',
+                      duration_options: result.offering?.duration_options || [60],
+                      duration: result.offering?.duration_options?.[0] || 60,
+                    },
+                  ],
+                  // Add match score for sorting
+                  relevance_score: result.match_score || 0,
+                }) as Instructor & { relevance_score: number }
+            );
 
-            setInstructors(response.data.instructors);
-            setTotal(response.data.metadata.active_instructors);
-            setMetadata(response.data.metadata);
+            // Sort by relevance score
+            instructorsData.sort(
+              (a: any, b: any) => (b.relevance_score || 0) - (a.relevance_score || 0)
+            );
+
+            totalResults = nlResponse.data.total_found;
+
+            // Set search metadata with null safety checks - check both old and new response formats
+            const maxPrice =
+              nlResponse.data.parsed?.constraints?.max_price || nlResponse.data.parsed?.price?.max;
+            const searchDate =
+              nlResponse.data.parsed?.constraints?.date || nlResponse.data.parsed?.time?.date;
+            const searchLocation =
+              nlResponse.data.parsed?.constraints?.location ||
+              nlResponse.data.parsed?.location?.area;
+
+            setMetadata({
+              filters_applied: {
+                search: query,
+                ...(maxPrice && { max_price: maxPrice }),
+                ...(searchDate && { date: searchDate }),
+                ...(searchLocation && { location: searchLocation }),
+              },
+              pagination: {
+                skip: 0,
+                limit: 20,
+                count: nlResponse.data.results.length,
+              },
+              total_matches: nlResponse.data.total_found,
+              active_instructors: nlResponse.data.total_found,
+            });
+          }
+        } else {
+          // No query - use the old API for browsing all instructors or by category
+          const limit = 20;
+          const skip = (page - 1) * limit;
+          let apiParams: Record<string, any> = { skip, limit };
+
+          // Handle category filter
+          if (category) {
+            apiParams.skill = category;
+            logger.info('Filtering by category', { category });
+          }
+
+          logger.info('Calling instructor API', {
+            endpoint: '/instructors',
+            params: apiParams,
+          });
+
+          response = await publicApi.searchInstructors(apiParams);
+
+          logger.info('API Response received', {
+            hasError: !!response.error,
+            hasData: !!response.data,
+            status: response.status,
+          });
+
+          if (response.error) {
+            logger.error('API Error', new Error(response.error), { status: response.status });
+            setError(response.error);
+            return;
+          } else if (response.data) {
+            // Check if response has metadata (filtered results) or is just an array
+            if (Array.isArray(response.data)) {
+              // No filters applied - simple array response
+              logger.info('Received simple array response', {
+                count: response.data.length,
+              });
+
+              instructorsData = response.data;
+              totalResults = response.data.length;
+              setMetadata(null);
+            } else {
+              // Filters applied - response with metadata
+              logger.info('Received filtered response with metadata', {
+                instructorCount: response.data.instructors.length,
+                metadata: response.data.metadata,
+              });
+
+              instructorsData = response.data.instructors;
+              totalResults = response.data.metadata.active_instructors;
+              setMetadata(response.data.metadata);
+            }
           }
         }
+
+        // Set the final data
+        setInstructors(instructorsData);
+        setTotal(totalResults);
       } catch (err) {
         logger.error('Failed to fetch search results', err as Error);
         setError('Failed to load search results');

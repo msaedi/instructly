@@ -37,3 +37,40 @@ patterns:
       thursday: [["14:00", "20:00"]]
       friday: [["09:00", "12:00"], ["14:00", "18:00"]]
       saturday: [["10:00", "16:00"]]
+
+  weekends_only:
+    description: "Weekends only"
+    days:
+      saturday: [["09:00", "17:00"]]
+      sunday: [["10:00", "18:00"]]
+
+  early_bird:
+    description: "Early morning availability"
+    days:
+      monday: [["06:00", "09:00"], ["17:00", "19:00"]]
+      tuesday: [["06:00", "09:00"]]
+      wednesday: [["06:00", "09:00"], ["17:00", "19:00"]]
+      thursday: [["06:00", "09:00"]]
+      friday: [["06:00", "09:00"]]
+      saturday: [["07:00", "11:00"]]
+
+  afternoons_evenings:
+    description: "Afternoons and evenings"
+    days:
+      monday: [["14:00", "21:00"]]
+      tuesday: [["14:00", "21:00"]]
+      wednesday: [["14:00", "21:00"]]
+      thursday: [["14:00", "21:00"]]
+      friday: [["14:00", "20:00"]]
+      saturday: [["12:00", "18:00"]]
+
+  full_availability:
+    description: "Full day availability with breaks"
+    days:
+      monday: [["08:00", "12:00"], ["13:00", "20:00"]]
+      tuesday: [["08:00", "12:00"], ["13:00", "20:00"]]
+      wednesday: [["08:00", "12:00"], ["13:00", "20:00"]]
+      thursday: [["08:00", "12:00"], ["13:00", "20:00"]]
+      friday: [["08:00", "12:00"], ["13:00", "18:00"]]
+      saturday: [["09:00", "17:00"]]
+      sunday: [["10:00", "16:00"]]

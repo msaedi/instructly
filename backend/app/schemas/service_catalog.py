@@ -14,6 +14,7 @@ class CategoryResponse(BaseModel):
 
     id: int
     name: str
+    subtitle: Optional[str] = None
     slug: str
     description: Optional[str] = None
     display_order: int

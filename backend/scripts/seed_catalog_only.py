@@ -154,7 +154,7 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
                 existing.display_order = svc_data.get("display_order", 999)
                 existing.online_capable = svc_data.get("online_capable", True)
                 existing.requires_certification = svc_data.get("requires_certification", False)
-                existing.related_services = svc_data.get("related_services", [])
+                existing.related_services = []  # Will be populated in second pass
                 stats["services_updated"] += 1
                 if verbose:
                     print(f"  ✓ Updated service: {svc_data['name']}")
@@ -169,7 +169,7 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
                     display_order=svc_data.get("display_order", 999),
                     online_capable=svc_data.get("online_capable", True),
                     requires_certification=svc_data.get("requires_certification", False),
-                    related_services=svc_data.get("related_services", []),
+                    related_services=[],  # Will be populated in second pass
                     is_active=True,
                 )
                 session.add(service)
@@ -180,6 +180,36 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
         stats["total_services"] = len(services)
 
         # Commit all changes
+        session.commit()
+
+        # Second pass: Update related_services with actual IDs
+        if verbose:
+            print("\n🔗 Updating related services...")
+
+        # Build a slug-to-ID mapping
+        slug_to_id = {}
+        all_services = session.query(ServiceCatalog).all()
+        for service in all_services:
+            slug_to_id[service.slug] = service.id
+
+        # Update related_services for each service
+        for svc_data in services:
+            if svc_data.get("related_services"):
+                service = session.query(ServiceCatalog).filter_by(slug=svc_data["slug"]).first()
+                if service:
+                    # Convert slugs to IDs
+                    related_ids = []
+                    for related_slug in svc_data["related_services"]:
+                        if related_slug in slug_to_id:
+                            related_ids.append(slug_to_id[related_slug])
+                        elif verbose:
+                            print(f"  ⚠ Warning: Related service '{related_slug}' not found for '{svc_data['name']}'")
+
+                    service.related_services = related_ids
+                    if verbose and related_ids:
+                        print(f"  ✓ Updated related services for {svc_data['name']}: {len(related_ids)} connections")
+
+        # Commit related services updates
         session.commit()
 
     if verbose:

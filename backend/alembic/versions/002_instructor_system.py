@@ -84,6 +84,7 @@ def upgrade() -> None:
         "service_categories",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
+        sa.Column("subtitle", sa.String(100), nullable=True),
         sa.Column("slug", sa.String(), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("display_order", sa.Integer(), nullable=False, server_default="0"),

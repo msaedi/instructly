@@ -468,7 +468,7 @@ class DatabaseSeeder:
                     start_time=start_time,
                     end_time=end_time,
                     status=BookingStatus.COMPLETED,
-                    location_type="online",
+                    location_type="neutral",
                     meeting_location="Zoom",
                     service_name=service.catalog_entry.name if service.catalog_entry else "Service",
                     service_area="Manhattan",

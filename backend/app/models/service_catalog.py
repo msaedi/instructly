@@ -49,6 +49,7 @@ class ServiceCategory(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
+    subtitle = Column(String(100), nullable=True)
     slug = Column(String, nullable=False, unique=True, index=True)
     description = Column(Text, nullable=True)
     display_order = Column(Integer, nullable=False, default=0, index=True)

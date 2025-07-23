@@ -1,498 +1,4096 @@
 services:
-- category_slug: music-arts
-  name: Piano Lessons
-  slug: piano-lessons
-  description: Learn piano from beginner to advanced levels, including classical,
-    jazz, and contemporary styles
+# Music Category
+- category_slug: music
+  name: Piano
+  slug: piano
+  description: ""
   search_terms:
   - piano
   - keyboard
-  - music lessons
+  - piano lessons
+  - piano instruction
+  - piano teacher
+  - learn piano
+  - piano tutor
+  - beginner piano
+  - intermediate piano
+  - advanced piano
   - classical piano
   - jazz piano
-  - piano teacher
+  - pop piano
+  - piano playing
+  - piano skills
+  - piano coaching
+  - piano music
+  - piano training
   display_order: 1
   online_capable: true
   requires_certification: false
-  related_services: []
-- category_slug: music-arts
-  name: Guitar Lessons
-  slug: guitar-lessons
-  description: Acoustic and electric guitar instruction for all skill levels and musical
-    styles
+  related_services: [keyboard, music-theory, songwriting, guitar, voice]
+
+- category_slug: music
+  name: Keyboard
+  slug: keyboard
+  description: ""
+  search_terms:
+  - keyboard
+  - piano
+  - keyboard lessons
+  - keyboard instruction
+  - keyboard teacher
+  - learn keyboard
+  - keyboard tutor
+  - electric keyboard
+  - digital keyboard
+  - synth
+  - synthesizer
+  - beginner keyboard
+  - intermediate keyboard
+  - advanced keyboard
+  - keyboard playing
+  - keyboard skills
+  - electronic keyboard
+  display_order: 2
+  online_capable: true
+  requires_certification: false
+  related_services: [piano, music-theory, music-production, daw, synth]
+
+- category_slug: music
+  name: Guitar
+  slug: guitar
+  description: ""
   search_terms:
   - guitar
   - acoustic guitar
   - electric guitar
-  - rock guitar
-  - classical guitar
+  - guitar lessons
+  - guitar instruction
   - guitar teacher
-  display_order: 2
+  - learn guitar
+  - guitar tutor
+  - beginner guitar
+  - intermediate guitar
+  - advanced guitar
+  - classical guitar
+  - rock guitar
+  - folk guitar
+  - blues guitar
+  - country guitar
+  - guitar playing
+  - guitar skills
+  - guitar coaching
+  display_order: 3
   online_capable: true
   requires_certification: false
-  related_services: []
-- category_slug: music-arts
-  name: Voice Lessons
-  slug: voice-lessons
-  description: Vocal training for singing, including breath control, pitch, and performance
-    techniques
+  related_services: [bass-guitar, ukulele, piano, songwriting, music-theory]
+
+- category_slug: music
+  name: Voice
+  slug: voice
+  description: ""
+  search_terms:
+  - voice
+  - singing
+  - vocal
+  - voice lessons
+  - vocal training
+  - voice coach
+  - voice instruction
+  - learn singing
+  - voice teacher
+  - vocal coach
+  - vocal lessons
+  - beginner voice
+  - intermediate voice
+  - advanced voice
+  - vocal technique
+  - voice training
+  - singing skills
+  - vocal skills
+  display_order: 4
+  online_capable: true
+  requires_certification: false
+  related_services: [singing, vocal-coaching, musical-theater-voice, choir-singing, piano]
+
+- category_slug: music
+  name: Singing
+  slug: singing
+  description: ""
   search_terms:
   - singing
   - voice
   - vocal
   - singing lessons
+  - singing instruction
+  - singing teacher
+  - learn singing
+  - singing tutor
+  - vocal coach
   - voice coach
+  - beginner singing
+  - intermediate singing
+  - advanced singing
+  - vocal lessons
+  - singing skills
   - vocal training
-- category_slug: music-arts
-  name: Violin Lessons
-  slug: violin-lessons
-  description: Classical and contemporary violin instruction with focus on technique
-    and musicality
+  - singing technique
+  - voice training
+  display_order: 5
+  online_capable: true
+  requires_certification: false
+  related_services: [voice, vocal-coaching]
+
+- category_slug: music
+  name: Violin
+  slug: violin
+  description: ""
   search_terms:
   - violin
   - fiddle
   - strings
-  - classical violin
+  - violin lessons
+  - violin instruction
   - violin teacher
-- category_slug: music-arts
-  name: Drums Lessons
-  slug: drums-lessons
-  description: Drum kit and percussion instruction covering various styles and techniques
+  - learn violin
+  - violin tutor
+  - classical violin
+  - beginner violin
+  - intermediate violin
+  - advanced violin
+  - suzuki violin
+  - violin playing
+  - violin skills
+  - string instrument
+  - violin coaching
+  display_order: 6
+  online_capable: true
+  requires_certification: false
+  related_services: [viola, cello, music-theory, double-bass]
+
+- category_slug: music
+  name: Drums
+  slug: drums
+  description: ""
   search_terms:
   - drums
-  - percussion
   - drumming
+  - percussion
   - drum set
-  - drum teacher
-- category_slug: music-arts
+  - drum kit
+  - drum lessons
+  - rock drums
+  - jazz drums
+  display_order: 7
+  online_capable: true
+  requires_certification: false
+  related_services: [percussion]
+
+- category_slug: music
+  name: Ukulele
+  slug: ukulele
+  description: ""
+  search_terms:
+  - ukulele
+  - uke
+  - ukulele lessons
+  - beginner ukulele
+  - hawaiian music
+  display_order: 8
+  online_capable: true
+  requires_certification: false
+  related_services: [guitar]
+
+- category_slug: music
   name: Music Theory
   slug: music-theory
-  description: Comprehensive music theory including notation, harmony, and composition
+  description: ""
   search_terms:
   - music theory
-  - composition
+  - theory
   - harmony
+  - composition basics
   - music notation
-  - theory lessons
-- category_slug: music-arts
-  name: Drawing Lessons
-  slug: drawing-lessons
-  description: Learn drawing techniques including sketching, shading, and various
-    mediums
+  - sight reading
+  display_order: 9
+  online_capable: true
+  requires_certification: false
+  related_services: [composition]
+
+- category_slug: music
+  name: Vocal Coaching
+  slug: vocal-coaching
+  description: ""
   search_terms:
-  - drawing
-  - sketching
-  - art
-  - pencil drawing
-  - art lessons
-- category_slug: music-arts
-  name: Painting Lessons
-  slug: painting-lessons
-  description: Oil, acrylic, and watercolor painting techniques for all skill levels
+  - vocal coaching
+  - voice coaching
+  - vocal technique
+  - breath control
+  - performance coaching
+  display_order: 10
+  online_capable: true
+  requires_certification: false
+  related_services: [voice, singing]
+
+- category_slug: music
+  name: Bass Guitar
+  slug: bass-guitar
+  description: ""
   search_terms:
-  - painting
-  - oil painting
-  - acrylic
-  - watercolor
-  - art class
-- category_slug: music-arts
-  name: Photography
-  slug: photography
-  description: Digital photography skills including composition, lighting, and editing
+  - bass guitar
+  - bass
+  - electric bass
+  - bass lessons
+  - jazz bass
+  - rock bass
+  display_order: 11
+  online_capable: true
+  requires_certification: false
+  related_services: [guitar]
+
+- category_slug: music
+  name: Saxophone
+  slug: saxophone
+  description: ""
   search_terms:
-  - photography
-  - camera
-  - photo
-  - digital photography
-  - photo editing
-- category_slug: music-arts
-  name: Dance Lessons
-  slug: dance-lessons
-  description: Various dance styles including ballet, contemporary, jazz, and hip-hop
+  - saxophone
+  - sax
+  - alto sax
+  - tenor sax
+  - jazz saxophone
+  - classical saxophone
+  display_order: 12
+  online_capable: true
+  requires_certification: false
+  related_services: [clarinet]
+
+- category_slug: music
+  name: Musical Theater Voice
+  slug: musical-theater-voice
+  description: ""
   search_terms:
-  - dance
-  - dancing
-  - ballet
-  - jazz dance
-  - hip hop
-  - dance class
-- category_slug: academic
-  name: Math Tutoring
-  slug: math-tutoring
-  description: Mathematics tutoring from elementary through calculus and statistics
+  - musical theater
+  - broadway
+  - theater voice
+  - show tunes
+  - musical theater singing
+  display_order: 13
+  online_capable: true
+  requires_certification: false
+  related_services: [voice, singing, theater-performance]
+
+- category_slug: music
+  name: Songwriting
+  slug: songwriting
+  description: ""
   search_terms:
-  - math
-  - mathematics
-  - algebra
-  - geometry
-  - calculus
+  - songwriting
+  - song writing
+  - lyric writing
+  - melody writing
+  - music composition
+  display_order: 14
+  online_capable: true
+  requires_certification: false
+  related_services: [composition, music-theory]
+
+- category_slug: music
+  name: Flute
+  slug: flute
+  description: ""
+  search_terms:
+  - flute
+  - woodwind
+  - flute lessons
+  - classical flute
+  - beginner flute
+  display_order: 15
+  online_capable: true
+  requires_certification: false
+  related_services: [clarinet]
+
+- category_slug: music
+  name: Cello
+  slug: cello
+  description: ""
+  search_terms:
+  - cello
+  - strings
+  - cello lessons
+  - classical cello
+  - beginner cello
+  display_order: 16
+  online_capable: true
+  requires_certification: false
+  related_services: [violin, viola, double-bass]
+
+- category_slug: music
+  name: Music Production
+  slug: music-production
+  description: ""
+  search_terms:
+  - music production
+  - daw
+  - digital audio workstation
+  - recording
+  - mixing
+  - producing music
+  - ableton
+  - logic pro
+  - pro tools
+  display_order: 17
+  online_capable: true
+  requires_certification: false
+  related_services: [sound-engineering, dj-skills]
+
+- category_slug: music
+  name: DAW
+  slug: daw
+  description: ""
+  search_terms:
+  - daw
+  - digital audio workstation
+  - music software
+  - ableton
+  - logic pro
+  - fl studio
+  - cubase
+  display_order: 18
+  online_capable: true
+  requires_certification: false
+  related_services: [music-production]
+
+- category_slug: music
+  name: Trumpet
+  slug: trumpet
+  description: ""
+  search_terms:
+  - trumpet
+  - brass
+  - trumpet lessons
+  - jazz trumpet
+  - classical trumpet
+  display_order: 19
+  online_capable: true
+  requires_certification: false
+  related_services: [trombone, french-horn]
+
+- category_slug: music
+  name: Clarinet
+  slug: clarinet
+  description: ""
+  search_terms:
+  - clarinet
+  - woodwind
+  - clarinet lessons
+  - classical clarinet
+  - jazz clarinet
+  display_order: 20
+  online_capable: true
+  requires_certification: false
+  related_services: [saxophone, flute]
+
+- category_slug: music
+  name: DJ Skills
+  slug: dj-skills
+  description: ""
+  search_terms:
+  - dj
+  - djing
+  - turntables
+  - mixing
+  - beatmatching
+  - dj lessons
+  display_order: 21
+  online_capable: true
+  requires_certification: false
+  related_services: [music-production]
+
+- category_slug: music
+  name: Pop Vocals
+  slug: pop-vocals
+  description: ""
+  search_terms:
+  - pop vocals
+  - pop singing
+  - contemporary vocals
+  - pop voice
+  - modern singing
+  display_order: 22
+  online_capable: true
+  requires_certification: false
+  related_services: [rock-vocals, voice, singing]
+
+- category_slug: music
+  name: Rock Vocals
+  slug: rock-vocals
+  description: ""
+  search_terms:
+  - rock vocals
+  - rock singing
+  - rock voice
+  - metal vocals
+  - rock performance
+  display_order: 23
+  online_capable: true
+  requires_certification: false
+  related_services: [pop-vocals, voice, singing]
+
+- category_slug: music
+  name: Composition
+  slug: composition
+  description: ""
+  search_terms:
+  - composition
+  - composing
+  - music composition
+  - orchestration
+  - arranging
+  display_order: 24
+  online_capable: true
+  requires_certification: false
+  related_services: [music-theory, songwriting, music-arrangement]
+
+- category_slug: music
+  name: Jazz Vocals
+  slug: jazz-vocals
+  description: ""
+  search_terms:
+  - jazz vocals
+  - jazz singing
+  - scat singing
+  - jazz voice
+  - jazz standards
+  display_order: 25
+  online_capable: true
+  requires_certification: false
+  related_services: [voice, singing]
+
+- category_slug: music
+  name: Viola
+  slug: viola
+  description: ""
+  search_terms:
+  - viola
+  - strings
+  - viola lessons
+  - classical viola
+  - beginner viola
+  display_order: 26
+  online_capable: true
+  requires_certification: false
+  related_services: [violin, cello]
+
+- category_slug: music
+  name: Percussion
+  slug: percussion
+  description: ""
+  search_terms:
+  - percussion
+  - percussive instruments
+  - timpani
+  - marimba
+  - xylophone
+  - percussion lessons
+  display_order: 27
+  online_capable: true
+  requires_certification: false
+  related_services: [drums]
+
+- category_slug: music
+  name: Trombone
+  slug: trombone
+  description: ""
+  search_terms:
+  - trombone
+  - brass
+  - trombone lessons
+  - jazz trombone
+  - classical trombone
+  display_order: 28
+  online_capable: true
+  requires_certification: false
+  related_services: [trumpet, french-horn]
+
+- category_slug: music
+  name: Harmonica
+  slug: harmonica
+  description: ""
+  search_terms:
+  - harmonica
+  - mouth harp
+  - blues harp
+  - harmonica lessons
+  - blues harmonica
+  display_order: 29
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: music
+  name: Opera Singing
+  slug: opera-singing
+  description: ""
+  search_terms:
+  - opera
+  - opera singing
+  - classical voice
+  - operatic voice
+  - bel canto
+  display_order: 30
+  online_capable: true
+  requires_certification: false
+  related_services: [voice, singing]
+
+- category_slug: music
+  name: Choir Singing
+  slug: choir-singing
+  description: ""
+  search_terms:
+  - choir
+  - choral singing
+  - chorus
+  - group singing
+  - vocal ensemble
+  display_order: 31
+  online_capable: true
+  requires_certification: false
+  related_services: [choral-singing, voice]
+
+- category_slug: music
+  name: Choral Singing
+  slug: choral-singing
+  description: ""
+  search_terms:
+  - choral
+  - choir
+  - choral music
+  - ensemble singing
+  - group vocals
+  display_order: 32
+  online_capable: true
+  requires_certification: false
+  related_services: [choir-singing, voice]
+
+- category_slug: music
+  name: French Horn
+  slug: french-horn
+  description: ""
+  search_terms:
+  - french horn
+  - horn
+  - brass
+  - french horn lessons
+  - classical horn
+  display_order: 33
+  online_capable: true
+  requires_certification: false
+  related_services: [trumpet, trombone]
+
+- category_slug: music
+  name: Beatboxing
+  slug: beatboxing
+  description: ""
+  search_terms:
+  - beatbox
+  - beatboxing
+  - vocal percussion
+  - human beatbox
+  - beatbox lessons
+  display_order: 34
+  online_capable: true
+  requires_certification: false
+  related_services: [drums, percussion]
+
+- category_slug: music
+  name: Sound Engineering
+  slug: sound-engineering
+  description: ""
+  search_terms:
+  - sound engineering
+  - audio engineering
+  - mixing
+  - mastering
+  - recording
+  - studio engineering
+  display_order: 35
+  online_capable: true
+  requires_certification: false
+  related_services: [music-production]
+
+- category_slug: music
+  name: Banjo
+  slug: banjo
+  description: ""
+  search_terms:
+  - banjo
+  - bluegrass
+  - banjo lessons
+  - folk music
+  - country music
+  display_order: 36
+  online_capable: true
+  requires_certification: false
+  related_services: [guitar, mandolin]
+
+- category_slug: music
+  name: Double Bass
+  slug: double-bass
+  description: ""
+  search_terms:
+  - double bass
+  - upright bass
+  - string bass
+  - acoustic bass
+  - jazz bass
+  - classical bass
+  display_order: 37
+  online_capable: true
+  requires_certification: false
+  related_services: [bass-guitar, cello]
+
+- category_slug: music
+  name: Mandolin
+  slug: mandolin
+  description: ""
+  search_terms:
+  - mandolin
+  - bluegrass
+  - folk music
+  - mandolin lessons
+  - string instrument
+  display_order: 38
+  online_capable: true
+  requires_certification: false
+  related_services: [guitar, banjo]
+
+- category_slug: music
+  name: Accordion
+  slug: accordion
+  description: ""
+  search_terms:
+  - accordion
+  - squeezebox
+  - accordion lessons
+  - folk music
+  - polka
+  display_order: 39
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: music
+  name: Harp
+  slug: harp
+  description: ""
+  search_terms:
+  - harp
+  - pedal harp
+  - lever harp
+  - harp lessons
+  - classical harp
+  display_order: 40
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: music
+  name: Music Arrangement
+  slug: music-arrangement
+  description: ""
+  search_terms:
+  - music arrangement
+  - arranging
+  - orchestration
+  - music arranging
+  - arrangement lessons
+  display_order: 41
+  online_capable: true
+  requires_certification: false
+  related_services: [composition, music-theory]
+
+# Tutoring Category
+- category_slug: tutoring
+  name: Math Tutoring Elementary
+  slug: math-tutoring-elementary
+  description: ""
+  search_terms:
+  - math tutoring
+  - elementary math
+  - k-5 math
+  - basic math
+  - arithmetic
+  - math help
   - math tutor
+  - learn math
+  - math teacher
+  - math instruction
+  - elementary math tutor
+  - grade school math
+  - primary math
+  - math coaching
+  - math skills
+  - beginner math
+  - foundational math
+  display_order: 1
+  online_capable: true
+  requires_certification: false
+  related_services: [homework-help-k-5]
+
+- category_slug: tutoring
+  name: SAT Prep
+  slug: sat-prep
+  description: ""
+  search_terms:
+  - sat prep
+  - sat preparation
+  - sat test prep
+  - college prep
+  - sat tutoring
+  - sat tutor
+  - sat math
+  - sat reading
+  - sat writing
+  - sat coaching
+  - sat instruction
+  - sat teacher
+  - standardized test prep
+  - college entrance exam
+  - sat practice
+  - sat study
+  - sat review
+  display_order: 2
+  online_capable: true
+  requires_certification: false
+  related_services: [act-prep]
+
+- category_slug: tutoring
+  name: Algebra I
+  slug: algebra-i
+  description: ""
+  search_terms:
+  - algebra 1
+  - algebra i
+  - algebra one
+  - high school math
+  - algebra tutoring
+  - algebra tutor
+  - learn algebra
+  - algebra teacher
+  - algebra instruction
+  - algebra coaching
+  - algebra help
+  - beginner algebra
+  - algebra basics
+  - algebra skills
+  - math tutoring
+  - algebra preparation
+  display_order: 3
+  online_capable: true
+  requires_certification: false
+  related_services: [algebra-ii, pre-algebra, geometry, sat-prep]
+
+- category_slug: tutoring
+  name: Algebra II
+  slug: algebra-ii
+  description: ""
+  search_terms:
+  - algebra 2
+  - algebra ii
+  - algebra two
+  - advanced algebra
+  - algebra tutoring
+  - algebra tutor
+  - learn algebra
+  - algebra teacher
+  - algebra instruction
+  - algebra coaching
+  - algebra help
+  - intermediate algebra
+  - algebra skills
+  - math tutoring
+  - algebra preparation
+  - high school algebra
+  display_order: 4
+  online_capable: true
+  requires_certification: false
+  related_services: [algebra-i, pre-calculus]
+
+- category_slug: tutoring
+  name: Reading Tutoring Elementary
+  slug: reading-tutoring-elementary
+  description: ""
+  search_terms:
+  - reading tutoring
+  - elementary reading
+  - k-5 reading
+  - reading help
+  - literacy
+  - phonics
+  display_order: 5
+  online_capable: true
+  requires_certification: false
+  related_services: [homework-help-k-5, writing-skills, math-tutoring-elementary]
+
+- category_slug: tutoring
+  name: Essay Writing
+  slug: essay-writing
+  description: ""
+  search_terms:
+  - essay writing
+  - essay help
+  - writing essays
+  - academic writing
+  - college essays
+  - essay tutoring
+  display_order: 6
+  online_capable: true
+  requires_certification: false
+  related_services: [writing-skills, sat-prep, act-prep, english]
+
+- category_slug: tutoring
+  name: Calculus AP
+  slug: calculus-ap
+  description: ""
+  search_terms:
+  - calculus ap
+  - ap calculus
+  - calculus ab
+  - calculus bc
+  - advanced calculus
+  - calculus tutoring
+  display_order: 7
+  online_capable: true
+  requires_certification: false
+  related_services: [pre-calculus, statistics-ap, physics]
+
+- category_slug: tutoring
+  name: ACT Prep
+  slug: act-prep
+  description: ""
+  search_terms:
+  - act prep
+  - act preparation
+  - act test prep
+  - college prep
+  - act tutoring
+  - act math
+  - act english
+  display_order: 8
+  online_capable: true
+  requires_certification: false
+  related_services: [sat-prep]
+
+- category_slug: tutoring
+  name: Chemistry
+  slug: chemistry
+  description: ""
+  search_terms:
+  - chemistry
+  - chem
+  - chemistry tutoring
+  - ap chemistry
+  - general chemistry
+  - organic chemistry
+  display_order: 9
+  online_capable: true
+  requires_certification: false
+  related_services: [physics, biology, ap-sciences]
+
+- category_slug: tutoring
+  name: Physics
+  slug: physics
+  description: ""
+  search_terms:
+  - physics
+  - physics tutoring
+  - ap physics
+  - mechanics
+  - physics help
+  display_order: 10
+  online_capable: true
+  requires_certification: false
+  related_services: [chemistry, ap-sciences]
+
+- category_slug: tutoring
+  name: Coding
+  slug: coding
+  description: ""
+  search_terms:
+  - coding
+  - programming
+  - code
+  - learn to code
+  - coding lessons
+  - programming lessons
+  display_order: 11
+  online_capable: true
+  requires_certification: false
+  related_services: [programming, python, javascript]
+
+- category_slug: tutoring
+  name: Programming
+  slug: programming
+  description: ""
+  search_terms:
+  - programming
+  - coding
+  - software development
+  - programming lessons
+  - learn programming
+  display_order: 12
+  online_capable: true
+  requires_certification: false
+  related_services: [coding, python, javascript]
+
+- category_slug: tutoring
+  name: Biology
+  slug: biology
+  description: ""
+  search_terms:
+  - biology
+  - bio
+  - biology tutoring
+  - ap biology
+  - life science
+  display_order: 13
+  online_capable: true
+  requires_certification: false
+  related_services: [chemistry, ap-sciences]
+
+- category_slug: tutoring
+  name: Homework Help K-5
+  slug: homework-help-k-5
+  description: ""
+  search_terms:
+  - homework help
+  - k-5 homework
+  - elementary homework
+  - homework assistance
+  - after school help
+  display_order: 14
+  online_capable: true
+  requires_certification: false
+  related_services: [math-tutoring-elementary, reading-tutoring-elementary]
+
+- category_slug: tutoring
+  name: Python
+  slug: python
+  description: ""
+  search_terms:
+  - python
+  - python programming
+  - python coding
+  - python lessons
+  - learn python
+  display_order: 15
+  online_capable: true
+  requires_certification: false
+  related_services: [coding, programming, data-science]
+
+- category_slug: tutoring
+  name: Geometry
+  slug: geometry
+  description: ""
+  search_terms:
+  - geometry
+  - geometric proofs
+  - geometry tutoring
+  - high school geometry
+  - geometry help
+  display_order: 16
+  online_capable: true
+  requires_certification: false
+  related_services: [algebra-i, algebra-ii]
+
+- category_slug: tutoring
+  name: English
+  slug: english
+  description: ""
+  search_terms:
+  - english
+  - english tutoring
+  - english language
+  - english help
+  - language arts
+  display_order: 17
+  online_capable: true
+  requires_certification: false
+  related_services: [literature, writing-skills]
+
+- category_slug: tutoring
+  name: Literature
+  slug: literature
+  description: ""
+  search_terms:
+  - literature
+  - english literature
+  - literary analysis
+  - reading comprehension
+  - book analysis
+  display_order: 18
+  online_capable: true
+  requires_certification: false
+  related_services: [english]
+
+- category_slug: tutoring
+  name: Writing Skills
+  slug: writing-skills
+  description: ""
+  search_terms:
+  - writing skills
+  - writing
+  - composition
+  - writing improvement
+  - writing tutoring
+  display_order: 19
+  online_capable: true
+  requires_certification: false
+  related_services: [essay-writing]
+
+- category_slug: tutoring
+  name: Pre-Calculus
+  slug: pre-calculus
+  description: ""
+  search_terms:
+  - pre-calculus
+  - precalculus
+  - pre calc
+  - trigonometry
+  - advanced math
+  display_order: 20
+  online_capable: true
+  requires_certification: false
+  related_services: [algebra-ii, calculus-ap]
+
+- category_slug: tutoring
+  name: Computer Science
+  slug: computer-science
+  description: ""
+  search_terms:
+  - computer science
+  - cs
+  - comp sci
+  - ap computer science
+  - cs tutoring
+  display_order: 21
+  online_capable: true
+  requires_certification: false
+  related_services: [coding, programming]
+
+- category_slug: tutoring
+  name: Statistics AP
+  slug: statistics-ap
+  description: ""
+  search_terms:
+  - statistics ap
+  - ap statistics
+  - ap stats
+  - statistics tutoring
+  - probability
+  display_order: 22
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: tutoring
+  name: Middle School Math
+  slug: middle-school-math
+  description: ""
+  search_terms:
+  - middle school math
+  - 6-8 math
+  - pre-algebra prep
+  - middle school tutoring
+  display_order: 23
+  online_capable: true
+  requires_certification: false
+  related_services: [pre-algebra]
+
+- category_slug: tutoring
+  name: US History
+  slug: us-history
+  description: ""
+  search_terms:
+  - us history
+  - american history
+  - history tutoring
+  - ap us history
+  - apush
+  display_order: 24
+  online_capable: true
+  requires_certification: false
+  related_services: [world-history]
+
+- category_slug: tutoring
+  name: Web Development
+  slug: web-development
+  description: ""
+  search_terms:
+  - web development
+  - web dev
+  - html
+  - css
+  - website development
+  - frontend development
+  display_order: 25
+  online_capable: true
+  requires_certification: false
+  related_services: [javascript, coding]
+
+- category_slug: tutoring
+  name: AP Sciences
+  slug: ap-sciences
+  description: ""
+  search_terms:
+  - ap sciences
+  - ap science
+  - advanced placement science
+  - ap bio
+  - ap chem
+  - ap physics
+  display_order: 26
+  online_capable: true
+  requires_certification: false
+  related_services: [chemistry, physics, biology]
+
+- category_slug: tutoring
+  name: Pre-Algebra
+  slug: pre-algebra
+  description: ""
+  search_terms:
+  - pre-algebra
+  - prealgebra
+  - pre algebra
+  - basic algebra
+  - algebra prep
+  display_order: 27
+  online_capable: true
+  requires_certification: false
+  related_services: [algebra-i, middle-school-math]
+
+- category_slug: tutoring
+  name: JavaScript
+  slug: javascript
+  description: ""
+  search_terms:
+  - javascript
+  - js
+  - javascript programming
+  - javascript coding
+  - web programming
+  display_order: 28
+  online_capable: true
+  requires_certification: false
+  related_services: [web-development, coding, programming]
+
+- category_slug: tutoring
+  name: World History
+  slug: world-history
+  description: ""
+  search_terms:
+  - world history
+  - global history
+  - history tutoring
+  - ap world history
+  - european history
+  display_order: 29
+  online_capable: true
+  requires_certification: false
+  related_services: [us-history]
+
+- category_slug: tutoring
+  name: Trigonometry
+  slug: trigonometry
+  description: ""
+  search_terms:
+  - trigonometry
+  - trig
+  - trigonometric functions
+  - trig tutoring
+  - advanced math
+  display_order: 30
+  online_capable: true
+  requires_certification: false
+  related_services: [pre-calculus, geometry]
+
+- category_slug: tutoring
+  name: Study Skills
+  slug: study-skills
+  description: ""
+  search_terms:
+  - study skills
+  - study habits
+  - learning strategies
+  - test taking
+  - organization skills
+  display_order: 31
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: tutoring
+  name: SHSAT Prep
+  slug: shsat-prep
+  description: ""
+  search_terms:
+  - shsat prep
+  - shsat
+  - specialized high school test
+  - nyc test prep
+  - high school entrance
+  display_order: 32
+  online_capable: true
+  requires_certification: false
+  related_services: [isee, ssat]
+
+- category_slug: tutoring
+  name: Microsoft Office
+  slug: microsoft-office
+  description: ""
+  search_terms:
+  - microsoft office
+  - ms office
+  - word
+  - excel
+  - powerpoint
+  - office skills
+  display_order: 33
+  online_capable: true
+  requires_certification: false
+  related_services: [google-workspace, basic-computer-skills]
+
+- category_slug: tutoring
+  name: Java
+  slug: java
+  description: ""
+  search_terms:
+  - java
+  - java programming
+  - java coding
+  - object oriented programming
+  - oop
+  display_order: 34
+  online_capable: true
+  requires_certification: false
+  related_services: [coding, programming, computer-science]
+
+- category_slug: tutoring
+  name: GRE Prep
+  slug: gre-prep
+  description: ""
+  search_terms:
+  - gre prep
+  - gre
+  - graduate test prep
+  - grad school prep
+  - gre tutoring
+  display_order: 35
+  online_capable: true
+  requires_certification: false
+  related_services: [gmat-prep]
+
+- category_slug: tutoring
+  name: Data Science
+  slug: data-science
+  description: ""
+  search_terms:
+  - data science
+  - data analysis
+  - machine learning basics
+  - data analytics
+  - statistics
+  display_order: 36
+  online_capable: true
+  requires_certification: false
+  related_services: [python, machine-learning]
+
+- category_slug: tutoring
+  name: Regents Prep
+  slug: regents-prep
+  description: ""
+  search_terms:
+  - regents prep
+  - regents exams
+  - ny regents
+  - new york state exams
+  - regents tutoring
+  display_order: 37
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: tutoring
+  name: Digital Marketing Basics
+  slug: digital-marketing-basics
+  description: ""
+  search_terms:
+  - digital marketing
+  - online marketing
+  - social media marketing
+  - seo basics
+  - marketing fundamentals
+  display_order: 38
+  online_capable: true
+  requires_certification: false
+  related_services: [social-media-for-business]
+
+- category_slug: tutoring
+  name: GMAT Prep
+  slug: gmat-prep
+  description: ""
+  search_terms:
+  - gmat prep
+  - gmat
+  - business school prep
+  - mba prep
+  - gmat tutoring
+  display_order: 39
+  online_capable: true
+  requires_certification: false
+  related_services: [gre-prep]
+
+- category_slug: tutoring
+  name: Government
+  slug: government
+  description: ""
+  search_terms:
+  - government
+  - politics
+  - civics
+  - political science
+  - ap government
+  display_order: 40
+  online_capable: true
+  requires_certification: false
+  related_services: [politics]
+
+- category_slug: tutoring
+  name: Politics
+  slug: politics
+  description: ""
+  search_terms:
+  - politics
+  - political science
+  - government
+  - civics
+  - political studies
+  display_order: 41
+  online_capable: true
+  requires_certification: false
+  related_services: [government]
+
+- category_slug: tutoring
+  name: Basic Computer Skills
+  slug: basic-computer-skills
+  description: ""
+  search_terms:
+  - basic computer skills
+  - computer basics
+  - computer literacy
+  - internet basics
+  - email basics
+  display_order: 42
+  online_capable: true
+  requires_certification: false
+  related_services: [microsoft-office, google-workspace]
+
+- category_slug: tutoring
+  name: LSAT Prep
+  slug: lsat-prep
+  description: ""
+  search_terms:
+  - lsat prep
+  - lsat
+  - law school prep
+  - law school admission test
+  - lsat tutoring
+  display_order: 43
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: tutoring
+  name: MCAT Prep
+  slug: mcat-prep
+  description: ""
+  search_terms:
+  - mcat prep
+  - mcat
+  - medical school prep
+  - med school admission
+  - mcat tutoring
+  display_order: 44
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: tutoring
+  name: Middle School English
+  slug: middle-school-english
+  description: ""
+  search_terms:
+  - middle school english
+  - 6-8 english
+  - middle school language arts
+  - english tutoring
+  display_order: 45
+  online_capable: true
+  requires_certification: false
+  related_services: [english, writing-skills]
+
+- category_slug: tutoring
+  name: Middle School Science
+  slug: middle-school-science
+  description: ""
+  search_terms:
+  - middle school science
+  - 6-8 science
+  - general science
+  - science tutoring
+  display_order: 46
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: tutoring
+  name: Google Workspace
+  slug: google-workspace
+  description: ""
+  search_terms:
+  - google workspace
+  - google docs
+  - google sheets
+  - gmail
+  - google drive
+  - g suite
+  display_order: 47
+  online_capable: true
+  requires_certification: false
+  related_services: [microsoft-office, basic-computer-skills]
+
+- category_slug: tutoring
+  name: Graphic Design Software
+  slug: graphic-design-software
+  description: ""
+  search_terms:
+  - graphic design software
+  - photoshop
+  - illustrator
+  - design software
+  - adobe creative suite
+  display_order: 48
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: tutoring
+  name: ISEE
+  slug: isee
+  description: ""
+  search_terms:
+  - isee
+  - isee prep
+  - independent school entrance exam
+  - private school test
+  display_order: 49
+  online_capable: true
+  requires_certification: false
+  related_services: [ssat, shsat-prep]
+
+- category_slug: tutoring
+  name: SSAT
+  slug: ssat
+  description: ""
+  search_terms:
+  - ssat
+  - ssat prep
+  - secondary school admission test
+  - private school test
+  display_order: 50
+  online_capable: true
+  requires_certification: false
+  related_services: [isee, shsat-prep]
+
+- category_slug: tutoring
+  name: Video Editing
+  slug: video-editing
+  description: ""
+  search_terms:
+  - video editing
+  - video production basics
+  - premiere pro
+  - final cut
+  - video software
+  display_order: 51
+  online_capable: true
+  requires_certification: false
+  related_services: [video-production]
+
+- category_slug: tutoring
+  name: Machine Learning
+  slug: machine-learning
+  description: ""
+  search_terms:
+  - machine learning
+  - ml
+  - ai basics
+  - artificial intelligence
+  - deep learning
+  display_order: 52
+  online_capable: true
+  requires_certification: false
+  related_services: [data-science, python]
+
+- category_slug: tutoring
+  name: Robotics
+  slug: robotics
+  description: ""
+  search_terms:
+  - robotics
+  - robot programming
+  - arduino
+  - stem robotics
+  - robotics for kids
+  display_order: 53
+  online_capable: true
+  requires_certification: false
+  related_services: [coding, engineering-concepts]
+
+- category_slug: tutoring
+  name: Engineering Concepts
+  slug: engineering-concepts
+  description: ""
+  search_terms:
+  - engineering
+  - engineering concepts
+  - stem engineering
+  - basic engineering
+  - engineering principles
+  display_order: 54
+  online_capable: true
+  requires_certification: false
+  related_services: [robotics]
+
+- category_slug: tutoring
+  name: Social Media for Business
+  slug: social-media-for-business
+  description: ""
+  search_terms:
+  - social media business
+  - business social media
+  - instagram for business
+  - facebook marketing
+  - social media strategy
+  display_order: 55
+  online_capable: true
+  requires_certification: false
+  related_services: [digital-marketing-basics]
+
+# Sports & Fitness Category
+- category_slug: sports-fitness
+  name: Personal Training
+  slug: personal-training
+  description: ""
+  search_terms:
+  - personal training
+  - personal trainer
+  - fitness training
+  - fitness trainer
+  - workout
+  - exercise
+  - gym training
+  - fitness coaching
+  - fitness instruction
+  - strength training
+  - cardio training
+  - exercise coaching
+  - fitness coach
+  - one on one training
+  - private trainer
+  - fitness mentor
+  - workout coach
+  display_order: 1
+  online_capable: true
+  requires_certification: true
+  related_services: [strength-training, yoga, nutrition-coaching, cardio-fitness]
+
+- category_slug: sports-fitness
+  name: Yoga
+  slug: yoga
+  description: ""
+  search_terms:
+  - yoga
+  - yoga classes
+  - yoga instruction
+  - yoga teacher
+  - learn yoga
+  - yoga tutor
+  - vinyasa
+  - vinyasa yoga
+  - hatha yoga
+  - power yoga
+  - hot yoga
+  - yin yoga
+  - restorative yoga
+  - beginner yoga
+  - intermediate yoga
+  - advanced yoga
+  - yoga coaching
+  - yoga training
+  - yoga practice
+  display_order: 2
+  online_capable: true
+  requires_certification: true
+  related_services: [pilates, meditation, mindfulness, personal-training, stretching]
+
+- category_slug: sports-fitness
+  name: Swimming
+  slug: swimming
+  description: ""
+  search_terms:
+  - swimming
+  - swim lessons
+  - swimming instruction
+  - swim teacher
+  - learn swimming
+  - swim coach
+  - swim tutor
+  - pool
+  - freestyle
+  - backstroke
+  - breaststroke
+  - butterfly
+  - swimming strokes
+  - beginner swimming
+  - intermediate swimming
+  - advanced swimming
+  - swimming technique
+  - aquatic instruction
+  display_order: 3
+  online_capable: false
+  requires_certification: true
+  related_services: []
+
+- category_slug: sports-fitness
+  name: Tennis
+  slug: tennis
+  description: ""
+  search_terms:
+  - tennis
+  - tennis lessons
+  - tennis instruction
+  - tennis teacher
+  - tennis coach
+  - learn tennis
+  - tennis tutor
+  - beginner tennis
+  - intermediate tennis
+  - advanced tennis
+  - tennis training
+  - tennis skills
+  - tennis coaching
+  - tennis technique
+  - tennis playing
+  - tennis coach
+  - tennis instruction
+  - beginner tennis
+  - advanced tennis
+  display_order: 4
+  online_capable: false
+  requires_certification: false
+  related_services: []
+
+- category_slug: sports-fitness
+  name: Basketball Skills
+  slug: basketball-skills
+  description: ""
+  search_terms:
+  - basketball
+  - basketball skills
+  - basketball training
+  - basketball lessons
+  - basketball instruction
+  - basketball teacher
+  - basketball coach
+  - learn basketball
+  - basketball tutor
+  - hoops
+  - beginner basketball
+  - intermediate basketball
+  - advanced basketball
+  - basketball technique
+  - basketball coaching
+  - basketball fundamentals
+  - shooting
+  - dribbling
+  display_order: 5
+  online_capable: false
+  requires_certification: false
+  related_services: []
+
+- category_slug: sports-fitness
+  name: Soccer Skills
+  slug: soccer-skills
+  description: ""
+  search_terms:
+  - soccer
+  - soccer skills
+  - football
+  - soccer training
+  - soccer coach
+  - soccer drills
+  display_order: 6
+  online_capable: false
+  requires_certification: false
+  related_services: []
+
+- category_slug: sports-fitness
+  name: Martial Arts
+  slug: martial-arts
+  description: ""
+  search_terms:
+  - martial arts
+  - self defense
+  - mixed martial arts
+  - mma
+  - martial arts training
+  display_order: 7
+  online_capable: true
+  requires_certification: true
+  related_services: [karate, taekwondo, jiu-jitsu, muay-thai]
+
+- category_slug: sports-fitness
+  name: Running
+  slug: running
+  description: ""
+  search_terms:
+  - running
+  - track
+  - running coach
+  - marathon training
+  - 5k training
+  - jogging
+  display_order: 8
+  online_capable: true
+  requires_certification: false
+  related_services: [track]
+
+- category_slug: sports-fitness
+  name: Track
+  slug: track
+  description: ""
+  search_terms:
+  - track
+  - track and field
+  - sprinting
+  - running
+  - track coach
+  display_order: 9
+  online_capable: false
+  requires_certification: false
+  related_services: [running]
+
+- category_slug: sports-fitness
+  name: Pilates
+  slug: pilates
+  description: ""
+  search_terms:
+  - pilates
+  - pilates class
+  - mat pilates
+  - reformer pilates
+  - core training
+  display_order: 10
+  online_capable: true
+  requires_certification: true
+  related_services: [yoga, barre]
+
+- category_slug: sports-fitness
+  name: Golf
+  slug: golf
+  description: ""
+  search_terms:
+  - golf
+  - golf lessons
+  - golf instruction
+  - golf swing
+  - golf coach
+  display_order: 11
+  online_capable: false
+  requires_certification: false
+  related_services: []
+
+- category_slug: sports-fitness
+  name: Strength Training
+  slug: strength-training
+  description: ""
+  search_terms:
+  - strength training
+  - weight training
+  - resistance training
+  - weightlifting
+  - muscle building
+  display_order: 12
+  online_capable: true
+  requires_certification: true
+  related_services: [personal-training, crossfit]
+
+- category_slug: sports-fitness
+  name: Boxing
+  slug: boxing
+  description: ""
+  search_terms:
+  - boxing
+  - boxing training
+  - boxing lessons
+  - boxing coach
+  - boxing fitness
+  display_order: 13
+  online_capable: false
+  requires_certification: true
+  related_services: [muay-thai]
+
+- category_slug: sports-fitness
+  name: Dance Fitness
+  slug: dance-fitness
+  description: ""
+  search_terms:
+  - dance fitness
+  - zumba
+  - dance workout
+  - cardio dance
+  - fitness dance
+  display_order: 14
+  online_capable: true
+  requires_certification: false
+  related_services: [zumba, cardio-fitness]
+
+- category_slug: sports-fitness
+  name: Zumba
+  slug: zumba
+  description: ""
+  search_terms:
+  - zumba
+  - zumba fitness
+  - zumba class
+  - dance fitness
+  - latin dance fitness
+  display_order: 15
+  online_capable: true
+  requires_certification: true
+  related_services: [dance-fitness]
+
+- category_slug: sports-fitness
+  name: Baseball
+  slug: baseball
+  description: ""
+  search_terms:
+  - baseball
+  - baseball training
+  - baseball coach
+  - batting
+  - pitching
+  display_order: 16
+  online_capable: false
+  requires_certification: false
+  related_services: [softball]
+
+- category_slug: sports-fitness
+  name: Softball
+  slug: softball
+  description: ""
+  search_terms:
+  - softball
+  - softball training
+  - softball coach
+  - fastpitch
+  - slowpitch
+  display_order: 17
+  online_capable: false
+  requires_certification: false
+  related_services: [baseball]
+
+- category_slug: sports-fitness
+  name: Volleyball
+  slug: volleyball
+  description: ""
+  search_terms:
+  - volleyball
+  - volleyball training
+  - volleyball coach
+  - beach volleyball
+  - indoor volleyball
+  display_order: 18
+  online_capable: false
+  requires_certification: false
+  related_services: []
+
+- category_slug: sports-fitness
+  name: Karate
+  slug: karate
+  description: ""
+  search_terms:
+  - karate
+  - karate lessons
+  - karate training
+  - martial arts
+  - self defense
+  display_order: 19
+  online_capable: false
+  requires_certification: true
+  related_services: [martial-arts, taekwondo]
+
+- category_slug: sports-fitness
+  name: Stretching
+  slug: stretching
+  description: ""
+  search_terms:
+  - stretching
+  - flexibility
+  - flexibility training
+  - stretch class
+  - mobility training
+  display_order: 20
+  online_capable: true
+  requires_certification: false
+  related_services: [flexibility, yoga]
+
+- category_slug: sports-fitness
+  name: Flexibility
+  slug: flexibility
+  description: ""
+  search_terms:
+  - flexibility
+  - flexibility training
+  - stretching
+  - mobility
+  - range of motion
+  display_order: 21
+  online_capable: true
+  requires_certification: false
+  related_services: [stretching, yoga]
+
+- category_slug: sports-fitness
+  name: HIIT Training
+  slug: hiit-training
+  description: ""
+  search_terms:
+  - hiit
+  - high intensity interval training
+  - interval training
+  - hiit workout
+  - circuit training
+  display_order: 22
+  online_capable: true
+  requires_certification: true
+  related_services: [cardio-fitness, crossfit]
+
+- category_slug: sports-fitness
+  name: Cardio Fitness
+  slug: cardio-fitness
+  description: ""
+  search_terms:
+  - cardio
+  - cardio fitness
+  - cardiovascular training
+  - aerobic exercise
+  - cardio workout
+  display_order: 23
+  online_capable: true
+  requires_certification: false
+  related_services: [hiit-training, dance-fitness]
+
+- category_slug: sports-fitness
+  name: Barre
+  slug: barre
+  description: ""
+  search_terms:
+  - barre
+  - barre class
+  - barre fitness
+  - ballet barre
+  - barre workout
+  display_order: 24
+  online_capable: true
+  requires_certification: true
+  related_services: [pilates, ballet]
+
+- category_slug: sports-fitness
+  name: Nutrition Coaching
+  slug: nutrition-coaching
+  description: ""
+  search_terms:
+  - nutrition coaching
+  - nutrition
+  - diet coaching
+  - nutritionist
+  - healthy eating
+  display_order: 25
+  online_capable: true
+  requires_certification: true
+  related_services: []
+
+- category_slug: sports-fitness
+  name: Taekwondo
+  slug: taekwondo
+  description: ""
+  search_terms:
+  - taekwondo
+  - tae kwon do
+  - tkd
+  - martial arts
+  - korean martial arts
+  display_order: 26
+  online_capable: false
+  requires_certification: true
+  related_services: [martial-arts, karate]
+
+- category_slug: sports-fitness
+  name: CrossFit
+  slug: crossfit
+  description: ""
+  search_terms:
+  - crossfit
+  - cross fit
+  - crossfit training
+  - functional fitness
+  - wod
+  display_order: 27
+  online_capable: true
+  requires_certification: true
+  related_services: [strength-training, hiit-training]
+
+- category_slug: sports-fitness
+  name: Football Skills
+  slug: football-skills
+  description: ""
+  search_terms:
+  - football
+  - football skills
+  - football training
+  - american football
+  - football coach
+  display_order: 28
+  online_capable: false
+  requires_certification: false
+  related_services: []
+
+- category_slug: sports-fitness
+  name: Meditation
+  slug: meditation
+  description: ""
+  search_terms:
+  - meditation
+  - mindfulness
+  - guided meditation
+  - meditation practice
+  - zen
+  display_order: 29
+  online_capable: true
+  requires_certification: false
+  related_services: [mindfulness, yoga]
+
+- category_slug: sports-fitness
+  name: Mindfulness
+  slug: mindfulness
+  description: ""
+  search_terms:
+  - mindfulness
+  - mindfulness practice
+  - mindful meditation
+  - awareness
+  - presence
+  display_order: 30
+  online_capable: true
+  requires_certification: false
+  related_services: [meditation, yoga]
+
+- category_slug: sports-fitness
+  name: Ice Skating
+  slug: ice-skating
+  description: ""
+  search_terms:
+  - ice skating
+  - figure skating
+  - ice skating lessons
+  - skating coach
+  - ice rink
+  display_order: 31
+  online_capable: false
+  requires_certification: true
+  related_services: []
+
+- category_slug: sports-fitness
+  name: Jiu-Jitsu
+  slug: jiu-jitsu
+  description: ""
+  search_terms:
+  - jiu jitsu
+  - bjj
+  - brazilian jiu jitsu
+  - grappling
+  - ground fighting
+  display_order: 32
+  online_capable: false
+  requires_certification: true
+  related_services: [martial-arts]
+
+- category_slug: sports-fitness
+  name: Rock Climbing
+  slug: rock-climbing
+  description: ""
+  search_terms:
+  - rock climbing
+  - climbing
+  - bouldering
+  - indoor climbing
+  - climbing coach
+  display_order: 33
+  online_capable: false
+  requires_certification: true
+  related_services: []
+
+- category_slug: sports-fitness
+  name: Fencing
+  slug: fencing
+  description: ""
+  search_terms:
+  - fencing
+  - sword fighting
+  - fencing lessons
+  - epee
+  - foil
+  - sabre
+  display_order: 34
+  online_capable: false
+  requires_certification: true
+  related_services: []
+
+- category_slug: sports-fitness
+  name: Muay Thai
+  slug: muay-thai
+  description: ""
+  search_terms:
+  - muay thai
+  - thai boxing
+  - kickboxing
+  - muay thai training
+  - striking
+  display_order: 35
+  online_capable: false
+  requires_certification: true
+  related_services: [boxing, martial-arts]
+
+- category_slug: sports-fitness
+  name: Lacrosse
+  slug: lacrosse
+  description: ""
+  search_terms:
+  - lacrosse
+  - lacrosse training
+  - lacrosse coach
+  - lax
+  - lacrosse skills
+  display_order: 36
+  online_capable: false
+  requires_certification: false
+  related_services: []
+
+- category_slug: sports-fitness
+  name: Skateboarding
+  slug: skateboarding
+  description: ""
+  search_terms:
+  - skateboarding
+  - skateboard
+  - skating
+  - skateboard lessons
+  - skate coach
+  display_order: 37
+  online_capable: false
+  requires_certification: false
+  related_services: []
+
+- category_slug: sports-fitness
+  name: Tai Chi
+  slug: tai-chi
+  description: ""
+  search_terms:
+  - tai chi
+  - taiji
+  - tai chi chuan
+  - chinese martial arts
+  - moving meditation
+  display_order: 38
+  online_capable: true
+  requires_certification: false
+  related_services: [meditation, yoga]
+
+- category_slug: sports-fitness
+  name: Archery
+  slug: archery
+  description: ""
+  search_terms:
+  - archery
+  - bow and arrow
+  - archery lessons
+  - target shooting
+  - archery coach
+  display_order: 39
+  online_capable: false
+  requires_certification: true
+  related_services: []
+
+- category_slug: sports-fitness
+  name: Rollerblading
+  slug: rollerblading
+  description: ""
+  search_terms:
+  - rollerblading
+  - inline skating
+  - roller skating
+  - rollerblade lessons
+  - skating
+  display_order: 40
+  online_capable: false
+  requires_certification: false
+  related_services: []
+
+# Language Category
+- category_slug: language
+  name: Spanish
+  slug: spanish
+  description: ""
+  search_terms:
+  - spanish
+  - spanish lessons
+  - spanish tutoring
+  - spanish language
+  - learn spanish
+  - spanish teacher
+  - spanish tutor
+  - spanish instruction
+  - beginner spanish
+  - intermediate spanish
+  - advanced spanish
+  - conversational spanish
+  - spanish speaking
+  - spanish class
+  - spanish coaching
+  - español
+  - spanish grammar
+  - spanish vocabulary
+  display_order: 1
+  online_capable: true
+  requires_certification: false
+  related_services: [conversational-english, medical-spanish, legal-spanish]
+
+- category_slug: language
+  name: ESL
+  slug: esl
+  description: ""
+  search_terms:
+  - esl
+  - english as second language
+  - english learning
+  - english for foreigners
+  - esl lessons
+  - esl instruction
+  - esl teacher
+  - learn english
+  - esl tutor
+  - english tutor
+  - english coaching
+  - english language learning
+  - beginner english
+  - intermediate english
+  - advanced english
+  - english skills
+  display_order: 2
+  online_capable: true
+  requires_certification: true
+  related_services: [conversational-english, english-grammar]
+
+- category_slug: language
+  name: French
+  slug: french
+  description: ""
+  search_terms:
+  - french
+  - french lessons
+  - french language
+  - french tutoring
+  - learn french
+  - french teacher
+  - french tutor
+  - french instruction
+  - beginner french
+  - intermediate french
+  - advanced french
+  - conversational french
+  - french speaking
+  - french class
+  - french coaching
+  - français
+  - french grammar
   display_order: 3
   online_capable: true
   requires_certification: false
   related_services: []
-- category_slug: academic
-  name: Science Tutoring
-  slug: science-tutoring
-  description: Physics, chemistry, and biology tutoring for middle school through
-    college
-  search_terms:
-  - science
-  - physics
-  - chemistry
-  - biology
-  - science tutor
-- category_slug: academic
-  name: English Tutoring
-  slug: english-tutoring
-  description: English language arts including reading, writing, and literature
-  search_terms:
-  - english
-  - writing
-  - reading
-  - literature
-  - english tutor
-  - essay help
-- category_slug: academic
-  name: SAT Prep
-  slug: sat-prep
-  description: Comprehensive SAT preparation including strategies and practice tests
-  search_terms:
-  - sat
-  - sat prep
-  - test prep
-  - college prep
-  - sat tutor
-- category_slug: academic
-  name: ACT Prep
-  slug: act-prep
-  description: Complete ACT preparation covering all sections and test strategies
-  search_terms:
-  - act
-  - act prep
-  - test prep
-  - college prep
-  - act tutor
-- category_slug: academic
-  name: History Tutoring
-  slug: history-tutoring
-  description: World history, US history, and social studies tutoring
-  search_terms:
-  - history
-  - social studies
-  - world history
-  - us history
-  - history tutor
-- category_slug: academic
-  name: Homework Help
-  slug: homework-help
-  description: General homework assistance and study skills for K-12 students
-  search_terms:
-  - homework
-  - homework help
-  - study skills
-  - tutoring
-  - academic support
-- category_slug: academic
-  name: College Essay Help
-  slug: college-essay-help
-  description: College application essay brainstorming, writing, and editing
-  search_terms:
-  - college essay
-  - application essay
-  - personal statement
-  - college counseling
-- category_slug: languages
-  name: Spanish Lessons
-  slug: spanish-lessons
-  description: Spanish language instruction for all levels, including conversation
-    practice
-  search_terms:
-  - spanish
-  - español
-  - spanish lessons
-  - spanish tutor
-  - spanish conversation
-- category_slug: languages
-  name: French Lessons
-  slug: french-lessons
-  description: French language and culture instruction from beginner to advanced
-  search_terms:
-  - french
-  - français
-  - french lessons
-  - french tutor
-  - french conversation
-- category_slug: languages
+
+- category_slug: language
   name: Mandarin Chinese
   slug: mandarin-chinese
-  description: Mandarin Chinese lessons including speaking, reading, and writing
+  description: ""
   search_terms:
   - mandarin
   - chinese
-  - 中文
-  - chinese lessons
-  - mandarin tutor
-- category_slug: languages
-  name: ESL (English as Second Language)
-  slug: esl
-  description: English language instruction for non-native speakers
-  search_terms:
-  - esl
-  - english
-  - english lessons
-  - english tutor
-  - learn english
-- category_slug: languages
-  name: Italian Lessons
-  slug: italian-lessons
-  description: Italian language and culture for travelers and language enthusiasts
+  - mandarin chinese
+  - chinese language
+  - beginner mandarin
+  - advanced mandarin
+  display_order: 4
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: language
+  name: Italian
+  slug: italian
+  description: ""
   search_terms:
   - italian
-  - italiano
+  - italian language
   - italian lessons
-  - italian tutor
-- category_slug: languages
-  name: Japanese Lessons
-  slug: japanese-lessons
-  description: Japanese language including hiragana, katakana, and kanji
+  - beginner italian
+  - advanced italian
+  - conversational italian
+  display_order: 5
+  online_capable: true
+  requires_certification: false
+  related_services: [soccer-skills, baseball, tennis]
+
+- category_slug: language
+  name: Conversational English
+  slug: conversational-english
+  description: ""
+  search_terms:
+  - conversational english
+  - english conversation
+  - speaking english
+  - english practice
+  - english fluency
+  display_order: 6
+  online_capable: true
+  requires_certification: false
+  related_services: [esl, english-grammar]
+
+- category_slug: language
+  name: German
+  slug: german
+  description: ""
+  search_terms:
+  - german
+  - german language
+  - german lessons
+  - deutsch
+  - beginner german
+  - advanced german
+  display_order: 7
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: language
+  name: Japanese
+  slug: japanese
+  description: ""
   search_terms:
   - japanese
-  - 日本語
+  - japanese language
   - japanese lessons
-  - japanese tutor
-- category_slug: fitness-wellness
-  name: Personal Training
-  slug: personal-training
-  description: One-on-one fitness training customized to your goals and fitness level
+  - nihongo
+  - beginner japanese
+  - advanced japanese
+  display_order: 8
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: language
+  name: Sign Language ASL
+  slug: sign-language-asl
+  description: ""
   search_terms:
-  - personal trainer
-  - fitness
-  - workout
-  - gym
-  - strength training
-  - personal training
-- category_slug: fitness-wellness
-  name: Yoga
-  slug: yoga
-  description: Various yoga styles including Vinyasa, Hatha, and restorative yoga
+  - sign language
+  - asl
+  - american sign language
+  - signing
+  - deaf communication
+  display_order: 9
+  online_capable: true
+  requires_certification: true
+  related_services: []
+
+- category_slug: language
+  name: Korean
+  slug: korean
+  description: ""
   search_terms:
-  - yoga
-  - vinyasa
-  - hatha
-  - yoga class
-  - yoga instructor
-  - private yoga
-- category_slug: fitness-wellness
-  name: Pilates
-  slug: pilates
-  description: Mat and equipment-based Pilates for core strength and flexibility
+  - korean
+  - korean language
+  - korean lessons
+  - hangul
+  - beginner korean
+  - advanced korean
+  display_order: 10
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: language
+  name: Portuguese
+  slug: portuguese
+  description: ""
   search_terms:
-  - pilates
-  - core workout
-  - pilates class
-  - pilates instructor
-- category_slug: fitness-wellness
-  name: Swimming Lessons
-  slug: swimming-lessons
-  description: Swimming instruction for all ages and skill levels
+  - portuguese
+  - portuguese language
+  - portuguese lessons
+  - brazilian portuguese
+  - european portuguese
+  display_order: 11
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: language
+  name: Russian
+  slug: russian
+  description: ""
   search_terms:
-  - swimming
-  - swim lessons
-  - swim coach
-  - learn to swim
-  - swimming instructor
-- category_slug: fitness-wellness
-  name: Nutrition Coaching
-  slug: nutrition-coaching
-  description: Personalized nutrition planning and dietary guidance
+  - russian
+  - russian language
+  - russian lessons
+  - beginner russian
+  - advanced russian
+  - cyrillic
+  display_order: 12
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: language
+  name: Business English
+  slug: business-english
+  description: ""
   search_terms:
-  - nutrition
-  - diet
-  - nutritionist
-  - meal planning
-  - nutrition coach
-- category_slug: fitness-wellness
-  name: Meditation
-  slug: meditation
-  description: Guided meditation and mindfulness practices for stress reduction
+  - business english
+  - professional english
+  - corporate english
+  - english for business
+  - workplace english
+  display_order: 13
+  online_capable: true
+  requires_certification: false
+  related_services: [esl, conversational-english]
+
+- category_slug: language
+  name: Arabic
+  slug: arabic
+  description: ""
   search_terms:
-  - meditation
-  - mindfulness
-  - stress relief
-  - meditation teacher
-  - guided meditation
-- category_slug: technology
-  name: Programming Lessons
-  slug: programming-lessons
-  description: Learn programming languages including Python, JavaScript, and Java
+  - arabic
+  - arabic language
+  - arabic lessons
+  - modern standard arabic
+  - beginner arabic
+  display_order: 14
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: language
+  name: Hebrew
+  slug: hebrew
+  description: ""
   search_terms:
-  - programming
-  - coding
-  - python
-  - javascript
-  - java
-  - code
-  - programming tutor
-- category_slug: technology
-  name: Web Development
-  slug: web-development
-  description: HTML, CSS, JavaScript, and modern web frameworks
+  - hebrew
+  - hebrew language
+  - hebrew lessons
+  - modern hebrew
+  - biblical hebrew
+  display_order: 15
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: language
+  name: Accent Reduction
+  slug: accent-reduction
+  description: ""
   search_terms:
-  - web development
-  - html
-  - css
-  - website
-  - web design
-  - frontend
-  - backend
-- category_slug: technology
-  name: Data Science
-  slug: data-science
-  description: Data analysis, machine learning, and statistical programming
+  - accent reduction
+  - accent modification
+  - speech therapy
+  - pronunciation
+  - american accent
+  display_order: 16
+  online_capable: true
+  requires_certification: true
+  related_services: [esl, conversational-english]
+
+- category_slug: language
+  name: TOEFL Prep
+  slug: toefl-prep
+  description: ""
   search_terms:
-  - data science
-  - machine learning
-  - data analysis
-  - python
-  - statistics
-  - ai
-- category_slug: technology
-  name: Graphic Design
-  slug: graphic-design
-  description: Adobe Creative Suite, design principles, and digital art
+  - toefl
+  - toefl prep
+  - toefl preparation
+  - english proficiency test
+  - toefl ibt
+  display_order: 17
+  online_capable: true
+  requires_certification: false
+  related_services: [esl]
+
+- category_slug: language
+  name: Hindi
+  slug: hindi
+  description: ""
   search_terms:
-  - graphic design
-  - photoshop
-  - illustrator
-  - design
-  - adobe
-  - digital design
-- category_slug: technology
-  name: Excel Training
-  slug: excel-training
-  description: Microsoft Excel from basics to advanced formulas and macros
+  - hindi
+  - hindi language
+  - hindi lessons
+  - devanagari
+  - beginner hindi
+  display_order: 18
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: language
+  name: English Grammar
+  slug: english-grammar
+  description: ""
   search_terms:
-  - excel
-  - microsoft excel
-  - spreadsheet
-  - excel training
-  - office
-- category_slug: sports-games
-  name: Tennis Lessons
-  slug: tennis-lessons
-  description: Tennis instruction for all skill levels, from beginner to competitive
+  - english grammar
+  - grammar lessons
+  - grammar rules
+  - english syntax
+  - grammar practice
+  display_order: 19
+  online_capable: true
+  requires_certification: false
+  related_services: [esl, conversational-english]
+
+- category_slug: language
+  name: Public Speaking
+  slug: public-speaking
+  description: ""
   search_terms:
-  - tennis
-  - tennis lessons
-  - tennis coach
-  - tennis instructor
-- category_slug: sports-games
-  name: Golf Lessons
-  slug: golf-lessons
-  description: Golf instruction including swing mechanics, course strategy, and putting
+  - public speaking
+  - speech
+  - presentation skills
+  - speaking confidence
+  - speech coaching
+  display_order: 20
+  online_capable: true
+  requires_certification: false
+  related_services: [presentation-skills]
+
+- category_slug: language
+  name: Medical Spanish
+  slug: medical-spanish
+  description: ""
   search_terms:
-  - golf
-  - golf lessons
-  - golf coach
-  - golf instructor
-  - golf swing
-- category_slug: sports-games
-  name: Basketball Training
-  slug: basketball-training
-  description: Basketball skills development and conditioning
+  - medical spanish
+  - spanish for healthcare
+  - healthcare spanish
+  - medical terminology spanish
+  display_order: 21
+  online_capable: true
+  requires_certification: false
+  related_services: [spanish]
+
+- category_slug: language
+  name: Legal Spanish
+  slug: legal-spanish
+  description: ""
   search_terms:
-  - basketball
-  - hoops
-  - basketball training
-  - basketball coach
-- category_slug: sports-games
-  name: Chess Lessons
-  slug: chess-lessons
-  description: Chess strategy and tactics for beginners through tournament players
+  - legal spanish
+  - spanish for lawyers
+  - legal terminology spanish
+  - court spanish
+  display_order: 22
+  online_capable: true
+  requires_certification: false
+  related_services: [spanish]
+
+- category_slug: language
+  name: Travel Language Basics
+  slug: travel-language-basics
+  description: ""
+  search_terms:
+  - travel language
+  - travel phrases
+  - survival language
+  - tourist language
+  - basic phrases
+  display_order: 23
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+# Arts Category
+- category_slug: arts
+  name: Photography
+  slug: photography
+  description: ""
+  search_terms:
+  - photography
+  - photo
+  - camera
+  - photography lessons
+  - photography instruction
+  - photography teacher
+  - learn photography
+  - photography tutor
+  - digital photography
+  - portrait photography
+  - landscape photography
+  - beginner photography
+  - intermediate photography
+  - advanced photography
+  - photography skills
+  - photography coaching
+  - photo editing
+  - camera skills
+  display_order: 1
+  online_capable: true
+  requires_certification: false
+  related_services: [portrait-drawing]
+
+- category_slug: arts
+  name: Drawing
+  slug: drawing
+  description: ""
+  search_terms:
+  - drawing
+  - sketching
+  - pencil drawing
+  - drawing lessons
+  - drawing instruction
+  - drawing teacher
+  - learn drawing
+  - drawing tutor
+  - beginner drawing
+  - intermediate drawing
+  - advanced drawing
+  - drawing skills
+  - drawing coaching
+  - art drawing
+  - figure drawing
+  - drawing technique
+  - advanced drawing
+  - art fundamentals
+  display_order: 2
+  online_capable: true
+  requires_certification: false
+  related_services: [sketching, portrait-drawing, illustration]
+
+- category_slug: arts
+  name: Acting
+  slug: acting
+  description: ""
+  search_terms:
+  - acting
+  - acting classes
+  - acting lessons
+  - acting instruction
+  - acting teacher
+  - learn acting
+  - acting tutor
+  - theater
+  - drama
+  - acting coaching
+  - beginner acting
+  - intermediate acting
+  - advanced acting
+  - acting skills
+  - performance
+  - stage acting
+  - method acting
+  - scene study
+  display_order: 3
+  online_capable: true
+  requires_certification: false
+  related_services: [theater-performance, improv-comedy]
+
+- category_slug: arts
+  name: Ballet
+  slug: ballet
+  description: ""
+  search_terms:
+  - ballet
+  - ballet dancing
+  - ballet lessons
+  - ballet instruction
+  - ballet teacher
+  - learn ballet
+  - ballet tutor
+  - classical ballet
+  - beginner ballet
+  - intermediate ballet
+  - advanced ballet
+  - ballet training
+  - ballet coaching
+  - ballet technique
+  - ballet skills
+  - dance ballet
+  - advanced ballet
+  display_order: 4
+  online_capable: true
+  requires_certification: true
+  related_services: [contemporary-dance, jazz-dance]
+
+- category_slug: arts
+  name: Painting Watercolor
+  slug: painting-watercolor
+  description: ""
+  search_terms:
+  - watercolor
+  - watercolor painting
+  - watercolour
+  - aquarelle
+  - watercolor techniques
+  display_order: 5
+  online_capable: true
+  requires_certification: false
+  related_services: [painting-acrylic, painting-oil]
+
+- category_slug: arts
+  name: Hip Hop Dance
+  slug: hip-hop-dance
+  description: ""
+  search_terms:
+  - hip hop dance
+  - hip hop
+  - street dance
+  - urban dance
+  - hip hop choreography
+  display_order: 6
+  online_capable: true
+  requires_certification: false
+  related_services: [contemporary-dance, jazz-dance]
+
+- category_slug: arts
+  name: Contemporary Dance
+  slug: contemporary-dance
+  description: ""
+  search_terms:
+  - contemporary dance
+  - modern dance
+  - contemporary movement
+  - lyrical dance
+  - expressive dance
+  display_order: 7
+  online_capable: true
+  requires_certification: true
+  related_services: [ballet, jazz-dance]
+
+- category_slug: arts
+  name: Jazz Dance
+  slug: jazz-dance
+  description: ""
+  search_terms:
+  - jazz dance
+  - jazz dancing
+  - jazz choreography
+  - musical theater dance
+  display_order: 8
+  online_capable: true
+  requires_certification: true
+  related_services: [ballet, contemporary-dance, tap-dance]
+
+- category_slug: arts
+  name: Painting Acrylic
+  slug: painting-acrylic
+  description: ""
+  search_terms:
+  - acrylic painting
+  - acrylics
+  - acrylic paint
+  - acrylic techniques
+  - painting lessons
+  display_order: 9
+  online_capable: true
+  requires_certification: false
+  related_services: [painting-watercolor, painting-oil]
+
+- category_slug: arts
+  name: Pottery
+  slug: pottery
+  description: ""
+  search_terms:
+  - pottery
+  - ceramics
+  - clay
+  - pottery wheel
+  - hand building
+  - ceramic art
+  display_order: 10
+  online_capable: false
+  requires_certification: false
+  related_services: [ceramics]
+
+- category_slug: arts
+  name: Ceramics
+  slug: ceramics
+  description: ""
+  search_terms:
+  - ceramics
+  - ceramic art
+  - clay work
+  - pottery
+  - ceramic sculpture
+  display_order: 11
+  online_capable: false
+  requires_certification: false
+  related_services: [pottery]
+
+- category_slug: arts
+  name: Digital Art
+  slug: digital-art
+  description: ""
+  search_terms:
+  - digital art
+  - digital drawing
+  - digital painting
+  - ipad art
+  - procreate
+  - digital illustration
+  display_order: 12
+  online_capable: true
+  requires_certification: false
+  related_services: [illustration, graphic-design-software]
+
+- category_slug: arts
+  name: Sewing
+  slug: sewing
+  description: ""
+  search_terms:
+  - sewing
+  - sewing lessons
+  - sewing machine
+  - tailoring basics
+  - garment making
+  display_order: 13
+  online_capable: true
+  requires_certification: false
+  related_services: [fashion-design, embroidery]
+
+- category_slug: arts
+  name: Jewelry Making
+  slug: jewelry-making
+  description: ""
+  search_terms:
+  - jewelry making
+  - jewelry design
+  - beading
+  - metalsmithing
+  - jewelry crafting
+  display_order: 14
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: arts
+  name: Ballroom Dancing
+  slug: ballroom-dancing
+  description: ""
+  search_terms:
+  - ballroom dancing
+  - ballroom dance
+  - waltz
+  - foxtrot
+  - tango
+  - partner dancing
+  display_order: 15
+  online_capable: true
+  requires_certification: true
+  related_services: [latin-dancing]
+
+- category_slug: arts
+  name: Theater Performance
+  slug: theater-performance
+  description: ""
+  search_terms:
+  - theater performance
+  - stage performance
+  - theater arts
+  - drama performance
+  - stage presence
+  display_order: 16
+  online_capable: true
+  requires_certification: false
+  related_services: [acting, musical-theater-voice]
+
+- category_slug: arts
+  name: Illustration
+  slug: illustration
+  description: ""
+  search_terms:
+  - illustration
+  - illustrating
+  - book illustration
+  - digital illustration
+  - character design
+  display_order: 17
+  online_capable: true
+  requires_certification: false
+  related_services: [drawing, digital-art]
+
+- category_slug: arts
+  name: Fashion Design
+  slug: fashion-design
+  description: ""
+  search_terms:
+  - fashion design
+  - fashion
+  - clothing design
+  - fashion sketching
+  - fashion illustration
+  display_order: 18
+  online_capable: true
+  requires_certification: false
+  related_services: [sewing]
+
+- category_slug: arts
+  name: Painting Oil
+  slug: painting-oil
+  description: ""
+  search_terms:
+  - oil painting
+  - oils
+  - oil paint
+  - classical painting
+  - oil techniques
+  display_order: 19
+  online_capable: true
+  requires_certification: false
+  related_services: [painting-acrylic, painting-watercolor]
+
+- category_slug: arts
+  name: Knitting
+  slug: knitting
+  description: ""
+  search_terms:
+  - knitting
+  - knit
+  - knitting lessons
+  - yarn crafts
+  - knitting patterns
+  display_order: 20
+  online_capable: true
+  requires_certification: false
+  related_services: [crocheting]
+
+- category_slug: arts
+  name: Latin Dancing
+  slug: latin-dancing
+  description: ""
+  search_terms:
+  - latin dancing
+  - salsa
+  - bachata
+  - merengue
+  - latin dance
+  display_order: 21
+  online_capable: true
+  requires_certification: false
+  related_services: [ballroom-dancing]
+
+- category_slug: arts
+  name: Interior Design Basics
+  slug: interior-design-basics
+  description: ""
+  search_terms:
+  - interior design
+  - home design
+  - decorating
+  - space planning
+  - design principles
+  display_order: 22
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: arts
+  name: Tap Dance
+  slug: tap-dance
+  description: ""
+  search_terms:
+  - tap dance
+  - tap dancing
+  - tap
+  - rhythm tap
+  - broadway tap
+  display_order: 23
+  online_capable: true
+  requires_certification: false
+  related_services: [jazz-dance]
+
+- category_slug: arts
+  name: Portrait Drawing
+  slug: portrait-drawing
+  description: ""
+  search_terms:
+  - portrait drawing
+  - face drawing
+  - portrait art
+  - figure drawing
+  - portrait sketching
+  display_order: 24
+  online_capable: true
+  requires_certification: false
+  related_services: [drawing, sketching]
+
+- category_slug: arts
+  name: Calligraphy
+  slug: calligraphy
+  description: ""
+  search_terms:
+  - calligraphy
+  - hand lettering
+  - lettering
+  - brush lettering
+  - modern calligraphy
+  display_order: 25
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: arts
+  name: Floral Arrangement
+  slug: floral-arrangement
+  description: ""
+  search_terms:
+  - floral arrangement
+  - flower arranging
+  - floristry
+  - flower design
+  - ikebana
+  display_order: 26
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: arts
+  name: Improv Comedy
+  slug: improv-comedy
+  description: ""
+  search_terms:
+  - improv comedy
+  - improv
+  - improvisation
+  - comedy improv
+  - improv theater
+  display_order: 27
+  online_capable: true
+  requires_certification: false
+  related_services: [acting, stand-up-comedy]
+
+- category_slug: arts
+  name: Sketching
+  slug: sketching
+  description: ""
+  search_terms:
+  - sketching
+  - sketch
+  - quick drawing
+  - sketch art
+  - urban sketching
+  display_order: 28
+  online_capable: true
+  requires_certification: false
+  related_services: [drawing, portrait-drawing]
+
+- category_slug: arts
+  name: Crocheting
+  slug: crocheting
+  description: ""
+  search_terms:
+  - crocheting
+  - crochet
+  - crochet lessons
+  - yarn crafts
+  - crochet patterns
+  display_order: 29
+  online_capable: true
+  requires_certification: false
+  related_services: [knitting]
+
+- category_slug: arts
+  name: Woodworking
+  slug: woodworking
+  description: ""
+  search_terms:
+  - woodworking
+  - carpentry basics
+  - wood crafts
+  - woodshop
+  - furniture making
+  display_order: 30
+  online_capable: false
+  requires_certification: false
+  related_services: []
+
+- category_slug: arts
+  name: Stand-up Comedy
+  slug: stand-up-comedy
+  description: ""
+  search_terms:
+  - stand up comedy
+  - standup
+  - comedy writing
+  - comedy performance
+  - joke writing
+  display_order: 31
+  online_capable: true
+  requires_certification: false
+  related_services: [improv-comedy]
+
+- category_slug: arts
+  name: Embroidery
+  slug: embroidery
+  description: ""
+  search_terms:
+  - embroidery
+  - hand embroidery
+  - needlework
+  - cross stitch
+  - embroidery art
+  display_order: 32
+  online_capable: true
+  requires_certification: false
+  related_services: [sewing]
+
+- category_slug: arts
+  name: Graffiti Art
+  slug: graffiti-art
+  description: ""
+  search_terms:
+  - graffiti art
+  - street art
+  - graffiti
+  - spray paint art
+  - urban art
+  display_order: 33
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: arts
+  name: Scrapbooking
+  slug: scrapbooking
+  description: ""
+  search_terms:
+  - scrapbooking
+  - scrapbook
+  - memory keeping
+  - photo albums
+  - paper crafts
+  display_order: 34
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: arts
+  name: Leathercraft
+  slug: leathercraft
+  description: ""
+  search_terms:
+  - leathercraft
+  - leather working
+  - leather crafting
+  - leather goods
+  - leather tooling
+  display_order: 35
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: arts
+  name: Magic
+  slug: magic
+  description: ""
+  search_terms:
+  - magic
+  - illusion
+  - magic tricks
+  - sleight of hand
+  - close up magic
+  display_order: 36
+  online_capable: true
+  requires_certification: false
+  related_services: [illusion]
+
+- category_slug: arts
+  name: Illusion
+  slug: illusion
+  description: ""
+  search_terms:
+  - illusion
+  - stage magic
+  - illusions
+  - magic performance
+  - stage illusions
+  display_order: 37
+  online_capable: true
+  requires_certification: false
+  related_services: [magic]
+
+- category_slug: arts
+  name: Candle Making
+  slug: candle-making
+  description: ""
+  search_terms:
+  - candle making
+  - candles
+  - wax crafts
+  - soy candles
+  - candle crafting
+  display_order: 38
+  online_capable: true
+  requires_certification: false
+  related_services: [soap-making]
+
+- category_slug: arts
+  name: Soap Making
+  slug: soap-making
+  description: ""
+  search_terms:
+  - soap making
+  - soap crafting
+  - handmade soap
+  - natural soap
+  - cold process soap
+  display_order: 39
+  online_capable: true
+  requires_certification: false
+  related_services: [candle-making]
+
+# Hidden Gems Category
+- category_slug: hidden-gems
+  name: Life Coaching
+  slug: life-coaching
+  description: ""
+  search_terms:
+  - life coaching
+  - life coach
+  - personal development
+  - goal setting
+  - motivation
+  - life mentor
+  - personal coach
+  - lifestyle coach
+  - success coaching
+  - mindset coaching
+  - personal growth
+  - self improvement
+  - life guidance
+  - confidence coaching
+  - accountability coach
+  - transformation coach
+  display_order: 1
+  online_capable: true
+  requires_certification: true
+  related_services: [career-coaching]
+
+- category_slug: hidden-gems
+  name: Cooking Various Cuisines
+  slug: cooking-various-cuisines
+  description: ""
+  search_terms:
+  - cooking
+  - cooking lessons
+  - cooking instruction
+  - cooking teacher
+  - learn cooking
+  - cooking tutor
+  - culinary skills
+  - cuisine
+  - cooking classes
+  - culinary arts
+  - beginner cooking
+  - intermediate cooking
+  - advanced cooking
+  - cooking coaching
+  - cooking techniques
+  - culinary training
+  display_order: 2
+  online_capable: true
+  requires_certification: false
+  related_services: [baking-pastry]
+
+- category_slug: hidden-gems
+  name: Wine Tasting
+  slug: wine-tasting
+  description: ""
+  search_terms:
+  - wine tasting
+  - wine appreciation
+  - wine lessons
+  - learn wine tasting
+  - wine instructor
+  - wine teacher
+  - wine tutor
+  - sommelier basics
+  - wine education
+  - wine pairing
+  - wine knowledge
+  - wine training
+  - wine coaching
+  - beginner wine tasting
+  - advanced wine tasting
+  - wine skills
+  display_order: 3
+  online_capable: true
+  requires_certification: true
+  related_services: [wine-appreciation]
+
+- category_slug: hidden-gems
+  name: Wine Appreciation
+  slug: wine-appreciation
+  description: ""
+  search_terms:
+  - wine appreciation
+  - wine knowledge
+  - wine culture
+  - wine basics
+  - wine education
+  display_order: 4
+  online_capable: true
+  requires_certification: false
+  related_services: [wine-tasting]
+
+- category_slug: hidden-gems
+  name: Public Speaking
+  slug: public-speaking-hidden
+  description: ""
+  search_terms:
+  - public speaking
+  - speech coaching
+  - presentation skills
+  - speaking confidence
+  - communication skills
+  display_order: 5
+  online_capable: true
+  requires_certification: false
+  related_services: [presentation-skills]
+
+- category_slug: hidden-gems
+  name: Makeup Application
+  slug: makeup-application
+  description: ""
+  search_terms:
+  - makeup
+  - makeup application
+  - makeup lessons
+  - beauty makeup
+  - cosmetics
+  display_order: 6
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: hidden-gems
+  name: Chess
+  slug: chess
+  description: ""
   search_terms:
   - chess
   - chess lessons
-  - chess tutor
   - chess strategy
-  - chess coach
-- category_slug: sports-games
-  name: Soccer Training
-  slug: soccer-training
-  description: Soccer skills, drills, and game strategy
+  - chess tactics
+  - chess coaching
+  display_order: 7
+  online_capable: true
+  requires_certification: false
+  related_services: [board-game-strategy]
+
+- category_slug: hidden-gems
+  name: Personal Styling
+  slug: personal-styling
+  description: ""
   search_terms:
-  - soccer
-  - football
-  - soccer training
-  - soccer coach
-  - futbol
-- category_slug: life-skills
-  name: Cooking Lessons
-  slug: cooking-lessons
-  description: Culinary skills from basic cooking to gourmet cuisine
-  search_terms:
-  - cooking
-  - culinary
-  - cooking class
-  - chef
-  - cooking lessons
-  - learn to cook
-- category_slug: life-skills
-  name: Public Speaking
-  slug: public-speaking
-  description: Presentation skills, speech writing, and confidence building
-  search_terms:
-  - public speaking
-  - presentation
-  - speech
-  - communication
-  - speaking coach
-- category_slug: life-skills
-  name: Life Coaching
-  slug: life-coaching
-  description: Personal development, goal setting, and life strategy
-  search_terms:
-  - life coach
-  - personal development
-  - coaching
-  - life coaching
-  - self improvement
-- category_slug: business-career
-  name: Business Consulting
-  slug: business-consulting
-  description: Business strategy, planning, and operations consulting
-  search_terms:
-  - business
-  - consulting
-  - business strategy
-  - business coach
-  - entrepreneurship
-- category_slug: business-career
-  name: Finance Tutoring
-  slug: finance-tutoring
-  description: Personal finance, investing, and financial planning education
-  search_terms:
-  - finance
-  - investing
-  - financial planning
-  - finance tutor
-  - investment
-- category_slug: business-career
+  - personal styling
+  - fashion styling
+  - wardrobe consulting
+  - style coaching
+  - image consulting
+  display_order: 8
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: hidden-gems
   name: Career Coaching
   slug: career-coaching
-  description: Career planning, job search strategies, and interview preparation
+  description: ""
   search_terms:
-  - career coach
-  - job search
-  - interview prep
+  - career coaching
   - career counseling
-  - resume help
-- category_slug: business-career
+  - job search help
+  - career development
+  - professional growth
+  display_order: 9
+  online_capable: true
+  requires_certification: true
+  related_services: [life-coaching, linkedin-optimization]
+
+- category_slug: hidden-gems
+  name: Self-Defense
+  slug: self-defense
+  description: ""
+  search_terms:
+  - self defense
+  - personal safety
+  - self protection
+  - defensive tactics
+  - safety training
+  display_order: 10
+  online_capable: true
+  requires_certification: true
+  related_services: [martial-arts]
+
+- category_slug: hidden-gems
+  name: Dog Training
+  slug: dog-training
+  description: ""
+  search_terms:
+  - dog training
+  - puppy training
+  - dog obedience
+  - canine training
+  - pet training
+  display_order: 11
+  online_capable: true
+  requires_certification: true
+  related_services: []
+
+- category_slug: hidden-gems
+  name: CPR
+  slug: cpr
+  description: ""
+  search_terms:
+  - cpr
+  - cpr training
+  - cpr certification
+  - cardiopulmonary resuscitation
+  - life saving
+  display_order: 12
+  online_capable: false
+  requires_certification: true
+  related_services: [first-aid]
+
+- category_slug: hidden-gems
+  name: First Aid
+  slug: first-aid
+  description: ""
+  search_terms:
+  - first aid
+  - first aid training
+  - emergency care
+  - basic first aid
+  - first aid certification
+  display_order: 13
+  online_capable: false
+  requires_certification: true
+  related_services: [cpr]
+
+- category_slug: hidden-gems
+  name: Baking & Pastry
+  slug: baking-pastry
+  description: ""
+  search_terms:
+  - baking
+  - pastry
+  - baking lessons
+  - pastry making
+  - bread making
+  display_order: 14
+  online_capable: true
+  requires_certification: false
+  related_services: [cake-decorating, cooking-various-cuisines]
+
+- category_slug: hidden-gems
+  name: Creative Writing
+  slug: creative-writing
+  description: ""
+  search_terms:
+  - creative writing
+  - writing
+  - fiction writing
+  - story writing
+  - creative expression
+  display_order: 15
+  online_capable: true
+  requires_certification: false
+  related_services: [poetry, screenwriting]
+
+- category_slug: hidden-gems
+  name: Home Organization
+  slug: home-organization
+  description: ""
+  search_terms:
+  - home organization
+  - organizing
+  - decluttering
+  - home organizing
+  - space organization
+  display_order: 18
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: hidden-gems
+  name: Etiquette
+  slug: etiquette
+  description: ""
+  search_terms:
+  - etiquette
+  - manners
+  - social etiquette
+  - dining etiquette
+  - business etiquette
+  display_order: 19
+  online_capable: true
+  requires_certification: false
+  related_services: [manners]
+
+- category_slug: hidden-gems
+  name: Manners
+  slug: manners
+  description: ""
+  search_terms:
+  - manners
+  - social manners
+  - politeness
+  - social skills
+  - courtesy
+  display_order: 20
+  online_capable: true
+  requires_certification: false
+  related_services: [etiquette]
+
+- category_slug: hidden-gems
+  name: Personal Branding
+  slug: personal-branding
+  description: ""
+  search_terms:
+  - personal branding
+  - brand yourself
+  - professional image
+  - online presence
+  - brand building
+  display_order: 21
+  online_capable: true
+  requires_certification: false
+  related_services: [linkedin-optimization]
+
+- category_slug: hidden-gems
+  name: Gardening
+  slug: gardening
+  description: ""
+  search_terms:
+  - gardening
+  - garden
+  - plant care
+  - home gardening
+  - urban gardening
+  display_order: 22
+  online_capable: true
+  requires_certification: false
+  related_services: [urban-farming]
+
+- category_slug: hidden-gems
+  name: Time Management
+  slug: time-management
+  description: ""
+  search_terms:
+  - time management
+  - productivity
+  - time skills
+  - efficiency
+  - organization
+  display_order: 23
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: hidden-gems
+  name: Cake Decorating
+  slug: cake-decorating
+  description: ""
+  search_terms:
+  - cake decorating
+  - cake decoration
+  - frosting
+  - cake art
+  - cake design
+  display_order: 24
+  online_capable: true
+  requires_certification: false
+  related_services: [baking-pastry]
+
+- category_slug: hidden-gems
+  name: Negotiation Skills
+  slug: negotiation-skills
+  description: ""
+  search_terms:
+  - negotiation
+  - negotiation skills
+  - bargaining
+  - deal making
+  - negotiation tactics
+  display_order: 25
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: hidden-gems
+  name: Coffee Barista Skills
+  slug: coffee-barista-skills
+  description: ""
+  search_terms:
+  - barista
+  - coffee making
+  - espresso
+  - latte art
+  - coffee skills
+  display_order: 26
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: hidden-gems
+  name: Cocktail Making
+  slug: cocktail-making
+  description: ""
+  search_terms:
+  - cocktail making
+  - mixology
+  - bartending
+  - cocktails
+  - drink mixing
+  display_order: 27
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: hidden-gems
   name: LinkedIn Optimization
   slug: linkedin-optimization
-  description: Professional profile optimization and networking strategies
+  description: ""
   search_terms:
   - linkedin
-  - professional profile
-  - networking
-  - personal branding
+  - linkedin profile
+  - linkedin optimization
+  - professional networking
+  - linkedin strategy
+  display_order: 28
+  online_capable: true
+  requires_certification: false
+  related_services: [career-coaching, personal-branding]
+
+- category_slug: hidden-gems
+  name: Presentation Skills
+  slug: presentation-skills
+  description: ""
+  search_terms:
+  - presentation skills
+  - presenting
+  - powerpoint
+  - public presentations
+  - presentation coaching
+  display_order: 29
+  online_capable: true
+  requires_certification: false
+  related_services: [public-speaking-hidden]
+
+- category_slug: hidden-gems
+  name: Tarot Reading
+  slug: tarot-reading
+  description: ""
+  search_terms:
+  - tarot
+  - tarot reading
+  - tarot cards
+  - divination
+  - card reading
+  display_order: 30
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: hidden-gems
+  name: Massage Techniques
+  slug: massage-techniques
+  description: ""
+  search_terms:
+  - massage
+  - massage techniques
+  - massage therapy basics
+  - relaxation massage
+  - therapeutic touch
+  display_order: 31
+  online_capable: false
+  requires_certification: true
+  related_services: []
+
+- category_slug: hidden-gems
+  name: Reiki
+  slug: reiki
+  description: ""
+  search_terms:
+  - reiki
+  - energy healing
+  - reiki healing
+  - energy work
+  - healing touch
+  display_order: 32
+  online_capable: true
+  requires_certification: true
+  related_services: []
+
+- category_slug: hidden-gems
+  name: Video Production
+  slug: video-production
+  description: ""
+  search_terms:
+  - video production
+  - video making
+  - videography
+  - video creation
+  - film making basics
+  display_order: 33
+  online_capable: true
+  requires_certification: false
+  related_services: [video-editing]
+
+- category_slug: hidden-gems
+  name: Poetry
+  slug: poetry
+  description: ""
+  search_terms:
+  - poetry
+  - poem writing
+  - poetry writing
+  - verse
+  - poetic expression
+  display_order: 34
+  online_capable: true
+  requires_certification: false
+  related_services: [creative-writing]
+
+- category_slug: hidden-gems
+  name: Podcasting
+  slug: podcasting
+  description: ""
+  search_terms:
+  - podcasting
+  - podcast
+  - podcast creation
+  - audio production
+  - podcast hosting
+  display_order: 35
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: hidden-gems
+  name: Aromatherapy
+  slug: aromatherapy
+  description: ""
+  search_terms:
+  - aromatherapy
+  - essential oils
+  - aromatherapy basics
+  - scent therapy
+  - oil blending
+  display_order: 36
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: hidden-gems
+  name: NYC History Tours
+  slug: nyc-history-tours
+  description: ""
+  search_terms:
+  - nyc history
+  - new york history
+  - history tours
+  - nyc tours
+  - historical tours
+  display_order: 37
+  online_capable: false
+  requires_certification: false
+  related_services: [street-art-tours, food-tour-guiding]
+
+- category_slug: hidden-gems
+  name: Screenwriting
+  slug: screenwriting
+  description: ""
+  search_terms:
+  - screenwriting
+  - script writing
+  - screenplay
+  - film writing
+  - tv writing
+  display_order: 38
+  online_capable: true
+  requires_certification: false
+  related_services: [creative-writing]
+
+- category_slug: hidden-gems
+  name: Astrology Reading
+  slug: astrology-reading
+  description: ""
+  search_terms:
+  - astrology
+  - astrology reading
+  - birth chart
+  - horoscope
+  - zodiac
+  display_order: 39
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: hidden-gems
+  name: Urban Farming
+  slug: urban-farming
+  description: ""
+  search_terms:
+  - urban farming
+  - city farming
+  - urban agriculture
+  - rooftop gardening
+  - small space farming
+  display_order: 40
+  online_capable: true
+  requires_certification: false
+  related_services: [gardening]
+
+- category_slug: hidden-gems
+  name: Herbalism Basics
+  slug: herbalism-basics
+  description: ""
+  search_terms:
+  - herbalism
+  - herbal medicine
+  - herbs
+  - natural remedies
+  - plant medicine
+  display_order: 41
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: hidden-gems
+  name: Genealogy Research
+  slug: genealogy-research
+  description: ""
+  search_terms:
+  - genealogy
+  - family history
+  - ancestry research
+  - family tree
+  - genealogy basics
+  display_order: 42
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: hidden-gems
+  name: Game Design
+  slug: game-design
+  description: ""
+  search_terms:
+  - game design
+  - video game design
+  - game development
+  - game creation
+  - game mechanics
+  display_order: 43
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: hidden-gems
+  name: Origami
+  slug: origami
+  description: ""
+  search_terms:
+  - origami
+  - paper folding
+  - japanese paper art
+  - origami art
+  - paper crafts
+  display_order: 44
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: hidden-gems
+  name: Model Building
+  slug: model-building
+  description: ""
+  search_terms:
+  - model building
+  - scale models
+  - model making
+  - miniatures
+  - hobby modeling
+  display_order: 45
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: hidden-gems
+  name: Bird Watching
+  slug: bird-watching
+  description: ""
+  search_terms:
+  - bird watching
+  - birding
+  - ornithology basics
+  - bird identification
+  - birdwatching
+  display_order: 46
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: hidden-gems
+  name: Beekeeping Basics
+  slug: beekeeping-basics
+  description: ""
+  search_terms:
+  - beekeeping
+  - bee keeping
+  - apiculture
+  - honey bees
+  - urban beekeeping
+  display_order: 47
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: hidden-gems
+  name: Board Game Strategy
+  slug: board-game-strategy
+  description: ""
+  search_terms:
+  - board games
+  - board game strategy
+  - tabletop games
+  - strategy games
+  - game tactics
+  display_order: 48
+  online_capable: true
+  requires_certification: false
+  related_services: [chess]
+
+- category_slug: hidden-gems
+  name: Street Art Tours
+  slug: street-art-tours
+  description: ""
+  search_terms:
+  - street art
+  - street art tours
+  - graffiti tours
+  - urban art tours
+  - art walking tours
+  display_order: 49
+  online_capable: false
+  requires_certification: false
+  related_services: [nyc-history-tours]
+
+- category_slug: hidden-gems
+  name: Subway Navigation
+  slug: subway-navigation
+  description: ""
+  search_terms:
+  - subway navigation
+  - nyc subway
+  - metro navigation
+  - public transit
+  - subway guide
+  display_order: 50
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: hidden-gems
+  name: Food Tour Guiding
+  slug: food-tour-guiding
+  description: ""
+  search_terms:
+  - food tours
+  - food tour guide
+  - culinary tours
+  - restaurant tours
+  - food experiences
+  display_order: 51
+  online_capable: false
+  requires_certification: false
+  related_services: [nyc-history-tours]
+
+- category_slug: hidden-gems
+  name: NYC Real Estate Basics
+  slug: nyc-real-estate-basics
+  description: ""
+  search_terms:
+  - nyc real estate
+  - real estate basics
+  - apartment hunting
+  - nyc housing
+  - rental advice
+  display_order: 52
+  online_capable: true
+  requires_certification: false
+  related_services: []
+
+- category_slug: hidden-gems
+  name: Collecting Coins
+  slug: collecting-coins
+  description: ""
+  search_terms:
+  - coin collecting
+  - numismatics
+  - coins
+  - coin collection
+  - currency collecting
+  display_order: 53
+  online_capable: true
+  requires_certification: false
+  related_services: [collecting-stamps]
+
+- category_slug: hidden-gems
+  name: Collecting Stamps
+  slug: collecting-stamps
+  description: ""
+  search_terms:
+  - stamp collecting
+  - philately
+  - stamps
+  - stamp collection
+  - postal history
+  display_order: 54
+  online_capable: true
+  requires_certification: false
+  related_services: [collecting-coins]

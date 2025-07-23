@@ -2,50 +2,51 @@
 # These organize services into logical groups for easier discovery
 
 categories:
-  - name: "Music & Arts"
-    slug: "music-arts"
-    description: "Musical instruments, theory, performance, and visual arts"
+  - name: "Music"
+    slug: "music"
+    subtitle: "Instrument Voice Theory"
+    description: "Musical instruments, voice training, and music theory education"
     display_order: 1
     icon_name: "music-note"
 
-  - name: "Academic"
-    slug: "academic"
-    description: "K-12 subjects, test preparation, and homework help"
+  - name: "Tutoring"
+    slug: "tutoring"
+    subtitle: "Academic STEM Tech"
+    description: "Academic subjects, STEM education, and technology skills"
     display_order: 2
     icon_name: "book"
 
-  - name: "Languages"
-    slug: "languages"
-    description: "Foreign languages, ESL, and conversation practice"
+  - name: "Sports & Fitness"
+    slug: "sports-fitness"
+    subtitle: ""
+    description: "Athletic training, sports coaching, and fitness instruction"
     display_order: 3
-    icon_name: "globe"
-
-  - name: "Fitness & Wellness"
-    slug: "fitness-wellness"
-    description: "Personal training, yoga, pilates, and wellness coaching"
-    display_order: 4
     icon_name: "heart"
 
-  - name: "Technology"
-    slug: "technology"
-    description: "Programming, design, data science, and digital skills"
+  - name: "Language"
+    slug: "language"
+    subtitle: ""
+    description: "Foreign languages, ESL, and conversation practice"
+    display_order: 4
+    icon_name: "globe"
+
+  - name: "Arts"
+    slug: "arts"
+    subtitle: "Performing Visual Applied"
+    description: "Performing arts, visual arts, and applied creative skills"
     display_order: 5
-    icon_name: "laptop"
+    icon_name: "palette"
 
-  - name: "Sports & Games"
-    slug: "sports-games"
-    description: "Athletic training, sports coaching, and strategic games"
+  - name: "Kids"
+    slug: "kids"
+    subtitle: "Infant Toddler Preteen"
+    description: "Age-appropriate activities and education for children"
     display_order: 6
-    icon_name: "basketball"
+    icon_name: "child"
 
-  - name: "Life Skills"
-    slug: "life-skills"
-    description: "Cooking, public speaking, and practical life skills"
+  - name: "Hidden Gems"
+    slug: "hidden-gems"
+    subtitle: ""
+    description: "Unique and specialized skills not found in other categories"
     display_order: 7
-    icon_name: "lightbulb"
-
-  - name: "Business & Career"
-    slug: "business-career"
-    description: "Professional development, finance, and career coaching"
-    display_order: 8
-    icon_name: "briefcase"
+    icon_name: "sparkles"

@@ -1,297 +1,1230 @@
+# InstaInstru Test Instructors
+# This file contains 60+ instructors covering all service categories
+# Multiple instructors for top 2 services in each category with different price points
+# Various availability patterns for testing time-based queries
+
 instructors:
-  # ACADEMIC - Multiple durations (showcase feature)
+  #################################################
+  # MUSIC CATEGORY - 10 instructors
+  #################################################
+
+  # Piano - Multiple instructors with different prices (top service)
   - email: sarah.chen@example.com
     full_name: Sarah Chen
-    phone: "+12125551101"
+    phone: "+12125551001"
     profile:
-      bio: "MIT graduate with 10 years of experience teaching math and physics. Specializes in AP prep and college-level courses."
+      bio: "Julliard-trained pianist with 15 years of teaching experience. Specializes in classical and jazz piano."
+      years_experience: 15
+      areas: ["Manhattan", "Brooklyn"]
+      services:
+        - name: "Piano"
+          description: "Classical, jazz, and contemporary piano for all levels"
+          price: 120.00
+          duration_options: [30, 45, 60]
+          experience_level: "expert"
+          equipment_required: ["Piano or Keyboard", "Music Stand"]
+          levels_taught: ["Beginner", "Intermediate", "Advanced"]
+          age_groups: ["Kids", "Teens", "Adults"]
+          location_types: ["in-person", "online"]
+          max_distance_miles: 10
+    availability_pattern: "flexible_academic"
+
+  - email: michael.rodriguez@example.com
+    full_name: Michael Rodriguez
+    phone: "+12125551002"
+    profile:
+      bio: "Former concert pianist offering affordable lessons for beginners. Patient and encouraging teaching style."
+      years_experience: 8
+      areas: ["Queens", "Brooklyn"]
+      services:
+        - name: "Piano"
+          description: "Piano fundamentals and music theory"
+          price: 65.00  # Lower price point
+          duration_options: [30, 45]
+          experience_level: "intermediate"
+          levels_taught: ["Beginner", "Intermediate"]
+          age_groups: ["Kids", "Teens", "Adults"]
+          location_types: ["in-person"]
+          max_distance_miles: 15
+    availability_pattern: "evenings_weekends"
+
+  # Keyboard - Second top service
+  - email: jason.park@example.com
+    full_name: Jason Park
+    phone: "+12125551003"
+    profile:
+      bio: "Electronic music producer teaching modern keyboard and synthesis techniques."
+      years_experience: 6
+      areas: ["Manhattan", "Brooklyn"]
+      services:
+        - name: "Keyboard"
+          description: "Digital keyboards, synthesizers, and music production"
+          price: 85.00
+          duration_options: [60]
+          experience_level: "intermediate"
+          location_types: ["in-person", "online"]
+    availability_pattern: "afternoons_evenings"
+
+  # Guitar instructor
+  - email: carlos.garcia@example.com
+    full_name: Carlos Garcia
+    phone: "+12125551004"
+    profile:
+      bio: "Session guitarist with 20 years experience. Rock, blues, jazz, and classical styles."
+      years_experience: 20
+      areas: ["Manhattan", "Queens", "Brooklyn"]
+      services:
+        - name: "Guitar"
+          description: "Acoustic and electric guitar for all styles"
+          price: 75.00
+          duration_options: [30, 45, 60]
+          experience_level: "expert"
+          location_types: ["in-person", "online"]
+    availability_pattern: "full_availability"
+
+  # Voice instructor
+  - email: amanda.johnson@example.com
+    full_name: Amanda Johnson
+    phone: "+12125551005"
+    profile:
+      bio: "Broadway performer with vocal coaching expertise. Belt, mix, and classical techniques."
+      years_experience: 12
+      areas: ["Manhattan"]
+      services:
+        - name: "Voice"
+          description: "Vocal technique, performance, and audition prep"
+          price: 95.00
+          duration_options: [45, 60]
+          experience_level: "expert"
+          location_types: ["in-person", "online"]
+    availability_pattern: "mornings_only"
+
+  # Violin instructor
+  - email: yuki.tanaka@example.com
+    full_name: Yuki Tanaka
+    phone: "+12125551006"
+    profile:
+      bio: "NY Philharmonic violinist offering advanced classical training."
+      years_experience: 18
+      areas: ["Manhattan", "Brooklyn"]
+      services:
+        - name: "Violin"
+          description: "Classical violin technique and repertoire"
+          price: 150.00
+          duration_options: [60]
+          experience_level: "expert"
+          levels_taught: ["Intermediate", "Advanced"]
+          location_types: ["in-person"]
+    availability_pattern: "weekends_only"
+
+  # Drums instructor
+  - email: marcus.williams@example.com
+    full_name: Marcus Williams
+    phone: "+12125551007"
+    profile:
+      bio: "Studio drummer specializing in rock, jazz, and Latin rhythms."
+      years_experience: 10
+      areas: ["Brooklyn", "Queens"]
+      services:
+        - name: "Drums"
+          description: "Drum kit, hand percussion, and rhythm training"
+          price: 70.00
+          duration_options: [45, 60]
+          experience_level: "intermediate"
+          location_types: ["in-person"]
+    availability_pattern: "evenings_weekends"
+
+  # Multi-instrument instructor (rare)
+  - email: david.thompson@example.com
+    full_name: David Thompson
+    phone: "+12125551008"
+    profile:
+      bio: "Multi-instrumentalist teaching various instruments and music theory."
+      years_experience: 14
+      areas: ["Manhattan", "Brooklyn"]
+      services:
+        - name: "Bass Guitar"
+          description: "Electric and upright bass techniques"
+          price: 80.00
+          duration_options: [45, 60]
+        - name: "Music Theory"
+          description: "Comprehensive music theory and composition"
+          price: 75.00
+          duration_options: [60]
+        - name: "Ukulele"
+          description: "Fun ukulele lessons for all ages"
+          price: 60.00
+          duration_options: [30, 45]
+          age_groups: ["Kids", "Teens", "Adults"]
+    availability_pattern: "flexible_academic"
+
+  # Saxophone instructor
+  - email: robert.davis@example.com
+    full_name: Robert Davis
+    phone: "+12125551009"
+    profile:
+      bio: "Jazz saxophonist with experience in classical and contemporary styles."
+      years_experience: 9
+      areas: ["Queens", "Manhattan"]
+      services:
+        - name: "Saxophone"
+          description: "Alto, tenor, and soprano sax for jazz and classical"
+          price: 85.00
+          duration_options: [45, 60]
+          location_types: ["in-person", "online"]
+    availability_pattern: "standard_weekday"
+
+  # Songwriting instructor
+  - email: lily.anderson@example.com
+    full_name: Lily Anderson
+    phone: "+12125551010"
+    profile:
+      bio: "Published songwriter helping artists develop their creative voice."
+      years_experience: 7
+      areas: ["Brooklyn", "Manhattan"]
+      services:
+        - name: "Songwriting"
+          description: "Lyric writing, melody, and song structure"
+          price: 90.00
+          duration_options: [60, 90]
+          location_types: ["in-person", "online"]
+    availability_pattern: "afternoons_evenings"
+
+  #################################################
+  # TUTORING CATEGORY - 10 instructors
+  #################################################
+
+  # Math Tutoring Elementary - Multiple instructors (top service)
+  - email: jennifer.kim@example.com
+    full_name: Jennifer Kim
+    phone: "+12125551011"
+    profile:
+      bio: "MIT graduate specializing in making math fun for elementary students."
+      years_experience: 8
+      areas: ["Manhattan", "Queens"]
+      services:
+        - name: "Math Tutoring Elementary"
+          description: "K-5 math with engaging, hands-on methods"
+          price: 75.00
+          duration_options: [30, 45, 60]
+          experience_level: "expert"
+          levels_taught: ["K-5"]
+          age_groups: ["Kids"]
+          location_types: ["in-person", "online"]
+    availability_pattern: "flexible_academic"
+
+  - email: thomas.lee@example.com
+    full_name: Thomas Lee
+    phone: "+12125551012"
+    profile:
+      bio: "Former elementary school teacher with a passion for building strong math foundations."
+      years_experience: 5
+      areas: ["Brooklyn", "Queens"]
+      services:
+        - name: "Math Tutoring Elementary"
+          description: "Patient, encouraging approach to elementary math"
+          price: 55.00  # Lower price point
+          duration_options: [30, 45]
+          levels_taught: ["K-5"]
+          age_groups: ["Kids"]
+          location_types: ["in-person", "online"]
+    availability_pattern: "afternoons_evenings"
+
+  # SAT Prep - Second top service
+  - email: rachel.patel@example.com
+    full_name: Rachel Patel
+    phone: "+12125551013"
+    profile:
+      bio: "Perfect SAT scorer with proven strategies to boost scores 200+ points."
       years_experience: 10
       areas: ["Manhattan", "Brooklyn"]
       services:
-        - name: "Math Tutoring"
-          description: "Algebra, Calculus, Statistics - all levels"
-          price: 80.00
-          duration_options: [30, 60, 90]  # Multiple durations
+        - name: "SAT Prep"
+          description: "Comprehensive SAT prep with personalized study plans"
+          price: 150.00
+          duration_options: [90, 120]
           experience_level: "expert"
-          requirements: "Students should have basic algebra knowledge for calculus courses"
-          equipment_required: ["Calculator", "Notebook", "Textbook"]
-          levels_taught: ["High School", "AP", "College"]
-          age_groups: ["14-18", "18+"]
           location_types: ["in-person", "online"]
-          max_distance_miles: 10
-        - name: "Science Tutoring"
-          description: "AP Physics, College Physics, Quantum Mechanics"
-          price: 90.00
-          duration_options: [60, 90]  # Multiple durations
-          experience_level: "expert"
-          requirements: "Strong math background required for physics"
-          equipment_required: ["Scientific Calculator", "Lab Notebook"]
-          levels_taught: ["AP", "College", "Graduate"]
-          age_groups: ["16-18", "18+"]
-          location_types: ["in-person", "online"]
-          max_distance_miles: 15
-    availability_pattern: "flexible_academic"
+    availability_pattern: "weekends_only"
 
-  - email: robert.kim@example.com
-    full_name: Robert Kim
-    phone: "+12125551102"
+  - email: steven.chang@example.com
+    full_name: Steven Chang
+    phone: "+12125551014"
     profile:
-      bio: "Former high school English teacher, now specializing in SAT/ACT prep and college essays."
-      years_experience: 8
-      areas: ["Queens", "Manhattan"]
-      services:
-        - name: "English Tutoring"
-          description: "Essay writing, literature analysis, grammar"
-          price: 70.00
-          duration_options: [60]  # Single duration
-        - name: "College Essay Help"
-          description: "Brainstorming, editing, and perfecting college applications"
-          price: 100.00
-          duration_options: [90]  # Single duration
-    availability_pattern: "evenings_weekends"
-
-  # LANGUAGES - Mix of single and multiple durations
-  - email: maria.gonzalez@example.com
-    full_name: Maria Gonzalez
-    phone: "+12125551103"
-    profile:
-      bio: "Native Spanish speaker with teaching certification. Fun, interactive lessons for all ages."
-      years_experience: 6
-      areas: ["Brooklyn", "Queens"]
-      services:
-        - name: "Spanish Lessons"
-          description: "Conversational Spanish, grammar, business Spanish"
-          price: 60.00
-          duration_options: [30, 45, 60]  # Multiple durations for flexibility
-    availability_pattern: "standard_weekday"
-
-  - email: pierre.dubois@example.com
-    full_name: Pierre Dubois
-    phone: "+12125551104"
-    profile:
-      bio: "French native from Paris, specializing in pronunciation and conversational skills."
-      years_experience: 5
-      areas: ["Manhattan"]
-      services:
-        - name: "French Lessons"
-          description: "From beginner to advanced, focus on real-world conversation"
-          price: 65.00
-          duration_options: [45]  # Single duration
-    availability_pattern: "mornings_only"
-
-  - email: wei.zhang@example.com
-    full_name: Wei Zhang
-    phone: "+12125551105"
-    profile:
-      bio: "Certified Mandarin instructor with experience teaching business professionals."
-      years_experience: 12
-      areas: ["Manhattan", "Brooklyn", "Queens"]
-      services:
-        - name: "Mandarin Chinese"
-          description: "HSK prep, business Chinese, conversational practice"
-          price: 75.00
-          duration_options: [60]  # Single duration
-    availability_pattern: "evenings_weekends"
-
-  # MUSIC - Mostly single durations
-  - email: michael.rodriguez@example.com
-    full_name: Michael Rodriguez
-    phone: "+12125551106"
-    profile:
-      bio: "Julliard-trained musician offering guitar and piano lessons. Jazz, classical, and contemporary styles."
-      years_experience: 15
+      bio: "Harvard grad offering affordable SAT prep with flexible scheduling."
+      years_experience: 4
       areas: ["Queens", "Brooklyn"]
       services:
-        - name: "Guitar Lessons"
-          description: "Acoustic, electric, classical guitar - all styles"
-          price: 70.00
-          duration_options: [30, 45, 60]  # Multiple durations
-        - name: "Piano Lessons"
-          description: "Classical, jazz, music theory included"
-          price: 75.00
-          duration_options: [45, 60]  # Multiple durations
-    availability_pattern: "flexible_academic"
-
-  - email: jessica.chen@example.com
-    full_name: Jessica Chen
-    phone: "+12125551107"
-    profile:
-      bio: "Professional violinist with NY Philharmonic. Patient teacher for serious students."
-      years_experience: 20
-      areas: ["Manhattan"]
-      services:
-        - name: "Violin Lessons"
-          description: "Classical technique, music theory, performance prep"
-          price: 120.00
-          duration_options: [60]  # Single duration - serious study
+        - name: "SAT Prep"
+          description: "SAT math and verbal strategies"
+          price: 85.00  # Lower price point
+          duration_options: [60, 90]
+          location_types: ["online"]
     availability_pattern: "evenings_weekends"
 
-  # ARTS
-  - email: david.thompson@example.com
-    full_name: David Thompson
-    phone: "+12125551108"
+  # Algebra instructor
+  - email: maria.gonzalez@example.com
+    full_name: Maria Gonzalez
+    phone: "+12125551015"
     profile:
-      bio: "Professional photographer specializing in portrait and street photography."
-      years_experience: 8
+      bio: "High school math teacher specializing in algebra and pre-calculus."
+      years_experience: 12
       areas: ["Brooklyn", "Manhattan"]
       services:
-        - name: "Photography"
-          description: "Camera basics, composition, editing in Lightroom"
-          price: 85.00
-          duration_options: [90]  # Single duration - need time for practice
+        - name: "Algebra I"
+          description: "Foundations of algebra with real-world applications"
+          price: 70.00
+          duration_options: [60]
+          location_types: ["in-person", "online"]
+        - name: "Algebra II"
+          description: "Advanced algebra and trigonometry"
+          price: 75.00
+          duration_options: [60]
+          location_types: ["in-person", "online"]
+    availability_pattern: "standard_weekday"
+
+  # Science tutor
+  - email: dr.james.wilson@example.com
+    full_name: Dr. James Wilson
+    phone: "+12125551016"
+    profile:
+      bio: "PhD in Physics offering high-level science tutoring."
+      years_experience: 15
+      areas: ["Manhattan"]
+      services:
+        - name: "Physics"
+          description: "AP Physics, college physics, and physics olympiad prep"
+          price: 120.00
+          duration_options: [60, 90]
+          experience_level: "expert"
+          location_types: ["in-person", "online"]
+        - name: "Calculus AP"
+          description: "AP Calculus AB/BC and college calculus"
+          price: 110.00
+          duration_options: [60, 90]
     availability_pattern: "flexible_academic"
 
-  # FITNESS - Various duration needs
-  - email: amanda.white@example.com
-    full_name: Amanda White
-    phone: "+12125551109"
+  # Chemistry tutor
+  - email: susan.martinez@example.com
+    full_name: Susan Martinez
+    phone: "+12125551017"
     profile:
-      bio: "Certified yoga instructor specializing in Vinyasa and restorative yoga."
-      years_experience: 7
-      areas: ["Manhattan", "Brooklyn"]
+      bio: "Former pharmaceutical researcher teaching chemistry with practical examples."
+      years_experience: 9
+      areas: ["Queens", "Brooklyn", "Manhattan"]
       services:
-        - name: "Yoga"
-          description: "Customized yoga sessions for your level and goals"
-          price: 90.00
-          duration_options: [60, 90]  # Multiple durations
+        - name: "Chemistry"
+          description: "General chemistry, AP Chemistry, and organic chemistry"
+          price: 85.00
+          duration_options: [60]
+          location_types: ["in-person", "online"]
     availability_pattern: "mornings_only"
 
+  # Coding instructor
+  - email: alex.patel@example.com
+    full_name: Alex Patel
+    phone: "+12125551018"
+    profile:
+      bio: "Google engineer teaching coding to the next generation."
+      years_experience: 6
+      areas: ["Manhattan", "Brooklyn"]
+      services:
+        - name: "Coding"
+          description: "Scratch, Python, and web development for kids and teens"
+          price: 95.00
+          duration_options: [60, 90]
+          age_groups: ["Kids", "Teens"]
+          location_types: ["online"]
+        - name: "Python"
+          description: "Python programming from basics to advanced"
+          price: 100.00
+          duration_options: [60, 90]
+    availability_pattern: "evenings_weekends"
+
+  # Reading tutor
+  - email: patricia.brown@example.com
+    full_name: Patricia Brown
+    phone: "+12125551019"
+    profile:
+      bio: "Reading specialist with dyslexia training and phonics expertise."
+      years_experience: 11
+      areas: ["Manhattan", "Queens"]
+      services:
+        - name: "Reading Tutoring Elementary"
+          description: "Phonics, comprehension, and reading fluency"
+          price: 80.00
+          duration_options: [30, 45, 60]
+          levels_taught: ["K-5"]
+          age_groups: ["Kids"]
+          location_types: ["in-person"]
+    availability_pattern: "full_availability"
+
+  # ACT Prep instructor
+  - email: kevin.zhang@example.com
+    full_name: Kevin Zhang
+    phone: "+12125551020"
+    profile:
+      bio: "Test prep specialist with 10 years of ACT coaching experience."
+      years_experience: 10
+      areas: ["Brooklyn", "Manhattan"]
+      services:
+        - name: "ACT Prep"
+          description: "Complete ACT preparation with practice tests"
+          price: 130.00
+          duration_options: [90]
+          location_types: ["in-person", "online"]
+    availability_pattern: "weekends_only"
+
+  #################################################
+  # SPORTS & FITNESS CATEGORY - 10 instructors
+  #################################################
+
+  # Personal Training - Multiple instructors (top service)
   - email: marcus.johnson@example.com
     full_name: Marcus Johnson
-    phone: "+12125551110"
+    phone: "+12125551021"
     profile:
-      bio: "NASM certified personal trainer. Strength training and HIIT specialist."
-      years_experience: 5
+      bio: "NASM certified personal trainer specializing in strength and conditioning."
+      years_experience: 8
+      areas: ["Manhattan", "Brooklyn"]
+      services:
+        - name: "Personal Training"
+          description: "Customized fitness programs for all fitness levels"
+          price: 100.00
+          duration_options: [45, 60]
+          experience_level: "expert"
+          location_types: ["in-person", "online"]
+    availability_pattern: "early_bird"
+
+  - email: jessica.rivera@example.com
+    full_name: Jessica Rivera
+    phone: "+12125551022"
+    profile:
+      bio: "Former athlete offering affordable personal training for beginners."
+      years_experience: 4
       areas: ["Queens", "Brooklyn"]
       services:
         - name: "Personal Training"
-          description: "Custom workout plans, form correction, nutrition guidance"
-          price: 100.00
-          duration_options: [45]  # Single duration
-    availability_pattern: "standard_weekday"
+          description: "Weight loss, muscle building, and general fitness"
+          price: 65.00  # Lower price point
+          duration_options: [45]
+          location_types: ["in-person"]
+    availability_pattern: "mornings_only"
 
-  # TECHNOLOGY
-  - email: alex.patel@example.com
-    full_name: Alex Patel
-    phone: "+12125551111"
+  # Yoga - Second top service
+  - email: priya.sharma@example.com
+    full_name: Priya Sharma
+    phone: "+12125551023"
     profile:
-      bio: "Full-stack developer with 10 years in tech. Love teaching coding to beginners!"
-      years_experience: 10
-      areas: ["Manhattan", "Remote"]
+      bio: "RYT-500 yoga instructor specializing in Vinyasa and Yin yoga."
+      years_experience: 12
+      areas: ["Manhattan"]
       services:
-        - name: "Programming Lessons"
-          description: "Python, JavaScript, web development basics"
+        - name: "Yoga"
+          description: "Private yoga sessions tailored to your needs"
+          price: 90.00
+          duration_options: [60, 90]
+          experience_level: "expert"
+          location_types: ["in-person", "online"]
+    availability_pattern: "early_bird"
+
+  - email: emma.white@example.com
+    full_name: Emma White
+    phone: "+12125551024"
+    profile:
+      bio: "Gentle yoga instructor focusing on stress relief and flexibility."
+      years_experience: 6
+      areas: ["Brooklyn", "Queens"]
+      services:
+        - name: "Yoga"
+          description: "Hatha yoga, restorative yoga, and meditation"
+          price: 70.00  # Lower price point
+          duration_options: [60]
+          location_types: ["in-person"]
+    availability_pattern: "flexible_academic"
+
+  # Swimming instructor
+  - email: michael.turner@example.com
+    full_name: Michael Turner
+    phone: "+12125551025"
+    profile:
+      bio: "Former competitive swimmer teaching all levels from beginner to advanced."
+      years_experience: 10
+      areas: ["Manhattan", "Brooklyn"]
+      services:
+        - name: "Swimming"
+          description: "Private swimming lessons at your pool or local facility"
+          price: 85.00
+          duration_options: [30, 45]
+          age_groups: ["Kids", "Teens", "Adults"]
+          location_types: ["in-person"]
+    availability_pattern: "mornings_only"
+
+  # Tennis instructor
+  - email: sophia.rodriguez@example.com
+    full_name: Sophia Rodriguez
+    phone: "+12125551026"
+    profile:
+      bio: "USPTA certified tennis pro with junior development expertise."
+      years_experience: 9
+      areas: ["Queens", "Manhattan"]
+      services:
+        - name: "Tennis"
+          description: "Tennis technique, strategy, and match play"
           price: 95.00
-          duration_options: [60, 90, 120]  # Multiple - projects take time
-        - name: "Data Science"
-          description: "Python for data analysis, pandas, visualization"
-          price: 110.00
-          duration_options: [90]  # Single duration
+          duration_options: [60]
+          age_groups: ["Kids", "Teens", "Adults"]
+          location_types: ["in-person"]
+    availability_pattern: "full_availability"
+
+  # Basketball skills coach
+  - email: dwayne.jackson@example.com
+    full_name: Dwayne Jackson
+    phone: "+12125551027"
+    profile:
+      bio: "Former college basketball player teaching fundamentals and advanced skills."
+      years_experience: 7
+      areas: ["Brooklyn", "Queens"]
+      services:
+        - name: "Basketball Skills"
+          description: "Shooting, dribbling, defense, and game IQ"
+          price: 75.00
+          duration_options: [60]
+          age_groups: ["Kids", "Teens"]
+          location_types: ["in-person"]
+    availability_pattern: "afternoons_evenings"
+
+  # Martial Arts instructor
+  - email: ken.yamamoto@example.com
+    full_name: Ken Yamamoto
+    phone: "+12125551028"
+    profile:
+      bio: "5th degree black belt teaching traditional karate and self-defense."
+      years_experience: 20
+      areas: ["Manhattan", "Brooklyn"]
+      services:
+        - name: "Martial Arts"
+          description: "Karate, self-defense, and discipline training"
+          price: 80.00
+          duration_options: [45, 60]
+          age_groups: ["Kids", "Teens", "Adults"]
+          location_types: ["in-person"]
     availability_pattern: "evenings_weekends"
 
-  # TEST PREP - Often longer sessions
-  - email: jennifer.park@example.com
-    full_name: Jennifer Park
-    phone: "+12125551112"
+  # Pilates instructor
+  - email: lauren.clark@example.com
+    full_name: Lauren Clark
+    phone: "+12125551029"
     profile:
-      bio: "Perfect SAT scorer, Harvard grad. Proven strategies to boost scores 200+ points."
+      bio: "Certified Pilates instructor specializing in core strength and rehabilitation."
+      years_experience: 8
+      areas: ["Manhattan"]
+      services:
+        - name: "Pilates"
+          description: "Mat Pilates and reformer sessions"
+          price: 95.00
+          duration_options: [60]
+          location_types: ["in-person", "online"]
+    availability_pattern: "standard_weekday"
+
+  # Running coach
+  - email: chris.evans@example.com
+    full_name: Chris Evans
+    phone: "+12125551030"
+    profile:
+      bio: "Marathon runner and certified coach helping you reach your running goals."
+      years_experience: 6
+      areas: ["Brooklyn", "Manhattan", "Queens"]
+      services:
+        - name: "Running"
+          description: "5K to marathon training, form analysis, and injury prevention"
+          price: 70.00
+          duration_options: [60]
+          location_types: ["in-person"]
+    availability_pattern: "early_bird"
+
+  #################################################
+  # LANGUAGE CATEGORY - 10 instructors
+  #################################################
+
+  # Spanish - Multiple instructors (top service)
+  - email: carlos.mendez@example.com
+    full_name: Carlos Mendez
+    phone: "+12125551031"
+    profile:
+      bio: "Native Spanish speaker from Madrid with teaching certification."
+      years_experience: 10
+      areas: ["Manhattan", "Brooklyn"]
+      services:
+        - name: "Spanish"
+          description: "Conversational Spanish, grammar, and business Spanish"
+          price: 75.00
+          duration_options: [45, 60]
+          experience_level: "expert"
+          location_types: ["in-person", "online"]
+    availability_pattern: "flexible_academic"
+
+  - email: lucia.fernandez@example.com
+    full_name: Lucia Fernandez
+    phone: "+12125551032"
+    profile:
+      bio: "Argentinian teacher offering fun, affordable Spanish lessons."
+      years_experience: 5
+      areas: ["Queens", "Brooklyn"]
+      services:
+        - name: "Spanish"
+          description: "Spanish for beginners and intermediate learners"
+          price: 55.00  # Lower price point
+          duration_options: [30, 45]
+          location_types: ["online"]
+    availability_pattern: "evenings_weekends"
+
+  # ESL - Second top service
+  - email: jennifer.taylor@example.com
+    full_name: Jennifer Taylor
+    phone: "+12125551033"
+    profile:
+      bio: "TEFL certified instructor with experience teaching business professionals."
+      years_experience: 12
+      areas: ["Manhattan"]
+      services:
+        - name: "ESL"
+          description: "English as a Second Language for all levels"
+          price: 80.00
+          duration_options: [60]
+          experience_level: "expert"
+          location_types: ["in-person", "online"]
+    availability_pattern: "standard_weekday"
+
+  # French instructor
+  - email: pierre.dubois@example.com
+    full_name: Pierre Dubois
+    phone: "+12125551034"
+    profile:
+      bio: "Native French speaker from Paris teaching language and culture."
+      years_experience: 8
+      areas: ["Manhattan", "Brooklyn"]
+      services:
+        - name: "French"
+          description: "French conversation, grammar, and pronunciation"
+          price: 70.00
+          duration_options: [45, 60]
+          location_types: ["in-person", "online"]
+    availability_pattern: "afternoons_evenings"
+
+  # Mandarin Chinese instructor
+  - email: wei.zhang@example.com
+    full_name: Wei Zhang
+    phone: "+12125551035"
+    profile:
+      bio: "Beijing native teaching Mandarin to business professionals and students."
+      years_experience: 15
+      areas: ["Manhattan", "Queens"]
+      services:
+        - name: "Mandarin Chinese"
+          description: "HSK prep, business Chinese, and conversation"
+          price: 85.00
+          duration_options: [60]
+          location_types: ["in-person", "online"]
+    availability_pattern: "flexible_academic"
+
+  # Italian instructor
+  - email: marco.rossi@example.com
+    full_name: Marco Rossi
+    phone: "+12125551036"
+    profile:
+      bio: "Roman native sharing the beauty of Italian language and culture."
+      years_experience: 7
+      areas: ["Brooklyn", "Manhattan"]
+      services:
+        - name: "Italian"
+          description: "Italian for travel, business, or personal enrichment"
+          price: 65.00
+          duration_options: [45, 60]
+          location_types: ["online"]
+    availability_pattern: "evenings_weekends"
+
+  # Multi-language instructor (rare)
+  - email: natasha.petrova@example.com
+    full_name: Natasha Petrova
+    phone: "+12125551037"
+    profile:
+      bio: "Polyglot teaching multiple European languages with cultural insights."
+      years_experience: 11
+      areas: ["Manhattan"]
+      services:
+        - name: "German"
+          description: "German for business and academic purposes"
+          price: 75.00
+          duration_options: [60]
+        - name: "Russian"
+          description: "Russian language and Cyrillic script"
+          price: 80.00
+          duration_options: [60]
+    availability_pattern: "standard_weekday"
+
+  # Japanese instructor
+  - email: yuki.nakamura@example.com
+    full_name: Yuki Nakamura
+    phone: "+12125551038"
+    profile:
+      bio: "Tokyo native teaching Japanese language and business etiquette."
+      years_experience: 9
+      areas: ["Manhattan", "Brooklyn"]
+      services:
+        - name: "Japanese"
+          description: "JLPT prep, conversational Japanese, and kanji"
+          price: 80.00
+          duration_options: [60]
+          location_types: ["in-person", "online"]
+    availability_pattern: "afternoons_evenings"
+
+  # Sign Language instructor
+  - email: sarah.mitchell@example.com
+    full_name: Sarah Mitchell
+    phone: "+12125551039"
+    profile:
+      bio: "Certified ASL instructor and interpreter with deaf community experience."
+      years_experience: 13
+      areas: ["Queens", "Brooklyn", "Manhattan"]
+      services:
+        - name: "Sign Language ASL"
+          description: "American Sign Language for beginners to advanced"
+          price: 70.00
+          duration_options: [45, 60]
+          location_types: ["in-person", "online"]
+    availability_pattern: "full_availability"
+
+  # Korean instructor
+  - email: jin.park@example.com
+    full_name: Jin Park
+    phone: "+12125551040"
+    profile:
+      bio: "Seoul native teaching Korean with K-pop and K-drama cultural context."
+      years_experience: 5
+      areas: ["Manhattan", "Queens"]
+      services:
+        - name: "Korean"
+          description: "Korean language, Hangul, and cultural immersion"
+          price: 75.00
+          duration_options: [60]
+          location_types: ["online"]
+    availability_pattern: "evenings_weekends"
+
+  #################################################
+  # ARTS CATEGORY - 10 instructors
+  #################################################
+
+  # Photography - Multiple instructors (top service)
+  - email: david.chen@example.com
+    full_name: David Chen
+    phone: "+12125551041"
+    profile:
+      bio: "Professional photographer teaching composition and editing techniques."
+      years_experience: 12
+      areas: ["Manhattan", "Brooklyn"]
+      services:
+        - name: "Photography"
+          description: "Digital photography, composition, and Lightroom editing"
+          price: 95.00
+          duration_options: [90, 120]
+          experience_level: "expert"
+          location_types: ["in-person"]
+    availability_pattern: "weekends_only"
+
+  - email: lisa.nguyen@example.com
+    full_name: Lisa Nguyen
+    phone: "+12125551042"
+    profile:
+      bio: "Instagram photographer teaching mobile photography and social media."
+      years_experience: 4
+      areas: ["Queens", "Brooklyn"]
+      services:
+        - name: "Photography"
+          description: "Smartphone photography and basic editing"
+          price: 60.00  # Lower price point
+          duration_options: [60]
+          location_types: ["in-person", "online"]
+    availability_pattern: "flexible_academic"
+
+  # Drawing instructor
+  - email: robert.lewis@example.com
+    full_name: Robert Lewis
+    phone: "+12125551043"
+    profile:
+      bio: "MFA in Fine Arts teaching classical drawing techniques."
+      years_experience: 15
+      areas: ["Manhattan"]
+      services:
+        - name: "Drawing"
+          description: "Pencil, charcoal, and figure drawing"
+          price: 85.00
+          duration_options: [90]
+          age_groups: ["Kids", "Teens", "Adults"]
+          location_types: ["in-person"]
+    availability_pattern: "standard_weekday"
+
+  # Acting coach
+  - email: michelle.adams@example.com
+    full_name: Michelle Adams
+    phone: "+12125551044"
+    profile:
+      bio: "Broadway actress offering acting and audition coaching."
+      years_experience: 10
+      areas: ["Manhattan", "Brooklyn"]
+      services:
+        - name: "Acting"
+          description: "Scene study, monologues, and audition prep"
+          price: 110.00
+          duration_options: [60, 90]
+          location_types: ["in-person", "online"]
+    availability_pattern: "afternoons_evenings"
+
+  # Ballet instructor
+  - email: anastasia.petrova@example.com
+    full_name: Anastasia Petrova
+    phone: "+12125551045"
+    profile:
+      bio: "Former ABT dancer teaching classical ballet technique."
+      years_experience: 18
+      areas: ["Manhattan"]
+      services:
+        - name: "Ballet"
+          description: "Classical ballet for intermediate and advanced dancers"
+          price: 100.00
+          duration_options: [60, 90]
+          levels_taught: ["Intermediate", "Advanced"]
+          age_groups: ["Kids", "Teens"]
+          location_types: ["in-person"]
+    availability_pattern: "mornings_only"
+
+  # Painting instructor
+  - email: sophia.martinez@example.com
+    full_name: Sophia Martinez
+    phone: "+12125551046"
+    profile:
+      bio: "Contemporary artist teaching various painting techniques."
+      years_experience: 9
+      areas: ["Brooklyn", "Queens"]
+      services:
+        - name: "Painting Watercolor"
+          description: "Watercolor techniques from basic to advanced"
+          price: 80.00
+          duration_options: [90]
+        - name: "Painting Acrylic"
+          description: "Acrylic painting and mixed media"
+          price: 85.00
+          duration_options: [90]
+    availability_pattern: "weekends_only"
+
+  # Hip Hop Dance instructor
+  - email: tyrone.washington@example.com
+    full_name: Tyrone Washington
+    phone: "+12125551047"
+    profile:
+      bio: "Professional dancer and choreographer teaching hip hop and street styles."
+      years_experience: 8
+      areas: ["Brooklyn", "Manhattan"]
+      services:
+        - name: "Hip Hop Dance"
+          description: "Hip hop choreography and freestyle"
+          price: 75.00
+          duration_options: [60]
+          age_groups: ["Kids", "Teens", "Adults"]
+          location_types: ["in-person"]
+    availability_pattern: "evenings_weekends"
+
+  # Pottery instructor
+  - email: emily.stone@example.com
+    full_name: Emily Stone
+    phone: "+12125551048"
+    profile:
+      bio: "Ceramic artist with studio space for hands-on pottery lessons."
+      years_experience: 11
+      areas: ["Brooklyn"]
+      services:
+        - name: "Pottery"
+          description: "Wheel throwing and hand building techniques"
+          price: 90.00
+          duration_options: [120]
+          age_groups: ["Teens", "Adults"]
+          location_types: ["in-person"]
+    availability_pattern: "full_availability"
+
+  # Digital Art instructor
+  - email: jason.kim@example.com
+    full_name: Jason Kim
+    phone: "+12125551049"
+    profile:
+      bio: "Digital artist teaching Photoshop, Illustrator, and Procreate."
       years_experience: 6
       areas: ["Manhattan", "Queens"]
       services:
-        - name: "SAT Prep"
-          description: "Complete SAT prep - Math, Reading, Writing"
-          price: 150.00
-          duration_options: [90, 120]  # Multiple - full practice tests
-        - name: "ACT Prep"
-          description: "Intensive ACT test preparation"
-          price: 130.00
-          duration_options: [60]  # Single duration
+        - name: "Digital Art"
+          description: "Digital illustration and design fundamentals"
+          price: 85.00
+          duration_options: [60, 90]
+          location_types: ["online"]
     availability_pattern: "flexible_academic"
 
-  # PROFESSIONAL SKILLS
-  - email: rachel.moore@example.com
-    full_name: Rachel Moore
-    phone: "+12125551113"
+  # Jazz Dance instructor
+  - email: nicole.harris@example.com
+    full_name: Nicole Harris
+    phone: "+12125551050"
     profile:
-      bio: "Former McKinsey consultant, now executive coach. TEDx speaker."
+      bio: "Professional jazz dancer with Broadway and commercial experience."
+      years_experience: 12
+      areas: ["Manhattan", "Brooklyn"]
+      services:
+        - name: "Jazz Dance"
+          description: "Jazz technique, leaps, turns, and combinations"
+          price: 80.00
+          duration_options: [60]
+          age_groups: ["Kids", "Teens"]
+          location_types: ["in-person"]
+    availability_pattern: "afternoons_evenings"
+
+  #################################################
+  # HIDDEN GEMS CATEGORY - 10 instructors
+  #################################################
+
+  # Life Coaching - Multiple instructors (top service)
+  - email: dr.rachel.green@example.com
+    full_name: Dr. Rachel Green
+    phone: "+12125551051"
+    profile:
+      bio: "Certified life coach with PhD in Psychology. Executive and personal coaching."
+      years_experience: 15
+      areas: ["Manhattan"]
+      services:
+        - name: "Life Coaching"
+          description: "Goal setting, career transitions, and personal development"
+          price: 150.00
+          duration_options: [60, 90]
+          experience_level: "expert"
+          location_types: ["in-person", "online"]
+    availability_pattern: "standard_weekday"
+
+  - email: james.foster@example.com
+    full_name: James Foster
+    phone: "+12125551052"
+    profile:
+      bio: "Life coach specializing in work-life balance and stress management."
+      years_experience: 7
+      areas: ["Brooklyn", "Queens"]
+      services:
+        - name: "Life Coaching"
+          description: "Practical strategies for personal and professional growth"
+          price: 85.00  # Lower price point
+          duration_options: [60]
+          location_types: ["online"]
+    availability_pattern: "evenings_weekends"
+
+  # Cooking instructor
+  - email: chef.antonio@example.com
+    full_name: Antonio Ricci
+    phone: "+12125551053"
+    profile:
+      bio: "Michelin-trained chef teaching home cooking and advanced techniques."
+      years_experience: 20
+      areas: ["Manhattan", "Brooklyn"]
+      services:
+        - name: "Cooking Various Cuisines"
+          description: "Italian, French, and modern American cuisine"
+          price: 120.00
+          duration_options: [90, 120]
+          location_types: ["in-person"]
+    availability_pattern: "flexible_academic"
+
+  # Wine expert
+  - email: sommelier.marie@example.com
+    full_name: Marie Laurent
+    phone: "+12125551054"
+    profile:
+      bio: "Certified sommelier offering wine education and tasting experiences."
       years_experience: 12
       areas: ["Manhattan"]
       services:
-        - name: "Public Speaking"
-          description: "Presentation skills, speech writing, confidence building"
-          price: 125.00
-          duration_options: [60]  # Single duration
-        - name: "Career Coaching"
-          description: "Resume review, interview prep, career transitions"
-          price: 140.00
-          duration_options: [45, 60, 90]  # Multiple - depends on needs
-    availability_pattern: "standard_weekday"
-
-  # Add a few more single-duration instructors
-  - email: thomas.lee@example.com
-    full_name: Thomas Lee
-    phone: "+12125551114"
-    profile:
-      bio: "CFA charterholder offering finance and accounting tutoring."
-      years_experience: 9
-      areas: ["Manhattan"]
-      services:
-        - name: "Finance Tutoring"
-          description: "Corporate finance, accounting, CFA prep"
-          price: 110.00
-          duration_options: [60]  # Single duration
+        - name: "Wine Tasting"
+          description: "Wine tasting techniques and food pairing"
+          price: 100.00
+          duration_options: [90]
+        - name: "Wine Appreciation"
+          description: "Wine regions, varietals, and collecting"
+          price: 95.00
+          duration_options: [60]
     availability_pattern: "evenings_weekends"
 
-  # TEST INSTRUCTORS - Different Account Statuses for Testing
+  # Public Speaking coach
+  - email: mark.stevens@example.com
+    full_name: Mark Stevens
+    phone: "+12125551055"
+    profile:
+      bio: "TEDx speaker and communication coach for executives and professionals."
+      years_experience: 10
+      areas: ["Manhattan", "Brooklyn"]
+      services:
+        - name: "Public Speaking"
+          description: "Presentation skills, speech writing, and confidence building"
+          price: 125.00
+          duration_options: [60, 90]
+          location_types: ["in-person", "online"]
+    availability_pattern: "standard_weekday"
 
-  # SUSPENDED INSTRUCTOR 1 - Has past bookings, temporarily unavailable
+  # Makeup artist
+  - email: ashley.james@example.com
+    full_name: Ashley James
+    phone: "+12125551056"
+    profile:
+      bio: "Celebrity makeup artist teaching personal and professional techniques."
+      years_experience: 8
+      areas: ["Manhattan", "Queens"]
+      services:
+        - name: "Makeup Application"
+          description: "Personal makeup lessons and special event looks"
+          price: 90.00
+          duration_options: [60, 90]
+          location_types: ["in-person"]
+    availability_pattern: "full_availability"
+
+  # Chess instructor
+  - email: vladimir.petrov@example.com
+    full_name: Vladimir Petrov
+    phone: "+12125551057"
+    profile:
+      bio: "Chess master with FIDE rating teaching strategy and tactics."
+      years_experience: 16
+      areas: ["Brooklyn", "Manhattan"]
+      services:
+        - name: "Chess"
+          description: "Chess strategy, tactics, and tournament prep"
+          price: 80.00
+          duration_options: [60]
+          age_groups: ["Kids", "Teens", "Adults"]
+          location_types: ["in-person", "online"]
+    availability_pattern: "afternoons_evenings"
+
+  # Career coaching instructor
+  - email: linda.thompson@example.com
+    full_name: Linda Thompson
+    phone: "+12125551058"
+    profile:
+      bio: "Former HR director helping professionals navigate career transitions."
+      years_experience: 14
+      areas: ["Manhattan"]
+      services:
+        - name: "Career Coaching"
+          description: "Resume building, interview prep, and career strategy"
+          price: 110.00
+          duration_options: [60, 90]
+          location_types: ["online"]
+    availability_pattern: "flexible_academic"
+
+  # Dog training instructor
+  - email: jessica.cooper@example.com
+    full_name: Jessica Cooper
+    phone: "+12125551059"
+    profile:
+      bio: "Certified dog trainer and behaviorist with 15 years experience."
+      years_experience: 15
+      areas: ["Brooklyn", "Queens", "Manhattan"]
+      services:
+        - name: "Dog Training"
+          description: "Basic obedience, behavior modification, and puppy training"
+          price: 85.00
+          duration_options: [60]
+          location_types: ["in-person"]
+    availability_pattern: "weekends_only"
+
+  # Baking instructor
+  - email: pastry.chef.claire@example.com
+    full_name: Claire Dubois
+    phone: "+12125551060"
+    profile:
+      bio: "French pastry chef teaching artisan baking and dessert techniques."
+      years_experience: 13
+      areas: ["Manhattan", "Brooklyn"]
+      services:
+        - name: "Baking & Pastry"
+          description: "French pastries, artisan breads, and cake decorating"
+          price: 100.00
+          duration_options: [120]
+          age_groups: ["Kids", "Teens", "Adults"]
+          location_types: ["in-person"]
+    availability_pattern: "mornings_only"
+
+  #################################################
+  # TEST INSTRUCTORS - Different Account Statuses
+  #################################################
+
+  # SUSPENDED INSTRUCTOR 1
   - email: david.martinez@example.com
     full_name: David Martinez
-    phone: "+12125551115"
-    account_status: "suspended"  # SUSPENDED for testing - verify doesn't appear in search
+    phone: "+12125551061"
+    account_status: "suspended"  # SUSPENDED for testing
     profile:
-      bio: "Experienced music teacher specializing in classical guitar. Currently on temporary leave."
+      bio: "Experienced music teacher currently on temporary leave."
       years_experience: 12
       areas: ["Brooklyn", "Manhattan"]
       services:
-        - name: "Classical Guitar"
-          description: "Classical technique, music theory, performance prep"
+        - name: "Guitar"
+          description: "Classical guitar technique and repertoire"
           price: 85.00
           duration_options: [45, 60]
-    availability_pattern: "flexible_music"  # Has availability but shouldn't be bookable
+    availability_pattern: "flexible_academic"
 
-  # SUSPENDED INSTRUCTOR 2 - Popular instructor, temporarily suspended
+  # SUSPENDED INSTRUCTOR 2
   - email: lisa.thompson@example.com
     full_name: Lisa Thompson
-    phone: "+12125551116"
-    account_status: "suspended"  # SUSPENDED for testing - has historical bookings
+    phone: "+12125551062"
+    account_status: "suspended"  # SUSPENDED for testing
     profile:
-      bio: "Award-winning yoga instructor with certifications in multiple styles. Taking a brief sabbatical."
+      bio: "Award-winning yoga instructor taking a brief sabbatical."
       years_experience: 15
       areas: ["Manhattan", "Queens", "Brooklyn"]
       services:
-        - name: "Private Yoga Sessions"
-          description: "Vinyasa, Hatha, Restorative yoga - all levels"
+        - name: "Yoga"
+          description: "Vinyasa and restorative yoga"
           price: 95.00
           duration_options: [60, 90]
-        - name: "Meditation & Mindfulness"
-          description: "Guided meditation and mindfulness techniques"
+        - name: "Meditation"
+          description: "Guided meditation techniques"
           price: 75.00
           duration_options: [30, 45]
-    availability_pattern: "mornings_evenings"  # Extensive availability that won't show
+    availability_pattern: "full_availability"
 
-  # DEACTIVATED INSTRUCTOR - Permanently inactive, retains historical data
+  #################################################
+  # ADDITIONAL KID-FOCUSED INSTRUCTORS
+  #################################################
+
+  # Kids Art instructor
+  - email: emily.carter@example.com
+    full_name: Emily Carter
+    phone: "+12125551064"
+    profile:
+      bio: "Elementary school art teacher specializing in fun, creative projects for kids."
+      years_experience: 8
+      areas: ["Brooklyn", "Queens"]
+      services:
+        - name: "Drawing"
+          description: "Fun drawing lessons for kids - cartoons, animals, and more!"
+          price: 55.00
+          duration_options: [45, 60]
+          age_groups: ["Kids"]
+          location_types: ["in-person"]
+        - name: "Painting Watercolor"
+          description: "Messy, fun watercolor projects for young artists"
+          price: 60.00
+          duration_options: [60]
+          age_groups: ["Kids"]
+          location_types: ["in-person"]
+    availability_pattern: "afternoons_evenings"
+
+  # Kids Music instructor
+  - email: tommy.nguyen@example.com
+    full_name: Tommy Nguyen
+    phone: "+12125551065"
+    profile:
+      bio: "Children's music specialist making learning fun with songs and games."
+      years_experience: 6
+      areas: ["Manhattan", "Brooklyn"]
+      services:
+        - name: "Voice"
+          description: "Kids singing lessons with Disney songs and fun exercises"
+          price: 60.00
+          duration_options: [30, 45]
+          age_groups: ["Kids"]
+          location_types: ["in-person", "online"]
+        - name: "Drums"
+          description: "Beginning drums for kids - rhythm games and basic beats"
+          price: 65.00
+          duration_options: [30, 45]
+          age_groups: ["Kids"]
+          location_types: ["in-person"]
+    availability_pattern: "flexible_academic"
+
+  # Kids Language instructor
+  - email: isabella.santos@example.com
+    full_name: Isabella Santos
+    phone: "+12125551066"
+    profile:
+      bio: "Making language learning fun for kids through games, songs, and stories."
+      years_experience: 7
+      areas: ["Queens", "Manhattan"]
+      services:
+        - name: "Spanish"
+          description: "Spanish for kids through games, songs, and cultural activities"
+          price: 50.00
+          duration_options: [30, 45]
+          age_groups: ["Kids"]
+          location_types: ["in-person", "online"]
+        - name: "French"
+          description: "Fun French lessons for children with songs and activities"
+          price: 50.00
+          duration_options: [30, 45]
+          age_groups: ["Kids"]
+          location_types: ["online"]
+    availability_pattern: "afternoons_evenings"
+
+  # Kids STEM instructor
+  - email: dr.sarah.johnson@example.com
+    full_name: Dr. Sarah Johnson
+    phone: "+12125551067"
+    profile:
+      bio: "PhD scientist making STEM fun and accessible for young minds."
+      years_experience: 10
+      areas: ["Manhattan", "Brooklyn"]
+      services:
+        - name: "Coding"
+          description: "Scratch programming and fun coding games for kids 7-12"
+          price: 70.00
+          duration_options: [45, 60]
+          age_groups: ["Kids"]
+          location_types: ["online"]
+        - name: "Robotics"
+          description: "Build and program simple robots - perfect for curious kids!"
+          price: 80.00
+          duration_options: [60]
+          age_groups: ["Kids", "Teens"]
+          location_types: ["in-person"]
+    availability_pattern: "weekends_only"
+
+  # Kids Dance instructor
+  - email: brittany.jones@example.com
+    full_name: Brittany Jones
+    phone: "+12125551068"
+    profile:
+      bio: "Former Disney performer teaching kids to dance with joy and confidence."
+      years_experience: 9
+      areas: ["Brooklyn", "Queens"]
+      services:
+        - name: "Ballet"
+          description: "Pre-ballet and beginning ballet for little dancers"
+          price: 65.00
+          duration_options: [45]
+          age_groups: ["Kids"]
+          levels_taught: ["Beginner"]
+          location_types: ["in-person"]
+        - name: "Jazz Dance"
+          description: "Fun, energetic jazz dance for kids with popular music"
+          price: 60.00
+          duration_options: [45]
+          age_groups: ["Kids"]
+          location_types: ["in-person"]
+    availability_pattern: "afternoons_evenings"
+
+  # DEACTIVATED INSTRUCTOR
   - email: michael.brown@example.com
     full_name: Michael Brown
-    phone: "+12125551117"
-    account_status: "deactivated"  # DEACTIVATED for testing - cannot login or be booked
+    phone: "+12125551063"
+    account_status: "deactivated"  # DEACTIVATED for testing
     profile:
-      bio: "Former professional chef offering culinary instruction. No longer taking students."
+      bio: "Former professional chef no longer taking students."
       years_experience: 20
       areas: ["Manhattan"]
       services:
-        - name: "Culinary Arts"
-          description: "Professional cooking techniques, menu planning"
+        - name: "Cooking Various Cuisines"
+          description: "Professional cooking techniques"
           price: 120.00
           duration_options: [90, 120]
-    availability_pattern: "flexible_music"  # Any availability is irrelevant
+    availability_pattern: "standard_weekday"
