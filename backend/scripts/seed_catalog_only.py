@@ -107,6 +107,7 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
             if existing:
                 # Update existing category
                 existing.name = cat_data["name"]
+                existing.subtitle = cat_data.get("subtitle", "")
                 existing.description = cat_data["description"]
                 existing.display_order = cat_data["display_order"]
                 existing.icon_name = cat_data.get("icon_name")
@@ -119,6 +120,7 @@ def seed_catalog(db_url: Optional[str] = None, verbose: bool = True) -> Dict[str
                 category = ServiceCategory(
                     name=cat_data["name"],
                     slug=cat_data["slug"],
+                    subtitle=cat_data.get("subtitle", ""),
                     description=cat_data["description"],
                     display_order=cat_data["display_order"],
                     icon_name=cat_data.get("icon_name"),
