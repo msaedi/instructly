@@ -56,6 +56,7 @@ export default function InstructorCard({
   };
 
   const formatSubject = (subject: string) => {
+    if (!subject) return '';
     return subject.charAt(0).toUpperCase() + subject.slice(1).replace('_', ' ');
   };
 
@@ -77,7 +78,10 @@ export default function InstructorCard({
           <div className="flex-1">
             <h3 className="font-semibold text-lg text-gray-900">{instructor.user.full_name}</h3>
             <p className="text-gray-600">
-              {instructor.services.map((s) => formatSubject(s.skill)).join(', ')} Expert
+              {instructor.services && instructor.services.length > 0
+                ? instructor.services.map((s) => formatSubject(s.skill || '')).join(', ') +
+                  ' Expert'
+                : 'Expert Instructor'}
             </p>
             <div className="flex items-center mt-1">
               <Star className="h-4 w-4 text-yellow-500 fill-current" />

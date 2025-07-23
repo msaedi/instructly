@@ -4,6 +4,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { publicApi, type CatalogService } from '@/features/shared/api/client';
+import { logger } from '@/lib/logger';
 import {
   Search,
   Zap,
@@ -17,15 +19,31 @@ import {
   Globe,
   Music,
   Dumbbell,
-  GraduationCap,
   Sparkles,
+  BookOpen,
+  Palette,
+  Baby,
 } from 'lucide-react';
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('sports-fitness');
+  const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
+  const [categoryServices, setCategoryServices] = useState<Record<string, CatalogService[]>>({});
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
   const router = useRouter();
+
+  const categories = [
+    { icon: Music, name: 'Music', slug: 'music', subtitle: 'Instrument Voice Theory' },
+    { icon: BookOpen, name: 'Tutoring', slug: 'tutoring', subtitle: 'Academic STEM Tech' },
+    { icon: Dumbbell, name: 'Sports & Fitness', slug: 'sports-fitness', subtitle: '' },
+    { icon: Globe, name: 'Language', slug: 'language', subtitle: '' },
+    { icon: Palette, name: 'Arts', slug: 'arts', subtitle: 'Performing Visual Applied' },
+    { icon: Baby, name: 'Kids', slug: 'kids', subtitle: 'Infant Toddler Preteen' },
+    { icon: Sparkles, name: 'Hidden Gems', slug: 'hidden-gems', subtitle: '' },
+  ];
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +51,80 @@ export default function HomePage() {
       router.push(`/search?q=${encodeURIComponent(searchQuery)}`);
     }
   };
+
+  // Fetch services for all categories on mount
+  useEffect(() => {
+    const fetchCategoryServices = async () => {
+      try {
+        // Fetch all categories in parallel
+        const promises = categories.map((category) =>
+          publicApi
+            .getCatalogServices(category.slug)
+            .then((response) => {
+              if (response.error) {
+                logger.error(`API error fetching services`, new Error(response.error), {
+                  category: category.name,
+                  slug: category.slug,
+                  status: response.status,
+                });
+                return { slug: category.slug, services: [] };
+              }
+
+              // Backend already filters for active services, just sort by display_order
+              const services = response.data || [];
+              const sortedServices = services.sort((a, b) => a.display_order - b.display_order);
+
+              logger.info('Services fetched successfully', {
+                category: category.name,
+                totalServices: response.data?.length || 0,
+                displayedServices: Math.min(sortedServices.length, 7),
+              });
+
+              return {
+                slug: category.slug,
+                services: sortedServices.slice(0, 7),
+              };
+            })
+            .catch((error) => {
+              logger.error(`Network error fetching services`, error as Error, {
+                category: category.name,
+                slug: category.slug,
+              });
+              return { slug: category.slug, services: [] };
+            })
+        );
+
+        const results = await Promise.all(promises);
+
+        // Map results to { categorySlug: services }
+        const servicesMap: Record<string, CatalogService[]> = {};
+        results.forEach(({ slug, services }) => {
+          servicesMap[slug] = services;
+        });
+
+        setCategoryServices(servicesMap);
+
+        // Log summary
+        const totalServicesLoaded = Object.values(servicesMap).reduce(
+          (sum, services) => sum + services.length,
+          0
+        );
+        logger.info('All category services loaded', {
+          categoriesLoaded: Object.keys(servicesMap).length,
+          totalServices: totalServicesLoaded,
+        });
+      } catch (error) {
+        logger.error('Failed to fetch category services', error as Error);
+      }
+    };
+
+    fetchCategoryServices();
+  }, []);
+
+  // Detect touch device
+  useEffect(() => {
+    setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
+  }, []);
 
   // Check authentication on component mount
   useEffect(() => {
@@ -65,14 +157,6 @@ export default function HomePage() {
     setUserRole(null);
     router.push('/');
   };
-
-  const categories = [
-    { icon: Globe, name: 'Language', slug: 'language' },
-    { icon: Music, name: 'Music', slug: 'music' },
-    { icon: Dumbbell, name: 'Fitness', slug: 'fitness' },
-    { icon: GraduationCap, name: 'Academics', slug: 'academics' },
-    { icon: Sparkles, name: 'Hidden Gems', slug: 'other' },
-  ];
 
   const availableNow = [
     {
@@ -220,55 +304,101 @@ export default function HomePage() {
 
       {/* Categories */}
       <section className="py-6 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex justify-center items-center space-x-16">
-            {categories.map((category, index) => {
+        <div className="max-w-2xl mx-auto">
+          <div className="flex justify-center items-start space-x-10 ml-15">
+            {categories.map((category) => {
               const IconComponent = category.icon;
+              const isSelected = category.slug === selectedCategory;
               return (
-                <Link
+                <div
                   key={category.slug}
-                  href={`/search?category=${category.slug}`}
-                  className={`group flex flex-col items-center cursor-pointer transition-colors duration-200 relative`}
+                  onClick={() => {
+                    setSelectedCategory(category.slug);
+                    // Clear hover on click to prevent stuck hover states
+                    setHoveredCategory(null);
+                  }}
+                  onMouseEnter={() => !isTouchDevice && setHoveredCategory(category.slug)}
+                  onMouseLeave={() => !isTouchDevice && setHoveredCategory(null)}
+                  onTouchStart={() => {
+                    // For touch devices, prevent hover state
+                    setHoveredCategory(null);
+                  }}
+                  className="group flex flex-col items-center cursor-pointer transition-colors duration-200 relative w-20 select-none"
                 >
                   <IconComponent
                     size={32}
                     strokeWidth={1.5}
-                    className={
-                      index === 2 ? 'text-gray-900 dark:text-gray-100 mb-2' : 'text-gray-500 mb-2'
-                    }
+                    className={`mb-2 transition-colors ${
+                      isSelected
+                        ? 'text-gray-900 dark:text-gray-100'
+                        : 'text-gray-500 group-hover:text-gray-900 dark:group-hover:text-gray-100'
+                    }`}
                   />
                   <p
-                    className={`text-sm font-medium ${
-                      index === 2 ? 'text-gray-900 dark:text-gray-100' : 'text-gray-500'
+                    className={`text-sm font-medium mb-3 transition-colors whitespace-nowrap ${
+                      isSelected
+                        ? 'text-gray-900 dark:text-gray-100'
+                        : 'text-gray-500 group-hover:text-gray-900 dark:group-hover:text-gray-100'
                     }`}
                   >
                     {category.name}
                   </p>
-                  {index === 2 && (
+                  <p
+                    className={`text-xs text-gray-500 text-center transition-opacity duration-200 h-4 flex items-center justify-center whitespace-nowrap ${
+                      isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                    }`}
+                  >
+                    {category.subtitle || ''}
+                  </p>
+                  {isSelected && (
                     <div className="absolute -bottom-3 left-1/2 transform -translate-x-1/2 w-16 h-1 bg-[#FFD700] rounded-full"></div>
                   )}
-                </Link>
+                </div>
               );
             })}
           </div>
         </div>
       </section>
 
-      {/* Subcategories */}
+      {/* Service Capsules */}
       <section className="py-6 bg-[#FFFEF5] dark:bg-gray-800/50">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="flex flex-wrap justify-center gap-3">
-            {['Yoga', 'Personal Training', 'Pilates', 'Martial Arts', 'Dance', 'Nutrition'].map(
-              (subcategory) => (
+          <div className="flex flex-wrap justify-center gap-2 min-h-[48px] items-center">
+            {(() => {
+              const activeCategory = hoveredCategory || selectedCategory;
+              const services = categoryServices[activeCategory] || [];
+
+              if (services.length === 0) {
+                return (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+                    No services available for this category
+                  </p>
+                );
+              }
+
+              return services.map((service, index) => (
                 <Link
-                  key={subcategory}
-                  href={`/search?subcategory=${subcategory.toLowerCase().replace(' ', '-')}`}
-                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-full text-sm text-gray-600 dark:text-gray-400 hover:border-[#FFD700] dark:hover:border-[#FFD700] hover:text-black dark:hover:text-white transition-colors duration-200"
+                  key={service.id}
+                  href={`/search?service_catalog_id=${service.id}`}
+                  className="group relative px-4 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 hover:border-gray-300 dark:hover:border-gray-500 hover:text-gray-900 dark:hover:text-white transition-all duration-200 cursor-pointer animate-fade-in-up"
+                  style={{
+                    animationDelay: `${index * 50}ms`,
+                    animationFillMode: 'both',
+                  }}
                 >
-                  {subcategory}
+                  <span className="flex items-center gap-2">
+                    {service.name}
+                    {service.instructor_count && service.instructor_count > 0 && (
+                      <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 rounded-full">
+                        {service.instructor_count}
+                      </span>
+                    )}
+                  </span>
+                  {/* Hover effect border */}
+                  <span className="absolute inset-0 rounded-full border-2 border-transparent group-hover:border-[#FFD700] transition-all duration-200 opacity-0 group-hover:opacity-100"></span>
                 </Link>
-              )
-            )}
+              ));
+            })()}
           </div>
         </div>
       </section>

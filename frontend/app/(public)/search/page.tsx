@@ -54,10 +54,12 @@ function SearchPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [serviceName, setServiceName] = useState<string>('');
 
   // Parse search parameters from URL
   const query = searchParams.get('q') || '';
   const category = searchParams.get('category') || '';
+  const serviceCatalogId = searchParams.get('service_catalog_id') || '';
   const availableNow = searchParams.get('available_now') === 'true';
 
   useEffect(() => {
@@ -68,6 +70,7 @@ function SearchPageContent() {
       logger.info('Search page loading', {
         query,
         category,
+        serviceCatalogId,
         availableNow,
         page,
       });
@@ -172,8 +175,55 @@ function SearchPageContent() {
               active_instructors: nlResponse.data.total_found,
             });
           }
+        } else if (serviceCatalogId) {
+          // Service catalog ID provided - fetch instructors for specific service
+          const limit = 20;
+          const skip = (page - 1) * limit;
+          let apiParams: Record<string, any> = {
+            service_catalog_id: serviceCatalogId,
+            skip,
+            limit,
+          };
+
+          logger.info('Filtering by service catalog ID', { serviceCatalogId });
+
+          response = await publicApi.searchInstructors(apiParams);
+
+          logger.info('API Response received', {
+            hasError: !!response.error,
+            hasData: !!response.data,
+            status: response.status,
+          });
+
+          if (response.error) {
+            logger.error('API Error', new Error(response.error), { status: response.status });
+            setError(response.error);
+            return;
+          } else if (response.data) {
+            // Check if response has metadata (filtered results) or is just an array
+            if (Array.isArray(response.data)) {
+              // No filters applied - simple array response
+              logger.info('Received simple array response', {
+                count: response.data.length,
+              });
+
+              instructorsData = response.data;
+              totalResults = response.data.length;
+              setMetadata(null);
+            } else {
+              // Filters applied - response with metadata
+              logger.info('Received filtered response with metadata', {
+                instructorCount: response.data.instructors.length,
+                metadata: response.data.metadata,
+              });
+
+              instructorsData = response.data.instructors;
+              totalResults = response.data.metadata.active_instructors;
+              setMetadata(response.data.metadata);
+            }
+          }
         } else {
-          // No query - use the old API for browsing all instructors or by category
+          // No query or service ID - use the old API for browsing all instructors or by category
           const limit = 20;
           const skip = (page - 1) * limit;
           let apiParams: Record<string, any> = { skip, limit };
@@ -238,7 +288,27 @@ function SearchPageContent() {
     }
 
     fetchResults();
-  }, [query, category, availableNow, page]);
+  }, [query, category, serviceCatalogId, availableNow, page]);
+
+  // Fetch service name when serviceCatalogId changes
+  useEffect(() => {
+    if (serviceCatalogId) {
+      const fetchServiceName = async () => {
+        try {
+          const servicesResponse = await publicApi.getCatalogServices();
+          if (servicesResponse.data) {
+            const service = servicesResponse.data.find((s) => s.id.toString() === serviceCatalogId);
+            if (service) {
+              setServiceName(service.name);
+            }
+          }
+        } catch (err) {
+          logger.error('Failed to fetch service name', err as Error);
+        }
+      };
+      fetchServiceName();
+    }
+  }, [serviceCatalogId]);
 
   // Generate realistic next available times (deterministic for SSR)
   const getNextAvailableSlots = (instructorId: number) => {
@@ -314,9 +384,11 @@ function SearchPageContent() {
               <h1 className="text-xl font-semibold text-gray-900">
                 {query
                   ? `Results for "${query}"`
-                  : category
-                    ? formatSubject(category)
-                    : 'All Instructors'}
+                  : serviceCatalogId && serviceName
+                    ? `Showing all ${serviceName} instructors`
+                    : category
+                      ? formatSubject(category)
+                      : 'All Instructors'}
               </h1>
               {total > 0 && <span className="ml-2 text-gray-600">({total} found)</span>}
             </div>

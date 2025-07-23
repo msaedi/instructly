@@ -531,7 +531,9 @@ class InstructorService(BaseService):
         else:
             services = self.catalog_repository.find_by(is_active=True)
 
-        return [self._catalog_service_to_dict(service) for service in services]
+        # Sort services by display_order
+        sorted_services = sorted(services, key=lambda s: s.display_order)
+        return [self._catalog_service_to_dict(service) for service in sorted_services]
 
     @BaseService.measure_operation("get_service_categories")
     def get_service_categories(self) -> List[Dict]:

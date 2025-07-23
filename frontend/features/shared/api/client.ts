@@ -202,6 +202,35 @@ export interface NaturalLanguageSearchResponse {
 /**
  * Public API client for student features
  */
+/**
+ * Service catalog API types
+ */
+export interface ServiceCategory {
+  id: number;
+  name: string;
+  slug: string;
+  subtitle: string;
+  description: string;
+  display_order: number;
+  icon_name?: string;
+}
+
+export interface CatalogService {
+  id: number;
+  category_id: number;
+  name: string;
+  slug: string;
+  description: string;
+  search_terms: string[];
+  display_order: number;
+  online_capable: boolean;
+  requires_certification: boolean;
+  is_active: boolean;
+  actual_min_price?: number;
+  actual_max_price?: number;
+  instructor_count?: number;
+}
+
 export const publicApi = {
   /**
    * Natural language search for instructors and services
@@ -358,6 +387,22 @@ export const publicApi = {
       earliest_available_date: string;
     }>(PUBLIC_ENDPOINTS.instructors.availability(instructorId), {
       params,
+    });
+  },
+
+  /**
+   * Get all service categories
+   */
+  async getServiceCategories() {
+    return cleanFetch<ServiceCategory[]>('/services/categories');
+  },
+
+  /**
+   * Get catalog services, optionally filtered by category
+   */
+  async getCatalogServices(categorySlug?: string) {
+    return cleanFetch<CatalogService[]>('/services/catalog', {
+      params: categorySlug ? { category: categorySlug } : {},
     });
   },
 };
