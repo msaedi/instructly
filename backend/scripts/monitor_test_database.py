@@ -35,8 +35,8 @@ def check_service_catalog_state():
         cur.execute(
             """
             SELECT
-                COUNT(*) FILTER (WHERE id <= 47) as seed_data,
-                COUNT(*) FILTER (WHERE id > 47) as test_data,
+                COUNT(*) FILTER (WHERE id <= 250) as seed_data,
+                COUNT(*) FILTER (WHERE id > 250) as test_data,
                 COUNT(*) FILTER (WHERE name LIKE 'Service %') as service_n_pattern,
                 COUNT(*) FILTER (WHERE name LIKE '%Test%') as test_pattern
             FROM service_catalog
@@ -87,8 +87,8 @@ def display_state(state, title):
 
     summary.add_row("Total Services", str(state["total_count"]))
     summary.add_row("Maximum ID", str(state["max_id"]))
-    summary.add_row("Seed Data (ID ≤ 47)", str(state["seed_count"]))
-    summary.add_row("Test Data (ID > 47)", str(state["test_count"]))
+    summary.add_row("Seed Data (ID ≤ 250)", str(state["seed_count"]))
+    summary.add_row("Test Data (ID > 250)", str(state["test_count"]))
     summary.add_row("'Service N' Pattern", str(state["service_n_count"]))
     summary.add_row("Contains 'Test'", str(state["test_pattern_count"]))
 
@@ -113,8 +113,8 @@ def main():
 
         # Show what to expect
         console.print("\n[bold]Expected State After Reset:[/bold]")
-        console.print("• Total Services: 47")
-        console.print("• Maximum ID: 47")
+        console.print("• Total Services: 250")
+        console.print("• Maximum ID: 250")
         console.print("• Test Data: 0")
 
         console.print("\n[bold]To reset and check:[/bold]")
