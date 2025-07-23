@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 from sqlalchemy.orm import Session
 
+from ..core.exceptions import BusinessRuleException
 from ..repositories.factory import RepositoryFactory
 from ..schemas.availability_window import (
     BulkUpdateRequest,
@@ -141,21 +142,29 @@ class BulkOperationService(BaseService):
         Returns:
             Summary of execution results
         """
-        with self.transaction():
-            # Process operations
-            results, successful, failed = await self._process_operations(
-                instructor_id=instructor_id,
-                operations=update_data.operations,
-                validate_only=False,
-            )
+        # Store results outside transaction for return
+        results = None
+        successful = 0
+        failed = 0
 
-            # Rollback if nothing succeeded
-            if successful == 0:
-                self.db.rollback()
-                self.logger.info(f"No successful operations out of {len(update_data.operations)} - rolling back")
-                return self._create_operation_summary(results, successful, failed, 0)
+        try:
+            with self.transaction():
+                # Process operations
+                results, successful, failed = await self._process_operations(
+                    instructor_id=instructor_id,
+                    operations=update_data.operations,
+                    validate_only=False,
+                )
 
-            # Transaction will auto-commit if we don't rollback
+                # Raise exception if nothing succeeded to trigger rollback
+                if successful == 0:
+                    raise BusinessRuleException(
+                        f"No successful operations out of {len(update_data.operations)} - rolling back"
+                    )
+        except BusinessRuleException as e:
+            # Expected case when no operations succeed
+            self.logger.info(str(e))
+            return self._create_operation_summary(results or [], successful, failed, 0)
 
         # Invalidate cache after successful commit
         if successful > 0:

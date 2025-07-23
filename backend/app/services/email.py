@@ -310,6 +310,7 @@ class EmailService(BaseService):
         self.logger.info("Email configuration validated successfully")
         return True
 
+    @BaseService.measure_operation("get_send_stats")
     def get_send_stats(self) -> Dict[str, Any]:
         """
         Get email sending statistics from metrics.

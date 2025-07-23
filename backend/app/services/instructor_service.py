@@ -266,16 +266,14 @@ class InstructorService(BaseService):
             # Update user role
             self.user_repository.update(user.id, role=UserRole.INSTRUCTOR)
 
-            self.db.commit()
-
             # Load user for response
             user = self.user_repository.get_by_id(user.id)
             profile.user = user
             profile.instructor_services = services
 
-            logger.info(f"Created instructor profile for user {user.id}")
+        logger.info(f"Created instructor profile for user {user.id}")
 
-            return self._profile_to_dict(profile)
+        return self._profile_to_dict(profile)
 
     @BaseService.measure_operation("update_instructor_profile")
     def update_instructor_profile(self, user_id: int, update_data: InstructorProfileUpdate) -> Dict:
@@ -307,14 +305,12 @@ class InstructorService(BaseService):
             if update_data.services is not None:
                 self._update_services(profile.id, update_data.services)
 
-            self.db.commit()
+        # Invalidate caches
+        if self.cache_service:
+            self._invalidate_instructor_caches(user_id)
 
-            # Invalidate caches
-            if self.cache_service:
-                self._invalidate_instructor_caches(user_id)
-
-            # Return fresh data
-            return self.get_instructor_profile(user_id)
+        # Return fresh data
+        return self.get_instructor_profile(user_id)
 
     @BaseService.measure_operation("delete_instructor_profile")
     def delete_instructor_profile(self, user_id: int) -> None:
@@ -352,13 +348,11 @@ class InstructorService(BaseService):
             # Revert user role
             self.user_repository.update(user_id, role=UserRole.STUDENT)
 
-            self.db.commit()
+        # Invalidate caches
+        if self.cache_service:
+            self._invalidate_instructor_caches(user_id)
 
-            # Invalidate caches
-            if self.cache_service:
-                self._invalidate_instructor_caches(user_id)
-
-            logger.info(f"Deleted instructor profile for user {user_id}")
+        logger.info(f"Deleted instructor profile for user {user_id}")
 
     # Private helper methods
 
@@ -604,17 +598,15 @@ class InstructorService(BaseService):
                 is_active=True,
             )
 
-            self.db.commit()
+        # Invalidate caches
+        if self.cache_service:
+            self._invalidate_instructor_caches(instructor_id)
 
-            # Invalidate caches
-            if self.cache_service:
-                self._invalidate_instructor_caches(instructor_id)
+        logger.info(f"Created service {catalog_service.name} for instructor {instructor_id}")
 
-            logger.info(f"Created service {catalog_service.name} for instructor {instructor_id}")
-
-            # Return with catalog details
-            service.catalog_entry = catalog_service
-            return self._instructor_service_to_dict(service)
+        # Return with catalog details
+        service.catalog_entry = catalog_service
+        return self._instructor_service_to_dict(service)
 
     def _catalog_service_to_dict(self, service: ServiceCatalog) -> Dict:
         """Convert catalog service to dictionary."""

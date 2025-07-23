@@ -121,9 +121,8 @@ class BookingService(BaseService):
             booking = await self._create_booking_record(
                 student, booking_data, service, instructor_profile, selected_duration
             )
-            self.db.commit()
 
-        # 5. Handle post-creation tasks
+        # 6. Handle post-creation tasks
         await self._handle_post_booking_tasks(booking)
 
         return booking
@@ -218,20 +217,18 @@ class BookingService(BaseService):
             # Cancel the booking
             booking.cancel(user.id, reason)
 
-            self.db.commit()
+        # Send notifications
+        try:
+            await self.notification_service.send_cancellation_notification(
+                booking=booking, cancelled_by=user, reason=reason
+            )
+        except Exception as e:
+            logger.error(f"Failed to send cancellation notification: {str(e)}")
 
-            # Send notifications
-            try:
-                await self.notification_service.send_cancellation_notification(
-                    booking=booking, cancelled_by=user, reason=reason
-                )
-            except Exception as e:
-                logger.error(f"Failed to send cancellation notification: {str(e)}")
+        # Invalidate caches
+        self._invalidate_booking_caches(booking)
 
-            # Invalidate caches
-            self._invalidate_booking_caches(booking)
-
-            return booking
+        return booking
 
     @BaseService.measure_operation("get_bookings_for_user")
     def get_bookings_for_user(
@@ -339,30 +336,30 @@ class BookingService(BaseService):
             NotFoundException: If booking not found
             ValidationException: If user cannot update
         """
-        booking = self.repository.get_booking_with_details(booking_id)
+        with self.transaction():
+            booking = self.repository.get_booking_with_details(booking_id)
 
-        if not booking:
-            raise NotFoundException("Booking not found")
+            if not booking:
+                raise NotFoundException("Booking not found")
 
-        # Only instructors can update bookings
-        if user.id != booking.instructor_id:
-            raise ValidationException("Only the instructor can update booking details")
+            # Only instructors can update bookings
+            if user.id != booking.instructor_id:
+                raise ValidationException("Only the instructor can update booking details")
 
-        # Update allowed fields using repository
-        update_dict = {}
-        if update_data.instructor_note is not None:
-            update_dict["instructor_note"] = update_data.instructor_note
-        if update_data.meeting_location is not None:
-            update_dict["meeting_location"] = update_data.meeting_location
+            # Update allowed fields using repository
+            update_dict = {}
+            if update_data.instructor_note is not None:
+                update_dict["instructor_note"] = update_data.instructor_note
+            if update_data.meeting_location is not None:
+                update_dict["meeting_location"] = update_data.meeting_location
 
-        if update_dict:
-            booking = self.repository.update(booking_id, **update_dict)
+            if update_dict:
+                booking = self.repository.update(booking_id, **update_dict)
 
-        self.db.commit()
+            # Reload with relationships
+            booking = self.repository.get_booking_with_details(booking_id)
 
-        # Reload with relationships
-        booking = self.repository.get_booking_with_details(booking_id)
-
+        # Cache invalidation outside transaction
         self._invalidate_booking_caches(booking)
 
         return booking
