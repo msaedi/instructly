@@ -310,9 +310,7 @@ def test_instructor(db: Session, test_password: str) -> User:
     db.flush()
 
     # Get catalog services - use actual services from seeded data
-    catalog_services = (
-        db.query(ServiceCatalog).filter(ServiceCatalog.slug.in_(["piano-lessons", "guitar-lessons"])).all()
-    )
+    catalog_services = db.query(ServiceCatalog).filter(ServiceCatalog.slug.in_(["piano", "guitar"])).all()
 
     print(f"Found {len(catalog_services)} catalog services")
     for cs in catalog_services:
@@ -325,15 +323,15 @@ def test_instructor(db: Session, test_password: str) -> User:
         print(f"Total catalog services in DB: {len(all_catalog)}")
         for cs in all_catalog[:5]:  # Show first 5
             print(f"  - {cs.name} ({cs.slug})")
-        raise RuntimeError("Required catalog services (piano-lessons, guitar-lessons) not found")
+        raise RuntimeError("Required catalog services (piano, guitar) not found")
 
     # Create instructor services linked to catalog
     services = []
     for catalog_service in catalog_services:
-        if catalog_service.slug == "piano-lessons":
+        if catalog_service.slug == "piano":
             hourly_rate = 50.0
             duration_options = [30, 60, 90]
-        else:  # guitar-lessons
+        else:  # guitar
             hourly_rate = 45.0
             duration_options = [60]
 

@@ -17,12 +17,12 @@ This repository handles:
 """
 
 import logging
-from datetime import date, time
+from datetime import date, datetime, time
 from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session, joinedload
 
-from ..core.exceptions import RepositoryException
+from ..core.exceptions import NotFoundException, RepositoryException
 from ..models.booking import Booking, BookingStatus
 from ..models.user import UserRole
 from .base_repository import BaseRepository
@@ -554,6 +554,110 @@ class BookingRepository(BaseRepository[Booking]):
         except Exception as e:
             self.logger.error(f"Error counting bookings by status: {str(e)}")
             raise RepositoryException(f"Failed to count bookings by status: {str(e)}")
+
+    # Status Management Methods
+
+    def complete_booking(self, booking_id: int) -> Booking:
+        """
+        Mark booking as completed with timestamp.
+
+        Args:
+            booking_id: ID of the booking to complete
+
+        Returns:
+            Updated booking instance
+
+        Raises:
+            NotFoundException: If booking not found
+            RepositoryException: If update fails
+        """
+        try:
+            booking = self.get_by_id(booking_id)
+            if not booking:
+                raise NotFoundException(f"Booking with id {booking_id} not found")
+
+            booking.status = BookingStatus.COMPLETED
+            booking.completed_at = datetime.utcnow()
+
+            self.db.flush()
+            self.logger.info(f"Marked booking {booking_id} as completed")
+
+            return booking
+
+        except NotFoundException:
+            raise
+        except Exception as e:
+            self.logger.error(f"Error completing booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to complete booking: {str(e)}")
+
+    def cancel_booking(self, booking_id: int, cancelled_by_id: int, reason: Optional[str] = None) -> Booking:
+        """
+        Cancel booking with audit trail.
+
+        Args:
+            booking_id: ID of the booking to cancel
+            cancelled_by_id: ID of the user cancelling the booking
+            reason: Optional cancellation reason
+
+        Returns:
+            Updated booking instance
+
+        Raises:
+            NotFoundException: If booking not found
+            RepositoryException: If update fails
+        """
+        try:
+            booking = self.get_by_id(booking_id)
+            if not booking:
+                raise NotFoundException(f"Booking with id {booking_id} not found")
+
+            booking.status = BookingStatus.CANCELLED
+            booking.cancelled_at = datetime.utcnow()
+            booking.cancelled_by_id = cancelled_by_id
+            booking.cancellation_reason = reason
+
+            self.db.flush()
+            self.logger.info(f"Cancelled booking {booking_id} by user {cancelled_by_id}")
+
+            return booking
+
+        except NotFoundException:
+            raise
+        except Exception as e:
+            self.logger.error(f"Error cancelling booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to cancel booking: {str(e)}")
+
+    def mark_no_show(self, booking_id: int) -> Booking:
+        """
+        Mark booking as no-show.
+
+        Args:
+            booking_id: ID of the booking to mark as no-show
+
+        Returns:
+            Updated booking instance
+
+        Raises:
+            NotFoundException: If booking not found
+            RepositoryException: If update fails
+        """
+        try:
+            booking = self.get_by_id(booking_id)
+            if not booking:
+                raise NotFoundException(f"Booking with id {booking_id} not found")
+
+            booking.status = BookingStatus.NO_SHOW
+
+            self.db.flush()
+            self.logger.info(f"Marked booking {booking_id} as no-show")
+
+            return booking
+
+        except NotFoundException:
+            raise
+        except Exception as e:
+            self.logger.error(f"Error marking booking {booking_id} as no-show: {str(e)}")
+            raise RepositoryException(f"Failed to mark booking as no-show: {str(e)}")
 
     # Helper method overrides
 

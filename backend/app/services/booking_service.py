@@ -387,24 +387,27 @@ class BookingService(BaseService):
         if instructor.role != UserRole.INSTRUCTOR:
             raise ValidationException("Only instructors can mark bookings as complete")
 
+        with self.transaction():
+            # Load and validate booking
+            booking = self.repository.get_booking_with_details(booking_id)
+
+            if not booking:
+                raise NotFoundException("Booking not found")
+
+            if booking.instructor_id != instructor.id:
+                raise ValidationException("You can only complete your own bookings")
+
+            if booking.status != BookingStatus.CONFIRMED:
+                raise BusinessRuleException(
+                    f"Only confirmed bookings can be completed - current status: {booking.status}"
+                )
+
+            # Mark as complete using repository method
+            booking = self.repository.complete_booking(booking_id)
+
+        # External operations outside transaction
+        # Reload booking with details for cache invalidation
         booking = self.repository.get_booking_with_details(booking_id)
-
-        if not booking:
-            raise NotFoundException("Booking not found")
-
-        if booking.instructor_id != instructor.id:
-            raise ValidationException("You can only complete your own bookings")
-
-        if booking.status != BookingStatus.CONFIRMED:
-            raise BusinessRuleException(f"Only confirmed bookings can be completed - current status: {booking.status}")
-
-        # Mark as complete
-        booking.complete()
-        self.db.commit()
-
-        # Reload booking
-        booking = self.repository.get_booking_with_details(booking_id)
-
         self._invalidate_booking_caches(booking)
 
         return booking

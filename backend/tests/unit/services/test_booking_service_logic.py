@@ -495,12 +495,12 @@ class TestBookingServiceUnit:
     def test_complete_booking_success(self, booking_service, mock_db, mock_instructor, mock_booking):
         """Test marking booking as completed."""
         booking_service.repository.get_booking_with_details.side_effect = [mock_booking, mock_booking]
+        booking_service.repository.complete_booking.return_value = mock_booking
 
         with patch.object(booking_service, "_invalidate_booking_caches"):
             booking_service.complete_booking(1, mock_instructor)
 
-        mock_booking.complete.assert_called_once()
-        mock_db.commit.assert_called()
+        booking_service.repository.complete_booking.assert_called_once_with(1)
 
     def test_complete_booking_wrong_instructor(self, booking_service, mock_booking):
         """Test instructor can only complete their own bookings."""
