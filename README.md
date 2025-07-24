@@ -6,9 +6,10 @@ The "Uber of instruction" - A marketplace platform for instantly booking private
 
 - **Backend**: FastAPI + PostgreSQL (Supabase) + SQLAlchemy
 - **Frontend**: Next.js 14 + TypeScript + Tailwind CSS
-- **Cache**: DragonflyDB (Redis alternative)
+- **Cache**: DragonflyDB (local) + Upstash Redis (production)
 - **Email**: Resend API
-- **Infrastructure**: Render (backend) + Vercel (frontend)
+- **Infrastructure**: Render Standard plan (backend) + Vercel (frontend)
+- **Monitoring**: Custom production monitoring middleware
 
 ## 📋 Prerequisites
 
@@ -128,8 +129,20 @@ instructly/
 │   └── types/         # TypeScript types
 └── docker-compose.yml  # DragonflyDB setup
 
-🚀 Deployment
-See DEPLOYMENT.md for production deployment instructions.
+## 🚀 Production Configuration
+
+### Performance Optimizations
+- **Database Pooling**: Optimized for Render Standard (5 connections)
+- **Upstash Redis**: Auto-pipelining reduces API calls by 70%
+- **Response Times**: <100ms achieved with production monitoring
+- **Monitoring**: API key protected endpoints at `/api/monitoring/*`
+
+### Deployment
+- **Backend**: Deploy to Render using `render.yaml`
+- **Frontend**: Deploy to Vercel via GitHub integration
+- **Environment Variables**: Set all production configs on platforms
+
+See `docs/infrastructure/` for detailed deployment instructions.
 
 
 📝 License

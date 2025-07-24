@@ -1098,6 +1098,112 @@ Get rate limit statistics.
 }
 ```
 
+### Production Monitoring Endpoints (API Key Required)
+
+#### GET /api/monitoring/dashboard
+Comprehensive monitoring dashboard data.
+
+**Authentication**: X-Monitoring-API-Key header required in production
+
+**Response (200)**:
+```json
+{
+  "status": "healthy",
+  "uptime_seconds": 3600,
+  "request_count": 1500,
+  "avg_response_time_ms": 85.3,
+  "error_rate_percent": 0.5,
+  "database_pool": {
+    "size": 5,
+    "checked_out": 2,
+    "overflow": 0,
+    "total": 5
+  },
+  "cache": {
+    "status": "connected",
+    "hit_rate_percent": 92.5,
+    "keys_count": 150
+  },
+  "memory": {
+    "used_mb": 312,
+    "available_mb": 712,
+    "percent": 43.8
+  }
+}
+```
+
+---
+
+#### GET /api/monitoring/slow-queries
+Get recent slow database queries.
+
+**Authentication**: X-Monitoring-API-Key header required in production
+
+**Response (200)**:
+```json
+{
+  "slow_queries": [
+    {
+      "timestamp": "2025-07-24T18:30:45.123Z",
+      "duration_ms": 156.7,
+      "query": "SELECT * FROM bookings WHERE...",
+      "caller": "BookingService.get_instructor_bookings"
+    }
+  ],
+  "threshold_ms": 100,
+  "count": 3
+}
+```
+
+---
+
+#### GET /api/monitoring/slow-requests
+Get recent slow HTTP requests.
+
+**Authentication**: X-Monitoring-API-Key header required in production
+
+**Response (200)**:
+```json
+{
+  "slow_requests": [
+    {
+      "timestamp": "2025-07-24T18:35:12.456Z",
+      "method": "GET",
+      "path": "/api/availability/week/123/2025-07-24",
+      "duration_ms": 245.8,
+      "status_code": 200
+    }
+  ],
+  "threshold_ms": 200,
+  "count": 5
+}
+```
+
+---
+
+#### GET /api/monitoring/cache/extended-stats
+Get detailed cache statistics including Upstash metrics.
+
+**Authentication**: X-Monitoring-API-Key header required in production
+
+**Response (200)**:
+```json
+{
+  "basic_stats": {
+    "hit_rate_percent": 92.5,
+    "total_requests": 10000,
+    "hits": 9250,
+    "misses": 750
+  },
+  "upstash_stats": {
+    "commands_processed": 8500,
+    "bandwidth_used_mb": 125.5,
+    "daily_limit_percent": 42.3,
+    "pipeline_efficiency": 0.78
+  }
+}
+```
+
 ## TypeScript Types
 
 ```typescript

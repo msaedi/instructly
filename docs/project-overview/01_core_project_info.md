@@ -135,12 +135,14 @@ InstaInstru (iNSTAiNSTRU) is the "Uber of instruction" - a marketplace platform 
 - **Forms**: React Hook Form (planned)
 
 ### Infrastructure
-- **Backend Hosting**: Render (planned)
-- **Frontend Hosting**: Vercel (planned)
-- **Database**: Supabase (PostgreSQL 17.4)
-- **Cache**: DragonflyDB (Redis-compatible) local, Upstash Redis production
+- **Backend Hosting**: Render (Standard plan - $25/month)
+- **Frontend Hosting**: Vercel
+- **Database**: Supabase (PostgreSQL with optimized connection pooling)
+- **Cache**: DragonflyDB (local), Upstash Redis (production with auto-pipelining)
+- **Production Monitoring**: Custom performance monitoring middleware
 - **Container**: Docker (for local DragonflyDB)
 - **CI/CD**: GitHub Actions
+- **Workers**: Celery on Render (memory-optimized configuration)
 
 ### Development Tools
 - **Code Quality**: Pre-commit hooks (Black, isort, flake8, Prettier, ESLint)
@@ -200,6 +202,10 @@ Before creating artifacts for files:
 12. **CI/CD Pipeline** ✅ - GitHub Actions + Vercel deployment
 13. **No Singletons** ✅ - All 3 singletons eliminated, dependency injection everywhere
 14. **Service Excellence** ✅ - 16 services at 8.5/10 average quality with metrics
+15. **Production Monitoring** ✅ - Custom middleware tracks performance, slow queries, memory
+16. **Optimized DB Pooling** ✅ - pool_size=5, max_overflow=5 for Render Standard plan
+17. **Upstash Cache Strategy** ✅ - Auto-pipelining, msgpack compression, request coalescing
+18. **API Key Auth** ✅ - Monitoring endpoints secured with X-Monitoring-API-Key header
 
 ## 🗄️ Database & Environment Configuration
 
