@@ -1,0 +1,29 @@
+# Render configuration for Flower monitoring
+services:
+  - type: web
+    name: instructly-flower
+    runtime: docker
+    dockerfilePath: ./Dockerfile.flower
+    dockerContext: .
+    env: docker
+    plan: free  # or starter ($7/month) for better performance
+
+    # Health check
+    healthCheckPath: /
+
+    # Environment variables
+    envVars:
+      - key: REDIS_URL
+        sync: false  # Set in Render dashboard
+
+      - key: FLOWER_BASIC_AUTH
+        sync: false  # Set in Render dashboard (format: username:password)
+
+      - key: FLOWER_URL_PREFIX
+        value: ""  # Set if you want to serve from a subpath
+
+      - key: PYTHONPATH
+        value: /app
+
+      - key: ENVIRONMENT
+        value: production

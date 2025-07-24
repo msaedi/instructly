@@ -1,0 +1,26 @@
+# Dockerfile for Flower monitoring
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir flower==2.0.1
+
+# Copy Flower app
+COPY flower_app.py .
+
+# Copy app module for task discovery
+COPY app app/
+
+# Expose port (Render will override with PORT env var)
+EXPOSE 5555
+
+# Run Flower
+CMD ["python", "flower_app.py"]
