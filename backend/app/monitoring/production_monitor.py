@@ -81,6 +81,10 @@ class PerformanceMonitor:
             duration_ms = (time.time() - context._query_start_time) * 1000
 
             if duration_ms > self.slow_query_threshold_ms:
+                # Ignore simple health check queries
+                if "SELECT 1" in statement:
+                    return
+
                 # Extract first 200 chars of query
                 query_preview = statement[:200].replace("\n", " ")
                 if len(statement) > 200:
