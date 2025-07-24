@@ -1,32 +1,21 @@
 # InstaInstru Updated TODO Priority List
-*Updated: July 16, 2025 - Session v68*
+*Updated: July 24, 2025 - Session v75*
 
 ## 🔴 CRITICAL - Must Do Before Launch
 
-### 1. Frontend Technical Debt Cleanup (Work Stream #13) 🚨 BIGGEST BLOCKER
-**Effort**: 3-4 weeks
-**Status**: IN PROGRESS - Phoenix Initiative 60% complete
-**Details**:
-- Week 1: ✅ Foundation + Search
-- Week 2: ✅ Student Booking Flow
-- Week 3: 🔄 UI Implementation in progress
-- Week 4: 📅 Instructor Migration planned
-- **Impact**: Technical debt isolated, zero new debt created
-- **Student features**: ✅ NOW OPERATIONAL
-
-### 2. Week 4 Migration Prep 🏗️
-**Effort**: 1 week
-**Status**: CRITICAL for Phoenix Week 4
-**Details**:
-- Build clean availability components in features/instructor/
-- Create migration utilities for operation pattern removal
-- Parallel testing framework (old vs new patterns)
-- State management bridge for gradual migration
-- Rollback procedures documentation
-
-### 3. Security Audit 🔒
+### 1. Backend NLS Algorithm Fix (Work Stream #15) 🔥 #1 PRIORITY
 **Effort**: 1-2 days
-**Status**: Not done
+**Status**: CRITICAL - Category-level matching bug identified
+**Details**:
+- **Problem**: Search returns category matches instead of precise service matches
+- **Impact**: "piano under $80" returns all music instructors, not just piano
+- **Frontend**: Service-first integration ready and waiting
+- **Backend**: Algorithm needs refinement for precise matching
+- **User Experience**: Critical blocker for search excellence
+
+### 2. Security Audit 🔒
+**Effort**: 1-2 days
+**Status**: Required for production launch
 **Details**:
 - OWASP Top 10 vulnerability scan
 - Review JWT implementation
@@ -34,7 +23,7 @@
 - Input validation audit
 - SQL injection check (should be good with SQLAlchemy)
 
-### 4. Load Testing 🏋️
+### 3. Load Testing 🏋️
 **Effort**: 3-4 hours + run time
 **Status**: No data
 **Details**:
@@ -79,12 +68,13 @@
 - Connection wait time metrics
 - Retry logic implementation
 
-### 4. Service Layer Final Metrics 📊
-**Effort**: 2-3 hours
-**Status**: 98/124 methods (79%)
+### 4. Database Backup Automation 💾
+**Effort**: 3-4 hours
+**Status**: Manual only
 **Details**:
-- Add @measure_operation to remaining 26 methods
-- Especially cache_strategies.py (0/3)
+- Daily automated backups
+- Point-in-time recovery
+- Test restore procedures
 
 ### 5. Backend Enhancements 🔧
 **Effort**: 1-2 weeks total
@@ -156,7 +146,14 @@
 4. **Video Integration** - 2 weeks
 5. **Recommendation Engine** - 1-2 months
 
-## ✅ COMPLETED (Move to Archive)
+## ✅ COMPLETED (Session v75 Updates)
+
+### Major Architectural Transformations ✅
+1. **Frontend Service-First Implementation** ✅ - 270+ services operational
+2. **Backend Architecture Audit** ✅ - Confirmed 100% architecturally complete
+3. **Analytics Scheduling** ✅ - Automated production deployment via GitHub Actions
+4. **Service Layer Final Metrics** ✅ - Only 1 missing metric (down from 26)
+5. **Transaction Pattern Fix** ✅ - All 9 direct commits replaced with proper transaction patterns
 
 ### From Original "Must Do"
 1. **Public API Endpoint** ✅ - Work Stream #12 complete with 37 tests
@@ -164,9 +161,10 @@
 3. **SSL Configuration** ✅ - Complete for production (Render/Vercel) and local dev
 4. **Test Suite Fixes** ✅ - Improved from 73.6% to 99.4% pass rate
 
-### Phoenix Week 3 Completions
-5. **E2E Testing Infrastructure** ✅ - Playwright setup complete
-6. **Performance Optimization** ✅ - 58% improvement achieved with Redis caching
+### Service-First Transformation Completions
+5. **Service-First Browsing** ✅ - Fully operational user experience
+6. **API Integration Patterns** ✅ - Clean service-to-backend communication
+7. **Analytics Production Deployment** ✅ - GitHub Actions automated daily runs
 
 ### From Original "Should Do"
 1. **Email Template Extraction** ✅ - 1000+ lines removed, Jinja2 templates
@@ -206,25 +204,25 @@
 
 ## 📊 Summary
 
-### Critical Path to Launch
-1. Frontend technical debt (3-4 weeks) - BIGGEST BLOCKER
-2. Student features with A-Team (2-3 weeks)
-3. Security audit (1-2 days)
-4. Load testing (4 hours)
+### Critical Path to Launch (Session v75)
+1. Backend NLS algorithm fix (1-2 days) - #1 PRIORITY
+2. Security audit (1-2 days)
+3. Load testing (4 hours)
+4. Final production hardening (1 week)
 
-**Total to MVP**: ~6-8 weeks
+**Total to Launch**: ~2-3 weeks (dramatically reduced)
 
-### Platform Readiness
-- **Backend**: 95% ready (just monitoring/security remaining)
-- **Frontend**: 60% ready (Phoenix Initiative progress)
-- **Infrastructure**: 92% ready (SSL ✅, Rate limiting ✅, E2E ✅, Performance ✅)
-- **Features**: 70% ready (instructor done, student features working)
+### Platform Readiness (Session v75)
+- **Backend**: 100% architecturally complete ✅
+- **Frontend**: 80% ready (Service-first transformation complete)
+- **Infrastructure**: 95% ready (security audit remaining)
+- **Overall Platform**: ~82% complete (major jump from ~60%)
 
-### What's Blocking Launch
-1. **Phoenix Week 3 UI** - A-Team designs ready for implementation
-2. **Phoenix Week 4 Migration** - Instructor migration planning
-3. **No security audit** - Unknown vulnerabilities
+### What's Blocking Launch (Session v75)
+1. **Backend NLS Algorithm Fix** - Category-level matching bug (1-2 days CRITICAL)
+2. **Security Audit** - Required for production launch
+3. **Load Testing** - Verify scalability before launch
 
 ---
 
-*Remember: We're building for MEGAWATTS! Student booking is NOW OPERATIONAL and the platform is 75-80% complete. Phoenix Week 3 UI implementation will complete the experience! ⚡🚀*
+*Remember: We're building for MEGAWATTS! Backend 100% architecturally complete, frontend service-first operational (270+ services), analytics automated in production. The NLS fix is our critical path to search excellence and platform ~82% → ~85% completion! ⚡🚀*
