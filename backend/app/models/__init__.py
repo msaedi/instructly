@@ -18,6 +18,7 @@ Note: The Service model has been replaced with a three-table catalog system:
 from .availability import AvailabilitySlot, BlackoutDate
 from .booking import Booking, BookingStatus
 from .instructor import InstructorProfile
+from .monitoring import AlertHistory
 from .password_reset import PasswordResetToken
 from .service_catalog import InstructorService, ServiceAnalytics, ServiceCatalog, ServiceCategory
 from .user import User, UserRole
@@ -41,4 +42,6 @@ __all__ = [
     # Booking models
     "Booking",
     "BookingStatus",
+    # Monitoring models
+    "AlertHistory",
 ]

@@ -15,6 +15,7 @@ from .middleware.prometheus_middleware import PrometheusMiddleware
 from .middleware.rate_limiter import RateLimitMiddleware
 from .middleware.timing import TimingMiddleware
 from .routes import (
+    alerts,
     auth,
     availability_windows,
     bookings,
@@ -113,6 +114,7 @@ app.include_router(password_reset.router)
 app.include_router(bookings.router)
 app.include_router(metrics.router)
 app.include_router(monitoring.router)
+app.include_router(alerts.router)
 app.include_router(public.router)
 app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(prometheus.router)

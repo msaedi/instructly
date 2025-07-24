@@ -7,8 +7,11 @@ Create Date: 2024-12-21 00:00:05.000000
 
 This migration adds any remaining constraints and finalizes the schema.
 It ensures all business rules are enforced at the database level.
+Also adds monitoring infrastructure tables.
 """
 from typing import Sequence, Union
+
+import sqlalchemy as sa
 
 from alembic import op
 
@@ -22,6 +25,29 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Add final constraints and schema adjustments."""
     print("Adding final constraints and adjustments...")
+
+    # Add alert history table for monitoring
+    print("Creating alert_history table...")
+    op.create_table(
+        "alert_history",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("alert_type", sa.String(50), nullable=False),
+        sa.Column("severity", sa.String(20), nullable=False),
+        sa.Column("title", sa.String(200), nullable=False),
+        sa.Column("message", sa.String(1000), nullable=False),
+        sa.Column("details", sa.JSON(), nullable=True),
+        sa.Column("email_sent", sa.Boolean(), nullable=False, default=False),
+        sa.Column("github_issue_created", sa.Boolean(), nullable=False, default=False),
+        sa.Column("github_issue_url", sa.String(500), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("notified_at", sa.DateTime(timezone=True), nullable=True),
+        sa.PrimaryKeyConstraint("id"),
+    )
+
+    # Add indexes for alert history
+    op.create_index("ix_alert_history_created_at", "alert_history", ["created_at"])
+    op.create_index("ix_alert_history_alert_type", "alert_history", ["alert_type"])
+    op.create_index("ix_alert_history_severity", "alert_history", ["severity"])
 
     # Add any remaining check constraints that weren't in earlier migrations
 
@@ -67,6 +93,7 @@ def upgrade() -> None:
     print("  - blackout_dates (vacation tracking)")
     print("  - bookings (instant booking system)")
     print("  - password_reset_tokens (password recovery)")
+    print("  - alert_history (monitoring alerts and notifications)")
     print("")
     print("Key design decisions implemented:")
     print("  - Single-table availability design (no instructor_availability)")
@@ -85,7 +112,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Drop final constraints."""
+    """Drop final constraints and monitoring tables."""
     print("Dropping final constraints...")
 
     op.drop_constraint("check_time_order", "bookings", type_="check")
@@ -93,4 +120,11 @@ def downgrade() -> None:
     op.drop_constraint("check_price_non_negative", "bookings", type_="check")
     op.drop_constraint("check_duration_positive", "bookings", type_="check")
 
-    print("Final constraints dropped successfully!")
+    # Drop alert history table
+    print("Dropping alert_history table...")
+    op.drop_index("ix_alert_history_severity", "alert_history")
+    op.drop_index("ix_alert_history_alert_type", "alert_history")
+    op.drop_index("ix_alert_history_created_at", "alert_history")
+    op.drop_table("alert_history")
+
+    print("Final constraints and monitoring tables dropped successfully!")

@@ -6,10 +6,13 @@ This module explicitly imports all tasks to guarantee they're registered
 with the Celery app when the worker starts.
 """
 
+# Import all task modules to ensure registration
+# These imports trigger the @celery_app.task decorators to register tasks
+from app.tasks import analytics  # noqa: F401
+from app.tasks import monitoring_tasks  # noqa: F401
+
 # Import the Celery app first
 from app.tasks.celery_app import celery_app
-
-# Import all task modules to ensure registration
 
 # List all available tasks for documentation
 ALL_TASKS = [
@@ -18,6 +21,11 @@ ALL_TASKS = [
     "app.tasks.analytics.generate_daily_report",
     "app.tasks.analytics.update_service_metrics",
     "app.tasks.analytics.record_task_execution",
+    # Monitoring tasks
+    "app.tasks.monitoring_tasks.process_monitoring_alert",
+    "app.tasks.monitoring_tasks.send_alert_email",
+    "app.tasks.monitoring_tasks.create_github_issue_for_alert",
+    "app.tasks.monitoring_tasks.cleanup_old_alerts",
     # Health check (defined in celery_app.py)
     "app.tasks.health_check",
 ]

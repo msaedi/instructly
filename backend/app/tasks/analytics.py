@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.tasks import BaseTask, celery_app
+from app.tasks.celery_app import BaseTask, celery_app
 from scripts.calculate_service_analytics import AnalyticsCalculator
 
 logger = logging.getLogger(__name__)

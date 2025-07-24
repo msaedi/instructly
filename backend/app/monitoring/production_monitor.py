@@ -31,6 +31,15 @@ from ..database import get_db_pool_status
 
 logger = logging.getLogger(__name__)
 
+# Import Celery tasks if available
+try:
+    from app.tasks.monitoring_tasks import process_monitoring_alert
+
+    CELERY_AVAILABLE = True
+except ImportError:
+    CELERY_AVAILABLE = False
+    logger.warning("Celery tasks not available - alerts will only be logged")
+
 
 class PerformanceMonitor:
     """
@@ -106,7 +115,15 @@ class PerformanceMonitor:
 
                 # Alert if query is extremely slow
                 if duration_ms > 1000:  # 1 second
-                    self._send_alert("extremely_slow_query", f"Query took {duration_ms:.0f}ms: {query_preview[:100]}")
+                    self._send_alert(
+                        "extremely_slow_query",
+                        f"Query took {duration_ms:.0f}ms: {query_preview[:100]}",
+                        details={
+                            "duration_ms": duration_ms,
+                            "query_preview": query_preview,
+                            "full_query": statement if duration_ms > 2000 else None,
+                        },
+                    )
 
     def track_request_start(self, request_id: str, request: Request) -> None:
         """Track the start of a request."""
@@ -147,6 +164,13 @@ class PerformanceMonitor:
                 self._send_alert(
                     "extremely_slow_request",
                     f"{request_info['method']} {request_info['path']} took {duration_ms:.0f}ms",
+                    details={
+                        "duration_ms": duration_ms,
+                        "method": request_info["method"],
+                        "path": request_info["path"],
+                        "status_code": status_code,
+                        "client": request_info["client"],
+                    },
                 )
 
         return duration_ms
@@ -229,7 +253,7 @@ class PerformanceMonitor:
 
         return cache_health
 
-    def _send_alert(self, alert_type: str, message: str) -> None:
+    def _send_alert(self, alert_type: str, message: str, details: Optional[Dict[str, Any]] = None) -> None:
         """Send alert if not in cooldown period."""
         now = datetime.utcnow()
 
@@ -242,9 +266,27 @@ class PerformanceMonitor:
         # Log alert
         logger.error(f"ALERT [{alert_type}]: {message}")
 
-        # In production, this would send to monitoring service
-        # For now, just log to stdout for Render logs
-        print(f"🚨 PRODUCTION ALERT [{alert_type}]: {message}")
+        # Determine severity based on alert type
+        severity = "critical" if "extremely" in alert_type else "warning"
+
+        # Dispatch to Celery if available
+        if CELERY_AVAILABLE:
+            try:
+                process_monitoring_alert.delay(
+                    alert_type=alert_type,
+                    severity=severity,
+                    title=f"Performance Alert: {alert_type.replace('_', ' ').title()}",
+                    message=message,
+                    details=details or {},
+                )
+                logger.info(f"Alert dispatched to Celery: {alert_type}")
+            except Exception as e:
+                logger.error(f"Failed to dispatch alert to Celery: {str(e)}")
+                # Fall back to console logging
+                print(f"🚨 PRODUCTION ALERT [{alert_type}]: {message}")
+        else:
+            # Fall back to console logging
+            print(f"🚨 PRODUCTION ALERT [{alert_type}]: {message}")
 
         # Update last alert time
         self._last_alert_time[alert_type] = now
