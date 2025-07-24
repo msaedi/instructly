@@ -1,0 +1,78 @@
+name: Test Analytics Calculation
+
+on:
+  workflow_dispatch:
+    inputs:
+      days_back:
+        description: 'Number of days to analyze'
+        required: false
+        default: '7'
+        type: string
+      use_test_database:
+        description: 'Use test database (true/false)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+  test-analytics:
+    name: Test Analytics Calculation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run analytics calculation (test mode)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+          USE_TEST_DATABASE: ${{ github.event.inputs.use_test_database }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+        run: |
+          cd backend
+          echo "🧪 Running analytics calculation in test mode..."
+          echo "Database: ${{ github.event.inputs.use_test_database == 'true' && 'TEST' || 'PRODUCTION' }}"
+          echo "Days to analyze: ${{ github.event.inputs.days_back }}"
+          echo "----------------------------------------"
+
+          python scripts/calculate_service_analytics.py --days-back ${{ github.event.inputs.days_back }}
+
+      - name: Upload analytics report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: analytics-report-${{ github.run_number }}
+          path: |
+            backend/*.log
+            backend/analytics_report_*.json
+          retention-days: 7
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Analytics Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Days Analyzed**: ${{ github.event.inputs.days_back }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Database**: ${{ github.event.inputs.use_test_database == 'true' && 'Test' || 'Production' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Run ID**: ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Triggered by**: @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY

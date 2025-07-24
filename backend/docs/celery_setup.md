@@ -350,9 +350,81 @@ print(result.info)
    - Use task routing for priority
    - Set appropriate time limits
 
+## GitHub Actions Deployment (Alternative to Celery)
+
+For simpler deployments or when you don't want to manage Celery infrastructure, you can use GitHub Actions to run analytics calculations on a schedule.
+
+### Setting up GitHub Actions
+
+1. **Add Required Secrets**
+
+   Go to your repository Settings → Secrets and variables → Actions, and add:
+
+   - `DATABASE_URL`: Your production database connection string
+   - `TEST_DATABASE_URL`: (Optional) Test database for testing workflows
+   - `REDIS_URL`: Redis connection string (if using cache)
+   - `SECRET_KEY`: Your application secret key
+   - `RESEND_API_KEY`: Email service API key
+
+2. **Daily Analytics Workflow**
+
+   The `.github/workflows/daily-analytics.yml` workflow runs automatically at 2 AM EST daily:
+
+   ```yaml
+   # Runs at 7:00 AM UTC (2:00 AM EST)
+   - cron: '0 7 * * *'
+   ```
+
+3. **Manual Trigger**
+
+   You can manually run analytics from GitHub:
+
+   - Go to Actions tab → "Daily Analytics Calculation"
+   - Click "Run workflow"
+   - Optionally change the number of days to analyze
+   - Click "Run workflow" button
+
+4. **Test Workflow**
+
+   Use `.github/workflows/test-analytics.yml` to test before waiting for the schedule:
+
+   - Allows choosing between test and production database
+   - Configurable days parameter
+   - Uploads artifacts for debugging
+
+### Monitoring GitHub Actions
+
+1. **View Runs**: Actions tab shows all workflow runs
+2. **Email Notifications**: GitHub sends emails on failures by default
+3. **Issue Creation**: Failed runs automatically create GitHub issues
+4. **Logs**: Each run has detailed logs for debugging
+
+### GitHub Actions vs Celery
+
+**Use GitHub Actions when:**
+- You want a serverless solution
+- Running analytics once or twice daily is sufficient
+- You don't need real-time task processing
+- You want minimal infrastructure management
+
+**Use Celery when:**
+- You need frequent task execution (every few minutes)
+- You have many different types of background tasks
+- You need task prioritization and routing
+- You want more control over retry logic and error handling
+
+### Switching Between Solutions
+
+Both solutions use the same analytics script, so you can:
+
+1. Start with GitHub Actions for simplicity
+2. Move to Celery later if you need more features
+3. Run both in parallel during transition
+
 ## Additional Resources
 
 - [Celery Documentation](https://docs.celeryproject.org/)
 - [Flower Documentation](https://flower.readthedocs.io/)
 - [Redis Documentation](https://redis.io/documentation)
 - [Render Celery Guide](https://render.com/docs/celery)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
