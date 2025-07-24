@@ -84,10 +84,12 @@ class ProductionStartup:
 
         # Check database
         try:
+            from sqlalchemy import text
+
             from ..database import engine
 
             with engine.connect() as conn:
-                conn.execute("SELECT 1")
+                conn.execute(text("SELECT 1"))
             logger.info("✓ Database connection verified")
         except Exception as e:
             logger.error(f"✗ Database connection failed: {e}")
@@ -111,6 +113,8 @@ class ProductionStartup:
 
         # Warm database pool
         try:
+            from sqlalchemy import text
+
             from ..database import engine
 
             # Create multiple connections to fill pool
@@ -119,7 +123,7 @@ class ProductionStartup:
 
             for i in range(min(pool_size, 3)):  # Warm up to 3 connections
                 conn = engine.connect()
-                conn.execute("SELECT 1")
+                conn.execute(text("SELECT 1"))
                 connections.append(conn)
 
             # Close connections to return to pool
