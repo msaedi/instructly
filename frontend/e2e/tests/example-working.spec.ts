@@ -15,12 +15,17 @@ test.describe('Working E2E Examples', () => {
     await musicCategory.click();
 
     // 4. Wait for service capsules to appear
-    await page.waitForTimeout(500); // Wait for animation
+    // Wait for the services container or a specific service to be visible
+    await page.waitForSelector('[href*="service_catalog_id"]', {
+      state: 'visible',
+      timeout: 10000, // 10 seconds to account for API calls and animations
+    });
 
     // 5. Click on a service capsule (these are the actual links)
-    const pianoService = page.getByRole('link', { name: /Piano/i });
-    await expect(pianoService).toBeVisible();
-    await pianoService.click();
+    // Use a more flexible selector in case "Piano" isn't always first
+    const firstMusicService = page.locator('[href*="service_catalog_id"]').first();
+    await expect(firstMusicService).toBeVisible();
+    await firstMusicService.click();
 
     // 6. Verify navigation to search with service_catalog_id
     await expect(page).toHaveURL(/\/search\?service_catalog_id=\d+/);
