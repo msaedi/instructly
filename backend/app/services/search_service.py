@@ -28,6 +28,46 @@ logger = logging.getLogger(__name__)
 class QueryParser:
     """Parse natural language queries to extract intent and constraints."""
 
+    # Service name normalization (common variations to canonical names)
+    SERVICE_ALIASES = {
+        # Music
+        "keyboard": "Piano",
+        "keys": "Piano",
+        "drum": "Drums",
+        "percussion": "Drums",
+        "vocal": "Voice",
+        "vocals": "Voice",
+        "singing": "Voice",
+        "bass": "Bass Guitar",
+        # Languages
+        "español": "Spanish",
+        "mandarin": "Chinese",
+        "chinese": "Chinese",
+        # Academic
+        "sat prep": "SAT Prep",
+        "act prep": "ACT Prep",
+        "gre prep": "GRE Prep",
+        "algebra": "Algebra I",  # Default to Algebra I
+        "calculus": "Calculus",
+        "calc": "Calculus",
+        # Fitness
+        "yoga": "Yoga",
+        "pilates": "Pilates",
+        "martial arts": "Martial Arts",
+        "karate": "Martial Arts",
+    }
+
+    # Category term mapping
+    CATEGORY_TERMS = {
+        "music": "Music",
+        "language": "Language",
+        "languages": "Language",
+        "fitness": "Fitness",
+        "tutoring": "Academic Tutoring",
+        "academic": "Academic Tutoring",
+        "test prep": "Test Preparation",
+    }
+
     # Price patterns
     PRICE_PATTERNS = [
         (r"under \$?(\d+)", "max_price"),
@@ -88,6 +128,18 @@ class QueryParser:
         (r"\badults?\b", "adults"),
     ]
 
+    # Category patterns (general terms that should return broader results)
+    CATEGORY_PATTERNS = [
+        r"\bmusic\s+(?:lessons?|classes?|instruction)\b",
+        r"\btutoring\s+(?:help|services?)?\b",
+        r"\blanguage\s+(?:lessons?|classes?|instruction)\b",
+        r"\bfitness\s+(?:classes?|training|instruction)\b",
+        r"\barts?\s+(?:lessons?|classes?|instruction)\b",
+        r"^(?:lessons?|classes?)\s+(?:under|below|for)",  # Generic "lessons" at start
+        r"\binstructors?\b$",  # Generic "instructors" at end
+        r"\bteachers?\b$",  # Generic "teachers" at end
+    ]
+
     def parse(self, query: str) -> Dict:
         """
         Parse a natural language query.
@@ -146,6 +198,35 @@ class QueryParser:
 
         # Clean up the query
         constraints["cleaned_query"] = " ".join(constraints["cleaned_query"].split())
+
+        # Normalize service names
+        cleaned_lower = constraints["cleaned_query"].lower()
+        for alias, canonical in self.SERVICE_ALIASES.items():
+            # Use word boundaries to avoid partial replacements
+            pattern = r"\b" + re.escape(alias) + r"\b"
+            if re.search(pattern, cleaned_lower):
+                constraints["cleaned_query"] = re.sub(
+                    pattern, canonical.lower(), constraints["cleaned_query"], flags=re.IGNORECASE
+                )
+                constraints["normalized_service"] = canonical
+                break
+
+        # Check if this is a category query
+        constraints["is_category_query"] = False
+
+        # First check for explicit category terms
+        for term, category in self.CATEGORY_TERMS.items():
+            if term in cleaned_lower:
+                constraints["is_category_query"] = True
+                constraints["category"] = category
+                break
+
+        # Then check category patterns
+        if not constraints["is_category_query"]:
+            for pattern in self.CATEGORY_PATTERNS:
+                if re.search(pattern, query_lower):
+                    constraints["is_category_query"] = True
+                    break
 
         return constraints
 
@@ -247,10 +328,42 @@ class SearchService(BaseService):
         elif parsed["location"].get("in_person"):
             online_capable = False
 
-        # Semantic search
-        similar_services = self.catalog_repository.find_similar_by_embedding(
-            embedding=query_embedding, limit=limit, threshold=0.3  # Lower threshold for broader results
-        )
+        # Determine search strategy based on query type
+        if parsed.get("is_category_query"):
+            # For category queries, use lower threshold for broader results
+            similar_services = self.catalog_repository.find_similar_by_embedding(
+                embedding=query_embedding, limit=limit, threshold=0.3
+            )
+        else:
+            # For specific service queries, first try exact match
+            exact_match_service = None
+            if parsed["cleaned_query"]:
+                # Search for exact service name match
+                exact_services = self.catalog_repository.search_services(
+                    query_text=parsed["cleaned_query"], limit=5  # Get top 5 to check for exact matches
+                )
+                # Look for exact or very close matches
+                for service in exact_services:
+                    service_name_lower = service.name.lower()
+                    query_lower = parsed["cleaned_query"].lower()
+                    # Check for exact match or if the service name is in the query
+                    # This handles "guitar lessons" matching "guitar"
+                    if (
+                        service_name_lower == query_lower
+                        or query_lower in service_name_lower
+                        or service_name_lower in query_lower
+                    ):
+                        exact_match_service = service
+                        break
+
+            # If we found an exact match, use only that service
+            if exact_match_service:
+                similar_services = [(exact_match_service, 1.0)]  # Perfect score for exact match
+            else:
+                # Otherwise, do semantic search with higher threshold for precision
+                similar_services = self.catalog_repository.find_similar_by_embedding(
+                    embedding=query_embedding, limit=limit, threshold=0.7  # High threshold for specific searches
+                )
 
         # Convert to service dicts with scores
         services = []
