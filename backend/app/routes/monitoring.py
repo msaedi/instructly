@@ -9,9 +9,10 @@ Provides real-time insights into:
 - System health
 """
 
-from typing import Any, Dict
+import os
+from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 # TODO: Add admin authentication when available
@@ -30,17 +31,36 @@ router = APIRouter(
 )
 
 
+async def verify_monitoring_access(api_key: Optional[str] = Header(None, alias="X-Monitoring-API-Key")):
+    """
+    Verify access to monitoring endpoints.
+
+    In production, requires either:
+    1. Valid monitoring API key
+    2. Or running in development environment
+    """
+    # Allow in development without key
+    if settings.environment != "production":
+        return
+
+    # In production, require API key
+    monitoring_api_key = os.getenv("MONITORING_API_KEY")
+    if not monitoring_api_key:
+        raise HTTPException(status_code=503, detail="Monitoring API key not configured")
+
+    if api_key != monitoring_api_key:
+        raise HTTPException(status_code=403, detail="Invalid monitoring API key")
+
+
 @router.get("/dashboard")
-async def get_monitoring_dashboard(db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def get_monitoring_dashboard(
+    db: Session = Depends(get_db), _: None = Depends(verify_monitoring_access)
+) -> Dict[str, Any]:
     """
     Get comprehensive monitoring dashboard data.
 
-    Requires admin authentication.
+    Requires monitoring API key in production.
     """
-    # Temporary security: Only allow in development until auth is added
-    if settings.environment == "production":
-        raise HTTPException(status_code=403, detail="Monitoring endpoints require authentication")
-
     try:
         # Get performance summary from monitor
         performance = monitor.get_performance_summary()
@@ -72,7 +92,7 @@ async def get_monitoring_dashboard(db: Session = Depends(get_db)) -> Dict[str, A
 
 
 @router.get("/slow-queries")
-async def get_slow_queries(limit: int = 10) -> Dict[str, Any]:
+async def get_slow_queries(limit: int = 10, _: None = Depends(verify_monitoring_access)) -> Dict[str, Any]:
     """Get recent slow queries."""
     return {
         "slow_queries": list(monitor.slow_queries)[-limit:],
@@ -81,7 +101,7 @@ async def get_slow_queries(limit: int = 10) -> Dict[str, Any]:
 
 
 @router.get("/slow-requests")
-async def get_slow_requests(limit: int = 10) -> Dict[str, Any]:
+async def get_slow_requests(limit: int = 10, _: None = Depends(verify_monitoring_access)) -> Dict[str, Any]:
     """Get recent slow requests."""
     return {
         "slow_requests": list(monitor.slow_requests)[-limit:],
@@ -90,7 +110,9 @@ async def get_slow_requests(limit: int = 10) -> Dict[str, Any]:
 
 
 @router.get("/cache/extended-stats")
-async def get_extended_cache_stats(db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def get_extended_cache_stats(
+    db: Session = Depends(get_db), _: None = Depends(verify_monitoring_access)
+) -> Dict[str, Any]:
     """Get extended cache statistics including Upstash metrics."""
     cache_service = get_cache_service(db)
 
@@ -102,7 +124,7 @@ async def get_extended_cache_stats(db: Session = Depends(get_db)) -> Dict[str, A
 
 
 @router.post("/alerts/acknowledge/{alert_type}")
-async def acknowledge_alert(alert_type: str) -> Dict[str, Any]:
+async def acknowledge_alert(alert_type: str, _: None = Depends(verify_monitoring_access)) -> Dict[str, Any]:
     """Acknowledge an alert to reset its cooldown."""
     if alert_type in monitor._last_alert_time:
         del monitor._last_alert_time[alert_type]
