@@ -1,0 +1,26 @@
+# Celery and related dependencies for InstaInstru
+
+# Core Celery
+celery[redis]==5.3.4
+
+# Redis client
+redis==5.0.1
+hiredis==2.3.2  # C parser for improved performance
+
+# Additional Celery plugins
+celery-redbeat==2.1.1  # Redis-based beat scheduler (optional)
+flower==2.0.1  # Celery monitoring tool
+
+# Message serialization
+msgpack==1.0.7  # Alternative to JSON for better performance
+
+# Monitoring and metrics
+celery-prometheus-exporter==2.0.0  # Prometheus metrics
+celery-progress==0.3  # Progress tracking for long-running tasks
+
+# Task result storage alternatives (optional)
+# celery[mongodb]==5.3.4  # If using MongoDB as result backend
+# celery[cassandra]==5.3.4  # If using Cassandra as result backend
+
+# Development tools
+celery-types==0.20.0  # Type hints for Celery

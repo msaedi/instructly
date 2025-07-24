@@ -1,0 +1,99 @@
+# docker-compose.celery.yml
+# Docker Compose configuration for Celery services
+
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: instainstru_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - instainstru_network
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: instainstru_celery_worker
+    command: celery -A app.tasks worker --loglevel=info --concurrency=4
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=${DATABASE_URL}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CELERY_TIMEZONE=US/Eastern
+    volumes:
+      - ./app:/app
+      - ./logs/celery:/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - instainstru_network
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: instainstru_celery_beat
+    command: celery -A app.tasks beat --loglevel=info
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=${DATABASE_URL}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CELERY_TIMEZONE=US/Eastern
+    volumes:
+      - ./app:/app
+      - ./logs/celery:/logs
+      - ./celerybeat-schedule:/celerybeat-schedule
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - instainstru_network
+
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: instainstru_flower
+    command: celery -A app.tasks flower --port=5555
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - FLOWER_BASIC_AUTH=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-changeme}
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - instainstru_network
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  instainstru_network:
+    driver: bridge
