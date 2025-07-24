@@ -230,6 +230,41 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         """Apply eager loading for category relationship."""
         return query.options(joinedload(ServiceCatalog.category))
 
+    def get_active_services_with_categories(
+        self, category_id: Optional[int] = None, skip: int = 0, limit: Optional[int] = None
+    ) -> List[ServiceCatalog]:
+        """
+        Get active services with categories eagerly loaded, ordered by display_order.
+
+        Optimized for the catalog endpoint to prevent N+1 queries.
+
+        Args:
+            category_id: Optional category filter
+            skip: Pagination offset
+            limit: Maximum results (None for all)
+
+        Returns:
+            List of ServiceCatalog objects with categories loaded
+        """
+        query = (
+            self.db.query(ServiceCatalog)
+            .options(joinedload(ServiceCatalog.category))
+            .filter(ServiceCatalog.is_active == True)
+        )
+
+        if category_id:
+            query = query.filter(ServiceCatalog.category_id == category_id)
+
+        # Order by display_order in database (not Python)
+        query = query.order_by(ServiceCatalog.display_order, ServiceCatalog.name)
+
+        if skip:
+            query = query.offset(skip)
+        if limit:
+            query = query.limit(limit)
+
+        return query.all()
+
 
 class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
     """Repository for service analytics data."""

@@ -10,6 +10,7 @@ Now tracks timing for all instructor operations to earn those MEGAWATTS! ⚡
 """
 
 import logging
+from datetime import datetime
 from typing import Dict, List, Optional, Set
 
 from sqlalchemy.orm import Session
@@ -511,23 +512,43 @@ class InstructorService(BaseService):
         """
         Get available services from the catalog.
 
+        Optimized with eager loading and 5-minute caching to balance performance
+        with analytics-driven order updates.
+
         Args:
             category_slug: Optional category filter
 
         Returns:
             List of catalog service dictionaries
         """
+        # Try cache first (5-minute TTL for analytics freshness)
+        cache_key = f"catalog:services:{category_slug or 'all'}"
+        if self.cache_service:
+            cached_result = self.cache_service.get(cache_key)
+            if cached_result:
+                logger.debug(f"Cache hit for catalog services: {cache_key}")
+                return cached_result
+
+        # Get category ID if slug provided
+        category_id = None
         if category_slug:
             category = self.category_repository.find_one_by(slug=category_slug)
             if not category:
                 raise NotFoundException(f"Category '{category_slug}' not found")
-            services = self.catalog_repository.find_by(category_id=category.id, is_active=True)
-        else:
-            services = self.catalog_repository.find_by(is_active=True)
+            category_id = category.id
 
-        # Sort services by display_order
-        sorted_services = sorted(services, key=lambda s: s.display_order)
-        return [self._catalog_service_to_dict(service) for service in sorted_services]
+        # Use optimized repository method with eager loading
+        services = self.catalog_repository.get_active_services_with_categories(category_id=category_id)
+
+        # Convert to dictionaries (no N+1 queries since categories are loaded)
+        result = [self._catalog_service_to_dict(service) for service in services]
+
+        # Cache for 5 minutes (300 seconds)
+        if self.cache_service:
+            self.cache_service.set(cache_key, result, ttl=300)
+            logger.debug(f"Cached {len(result)} catalog services for 5 minutes")
+
+        return result
 
     @BaseService.measure_operation("get_service_categories")
     def get_service_categories(self) -> List[Dict]:
@@ -836,6 +857,83 @@ class InstructorService(BaseService):
 
         prices = [s.hourly_rate for s in instructor_services]
         return {"min": min(prices), "max": max(prices), "avg": sum(prices) / len(prices)}
+
+    @BaseService.measure_operation("get_top_services_per_category")
+    def get_top_services_per_category(self, limit: int = 7) -> Dict:
+        """
+        Get top N services per category for homepage display.
+
+        Optimized for performance with aggressive caching (1 hour) since
+        analytics update daily. Returns only what the homepage needs.
+
+        Args:
+            limit: Number of services per category (default: 7)
+
+        Returns:
+            Dictionary with categories and their top services
+        """
+        # Try cache first (1 hour TTL for homepage optimization)
+        cache_key = f"catalog:top-services:{limit}"
+        if self.cache_service:
+            cached_result = self.cache_service.get(cache_key)
+            if cached_result:
+                logger.debug(f"Cache hit for top services per category")
+                return cached_result
+
+        # Get all categories
+        categories = self.category_repository.get_all()
+
+        result = {
+            "categories": [],
+            "metadata": {
+                "services_per_category": limit,
+                "total_categories": len(categories),
+                "cached_for_seconds": 3600,  # 1 hour
+                "updated_at": datetime.utcnow().isoformat(),
+            },
+        }
+
+        # For each category, get top N services by display_order
+        for category in sorted(categories, key=lambda c: c.display_order):
+            # Get top services for this category (already ordered by display_order)
+            top_services = self.catalog_repository.get_active_services_with_categories(
+                category_id=category.id, limit=limit
+            )
+
+            if top_services:
+                category_data = {
+                    "id": category.id,
+                    "name": category.name,
+                    "slug": category.slug,
+                    "icon_name": category.icon_name,
+                    "services": [],
+                }
+
+                # Add only essential service data for homepage
+                for service in top_services:
+                    # Get analytics for demand score
+                    analytics = self.analytics_repository.get_or_create(service.id)
+
+                    category_data["services"].append(
+                        {
+                            "id": service.id,
+                            "name": service.name,
+                            "slug": service.slug,
+                            "demand_score": analytics.demand_score if analytics else 0,
+                            "active_instructors": analytics.active_instructors if analytics else 0,
+                            "is_trending": analytics.is_trending if analytics else False,
+                            "display_order": service.display_order,
+                        }
+                    )
+
+                result["categories"].append(category_data)
+
+        # Cache for 1 hour
+        if self.cache_service:
+            self.cache_service.set(cache_key, result, ttl=3600)
+            logger.debug(f"Cached top {limit} services per category for 1 hour")
+
+        return result
 
 
 # Dependency injection

@@ -223,6 +223,22 @@ class AnalyticsCalculator:
         # Commit all updates
         self.db.commit()
 
+        # Update display order based on new analytics
+        logger.info("Updating display order based on popularity...")
+        display_updates = self.catalog_repository.update_display_order_by_popularity()
+        logger.info(f"Updated display order for {display_updates} services")
+
+        # Invalidate catalog caches to reflect new order
+        try:
+            from app.services.cache_service import CacheService
+
+            cache_service = CacheService()
+            # Invalidate all catalog caches
+            cache_service.delete_pattern("catalog:services:*")
+            logger.info("Invalidated catalog caches to reflect new display order")
+        except Exception as e:
+            logger.warning(f"Could not invalidate cache (may not be connected): {e}")
+
         return updated_count
 
     def update_search_counts(self) -> None:

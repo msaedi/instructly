@@ -103,3 +103,24 @@ async def search_services(
     result["query"] = q
 
     return result
+
+
+@router.get("/catalog/top-per-category", response_model=Dict)
+async def get_top_services_per_category(
+    limit: int = Query(7, ge=1, le=20, description="Number of top services per category"),
+    instructor_service: InstructorService = Depends(get_instructor_service),
+):
+    """
+    Get top N services per category for homepage capsules.
+
+    Optimized endpoint that returns only the most popular services per category,
+    perfect for homepage display. Cached for 1 hour since popularity changes daily
+    but we want fast response times.
+
+    Args:
+        limit: Number of top services per category (default: 7)
+
+    Returns:
+        Dictionary with categories and their top services
+    """
+    return instructor_service.get_top_services_per_category(limit=limit)
