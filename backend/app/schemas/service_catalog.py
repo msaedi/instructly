@@ -6,7 +6,7 @@ Schemas for service catalog endpoints.
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CategoryResponse(BaseModel):
@@ -19,8 +19,7 @@ class CategoryResponse(BaseModel):
     description: Optional[str] = None
     display_order: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CatalogServiceResponse(BaseModel):
@@ -37,8 +36,7 @@ class CatalogServiceResponse(BaseModel):
     min_recommended_price: Optional[float] = None
     max_recommended_price: Optional[float] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class InstructorServiceCreate(BaseModel):
@@ -51,8 +49,8 @@ class InstructorServiceCreate(BaseModel):
         None, description="Custom duration options in minutes (uses catalog defaults if not provided)"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "catalog_service_id": 1,
                 "hourly_rate": 75.0,
@@ -60,6 +58,7 @@ class InstructorServiceCreate(BaseModel):
                 "duration_options": [30, 45, 60],
             }
         }
+    )
 
 
 class InstructorServiceResponse(BaseModel):
@@ -76,5 +75,4 @@ class InstructorServiceResponse(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

@@ -349,6 +349,7 @@ def test_instructor(db: Session, test_password: str) -> User:
 
     db.flush()
     db.commit()
+    db.refresh(instructor)
     return instructor
 
 
@@ -377,6 +378,7 @@ def test_instructor_2(db: Session, test_password: str) -> User:
     )
     db.add(profile)
     db.commit()
+    db.refresh(instructor)
     return instructor
 
 

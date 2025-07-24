@@ -310,11 +310,15 @@ class TestBookingServiceAccountStatus:
         db.add(profile)
         db.flush()
 
-        # Add a service
-        piano_service = next((s for s in catalog_data["services"] if s.slug == "piano-lessons"), None)
+        # Add a service - use a service that definitely exists
+        # First, let's use any available service from the catalog
+        available_service = catalog_data["services"][0] if catalog_data["services"] else None
+        if not available_service:
+            raise RuntimeError("No services in catalog - catalog_data fixture failed")
+
         service = Service(
             instructor_profile_id=profile.id,
-            service_catalog_id=piano_service.id,
+            service_catalog_id=available_service.id,
             hourly_rate=100,
             duration_options=[60],
             is_active=True,
@@ -367,11 +371,14 @@ class TestBookingServiceAccountStatus:
         db.add(profile)
         db.flush()
 
-        # Add a service
-        guitar_service = next((s for s in catalog_data["services"] if s.slug == "guitar-lessons"), None)
+        # Add a service - use any available service
+        available_service = catalog_data["services"][0] if catalog_data["services"] else None
+        if not available_service:
+            raise RuntimeError("No services in catalog - catalog_data fixture failed")
+
         service = Service(
             instructor_profile_id=profile.id,
-            service_catalog_id=guitar_service.id,
+            service_catalog_id=available_service.id,
             hourly_rate=90,
             duration_options=[60],
             is_active=True,

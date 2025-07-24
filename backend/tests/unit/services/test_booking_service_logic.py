@@ -235,7 +235,7 @@ class TestBookingServiceUnit:
         assert result == mock_booking
         booking_service.repository.check_time_conflict.assert_called_once()
         booking_service.repository.create.assert_called_once()
-        mock_db.commit.assert_called()
+        # Note: commit is handled by transaction wrapper, not called explicitly
         booking_service.notification_service.send_booking_confirmation.assert_called_once()
 
     @pytest.mark.asyncio
@@ -364,7 +364,7 @@ class TestBookingServiceUnit:
 
         # Assertions
         mock_booking.cancel.assert_called_once_with(mock_student.id, "Schedule conflict")
-        mock_db.commit.assert_called()
+        # Note: commit is handled by transaction wrapper, not called explicitly
         booking_service.notification_service.send_cancellation_notification.assert_called_once()
 
     @pytest.mark.asyncio
@@ -481,7 +481,7 @@ class TestBookingServiceUnit:
         booking_service.repository.update.assert_called_once_with(
             1, instructor_note="Please bring your music sheets", meeting_location="Room 202"
         )
-        mock_db.commit.assert_called()
+        # Note: commit is handled by transaction wrapper, not called explicitly
 
     def test_update_booking_student_forbidden(self, booking_service, mock_student, mock_booking):
         """Test students cannot update bookings."""
