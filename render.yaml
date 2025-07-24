@@ -1,0 +1,57 @@
+services:
+  - type: web
+    name: instainstru-backend
+    runtime: python
+    plan: standard # $25/month plan
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn app.main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 120 --keep-alive 5 --access-logfile - --error-logfile - --preload"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.18
+      - key: PORT
+        value: 8000
+      - key: WEB_CONCURRENCY
+        value: 2  # Optimized for Standard plan memory
+      - key: GUNICORN_WORKERS
+        value: 2
+      - key: GUNICORN_THREADS
+        value: 4
+      - key: DATABASE_POOL_SIZE
+        value: 5  # Reduced for Render constraints
+      - key: DATABASE_MAX_OVERFLOW
+        value: 5
+      - key: REDIS_MAX_CONNECTIONS
+        value: 10  # Optimized for Upstash
+    healthCheckPath: /health/lite  # New lightweight health check
+    autoDeploy: false  # Manual deploys for production safety
+
+  - type: worker
+    name: instainstru-celery
+    runtime: python
+    plan: standard
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=100 --pool=prefork"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.18
+      - key: CELERY_WORKER_CONCURRENCY
+        value: 2  # Optimized for Standard plan
+      - key: CELERY_WORKER_MAX_TASKS_PER_CHILD
+        value: 100  # Prevent memory leaks
+      - key: CELERY_WORKER_PREFETCH_MULTIPLIER
+        value: 1  # Reduce memory usage
+    autoDeploy: false
+
+  - type: worker
+    name: instainstru-celery-beat
+    runtime: python
+    plan: standard
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "celery -A app.tasks.celery_app beat --loglevel=info"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.18
+    autoDeploy: false
+
+# Database configuration is external (Supabase)
+# Redis configuration is external (Upstash)

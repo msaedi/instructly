@@ -10,6 +10,7 @@ from .core.config import settings
 from .core.constants import ALLOWED_ORIGINS, API_DESCRIPTION, API_TITLE, API_VERSION, BRAND_NAME
 from .middleware.https_redirect import create_https_redirect_middleware
 from .middleware.monitoring import MonitoringMiddleware
+from .middleware.performance import PerformanceMiddleware
 from .middleware.prometheus_middleware import PrometheusMiddleware
 from .middleware.rate_limiter import RateLimitMiddleware
 from .middleware.timing import TimingMiddleware
@@ -19,6 +20,7 @@ from .routes import (
     bookings,
     instructors,
     metrics,
+    monitoring,
     password_reset,
     prometheus,
     public,
@@ -53,10 +55,11 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("🔓 HTTPS redirect disabled for development")
 
-    # Here you can add any startup logic like:
-    # - Warming up caches
-    # - Checking database connections
-    # - Loading ML models
+    # Production startup optimizations
+    if settings.environment == "production":
+        from .core.production_startup import ProductionStartup
+
+        await ProductionStartup.initialize()
 
     yield
 
@@ -87,6 +90,7 @@ if settings.environment == "production":
 # Rate limiting should be early in the chain to block bad requests quickly
 app.add_middleware(TimingMiddleware)
 app.add_middleware(MonitoringMiddleware)
+app.add_middleware(PerformanceMiddleware)  # Production performance monitoring
 app.add_middleware(PrometheusMiddleware)  # Prometheus metrics collection
 app.add_middleware(RateLimitMiddleware)  # Added rate limiting
 app.add_middleware(
@@ -108,6 +112,7 @@ app.include_router(availability_windows.router)
 app.include_router(password_reset.router)
 app.include_router(bookings.router)
 app.include_router(metrics.router)
+app.include_router(monitoring.router)
 app.include_router(public.router)
 app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(prometheus.router)
@@ -134,6 +139,12 @@ def health_check():
         "version": API_VERSION,
         "environment": settings.environment,
     }
+
+
+@app.get("/health/lite")
+def health_check_lite():
+    """Lightweight health check that doesn't hit database"""
+    return {"status": "ok"}
 
 
 @app.get("/metrics/performance")

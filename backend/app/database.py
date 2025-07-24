@@ -8,21 +8,31 @@ from sqlalchemy.pool import QueuePool
 
 from .core.config import settings
 
+# Import production config if in production
+if settings.environment == "production":
+    from .core.config_production import DATABASE_POOL_CONFIG
+else:
+    DATABASE_POOL_CONFIG = None
+
 logger = logging.getLogger(__name__)
 
 # Create engine with connection pooling
-engine = create_engine(
-    settings.get_database_url(),
-    # Connection pool settings
-    poolclass=QueuePool,
-    pool_size=20,  # Number of persistent connections
-    max_overflow=10,  # Maximum overflow connections
-    pool_timeout=30,  # Timeout for getting connection
-    pool_recycle=3600,  # Recycle connections after 1 hour
-    pool_pre_ping=True,  # Test connections before using
-    echo_pool=False,  # Set to True for pool debugging
-    connect_args={"connect_timeout": 10, "application_name": "instainstru_backend"},
-)
+if DATABASE_POOL_CONFIG:
+    # Use production-optimized settings
+    engine = create_engine(settings.get_database_url(), poolclass=QueuePool, **DATABASE_POOL_CONFIG)
+else:
+    # Use default development settings
+    engine = create_engine(
+        settings.get_database_url(),
+        poolclass=QueuePool,
+        pool_size=20,  # Number of persistent connections
+        max_overflow=10,  # Maximum overflow connections
+        pool_timeout=30,  # Timeout for getting connection
+        pool_recycle=3600,  # Recycle connections after 1 hour
+        pool_pre_ping=True,  # Test connections before using
+        echo_pool=False,  # Set to True for pool debugging
+        connect_args={"connect_timeout": 10, "application_name": "instainstru_backend"},
+    )
 
 
 # Log pool events for monitoring

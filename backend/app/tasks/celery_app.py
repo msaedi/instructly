@@ -13,6 +13,15 @@ from celery.signals import setup_logging
 
 from app.core.config import settings
 
+# Import production config if available
+if settings.environment == "production":
+    try:
+        from app.core.config_production import CELERY_WORKER_CONFIG
+    except ImportError:
+        CELERY_WORKER_CONFIG = None
+else:
+    CELERY_WORKER_CONFIG = None
+
 
 def create_celery_app() -> Celery:
     """
@@ -33,37 +42,56 @@ def create_celery_app() -> Celery:
         backend=redis_url,
     )
 
-    # Update configuration
-    celery_app.conf.update(
+    # Base configuration
+    base_config = {
         # Task settings
-        task_serializer="json",
-        accept_content=["json"],
-        result_serializer="json",
-        timezone="US/Eastern",
-        enable_utc=True,
+        "task_serializer": "json",
+        "accept_content": ["json"],
+        "result_serializer": "json",
+        "timezone": "US/Eastern",
+        "enable_utc": True,
         # Result backend settings
-        result_expires=3600,  # Results expire after 1 hour
-        result_persistent=True,
-        result_compression="gzip",
+        "result_expires": 3600,  # Results expire after 1 hour
+        "result_persistent": True,
+        "result_compression": "gzip",
         # Worker settings
-        worker_prefetch_multiplier=4,
-        worker_max_tasks_per_child=1000,
-        worker_disable_rate_limits=False,
+        "worker_prefetch_multiplier": 4,
+        "worker_max_tasks_per_child": 1000,
+        "worker_disable_rate_limits": False,
         # Task execution settings
-        task_soft_time_limit=300,  # 5 minutes soft limit
-        task_time_limit=600,  # 10 minutes hard limit
-        task_acks_late=True,
-        task_reject_on_worker_lost=True,
+        "task_soft_time_limit": 300,  # 5 minutes soft limit
+        "task_time_limit": 600,  # 10 minutes hard limit
+        "task_acks_late": True,
+        "task_reject_on_worker_lost": True,
         # Error handling
-        task_default_retry_delay=60,  # 1 minute
-        task_max_retries=3,
+        "task_default_retry_delay": 60,  # 1 minute
+        "task_max_retries": 3,
         # Beat scheduler settings (if using periodic tasks)
-        beat_schedule_filename="celerybeat-schedule",
+        "beat_schedule_filename": "celerybeat-schedule",
         # Security settings
-        worker_hijack_root_logger=False,
-        worker_redirect_stdouts=True,
-        worker_redirect_stdouts_level="INFO",
-    )
+        "worker_hijack_root_logger": False,
+        "worker_redirect_stdouts": True,
+        "worker_redirect_stdouts_level": "INFO",
+    }
+
+    # Apply production optimizations if available
+    if CELERY_WORKER_CONFIG:
+        base_config.update(
+            {
+                # Override with production settings
+                "worker_prefetch_multiplier": CELERY_WORKER_CONFIG.get("prefetch_multiplier", 1),
+                "worker_max_tasks_per_child": CELERY_WORKER_CONFIG.get("max_tasks_per_child", 100),
+                "result_expires": CELERY_WORKER_CONFIG.get("result_expires", 900),
+                "task_time_limit": CELERY_WORKER_CONFIG.get("task_time_limit", 300),
+                "task_soft_time_limit": CELERY_WORKER_CONFIG.get("task_soft_time_limit", 240),
+                # Add memory limit for production
+                "worker_max_memory_per_child": CELERY_WORKER_CONFIG.get("worker_max_memory_per_child", 200000),
+                # Enable compression for production
+                "task_compression": CELERY_WORKER_CONFIG.get("task_compression", "gzip"),
+            }
+        )
+
+    celery_app.conf.update(base_config)
 
     # Configure task routing if needed
     celery_app.conf.task_routes = {
