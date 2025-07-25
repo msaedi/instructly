@@ -28,7 +28,7 @@ services:
   - type: worker
     name: instainstru-celery
     runtime: python
-    plan: standard
+    plan: starter
     buildCommand: "pip install -r requirements.txt"
     startCommand: "celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=100 --pool=prefork"
     envVars:
@@ -45,7 +45,7 @@ services:
   - type: worker
     name: instainstru-celery-beat
     runtime: python
-    plan: standard
+    plan: starter
     buildCommand: "pip install -r requirements.txt"
     startCommand: "celery -A app.tasks.celery_app beat --loglevel=info"
     envVars:
