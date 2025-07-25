@@ -8,6 +8,7 @@ who teach that specific service, not all instructors in the category.
 
 import pytest
 from fastapi.testclient import TestClient
+from sentence_transformers import SentenceTransformer
 from sqlalchemy.orm import Session
 
 from app.models.instructor import InstructorProfile
@@ -43,41 +44,95 @@ class TestNLSSpecificServiceMatching:
 
             db.flush()
 
+        # Load embedding model for test services
+        model = SentenceTransformer("all-MiniLM-L6-v2")
+
+        # Helper function to generate embedding text
+        def generate_service_text(service_name, description, search_terms):
+            parts = [service_name, f"Category: Music", description]
+            if search_terms:
+                parts.append(f"Keywords: {', '.join(search_terms)}")
+            return " ".join(parts)
+
         # Get or create service catalog entries
         piano_service = db.query(ServiceCatalog).filter_by(name="Piano", category_id=music_category.id).first()
         if not piano_service:
+            # Generate embedding for piano service
+            piano_text = generate_service_text("Piano", "Piano lessons", ["piano", "keyboard", "keys"])
+            piano_embedding = model.encode([piano_text])[0].tolist()
+
             piano_service = ServiceCatalog(
                 name="Piano",
                 category_id=music_category.id,
                 description="Piano lessons",
                 search_terms=["piano", "keyboard", "keys"],
                 is_active=True,
+                embedding=piano_embedding,
             )
             db.add(piano_service)
+            db.flush()
+        elif piano_service.embedding is None:
+            # Update existing service with embedding
+            piano_text = generate_service_text(
+                "Piano",
+                piano_service.description or "Piano lessons",
+                piano_service.search_terms or ["piano", "keyboard", "keys"],
+            )
+            piano_service.embedding = model.encode([piano_text])[0].tolist()
             db.flush()
 
         guitar_service = db.query(ServiceCatalog).filter_by(name="Guitar", category_id=music_category.id).first()
         if not guitar_service:
+            # Generate embedding for guitar service
+            guitar_text = generate_service_text(
+                "Guitar", "Guitar lessons", ["guitar", "acoustic guitar", "electric guitar"]
+            )
+            guitar_embedding = model.encode([guitar_text])[0].tolist()
+
             guitar_service = ServiceCatalog(
                 name="Guitar",
                 category_id=music_category.id,
                 description="Guitar lessons",
                 search_terms=["guitar", "acoustic guitar", "electric guitar"],
                 is_active=True,
+                embedding=guitar_embedding,
             )
             db.add(guitar_service)
+            db.flush()
+        elif guitar_service.embedding is None:
+            # Update existing service with embedding
+            guitar_text = generate_service_text(
+                "Guitar",
+                guitar_service.description or "Guitar lessons",
+                guitar_service.search_terms or ["guitar", "acoustic guitar", "electric guitar"],
+            )
+            guitar_service.embedding = model.encode([guitar_text])[0].tolist()
             db.flush()
 
         drums_service = db.query(ServiceCatalog).filter_by(name="Drums", category_id=music_category.id).first()
         if not drums_service:
+            # Generate embedding for drums service
+            drums_text = generate_service_text("Drums", "Drum lessons", ["drums", "percussion", "drumming"])
+            drums_embedding = model.encode([drums_text])[0].tolist()
+
             drums_service = ServiceCatalog(
                 name="Drums",
                 category_id=music_category.id,
                 description="Drum lessons",
                 search_terms=["drums", "percussion", "drumming"],
                 is_active=True,
+                embedding=drums_embedding,
             )
             db.add(drums_service)
+            db.flush()
+        elif drums_service.embedding is None:
+            # Update existing service with embedding
+            drums_text = generate_service_text(
+                "Drums",
+                drums_service.description or "Drum lessons",
+                drums_service.search_terms or ["drums", "percussion", "drumming"],
+            )
+            drums_service.embedding = model.encode([drums_text])[0].tolist()
             db.flush()
 
         # Create instructors with dummy hashed password
