@@ -6,37 +6,32 @@ This runs Flower with basic authentication for production use.
 """
 
 import os
+import sys
 
-from flower import app
-from flower.utils import options
+# Set up basic auth from environment
+basic_auth = os.getenv("FLOWER_BASIC_AUTH", "admin:instructly2024")
+os.environ["FLOWER_BASIC_AUTH"] = basic_auth
 
-# Configure Flower options
-flower_options = options()
+# Set broker URL
+broker_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+os.environ["FLOWER_BROKER"] = broker_url
 
-# Basic authentication
-flower_options.basic_auth = [os.getenv("FLOWER_BASIC_AUTH", "admin:instructly2024")]
+# Set port
+port = os.getenv("PORT", "5555")
+os.environ["FLOWER_PORT"] = port
 
-# Port (Render will set PORT env var)
-flower_options.port = int(os.getenv("PORT", 5555))
+# Set address
+os.environ["FLOWER_ADDRESS"] = "0.0.0.0"
 
-# Address to bind
-flower_options.address = "0.0.0.0"
+# Set other options
+os.environ["FLOWER_DB"] = "/tmp/flower.db"
+os.environ["FLOWER_MAX_TASKS"] = "10000"
+os.environ["FLOWER_PERSISTENT"] = "true"
 
-# Broker URL (use same as Celery)
-flower_options.broker = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-
-# Enable persistent storage
-flower_options.db = "/tmp/flower.db"
-
-# URL prefix if behind proxy
-flower_options.url_prefix = os.getenv("FLOWER_URL_PREFIX", "")
-
-# Max tasks to keep in memory
-flower_options.max_tasks = 10000
-
-# Enable task runtime info
-flower_options.tasks_runtime = True
+# Import and run Flower's main
+from flower.__main__ import main
 
 if __name__ == "__main__":
-    # Start Flower
-    app.start(flower_options)
+    # Run Flower with command line args
+    sys.argv = ["flower", "--port=" + port, "--address=0.0.0.0"]
+    main()
