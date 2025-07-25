@@ -17,6 +17,9 @@ from app.tasks.analytics import (
     update_service_metrics,
 )
 from app.tasks.celery_app import BaseTask, celery_app
+
+# Import database configuration FIRST
+from app.tasks.celery_init import *  # noqa: F403, F401
 from app.tasks.monitoring_tasks import (
     cleanup_old_alerts,
     create_github_issue_for_alert,

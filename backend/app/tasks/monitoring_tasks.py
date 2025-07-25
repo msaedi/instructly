@@ -4,6 +4,7 @@ Celery tasks for monitoring alerts and notifications.
 
 import json
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 
@@ -31,7 +32,20 @@ class MonitoringTask(Task):
     @property
     def db(self):
         if self._db is None:
-            self._db = SessionLocal()
+            # Check if we should use test database
+            if os.getenv("USE_TEST_DATABASE") == "true":
+                test_db_url = os.getenv(
+                    "test_database_url", "postgresql://postgres:postgres@localhost:5432/instainstru_test"
+                )
+                from sqlalchemy import create_engine
+                from sqlalchemy.orm import sessionmaker
+
+                engine = create_engine(test_db_url)
+                TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+                self._db = TestSessionLocal()
+                logger.info(f"MonitoringTask using TEST database: {test_db_url.split('@')[1]}")
+            else:
+                self._db = SessionLocal()
         return self._db
 
     @property

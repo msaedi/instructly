@@ -1,0 +1,62 @@
+name: Manual Deploy to Render
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to deploy'
+        required: true
+        default: 'backend'
+        type: choice
+        options:
+          - backend
+          - celery-worker
+          - celery-beat
+          - flower
+          - all-celery
+          - all
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Deploy to Render
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          # Install Render CLI
+          npm install -g @render-oss/cli
+
+          # Deploy based on selection
+          case "${{ github.event.inputs.service }}" in
+            backend)
+              echo "Deploying Backend API..."
+              render deploy instructly --key $RENDER_API_KEY
+              ;;
+            celery-worker)
+              echo "Deploying Celery Worker..."
+              render deploy instructly-celery-worker --key $RENDER_API_KEY
+              ;;
+            celery-beat)
+              echo "Deploying Celery Beat..."
+              render deploy instructly-celery-beat --key $RENDER_API_KEY
+              ;;
+            flower)
+              echo "Deploying Flower..."
+              render deploy instructly-flower --key $RENDER_API_KEY
+              ;;
+            all-celery)
+              echo "Deploying all Celery services..."
+              render deploy instructly-celery-worker --key $RENDER_API_KEY
+              render deploy instructly-celery-beat --key $RENDER_API_KEY
+              ;;
+            all)
+              echo "Deploying all services..."
+              render deploy instructly --key $RENDER_API_KEY
+              render deploy instructly-celery-worker --key $RENDER_API_KEY
+              render deploy instructly-celery-beat --key $RENDER_API_KEY
+              render deploy instructly-flower --key $RENDER_API_KEY
+              ;;
+          esac
