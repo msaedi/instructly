@@ -22,6 +22,9 @@ cmd = [
     f"--port={port}",
     "--address=0.0.0.0",
     f"--basic_auth={basic_auth}",
+    "--max_tasks=10000",  # Store up to 10k tasks in memory
+    "--persistent=True",  # Enable persistent mode
+    "--db=/tmp/flower.db",  # Use local SQLite for persistence
 ]
 
 print(f"Starting Flower on port {port}...")
