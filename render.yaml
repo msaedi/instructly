@@ -53,5 +53,21 @@ services:
         value: 3.9.18
     autoDeploy: false
 
+  - type: web
+    name: instructly-flower
+    runtime: python
+    plan: starter  # $7/month
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "celery -A app.tasks.celery_app flower --port=10000 --basic_auth=$FLOWER_BASIC_AUTH"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.18
+      - key: REDIS_URL
+        sync: false
+      - key: FLOWER_BASIC_AUTH
+        sync: false
+    healthCheckPath: /
+    autoDeploy: false
+
 # Database configuration is external (Supabase)
 # Redis configuration is external (Upstash)

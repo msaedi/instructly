@@ -23,7 +23,6 @@ from app.tasks.celery_app import BaseTask, celery_app
 # Import database configuration FIRST (only when not imported by Flower)
 if not os.getenv("FLOWER_RUNTIME"):
     from app.tasks.celery_init import *  # noqa: F403, F401
-from app.tasks.keep_alive import ping_all_services, simple_ping
 from app.tasks.monitoring_tasks import (
     cleanup_old_alerts,
     create_github_issue_for_alert,
@@ -41,9 +40,6 @@ __all__ = [
     "process_monitoring_alert",
     "send_alert_email",
     "create_github_issue_for_alert",
-    "cleanup_old_alerts",
-    "simple_ping",
-    "ping_all_services",
 ]
 
 # Import all_tasks to ensure task discovery
