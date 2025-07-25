@@ -36,7 +36,8 @@ def run_health_server():
     """Run the health check server."""
     port = int(os.environ.get("PORT", 10000))
     server = HTTPServer(("0.0.0.0", port), HealthHandler)
-    print(f"Health check server listening on port {port}")
+    print(f"Health check server listening on port {port}", flush=True)
+    sys.stdout.flush()
     server.serve_forever()
 
 
@@ -75,20 +76,26 @@ if __name__ == "__main__":
     # Get port from environment
     port = int(os.environ.get("PORT", 10000))
 
+    print(f"Starting health check server on port {port}...", flush=True)
+    sys.stdout.flush()
+
     # Start health check server in a separate thread
     health_thread = threading.Thread(target=run_health_server, daemon=True)
     health_thread.start()
 
     # Wait for the health server to be ready
-    print("Waiting for health server to start...")
+    print("Waiting for health server to start...", flush=True)
     if wait_for_port(port, timeout=10):
-        print(f"Health server is ready on port {port}")
+        print(f"Health server is ready on port {port}", flush=True)
     else:
-        print(f"Warning: Health server may not be ready on port {port}")
+        print(f"Warning: Health server may not be ready on port {port}", flush=True)
+
+    sys.stdout.flush()
 
     # Additional delay to ensure Render detects the port
     time.sleep(2)
 
     # Run Celery worker in main thread
-    print("Starting Celery worker...")
+    print("Starting Celery worker...", flush=True)
+    sys.stdout.flush()
     run_celery_worker()
