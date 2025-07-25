@@ -58,15 +58,23 @@ class TestCircularDependencyEdgeCases:
             # Use the second catalog service to avoid unique constraint violation
             catalog_service = catalog_services[1]
 
-        service = Service(
-            instructor_profile_id=profile.id,
-            service_catalog_id=catalog_service.id,
-            hourly_rate=50.0,
-            description="Test",
-            is_active=True,
+        # Check if service already exists for this instructor and catalog
+        service = (
+            db.query(Service)
+            .filter_by(instructor_profile_id=profile.id, service_catalog_id=catalog_service.id, is_active=True)
+            .first()
         )
-        db.add(service)
-        db.commit()
+
+        if not service:
+            service = Service(
+                instructor_profile_id=profile.id,
+                service_catalog_id=catalog_service.id,
+                hourly_rate=50.0,
+                description="Test",
+                is_active=True,
+            )
+            db.add(service)
+            db.commit()
 
         # Create booking using time-based approach (Work Stream #9)
         booking = Booking(
