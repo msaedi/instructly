@@ -42,7 +42,6 @@ CELERYBEAT_SCHEDULE = {
             "queue": "celery",
             "priority": 10,
         },
-        "description": "Simple ping to keep worker active",
     },
     # Ping all services - runs every 10 minutes
     "keep-alive-all-services": {
@@ -52,7 +51,6 @@ CELERYBEAT_SCHEDULE = {
             "queue": "celery",
             "priority": 9,
         },
-        "description": "Ping all services to prevent spin-down",
     },
     # ==================== FUTURE TASKS (COMMENTED) ====================
     # Booking reminders - 24 hours before appointment
