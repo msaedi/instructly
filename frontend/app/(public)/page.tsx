@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { publicApi, type CatalogService } from '@/features/shared/api/client';
+import { publicApi, type TopServiceSummary } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import {
   Search,
@@ -31,7 +31,7 @@ export default function HomePage() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('sports-fitness');
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
-  const [categoryServices, setCategoryServices] = useState<Record<string, CatalogService[]>>({});
+  const [categoryServices, setCategoryServices] = useState<Record<string, TopServiceSummary[]>>({});
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const router = useRouter();
 
@@ -56,50 +56,26 @@ export default function HomePage() {
   useEffect(() => {
     const fetchCategoryServices = async () => {
       try {
-        // Fetch all categories in parallel
-        const promises = categories.map((category) =>
-          publicApi
-            .getCatalogServices(category.slug)
-            .then((response) => {
-              if (response.error) {
-                logger.error(`API error fetching services`, new Error(response.error), {
-                  category: category.name,
-                  slug: category.slug,
-                  status: response.status,
-                });
-                return { slug: category.slug, services: [] };
-              }
+        // Fetch all categories with their top services in a single request
+        const response = await publicApi.getTopServicesPerCategory();
 
-              // Backend already filters for active services, just sort by display_order
-              const services = response.data || [];
-              const sortedServices = services.sort((a, b) => a.display_order - b.display_order);
+        if (response.error) {
+          logger.error('API error fetching top services', new Error(response.error), {
+            status: response.status,
+          });
+          return;
+        }
 
-              logger.info('Services fetched successfully', {
-                category: category.name,
-                totalServices: response.data?.length || 0,
-                displayedServices: Math.min(sortedServices.length, 7),
-              });
+        if (!response.data) {
+          logger.error('No data received from top services endpoint');
+          return;
+        }
 
-              return {
-                slug: category.slug,
-                services: sortedServices.slice(0, 7),
-              };
-            })
-            .catch((error) => {
-              logger.error(`Network error fetching services`, error as Error, {
-                category: category.name,
-                slug: category.slug,
-              });
-              return { slug: category.slug, services: [] };
-            })
-        );
+        // Map the response to our state structure
+        const servicesMap: Record<string, TopServiceSummary[]> = {};
 
-        const results = await Promise.all(promises);
-
-        // Map results to { categorySlug: services }
-        const servicesMap: Record<string, CatalogService[]> = {};
-        results.forEach(({ slug, services }) => {
-          servicesMap[slug] = services;
+        response.data.categories.forEach((category) => {
+          servicesMap[category.slug] = category.services;
         });
 
         setCategoryServices(servicesMap);
@@ -109,7 +85,7 @@ export default function HomePage() {
           (sum, services) => sum + services.length,
           0
         );
-        logger.info('All category services loaded', {
+        logger.info('All category services loaded with single request', {
           categoriesLoaded: Object.keys(servicesMap).length,
           totalServices: totalServicesLoaded,
         });
@@ -386,14 +362,7 @@ export default function HomePage() {
                     animationFillMode: 'both',
                   }}
                 >
-                  <span className="flex items-center gap-2">
-                    {service.name}
-                    {service.instructor_count && service.instructor_count > 0 && (
-                      <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300 rounded-full">
-                        {service.instructor_count}
-                      </span>
-                    )}
-                  </span>
+                  {service.name}
                   {/* Hover effect border */}
                   <span className="absolute inset-0 rounded-full border-2 border-transparent group-hover:border-[#FFD700] transition-all duration-200 opacity-0 group-hover:opacity-100"></span>
                 </Link>

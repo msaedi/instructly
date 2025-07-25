@@ -895,38 +895,42 @@ class InstructorService(BaseService):
 
         # For each category, get top N services by display_order
         for category in sorted(categories, key=lambda c: c.display_order):
+            # Always create category data - never hide categories
+            category_data = {
+                "id": category.id,
+                "name": category.name,
+                "slug": category.slug,
+                "icon_name": category.icon_name,
+                "services": [],
+            }
+
             # Get top services for this category (already ordered by display_order)
             top_services = self.catalog_repository.get_active_services_with_categories(
                 category_id=category.id, limit=limit
             )
 
-            if top_services:
-                category_data = {
-                    "id": category.id,
-                    "name": category.name,
-                    "slug": category.slug,
-                    "icon_name": category.icon_name,
-                    "services": [],
-                }
+            # Add only essential service data for homepage, filtering by active instructors
+            for service in top_services:
+                # Get analytics for demand score
+                analytics = self.analytics_repository.get_or_create(service.id)
 
-                # Add only essential service data for homepage
-                for service in top_services:
-                    # Get analytics for demand score
-                    analytics = self.analytics_repository.get_or_create(service.id)
-
+                # Only include services with active instructors
+                active_instructors = analytics.active_instructors if analytics else 0
+                if active_instructors > 0:
                     category_data["services"].append(
                         {
                             "id": service.id,
                             "name": service.name,
                             "slug": service.slug,
                             "demand_score": analytics.demand_score if analytics else 0,
-                            "active_instructors": analytics.active_instructors if analytics else 0,
+                            "active_instructors": active_instructors,
                             "is_trending": analytics.is_trending if analytics else False,
                             "display_order": service.display_order,
                         }
                     )
 
-                result["categories"].append(category_data)
+            # Always add the category, even if it has no services with active instructors
+            result["categories"].append(category_data)
 
         # Cache for 1 hour
         if self.cache_service:

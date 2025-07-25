@@ -231,6 +231,28 @@ export interface CatalogService {
   instructor_count?: number;
 }
 
+export interface TopServiceSummary {
+  id: number;
+  name: string;
+  slug: string;
+  demand_score: number;
+  active_instructors: number;
+  is_trending: boolean;
+  display_order: number;
+}
+
+export interface CategoryWithTopServices {
+  id: number;
+  name: string;
+  slug: string;
+  icon_name?: string;
+  services: TopServiceSummary[];
+}
+
+export interface TopServicesResponse {
+  categories: CategoryWithTopServices[];
+}
+
 export const publicApi = {
   /**
    * Natural language search for instructors and services
@@ -404,6 +426,14 @@ export const publicApi = {
     return cleanFetch<CatalogService[]>('/services/catalog', {
       params: categorySlug ? { category: categorySlug } : {},
     });
+  },
+
+  /**
+   * Get top services per category - optimized for homepage
+   * Returns all categories with their top services in a single request
+   */
+  async getTopServicesPerCategory() {
+    return cleanFetch<TopServicesResponse>('/services/catalog/top-per-category');
   },
 };
 

@@ -232,10 +232,11 @@ class AnalyticsCalculator:
         try:
             from app.services.cache_service import CacheService
 
-            cache_service = CacheService()
+            cache_service = CacheService(self.db)
             # Invalidate all catalog caches
             cache_service.delete_pattern("catalog:services:*")
-            logger.info("Invalidated catalog caches to reflect new display order")
+            cache_service.delete_pattern("catalog:top-services:*")
+            logger.info("Invalidated catalog caches to reflect new display order and analytics")
         except Exception as e:
             logger.warning(f"Could not invalidate cache (may not be connected): {e}")
 
