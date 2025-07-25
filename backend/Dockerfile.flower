@@ -13,9 +13,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --no-cache-dir flower==2.0.1
 
-# Copy Flower app and minimal script
+# Copy Flower app and standalone Celery config
 COPY flower_app.py .
-COPY flower_minimal.py .
+COPY flower_celery_standalone.py .
 
 # Copy app module for task discovery
 COPY app app/
