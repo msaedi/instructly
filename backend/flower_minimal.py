@@ -51,13 +51,16 @@ celery_app.conf.update(
 with open("/tmp/flower_celery_config.py", "w") as f:
     f.write(celery_config)
 
+# Add the temp directory to Python path
+sys.path.insert(0, "/tmp")
+
 # Run Flower using the temporary config
 cmd = [
     sys.executable,
     "-m",
     "celery",
     "-A",
-    "/tmp/flower_celery_config:celery_app",
+    "flower_celery_config:celery_app",
     "--broker=" + redis_url,
     "flower",
     "--port=" + port,
