@@ -9,6 +9,9 @@ import os
 import subprocess
 import sys
 
+# Set FLOWER_RUNTIME to prevent full app imports
+os.environ["FLOWER_RUNTIME"] = "true"
+
 # Get environment variables
 port = os.getenv("PORT", "5555")
 basic_auth = os.getenv("FLOWER_BASIC_AUTH", "admin:instructly2024")
@@ -21,7 +24,7 @@ cmd = [
     "-m",
     "celery",
     "-A",
-    "app.tasks.celery_flower",
+    "app.tasks.celery_flower:celery_app",
     "--broker=" + broker_url,
     "flower",
     "--port=" + port,
