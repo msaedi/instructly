@@ -34,15 +34,25 @@ CELERYBEAT_SCHEDULE = {
             "priority": 3,
         },
     },
-    # Keep services alive on free tier - runs every 10 minutes
-    "keep-alive-ping": {
-        "task": "app.tasks.health_check",
-        "schedule": timedelta(minutes=10),  # Every 10 minutes
+    # Keep services alive on free tier - runs every 5 minutes
+    "keep-alive-simple": {
+        "task": "app.tasks.keep_alive.simple_ping",
+        "schedule": timedelta(minutes=5),  # Every 5 minutes
         "options": {
             "queue": "celery",
             "priority": 10,
         },
-        "description": "Keep free tier services from spinning down",
+        "description": "Simple ping to keep worker active",
+    },
+    # Ping all services - runs every 10 minutes
+    "keep-alive-all-services": {
+        "task": "app.tasks.keep_alive.ping_all_services",
+        "schedule": timedelta(minutes=10),  # Every 10 minutes
+        "options": {
+            "queue": "celery",
+            "priority": 9,
+        },
+        "description": "Ping all services to prevent spin-down",
     },
     # ==================== FUTURE TASKS (COMMENTED) ====================
     # Booking reminders - 24 hours before appointment
