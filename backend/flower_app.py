@@ -14,22 +14,22 @@ port = os.getenv("PORT", "5555")
 basic_auth = os.getenv("FLOWER_BASIC_AUTH", "admin:instructly2024")
 broker_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-# Build command
+# Build command - Flower 2.0 requires 'celery' command with 'flower' as sub-command
 cmd = [
     sys.executable,
     "-m",
+    "celery",
+    "-A",
+    "app.tasks",
+    "--broker=" + broker_url,
     "flower",
-    f"--port={port}",
+    "--port=" + port,
     "--address=0.0.0.0",
-    f"--broker={broker_url}",
-    f"--basic_auth={basic_auth}",
-    "--db=/tmp/flower.db",
-    "--persistent=true",
-    "--max_tasks=10000",
+    "--basic_auth=" + basic_auth,
 ]
 
 print(f"Starting Flower on port {port}...")
-print(f"Command: {' '.join(cmd)}")
+print(f"Broker: {broker_url.split('@')[1] if '@' in broker_url else broker_url}")
 
 # Run Flower
 subprocess.run(cmd)
