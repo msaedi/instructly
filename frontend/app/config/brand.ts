@@ -119,7 +119,7 @@ export const BRAND: BrandConfig = {
     staging: 'https://instructly-ten.vercel.app',
     api: {
       production: 'https://api.instainstru.com',
-      staging: 'https://instructly.onrender.com',
+      staging: 'https://instructly-0949.onrender.com',
     },
   },
 

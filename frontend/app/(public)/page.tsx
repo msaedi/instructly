@@ -108,7 +108,7 @@ export default function HomePage() {
     if (token) {
       setIsAuthenticated(true);
       // Try to get user data to determine role
-      fetch('http://localhost:8000/auth/me', {
+      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/auth/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

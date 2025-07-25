@@ -45,7 +45,8 @@ ALLOWED_ORIGINS = [
     "https://localhost:8001",  # Backend HTTPS
     # Current production URLs
     "https://instructly-ten.vercel.app",  # Current frontend (Vercel)
-    "https://instructly.onrender.com",  # Current backend (Render)
+    "https://instructly-0949.onrender.com",  # Current backend (Render)
+    "https://api.instainstru.com",  # New production backend URL
     # Future production URLs (keep for later migration)
     "https://instainstru.com",  # Future production URL
     "https://www.instainstru.com",  # Future production URL with www
