@@ -24,7 +24,7 @@ cmd = [
     "-m",
     "celery",
     "-A",
-    "app.tasks.celery_flower:celery_app",
+    "app.tasks.flower_standalone:celery_app",
     "--broker=" + broker_url,
     "flower",
     "--port=" + port,
