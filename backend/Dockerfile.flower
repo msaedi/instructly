@@ -13,8 +13,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --no-cache-dir flower==2.0.1
 
-# Copy Flower app and standalone Celery config
-COPY flower_app.py .
+# Copy Flower startup script and standalone Celery config
+COPY flower_start.py .
 COPY flower_celery_standalone.py .
 
 # Copy app module for task discovery
@@ -23,5 +23,5 @@ COPY app app/
 # Expose port (Render will override with PORT env var)
 EXPOSE 5555
 
-# Run Flower
-CMD ["python", "flower_app.py"]
+# Run Flower via startup script
+CMD ["python", "flower_start.py"]
