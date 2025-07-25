@@ -6,32 +6,30 @@ This runs Flower with basic authentication for production use.
 """
 
 import os
+import subprocess
 import sys
 
-# Set up basic auth from environment
-basic_auth = os.getenv("FLOWER_BASIC_AUTH", "admin:instructly2024")
-os.environ["FLOWER_BASIC_AUTH"] = basic_auth
-
-# Set broker URL
-broker_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-os.environ["FLOWER_BROKER"] = broker_url
-
-# Set port
+# Get environment variables
 port = os.getenv("PORT", "5555")
-os.environ["FLOWER_PORT"] = port
+basic_auth = os.getenv("FLOWER_BASIC_AUTH", "admin:instructly2024")
+broker_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-# Set address
-os.environ["FLOWER_ADDRESS"] = "0.0.0.0"
+# Build command
+cmd = [
+    sys.executable,
+    "-m",
+    "flower",
+    f"--port={port}",
+    "--address=0.0.0.0",
+    f"--broker={broker_url}",
+    f"--basic_auth={basic_auth}",
+    "--db=/tmp/flower.db",
+    "--persistent=true",
+    "--max_tasks=10000",
+]
 
-# Set other options
-os.environ["FLOWER_DB"] = "/tmp/flower.db"
-os.environ["FLOWER_MAX_TASKS"] = "10000"
-os.environ["FLOWER_PERSISTENT"] = "true"
+print(f"Starting Flower on port {port}...")
+print(f"Command: {' '.join(cmd)}")
 
-# Import and run Flower's main
-from flower.__main__ import main
-
-if __name__ == "__main__":
-    # Run Flower with command line args
-    sys.argv = ["flower", "--port=" + port, "--address=0.0.0.0"]
-    main()
+# Run Flower
+subprocess.run(cmd)
