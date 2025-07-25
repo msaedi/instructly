@@ -15,12 +15,13 @@ basic_auth = os.getenv("FLOWER_BASIC_AUTH", "admin:instructly2024")
 broker_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 # Build command - Flower 2.0 requires 'celery' command with 'flower' as sub-command
+# Use the minimal celery_flower module to avoid loading full app config
 cmd = [
     sys.executable,
     "-m",
     "celery",
     "-A",
-    "app.tasks",
+    "app.tasks.celery_flower",
     "--broker=" + broker_url,
     "flower",
     "--port=" + port,
