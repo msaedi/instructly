@@ -19,14 +19,12 @@ class HealthHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         """Respond to health check requests."""
-        if self.path == "/health":
-            self.send_response(200)
-            self.send_header("Content-type", "text/plain")
-            self.end_headers()
-            self.wfile.write(b"Celery worker is running")
-        else:
-            self.send_response(404)
-            self.end_headers()
+        # Always respond with 200 OK for any GET request
+        # This ensures Render's health check passes regardless of path formatting
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"Celery worker is running")
 
     def log_message(self, format, *args):
         """Suppress request logging."""
