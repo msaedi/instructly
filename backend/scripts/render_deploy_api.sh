@@ -75,10 +75,11 @@ echo "1) Backend API (instructly)"
 echo "2) Celery Worker"
 echo "3) Celery Beat"
 echo "4) Flower"
-echo "5) All services"
+echo "5) Celery Stack (Worker + Beat + Flower)"
+echo "6) All services (including Backend API)"
 echo "0) Exit"
 echo ""
-read -p "Enter your choice (0-5): " choice
+read -p "Enter your choice (0-6): " choice
 
 case $choice in
     1)
@@ -94,6 +95,12 @@ case $choice in
         deploy_service "instructly-flower"
         ;;
     5)
+        echo "Deploying Celery Stack..."
+        deploy_service "instructly-celery-worker"
+        deploy_service "instructly-celery-beat"
+        deploy_service "instructly-flower"
+        ;;
+    6)
         echo "Deploying all services..."
         deploy_service "instructly"
         deploy_service "instructly-celery-worker"
