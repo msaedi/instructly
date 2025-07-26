@@ -18,7 +18,7 @@
   "variable": [
     {
       "key": "base_url",
-      "value": "https://instructly.onrender.com",
+      "value": "https://api.instainstru.com",
       "type": "string"
     },
     {

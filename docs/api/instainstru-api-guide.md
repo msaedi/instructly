@@ -5,7 +5,7 @@
 The InstaInstru API provides a RESTful interface for the "Uber of instruction" platform, enabling instant booking of instructors for in-person lessons in NYC.
 
 ### Base URLs
-- **Production**: `https://instructly.onrender.com`
+- **Production**: `https://api.instainstru.com`
 - **Local Development**: `http://localhost:8000`
 
 ### API Version
@@ -29,7 +29,7 @@ InstaInstru uses JWT (JSON Web Tokens) for authentication. After successful logi
 
 #### 1. Register a New User
 ```bash
-curl -X POST https://instructly.onrender.com/auth/register \
+curl -X POST https://api.instainstru.com/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -52,7 +52,7 @@ curl -X POST https://instructly.onrender.com/auth/register \
 
 #### 2. Login
 ```bash
-curl -X POST https://instructly.onrender.com/auth/login \
+curl -X POST https://api.instainstru.com/auth/login \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "username=user@example.com&password=SecurePass123!"
 ```
@@ -68,7 +68,7 @@ curl -X POST https://instructly.onrender.com/auth/login \
 #### 3. Using the Token
 Include the token in the Authorization header for all authenticated requests:
 ```bash
-curl -X GET https://instructly.onrender.com/auth/me \
+curl -X GET https://api.instainstru.com/auth/me \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -376,22 +376,22 @@ Get list of all instructor profiles with optional filtering.
 
 1. **Search for piano teachers**:
    ```bash
-   curl "https://instructly.onrender.com/instructors/?search=piano"
+   curl "https://api.instainstru.com/instructors/?search=piano"
    ```
 
 2. **Find budget-friendly Spanish teachers**:
    ```bash
-   curl "https://instructly.onrender.com/instructors/?skill=spanish&max_price=75"
+   curl "https://api.instainstru.com/instructors/?skill=spanish&max_price=75"
    ```
 
 3. **Search with multiple filters**:
    ```bash
-   curl "https://instructly.onrender.com/instructors/?search=music&min_price=50&max_price=150&limit=20"
+   curl "https://api.instainstru.com/instructors/?search=music&min_price=50&max_price=150&limit=20"
    ```
 
 4. **Find premium instructors (over $100/hr)**:
    ```bash
-   curl "https://instructly.onrender.com/instructors/?min_price=100"
+   curl "https://api.instainstru.com/instructors/?min_price=100"
    ```
 
 **Performance Considerations**:
@@ -1389,7 +1389,7 @@ export interface RateLimitError {
 ```typescript
 // 1. Search for instructors with filtering
 // Example: Find piano teachers under $100/hr
-const response = await fetch('https://instructly.onrender.com/instructors/?skill=piano&max_price=100');
+const response = await fetch('https://api.instainstru.com/instructors/?skill=piano&max_price=100');
 const result = await response.json();
 
 // Check if response includes metadata (filters were applied)
@@ -1397,12 +1397,12 @@ const instructors = result.instructors || result;
 
 // 2. Check instructor availability (public endpoint)
 const availabilityResponse = await fetch(
-  'https://instructly.onrender.com/api/public/instructors/123/availability?start_date=2025-01-20&end_date=2025-01-26'
+  'https://api.instainstru.com/api/public/instructors/123/availability?start_date=2025-01-20&end_date=2025-01-26'
 );
 const availability = await availabilityResponse.json();
 
 // 3. Register/Login as student
-const loginResponse = await fetch('https://instructly.onrender.com/auth/login', {
+const loginResponse = await fetch('https://api.instainstru.com/auth/login', {
   method: 'POST',
   headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
   body: 'username=student@example.com&password=SecurePass123!'
@@ -1410,7 +1410,7 @@ const loginResponse = await fetch('https://instructly.onrender.com/auth/login', 
 const { access_token } = await loginResponse.json();
 
 // 4. Create booking
-const bookingResponse = await fetch('https://instructly.onrender.com/bookings/', {
+const bookingResponse = await fetch('https://api.instainstru.com/bookings/', {
   method: 'POST',
   headers: {
     'Authorization': `Bearer ${access_token}`,
@@ -1432,17 +1432,17 @@ const booking = await bookingResponse.json();
 ### Instructor Search and Filtering
 ```typescript
 // 1. Simple text search
-const searchResponse = await fetch('https://instructly.onrender.com/instructors/?search=music');
+const searchResponse = await fetch('https://api.instainstru.com/instructors/?search=music');
 const searchResult = await searchResponse.json();
 console.log(`Found ${searchResult.metadata.active_instructors} music instructors`);
 
 // 2. Filter by specific skill
-const skillResponse = await fetch('https://instructly.onrender.com/instructors/?skill=yoga');
+const skillResponse = await fetch('https://api.instainstru.com/instructors/?skill=yoga');
 const skillResult = await skillResponse.json();
 const yogaInstructors = skillResult.instructors;
 
 // 3. Price range filtering
-const budgetResponse = await fetch('https://instructly.onrender.com/instructors/?min_price=20&max_price=50');
+const budgetResponse = await fetch('https://api.instainstru.com/instructors/?min_price=20&max_price=50');
 const budgetResult = await budgetResponse.json();
 console.log(`Found ${budgetResult.metadata.total_matches} budget-friendly options`);
 
@@ -1453,12 +1453,12 @@ const params = new URLSearchParams({
   skip: '0',
   limit: '10'
 });
-const comboResponse = await fetch(`https://instructly.onrender.com/instructors/?${params}`);
+const comboResponse = await fetch(`https://api.instainstru.com/instructors/?${params}`);
 const comboResult = await comboResponse.json();
 
 // 5. Handle backward-compatible responses
 async function getInstructors(filters?: InstructorFilterParams) {
-  const url = new URL('https://instructly.onrender.com/instructors/');
+  const url = new URL('https://api.instainstru.com/instructors/');
   if (filters) {
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined) url.searchParams.append(key, String(value));
@@ -1493,7 +1493,7 @@ const token = 'your_instructor_token';
 
 // 2. Get current week availability
 const weekResponse = await fetch(
-  'https://instructly.onrender.com/instructors/availability-windows/week?start_date=2025-01-20',
+  'https://api.instainstru.com/instructors/availability-windows/week?start_date=2025-01-20',
   {
     headers: { 'Authorization': `Bearer ${token}` }
   }
@@ -1502,7 +1502,7 @@ const weekAvailability = await weekResponse.json();
 
 // 3. Update availability for the week
 const updateResponse = await fetch(
-  'https://instructly.onrender.com/instructors/availability-windows/week',
+  'https://api.instainstru.com/instructors/availability-windows/week',
   {
     method: 'POST',
     headers: {
@@ -1523,7 +1523,7 @@ const updateResponse = await fetch(
 
 // 4. Copy this week's schedule to next week
 const copyResponse = await fetch(
-  'https://instructly.onrender.com/instructors/availability-windows/copy-week',
+  'https://api.instainstru.com/instructors/availability-windows/copy-week',
   {
     method: 'POST',
     headers: {

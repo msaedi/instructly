@@ -11,7 +11,7 @@ from datetime import datetime
 
 import httpx
 
-PRODUCTION_URL = "https://instructly.onrender.com"
+PRODUCTION_URL = "https://api.instainstru.com"
 
 
 def trigger_slow_requests():

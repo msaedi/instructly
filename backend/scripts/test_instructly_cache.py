@@ -9,7 +9,7 @@ import httpx
 
 def test_catalog_endpoint():
     """Test the catalog endpoint performance."""
-    url = "https://instructly.onrender.com/services/catalog"
+    url = "https://api.instainstru.com/services/catalog"
     times = []
 
     print("Testing Instructly catalog endpoint performance...")

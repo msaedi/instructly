@@ -3,7 +3,7 @@
 # Test Cache Invalidation in Production
 # This simulates what happens when analytics run
 
-PROD_URL="https://instructly.onrender.com"
+PROD_URL="https://api.instainstru.com"
 
 echo "=== Testing Cache Invalidation ==="
 echo

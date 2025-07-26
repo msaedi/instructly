@@ -11,7 +11,7 @@ Successfully completed full SSL/HTTPS configuration for InstaInstru platform acr
 
 ### Production URLs
 - **Frontend**: https://instructly-ten.vercel.app/ (Vercel)
-- **Backend**: https://instructly.onrender.com/ (Render)
+- **Backend**: https://api.instainstru.com/ (Render)
 - **Domain**: instainstru.com (purchased, not yet deployed)
 
 ### Technology Stack
@@ -64,7 +64,7 @@ ALLOWED_ORIGINS = [
 
     # Production
     "https://instructly-ten.vercel.app",
-    "https://instructly.onrender.com",  # Added
+    "https://api.instainstru.com",  # Added
 
     # Future production
     "https://instainstru.com",
@@ -85,7 +85,7 @@ Changed Render health check from `/healthz` to `/health` to match actual endpoin
 
 ### 1. HTTPS Redirect Test ✅
 ```bash
-curl -I -L http://instructly.onrender.com/health
+curl -I -L http://api.instainstru.com/health
 ```
 **Result**: 301 redirect to HTTPS confirmed
 
@@ -93,7 +93,7 @@ curl -I -L http://instructly.onrender.com/health
 ```bash
 # Registration endpoint (10/hour limit)
 for i in {1..12}; do
-  curl -X POST https://instructly.onrender.com/auth/register \
+  curl -X POST https://api.instainstru.com/auth/register \
     -H "Content-Type: application/json" \
     -d '{"email":"test'$i'@example.com","password":"Test123!","role":"student"}'
 done
@@ -103,7 +103,7 @@ done
 ### 3. Authentication Flow Test ✅
 ```javascript
 // Browser console test
-fetch('https://instructly.onrender.com/auth/me', {
+fetch('https://api.instainstru.com/auth/me', {
   headers: {
     'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
     'Content-Type': 'application/json'
@@ -183,14 +183,14 @@ fetch('https://instructly.onrender.com/auth/me', {
 
 ### Check SSL Certificate
 ```bash
-openssl s_client -connect instructly.onrender.com:443 -servername instructly.onrender.com
+openssl s_client -connect api.instainstru.com:443 -servername api.instainstru.com
 ```
 
 ### Test Rate Limiting
 ```bash
 # Multiple rapid requests
 for i in {1..7}; do
-  curl -X POST https://instructly.onrender.com/auth/login \
+  curl -X POST https://api.instainstru.com/auth/login \
     -H "Content-Type: application/json" \
     -d '{"username":"test@example.com","password":"wrong"}'
 done

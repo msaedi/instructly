@@ -3,7 +3,7 @@
 # Production Performance Verification Script
 # Run this after deploying to Render to verify improvements
 
-PROD_URL="https://instructly.onrender.com"
+PROD_URL="https://api.instainstru.com"
 
 echo "=== Catalog Performance Verification ==="
 echo

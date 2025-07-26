@@ -185,7 +185,7 @@ export type EmailType = keyof BrandEmails;
  * ```tsx
  * const apiUrl = getApiUrl();
  * // In production: "https://api.instainstru.com"
- * // In development: "https://instructly.onrender.com"
+ * // In development: "https://instructly-0949.onrender.com'"
  * ```
  */
 export function getApiUrl(): string {
