@@ -66,7 +66,7 @@ services:
         sync: false
       - key: FLOWER_BASIC_AUTH
         sync: false
-    healthCheckPath: /
+    healthCheckPath: /healthcheck
     autoDeploy: false
 
 # Database configuration is external (Supabase)
