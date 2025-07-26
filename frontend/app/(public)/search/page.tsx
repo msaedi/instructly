@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft, Filter } from 'lucide-react';
 import { publicApi } from '@/features/shared/api/client';
@@ -48,6 +48,7 @@ interface SearchMetadata {
 
 function SearchPageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [metadata, setMetadata] = useState<SearchMetadata | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,12 +56,85 @@ function SearchPageContent() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [serviceName, setServiceName] = useState<string>('');
+  const [previousPath, setPreviousPath] = useState<string>('/');
 
   // Parse search parameters from URL
   const query = searchParams.get('q') || '';
   const category = searchParams.get('category') || '';
   const serviceCatalogId = searchParams.get('service_catalog_id') || '';
   const availableNow = searchParams.get('available_now') === 'true';
+
+  // Determine where user came from
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Check URL parameters first for explicit source
+      const urlParams = new URLSearchParams(window.location.search);
+      const fromParam = urlParams.get('from');
+
+      logger.debug('Navigation tracking', {
+        fromParam,
+        sessionStorage: sessionStorage.getItem('navigationFrom'),
+        referrer: document.referrer,
+      });
+
+      if (fromParam) {
+        // URL parameter takes precedence
+        logger.debug('Using URL parameter for navigation', { from: fromParam });
+        if (fromParam === 'services') {
+          setPreviousPath('/services');
+        } else if (fromParam === 'home') {
+          setPreviousPath('/');
+        } else {
+          setPreviousPath('/');
+        }
+      } else {
+        // Check sessionStorage for navigation tracking
+        const navHistory = sessionStorage.getItem('navigationFrom');
+
+        if (navHistory) {
+          logger.debug('Using sessionStorage navigation', { path: navHistory });
+          setPreviousPath(navHistory);
+          // Clear after a delay to ensure it's been used
+          setTimeout(() => {
+            sessionStorage.removeItem('navigationFrom');
+          }, 500);
+        } else {
+          // Fallback to referrer checking
+          const referrer = document.referrer;
+          logger.debug('Using referrer', { referrer });
+
+          if (referrer) {
+            try {
+              const referrerUrl = new URL(referrer);
+              const currentUrl = new URL(window.location.href);
+
+              // Only use referrer if it's from the same origin
+              if (referrerUrl.origin === currentUrl.origin) {
+                const pathname = referrerUrl.pathname;
+                logger.debug('Referrer pathname', { pathname });
+
+                if (pathname === '/services') {
+                  setPreviousPath('/services');
+                } else if (pathname === '/' || pathname === '') {
+                  setPreviousPath('/');
+                } else {
+                  // Default to homepage for other paths
+                  setPreviousPath('/');
+                }
+              }
+            } catch (e) {
+              // If URL parsing fails, default to homepage
+              logger.error('Error parsing referrer', e as Error);
+              setPreviousPath('/');
+            }
+          } else {
+            logger.debug('No referrer, defaulting to homepage');
+            setPreviousPath('/');
+          }
+        }
+      }
+    }
+  }, []);
 
   useEffect(() => {
     async function fetchResults() {
@@ -378,7 +452,7 @@ function SearchPageContent() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              <Link href="/" className="mr-4">
+              <Link href={previousPath} className="mr-4">
                 <ChevronLeft className="h-6 w-6 text-gray-600" />
               </Link>
               <h1 className="text-xl font-semibold text-gray-900">

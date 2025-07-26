@@ -435,6 +435,39 @@ export const publicApi = {
   async getTopServicesPerCategory() {
     return cleanFetch<TopServicesResponse>('/services/catalog/top-per-category');
   },
+
+  /**
+   * Get all services with instructor counts - optimized for All Services page
+   * Returns all categories with all their services and active instructor counts
+   */
+  async getAllServicesWithInstructors() {
+    return cleanFetch<{
+      categories: Array<{
+        id: number;
+        name: string;
+        slug: string;
+        subtitle: string;
+        description: string;
+        icon_name?: string;
+        services: Array<
+          CatalogService & {
+            active_instructors: number;
+            instructor_count: number;
+            demand_score: number;
+            is_trending: boolean;
+            actual_min_price?: number;
+            actual_max_price?: number;
+          }
+        >;
+      }>;
+      metadata: {
+        total_categories: number;
+        total_services: number;
+        cached_for_seconds: number;
+        updated_at: string;
+      };
+    }>('/services/catalog/all-with-instructors');
+  },
 };
 
 /**

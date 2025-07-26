@@ -889,7 +889,7 @@ class InstructorService(BaseService):
                 "services_per_category": limit,
                 "total_categories": len(categories),
                 "cached_for_seconds": 3600,  # 1 hour
-                "updated_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.now().isoformat(),
             },
         }
 
@@ -936,6 +936,122 @@ class InstructorService(BaseService):
         if self.cache_service:
             self.cache_service.set(cache_key, result, ttl=3600)
             logger.debug(f"Cached top {limit} services per category for 1 hour")
+
+        return result
+
+    @BaseService.measure_operation("get_all_services_with_instructors")
+    def get_all_services_with_instructors(self) -> Dict:
+        """
+        Get all catalog services organized by category with active instructor counts.
+
+        This is an optimized endpoint for the All Services page that combines
+        catalog data with analytics in a single request. Uses 5-minute caching
+        to balance performance with data freshness.
+
+        Returns:
+            Dictionary with categories and their services, including active instructor counts
+        """
+        # Try cache first (5-minute TTL for analytics freshness)
+        cache_key = "catalog:all-services-with-instructors"
+        if self.cache_service:
+            cached_result = self.cache_service.get(cache_key)
+            if cached_result:
+                logger.debug(f"Cache hit for all services with instructors")
+                return cached_result
+
+        # Get all categories
+        categories = self.category_repository.get_all()
+
+        result = {
+            "categories": [],
+            "metadata": {
+                "total_categories": len(categories),
+                "cached_for_seconds": 300,  # 5 minutes
+                "updated_at": datetime.now().isoformat(),
+            },
+        }
+
+        # For each category, get ALL services (not just top N)
+        for category in sorted(categories, key=lambda c: c.display_order):
+            category_data = {
+                "id": category.id,
+                "name": category.name,
+                "slug": category.slug,
+                "subtitle": category.subtitle if hasattr(category, "subtitle") else "",
+                "description": category.description,
+                "icon_name": category.icon_name,
+                "services": [],
+            }
+
+            # Get ALL services for this category (ordered by display_order)
+            services = self.catalog_repository.get_active_services_with_categories(
+                category_id=category.id, limit=None  # No limit - get all services
+            )
+
+            # Collect services with analytics data
+            services_with_analytics = []
+            for service in services:
+                # Get analytics for demand score and instructor count
+                analytics = self.analytics_repository.get_or_create(service.id)
+
+                # Include ALL services, even those without instructors
+                active_instructors = analytics.active_instructors if analytics else 0
+
+                service_data = {
+                    "id": service.id,
+                    "category_id": service.category_id,
+                    "name": service.name,
+                    "slug": service.slug,
+                    "description": service.description,
+                    "search_terms": service.search_terms or [],
+                    "display_order": service.display_order,
+                    "online_capable": service.online_capable,
+                    "requires_certification": service.requires_certification,
+                    "is_active": service.is_active,
+                    # Analytics data
+                    "active_instructors": active_instructors,
+                    "instructor_count": active_instructors,  # Alias for frontend compatibility
+                    "demand_score": analytics.demand_score if analytics else 0,
+                    "is_trending": analytics.is_trending if analytics else False,
+                    # Store original display order for secondary sorting
+                    "_original_display_order": service.display_order,
+                }
+
+                # Add price range if we have instructors
+                if active_instructors > 0:
+                    # Get price range from instructor services
+                    instructor_services = self._get_instructors_for_service_in_price_range(service.id, None, None)
+                    if instructor_services:
+                        price_range = self._calculate_price_range(instructor_services)
+                        service_data["actual_min_price"] = price_range["min"]
+                        service_data["actual_max_price"] = price_range["max"]
+
+                services_with_analytics.append(service_data)
+
+            # Sort services: active services first (by display_order), then inactive services (by display_order)
+            services_with_analytics.sort(
+                key=lambda s: (
+                    0 if s["active_instructors"] > 0 else 1,  # Active services come first
+                    s["_original_display_order"],  # Then sort by display order within each group
+                )
+            )
+
+            # Remove the temporary sorting field and add to category
+            for service_data in services_with_analytics:
+                del service_data["_original_display_order"]
+                category_data["services"].append(service_data)
+
+            # Always add the category, even if empty
+            result["categories"].append(category_data)
+
+        # Add total service count to metadata
+        total_services = sum(len(cat["services"]) for cat in result["categories"])
+        result["metadata"]["total_services"] = total_services
+
+        # Cache for 5 minutes
+        if self.cache_service:
+            self.cache_service.set(cache_key, result, ttl=300)
+            logger.debug(f"Cached all {total_services} services with instructor data for 5 minutes")
 
         return result
 

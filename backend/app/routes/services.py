@@ -124,3 +124,20 @@ async def get_top_services_per_category(
         Dictionary with categories and their top services
     """
     return instructor_service.get_top_services_per_category(limit=limit)
+
+
+@router.get("/catalog/all-with-instructors", response_model=Dict)
+async def get_all_services_with_instructors(
+    instructor_service: InstructorService = Depends(get_instructor_service),
+):
+    """
+    Get all catalog services organized by category with active instructor counts.
+
+    This endpoint is optimized for the All Services page, providing all services
+    with instructor availability information in a single request. Results are
+    cached for 5 minutes to balance performance with data freshness.
+
+    Returns:
+        Dictionary with categories and their services, including active instructor counts
+    """
+    return instructor_service.get_all_services_with_instructors()

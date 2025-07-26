@@ -48,7 +48,15 @@ export default function HomePage() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      router.push(`/search?q=${encodeURIComponent(searchQuery)}`);
+      // Track navigation source
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('navigationFrom', '/');
+        logger.debug('Set navigation source from homepage search', {
+          navigationFrom: '/',
+          query: searchQuery,
+        });
+      }
+      router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=home`);
     }
   };
 
@@ -352,21 +360,68 @@ export default function HomePage() {
                 );
               }
 
-              return services.map((service, index) => (
+              // Take first 7 services
+              const servicesToShow = services.slice(0, 7);
+
+              // Create array of all pills to render
+              const pills = [];
+
+              // Add service pills
+              servicesToShow.forEach((service, index) => {
+                pills.push(
+                  <Link
+                    key={service.id}
+                    href={`/search?service_catalog_id=${service.id}&from=home`}
+                    onClick={() => {
+                      // Track navigation source as backup
+                      if (typeof window !== 'undefined') {
+                        sessionStorage.setItem('navigationFrom', '/');
+                        logger.debug('Set navigation source from homepage', {
+                          navigationFrom: '/',
+                          serviceId: service.id,
+                        });
+                      }
+                    }}
+                    className="group relative px-4 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 hover:border-gray-300 dark:hover:border-gray-500 hover:text-gray-900 dark:hover:text-white transition-all duration-200 cursor-pointer animate-fade-in-up"
+                    style={{
+                      animationDelay: `${index * 50}ms`,
+                      animationFillMode: 'both',
+                    }}
+                  >
+                    {service.name}
+                    {/* Hover effect border */}
+                    <span className="absolute inset-0 rounded-full border-2 border-transparent group-hover:border-[#FFD700] transition-all duration-200 opacity-0 group-hover:opacity-100"></span>
+                  </Link>
+                );
+              });
+
+              // Always add the "•••" pill as the 8th item
+              pills.push(
                 <Link
-                  key={service.id}
-                  href={`/search?service_catalog_id=${service.id}`}
+                  key={`more-${activeCategory}`} // Use activeCategory in key to force re-render
+                  href="/services"
+                  onClick={() => {
+                    // Track navigation source
+                    if (typeof window !== 'undefined') {
+                      sessionStorage.setItem('navigationFrom', '/');
+                      logger.debug('Set navigation source from homepage to services', {
+                        navigationFrom: '/',
+                      });
+                    }
+                  }}
                   className="group relative px-4 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 hover:border-gray-300 dark:hover:border-gray-500 hover:text-gray-900 dark:hover:text-white transition-all duration-200 cursor-pointer animate-fade-in-up"
                   style={{
-                    animationDelay: `${index * 50}ms`,
+                    animationDelay: `${7 * 50}ms`,
                     animationFillMode: 'both',
                   }}
                 >
-                  {service.name}
+                  •••
                   {/* Hover effect border */}
                   <span className="absolute inset-0 rounded-full border-2 border-transparent group-hover:border-[#FFD700] transition-all duration-200 opacity-0 group-hover:opacity-100"></span>
                 </Link>
-              ));
+              );
+
+              return pills;
             })()}
           </div>
         </div>
