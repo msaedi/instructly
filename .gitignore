@@ -65,3 +65,6 @@ backend/dead_code_backup_*/
 .env.monitoring
 monitoring/grafana-data/
 monitoring/prometheus-data/
+
+# Local scripts
+backend/scripts/prep_local_db.py

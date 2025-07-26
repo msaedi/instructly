@@ -638,3 +638,235 @@ def notification_service_with_mocked_email(db: Session, template_service, email_
 
     # email_service fixture already has mocked send_email
     return NotificationService(db, None, template_service, email_service)
+
+
+@pytest.fixture
+def sample_categories(db: Session) -> list[ServiceCategory]:
+    """Create sample service categories for testing."""
+    categories = [
+        ServiceCategory(
+            id=1,
+            name="Music",
+            slug="music",
+            subtitle="Instrument Voice Theory",
+            description="Musical instruction",
+            display_order=1,
+        ),
+        ServiceCategory(
+            id=2,
+            name="Sports & Fitness",
+            slug="sports-fitness",
+            subtitle="",
+            description="Physical fitness and sports",
+            display_order=2,
+        ),
+        ServiceCategory(
+            id=3,
+            name="Language",
+            slug="language",
+            subtitle="Learn new languages",
+            description="Language instruction",
+            display_order=3,
+        ),
+    ]
+
+    for category in categories:
+        existing = db.query(ServiceCategory).filter(ServiceCategory.id == category.id).first()
+        if not existing:
+            db.add(category)
+
+    db.commit()
+    return categories
+
+
+@pytest.fixture
+def sample_catalog_services(db: Session, sample_categories: list[ServiceCategory]) -> list[ServiceCatalog]:
+    """Create sample catalog services for testing."""
+    services = [
+        # Music services
+        ServiceCatalog(
+            id=101,
+            category_id=1,
+            name="Piano Lessons",
+            slug="piano-lessons",
+            description="Learn piano",
+            search_terms=["piano", "keyboard"],
+            display_order=1,
+            online_capable=True,
+            requires_certification=False,
+            is_active=True,
+        ),
+        ServiceCatalog(
+            id=102,
+            category_id=1,
+            name="Guitar Lessons",
+            slug="guitar-lessons",
+            description="Learn guitar",
+            search_terms=["guitar", "acoustic", "electric"],
+            display_order=2,
+            online_capable=True,
+            requires_certification=False,
+            is_active=True,
+        ),
+        ServiceCatalog(
+            id=103,
+            category_id=1,
+            name="Violin Lessons",
+            slug="violin-lessons",
+            description="Learn violin",
+            search_terms=["violin", "strings"],
+            display_order=3,
+            online_capable=True,
+            requires_certification=False,
+            is_active=True,
+        ),
+        # Sports & Fitness services
+        ServiceCatalog(
+            id=201,
+            category_id=2,
+            name="Yoga",
+            slug="yoga",
+            description="Yoga instruction",
+            search_terms=["yoga", "meditation"],
+            display_order=1,
+            online_capable=True,
+            requires_certification=True,
+            is_active=True,
+        ),
+        ServiceCatalog(
+            id=202,
+            category_id=2,
+            name="Personal Training",
+            slug="personal-training",
+            description="One-on-one fitness training",
+            search_terms=["fitness", "training", "gym"],
+            display_order=2,
+            online_capable=False,
+            requires_certification=True,
+            is_active=True,
+        ),
+        # Language services
+        ServiceCatalog(
+            id=301,
+            category_id=3,
+            name="Spanish",
+            slug="spanish",
+            description="Learn Spanish",
+            search_terms=["spanish", "espanol"],
+            display_order=1,
+            online_capable=True,
+            requires_certification=False,
+            is_active=True,
+        ),
+    ]
+
+    for service in services:
+        existing = db.query(ServiceCatalog).filter(ServiceCatalog.id == service.id).first()
+        if not existing:
+            db.add(service)
+
+    db.commit()
+    return services
+
+
+@pytest.fixture
+def sample_instructors_with_services(
+    db: Session, sample_catalog_services: list[ServiceCatalog], test_password: str
+) -> list[User]:
+    """Create sample instructors with services linked to catalog."""
+    from app.models.service_catalog import ServiceAnalytics
+
+    instructors = []
+
+    # Piano instructor
+    piano_instructor = User(
+        email="piano.instructor@example.com",
+        hashed_password=get_password_hash(test_password),
+        role=UserRole.INSTRUCTOR,
+        is_active=True,
+        full_name="Piano Teacher",
+    )
+    db.add(piano_instructor)
+    db.commit()
+
+    piano_profile = InstructorProfile(
+        user_id=piano_instructor.id, bio="Expert piano teacher", years_experience=10, min_advance_booking_hours=24
+    )
+    db.add(piano_profile)
+    db.commit()
+
+    piano_service = Service(
+        instructor_profile_id=piano_profile.id,
+        service_catalog_id=101,  # Piano Lessons
+        description="Expert piano instruction",
+        hourly_rate=75.0,
+        duration_options=[30, 60, 90],
+        is_active=True,
+    )
+    db.add(piano_service)
+    db.commit()  # Commit to ensure service is created
+
+    # Update analytics for Piano Lessons
+    piano_analytics = db.query(ServiceAnalytics).filter(ServiceAnalytics.service_catalog_id == 101).first()
+    if not piano_analytics:
+        piano_analytics = ServiceAnalytics(service_catalog_id=101)
+        db.add(piano_analytics)
+    piano_analytics.active_instructors = 1
+    piano_analytics.search_count_30d = 100  # This will result in demand_score ~= 85
+    piano_analytics.booking_count_30d = 17  # These values affect the computed demand_score
+    piano_analytics.search_count_7d = 30  # For trending calculation
+
+    instructors.append(piano_instructor)
+
+    # Yoga instructor
+    yoga_instructor = User(
+        email="yoga.instructor@example.com",
+        hashed_password=get_password_hash(test_password),
+        role=UserRole.INSTRUCTOR,
+        is_active=True,
+        full_name="Yoga Teacher",
+    )
+    db.add(yoga_instructor)
+    db.commit()
+
+    yoga_profile = InstructorProfile(
+        user_id=yoga_instructor.id, bio="Certified yoga instructor", years_experience=5, min_advance_booking_hours=24
+    )
+    db.add(yoga_profile)
+    db.commit()
+
+    yoga_service = Service(
+        instructor_profile_id=yoga_profile.id,
+        service_catalog_id=201,  # Yoga
+        description="Professional yoga instruction",
+        hourly_rate=60.0,
+        duration_options=[60, 90],
+        is_active=True,
+    )
+    db.add(yoga_service)
+    db.commit()  # Commit to ensure service is created
+
+    # Update analytics for Yoga
+    yoga_analytics = db.query(ServiceAnalytics).filter(ServiceAnalytics.service_catalog_id == 201).first()
+    if not yoga_analytics:
+        yoga_analytics = ServiceAnalytics(service_catalog_id=201)
+        db.add(yoga_analytics)
+    yoga_analytics.active_instructors = 1
+    yoga_analytics.search_count_30d = 120  # This will result in higher demand_score
+    yoga_analytics.booking_count_30d = 18  # These values affect the computed demand_score
+    yoga_analytics.search_count_7d = 40  # For trending calculation
+
+    instructors.append(yoga_instructor)
+
+    db.commit()
+    return instructors
+
+
+@pytest.fixture
+def mock_cache_service():
+    """Create a mock cache service for testing."""
+    mock = Mock()
+    mock.get = Mock(return_value=None)
+    mock.set = Mock(return_value=True)
+    mock.delete = Mock(return_value=True)
+    return mock
