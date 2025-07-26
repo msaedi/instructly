@@ -12,6 +12,7 @@ import DeleteProfileModal from '@/components/modals/DeleteProfileModal';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import { InstructorProfile, getInstructorDisplayName } from '@/types/instructor';
+import { useAuth } from '@/features/shared/hooks/useAuth';
 
 /**
  * InstructorDashboard Component
@@ -36,6 +37,7 @@ import { InstructorProfile, getInstructorDisplayName } from '@/types/instructor'
  */
 export default function InstructorDashboard() {
   const router = useRouter();
+  const { logout } = useAuth();
   const [profile, setProfile] = useState<InstructorProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -104,8 +106,7 @@ export default function InstructorDashboard() {
    */
   const handleLogout = () => {
     logger.info('Instructor logging out');
-    localStorage.removeItem('access_token');
-    router.push('/');
+    logout();
   };
 
   /**

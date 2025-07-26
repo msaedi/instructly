@@ -1,6 +1,6 @@
 // frontend/lib/api.ts
 import { WeekSchedule, WeekValidationResponse } from '@/types/availability';
-import { BookingPreview } from '@/types/booking';
+import { BookingPreview, UpcomingBooking } from '@/types/booking';
 import { logger } from '@/lib/logger';
 
 /**
@@ -196,6 +196,7 @@ export const API_ENDPOINTS = {
 
   // Booking endpoints
   BOOKINGS: '/bookings',
+  BOOKINGS_UPCOMING: '/bookings/upcoming',
 
   // Add more endpoints as needed
 } as const;
@@ -310,6 +311,37 @@ export async function fetchBookingPreview(bookingId: number): Promise<BookingPre
     return preview;
   } catch (error) {
     logger.error('Booking preview fetch error', error, { bookingId });
+    throw error;
+  }
+}
+
+/**
+ * Fetch upcoming bookings for the current user
+ *
+ * @param limit - Maximum number of bookings to return (default: 5)
+ * @returns Promise<UpcomingBooking[]> - Array of upcoming bookings
+ */
+export async function getUpcomingBookings(limit: number = 5): Promise<UpcomingBooking[]> {
+  logger.info('Fetching upcoming bookings', { limit });
+
+  try {
+    const response = await fetchWithAuth(`${API_ENDPOINTS.BOOKINGS_UPCOMING}?limit=${limit}`);
+
+    if (!response.ok) {
+      logger.error('Failed to fetch upcoming bookings', undefined, {
+        status: response.status,
+      });
+      throw new Error('Failed to fetch upcoming bookings');
+    }
+
+    const bookings = await response.json();
+    logger.debug('Upcoming bookings fetched successfully', {
+      count: bookings.length,
+    });
+
+    return bookings;
+  } catch (error) {
+    logger.error('Upcoming bookings fetch error', error);
     throw error;
   }
 }

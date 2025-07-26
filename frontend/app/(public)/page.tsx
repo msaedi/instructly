@@ -6,6 +6,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { publicApi, type TopServiceSummary } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
+import { useAuth, getUserInitials, getAvatarColor } from '@/features/shared/hooks/useAuth';
+import { NotificationBar } from '@/components/NotificationBar';
+import { UpcomingLessons } from '@/components/UpcomingLessons';
 import {
   Search,
   Zap,
@@ -27,13 +30,12 @@ import {
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('sports-fitness');
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [categoryServices, setCategoryServices] = useState<Record<string, TopServiceSummary[]>>({});
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const router = useRouter();
+  const { user, isAuthenticated, logout } = useAuth();
 
   const categories = [
     { icon: Music, name: 'Music', slug: 'music', subtitle: 'Instrument Voice Theory' },
@@ -110,38 +112,6 @@ export default function HomePage() {
     setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
   }, []);
 
-  // Check authentication on component mount
-  useEffect(() => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      setIsAuthenticated(true);
-      // Try to get user data to determine role
-      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-        .then((response) => response.json())
-        .then((userData) => {
-          if (userData.role) {
-            setUserRole(userData.role);
-          }
-        })
-        .catch(() => {
-          // Token might be invalid, clear it
-          localStorage.removeItem('access_token');
-          setIsAuthenticated(false);
-        });
-    }
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem('access_token');
-    setIsAuthenticated(false);
-    setUserRole(null);
-    router.push('/');
-  };
-
   const availableNow = [
     {
       name: 'Sarah Chen',
@@ -198,50 +168,82 @@ export default function HomePage() {
                 iNSTAiNSTRU
               </Link>
             </div>
-            <div className="flex items-center space-x-8">
-              {isAuthenticated && (
-                <Link
-                  href={userRole === 'student' ? '/dashboard/student' : '/dashboard/instructor'}
-                  className="text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400"
-                >
-                  Dashboard
-                </Link>
-              )}
-              {!isAuthenticated && (
-                <Link
-                  href="/become-instructor"
-                  className="text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400"
-                >
-                  Become an Instructor
-                </Link>
-              )}
-
+            <div className="flex items-center space-x-6">
               {isAuthenticated ? (
-                <button
-                  onClick={handleLogout}
-                  className="px-4 py-2 border border-red-600 dark:border-red-400 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                >
-                  Logout
-                </button>
+                <>
+                  <Link
+                    href={
+                      user?.role === 'student'
+                        ? '/dashboard/student/bookings'
+                        : '/dashboard/instructor'
+                    }
+                    className="text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 relative"
+                  >
+                    My Lessons
+                    {user?.unread_messages_count && user.unread_messages_count > 0 && (
+                      <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full"></span>
+                    )}
+                  </Link>
+                  <Link
+                    href={user?.role === 'student' ? '/dashboard/student' : '/dashboard/instructor'}
+                    className="text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 flex items-center space-x-6 relative"
+                  >
+                    <span className="hidden md:inline">My Account</span>
+                    {user?.unread_platform_messages_count &&
+                      user.unread_platform_messages_count > 0 && (
+                        <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full md:left-20"></span>
+                      )}
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium"
+                      style={{ backgroundColor: user ? getAvatarColor(user.id) : '#ccc' }}
+                    >
+                      {user?.profile_image_url ? (
+                        <img
+                          src={user.profile_image_url}
+                          alt={user.full_name}
+                          className="w-full h-full rounded-full object-cover"
+                        />
+                      ) : (
+                        getUserInitials(user)
+                      )}
+                    </div>
+                  </Link>
+                </>
               ) : (
-                <Link
-                  href="/login"
-                  className="px-4 py-2 border border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                >
-                  Sign up / Log in
-                </Link>
+                <>
+                  <Link
+                    href="/become-instructor"
+                    className="text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400"
+                  >
+                    Become an Instructor
+                  </Link>
+                  <Link
+                    href="/login"
+                    className="px-4 py-2 border border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                  >
+                    Sign up / Log in
+                  </Link>
+                </>
               )}
             </div>
           </div>
         </div>
       </nav>
 
+      {/* Notification Bar */}
+      <NotificationBar />
+
+      {/* Upcoming Lessons Section */}
+      <UpcomingLessons />
+
       {/* Hero Section */}
       <section className="py-16 bg-[#FFFEF5] dark:bg-gray-800/50" style={{ paddingTop: '60px' }}>
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h1 className="text-5xl font-bold text-gray-900 dark:text-gray-100 mb-8">
-            <div className="leading-tight">Instant learning with</div>
-            <div className="leading-tight">iNSTAiNSTRU</div>
+            <div className="leading-tight">
+              {isAuthenticated ? 'Your Next Lesson Awaits' : 'Instant learning with'}
+            </div>
+            {!isAuthenticated && <div className="leading-tight">iNSTAiNSTRU</div>}
           </h1>
 
           <form onSubmit={handleSearch} className="max-w-2xl mx-auto">
@@ -253,7 +255,9 @@ export default function HomePage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Ready to learn something new?"
+                placeholder={
+                  isAuthenticated ? 'What do you want to learn?' : 'Ready to learn something new?'
+                }
                 className="w-full h-full text-base bg-transparent border-none focus:outline-none text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
                 style={{
                   padding: '0 70px 0 20px',

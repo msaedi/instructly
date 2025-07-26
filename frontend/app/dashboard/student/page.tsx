@@ -11,6 +11,7 @@ import { bookingsApi } from '@/lib/api/bookings';
 import { Booking } from '@/types/booking';
 import { logger } from '@/lib/logger';
 import { UserData } from '@/types/user';
+import { useAuth } from '@/features/shared/hooks/useAuth';
 
 /**
  * StudentDashboard Component
@@ -34,6 +35,7 @@ import { UserData } from '@/types/user';
  */
 export default function StudentDashboard() {
   const router = useRouter();
+  const { logout } = useAuth();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([]);
@@ -129,8 +131,7 @@ export default function StudentDashboard() {
    */
   const handleLogout = () => {
     logger.info('Student logging out');
-    localStorage.removeItem('access_token');
-    router.push('/');
+    logout();
   };
 
   /**

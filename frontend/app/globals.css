@@ -420,6 +420,22 @@ html {
   opacity: 0;
 }
 
+/* Slide Down Animation for Notification Bar */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-down {
+  animation: slideDown 0.3s ease-out;
+}
+
 /* Fix Autocomplete in Dark Mode */
 .autofill-fix:-webkit-autofill,
 .autofill-fix:-webkit-autofill:hover,

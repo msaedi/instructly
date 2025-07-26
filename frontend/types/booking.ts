@@ -212,6 +212,17 @@ export interface BookingPreview {
   total_price: number;
 }
 
+export interface UpcomingBooking {
+  id: number;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  service_name: string;
+  student_name: string;
+  instructor_name: string;
+  meeting_location?: string;
+}
+
 // Add location type display helper
 export const getLocationTypeDisplay = (locationType: LocationType): string => {
   switch (locationType) {

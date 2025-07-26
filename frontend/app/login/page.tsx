@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 import { API_URL, API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
 import { logger } from '@/lib/logger';
+import { useAuth } from '@/features/shared/hooks/useAuth';
 
 /**
  * LoginForm Component
@@ -34,6 +35,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect') || '/';
+  const { login: authLogin, checkAuth } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -107,80 +109,22 @@ function LoginForm() {
     });
 
     try {
-      // FastAPI expects form data for OAuth2
-      const params = new URLSearchParams();
-      params.append('username', formData.email); // OAuth2 expects 'username'
-      params.append('password', formData.password);
+      // Use the auth context login method
+      const success = await authLogin(formData.email, formData.password);
 
-      const loginUrl = `${API_URL}${API_ENDPOINTS.LOGIN}`;
-      logger.info('Attempting login', {
-        url: loginUrl,
-        email: formData.email,
-        hasPassword: !!formData.password,
-      });
+      if (success) {
+        logger.info('Login successful via auth context');
 
-      const response = await fetch(loginUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params,
-      });
+        // Force auth check to ensure state is updated
+        await checkAuth();
 
-      logger.info('Login response received', {
-        status: response.status,
-        ok: response.ok,
-        statusText: response.statusText,
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-
-        // Store token in localStorage
-        localStorage.setItem('access_token', data.access_token);
-        logger.info('Login successful, token stored');
-
-        // Fetch user data to get their role
-        try {
-          const userResponse = await fetchWithAuth(API_ENDPOINTS.ME);
-          if (userResponse.ok) {
-            const userData = await userResponse.json();
-
-            logger.info('User data fetched', {
-              role: userData.role,
-              userId: userData.id,
-            });
-
-            // Redirect based on role
-            if (userData.role === 'instructor') {
-              logger.debug('Redirecting to instructor dashboard');
-              router.push('/dashboard/instructor');
-            } else {
-              logger.debug('Redirecting to specified location', { redirect });
-              router.push(redirect); // Use the redirect parameter for students
-            }
-          } else {
-            logger.warn('Failed to fetch user data after login, using fallback redirect');
-            // Fallback to redirect parameter if user fetch fails
-            router.push(redirect);
-          }
-        } catch (userError) {
-          logger.error('Error fetching user data after login', userError);
-          // Fallback redirect
-          router.push(redirect);
-        }
+        // Now navigate with updated auth state
+        router.push(redirect);
       } else {
-        // Handle login failure
-        if (response.status === 401) {
-          logger.warn('Login failed - invalid credentials', {
-            email: formData.email,
-          });
-          setErrors({ password: 'Invalid email or password' });
-        } else {
-          logger.error('Login failed - server error', {
-            status: response.status,
-            statusText: response.statusText,
-          });
-          setErrors({ password: 'Server error. Please try again later.' });
-        }
+        logger.warn('Login failed - invalid credentials', {
+          email: formData.email,
+        });
+        setErrors({ password: 'Invalid email or password' });
       }
     } catch (error) {
       logger.error('Login network error', error);

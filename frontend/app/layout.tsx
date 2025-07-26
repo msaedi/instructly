@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { logger } from '@/lib/logger';
+import { Providers } from './providers';
 
 /**
  * Geist Sans Font Configuration
@@ -149,10 +150,9 @@ export default function RootLayout({
             - Global error boundary
             - Analytics provider
             - Toast notifications provider
-            - Authentication provider
             - Theme provider
         */}
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
