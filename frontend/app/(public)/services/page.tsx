@@ -67,6 +67,15 @@ interface CategoryWithServices {
 }
 
 export default function AllServicesPage() {
+  // Add custom CSS for 6-column grid
+  const customGridStyle = `
+    @media (min-width: 1400px) and (max-width: 1535px) {
+      .services-grid {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+      }
+    }
+  `;
+
   const [categoriesWithServices, setCategoriesWithServices] = useState<CategoryWithServices[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -286,71 +295,74 @@ export default function AllServicesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900">
-      {/* Header Section */}
-      <header className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-            {/* Logo */}
-            <Link href="/" className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              iNSTAiNSTRU
-            </Link>
+    <>
+      <style dangerouslySetInnerHTML={{ __html: customGridStyle }} />
+      <div className="min-h-screen bg-white dark:bg-gray-900">
+        {/* Header Section */}
+        <header className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+              {/* Logo */}
+              <Link href="/" className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                iNSTAiNSTRU
+              </Link>
 
-            {/* Hero Image Placeholder */}
-            <div className="w-full lg:w-96 h-32 lg:h-24 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <span className="text-white text-sm opacity-75">[Hero Image]</span>
-            </div>
-
-            {/* Tagline */}
-            <div className="flex items-center gap-4">
-              <p className="text-lg font-medium text-gray-900 dark:text-gray-100">
-                Your next skill unlocks here
-              </p>
-              <Search className="h-5 w-5 text-gray-400" />
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* 7-Column Grid */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 items-start">
-          {categoriesWithServices.map((category) => (
-            <div
-              key={category.slug}
-              ref={(el) => {
-                if (el) categoryRefs.current[category.slug] = el;
-              }}
-              className="flex flex-col min-h-0"
-            >
-              {/* Category Header */}
-              <div className="mb-4">
-                <div className="pb-2 border-b border-gray-200 dark:border-gray-700">
-                  <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2 h-6">
-                    <category.icon className="h-5 w-5 flex-shrink-0" />
-                    <span className="whitespace-nowrap">{category.name}</span>
-                  </h3>
-                  <div className="mt-1" style={{ minHeight: '32px' }}>
-                    {category.subtitle ? (
-                      <p
-                        className="text-xs text-gray-500 dark:text-gray-400 break-words"
-                        style={{ lineHeight: '1.2', wordBreak: 'break-word' }}
-                      >
-                        {category.subtitle}
-                      </p>
-                    ) : (
-                      <div style={{ height: '32px' }} />
-                    )}
-                  </div>
-                </div>
+              {/* Hero Image Placeholder */}
+              <div className="w-full lg:w-96 h-32 lg:h-24 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <span className="text-white text-sm opacity-75">[Hero Image]</span>
               </div>
 
-              {/* Services List */}
-              <div className="flex-1 overflow-visible">{renderCategoryServices(category)}</div>
+              {/* Tagline */}
+              <div className="flex items-center gap-4">
+                <p className="text-lg font-medium text-gray-900 dark:text-gray-100">
+                  Your next skill unlocks here
+                </p>
+                <Search className="h-5 w-5 text-gray-400" />
+              </div>
             </div>
-          ))}
+          </div>
+        </header>
+
+        {/* 7-Column Grid */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="services-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-7 gap-4 items-start">
+            {categoriesWithServices.map((category) => (
+              <div
+                key={category.slug}
+                ref={(el) => {
+                  if (el) categoryRefs.current[category.slug] = el;
+                }}
+                className="flex flex-col min-h-0"
+              >
+                {/* Category Header */}
+                <div className="mb-4">
+                  <div className="pb-2 border-b border-gray-200 dark:border-gray-700">
+                    <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2 h-6">
+                      <category.icon className="h-5 w-5 flex-shrink-0" />
+                      <span className="whitespace-nowrap">{category.name}</span>
+                    </h3>
+                    <div className="mt-1" style={{ minHeight: '32px' }}>
+                      {category.subtitle ? (
+                        <p
+                          className="text-xs text-gray-500 dark:text-gray-400 break-words"
+                          style={{ lineHeight: '1.2', wordBreak: 'break-word' }}
+                        >
+                          {category.subtitle}
+                        </p>
+                      ) : (
+                        <div style={{ height: '32px' }} />
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Services List */}
+                <div className="flex-1 overflow-visible">{renderCategoryServices(category)}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
