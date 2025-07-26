@@ -122,7 +122,7 @@ pytest -vv                      # Verbose output
 # Database operations
 alembic upgrade head            # Apply migrations
 alembic revision -m "message"   # Create new migration
-python scripts/reset_and_seed_database_enhanced.py  # Reset and seed DB
+python scripts/reset_and_seed_yaml.py  # Reset and seed DB
 
 # Code quality
 black .                         # Format Python code
