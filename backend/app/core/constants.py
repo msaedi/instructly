@@ -70,7 +70,7 @@ SUCCESS_AVAILABILITY_DELETED = "Availability deleted successfully"
 SUCCESS_PROFILE_UPDATED = "Profile updated successfully"
 
 # Brand Configuration
-BRAND_NAME = "iNSTAiSTRU"
+BRAND_NAME = "iNSTAiNSTRU"
 BRAND_TAGLINE = "Book Expert Instructors Instantly"
 BRAND_DOMAIN = "instainstru.com"
 SUPPORT_EMAIL = "support@instainstru.com"
