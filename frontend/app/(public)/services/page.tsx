@@ -314,7 +314,7 @@ export default function AllServicesPage() {
 
       {/* 7-Column Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-7 gap-4 items-start">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 items-start">
           {categoriesWithServices.map((category) => (
             <div
               key={category.slug}
@@ -328,12 +328,7 @@ export default function AllServicesPage() {
                 <div className="pb-2 border-b border-gray-200 dark:border-gray-700">
                   <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2 h-6">
                     <category.icon className="h-5 w-5 flex-shrink-0" />
-                    <span
-                      className="break-words"
-                      style={{ maxWidth: '120px', lineHeight: '1.2', wordBreak: 'break-word' }}
-                    >
-                      {category.name}
-                    </span>
+                    <span className="whitespace-nowrap">{category.name}</span>
                   </h3>
                   <div className="mt-1" style={{ minHeight: '32px' }}>
                     {category.subtitle ? (
