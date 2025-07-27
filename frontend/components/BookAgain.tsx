@@ -56,7 +56,7 @@ export function BookAgain({ onLoadComplete }: BookAgainProps) {
               instructorId: booking.instructor.id,
               instructorName: booking.instructor.full_name,
               serviceName: booking.service_name,
-              serviceId: booking.instructor_service_id,
+              serviceId: booking.id, // Using booking ID as we don't have instructor_service_id
               hourlyRate: booking.hourly_rate,
               rating: 4.8, // TODO: Get actual rating from instructor profile
               lastBookingDate: booking.booking_date,
