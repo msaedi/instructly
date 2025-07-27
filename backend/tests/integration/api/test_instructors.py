@@ -236,11 +236,11 @@ class TestInstructorRoutes:
     ):
         """Test updating instructor profile."""
         # Get catalog IDs for Piano and Violin
-        piano_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "piano-lessons").first()
-        violin_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "violin-lessons").first()
+        piano_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "piano").first()
+        violin_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "violin").first()
 
-        if not piano_catalog or not violin_catalog:
-            pytest.skip("Required catalog services not found")
+        assert piano_catalog is not None, "Piano service should exist in seeded catalog"
+        assert violin_catalog is not None, "Violin service should exist in seeded catalog"
 
         update_data = {
             "bio": "Updated bio with more experience",
@@ -270,10 +270,10 @@ class TestInstructorRoutes:
         assert len(data["services"]) == 2
 
         # Verify services are updated correctly
-        # TEMPORARY FIX: Use service_catalog_id to verify services instead of name field
-        # The actual service names come from the catalog (IDs 1=Piano, 4=Violin based on test setup)
+        # Get the actual catalog IDs from the database
         service_catalog_ids = [s["service_catalog_id"] for s in data["services"]]
-        assert 1 in service_catalog_ids or 4 in service_catalog_ids  # Piano or Violin
+        assert piano_catalog.id in service_catalog_ids
+        assert violin_catalog.id in service_catalog_ids
         assert len(data["services"]) == 2
 
     def test_update_profile_partial(self, client: TestClient, test_instructor: User, auth_headers_instructor: dict):

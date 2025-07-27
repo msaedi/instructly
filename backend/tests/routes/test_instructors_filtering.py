@@ -64,7 +64,10 @@ class TestInstructorsFilteringAPI:
 
         # Create profiles with varied attributes
         # Get available services from catalog to ensure we use real ones
-        available_services = catalog_data["services"][:10]  # Get first 10 services
+        # Make sure we include Piano for the test_skill_filter test
+        piano_service = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "piano").first()
+        other_services = db.query(ServiceCatalog).filter(ServiceCatalog.slug != "piano").limit(9).all()
+        available_services = [piano_service] + other_services if piano_service else catalog_data["services"][:10]
 
         profiles_data = [
             {
@@ -162,20 +165,20 @@ class TestInstructorsFilteringAPI:
 
     def test_skill_filter(self, client, sample_instructors, db: Session):
         """Test service_catalog_id query parameter."""
-        # First get the catalog ID for Piano Lessons
-        piano_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.name == "Piano Lessons").first()
+        # First get the catalog ID for Piano
+        piano_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "piano").first()
 
-        if not piano_catalog:
-            pytest.skip("Piano Lessons catalog not found")
+        assert piano_catalog is not None, "Piano service should exist in seeded catalog"
 
         response = client.get(f"/instructors/?service_catalog_id={piano_catalog.id}")
 
         assert response.status_code == 200
         data = response.json()
 
-        assert len(data["instructors"]) == 1
-        instructor = data["instructors"][0]
-        assert any(s["name"] == "Piano Lessons" for s in instructor["services"])
+        assert len(data["instructors"]) >= 1  # At least one instructor has piano
+        # Check that all returned instructors have the Piano service
+        for instructor in data["instructors"]:
+            assert any(s["service_catalog_id"] == piano_catalog.id for s in instructor["services"])
 
         assert data["metadata"]["filters_applied"]["service_catalog_id"] == piano_catalog.id
 
