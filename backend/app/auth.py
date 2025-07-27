@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -115,3 +116,42 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
     except Exception as e:
         logger.error(f"Unexpected error in token validation: {str(e)}")
         raise credentials_exception
+
+
+async def get_current_user_optional(token: Optional[str] = Depends(oauth2_scheme_optional)) -> Optional[str]:
+    """
+    Dependency to get the current authenticated user email from JWT token if present.
+
+    This function returns None if no token is provided or if the token is invalid,
+    instead of raising an exception. Used for endpoints that support both
+    authenticated and anonymous access.
+
+    Args:
+        token: Optional JWT token from the Authorization header
+
+    Returns:
+        str: The user's email address if authenticated, None otherwise
+    """
+    if not token:
+        return None
+
+    try:
+        payload = jwt.decode(
+            token,
+            settings.secret_key.get_secret_value(),
+            algorithms=[settings.algorithm],
+        )
+        email: str = payload.get("sub")
+        if email is None:
+            logger.warning("Token payload missing 'sub' field")
+            return None
+
+        logger.debug(f"Successfully validated optional token for user: {email}")
+        return email
+
+    except JWTError as e:
+        logger.debug(f"JWT validation error in optional auth: {str(e)}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error in optional token validation: {str(e)}")
+        return None

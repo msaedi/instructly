@@ -97,10 +97,64 @@ async function cleanFetch<T>(
 }
 
 /**
+ * Optional authenticated fetch wrapper
+ * Includes auth token if available, but doesn't fail if not authenticated
+ */
+async function optionalAuthFetch<T>(
+  endpoint: string,
+  options: FetchOptions = {}
+): Promise<ApiResponse<T>> {
+  const { params, ...fetchOptions } = options;
+
+  // Build URL with query params
+  const url = new URL(`${API_BASE_URL}${endpoint}`);
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        url.searchParams.append(key, String(value));
+      }
+    });
+  }
+
+  // Get token if available
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+
+  try {
+    const response = await fetch(url.toString(), {
+      ...fetchOptions,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...fetchOptions.headers,
+      },
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        error: data.detail || `Error: ${response.status}`,
+        status: response.status,
+      };
+    }
+
+    return {
+      data,
+      status: response.status,
+    };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : 'Network error',
+      status: 0,
+    };
+  }
+}
+
+/**
  * Authenticated fetch wrapper
  */
 async function authFetch<T>(endpoint: string, options: FetchOptions = {}): Promise<ApiResponse<T>> {
-  const token = localStorage.getItem('access_token');
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
 
   if (!token) {
     return {
@@ -261,8 +315,56 @@ export const publicApi = {
   async searchWithNaturalLanguage(
     query: string
   ): Promise<ApiResponse<NaturalLanguageSearchResponse>> {
-    return cleanFetch<NaturalLanguageSearchResponse>('/api/search/instructors', {
+    // Use optionalAuthFetch to allow unauthenticated searches
+    // but include auth token if available for search history tracking
+    return optionalAuthFetch<NaturalLanguageSearchResponse>('/api/search/instructors', {
       params: { q: query },
+    });
+  },
+
+  /**
+   * Get recent search history
+   */
+  async getRecentSearches(limit: number = 3) {
+    return authFetch<
+      Array<{
+        id: number;
+        search_query: string;
+        search_type: string;
+        results_count: number | null;
+        created_at: string;
+      }>
+    >('/api/search-history/', {
+      params: { limit },
+    });
+  },
+
+  /**
+   * Delete a search from history
+   */
+  async deleteSearchHistory(searchId: number) {
+    return authFetch<void>(`/api/search-history/${searchId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Record a search to history
+   */
+  async recordSearchHistory(data: {
+    search_query: string;
+    search_type: string;
+    results_count?: number | null;
+  }) {
+    return authFetch<{
+      id: number;
+      search_query: string;
+      search_type: string;
+      results_count: number | null;
+      created_at: string;
+    }>('/api/search-history/', {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
   },
 

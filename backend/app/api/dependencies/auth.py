@@ -3,10 +3,13 @@
 Authentication and authorization dependencies.
 """
 
+from typing import Optional
+
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ...auth import get_current_user as auth_get_current_user
+from ...auth import get_current_user_optional as auth_get_current_user_optional
 from ...models.user import User
 from .database import get_db
 
@@ -92,3 +95,30 @@ async def get_current_student(
     if not current_user.is_student:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a student")
     return current_user
+
+
+async def get_current_active_user_optional(
+    current_user_email: Optional[str] = Depends(auth_get_current_user_optional),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    """
+    Get the current authenticated user if present, otherwise return None.
+
+    This is useful for endpoints that work for both authenticated and anonymous users,
+    but provide enhanced functionality for authenticated users.
+
+    Args:
+        current_user_email: Email from JWT token (if present)
+        db: Database session
+
+    Returns:
+        User object if authenticated and found, None otherwise
+    """
+    if not current_user_email:
+        return None
+
+    user = db.query(User).filter(User.email == current_user_email).first()
+    if user and user.is_active:
+        return user
+
+    return None

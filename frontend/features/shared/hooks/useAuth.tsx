@@ -5,6 +5,7 @@ import React, { useState, useEffect, createContext, useContext, ReactNode } from
 import { useRouter } from 'next/navigation';
 import { API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
 import { logger } from '@/lib/logger';
+import { transferGuestSearchesToAccount } from '@/lib/searchTracking';
 
 export interface User {
   id: number;
@@ -114,6 +115,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const data = await response.json();
         localStorage.setItem('access_token', data.access_token);
         await checkAuth();
+
+        // Transfer guest searches to user account
+        try {
+          await transferGuestSearchesToAccount();
+          logger.info('Guest searches transferred after login');
+        } catch (error) {
+          // Don't fail login if transfer fails
+          logger.error('Failed to transfer guest searches', error as Error);
+        }
+
         return true;
       } else {
         const errorData = await response.json();

@@ -7,9 +7,11 @@ import Link from 'next/link';
 import { publicApi, type TopServiceSummary } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import { useAuth, getUserInitials, getAvatarColor } from '@/features/shared/hooks/useAuth';
+import { recordSearch } from '@/lib/searchTracking';
 import { NotificationBar } from '@/components/NotificationBar';
 import { UpcomingLessons } from '@/components/UpcomingLessons';
 import { BookAgain } from '@/components/BookAgain';
+import { RecentSearches } from '@/components/RecentSearches';
 import {
   Search,
   Zap,
@@ -53,7 +55,7 @@ export default function HomePage() {
     { icon: Sparkles, name: 'Hidden Gems', slug: 'hidden-gems', subtitle: '' },
   ];
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       // Track navigation source
@@ -64,6 +66,17 @@ export default function HomePage() {
           query: searchQuery,
         });
       }
+
+      // Record search for search bar
+      await recordSearch(
+        {
+          query: searchQuery,
+          search_type: 'natural_language',
+          results_count: null, // Will be determined on results page
+        },
+        isAuthenticated
+      );
+
       router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=home`);
     }
   };
@@ -365,10 +378,20 @@ export default function HomePage() {
               return (
                 <div
                   key={category.slug}
-                  onClick={() => {
+                  onClick={async () => {
                     setSelectedCategory(category.slug);
                     // Clear hover on click to prevent stuck hover states
                     setHoveredCategory(null);
+
+                    // Record search for category selection
+                    await recordSearch(
+                      {
+                        query: `${category.name} lessons`,
+                        search_type: 'category',
+                        results_count: null,
+                      },
+                      isAuthenticated
+                    );
                   }}
                   onMouseEnter={() => !isTouchDevice && setHoveredCategory(category.slug)}
                   onMouseLeave={() => !isTouchDevice && setHoveredCategory(null)}
@@ -450,6 +473,9 @@ export default function HomePage() {
                           serviceId: service.id,
                         });
                       }
+
+                      // NOTE: Search recording happens on the search results page
+                      // after we have the actual results count
                     }}
                     className="group relative px-4 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 hover:border-gray-300 dark:hover:border-gray-500 hover:text-gray-900 dark:hover:text-white transition-all duration-200 cursor-pointer animate-fade-in-up"
                     style={{
@@ -536,6 +562,9 @@ export default function HomePage() {
           </div>
         </section>
       )}
+
+      {/* Your Recent Searches - Only shows for authenticated users with search history */}
+      <RecentSearches />
 
       {/* Available Now & Trending */}
       <section className="py-16 bg-[#FFFEF5] dark:bg-gray-800/50">

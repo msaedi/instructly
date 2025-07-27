@@ -8,6 +8,8 @@ import { ChevronLeft, Filter } from 'lucide-react';
 import { publicApi } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import InstructorCard from '@/components/InstructorCard';
+import { useAuth } from '@/features/shared/hooks/useAuth';
+import { recordSearch } from '@/lib/searchTracking';
 
 interface Service {
   id: number;
@@ -49,6 +51,7 @@ interface SearchMetadata {
 function SearchPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [metadata, setMetadata] = useState<SearchMetadata | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,12 +60,19 @@ function SearchPageContent() {
   const [total, setTotal] = useState(0);
   const [serviceName, setServiceName] = useState<string>('');
   const [previousPath, setPreviousPath] = useState<string>('/');
+  const [hasRecordedSearch, setHasRecordedSearch] = useState(false);
 
   // Parse search parameters from URL
   const query = searchParams.get('q') || '';
   const category = searchParams.get('category') || '';
   const serviceCatalogId = searchParams.get('service_catalog_id') || '';
   const availableNow = searchParams.get('available_now') === 'true';
+
+  // Reset hasRecordedSearch when search parameters change
+  useEffect(() => {
+    setHasRecordedSearch(false);
+    setServiceName(''); // Also reset service name
+  }, [query, category, serviceCatalogId]);
 
   // Determine where user came from
   useEffect(() => {
@@ -383,6 +393,72 @@ function SearchPageContent() {
       fetchServiceName();
     }
   }, [serviceCatalogId]);
+
+  // Record search when we have all necessary data
+  useEffect(() => {
+    const recordSearchIfReady = async () => {
+      // Skip if already recorded
+      if (hasRecordedSearch) return;
+
+      // Skip if we don't have results yet (but allow searches with 0 results)
+      if (loading) return;
+
+      // Determine if we have all required data
+      const hasRequiredData = query || category || (serviceCatalogId && serviceName);
+
+      if (!hasRequiredData) return;
+
+      // Determine search query and type
+      const searchQuery = query || serviceName || category || 'Unknown search';
+      let searchType: 'natural_language' | 'category' | 'service_pill' | 'filter' =
+        'natural_language';
+
+      if (query) {
+        searchType = 'natural_language';
+      } else if (serviceCatalogId && serviceName) {
+        searchType = 'service_pill';
+      } else if (category) {
+        searchType = 'category';
+      }
+
+      try {
+        await recordSearch(
+          {
+            query: searchQuery,
+            search_type: searchType,
+            results_count: total,
+          },
+          isAuthenticated
+        );
+
+        setHasRecordedSearch(true);
+        logger.info('Search recorded successfully', {
+          query: searchQuery,
+          searchType,
+          resultsCount: total,
+          isAuthenticated,
+        });
+      } catch (error) {
+        logger.error('Error in recordSearch:', error as Error, {
+          searchQuery,
+          searchType,
+          resultsCount: total,
+          isAuthenticated,
+        });
+      }
+    };
+
+    recordSearchIfReady();
+  }, [
+    query,
+    category,
+    serviceCatalogId,
+    serviceName,
+    total,
+    loading,
+    hasRecordedSearch,
+    isAuthenticated,
+  ]);
 
   // Generate realistic next available times (deterministic for SSR)
   const getNextAvailableSlots = (instructorId: number) => {

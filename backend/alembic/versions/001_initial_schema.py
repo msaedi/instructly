@@ -100,15 +100,72 @@ def upgrade() -> None:
         "account_status IN ('active', 'suspended', 'deactivated')",
     )
 
+    # Create search_history table for tracking user searches
+    op.create_table(
+        "search_history",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("search_query", sa.Text(), nullable=False),
+        sa.Column(
+            "search_type",
+            sa.String(20),
+            nullable=False,
+            server_default="natural_language",
+        ),
+        sa.Column("results_count", sa.Integer(), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"],
+            ["users.id"],
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        comment="Tracks user search history for personalization",
+    )
+
+    # Create indexes for search_history
+    op.create_index(
+        "idx_search_history_user_created",
+        "search_history",
+        ["user_id", "created_at"],
+        unique=False,
+        postgresql_using="btree",
+        postgresql_ops={"created_at": "DESC"},
+    )
+
+    # Add unique constraint to prevent duplicate searches
+    op.create_unique_constraint(
+        "uq_search_history_user_query",
+        "search_history",
+        ["user_id", "search_query"],
+    )
+
+    # Add check constraint for search_type values
+    op.create_check_constraint(
+        "ck_search_history_type",
+        "search_history",
+        "search_type IN ('natural_language', 'category', 'service_pill', 'filter')",
+    )
+
     print("Initial schema created successfully!")
     print("- Created users table with VARCHAR role field and account_status")
     print("- Added check constraints for role and account_status values")
     print("- Created indexes for email lookups")
+    print("- Created search_history table for tracking user searches")
 
 
 def downgrade() -> None:
     """Drop all tables and types created in upgrade."""
     print("Dropping initial schema...")
+
+    # Drop search_history table if it exists
+    # Using execute to handle if table doesn't exist
+    op.execute("DROP TABLE IF EXISTS search_history CASCADE")
 
     # Drop check constraints first
     op.drop_constraint("ck_users_account_status", "users", type_="check")

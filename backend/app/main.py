@@ -26,6 +26,7 @@ from .routes import (
     prometheus,
     public,
     search,
+    search_history,
     services,
 )
 
@@ -117,6 +118,7 @@ app.include_router(monitoring.router)
 app.include_router(alerts.router)
 app.include_router(public.router)
 app.include_router(search.router, prefix="/api/search", tags=["search"])
+app.include_router(search_history.router, prefix="/api/search-history", tags=["search-history"])
 app.include_router(prometheus.router)
 
 
