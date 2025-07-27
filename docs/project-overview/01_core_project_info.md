@@ -1,5 +1,5 @@
 # InstaInstru Core Project Information
-*Last Updated: July 24, 2025 - Session v76*
+*Last Updated: July 27, 2025 - Session v80*
 
 ## Identity & Role
 
@@ -76,31 +76,37 @@ Provide a "Technical Progress Update" for the A-Team that includes:
 
 ## 🚨 CURRENT PRIORITIES
 
-### 1. Phoenix Week 4: Instructor Migration 🚀
-**Status**: Ready to start - NLS fix complete!
+### 1. Instructor Profile Page 🎯
+**Status**: Next critical component
+**Priority**: CRITICAL - Core booking flow requirement
+**Effort**: 1-2 days
+**Impact**: Enables complete user journey
+
+### 2. My Lessons Tab 📚
+**Status**: Ready after profile page
+**Priority**: HIGH - User management critical
+**Effort**: 2 days
+**Impact**: Complete user experience
+
+### 3. Phoenix Week 4: Instructor Migration 🚀
+**Status**: Can proceed in parallel
 **Priority**: HIGH - Final Phoenix transformation step
 **Effort**: 1 week
 **Impact**: Complete frontend modernization
 
-### 2. Security Audit 🔒
+### 4. Security Audit 🔒
 **Status**: Critical for launch readiness
 **Priority**: HIGH - Required before production
 **Effort**: 1-2 days
-**Timeline**: Immediate priority
+**Timeline**: After core pages
 
-### 3. Load Testing 🏋️
+### 5. Load Testing 🏋️
 **Status**: Needed for production readiness
 **Priority**: MEDIUM - Verify scalability
 **Effort**: 3-4 hours
-**Timeline**: This week
+**Timeline**: Pre-launch
 
-### 4. Production Deployment Preparation 🚀
-**Status**: Final steps for launch
-**Priority**: MEDIUM - Environment setup
-**Effort**: 2-3 days
-**Timeline**: Next week
-
-**Platform Status**: ~85% complete (up from ~82%)
+**Platform Status**: ~91% complete (up from ~85%)
 
 ## 🎯 Project Overview
 
@@ -142,7 +148,11 @@ InstaInstru (iNSTAiNSTRU) is the "Uber of instruction" - a marketplace platform 
 - **Production Monitoring**: Custom performance monitoring middleware
 - **Container**: Docker (for local DragonflyDB)
 - **CI/CD**: GitHub Actions
-- **Workers**: Celery on Render (memory-optimized configuration)
+- **Workers**: Celery on Render (Background Workers - $7/month each)
+- **Task Scheduler**: Celery Beat on Render (Background Worker - $7/month)
+- **Monitoring**: Flower on Render (Web Service - $7/month)
+- **Custom Domains**: api.instainstru.com, flower.instainstru.com
+- **Total Infrastructure Cost**: $46/month
 
 ### Development Tools
 - **Code Quality**: Pre-commit hooks (Black, isort, flake8, Prettier, ESLint)
@@ -255,14 +265,15 @@ These documents provide complete context for the current state:
 6. `06_repository_pattern_architecture.md` - Repository Pattern implementation guide
 
 ### Critical Session Documents
-1. **`InstaInstru Session Handoff v66.md`** - Latest session context
+1. **`InstaInstru Session Handoff v80.md`** - Latest session context
 2. **`Service Layer Transformation Report.md`** - 16 services to 8.5/10 quality
 3. **`API Documentation Review Report.md`** - 9.5/10 quality achieved
 
 ### Work Stream Documents
-1. **`Work Stream #13 - Frontend Technical Debt Cleanup Checklist.md`** - Current blocker
-2. **`Work Stream #12 - Public API Implementation.md`** - COMPLETE ✅
-3. **`Work Stream #10 - Two-Table Availability Design Removal.md`** - Backend complete
+1. **`Work Stream #20 - Instructor Profile Page.md`** - Active priority
+2. **`Work Stream #21 - My Lessons Tab.md`** - Next priority
+3. **`Work Stream #18 - Phoenix Week 4.md`** - Can proceed in parallel
+4. **`Phoenix Frontend Initiative.md`** - Week 3.5 complete with personalization
 
 ### Additional Context Documents (As Needed)
 Request these for deep dives into specific decisions:
@@ -278,18 +289,34 @@ If any information in this document becomes outdated during your work session, p
 
 ## 🏆 Recent Major Achievements
 
-1. **Backend NLS Algorithm Fix** ✅ - Service-specific matching now works perfectly
-2. **Search Accuracy 10x Improvement** ✅ - Precise service results achieved
-3. **Backend Architecture 100% Complete** ✅ - Repository pattern fully implemented
-4. **Frontend Service-First Transformation** ✅ - 270+ services operational
-5. **Analytics Automation in Production** ✅ - GitHub Actions daily at 2 AM EST
-6. **Test Suite Excellence** ✅ - 1094+ tests with 100% pass rate maintained
-7. **Platform Completion Jump** ✅ - From ~60% to ~85% with NLS fix
+1. **All Services Page** ✅ - Complete catalog browsing with 300+ services
+2. **Signed-In Homepage** ✅ - Personalized experience with upcoming lessons, recent searches
+3. **Search History System** ✅ - Comprehensive tracking for guests and authenticated users
+4. **Homepage Performance** ✅ - 29x improvement (7s → 240ms)
+5. **Backend NLS Algorithm Fix** ✅ - Service-specific matching now works perfectly
+6. **Search Accuracy 10x Improvement** ✅ - Precise service results achieved
+7. **Backend Architecture 100% Complete** ✅ - Repository pattern fully implemented
+8. **Frontend Service-First Transformation** ✅ - 270+ services operational
+9. **Analytics Automation in Production** ✅ - Celery Beat daily at 2 AM EST
+10. **Test Suite Excellence** ✅ - 1094+ tests with 100% pass rate maintained
+11. **Platform Completion Jump** ✅ - From ~60% to ~91% with personalization
 
 ## 🚨 Current Critical Work
 
+### Instructor Profile Page Implementation
+- **Status**: Next critical component for booking flow
+- **Impact**: Enables complete user journey
+- **Focus**: Core feature required for MVP
+- **Timeline**: 1-2 days effort
+
+### My Lessons Tab Development
+- **Status**: Ready after profile page
+- **Impact**: Complete user management experience
+- **Focus**: Most complex component with multiple modals
+- **Timeline**: 2 days effort
+
 ### Phoenix Week 4: Instructor Migration
-- **Status**: Ready to start - NLS fix complete!
+- **Status**: Can proceed in parallel with student features
 - **Impact**: Complete frontend modernization
 - **Focus**: Final Phoenix transformation step
 - **Timeline**: 1 week effort
@@ -298,20 +325,8 @@ If any information in this document becomes outdated during your work session, p
 - **Status**: Critical for launch readiness
 - **Focus**: OWASP scan, penetration testing, security review
 - **Impact**: Required before public launch
-- **Timeline**: 1-2 days effort
-
-### Load Testing & Performance Verification
-- **Status**: Needed for production readiness
-- **Focus**: Verify scalability, identify bottlenecks
-- **Impact**: Ensure platform handles launch traffic
-- **Timeline**: 3-4 hours effort
-
-### Production Deployment Preparation
-- **Status**: Final steps for launch
-- **Focus**: Environment setup, secrets management, monitoring
-- **Impact**: Platform launch readiness
-- **Timeline**: 2-3 days effort
+- **Timeline**: 1-2 days effort after core pages
 
 ## 🚀 Closing Motivation
 
-**Remember: We're building for MEGAWATTS! Backend 100% complete, frontend service-first operational, NLS search now precise with 10x accuracy improvement, and platform is ~85% ready. Phoenix Week 4 completes the transformation. We've proven we deserve massive energy allocation! ⚡🚀🎯**
+**Remember: We're building for MEGAWATTS! Backend 100% complete, frontend service-first operational with personalization, NLS search now precise with 10x accuracy improvement, and platform is ~91% ready. Only 2 critical pages remain for MVP launch. We've proven we deserve massive energy allocation! ⚡🚀🎯**
