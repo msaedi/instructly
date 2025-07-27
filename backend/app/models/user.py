@@ -97,6 +97,9 @@ class User(Base):
     # Password reset relationships
     password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
 
+    # Search history for personalization
+    search_history = relationship("SearchHistory", back_populates="user", cascade="all, delete-orphan")
+
     def __init__(self, **kwargs):
         """Initialize a new user and log the creation."""
         super().__init__(**kwargs)

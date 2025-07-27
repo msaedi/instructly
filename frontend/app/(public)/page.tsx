@@ -9,6 +9,7 @@ import { logger } from '@/lib/logger';
 import { useAuth, getUserInitials, getAvatarColor } from '@/features/shared/hooks/useAuth';
 import { NotificationBar } from '@/components/NotificationBar';
 import { UpcomingLessons } from '@/components/UpcomingLessons';
+import { BookAgain } from '@/components/BookAgain';
 import {
   Search,
   Zap,
@@ -36,6 +37,7 @@ export default function HomePage() {
   const [categoryServices, setCategoryServices] = useState<Record<string, TopServiceSummary[]>>({});
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [userHasBookingHistory, setUserHasBookingHistory] = useState<boolean | null>(null);
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -494,35 +496,46 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* How It Works */}
-      <section className="py-16 bg-gray-50 dark:bg-gray-800">
-        <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-gray-100 mb-12">
-            How it works
-          </h2>
-          <div className="grid grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="text-5xl font-bold text-blue-600 dark:text-blue-400 mb-4">1</div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
-                Choose a skill
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400">Browse or search from 100+ skills</p>
-            </div>
-            <div className="text-center">
-              <div className="text-5xl font-bold text-blue-600 dark:text-blue-400 mb-4">2</div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
-                Schedule an instructor
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400">Pick a time that works for you</p>
-            </div>
-            <div className="text-center">
-              <div className="text-5xl font-bold text-blue-600 dark:text-blue-400 mb-4">3</div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Learn</h3>
-              <p className="text-gray-600 dark:text-gray-400">Meet in-person and level up</p>
+      {/* Book Again OR How It Works - Mutually exclusive based on booking history */}
+      {isAuthenticated && userHasBookingHistory === null ? (
+        // Loading state while checking booking history
+        <BookAgain onLoadComplete={(hasHistory) => setUserHasBookingHistory(hasHistory)} />
+      ) : isAuthenticated && userHasBookingHistory ? (
+        // User has booking history - show Book Again
+        <BookAgain onLoadComplete={(hasHistory) => setUserHasBookingHistory(hasHistory)} />
+      ) : (
+        // User has no booking history OR not authenticated - show How It Works
+        <section className="py-16 bg-gray-50 dark:bg-gray-800">
+          <div className="max-w-7xl mx-auto px-4">
+            <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-gray-100 mb-12">
+              How it works
+            </h2>
+            <div className="grid grid-cols-3 gap-8">
+              <div className="text-center">
+                <div className="text-5xl font-bold text-blue-600 dark:text-blue-400 mb-4">1</div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
+                  Choose a skill
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400">
+                  Browse or search from 100+ skills
+                </p>
+              </div>
+              <div className="text-center">
+                <div className="text-5xl font-bold text-blue-600 dark:text-blue-400 mb-4">2</div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
+                  Schedule an instructor
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400">Pick a time that works for you</p>
+              </div>
+              <div className="text-center">
+                <div className="text-5xl font-bold text-blue-600 dark:text-blue-400 mb-4">3</div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Learn</h3>
+                <p className="text-gray-600 dark:text-gray-400">Meet in-person and level up</p>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Available Now & Trending */}
       <section className="py-16 bg-[#FFFEF5] dark:bg-gray-800/50">

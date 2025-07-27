@@ -302,6 +302,10 @@ class DatabaseSeeder:
                 print("  ⚠️  No students found to create bookings")
                 return
 
+            # Exclude Emma Fresh from getting bookings (for testing "How It Works" section)
+            students = [s for s in students if s.email != "emma.fresh@example.com"]
+            print(f"  📝 Creating bookings for {len(students)} students (excluding emma.fresh@example.com)")
+
             booking_count = 0
 
             # For each instructor, create 1-3 bookings

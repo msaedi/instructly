@@ -18,3 +18,7 @@ students:
   - email: david.miller@example.com
     full_name: David Miller
     phone: "+12125551005"
+
+  - email: emma.fresh@example.com
+    full_name: Emma Fresh
+    phone: "+12125551006"
