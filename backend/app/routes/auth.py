@@ -13,14 +13,17 @@ from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
 
 from ..api.dependencies.services import get_auth_service
 from ..auth import create_access_token, get_current_user
 from ..core.config import settings
 from ..core.exceptions import ConflictException, NotFoundException
+from ..database import get_db
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
-from ..schemas import Token, UserCreate, UserResponse
+from ..schemas import Token, UserCreate, UserLogin, UserResponse
 from ..services.auth_service import AuthService
+from ..services.search_history_service import SearchHistoryService
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +40,7 @@ async def register(
     request: Request,  # Add this for rate limiting
     user: UserCreate,
     auth_service: AuthService = Depends(get_auth_service),
+    db: Session = Depends(get_db),
 ):
     """
     Register a new user.
@@ -44,8 +48,9 @@ async def register(
     Rate limited to prevent spam registrations.
 
     Args:
-        user: User creation data
+        user: User creation data (including optional guest_session_id)
         auth_service: Authentication service
+        db: Database session
 
     Returns:
         UserResponse: The created user
@@ -60,6 +65,19 @@ async def register(
             full_name=user.full_name,
             role=user.role,
         )
+
+        # Convert guest searches if guest_session_id provided
+        if user.guest_session_id:
+            try:
+                search_service = SearchHistoryService(db)
+                converted_count = await search_service.convert_guest_searches_to_user(
+                    guest_session_id=user.guest_session_id, user_id=db_user.id
+                )
+                logger.info(f"Converted {converted_count} guest searches for new user {db_user.id}")
+            except Exception as e:
+                logger.error(f"Failed to convert guest searches during registration: {str(e)}")
+                # Don't fail registration if conversion fails
+
         return db_user
     except ConflictException as e:
         raise HTTPException(
@@ -113,6 +131,68 @@ async def login(
         )
 
     # Create access token (HTTP concern - stays in route)
+    access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
+    access_token = create_access_token(
+        data={"sub": user.email},
+        expires_delta=access_token_expires,
+    )
+
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post("/login-with-session", response_model=Token)
+@rate_limit(
+    f"{settings.rate_limit_auth_per_minute}/minute",
+    key_type=RateLimitKeyType.IP,
+    error_message="Too many login attempts. Please try again later.",
+)
+async def login_with_session(
+    request: Request,
+    login_data: UserLogin,
+    auth_service: AuthService = Depends(get_auth_service),
+    db: Session = Depends(get_db),
+):
+    """
+    Login with email and password, optionally converting guest searches.
+
+    This endpoint supports guest session conversion.
+
+    Args:
+        login_data: Login credentials with optional guest_session_id
+        auth_service: Authentication service
+        db: Database session
+
+    Returns:
+        Token: Access token and token type
+
+    Raises:
+        HTTPException: If credentials are invalid or rate limit exceeded
+    """
+    user = auth_service.authenticate_user(
+        email=login_data.email,
+        password=login_data.password,
+    )
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Convert guest searches if guest_session_id provided
+    if login_data.guest_session_id:
+        try:
+            search_service = SearchHistoryService(db)
+            converted_count = await search_service.convert_guest_searches_to_user(
+                guest_session_id=login_data.guest_session_id, user_id=user.id
+            )
+            logger.info(f"Converted {converted_count} guest searches for user {user.id}")
+        except Exception as e:
+            logger.error(f"Failed to convert guest searches during login: {str(e)}")
+            # Don't fail login if conversion fails
+
+    # Create access token
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
     access_token = create_access_token(
         data={"sub": user.email},

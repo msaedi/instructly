@@ -20,11 +20,13 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    guest_session_id: Optional[str] = None  # For conversion on signup
 
 
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+    guest_session_id: Optional[str] = None  # For conversion on login
 
 
 class UserResponse(StandardizedModel):  # Changed from UserBase

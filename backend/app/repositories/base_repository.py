@@ -194,7 +194,15 @@ class BaseRepository(IRepository[T]):
         Note: Does NOT commit - transaction management is handled by service layer.
         """
         try:
+            # Handle special case for created_at if provided
+            created_at = kwargs.pop("created_at", None)
+
             entity = self.model(**kwargs)
+
+            # If created_at was provided, set it explicitly
+            if created_at and hasattr(entity, "created_at"):
+                entity.created_at = created_at
+
             self.db.add(entity)
             self.db.flush()  # Get ID without committing
             return entity

@@ -5,7 +5,7 @@ import React, { useState, useEffect, createContext, useContext, ReactNode } from
 import { useRouter } from 'next/navigation';
 import { API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
 import { logger } from '@/lib/logger';
-import { transferGuestSearchesToAccount } from '@/lib/searchTracking';
+import { transferGuestSearchesToAccount, getGuestSessionId } from '@/lib/searchTracking';
 
 export interface User {
   id: number;
@@ -97,33 +97,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/auth/login`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: new URLSearchParams({
+      // Get guest session ID if available
+      const guestSessionId = getGuestSessionId();
+
+      // Use new endpoint if we have a guest session, otherwise use regular login
+      const endpoint = guestSessionId
+        ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/auth/login-with-session`
+        : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/auth/login`;
+
+      const body = guestSessionId
+        ? JSON.stringify({
+            email,
+            password,
+            guest_session_id: guestSessionId,
+          })
+        : new URLSearchParams({
             username: email,
             password: password,
-          }),
-        }
-      );
+          });
+
+      const headers = guestSessionId
+        ? { 'Content-Type': 'application/json' }
+        : { 'Content-Type': 'application/x-www-form-urlencoded' };
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body,
+      });
 
       if (response.ok) {
         const data = await response.json();
         localStorage.setItem('access_token', data.access_token);
-        await checkAuth();
 
-        // Transfer guest searches to user account
-        try {
-          await transferGuestSearchesToAccount();
-          logger.info('Guest searches transferred after login');
-        } catch (error) {
-          // Don't fail login if transfer fails
-          logger.error('Failed to transfer guest searches', error as Error);
+        // Clear guest session after successful login with conversion
+        if (guestSessionId) {
+          sessionStorage.removeItem('guest_session_id');
+          logger.info('Guest session cleared after login conversion');
         }
+
+        await checkAuth();
 
         return true;
       } else {

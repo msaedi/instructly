@@ -24,6 +24,18 @@ from .base import BaseService
 
 logger = logging.getLogger(__name__)
 
+# Module-level model cache to avoid reloading on every request
+_model_cache = {}
+
+
+def get_cached_model(model_name: str = "all-MiniLM-L6-v2") -> SentenceTransformer:
+    """Get or create a cached sentence transformer model."""
+    if model_name not in _model_cache:
+        logger.info(f"Loading sentence transformer model: {model_name}")
+        _model_cache[model_name] = SentenceTransformer(model_name)
+        logger.info(f"Model {model_name} loaded successfully")
+    return _model_cache[model_name]
+
 
 class QueryParser:
     """Parse natural language queries to extract intent and constraints."""
@@ -251,19 +263,14 @@ class SearchService(BaseService):
 
         # Initialize components
         self.parser = QueryParser()
-        self.model = None  # Lazy load
         self._model_name = model_name
+        # Get cached model - loads once, reuses across requests
+        self.model = get_cached_model(model_name)
 
         # Initialize repositories
         self.catalog_repository = RepositoryFactory.create_service_catalog_repository(db)
         self.analytics_repository = RepositoryFactory.create_service_analytics_repository(db)
         self.instructor_repository = RepositoryFactory.create_instructor_profile_repository(db)
-
-    def _load_model(self):
-        """Lazy load the sentence transformer model."""
-        if self.model is None:
-            logger.info(f"Loading sentence transformer model: {self._model_name}")
-            self.model = SentenceTransformer(self._model_name)
 
     @BaseService.measure_operation("natural_language_search")
     def search(self, query: str, limit: int = 20, include_availability: bool = False) -> Dict:
@@ -284,11 +291,9 @@ class SearchService(BaseService):
 
         # Generate embedding for cleaned query
         if parsed["cleaned_query"]:
-            self._load_model()
             query_embedding = self.model.encode([parsed["cleaned_query"]])[0].tolist()
         else:
             # If no service query remains, use full query
-            self._load_model()
             query_embedding = self.model.encode([query])[0].tolist()
 
         # Search for services using semantic similarity

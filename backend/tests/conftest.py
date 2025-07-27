@@ -546,6 +546,15 @@ def auth_headers_instructor_2(test_instructor_2: User) -> dict:
 
 
 @pytest.fixture
+def auth_headers(test_student: User) -> dict:
+    """Get auth headers for test student (default auth headers)."""
+    from app.auth import create_access_token
+
+    token = create_access_token(data={"sub": test_student.email})
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
 def test_instructor_with_bookings(db: Session, test_instructor_with_availability: User, test_student: User) -> User:
     """
     Create a test instructor with services that have bookings.

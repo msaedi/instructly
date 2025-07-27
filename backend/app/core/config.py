@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
     cache_ttl: int = 3600  # 1 hour in seconds
 
+    # Search Analytics Configuration
+    guest_session_expiry_days: int = 30  # How long to keep guest sessions
+    soft_delete_retention_days: int = 90  # How long to keep soft-deleted searches
+    guest_session_purge_days: int = 90  # When to permanently delete guest sessions
+    search_history_max_per_user: int = 1000  # Maximum searches to keep per user (set to 0 to disable limit)
+    search_analytics_enabled: bool = True  # Enable/disable analytics tracking
+
     # Production database protection
     production_database_indicators: list[str] = [
         "supabase.com",

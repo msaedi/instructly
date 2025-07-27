@@ -323,7 +323,8 @@ export const publicApi = {
   },
 
   /**
-   * Get recent search history
+   * Get recent search history (unified for authenticated and guest users)
+   * For guests, pass X-Guest-Session-ID header
    */
   async getRecentSearches(limit: number = 3) {
     return authFetch<
@@ -340,7 +341,8 @@ export const publicApi = {
   },
 
   /**
-   * Delete a search from history
+   * Delete a search from history (unified for authenticated and guest users)
+   * For guests, pass X-Guest-Session-ID header
    */
   async deleteSearchHistory(searchId: number) {
     return authFetch<void>(`/api/search-history/${searchId}`, {
@@ -349,7 +351,8 @@ export const publicApi = {
   },
 
   /**
-   * Record a search to history
+   * Record a search to history (unified for authenticated and guest users)
+   * For guests, pass X-Guest-Session-ID header
    */
   async recordSearchHistory(data: {
     search_query: string;
@@ -365,6 +368,55 @@ export const publicApi = {
     }>('/api/search-history/', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+
+  // Legacy methods for backward compatibility - can be removed once all components are updated
+  /**
+   * @deprecated Use recordSearchHistory with appropriate headers instead
+   */
+  async recordGuestSearchHistory(data: {
+    guest_session_id: string;
+    search_query: string;
+    search_type: string;
+    results_count?: number | null;
+  }) {
+    return cleanFetch<{
+      id: number;
+      search_query: string;
+      search_type: string;
+      results_count: number | null;
+      created_at: string;
+      guest_session_id: string;
+    }>('/api/search-history/guest', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * @deprecated Use getRecentSearches with appropriate headers instead
+   */
+  async getGuestRecentSearches(guestSessionId: string, limit: number = 3) {
+    return cleanFetch<
+      Array<{
+        id: number;
+        search_query: string;
+        search_type: string;
+        results_count: number | null;
+        created_at: string;
+      }>
+    >('/api/search-history/guest/' + guestSessionId, {
+      params: { limit },
+    });
+  },
+
+  /**
+   * @deprecated Use deleteSearchHistory with appropriate headers instead
+   */
+  async deleteGuestSearchHistory(guestSessionId: string, searchId: number) {
+    return cleanFetch<void>(`/api/search-history/guest/${guestSessionId}/${searchId}`, {
+      method: 'DELETE',
     });
   },
 

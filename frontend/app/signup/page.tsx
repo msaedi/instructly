@@ -19,6 +19,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import { API_URL, API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
 import { BRAND } from '@/app/config/brand';
 import { logger } from '@/lib/logger';
+import { getGuestSessionId } from '@/lib/searchTracking';
 
 // Import centralized types
 import type { RegisterRequest, AuthResponse, UserData } from '@/types/user';
@@ -149,12 +150,16 @@ function SignUpForm() {
     let response: Response | undefined;
 
     try {
+      // Get guest session ID if available
+      const guestSessionId = getGuestSessionId();
+
       // Prepare registration data
-      const registrationData: RegisterRequest = {
+      const registrationData: RegisterRequest & { guest_session_id?: string } = {
         full_name: formData.fullName.trim(),
         email: formData.email.trim().toLowerCase(),
         password: formData.password,
         role: UserRole.STUDENT,
+        ...(guestSessionId && { guest_session_id: guestSessionId }),
       };
 
       logger.info('Attempting user registration', {
@@ -226,14 +231,31 @@ function SignUpForm() {
       logger.info('Registration successful, attempting auto-login');
 
       // Auto-login after successful registration
+      // Use new endpoint if we have a guest session (already converted during registration)
       logger.time('auto-login');
-      const loginResponse = await fetch(`${API_URL}${API_ENDPOINTS.LOGIN}`, {
+      const loginEndpoint = guestSessionId
+        ? `${API_URL}/auth/login-with-session`
+        : `${API_URL}${API_ENDPOINTS.LOGIN}`;
+
+      const loginBody = guestSessionId
+        ? JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+            guest_session_id: guestSessionId,
+          })
+        : new URLSearchParams({
+            username: formData.email,
+            password: formData.password,
+          });
+
+      const loginHeaders = guestSessionId
+        ? { 'Content-Type': 'application/json' }
+        : { 'Content-Type': 'application/x-www-form-urlencoded' };
+
+      const loginResponse = await fetch(loginEndpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          username: formData.email,
-          password: formData.password,
-        }),
+        headers: loginHeaders,
+        body: loginBody,
       });
       logger.timeEnd('auto-login');
 
@@ -248,6 +270,13 @@ function SignUpForm() {
 
       const authData: AuthResponse = await loginResponse.json();
       localStorage.setItem('access_token', authData.access_token);
+
+      // Clear guest session after successful registration and login
+      if (guestSessionId) {
+        sessionStorage.removeItem('guest_session_id');
+        logger.info('Guest session cleared after registration');
+      }
+
       logger.info('Auto-login successful, fetching user data');
 
       // Fetch user data to determine redirect

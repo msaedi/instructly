@@ -98,7 +98,10 @@ class User(Base):
     password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
 
     # Search history for personalization
-    search_history = relationship("SearchHistory", back_populates="user", cascade="all, delete-orphan")
+    # Specify foreign_keys to resolve ambiguity with converted_to_user_id
+    search_history = relationship(
+        "SearchHistory", foreign_keys="SearchHistory.user_id", back_populates="user", cascade="all, delete-orphan"
+    )
 
     def __init__(self, **kwargs):
         """Initialize a new user and log the creation."""

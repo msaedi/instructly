@@ -104,7 +104,7 @@ def upgrade() -> None:
     op.create_table(
         "search_history",
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("user_id", sa.Integer(), nullable=True),  # Now nullable for guest searches
         sa.Column("search_query", sa.Text(), nullable=False),
         sa.Column(
             "search_type",
@@ -116,16 +116,27 @@ def upgrade() -> None:
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
-            server_default=sa.func.now(),
+            server_default=sa.func.timezone("UTC", sa.func.now()),
             nullable=False,
         ),
+        # Soft delete support
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        # Guest session tracking
+        sa.Column("guest_session_id", sa.String(36), nullable=True),  # UUID as string
+        sa.Column("converted_to_user_id", sa.Integer(), nullable=True),
+        sa.Column("converted_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(
             ["user_id"],
             ["users.id"],
             ondelete="CASCADE",
         ),
+        sa.ForeignKeyConstraint(
+            ["converted_to_user_id"],
+            ["users.id"],
+            ondelete="SET NULL",
+        ),
         sa.PrimaryKeyConstraint("id"),
-        comment="Tracks user search history for personalization",
+        comment="Tracks user search history for personalization with analytics support",
     )
 
     # Create indexes for search_history
@@ -138,11 +149,34 @@ def upgrade() -> None:
         postgresql_ops={"created_at": "DESC"},
     )
 
-    # Add unique constraint to prevent duplicate searches
-    op.create_unique_constraint(
-        "uq_search_history_user_query",
+    # Add indexes for analytics
+    op.create_index(
+        "idx_search_history_deleted",
         "search_history",
-        ["user_id", "search_query"],
+        ["deleted_at"],
+        unique=False,
+    )
+
+    op.create_index(
+        "idx_search_history_guest_session",
+        "search_history",
+        ["guest_session_id"],
+        unique=False,
+    )
+
+    op.create_index(
+        "idx_search_history_conversion",
+        "search_history",
+        ["converted_to_user_id", "converted_at"],
+        unique=False,
+    )
+
+    # Add unique constraint to prevent duplicate searches
+    # Modified to include guest_session_id for uniqueness
+    op.create_unique_constraint(
+        "uq_search_history_user_guest_query",
+        "search_history",
+        ["user_id", "guest_session_id", "search_query"],
     )
 
     # Add check constraint for search_type values
@@ -150,6 +184,13 @@ def upgrade() -> None:
         "ck_search_history_type",
         "search_history",
         "search_type IN ('natural_language', 'category', 'service_pill', 'filter')",
+    )
+
+    # Add check constraint to ensure either user_id OR guest_session_id is present
+    op.create_check_constraint(
+        "ck_search_history_user_or_guest",
+        "search_history",
+        "(user_id IS NOT NULL) OR (guest_session_id IS NOT NULL)",
     )
 
     print("Initial schema created successfully!")

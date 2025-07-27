@@ -7,7 +7,13 @@ import { Search, X, TrendingUp, Clock } from 'lucide-react';
 import { publicApi } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
-import { getGuestSearches, recordSearch, type SearchRecord } from '@/lib/searchTracking';
+import {
+  getGuestSearches,
+  getRecentSearches,
+  deleteSearch,
+  getGuestSessionId,
+  type SearchRecord,
+} from '@/lib/searchTracking';
 
 interface SearchHistoryItem {
   id: number;
@@ -67,17 +73,11 @@ export function RecentSearches() {
     }
   }, [isAuthenticated]);
 
-  const loadGuestSearches = () => {
+  const loadGuestSearches = async () => {
     try {
-      const guestSearches = getGuestSearches();
-      // Convert guest searches to display format with temporary IDs
-      const displaySearches: DisplaySearchItem[] = guestSearches.map((search, index) => ({
-        ...search,
-        id: `guest-${index}`,
-        search_query: search.query,
-        created_at: search.timestamp || new Date().toISOString(),
-      }));
-      setSearches(displaySearches.slice(0, 3)); // Show only 3 most recent
+      // Use unified function to get recent searches
+      const recentSearches = await getRecentSearches(false, 3);
+      setSearches(recentSearches);
     } catch (err) {
       logger.error('Error loading guest searches', err as Error);
     } finally {
@@ -87,17 +87,9 @@ export function RecentSearches() {
 
   const fetchRecentSearches = async () => {
     try {
-      const response = await publicApi.getRecentSearches();
-
-      if (response.error) {
-        logger.error('Failed to fetch recent searches', new Error(response.error));
-        setError('Failed to load recent searches');
-        return;
-      }
-
-      if (response.data) {
-        setSearches(response.data);
-      }
+      // Use unified function to get recent searches
+      const recentSearches = await getRecentSearches(true, 3);
+      setSearches(recentSearches);
     } catch (err) {
       logger.error('Error fetching recent searches', err as Error);
       setError('Failed to load recent searches');
@@ -108,8 +100,23 @@ export function RecentSearches() {
 
   const handleDeleteSearch = async (searchId: number | string) => {
     try {
-      if (typeof searchId === 'string' && searchId.startsWith('guest-')) {
-        // Delete from sessionStorage for guest searches
+      if (typeof searchId === 'number') {
+        // Optimistically remove from local state FIRST
+        setSearches((prev) => prev.filter((s) => s.id !== searchId));
+
+        // Use unified delete function
+        const success = await deleteSearch(searchId, isAuthenticated);
+
+        if (!success) {
+          // On error, refresh to restore the correct state
+          if (isAuthenticated) {
+            fetchRecentSearches();
+          } else {
+            loadGuestSearches();
+          }
+        }
+      } else if (typeof searchId === 'string' && searchId.startsWith('guest-')) {
+        // Fallback: Delete from sessionStorage for legacy guest searches
         const guestSearches = getGuestSearches();
         const index = parseInt(searchId.replace('guest-', ''));
         guestSearches.splice(index, 1);
@@ -117,22 +124,7 @@ export function RecentSearches() {
 
         // Reload guest searches
         loadGuestSearches();
-        logger.info('Guest search deleted successfully', { searchId });
-      } else if (typeof searchId === 'number') {
-        // Optimistically remove from local state FIRST
-        setSearches((prev) => prev.filter((s) => s.id !== searchId));
-
-        // Then delete from database
-        const response = await publicApi.deleteSearchHistory(searchId);
-
-        if (response.error) {
-          logger.error('Failed to delete search', new Error(response.error));
-          // On error, refresh to restore the correct state
-          fetchRecentSearches();
-          return;
-        }
-
-        logger.info('Search deleted successfully', { searchId });
+        logger.info('Guest search deleted from sessionStorage', { searchId });
       }
     } catch (err) {
       logger.error('Error deleting search', err as Error);

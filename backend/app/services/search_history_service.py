@@ -2,20 +2,20 @@
 """
 Search History Service for tracking and retrieving user searches.
 
-Handles:
-- Recording new searches with deduplication
-- Retrieving recent searches
-- Maintaining search history limits per user
+Unified implementation that handles both authenticated and guest users
+without code duplication.
 """
 
 import logging
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
+from ..core.config import settings
 from ..models.search_history import SearchHistory
+from ..repositories.search_history_repository import SearchHistoryRepository
+from ..schemas.search_context import SearchUserContext
 from .base import BaseService
 
 logger = logging.getLogger(__name__)
@@ -23,27 +23,31 @@ logger = logging.getLogger(__name__)
 
 class SearchHistoryService(BaseService):
     """
-    Service for managing user search history.
+    Service for managing search history.
 
-    Tracks searches, handles deduplication, and maintains
-    a rolling window of recent searches per user.
+    Unified implementation that works for both authenticated and guest users.
     """
-
-    MAX_SEARCHES_PER_USER = 10  # Maximum number of searches to keep per user
 
     def __init__(self, db: Session):
         """Initialize the search history service."""
         super().__init__(db)
+        self.repository = SearchHistoryRepository(db)
 
     @BaseService.measure_operation("record_search")
     async def record_search(
-        self, user_id: int, query: str, search_type: str = "natural_language", results_count: Optional[int] = None
+        self,
+        user_id: Optional[int] = None,
+        guest_session_id: Optional[str] = None,
+        query: str = None,
+        search_type: str = "natural_language",
+        results_count: Optional[int] = None,
     ) -> SearchHistory:
         """
-        Record a user search, updating timestamp if it already exists.
+        Record a search for any user type (authenticated or guest).
 
         Args:
-            user_id: ID of the user performing the search
+            user_id: ID of authenticated user (if applicable)
+            guest_session_id: Guest session UUID (if applicable)
             query: The search query string
             search_type: Type of search ('natural_language', 'category', 'filter')
             results_count: Number of results returned (optional)
@@ -51,12 +55,18 @@ class SearchHistoryService(BaseService):
         Returns:
             The created or updated SearchHistory record
         """
+        # Create context
+        if user_id:
+            context = SearchUserContext.from_user(user_id)
+        elif guest_session_id:
+            context = SearchUserContext.from_guest(guest_session_id)
+        else:
+            raise ValueError("Must provide either user_id or guest_session_id")
+
         try:
-            # Check if this exact query already exists for the user
-            existing = (
-                self.db.query(SearchHistory)
-                .filter(SearchHistory.user_id == user_id, SearchHistory.search_query == query)
-                .first()
+            # Check if this exact query already exists (excluding soft-deleted)
+            existing = self.repository.find_existing_search(
+                user_id=user_id, guest_session_id=guest_session_id, query=query
             )
 
             if existing:
@@ -66,22 +76,24 @@ class SearchHistoryService(BaseService):
                 self.db.commit()
                 self.db.refresh(existing)
 
-                logger.info(f"Updated existing search history for user {user_id}: {query}")
+                logger.info(f"Updated existing search history for {context.identifier}: {query}")
                 return existing
 
             # Create new search history entry
-            search_history = SearchHistory(
-                user_id=user_id, search_query=query, search_type=search_type, results_count=results_count
+            search_history = self.repository.create(
+                user_id=user_id,
+                guest_session_id=guest_session_id,
+                search_query=query,
+                search_type=search_type,
+                results_count=results_count,
             )
-
-            self.db.add(search_history)
             self.db.commit()
             self.db.refresh(search_history)
 
-            logger.info(f"Created new search history for user {user_id}: {query}")
+            logger.info(f"Created new search history for {context.identifier}: {query}")
 
-            # Maintain limit per user
-            await self._enforce_search_limit(user_id)
+            # Maintain limit per user/guest
+            await self._enforce_search_limit(context)
 
             return search_history
 
@@ -91,81 +103,176 @@ class SearchHistoryService(BaseService):
             raise
 
     @BaseService.measure_operation("get_recent_searches")
-    def get_recent_searches(self, user_id: int, limit: int = 3) -> List[SearchHistory]:
+    def get_recent_searches(
+        self, user_id: Optional[int] = None, guest_session_id: Optional[str] = None, limit: int = 3
+    ) -> List[SearchHistory]:
         """
-        Get the most recent unique searches for a user.
+        Get recent searches for any user type.
+
+        Excludes category searches as they are not actual searches but navigation.
 
         Args:
-            user_id: ID of the user
+            user_id: ID of authenticated user (if applicable)
+            guest_session_id: Guest session UUID (if applicable)
             limit: Maximum number of searches to return
 
         Returns:
-            List of recent SearchHistory records
+            List of recent SearchHistory records (excluding categories)
         """
-        searches = (
-            self.db.query(SearchHistory)
-            .filter(SearchHistory.user_id == user_id)
-            .order_by(desc(SearchHistory.created_at))
-            .limit(limit)
-            .all()
+        # Get more searches than limit to account for filtered categories
+        searches = self.repository.get_recent_searches(
+            user_id=user_id,
+            guest_session_id=guest_session_id,
+            limit=limit * 2,  # Get extra to ensure we have enough after filtering
         )
 
-        logger.debug(f"Retrieved {len(searches)} recent searches for user {user_id}")
-        return searches
+        # Filter out category searches
+        filtered_searches = [s for s in searches if s.search_type != "category"]
+
+        # Return only the requested limit
+        result = filtered_searches[:limit]
+
+        # Create context for logging
+        if user_id:
+            identifier = f"user_{user_id}"
+        elif guest_session_id:
+            identifier = f"guest_{guest_session_id}"
+        else:
+            identifier = "unknown"
+
+        logger.debug(
+            f"Retrieved {len(result)} recent searches for {identifier} "
+            f"(filtered {len(searches) - len(filtered_searches)} categories)"
+        )
+        return result
 
     @BaseService.measure_operation("delete_search")
-    def delete_search(self, user_id: int, search_id: int) -> bool:
+    def delete_search(
+        self, user_id: Optional[int] = None, guest_session_id: Optional[str] = None, search_id: int = None
+    ) -> bool:
         """
-        Delete a specific search history entry.
+        Soft delete a search for any user type.
 
         Args:
-            user_id: ID of the user (for authorization)
+            user_id: ID of authenticated user (if applicable)
+            guest_session_id: Guest session UUID (if applicable)
             search_id: ID of the search history entry
 
         Returns:
             True if deleted, False if not found or unauthorized
         """
-        search = (
-            self.db.query(SearchHistory).filter(SearchHistory.id == search_id, SearchHistory.user_id == user_id).first()
-        )
-
-        if not search:
-            logger.warning(f"Search history {search_id} not found for user {user_id}")
+        if not search_id:
             return False
 
-        self.db.delete(search)
-        self.db.commit()
+        if user_id:
+            deleted = self.repository.soft_delete_by_id(search_id=search_id, user_id=user_id)
+            identifier = f"user_{user_id}"
+        elif guest_session_id:
+            deleted = self.repository.soft_delete_guest_search(search_id=search_id, guest_session_id=guest_session_id)
+            identifier = f"guest_{guest_session_id}"
+        else:
+            return False
 
-        logger.info(f"Deleted search history {search_id} for user {user_id}")
-        return True
+        if deleted:
+            self.db.commit()
+            logger.info(f"Soft deleted search history {search_id} for {identifier}")
+        else:
+            logger.warning(f"Search history {search_id} not found or already deleted for {identifier}")
 
-    async def _enforce_search_limit(self, user_id: int) -> None:
+        return deleted
+
+    async def _enforce_search_limit(self, context: SearchUserContext) -> None:
         """
-        Enforce the maximum number of searches per user.
+        Enforce the maximum number of searches per user/guest.
 
         Deletes oldest searches if limit is exceeded.
-        """
-        # Count current searches
-        search_count = self.db.query(func.count(SearchHistory.id)).filter(SearchHistory.user_id == user_id).scalar()
+        If limit is 0, no limit is enforced.
 
-        if search_count > self.MAX_SEARCHES_PER_USER:
-            # Get IDs of searches to keep (most recent)
-            keep_searches = (
-                self.db.query(SearchHistory.id)
-                .filter(SearchHistory.user_id == user_id)
-                .order_by(desc(SearchHistory.created_at))
-                .limit(self.MAX_SEARCHES_PER_USER)
-                .subquery()
+        Args:
+            context: User context (authenticated or guest)
+        """
+        # Skip if limit is disabled
+        if settings.search_history_max_per_user == 0:
+            return
+
+        # Count current searches (excluding soft-deleted)
+        search_count = self.repository.count_searches(
+            user_id=context.user_id, guest_session_id=context.guest_session_id
+        )
+
+        if search_count > settings.search_history_max_per_user:
+            # Get IDs of searches to keep (most recent, excluding soft-deleted)
+            keep_searches = self.repository.get_searches_to_delete(
+                user_id=context.user_id,
+                guest_session_id=context.guest_session_id,
+                keep_count=settings.search_history_max_per_user,
             )
 
-            # Delete searches not in the keep list
-            deleted = (
-                self.db.query(SearchHistory)
-                .filter(SearchHistory.user_id == user_id, ~SearchHistory.id.in_(keep_searches))
-                .delete(synchronize_session=False)
+            # Soft delete searches not in the keep list
+            deleted = self.repository.soft_delete_old_searches(
+                user_id=context.user_id, guest_session_id=context.guest_session_id, keep_ids_subquery=keep_searches
             )
 
             self.db.commit()
 
             if deleted > 0:
-                logger.info(f"Deleted {deleted} old searches for user {user_id} to maintain limit")
+                logger.info(f"Deleted {deleted} old searches for {context.identifier} to maintain limit")
+
+    # Guest-to-user conversion (remains as specific operation)
+    @BaseService.measure_operation("convert_guest_searches_to_user")
+    async def convert_guest_searches_to_user(self, guest_session_id: str, user_id: int) -> int:
+        """
+        Convert guest searches to user searches when a guest logs in or signs up.
+
+        This is called when a guest logs in or signs up. It:
+        1. Transfers ALL guest searches (including deleted) to the user account
+        2. Marks guest searches as converted to prevent double-counting
+        3. Preserves original timestamps and deleted status
+
+        Args:
+            guest_session_id: Guest session UUID
+            user_id: User ID to convert searches to
+
+        Returns:
+            Number of searches converted
+        """
+        try:
+            # Get all non-converted guest searches (including deleted ones)
+            guest_searches = self.repository.get_guest_searches_for_conversion(guest_session_id)
+            converted_count = 0
+
+            for search in guest_searches:
+                # Check if user already has this exact search
+                # We don't check timestamp to avoid duplicates of same query
+                existing = self.repository.find_existing_search(user_id=user_id, query=search.search_query)
+
+                if not existing:
+                    # Create new search entry for user, preserving timestamp and deleted status
+                    self.repository.create(
+                        user_id=user_id,
+                        search_query=search.search_query,
+                        search_type=search.search_type,
+                        results_count=search.results_count,
+                        created_at=search.created_at,  # Preserve original timestamp
+                        deleted_at=search.deleted_at,  # Preserve deleted status
+                    )
+                    converted_count += 1
+
+            # Mark all guest searches as converted (even if not copied to avoid re-processing)
+            marked_count = self.repository.mark_searches_as_converted(
+                guest_session_id=guest_session_id, user_id=user_id
+            )
+
+            self.db.commit()
+
+            logger.info(
+                f"Converted {converted_count} guest searches to user {user_id}, " f"marked {marked_count} as converted"
+            )
+
+            return converted_count
+
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Failed to convert guest searches: {str(e)}")
+            # Don't fail auth if conversion fails
+            return 0

@@ -86,6 +86,16 @@ CELERYBEAT_SCHEDULE = {
     #     },
     #     "description": "Generate comprehensive monthly platform analytics",
     # },
+    # Search history cleanup - runs daily at 3 AM
+    "cleanup-search-history": {
+        "task": "cleanup_search_history",
+        "schedule": crontab(hour=3, minute=0),  # Daily at 3 AM
+        "options": {
+            "queue": "maintenance",
+            "priority": 2,
+        },
+        "description": "Clean up old soft-deleted searches and expired guest sessions",
+    },
     # Cleanup old data - runs daily at 3 AM
     # "cleanup-old-notifications": {
     #     "task": "app.tasks.cleanup.cleanup_old_notifications",
