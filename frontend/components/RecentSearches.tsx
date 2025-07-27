@@ -156,7 +156,9 @@ export function RecentSearches() {
 
         <div className="grid gap-4 md:grid-cols-3">
           {searches.map((search) => {
-            const encodedQuery = encodeURIComponent(search.search_query);
+            // Handle both SearchHistoryItem (has search_query) and SearchRecord (has query)
+            const searchQuery = 'search_query' in search ? search.search_query : search.query;
+            const encodedQuery = encodeURIComponent(searchQuery);
 
             return (
               <div
@@ -178,7 +180,7 @@ export function RecentSearches() {
                       <div className="flex items-center mb-1">
                         <Search className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />
                         <p className="text-gray-900 dark:text-gray-100 font-medium line-clamp-1">
-                          {search.search_query}
+                          {searchQuery}
                         </p>
                       </div>
                       {search.results_count !== null && (
