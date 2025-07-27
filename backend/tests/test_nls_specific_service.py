@@ -63,6 +63,7 @@ class TestNLSSpecificServiceMatching:
 
             piano_service = ServiceCatalog(
                 name="Piano",
+                slug="piano",
                 category_id=music_category.id,
                 description="Piano lessons",
                 search_terms=["piano", "keyboard", "keys"],
@@ -91,6 +92,7 @@ class TestNLSSpecificServiceMatching:
 
             guitar_service = ServiceCatalog(
                 name="Guitar",
+                slug="guitar",
                 category_id=music_category.id,
                 description="Guitar lessons",
                 search_terms=["guitar", "acoustic guitar", "electric guitar"],

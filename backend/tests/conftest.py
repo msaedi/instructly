@@ -164,6 +164,51 @@ except Exception as e:
 TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
 
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+
+def _ensure_catalog_data():
+    """Ensure catalog data is seeded for tests."""
+    # Import here to avoid circular imports
+    from scripts.seed_catalog_only import seed_catalog
+
+    # Create a separate session to check
+    session = TestSessionLocal()
+    try:
+        # Check if catalog already exists
+        existing_categories = session.query(ServiceCategory).count()
+        existing_services = session.query(ServiceCatalog).count()
+
+        if existing_categories == 0 or existing_services == 0:
+            print("\n🌱 Seeding catalog data for tests...")
+            # Close session before seeding (seed_catalog creates its own)
+            session.close()
+
+            # Seed using the test database URL
+            seed_catalog(db_url=TEST_DATABASE_URL, verbose=False)
+
+            # Verify seeding worked
+            session = TestSessionLocal()
+            categories_count = session.query(ServiceCategory).count()
+            services_count = session.query(ServiceCatalog).count()
+
+            # Verify critical services exist
+            piano = session.query(ServiceCatalog).filter_by(slug="piano").first()
+            guitar = session.query(ServiceCatalog).filter_by(slug="guitar").first()
+
+            if not piano or not guitar:
+                raise RuntimeError("Critical catalog services (piano, guitar) not found after seeding")
+
+            print(f"✅ Seeded {categories_count} categories and {services_count} services")
+    except Exception as e:
+        print(f"\n❌ Error seeding catalog data: {e}")
+        raise
+    finally:
+        session.close()
+
+
 @pytest.fixture
 def client(db: Session):
     """Create a test client with the test database."""
@@ -201,6 +246,9 @@ def db():
     # Create tables
     Base.metadata.create_all(bind=test_engine)
 
+    # Seed catalog data if needed
+    _ensure_catalog_data()
+
     # Create a fresh session
     session = TestSessionLocal()
 
@@ -224,13 +272,25 @@ def db():
         cleanup_db.query(Service).delete()  # This is InstructorService
 
         # Clean up service catalog test data
-        # Only delete services created during tests (ID > 47 or test patterns)
+        # Only delete services with test patterns - preserve all seeded catalog data
         from app.models.service_catalog import ServiceAnalytics
 
-        cleanup_db.query(ServiceAnalytics).filter(ServiceAnalytics.service_catalog_id > 47).delete()
+        # Don't delete by ID anymore - we have 250+ services
+        # Only delete services that match test patterns
         cleanup_db.query(ServiceCatalog).filter(
-            (ServiceCatalog.id > 47) | (ServiceCatalog.name.like("Service %")) | (ServiceCatalog.name.like("%Test%"))
+            (ServiceCatalog.name.like("Test%"))
+            | (ServiceCatalog.name.like("%Test Service%"))
+            | (ServiceCatalog.slug.like("test-%"))
         ).delete()
+
+        # Clean up analytics for deleted services
+        from sqlalchemy import select
+
+        # Create explicit select() to avoid SQLAlchemy warning
+        existing_catalog_ids = select(ServiceCatalog.id)
+        cleanup_db.query(ServiceAnalytics).filter(
+            ~ServiceAnalytics.service_catalog_id.in_(existing_catalog_ids)
+        ).delete(synchronize_session=False)
 
         cleanup_db.query(InstructorProfile).delete()
         cleanup_db.query(User).delete()
@@ -770,9 +830,7 @@ def sample_catalog_services(db: Session, sample_categories: list[ServiceCategory
 
 
 @pytest.fixture
-def sample_instructors_with_services(
-    db: Session, sample_catalog_services: list[ServiceCatalog], test_password: str
-) -> list[User]:
+def sample_instructors_with_services(db: Session, test_password: str) -> list[User]:
     """Create sample instructors with services linked to catalog."""
     from app.models.service_catalog import ServiceAnalytics
 
@@ -795,9 +853,14 @@ def sample_instructors_with_services(
     db.add(piano_profile)
     db.commit()
 
+    # Find piano service from catalog
+    piano_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "piano").first()
+    if not piano_catalog:
+        raise RuntimeError("Piano service not found in catalog")
+
     piano_service = Service(
         instructor_profile_id=piano_profile.id,
-        service_catalog_id=101,  # Piano Lessons
+        service_catalog_id=piano_catalog.id,
         description="Expert piano instruction",
         hourly_rate=75.0,
         duration_options=[30, 60, 90],
@@ -806,10 +869,10 @@ def sample_instructors_with_services(
     db.add(piano_service)
     db.commit()  # Commit to ensure service is created
 
-    # Update analytics for Piano Lessons
-    piano_analytics = db.query(ServiceAnalytics).filter(ServiceAnalytics.service_catalog_id == 101).first()
+    # Update analytics for Piano
+    piano_analytics = db.query(ServiceAnalytics).filter(ServiceAnalytics.service_catalog_id == piano_catalog.id).first()
     if not piano_analytics:
-        piano_analytics = ServiceAnalytics(service_catalog_id=101)
+        piano_analytics = ServiceAnalytics(service_catalog_id=piano_catalog.id)
         db.add(piano_analytics)
     piano_analytics.active_instructors = 1
     piano_analytics.search_count_30d = 100  # This will result in demand_score ~= 85
@@ -835,9 +898,14 @@ def sample_instructors_with_services(
     db.add(yoga_profile)
     db.commit()
 
+    # Find yoga service from catalog
+    yoga_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "yoga").first()
+    if not yoga_catalog:
+        raise RuntimeError("Yoga service not found in catalog")
+
     yoga_service = Service(
         instructor_profile_id=yoga_profile.id,
-        service_catalog_id=201,  # Yoga
+        service_catalog_id=yoga_catalog.id,
         description="Professional yoga instruction",
         hourly_rate=60.0,
         duration_options=[60, 90],
@@ -847,9 +915,9 @@ def sample_instructors_with_services(
     db.commit()  # Commit to ensure service is created
 
     # Update analytics for Yoga
-    yoga_analytics = db.query(ServiceAnalytics).filter(ServiceAnalytics.service_catalog_id == 201).first()
+    yoga_analytics = db.query(ServiceAnalytics).filter(ServiceAnalytics.service_catalog_id == yoga_catalog.id).first()
     if not yoga_analytics:
-        yoga_analytics = ServiceAnalytics(service_catalog_id=201)
+        yoga_analytics = ServiceAnalytics(service_catalog_id=yoga_catalog.id)
         db.add(yoga_analytics)
     yoga_analytics.active_instructors = 1
     yoga_analytics.search_count_30d = 120  # This will result in higher demand_score

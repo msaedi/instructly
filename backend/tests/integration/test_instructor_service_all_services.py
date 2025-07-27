@@ -57,7 +57,7 @@ class TestInstructorServiceAllServices:
         assert len(music_cat["services"]) >= 1  # At least Piano
 
         # Check Piano service has instructor
-        piano_service = next((s for s in music_cat["services"] if s["slug"] == "piano-lessons"), None)
+        piano_service = next((s for s in music_cat["services"] if s["slug"] == "piano"), None)
         assert piano_service is not None
         assert piano_service["active_instructors"] >= 1
         assert piano_service["instructor_count"] >= 1
