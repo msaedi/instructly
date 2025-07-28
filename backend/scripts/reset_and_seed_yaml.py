@@ -92,7 +92,12 @@ class DatabaseSeeder:
             session.execute(text("ALTER SEQUENCE service_catalog_id_seq RESTART WITH 1"))
             session.execute(text("ALTER SEQUENCE service_categories_id_seq RESTART WITH 1"))
 
-            # 3. Clean instructor profiles and users
+            # 3. Clean search history
+            print("  - Cleaning search history...")
+            result = session.execute(text("DELETE FROM search_history"))
+            print(f"    Deleted {result.rowcount} search history entries")
+
+            # 4. Clean instructor profiles and users
             session.execute(
                 text(
                     "DELETE FROM instructor_profiles WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@example.com')"
@@ -101,7 +106,7 @@ class DatabaseSeeder:
             session.execute(text("DELETE FROM users WHERE email LIKE '%@example.com'"))
 
             session.commit()
-            print("✅ Cleaned all test data and service catalog from database")
+            print("✅ Cleaned all test data, search history, and service catalog from database")
 
     def seed_all(self):
         """Main seeding function"""

@@ -5,7 +5,11 @@ import React, { useState, useEffect, createContext, useContext, ReactNode } from
 import { useRouter } from 'next/navigation';
 import { API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
 import { logger } from '@/lib/logger';
-import { transferGuestSearchesToAccount, getGuestSessionId } from '@/lib/searchTracking';
+import {
+  transferGuestSearchesToAccount,
+  getGuestSessionId,
+  clearGuestSession,
+} from '@/lib/searchTracking';
 
 export interface User {
   id: number;
@@ -130,10 +134,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const data = await response.json();
         localStorage.setItem('access_token', data.access_token);
 
-        // Clear guest session after successful login with conversion
+        // Transfer guest searches to user account (backend handles this automatically)
         if (guestSessionId) {
-          sessionStorage.removeItem('guest_session_id');
-          logger.info('Guest session cleared after login conversion');
+          await transferGuestSearchesToAccount();
+          logger.info('Guest search transfer completed after login');
         }
 
         await checkAuth();
@@ -154,8 +158,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    // Clear auth token
     localStorage.removeItem('access_token');
     setUser(null);
+
+    // Handle guest session based on user preference
+    clearGuestSession(); // This respects the user's clearDataOnLogout preference
+
     router.push('/');
     logger.info('User logged out');
   };

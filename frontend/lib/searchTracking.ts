@@ -18,23 +18,55 @@ export interface SearchRecord {
 }
 
 /**
- * Get or create guest session ID
+ * Clean up expired guest sessions
+ */
+function cleanupExpiredSessions(): boolean {
+  if (typeof window === 'undefined') return false;
+
+  const expiry = localStorage.getItem('guest_session_expiry');
+  if (expiry && Date.now() > parseInt(expiry)) {
+    localStorage.removeItem('guest_session_id');
+    localStorage.removeItem('guest_session_expiry');
+    // Also clear any associated data
+    sessionStorage.removeItem('recentSearches');
+    return true; // Indicates a new session is needed
+  }
+  return false;
+}
+
+/**
+ * Get or create persistent guest session ID with 30-day expiration
  */
 export function getGuestSessionId(): string {
   if (typeof window === 'undefined') return '';
 
-  const GUEST_SESSION_KEY = 'guest_session_id';
-  let sessionId = sessionStorage.getItem(GUEST_SESSION_KEY);
+  // Clean up expired sessions first
+  const needsNewSession = cleanupExpiredSessions();
 
-  if (!sessionId) {
-    // Generate UUID v4
-    sessionId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-      const r = (Math.random() * 16) | 0;
-      const v = c === 'x' ? r : (r & 0x3) | 0x8;
-      return v.toString(16);
-    });
-    sessionStorage.setItem(GUEST_SESSION_KEY, sessionId);
+  const GUEST_SESSION_KEY = 'guest_session_id';
+  const EXPIRY_KEY = 'guest_session_expiry';
+
+  let sessionId = localStorage.getItem(GUEST_SESSION_KEY);
+  const expiry = localStorage.getItem(EXPIRY_KEY);
+
+  // Check if exists and not expired
+  if (sessionId && expiry && Date.now() < parseInt(expiry) && !needsNewSession) {
+    return sessionId;
   }
+
+  // Create new session with 30-day expiry
+  sessionId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+
+  const expiryTime = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30 days
+
+  localStorage.setItem(GUEST_SESSION_KEY, sessionId);
+  localStorage.setItem(EXPIRY_KEY, expiryTime.toString());
+
+  logger.info('Created new persistent guest session', { sessionId, expiryDays: 30 });
 
   return sessionId;
 }
@@ -187,12 +219,47 @@ export async function deleteSearch(searchId: number, isAuthenticated: boolean): 
 }
 
 /**
- * Clear guest session on logout
+ * Get user preference for clearing data on logout
  */
-export function clearGuestSession(): void {
+function getUserPreference(key: string, defaultValue: boolean = false): boolean {
+  if (typeof window === 'undefined') return defaultValue;
+
+  try {
+    const stored = localStorage.getItem(`user_pref_${key}`);
+    return stored ? JSON.parse(stored) : defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
+
+/**
+ * Set user preference for clearing data on logout
+ */
+export function setUserPreference(key: string, value: boolean): void {
   if (typeof window !== 'undefined') {
-    sessionStorage.removeItem('guest_session_id');
+    localStorage.setItem(`user_pref_${key}`, JSON.stringify(value));
+  }
+}
+
+/**
+ * Clear guest session on logout (respects user preference)
+ */
+export function clearGuestSession(forceLogout: boolean = false): void {
+  if (typeof window === 'undefined') return;
+
+  // Check user preference (default: keep session for continuity)
+  const clearDataOnLogout = forceLogout || getUserPreference('clearDataOnLogout', false);
+
+  if (clearDataOnLogout) {
+    // Clear persistent guest session data
+    localStorage.removeItem('guest_session_id');
+    localStorage.removeItem('guest_session_expiry');
     sessionStorage.removeItem('recentSearches');
+    logger.info('Cleared guest session data on logout (user preference)');
+  } else {
+    // Only clear temporary session storage, keep persistent session
+    sessionStorage.removeItem('recentSearches');
+    logger.info('Preserved guest session on logout (default behavior)');
   }
 }
 
