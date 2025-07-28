@@ -8,12 +8,12 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 
 export function useAdminAuth() {
-  const { user, isAuthenticated, loading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     // Don't redirect while loading
-    if (loading) return;
+    if (isLoading) return;
 
     // Only redirect if we're definitely not authenticated (no token in localStorage)
     if (!isAuthenticated && !localStorage.getItem('access_token')) {
@@ -29,7 +29,7 @@ export function useAdminAuth() {
       // Redirect to home page for non-admins
       router.push('/');
     }
-  }, [user, isAuthenticated, loading, router]);
+  }, [user, isAuthenticated, isLoading, router]);
 
   // Check if current user is admin
   const adminEmails = ['admin@instainstru.com', 'mehdi@instainstru.com'];
@@ -37,7 +37,7 @@ export function useAdminAuth() {
 
   return {
     isAdmin,
-    isLoading: loading,
+    isLoading,
     user,
   };
 }
