@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.models.search_event import SearchEvent
 from app.models.search_history import SearchHistory
 from app.models.user import User
 
@@ -92,6 +93,25 @@ class TestSearchAnalyticsEndpoints:
             ),
         ]
         db.add_all(searches)
+        db.commit()
+
+        # Create corresponding SearchEvent records for analytics
+        # The service layer normally does this, but tests create records directly
+        events = []
+        for search in searches:
+            event = SearchEvent(
+                user_id=search.user_id,
+                guest_session_id=search.guest_session_id,
+                search_query=search.search_query,
+                search_type=search.search_type,
+                results_count=search.results_count,
+                searched_at=search.last_searched_at,
+                referrer="/test",
+                session_id="test-session",
+            )
+            events.append(event)
+
+        db.add_all(events)
         db.commit()
 
         return user1, user2
