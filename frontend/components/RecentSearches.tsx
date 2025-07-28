@@ -12,6 +12,7 @@ import {
   getRecentSearches,
   deleteSearch,
   getGuestSessionId,
+  recordSearch,
   type SearchRecord,
 } from '@/lib/searchTracking';
 
@@ -160,11 +161,21 @@ export function RecentSearches() {
                 <Link
                   href={`/search?q=${encodedQuery}&from=recent`}
                   className="block"
-                  onClick={() => {
-                    // Track navigation source
+                  onClick={async () => {
+                    // Track navigation source (component is displayed on home page)
                     if (typeof window !== 'undefined') {
-                      sessionStorage.setItem('navigationFrom', 'recent-searches');
+                      sessionStorage.setItem('navigationFrom', window.location.pathname);
                     }
+
+                    // Record search for recent search click BEFORE navigation
+                    await recordSearch(
+                      {
+                        query: searchQuery,
+                        search_type: 'search_history',
+                        results_count: null, // Will be determined on results page
+                      },
+                      isAuthenticated
+                    );
                   }}
                 >
                   <div className="flex items-start justify-between">

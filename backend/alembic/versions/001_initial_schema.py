@@ -229,7 +229,7 @@ def upgrade() -> None:
     op.create_check_constraint(
         "ck_search_history_type",
         "search_history",
-        "search_type IN ('natural_language', 'category', 'service_pill', 'filter')",
+        "search_type IN ('natural_language', 'category', 'service_pill', 'filter', 'search_history')",
     )
 
     # Add check constraint to ensure either user_id OR guest_session_id is present
@@ -281,7 +281,7 @@ def upgrade() -> None:
     op.create_check_constraint(
         "ck_search_events_type",
         "search_events",
-        "search_type IN ('natural_language', 'category', 'service_pill', 'filter')",
+        "search_type IN ('natural_language', 'category', 'service_pill', 'filter', 'search_history')",
     )
 
     print("Initial schema created successfully!")

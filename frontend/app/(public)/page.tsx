@@ -479,7 +479,7 @@ export default function HomePage() {
                   <Link
                     key={service.id}
                     href={`/search?service_catalog_id=${service.id}&from=home`}
-                    onClick={() => {
+                    onClick={async () => {
                       // Track navigation source as backup
                       if (typeof window !== 'undefined') {
                         sessionStorage.setItem('navigationFrom', '/');
@@ -489,8 +489,15 @@ export default function HomePage() {
                         });
                       }
 
-                      // NOTE: Search recording happens on the search results page
-                      // after we have the actual results count
+                      // Record search for service pill click BEFORE navigation
+                      await recordSearch(
+                        {
+                          query: service.name,
+                          search_type: 'service_pill',
+                          results_count: null, // Will be determined on results page
+                        },
+                        isAuthenticated
+                      );
                     }}
                     className="group relative px-4 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 hover:border-gray-300 dark:hover:border-gray-500 hover:text-gray-900 dark:hover:text-white transition-all duration-200 cursor-pointer animate-fade-in-up"
                     style={{

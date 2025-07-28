@@ -6,6 +6,8 @@
  * Used for all new student-facing features.
  */
 
+import { getSessionId, refreshSession } from '@/lib/sessionTracking';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 /**
@@ -48,6 +50,68 @@ interface FetchOptions extends RequestInit {
 }
 
 /**
+ * Get analytics headers for all requests
+ */
+function getAnalyticsHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+
+  if (typeof window !== 'undefined') {
+    // Browser session ID for journey tracking
+    const sessionId = getSessionId();
+    if (sessionId) {
+      headers['X-Session-ID'] = sessionId;
+    }
+
+    // Current page path for referrer analytics
+    headers['X-Search-Origin'] = window.location.pathname;
+  }
+
+  return headers;
+}
+
+/**
+ * Get guest session ID from localStorage
+ */
+function getGuestSessionId(): string | null {
+  if (typeof window === 'undefined') return null;
+
+  const guestSessionId = localStorage.getItem('guest_session_id');
+  return guestSessionId;
+}
+
+/**
+ * Unified fetch wrapper for search history endpoints
+ * Works for both authenticated users and guests
+ */
+async function unifiedFetch<T>(
+  endpoint: string,
+  options: FetchOptions = {}
+): Promise<ApiResponse<T>> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  const guestSessionId = getGuestSessionId();
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...getAnalyticsHeaders(),
+    ...options.headers,
+  };
+
+  // Add auth token if available
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  // Otherwise add guest session ID if available
+  else if (guestSessionId) {
+    headers['X-Guest-Session-ID'] = guestSessionId;
+  }
+
+  return cleanFetch<T>(endpoint, {
+    ...options,
+    headers,
+  });
+}
+
+/**
  * Clean fetch wrapper with error handling
  */
 async function cleanFetch<T>(
@@ -71,6 +135,7 @@ async function cleanFetch<T>(
       ...fetchOptions,
       headers: {
         'Content-Type': 'application/json',
+        ...getAnalyticsHeaders(),
         ...fetchOptions.headers,
       },
     });
@@ -124,6 +189,7 @@ async function optionalAuthFetch<T>(
       ...fetchOptions,
       headers: {
         'Content-Type': 'application/json',
+        ...getAnalyticsHeaders(),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...fetchOptions.headers,
       },
@@ -327,13 +393,16 @@ export const publicApi = {
    * For guests, pass X-Guest-Session-ID header
    */
   async getRecentSearches(limit: number = 3) {
-    return authFetch<
+    return unifiedFetch<
       Array<{
         id: number;
         search_query: string;
         search_type: string;
         results_count: number | null;
         created_at: string;
+        first_searched_at: string;
+        last_searched_at: string;
+        search_count: number;
       }>
     >('/api/search-history/', {
       params: { limit },
@@ -345,7 +414,7 @@ export const publicApi = {
    * For guests, pass X-Guest-Session-ID header
    */
   async deleteSearchHistory(searchId: number) {
-    return authFetch<void>(`/api/search-history/${searchId}`, {
+    return unifiedFetch<void>(`/api/search-history/${searchId}`, {
       method: 'DELETE',
     });
   },
@@ -358,16 +427,34 @@ export const publicApi = {
     search_query: string;
     search_type: string;
     results_count?: number | null;
+    search_context?: any;
   }) {
-    return authFetch<{
+    // Refresh session on search activity
+    refreshSession();
+
+    // Add analytics context if not provided
+    const searchData = {
+      ...data,
+      search_context: data.search_context || {
+        page: typeof window !== 'undefined' ? window.location.pathname : '/',
+        viewport:
+          typeof window !== 'undefined' ? `${window.innerWidth}x${window.innerHeight}` : '0x0',
+        timestamp: new Date().toISOString(),
+      },
+    };
+
+    return unifiedFetch<{
       id: number;
       search_query: string;
       search_type: string;
       results_count: number | null;
       created_at: string;
+      first_searched_at: string;
+      last_searched_at: string;
+      search_count: number;
     }>('/api/search-history/', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(searchData),
     });
   },
 

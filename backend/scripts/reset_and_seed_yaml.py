@@ -92,10 +92,14 @@ class DatabaseSeeder:
             session.execute(text("ALTER SEQUENCE service_catalog_id_seq RESTART WITH 1"))
             session.execute(text("ALTER SEQUENCE service_categories_id_seq RESTART WITH 1"))
 
-            # 3. Clean search history
+            # 3. Clean search history and search events
             print("  - Cleaning search history...")
             result = session.execute(text("DELETE FROM search_history"))
             print(f"    Deleted {result.rowcount} search history entries")
+
+            print("  - Cleaning search events...")
+            result = session.execute(text("DELETE FROM search_events"))
+            print(f"    Deleted {result.rowcount} search event entries")
 
             # 4. Clean instructor profiles and users
             session.execute(

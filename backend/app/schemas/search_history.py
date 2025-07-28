@@ -16,7 +16,8 @@ class SearchHistoryBase(BaseModel):
 
     search_query: str = Field(..., description="The search query string", min_length=1)
     search_type: str = Field(
-        default="natural_language", description="Type of search: natural_language, category, service_pill, or filter"
+        default="natural_language",
+        description="Type of search: natural_language, category, service_pill, filter, or search_history",
     )
     results_count: Optional[int] = Field(None, description="Number of results returned", ge=0)
     guest_session_id: Optional[str] = Field(None, description="UUID for guest session tracking", max_length=36)
@@ -25,7 +26,7 @@ class SearchHistoryBase(BaseModel):
     @classmethod
     def validate_search_type(cls, v: str) -> str:
         """Validate search type is one of allowed values."""
-        allowed_types = ["natural_language", "category", "service_pill", "filter"]
+        allowed_types = ["natural_language", "category", "service_pill", "filter", "search_history"]
         if v not in allowed_types:
             raise ValueError(f"search_type must be one of: {', '.join(allowed_types)}")
         return v
@@ -52,7 +53,8 @@ class GuestSearchHistoryCreate(BaseModel):
 
     search_query: str = Field(..., description="The search query string", min_length=1)
     search_type: str = Field(
-        default="natural_language", description="Type of search: natural_language, category, service_pill, or filter"
+        default="natural_language",
+        description="Type of search: natural_language, category, service_pill, filter, or search_history",
     )
     results_count: Optional[int] = Field(None, description="Number of results returned", ge=0)
     guest_session_id: str = Field(..., description="UUID for guest session tracking", max_length=36)
@@ -61,7 +63,7 @@ class GuestSearchHistoryCreate(BaseModel):
     @classmethod
     def validate_search_type(cls, v: str) -> str:
         """Validate search type is one of allowed values."""
-        allowed_types = ["natural_language", "category", "service_pill", "filter"]
+        allowed_types = ["natural_language", "category", "service_pill", "filter", "search_history"]
         if v not in allowed_types:
             raise ValueError(f"search_type must be one of: {', '.join(allowed_types)}")
         return v

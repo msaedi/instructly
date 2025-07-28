@@ -7,12 +7,13 @@
  */
 
 import { logger } from '@/lib/logger';
+import { getSessionId, refreshSession, getAnalyticsContext } from '@/lib/sessionTracking';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export interface SearchRecord {
   query: string;
-  search_type: 'natural_language' | 'category' | 'service_pill' | 'filter';
+  search_type: 'natural_language' | 'category' | 'service_pill' | 'filter' | 'search_history';
   results_count?: number | null;
   timestamp?: string;
 }
@@ -95,6 +96,18 @@ function getHeaders(isAuthenticated: boolean): HeadersInit {
     }
   }
 
+  // Add analytics headers for all users
+  if (typeof window !== 'undefined') {
+    // Browser session ID for journey tracking
+    const sessionId = getSessionId();
+    if (sessionId) {
+      headers['X-Session-ID'] = sessionId;
+    }
+
+    // Current page path for referrer analytics
+    headers['X-Search-Origin'] = window.location.pathname;
+  }
+
   return headers;
 }
 
@@ -108,6 +121,12 @@ export async function recordSearch(
   try {
     logger.debug('Recording search', { searchRecord, isAuthenticated });
 
+    // Refresh session on search activity
+    refreshSession();
+
+    // Get analytics context
+    const analyticsContext = getAnalyticsContext();
+
     const response = await fetch(`${API_BASE_URL}/api/search-history/`, {
       method: 'POST',
       headers: getHeaders(isAuthenticated),
@@ -115,6 +134,7 @@ export async function recordSearch(
         search_query: searchRecord.query,
         search_type: searchRecord.search_type,
         results_count: searchRecord.results_count,
+        search_context: analyticsContext,
       }),
     });
 

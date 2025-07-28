@@ -35,7 +35,7 @@ class SearchEvent(Base):
         String(20),
         nullable=False,
         default="natural_language",
-        comment="Type of search: natural_language, category, service_pill, filter",
+        comment="Type of search: natural_language, category, service_pill, filter, search_history",
     )
     results_count = Column(Integer, default=0, nullable=True)
 

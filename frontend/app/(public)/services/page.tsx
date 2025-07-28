@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { Search, Music, BookOpen, Dumbbell, Globe, Palette, Baby, Sparkles } from 'lucide-react';
 import { publicApi, type CatalogService, type ServiceCategory } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
+import { recordSearch } from '@/lib/searchTracking';
+import { useAuth } from '@/features/shared/hooks/useAuth';
 
 // Progressive loading configuration
 const INITIAL_SERVICES_COUNT = 15;
@@ -81,6 +83,7 @@ export default function AllServicesPage() {
   const [error, setError] = useState<string | null>(null);
   const [visibleServices, setVisibleServices] = useState<Record<string, number>>({});
   const categoryRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -268,7 +271,7 @@ export default function AllServicesPage() {
             <Link
               key={service.id}
               href={`/search?service_catalog_id=${service.id}&from=services`}
-              onClick={() => {
+              onClick={async () => {
                 // Track navigation source as backup
                 if (typeof window !== 'undefined') {
                   sessionStorage.setItem('navigationFrom', '/services');
@@ -277,6 +280,16 @@ export default function AllServicesPage() {
                     serviceId: service.id,
                   });
                 }
+
+                // Record search for service click BEFORE navigation
+                await recordSearch(
+                  {
+                    query: service.name,
+                    search_type: 'service_pill',
+                    results_count: null, // Will be determined on results page
+                  },
+                  isAuthenticated
+                );
               }}
               className="group block text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-[#FFD700] dark:hover:bg-[#FFD700] hover:text-gray-900 dark:hover:text-gray-900 px-2 py-0.5 -mx-2 rounded transition-all duration-200 cursor-pointer"
             >

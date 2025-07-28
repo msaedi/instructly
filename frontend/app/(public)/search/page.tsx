@@ -61,6 +61,7 @@ function SearchPageContent() {
   const [serviceName, setServiceName] = useState<string>('');
   const [previousPath, setPreviousPath] = useState<string>('/');
   const [hasRecordedSearch, setHasRecordedSearch] = useState(false);
+  const [fromPage, setFromPage] = useState<string | null>(null);
 
   // Parse search parameters from URL
   const query = searchParams.get('q') || '';
@@ -90,6 +91,7 @@ function SearchPageContent() {
       if (fromParam) {
         // URL parameter takes precedence
         logger.debug('Using URL parameter for navigation', { from: fromParam });
+        setFromPage(fromParam);
         if (fromParam === 'services') {
           setPreviousPath('/services');
         } else if (fromParam === 'home') {
@@ -410,13 +412,48 @@ function SearchPageContent() {
 
       // Determine search query and type
       const searchQuery = query || serviceName || category || 'Unknown search';
-      let searchType: 'natural_language' | 'category' | 'service_pill' | 'filter' =
-        'natural_language';
+      let searchType:
+        | 'natural_language'
+        | 'category'
+        | 'service_pill'
+        | 'filter'
+        | 'search_history' = 'natural_language';
 
       if (query) {
-        searchType = 'natural_language';
+        // Determine if this is a search history click or a new natural language search
+        if (fromPage === 'recent') {
+          searchType = 'search_history';
+        } else {
+          searchType = 'natural_language';
+        }
+
+        // Skip recording if search is coming from home page or recent searches
+        // (already recorded on originating page)
+        if (fromPage === 'home' || fromPage === 'recent') {
+          logger.info('Skipping search recording (already recorded on originating page)', {
+            query: searchQuery,
+            searchType,
+            fromPage,
+          });
+          setHasRecordedSearch(true);
+          return;
+        }
       } else if (serviceCatalogId && serviceName) {
         searchType = 'service_pill';
+        // Skip recording if service pill click is coming from home or services page
+        // (already recorded on originating page)
+        if (fromPage === 'home' || fromPage === 'services') {
+          logger.info(
+            'Skipping service pill search recording (already recorded on originating page)',
+            {
+              query: searchQuery,
+              serviceName,
+              fromPage,
+            }
+          );
+          setHasRecordedSearch(true);
+          return;
+        }
       } else if (category) {
         searchType = 'category';
       }
@@ -458,6 +495,7 @@ function SearchPageContent() {
     loading,
     hasRecordedSearch,
     isAuthenticated,
+    fromPage,
   ]);
 
   // Generate realistic next available times (deterministic for SSR)

@@ -40,7 +40,7 @@ class SearchHistory(Base):
     search_query = Column(Text, nullable=False)  # The exact search string
     search_type = Column(
         String(20), nullable=False, default="natural_language"
-    )  # 'natural_language', 'category', 'service_pill', or 'filter'
+    )  # 'natural_language', 'category', 'service_pill', 'filter', or 'search_history'
     results_count = Column(Integer, nullable=True)  # Number of results returned
 
     # Hybrid model columns for deduplication
