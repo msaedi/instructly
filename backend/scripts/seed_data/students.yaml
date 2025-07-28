@@ -22,3 +22,7 @@ students:
   - email: emma.fresh@example.com
     full_name: Emma Fresh
     phone: "+12125551006"
+
+  - email: admin@instainstru.com
+    full_name: Admin User
+    phone: "+12125559999"

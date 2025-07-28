@@ -93,7 +93,7 @@ async function unifiedFetch<T>(
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...getAnalyticsHeaders(),
-    ...options.headers,
+    ...((options.headers as Record<string, string>) || {}),
   };
 
   // Add auth token if available
@@ -136,7 +136,7 @@ async function cleanFetch<T>(
       headers: {
         'Content-Type': 'application/json',
         ...getAnalyticsHeaders(),
-        ...fetchOptions.headers,
+        ...((fetchOptions.headers as Record<string, string>) || {}),
       },
     });
 
@@ -191,7 +191,7 @@ async function optionalAuthFetch<T>(
         'Content-Type': 'application/json',
         ...getAnalyticsHeaders(),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...fetchOptions.headers,
+        ...((fetchOptions.headers as Record<string, string>) || {}),
       },
     });
 
@@ -232,7 +232,7 @@ async function authFetch<T>(endpoint: string, options: FetchOptions = {}): Promi
   return cleanFetch<T>(endpoint, {
     ...options,
     headers: {
-      ...options.headers,
+      ...((options.headers as Record<string, string>) || {}),
       Authorization: `Bearer ${token}`,
     },
   });
