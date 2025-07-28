@@ -6,7 +6,7 @@ Unified implementation that handles both authenticated and guest users
 without code duplication.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from sqlalchemy import desc, func, or_
@@ -66,6 +66,83 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         search_query = self._add_user_filter(search_query, context)
         return search_query.first()
 
+    def increment_search_count(self, search_id: int) -> Optional[SearchHistory]:
+        """
+        Increment count and update last_searched_at timestamp.
+
+        Args:
+            search_id: ID of the search to update
+
+        Returns:
+            Updated SearchHistory or None if not found
+        """
+        search = self.get_by_id(search_id)
+        if search and not search.deleted_at:
+            search.search_count += 1
+            search.last_searched_at = datetime.now(timezone.utc)
+            self.db.flush()
+            return search
+        return None
+
+    def find_existing_search_for_update(
+        self, user_id: Optional[int] = None, guest_session_id: Optional[str] = None, search_query: str = None
+    ) -> Optional[SearchHistory]:
+        """
+        Find existing search for incrementing (not soft-deleted).
+
+        This is used to check if we should increment an existing search
+        or create a new one.
+
+        Args:
+            user_id: User ID for authenticated searches
+            guest_session_id: Guest session ID for anonymous searches
+            search_query: The search query to look for
+
+        Returns:
+            Existing SearchHistory if found, None otherwise
+        """
+        if not search_query:
+            return None
+
+        query = self.db.query(SearchHistory).filter(
+            SearchHistory.search_query == search_query, SearchHistory.deleted_at.is_(None)
+        )
+
+        if user_id:
+            query = query.filter(SearchHistory.user_id == user_id)
+        elif guest_session_id:
+            query = query.filter(SearchHistory.guest_session_id == guest_session_id)
+        else:
+            return None
+
+        return query.first()
+
+    def get_recent_searches_unified(
+        self, context: SearchUserContext, limit: int = 10, order_by: str = "last_searched_at"
+    ) -> List[SearchHistory]:
+        """
+        Get recent searches using SearchUserContext, ordered by specified field.
+
+        Args:
+            context: Search user context with user_id or guest_session_id
+            limit: Maximum number of results
+            order_by: Field to order by (last_searched_at or first_searched_at)
+
+        Returns:
+            List of recent searches
+        """
+        query = self.db.query(SearchHistory).filter(SearchHistory.deleted_at.is_(None))
+        query = self._add_user_filter(query, context)
+
+        if order_by == "last_searched_at":
+            query = query.order_by(desc(SearchHistory.last_searched_at))
+        elif order_by == "first_searched_at":
+            query = query.order_by(desc(SearchHistory.first_searched_at))
+        else:
+            query = query.order_by(desc(SearchHistory.last_searched_at))
+
+        return query.limit(limit).all()
+
     def get_recent_searches(
         self, user_id: Optional[int] = None, guest_session_id: Optional[str] = None, limit: int = 3
     ) -> List[SearchHistory]:
@@ -84,7 +161,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         query = self.db.query(SearchHistory).filter(SearchHistory.deleted_at.is_(None))
 
         query = self._add_user_filter(query, context)
-        return query.order_by(desc(SearchHistory.created_at)).limit(limit).all()
+        return query.order_by(desc(SearchHistory.last_searched_at)).limit(limit).all()
 
     def count_searches(
         self, user_id: Optional[int] = None, guest_session_id: Optional[str] = None, exclude_deleted: bool = True
@@ -125,7 +202,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         query = self.db.query(SearchHistory.id).filter(SearchHistory.deleted_at.is_(None))
 
         query = self._add_user_filter(query, context)
-        return query.order_by(desc(SearchHistory.created_at)).limit(keep_count).subquery()
+        return query.order_by(desc(SearchHistory.first_searched_at)).limit(keep_count).subquery()
 
     def soft_delete_old_searches(
         self, user_id: Optional[int] = None, guest_session_id: Optional[str] = None, keep_ids_subquery: Query = None
@@ -152,7 +229,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
 
         query = self._add_user_filter(query, context)
 
-        return query.update({"deleted_at": datetime.utcnow()}, synchronize_session=False)
+        return query.update({"deleted_at": datetime.now(timezone.utc)}, synchronize_session=False)
 
     def soft_delete_by_id(self, search_id: int, user_id: int) -> bool:
         """
@@ -164,7 +241,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
 
         query = self._add_user_filter(query, context)
 
-        result = query.update({"deleted_at": datetime.utcnow()}, synchronize_session=False)
+        result = query.update({"deleted_at": datetime.now(timezone.utc)}, synchronize_session=False)
 
         return result > 0
 
@@ -178,7 +255,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
 
         query = self._add_user_filter(query, context)
 
-        result = query.update({"deleted_at": datetime.utcnow()}, synchronize_session=False)
+        result = query.update({"deleted_at": datetime.now(timezone.utc)}, synchronize_session=False)
 
         return result > 0
 
@@ -189,20 +266,27 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         search_query: str = None,
         search_type: str = "natural_language",
         results_count: Optional[int] = None,
-        created_at: Optional[datetime] = None,
         deleted_at: Optional[datetime] = None,
         **kwargs,
     ) -> SearchHistory:
         """
         Create a new search history entry.
         """
+        # Handle the new timestamp fields
+        now = datetime.now(timezone.utc)
+        first_searched_at = kwargs.get("first_searched_at", now)
+        last_searched_at = kwargs.get("last_searched_at", now)
+        search_count = kwargs.get("search_count", 1)
+
         search_history = SearchHistory(
             user_id=user_id,
             guest_session_id=guest_session_id,
             search_query=search_query,
             search_type=search_type,
             results_count=results_count,
-            created_at=created_at or datetime.utcnow(),
+            first_searched_at=first_searched_at,
+            last_searched_at=last_searched_at,
+            search_count=search_count,
             deleted_at=deleted_at,
         )
 
@@ -219,7 +303,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         return (
             self.db.query(SearchHistory)
             .filter(SearchHistory.guest_session_id == guest_session_id, SearchHistory.converted_to_user_id.is_(None))
-            .order_by(SearchHistory.created_at)
+            .order_by(SearchHistory.first_searched_at)
             .all()
         )
 
@@ -230,7 +314,9 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         return (
             self.db.query(SearchHistory)
             .filter(SearchHistory.guest_session_id == guest_session_id, SearchHistory.converted_to_user_id.is_(None))
-            .update({"converted_to_user_id": user_id, "converted_at": datetime.utcnow()}, synchronize_session=False)
+            .update(
+                {"converted_to_user_id": user_id, "converted_at": datetime.now(timezone.utc)}, synchronize_session=False
+            )
         )
 
     # Analytics methods
@@ -250,10 +336,10 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
             query = query.filter(SearchHistory.deleted_at.is_(None))
 
         if start_date:
-            query = query.filter(SearchHistory.created_at >= start_date)
+            query = query.filter(SearchHistory.first_searched_at >= start_date)
 
         if end_date:
-            query = query.filter(SearchHistory.created_at <= end_date)
+            query = query.filter(SearchHistory.first_searched_at <= end_date)
 
         # Exclude searches that have been converted (to avoid double counting)
         # We keep the user version, not the guest version

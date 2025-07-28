@@ -8,6 +8,8 @@ Tests the API endpoints for:
 - Guest session conversion during auth
 """
 
+from datetime import datetime, timezone
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -39,7 +41,9 @@ class TestGuestSearchEndpoints:
         assert data["results_count"] == 5
         assert data["guest_session_id"] == guest_session_id
         assert "id" in data
-        assert "created_at" in data
+        assert "first_searched_at" in data
+        assert "last_searched_at" in data
+        assert "search_count" in data
 
         # Verify in database
         search = db.query(SearchHistory).filter_by(guest_session_id=guest_session_id).first()
@@ -71,13 +75,14 @@ class TestGuestSearchEndpoints:
         from datetime import datetime, timedelta
 
         searches = []
-        base_time = datetime.utcnow()
+        base_time = datetime.now(timezone.utc)
         for i, query in enumerate(["piano lessons", "guitar teachers", "drum classes", "violin instructors"]):
             search = SearchHistory(
                 guest_session_id=guest_session_id,
                 search_query=f"{query} {unique_id}",  # Make unique
                 search_type="natural_language",
-                created_at=base_time - timedelta(minutes=i),
+                first_searched_at=base_time - timedelta(minutes=i),
+                last_searched_at=base_time - timedelta(minutes=i),
             )
             db.add(search)
             searches.append(search)
@@ -119,7 +124,11 @@ class TestAuthWithGuestSession:
         guest_session_id = "convert-login-123"
         for query in ["piano lessons", "guitar teachers"]:
             search = SearchHistory(
-                guest_session_id=guest_session_id, search_query=query, search_type="natural_language"
+                guest_session_id=guest_session_id,
+                search_query=query,
+                search_type="natural_language",
+                first_searched_at=datetime.now(timezone.utc),
+                last_searched_at=datetime.now(timezone.utc),
             )
             db.add(search)
         db.commit()
@@ -162,7 +171,11 @@ class TestAuthWithGuestSession:
         # Create guest searches
         for query in ["math tutoring", "science help"]:
             search = SearchHistory(
-                guest_session_id=guest_session_id, search_query=query, search_type="natural_language"
+                guest_session_id=guest_session_id,
+                search_query=query,
+                search_type="natural_language",
+                first_searched_at=datetime.now(timezone.utc),
+                last_searched_at=datetime.now(timezone.utc),
             )
             db.add(search)
         db.commit()
@@ -276,10 +289,9 @@ class TestAuthenticatedSearchEndpoints:
 
     def test_unauthorized_access(self, client: TestClient):
         """Test unified endpoints work without authentication (returns empty or needs headers)."""
-        # GET without auth returns empty list
+        # GET without auth or guest ID should fail
         response = client.get("/api/search-history/")
-        assert response.status_code == 200
-        assert response.json() == []
+        assert response.status_code == 400
 
         # POST without auth or guest ID fails
         response = client.post("/api/search-history/", json={"search_query": "test", "search_type": "natural_language"})

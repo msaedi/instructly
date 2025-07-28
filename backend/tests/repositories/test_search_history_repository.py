@@ -5,7 +5,7 @@ Unit tests for SearchHistoryRepository.
 Tests repository methods in isolation with a test database.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -26,7 +26,13 @@ class TestSearchHistoryRepository:
         db.add(user)
         db.commit()
 
-        search = SearchHistory(user_id=user.id, search_query="test query", search_type="natural_language")
+        search = SearchHistory(
+            user_id=user.id,
+            search_query="test query",
+            search_type="natural_language",
+            first_searched_at=datetime.now(timezone.utc),
+            last_searched_at=datetime.now(timezone.utc),
+        )
         db.add(search)
         db.commit()
 
@@ -48,7 +54,13 @@ class TestSearchHistoryRepository:
         guest_id = f"guest-{unique_id}"
         query = f"guest query {unique_id}"
 
-        search = SearchHistory(guest_session_id=guest_id, search_query=query, search_type="category")
+        search = SearchHistory(
+            guest_session_id=guest_id,
+            search_query=query,
+            search_type="category",
+            first_searched_at=datetime.now(timezone.utc),
+            last_searched_at=datetime.now(timezone.utc),
+        )
         db.add(search)
         db.commit()
 
@@ -71,7 +83,12 @@ class TestSearchHistoryRepository:
 
         # Create deleted search
         search = SearchHistory(
-            user_id=user.id, search_query="deleted query", search_type="natural_language", deleted_at=datetime.utcnow()
+            user_id=user.id,
+            search_query="deleted query",
+            search_type="natural_language",
+            deleted_at=datetime.now(timezone.utc),
+            first_searched_at=datetime.now(timezone.utc),
+            last_searched_at=datetime.now(timezone.utc),
         )
         db.add(search)
         db.commit()
@@ -81,7 +98,7 @@ class TestSearchHistoryRepository:
         assert found is None
 
     def test_get_recent_searches_ordering(self, db: Session):
-        """Test recent searches are ordered by created_at desc."""
+        """Test recent searches are ordered by last_searched_at desc."""
         repo = SearchHistoryRepository(db)
         import uuid
 
@@ -92,13 +109,14 @@ class TestSearchHistoryRepository:
         db.commit()
 
         # Create searches with different timestamps
-        base_time = datetime.utcnow()
+        base_time = datetime.now(timezone.utc)
         for i in range(5):
             search = SearchHistory(
                 guest_session_id=guest_id,
                 search_query=f"query {i}",
                 search_type="natural_language",
-                created_at=base_time - timedelta(hours=i),
+                first_searched_at=base_time - timedelta(hours=i),
+                last_searched_at=base_time - timedelta(hours=i),
             )
             db.add(search)
         db.commit()
@@ -108,7 +126,7 @@ class TestSearchHistoryRepository:
 
         # Debug output
         for i, search in enumerate(recent):
-            print(f"recent[{i}] = {search.search_query} (created_at: {search.created_at})")
+            print(f"recent[{i}] = {search.search_query} (last_searched_at: {search.last_searched_at})")
 
         assert len(recent) == 3
         assert recent[0].search_query == "query 0"  # Most recent
@@ -125,10 +143,27 @@ class TestSearchHistoryRepository:
 
         # Create mix of searches
         searches = [
-            SearchHistory(user_id=user.id, search_query="active 1", search_type="natural_language"),
-            SearchHistory(user_id=user.id, search_query="active 2", search_type="natural_language"),
             SearchHistory(
-                user_id=user.id, search_query="deleted", search_type="natural_language", deleted_at=datetime.utcnow()
+                user_id=user.id,
+                search_query="active 1",
+                search_type="natural_language",
+                first_searched_at=datetime.now(timezone.utc),
+                last_searched_at=datetime.now(timezone.utc),
+            ),
+            SearchHistory(
+                user_id=user.id,
+                search_query="active 2",
+                search_type="natural_language",
+                first_searched_at=datetime.now(timezone.utc),
+                last_searched_at=datetime.now(timezone.utc),
+            ),
+            SearchHistory(
+                user_id=user.id,
+                search_query="deleted",
+                search_type="natural_language",
+                deleted_at=datetime.now(timezone.utc),
+                first_searched_at=datetime.now(timezone.utc),
+                last_searched_at=datetime.now(timezone.utc),
             ),
         ]
         db.add_all(searches)
@@ -155,13 +190,14 @@ class TestSearchHistoryRepository:
         guest_id = f"keep-test-{unique_id}"
 
         # Create 5 searches
-        base_time = datetime.utcnow()
+        base_time = datetime.now(timezone.utc)
         for i in range(5):
             search = SearchHistory(
                 guest_session_id=guest_id,
                 search_query=f"query {i} {unique_id}",
                 search_type="natural_language",
-                created_at=base_time - timedelta(minutes=i),
+                first_searched_at=base_time - timedelta(minutes=i),
+                last_searched_at=base_time - timedelta(minutes=i),
             )
             db.add(search)
         db.commit()
@@ -177,7 +213,7 @@ class TestSearchHistoryRepository:
         kept_searches = (
             db.query(SearchHistory)
             .filter(SearchHistory.id.in_([id[0] for id in kept_ids]))
-            .order_by(SearchHistory.created_at.desc())
+            .order_by(SearchHistory.last_searched_at.desc())
             .all()
         )
 
@@ -203,7 +239,8 @@ class TestSearchHistoryRepository:
                 user_id=user_id,
                 search_query=f"query {i}",
                 search_type="natural_language",
-                created_at=datetime.utcnow() - timedelta(minutes=i),
+                first_searched_at=datetime.now(timezone.utc) - timedelta(minutes=i),
+                last_searched_at=datetime.now(timezone.utc) - timedelta(minutes=i),
             )
             db.add(search)
         db.commit()
@@ -238,8 +275,20 @@ class TestSearchHistoryRepository:
         db.add(user)
         db.commit()
 
-        search1 = SearchHistory(user_id=user.id, search_query="keep me", search_type="natural_language")
-        search2 = SearchHistory(user_id=user.id, search_query="delete me", search_type="natural_language")
+        search1 = SearchHistory(
+            user_id=user.id,
+            search_query="keep me",
+            search_type="natural_language",
+            first_searched_at=datetime.now(timezone.utc),
+            last_searched_at=datetime.now(timezone.utc),
+        )
+        search2 = SearchHistory(
+            user_id=user.id,
+            search_query="delete me",
+            search_type="natural_language",
+            first_searched_at=datetime.now(timezone.utc),
+            last_searched_at=datetime.now(timezone.utc),
+        )
         db.add_all([search1, search2])
         db.commit()
 
@@ -296,7 +345,7 @@ class TestSearchHistoryRepository:
                 guest_session_id=guest_id,
                 search_query=f"deleted {unique_id}",
                 search_type="natural_language",
-                deleted_at=datetime.utcnow(),
+                deleted_at=datetime.now(timezone.utc),
             ),
             # Should be excluded - already converted
             SearchHistory(
@@ -304,7 +353,7 @@ class TestSearchHistoryRepository:
                 search_query=f"converted {unique_id}",
                 search_type="natural_language",
                 converted_to_user_id=user.id,
-                converted_at=datetime.utcnow(),
+                converted_at=datetime.now(timezone.utc),
             ),
         ]
         db.add_all(searches)
@@ -374,14 +423,15 @@ class TestSearchHistoryRepository:
         db.commit()
 
         # Create various searches
-        base_time = datetime.utcnow()
+        base_time = datetime.now(timezone.utc)
         searches = [
             # Regular user search
             SearchHistory(
                 user_id=user.id,
                 search_query=f"user search {unique_id}",
                 search_type="natural_language",
-                created_at=base_time - timedelta(days=1),
+                first_searched_at=base_time - timedelta(days=1),
+                last_searched_at=base_time - timedelta(days=1),
             ),
             # Soft deleted search
             SearchHistory(
@@ -389,7 +439,8 @@ class TestSearchHistoryRepository:
                 search_query=f"deleted search {unique_id}",
                 search_type="natural_language",
                 deleted_at=base_time,
-                created_at=base_time - timedelta(days=2),
+                first_searched_at=base_time - timedelta(days=2),
+                last_searched_at=base_time - timedelta(days=2),
             ),
             # Converted guest search (should be excluded)
             SearchHistory(
@@ -398,14 +449,16 @@ class TestSearchHistoryRepository:
                 search_type="natural_language",
                 converted_to_user_id=user.id,
                 converted_at=base_time,
-                created_at=base_time - timedelta(days=3),
+                first_searched_at=base_time - timedelta(days=3),
+                last_searched_at=base_time - timedelta(days=3),
             ),
             # Non-converted guest search
             SearchHistory(
                 guest_session_id=f"guest-456-{unique_id}",
                 search_query=f"active guest {unique_id}",
                 search_type="natural_language",
-                created_at=base_time - timedelta(days=1),
+                first_searched_at=base_time - timedelta(days=1),
+                last_searched_at=base_time - timedelta(days=1),
             ),
         ]
         db.add_all(searches)

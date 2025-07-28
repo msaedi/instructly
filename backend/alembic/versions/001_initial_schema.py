@@ -100,7 +100,7 @@ def upgrade() -> None:
         "account_status IN ('active', 'suspended', 'deactivated')",
     )
 
-    # Create search_history table for tracking user searches
+    # Create search_history table for tracking user searches (deduplicated for UX)
     op.create_table(
         "search_history",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -113,8 +113,16 @@ def upgrade() -> None:
             server_default="natural_language",
         ),
         sa.Column("results_count", sa.Integer(), nullable=True),
+        # New hybrid model columns
+        sa.Column("search_count", sa.Integer(), nullable=False, server_default="1"),
         sa.Column(
-            "created_at",
+            "first_searched_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.timezone("UTC", sa.func.now()),
+            nullable=False,
+        ),
+        sa.Column(
+            "last_searched_at",
             sa.DateTime(timezone=True),
             server_default=sa.func.timezone("UTC", sa.func.now()),
             nullable=False,
@@ -136,17 +144,55 @@ def upgrade() -> None:
             ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id"),
-        comment="Tracks user search history for personalization with analytics support",
+        comment="Tracks deduplicated user search history for clean UX",
+    )
+
+    # Create search_events table for analytics (append-only)
+    op.create_table(
+        "search_events",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("user_id", sa.Integer(), nullable=True),
+        sa.Column("guest_session_id", sa.String(36), nullable=True),
+        sa.Column("search_query", sa.Text(), nullable=False),
+        sa.Column(
+            "search_type",
+            sa.String(20),
+            nullable=False,
+            server_default="natural_language",
+        ),
+        sa.Column("results_count", sa.Integer(), nullable=True, server_default="0"),
+        sa.Column(
+            "searched_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.timezone("UTC", sa.func.now()),
+            nullable=False,
+        ),
+        sa.Column("session_id", sa.String(36), nullable=True),  # Browser session tracking
+        sa.Column("referrer", sa.String(255), nullable=True),
+        sa.Column("search_context", sa.JSON(), nullable=True),  # JSONB for PostgreSQL
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.timezone("UTC", sa.func.now()),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"],
+            ["users.id"],
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        comment="Append-only event log for search analytics",
     )
 
     # Create indexes for search_history
     op.create_index(
-        "idx_search_history_user_created",
+        "idx_search_history_user_last_searched",
         "search_history",
-        ["user_id", "created_at"],
+        ["user_id", "last_searched_at"],
         unique=False,
         postgresql_using="btree",
-        postgresql_ops={"created_at": "DESC"},
+        postgresql_ops={"last_searched_at": "DESC"},
     )
 
     # Add indexes for analytics
@@ -193,19 +239,66 @@ def upgrade() -> None:
         "(user_id IS NOT NULL) OR (guest_session_id IS NOT NULL)",
     )
 
+    # Create indexes for search_events table
+    op.create_index(
+        "idx_search_events_user_id",
+        "search_events",
+        ["user_id"],
+        unique=False,
+    )
+
+    op.create_index(
+        "idx_search_events_guest_session",
+        "search_events",
+        ["guest_session_id"],
+        unique=False,
+    )
+
+    op.create_index(
+        "idx_search_events_searched_at",
+        "search_events",
+        ["searched_at"],
+        unique=False,
+        postgresql_using="btree",
+        postgresql_ops={"searched_at": "DESC"},
+    )
+
+    op.create_index(
+        "idx_search_events_query",
+        "search_events",
+        ["search_query"],
+        unique=False,
+    )
+
+    op.create_index(
+        "idx_search_events_session_id",
+        "search_events",
+        ["session_id"],
+        unique=False,
+    )
+
+    # Add check constraint for search_type values in search_events
+    op.create_check_constraint(
+        "ck_search_events_type",
+        "search_events",
+        "search_type IN ('natural_language', 'category', 'service_pill', 'filter')",
+    )
+
     print("Initial schema created successfully!")
     print("- Created users table with VARCHAR role field and account_status")
     print("- Added check constraints for role and account_status values")
     print("- Created indexes for email lookups")
-    print("- Created search_history table for tracking user searches")
+    print("- Created search_history table for tracking deduplicated user searches")
+    print("- Created search_events table for append-only analytics tracking")
 
 
 def downgrade() -> None:
     """Drop all tables and types created in upgrade."""
     print("Dropping initial schema...")
 
-    # Drop search_history table if it exists
+    # Drop search tables if they exist
     # Using execute to handle if table doesn't exist
+    op.execute("DROP TABLE IF EXISTS search_events CASCADE")
     op.execute("DROP TABLE IF EXISTS search_history CASCADE")
 
     # Drop check constraints first

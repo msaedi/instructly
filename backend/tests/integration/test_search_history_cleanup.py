@@ -3,7 +3,7 @@
 Integration tests for search history cleanup service.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy.orm import Session
@@ -33,7 +33,7 @@ class TestSearchHistoryCleanup:
         unique_id = uuid.uuid4().hex[:8]
 
         # Create searches with various deleted_at dates
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         guest_ids = [
             f"cleanup-test-1-{unique_id}",
             f"cleanup-test-2-{unique_id}",
@@ -47,7 +47,7 @@ class TestSearchHistoryCleanup:
                 guest_session_id=guest_ids[0],
                 search_query=f"active search {unique_id}",
                 search_type="natural_language",
-                created_at=now - timedelta(days=60),
+                first_searched_at=now - timedelta(days=60),
             ),
             # Should be kept - deleted recently
             SearchHistory(
@@ -55,7 +55,7 @@ class TestSearchHistoryCleanup:
                 search_query=f"recent delete {unique_id}",
                 search_type="natural_language",
                 deleted_at=now - timedelta(days=10),
-                created_at=now - timedelta(days=20),
+                first_searched_at=now - timedelta(days=20),
             ),
             # Should be cleaned up - old soft delete
             SearchHistory(
@@ -63,7 +63,7 @@ class TestSearchHistoryCleanup:
                 search_query=f"old delete 1 {unique_id}",
                 search_type="natural_language",
                 deleted_at=now - timedelta(days=45),
-                created_at=now - timedelta(days=50),
+                first_searched_at=now - timedelta(days=50),
             ),
             # Should be cleaned up - very old soft delete
             SearchHistory(
@@ -71,7 +71,7 @@ class TestSearchHistoryCleanup:
                 search_query=f"old delete 2 {unique_id}",
                 search_type="natural_language",
                 deleted_at=now - timedelta(days=90),
-                created_at=now - timedelta(days=100),
+                first_searched_at=now - timedelta(days=100),
             ),
         ]
         db.add_all(searches)
@@ -101,7 +101,9 @@ class TestSearchHistoryCleanup:
             guest_session_id="cleanup-disabled-test",
             search_query="old search",
             search_type="natural_language",
-            deleted_at=datetime.utcnow() - timedelta(days=365),
+            deleted_at=datetime.now(timezone.utc) - timedelta(days=365),
+            first_searched_at=datetime.now(timezone.utc),
+            last_searched_at=datetime.now(timezone.utc),
         )
         db.add(search)
         db.commit()
@@ -120,7 +122,7 @@ class TestSearchHistoryCleanup:
         monkeypatch.setattr(settings, "guest_session_expiry_days", 30)
 
         service = SearchHistoryCleanupService(db)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Create user for conversions
         user = User(email="test@example.com", hashed_password="hash", full_name="Test", role="student")
@@ -140,7 +142,7 @@ class TestSearchHistoryCleanup:
                 guest_session_id=guest_ids[0],
                 search_query=f"recent guest {unique_id}",
                 search_type="natural_language",
-                created_at=now - timedelta(days=10),
+                first_searched_at=now - timedelta(days=10),
             ),
             # Should be deleted - old converted
             SearchHistory(
@@ -149,14 +151,14 @@ class TestSearchHistoryCleanup:
                 search_type="natural_language",
                 converted_to_user_id=user.id,
                 converted_at=now - timedelta(days=45),
-                created_at=now - timedelta(days=50),
+                first_searched_at=now - timedelta(days=50),
             ),
             # Should be deleted - very old unconverted (expired)
             SearchHistory(
                 guest_session_id=guest_ids[2],
                 search_query=f"expired guest {unique_id}",
                 search_type="natural_language",
-                created_at=now - timedelta(days=90),  # Older than expiry + purge
+                first_searched_at=now - timedelta(days=90),  # Older than expiry + purge
             ),
             # Should be kept - recent conversion
             SearchHistory(
@@ -165,7 +167,7 @@ class TestSearchHistoryCleanup:
                 search_type="natural_language",
                 converted_to_user_id=user.id,
                 converted_at=now - timedelta(days=5),
-                created_at=now - timedelta(days=10),
+                first_searched_at=now - timedelta(days=10),
             ),
         ]
         db.add_all(searches)
@@ -191,7 +193,7 @@ class TestSearchHistoryCleanup:
         monkeypatch.setattr(settings, "guest_session_expiry_days", 30)
 
         service = SearchHistoryCleanupService(db)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Create searches to be cleaned
         searches = [
@@ -201,14 +203,14 @@ class TestSearchHistoryCleanup:
                 search_query="old deleted",
                 search_type="natural_language",
                 deleted_at=now - timedelta(days=45),
-                created_at=now - timedelta(days=50),
+                first_searched_at=now - timedelta(days=50),
             ),
             # Old guest session
             SearchHistory(
                 guest_session_id="old-guest",
                 search_query="old guest",
                 search_type="natural_language",
-                created_at=now - timedelta(days=90),
+                first_searched_at=now - timedelta(days=90),
             ),
         ]
         db.add_all(searches)
@@ -234,7 +236,7 @@ class TestSearchHistoryCleanup:
         monkeypatch.setattr(settings, "guest_session_expiry_days", 30)
 
         service = SearchHistoryCleanupService(db)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Create user for converted guest
         user = User(email="stats@example.com", hashed_password="hash", full_name="Stats User", role="student")
@@ -244,13 +246,21 @@ class TestSearchHistoryCleanup:
         # Create various searches
         searches = [
             # Active search
-            SearchHistory(guest_session_id="stats-test-1", search_query="active", search_type="natural_language"),
+            SearchHistory(
+                guest_session_id="stats-test-1",
+                search_query="active",
+                search_type="natural_language",
+                first_searched_at=datetime.now(timezone.utc),
+                last_searched_at=datetime.now(timezone.utc),
+            ),
             # Recent soft-deleted (not eligible)
             SearchHistory(
                 guest_session_id="stats-test-2",
                 search_query="recent delete",
                 search_type="natural_language",
                 deleted_at=now - timedelta(days=10),
+                first_searched_at=now - timedelta(days=10),
+                last_searched_at=now - timedelta(days=10),
             ),
             # Old soft-deleted (eligible)
             SearchHistory(
@@ -258,9 +268,17 @@ class TestSearchHistoryCleanup:
                 search_query="old delete",
                 search_type="natural_language",
                 deleted_at=now - timedelta(days=45),
+                first_searched_at=now - timedelta(days=45),
+                last_searched_at=now - timedelta(days=45),
             ),
             # Guest search (not eligible)
-            SearchHistory(guest_session_id="guest-1", search_query="guest", search_type="natural_language"),
+            SearchHistory(
+                guest_session_id="guest-1",
+                search_query="guest",
+                search_type="natural_language",
+                first_searched_at=datetime.now(timezone.utc),
+                last_searched_at=datetime.now(timezone.utc),
+            ),
             # Old converted guest (eligible)
             SearchHistory(
                 guest_session_id="guest-2",
@@ -268,7 +286,7 @@ class TestSearchHistoryCleanup:
                 search_type="natural_language",
                 converted_to_user_id=user.id,
                 converted_at=now - timedelta(days=45),
-                created_at=now - timedelta(days=50),
+                first_searched_at=now - timedelta(days=50),
             ),
         ]
         db.add_all(searches)

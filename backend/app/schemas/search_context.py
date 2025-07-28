@@ -25,20 +25,24 @@ class SearchUserContext:
     user_id: Optional[int] = None
     guest_session_id: Optional[str] = None
 
+    # Session tracking for analytics
+    session_id: Optional[str] = None
+    search_origin: Optional[str] = None
+
     def __post_init__(self):
         """Validate that we have exactly one identifier."""
         if not (bool(self.user_id) ^ bool(self.guest_session_id)):
             raise ValueError("Must provide exactly one of user_id or guest_session_id")
 
     @classmethod
-    def from_user(cls, user_id: int) -> "SearchUserContext":
+    def from_user(cls, user_id: int, session_id: Optional[str] = None) -> "SearchUserContext":
         """Create context for an authenticated user."""
-        return cls(user_id=user_id)
+        return cls(user_id=user_id, session_id=session_id)
 
     @classmethod
-    def from_guest(cls, guest_session_id: str) -> "SearchUserContext":
+    def from_guest(cls, guest_session_id: str, session_id: Optional[str] = None) -> "SearchUserContext":
         """Create context for a guest user."""
-        return cls(guest_session_id=guest_session_id)
+        return cls(guest_session_id=guest_session_id, session_id=session_id)
 
     @property
     def identifier(self) -> str:

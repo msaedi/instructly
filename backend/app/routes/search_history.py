@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user_optional as auth_get_current_user_optional
 from ..database import get_db
 from ..models.user import User
+from ..schemas.search_context import SearchUserContext
 from ..schemas.search_history import SearchHistoryCreate, SearchHistoryResponse
 from ..services.search_history_service import SearchHistoryService
 
@@ -36,11 +37,43 @@ async def get_current_user_optional(
     return user
 
 
+async def get_search_context(
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    x_guest_session_id: Optional[str] = Header(None),
+    x_session_id: Optional[str] = Header(None),
+    x_search_origin: Optional[str] = Header(None),
+) -> SearchUserContext:
+    """
+    Get search context including user/guest identity and tracking headers.
+
+    Args:
+        current_user: Authenticated user if logged in
+        x_guest_session_id: Guest session ID for anonymous users
+        x_session_id: Browser session ID for analytics
+        x_search_origin: Page where search originated
+
+    Returns:
+        SearchUserContext with all tracking information
+    """
+    if current_user:
+        context = SearchUserContext.from_user(current_user.id, session_id=x_session_id)
+    elif x_guest_session_id:
+        context = SearchUserContext.from_guest(x_guest_session_id, session_id=x_session_id)
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Must provide either authentication token or guest session ID",
+        )
+
+    # Add search origin if provided
+    context.search_origin = x_search_origin
+    return context
+
+
 @router.get("/", response_model=List[SearchHistoryResponse])
 async def get_recent_searches(
     limit: int = 3,
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    x_guest_session_id: Optional[str] = Header(None),
+    context: SearchUserContext = Depends(get_search_context),
     db: Session = Depends(get_db),
 ):
     """
@@ -51,22 +84,14 @@ async def get_recent_searches(
 
     Args:
         limit: Maximum number of searches to return (default 3)
-        current_user: The authenticated user (if applicable)
-        x_guest_session_id: Guest session ID header (if applicable)
+        context: Search context with user/guest identity
         db: Database session
 
     Returns:
         List of recent search history entries
     """
     search_service = SearchHistoryService(db)
-
-    if current_user:
-        searches = search_service.get_recent_searches(user_id=current_user.id, limit=limit)
-    elif x_guest_session_id:
-        searches = search_service.get_recent_searches(guest_session_id=x_guest_session_id, limit=limit)
-    else:
-        # Return empty list if no user context
-        return []
+    searches = search_service.get_recent_searches(context=context, limit=limit)
 
     return [
         SearchHistoryResponse(
@@ -74,8 +99,10 @@ async def get_recent_searches(
             search_query=search.search_query,
             search_type=search.search_type,
             results_count=search.results_count,
-            created_at=search.created_at,
-            guest_session_id=search.guest_session_id if not current_user else None,
+            first_searched_at=search.first_searched_at,
+            last_searched_at=search.last_searched_at,
+            search_count=search.search_count,
+            guest_session_id=search.guest_session_id if not context.user_id else None,
         )
         for search in searches
     ]
@@ -84,8 +111,7 @@ async def get_recent_searches(
 @router.post("/", response_model=SearchHistoryResponse, status_code=status.HTTP_201_CREATED)
 async def record_search(
     search_data: SearchHistoryCreate,
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    x_guest_session_id: Optional[str] = Header(None),
+    context: SearchUserContext = Depends(get_search_context),
     db: Session = Depends(get_db),
 ):
     """
@@ -93,11 +119,13 @@ async def record_search(
 
     For authenticated users: Pass authorization token
     For guests: Pass X-Guest-Session-ID header
+    Optional headers:
+    - X-Session-ID: Browser session ID for analytics
+    - X-Search-Origin: Page where search originated
 
     Args:
         search_data: The search details to record
-        current_user: The authenticated user (if applicable)
-        x_guest_session_id: Guest session ID header (if applicable)
+        context: Search context with user/guest identity and tracking info
         db: Database session
 
     Returns:
@@ -106,33 +134,26 @@ async def record_search(
     search_service = SearchHistoryService(db)
 
     try:
-        if current_user:
-            search = await search_service.record_search(
-                user_id=current_user.id,
-                query=search_data.search_query,
-                search_type=search_data.search_type,
-                results_count=search_data.results_count,
-            )
-        elif x_guest_session_id:
-            search = await search_service.record_search(
-                guest_session_id=x_guest_session_id,
-                query=search_data.search_query,
-                search_type=search_data.search_type,
-                results_count=search_data.results_count,
-            )
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Must provide either authentication token or guest session ID",
-            )
+        # Build search dict with all data including tracking info
+        search_dict = {
+            "search_query": search_data.search_query,
+            "search_type": search_data.search_type,
+            "results_count": search_data.results_count,
+            "referrer": context.search_origin,
+            "context": search_data.search_context if hasattr(search_data, "search_context") else None,
+        }
+
+        search = search_service.record_search(context=context, search_data=search_dict)
 
         return SearchHistoryResponse(
             id=search.id,
             search_query=search.search_query,
             search_type=search.search_type,
             results_count=search.results_count,
-            created_at=search.created_at,
-            guest_session_id=search.guest_session_id if not current_user else None,
+            first_searched_at=search.first_searched_at,
+            last_searched_at=search.last_searched_at,
+            search_count=search.search_count,
+            guest_session_id=search.guest_session_id if not context.user_id else None,
         )
     except ValueError as e:
         # Handle validation errors with 400

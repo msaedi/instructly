@@ -12,7 +12,7 @@ Tests cover:
 These tests require database access and test the full stack integration.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy.orm import Session
@@ -30,14 +30,13 @@ pytestmark = pytest.mark.integration
 class TestGuestSearchTracking:
     """Test guest search tracking functionality."""
 
-    @pytest.mark.asyncio
-    async def test_guest_search_recording(self, db: Session):
+    def test_guest_search_recording(self, db: Session):
         """Test that guest searches are recorded with session ID."""
         service = SearchHistoryService(db)
         guest_session_id = "test-guest-123"
 
         # Record a guest search
-        search = await service.record_search(
+        search = service.record_search(
             guest_session_id=guest_session_id, query="piano lessons", search_type="natural_language", results_count=5
         )
 
@@ -48,14 +47,15 @@ class TestGuestSearchTracking:
         assert search.results_count == 5
         assert search.deleted_at is None
 
-    @pytest.mark.asyncio
-    async def test_guest_search_deduplication(self, db: Session):
+    def test_guest_search_deduplication(self, db: Session):
         """Test that duplicate guest searches update timestamp."""
         service = SearchHistoryService(db)
-        guest_session_id = "test-guest-456"
+        import uuid
+
+        guest_session_id = f"test-guest-{uuid.uuid4().hex[:8]}"
 
         # Record first search
-        search1 = await service.record_search(
+        search1 = service.record_search(
             guest_session_id=guest_session_id, query="guitar lessons", search_type="natural_language", results_count=3
         )
 
@@ -65,14 +65,15 @@ class TestGuestSearchTracking:
         time.sleep(0.1)
 
         # Record same search again
-        search2 = await service.record_search(
+        search2 = service.record_search(
             guest_session_id=guest_session_id, query="guitar lessons", search_type="natural_language", results_count=7
         )
 
-        # Should be same record with updated timestamp and results
+        # Should be same record with updated timestamp but NOT updated results
         assert search1.id == search2.id
-        assert search2.results_count == 7
-        assert search2.created_at >= search1.created_at  # Allow equal due to timing
+        assert search2.results_count == 3  # Results count should NOT change
+        assert search2.search_count == 2  # Count should increment
+        assert search2.last_searched_at >= search1.last_searched_at  # Allow equal due to timing
 
     def test_guest_recent_searches(self, db: Session):
         """Test retrieving recent guest searches."""
@@ -84,13 +85,14 @@ class TestGuestSearchTracking:
 
         # Create searches with different timestamps
         searches = []
-        base_time = datetime.utcnow()
+        base_time = datetime.now(timezone.utc)
         for i, query in enumerate(["piano lessons", "guitar teachers", "drum classes", "violin tutors"]):
             search = SearchHistory(
                 guest_session_id=guest_session_id,
                 search_query=f"{query} {unique_id}",  # Make queries unique too
                 search_type="natural_language",
-                created_at=base_time - timedelta(minutes=i),
+                first_searched_at=base_time - timedelta(minutes=i),
+                last_searched_at=base_time - timedelta(minutes=i),
             )
             db.add(search)
             searches.append(search)
@@ -118,7 +120,13 @@ class TestSoftDeleteFunctionality:
         db.add(user)
         db.commit()
 
-        search = SearchHistory(user_id=user.id, search_query="test search", search_type="natural_language")
+        search = SearchHistory(
+            user_id=user.id,
+            search_query="test search",
+            search_type="natural_language",
+            first_searched_at=datetime.now(timezone.utc),
+            last_searched_at=datetime.now(timezone.utc),
+        )
         db.add(search)
         db.commit()
 
@@ -146,9 +154,20 @@ class TestSoftDeleteFunctionality:
         db.commit()
 
         # Create active and deleted searches
-        active_search = SearchHistory(user_id=user.id, search_query="active search", search_type="natural_language")
+        active_search = SearchHistory(
+            user_id=user.id,
+            search_query="active search",
+            search_type="natural_language",
+            first_searched_at=datetime.now(timezone.utc),
+            last_searched_at=datetime.now(timezone.utc),
+        )
         deleted_search = SearchHistory(
-            user_id=user.id, search_query="deleted search", search_type="natural_language", deleted_at=datetime.utcnow()
+            user_id=user.id,
+            search_query="deleted search",
+            search_type="natural_language",
+            deleted_at=datetime.now(timezone.utc),
+            first_searched_at=datetime.now(timezone.utc),
+            last_searched_at=datetime.now(timezone.utc),
         )
         db.add_all([active_search, deleted_search])
         db.commit()
@@ -163,8 +182,7 @@ class TestSoftDeleteFunctionality:
 class TestGuestToUserConversion:
     """Test search conversion when guests become users."""
 
-    @pytest.mark.asyncio
-    async def test_guest_search_conversion(self, db: Session):
+    def test_guest_search_conversion(self, db: Session):
         """Test converting guest searches to user searches."""
         service = SearchHistoryService(db)
         guest_session_id = "convert-test-123"
@@ -180,15 +198,14 @@ class TestGuestToUserConversion:
                 guest_session_id=guest_session_id,
                 search_query=query,
                 search_type="natural_language",
-                created_at=datetime.utcnow() - timedelta(hours=1),
+                first_searched_at=datetime.now(timezone.utc) - timedelta(hours=1),
+                last_searched_at=datetime.now(timezone.utc) - timedelta(hours=1),
             )
             db.add(search)
         db.commit()
 
         # Convert searches
-        converted_count = await service.convert_guest_searches_to_user(
-            guest_session_id=guest_session_id, user_id=user.id
-        )
+        converted_count = service.convert_guest_searches_to_user(guest_session_id=guest_session_id, user_id=user.id)
 
         assert converted_count == 3
 
@@ -202,8 +219,7 @@ class TestGuestToUserConversion:
             assert search.converted_to_user_id == user.id
             assert search.converted_at is not None
 
-    @pytest.mark.asyncio
-    async def test_conversion_avoids_duplicates(self, db: Session):
+    def test_conversion_avoids_duplicates(self, db: Session):
         """Test that conversion doesn't create duplicate searches."""
         service = SearchHistoryService(db)
         guest_session_id = "no-dup-test"
@@ -213,20 +229,28 @@ class TestGuestToUserConversion:
         db.add(user)
         db.commit()
 
-        existing_search = SearchHistory(user_id=user.id, search_query="piano lessons", search_type="natural_language")
+        existing_search = SearchHistory(
+            user_id=user.id,
+            search_query="piano lessons",
+            search_type="natural_language",
+            first_searched_at=datetime.now(timezone.utc),
+            last_searched_at=datetime.now(timezone.utc),
+        )
         db.add(existing_search)
 
         # Create guest search with same query
         guest_search = SearchHistory(
-            guest_session_id=guest_session_id, search_query="piano lessons", search_type="natural_language"
+            guest_session_id=guest_session_id,
+            search_query="piano lessons",
+            search_type="natural_language",
+            first_searched_at=datetime.now(timezone.utc),
+            last_searched_at=datetime.now(timezone.utc),
         )
         db.add(guest_search)
         db.commit()
 
         # Convert
-        converted_count = await service.convert_guest_searches_to_user(
-            guest_session_id=guest_session_id, user_id=user.id
-        )
+        converted_count = service.convert_guest_searches_to_user(guest_session_id=guest_session_id, user_id=user.id)
 
         # Should not create duplicate
         assert converted_count == 0
@@ -235,8 +259,7 @@ class TestGuestToUserConversion:
         db.refresh(guest_search)
         assert guest_search.converted_to_user_id == user.id
 
-    @pytest.mark.asyncio
-    async def test_conversion_preserves_timestamps(self, db: Session):
+    def test_conversion_preserves_timestamps(self, db: Session):
         """Test that original timestamps are preserved during conversion."""
         service = SearchHistoryService(db)
         import uuid
@@ -256,31 +279,31 @@ class TestGuestToUserConversion:
         db.commit()
 
         # Create guest search with old timestamp
-        old_timestamp = datetime.utcnow() - timedelta(days=7)
+        old_timestamp = datetime.now(timezone.utc) - timedelta(days=7)
         guest_search = SearchHistory(
             guest_session_id=guest_session_id,
             search_query=query,
             search_type="natural_language",
-            created_at=old_timestamp,
+            first_searched_at=old_timestamp,
+            last_searched_at=old_timestamp,
         )
         db.add(guest_search)
         db.commit()
 
         # Convert
-        await service.convert_guest_searches_to_user(guest_session_id=guest_session_id, user_id=user.id)
+        service.convert_guest_searches_to_user(guest_session_id=guest_session_id, user_id=user.id)
 
         # Check user's search has old timestamp
         user_searches = service.get_recent_searches(user_id=user.id)
         assert len(user_searches) == 1
         # Compare timestamps without timezone info
-        assert user_searches[0].created_at.replace(tzinfo=None) == old_timestamp
+        assert user_searches[0].first_searched_at == old_timestamp
 
 
 class TestSearchLimitConfiguration:
     """Test configurable search limits."""
 
-    @pytest.mark.asyncio
-    async def test_search_limit_enforcement(self, db: Session, monkeypatch):
+    def test_search_limit_enforcement(self, db: Session, monkeypatch):
         """Test that search limits are enforced."""
         # Set low limit for testing
         monkeypatch.setattr(settings, "search_history_max_per_user", 3)
@@ -292,7 +315,7 @@ class TestSearchLimitConfiguration:
 
         # Add more searches than limit
         for i in range(5):
-            await service.record_search(user_id=user.id, query=f"search {i}", search_type="natural_language")
+            service.record_search(user_id=user.id, query=f"search {i}", search_type="natural_language")
 
         # Should only have 3 most recent
         searches = service.get_recent_searches(user_id=user.id, limit=10)
@@ -300,8 +323,7 @@ class TestSearchLimitConfiguration:
         assert searches[0].search_query == "search 4"  # Most recent
         assert searches[2].search_query == "search 2"  # Oldest kept
 
-    @pytest.mark.asyncio
-    async def test_search_limit_disabled(self, db: Session, monkeypatch):
+    def test_search_limit_disabled(self, db: Session, monkeypatch):
         """Test that setting limit to 0 disables it."""
         # Disable limit
         monkeypatch.setattr(settings, "search_history_max_per_user", 0)
@@ -313,7 +335,7 @@ class TestSearchLimitConfiguration:
 
         # Add many searches
         for i in range(20):
-            await service.record_search(user_id=user.id, query=f"search {i}", search_type="natural_language")
+            service.record_search(user_id=user.id, query=f"search {i}", search_type="natural_language")
 
         # All should be kept
         count = db.query(SearchHistory).filter_by(user_id=user.id, deleted_at=None).count()
@@ -342,7 +364,7 @@ class TestAnalyticsEligibility:
                 guest_session_id=guest_id_1,
                 search_query=f"deleted 1 {unique_id}",
                 search_type="natural_language",
-                deleted_at=datetime.utcnow(),
+                deleted_at=datetime.now(timezone.utc),
             ),
             SearchHistory(
                 guest_session_id=guest_id_2, search_query=f"active 2 {unique_id}", search_type="natural_language"
@@ -351,7 +373,7 @@ class TestAnalyticsEligibility:
                 guest_session_id=guest_id_2,
                 search_query=f"deleted 2 {unique_id}",
                 search_type="natural_language",
-                deleted_at=datetime.utcnow(),
+                deleted_at=datetime.now(timezone.utc),
             ),
         ]
         db.add_all(searches)
@@ -387,9 +409,15 @@ class TestAnalyticsEligibility:
             search_query=query,
             search_type="natural_language",
             converted_to_user_id=user.id,
-            converted_at=datetime.utcnow(),
+            converted_at=datetime.now(timezone.utc),
         )
-        user_search = SearchHistory(user_id=user.id, search_query=query, search_type="natural_language")
+        user_search = SearchHistory(
+            user_id=user.id,
+            search_query=query,
+            search_type="natural_language",
+            first_searched_at=datetime.now(timezone.utc),
+            last_searched_at=datetime.now(timezone.utc),
+        )
         db.add_all([guest_search, user_search])
         db.commit()
 
@@ -408,22 +436,24 @@ class TestAnalyticsEligibility:
 class TestEdgeCases:
     """Test edge cases and error handling."""
 
-    @pytest.mark.asyncio
-    async def test_conversion_handles_missing_user(self, db: Session):
+    def test_conversion_handles_missing_user(self, db: Session):
         """Test conversion fails gracefully with invalid user ID."""
         service = SearchHistoryService(db)
 
         # Try to convert with non-existent user
-        converted = await service.convert_guest_searches_to_user(
-            guest_session_id="test-guest", user_id=99999  # Non-existent
-        )
+        converted = service.convert_guest_searches_to_user(guest_session_id="test-guest", user_id=99999)  # Non-existent
 
         assert converted == 0
 
     def test_constraint_user_or_guest(self, db: Session):
         """Test database constraint requiring user_id OR guest_session_id."""
         # This should fail - no user_id or guest_session_id
-        search = SearchHistory(search_query="invalid search", search_type="natural_language")
+        search = SearchHistory(
+            search_query="invalid search",
+            search_type="natural_language",
+            first_searched_at=datetime.now(timezone.utc),
+            last_searched_at=datetime.now(timezone.utc),
+        )
         db.add(search)
 
         with pytest.raises(Exception):  # Should violate constraint

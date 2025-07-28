@@ -7,7 +7,7 @@ based on configuration settings.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Tuple
 
 from sqlalchemy import and_
@@ -48,7 +48,7 @@ class SearchHistoryCleanupService(BaseService):
             logger.info("Soft delete retention is disabled (0 days), skipping cleanup")
             return 0
 
-        cutoff_date = datetime.utcnow() - timedelta(days=settings.soft_delete_retention_days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.soft_delete_retention_days)
 
         try:
             # Find and delete old soft-deleted records
@@ -89,7 +89,7 @@ class SearchHistoryCleanupService(BaseService):
             logger.info("Guest session purge is disabled (0 days), skipping cleanup")
             return 0
 
-        cutoff_date = datetime.utcnow() - timedelta(days=settings.guest_session_purge_days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.guest_session_purge_days)
 
         try:
             # Delete old converted guest searches
@@ -107,7 +107,7 @@ class SearchHistoryCleanupService(BaseService):
 
             # Delete old non-converted guest searches
             # These are guest searches that were never converted and are very old
-            expired_cutoff = datetime.utcnow() - timedelta(
+            expired_cutoff = datetime.now(timezone.utc) - timedelta(
                 days=settings.guest_session_expiry_days + settings.guest_session_purge_days
             )
 
@@ -117,7 +117,7 @@ class SearchHistoryCleanupService(BaseService):
                     and_(
                         SearchHistory.guest_session_id.isnot(None),
                         SearchHistory.converted_to_user_id.is_(None),
-                        SearchHistory.created_at < expired_cutoff,
+                        SearchHistory.first_searched_at < expired_cutoff,
                     )
                 )
                 .delete(synchronize_session=False)
@@ -182,7 +182,7 @@ class SearchHistoryCleanupService(BaseService):
 
         # Soft-deleted records eligible for cleanup
         if settings.soft_delete_retention_days:
-            cutoff_date = datetime.utcnow() - timedelta(days=settings.soft_delete_retention_days)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.soft_delete_retention_days)
             stats["soft_deleted_eligible"] = (
                 self.db.query(SearchHistory)
                 .filter(and_(SearchHistory.deleted_at.isnot(None), SearchHistory.deleted_at < cutoff_date))
@@ -196,7 +196,7 @@ class SearchHistoryCleanupService(BaseService):
 
         # Converted guest sessions eligible for cleanup
         if settings.guest_session_purge_days:
-            cutoff_date = datetime.utcnow() - timedelta(days=settings.guest_session_purge_days)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.guest_session_purge_days)
             stats["converted_guest_eligible"] = (
                 self.db.query(SearchHistory)
                 .filter(
@@ -211,7 +211,7 @@ class SearchHistoryCleanupService(BaseService):
 
         # Expired guest sessions eligible for cleanup
         if settings.guest_session_expiry_days and settings.guest_session_purge_days:
-            expired_cutoff = datetime.utcnow() - timedelta(
+            expired_cutoff = datetime.now(timezone.utc) - timedelta(
                 days=settings.guest_session_expiry_days + settings.guest_session_purge_days
             )
             stats["expired_guest_eligible"] = (
@@ -220,7 +220,7 @@ class SearchHistoryCleanupService(BaseService):
                     and_(
                         SearchHistory.guest_session_id.isnot(None),
                         SearchHistory.converted_to_user_id.is_(None),
-                        SearchHistory.created_at < expired_cutoff,
+                        SearchHistory.first_searched_at < expired_cutoff,
                     )
                 )
                 .count()

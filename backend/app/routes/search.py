@@ -62,8 +62,8 @@ async def search_instructors(
             results_count = len(results.get("results", [])) if isinstance(results, dict) else 0
 
             try:
-                # Record the search asynchronously
-                await search_history_service.record_search(
+                # Record the search
+                search_history_service.record_search(
                     user_id=current_user.id, query=q, search_type="natural_language", results_count=results_count
                 )
             except Exception as history_error:

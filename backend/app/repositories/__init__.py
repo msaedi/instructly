@@ -43,6 +43,7 @@ from .bulk_operation_repository import BulkOperationRepository
 from .conflict_checker_repository import ConflictCheckerRepository
 from .factory import RepositoryFactory
 from .instructor_profile_repository import InstructorProfileRepository
+from .search_event_repository import SearchEventRepository
 from .slot_manager_repository import SlotManagerRepository
 from .week_operation_repository import WeekOperationRepository
 
@@ -57,6 +58,7 @@ __all__ = [
     "BookingRepository",
     "WeekOperationRepository",
     "InstructorProfileRepository",
+    "SearchEventRepository",
 ]
 
 # Version info

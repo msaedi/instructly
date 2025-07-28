@@ -20,6 +20,7 @@ from .booking import Booking, BookingStatus
 from .instructor import InstructorProfile
 from .monitoring import AlertHistory
 from .password_reset import PasswordResetToken
+from .search_event import SearchEvent
 from .search_history import SearchHistory
 from .service_catalog import InstructorService, ServiceAnalytics, ServiceCatalog, ServiceCategory
 from .user import User, UserRole
@@ -47,4 +48,5 @@ __all__ = [
     "AlertHistory",
     # Search history
     "SearchHistory",
+    "SearchEvent",
 ]

@@ -3,7 +3,7 @@
 Tests for search analytics API endpoints.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -24,7 +24,7 @@ class TestSearchAnalyticsEndpoints:
         db.commit()
 
         # Create searches with various attributes
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         searches = [
             # User 1 searches
             SearchHistory(
@@ -32,21 +32,24 @@ class TestSearchAnalyticsEndpoints:
                 search_query="piano lessons",
                 search_type="natural_language",
                 results_count=5,
-                created_at=now - timedelta(days=1),
+                first_searched_at=now - timedelta(days=1),
+                last_searched_at=now - timedelta(days=1),
             ),
             SearchHistory(
                 user_id=user1.id,
                 search_query="guitar teachers",
                 search_type="natural_language",
                 results_count=3,
-                created_at=now - timedelta(days=2),
+                first_searched_at=now - timedelta(days=2),
+                last_searched_at=now - timedelta(days=2),
             ),
             SearchHistory(
                 user_id=user1.id,
                 search_query="piano lessons",  # Duplicate
                 search_type="natural_language",
                 results_count=6,
-                created_at=now - timedelta(hours=6),
+                first_searched_at=now - timedelta(hours=6),
+                last_searched_at=now - timedelta(hours=6),
             ),
             # User 2 searches
             SearchHistory(
@@ -54,7 +57,8 @@ class TestSearchAnalyticsEndpoints:
                 search_query="math tutoring",
                 search_type="natural_language",
                 results_count=0,  # Zero results
-                created_at=now - timedelta(days=3),
+                first_searched_at=now - timedelta(days=3),
+                last_searched_at=now - timedelta(days=3),
             ),
             # Soft-deleted search
             SearchHistory(
@@ -63,7 +67,8 @@ class TestSearchAnalyticsEndpoints:
                 search_type="natural_language",
                 results_count=2,
                 deleted_at=now - timedelta(hours=1),
-                created_at=now - timedelta(days=4),
+                first_searched_at=now - timedelta(days=4),
+                last_searched_at=now - timedelta(days=4),
             ),
             # Guest searches
             SearchHistory(
@@ -71,7 +76,8 @@ class TestSearchAnalyticsEndpoints:
                 search_query="violin lessons",
                 search_type="category",
                 results_count=8,
-                created_at=now - timedelta(days=2),
+                first_searched_at=now - timedelta(days=2),
+                last_searched_at=now - timedelta(days=2),
             ),
             # Converted guest search
             SearchHistory(
@@ -81,7 +87,8 @@ class TestSearchAnalyticsEndpoints:
                 results_count=4,
                 converted_to_user_id=user1.id,
                 converted_at=now - timedelta(days=1),
-                created_at=now - timedelta(days=5),
+                first_searched_at=now - timedelta(days=5),
+                last_searched_at=now - timedelta(days=5),
             ),
         ]
         db.add_all(searches)
