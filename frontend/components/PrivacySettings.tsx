@@ -65,8 +65,9 @@ export function PrivacySettings({ className = '' }: PrivacySettingsProps) {
               Clear search history when I log out
             </span>
             <p className="text-sm text-gray-500 mt-1">
-              When enabled, your guest search history will be cleared upon logout. When disabled,
-              you can continue where you left off after logging back in.
+              When enabled, searches you made before logging in will be cleared when you log out.
+              When disabled, those searches will still be there if you browse without logging in
+              again.
             </p>
           </div>
         </label>

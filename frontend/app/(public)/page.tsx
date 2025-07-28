@@ -30,7 +30,10 @@ import {
   Palette,
   Baby,
   LogOut,
+  Settings,
+  X,
 } from 'lucide-react';
+import { PrivacySettings } from '@/components/PrivacySettings';
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -39,6 +42,7 @@ export default function HomePage() {
   const [categoryServices, setCategoryServices] = useState<Record<string, TopServiceSummary[]>>({});
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [userHasBookingHistory, setUserHasBookingHistory] = useState<boolean | null>(null);
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuth();
@@ -271,6 +275,17 @@ export default function HomePage() {
                           >
                             My Account
                           </Link>
+                          <button
+                            onClick={() => {
+                              setShowPrivacyModal(true);
+                              setShowUserMenu(false);
+                            }}
+                            className="w-full px-4 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 transition-colors"
+                          >
+                            <Settings className="h-4 w-4" />
+                            <span>Privacy Settings</span>
+                          </button>
+                          <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                           <button
                             onClick={() => {
                               logger.info('User logging out from dropdown menu');
@@ -859,6 +874,31 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
+
+      {/* Privacy Settings Modal */}
+      {showPrivacyModal && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 p-4"
+          style={{ backgroundColor: 'var(--modal-backdrop)' }}
+        >
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                Privacy Settings
+              </h2>
+              <button
+                onClick={() => setShowPrivacyModal(false)}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+              </button>
+            </div>
+            <div className="p-6">
+              <PrivacySettings />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
