@@ -7,6 +7,7 @@ interface UseCreateBookingReturn {
   createBooking: (data: CreateBookingRequest) => Promise<Booking | null>;
   isLoading: boolean;
   error: string | null;
+  booking: Booking | null;
   reset: () => void;
 }
 
@@ -24,6 +25,7 @@ interface UseCreateBookingReturn {
 export function useCreateBooking(): UseCreateBookingReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [booking, setBooking] = useState<Booking | null>(null);
 
   const createBooking = async (data: CreateBookingRequest): Promise<Booking | null> => {
     setIsLoading(true);
@@ -94,6 +96,7 @@ export function useCreateBooking(): UseCreateBookingReturn {
           bookingId: response.data.id,
           status: response.data.status,
         });
+        setBooking(response.data);
         return response.data;
       }
 
@@ -112,6 +115,7 @@ export function useCreateBooking(): UseCreateBookingReturn {
 
   const reset = () => {
     setError(null);
+    setBooking(null);
     setIsLoading(false);
   };
 
@@ -119,6 +123,7 @@ export function useCreateBooking(): UseCreateBookingReturn {
     createBooking,
     isLoading,
     error,
+    booking,
     reset,
   };
 }
