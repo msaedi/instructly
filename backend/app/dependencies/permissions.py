@@ -11,7 +11,7 @@ from typing import Union
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from ..auth import get_current_user
+from ..api.dependencies.auth import get_current_user
 from ..core.enums import PermissionName
 from ..database import get_db
 from ..models.user import User

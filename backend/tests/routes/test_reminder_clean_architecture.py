@@ -40,28 +40,35 @@ class TestReminderEndpointCleanArchitecture:
 
         # Should get forbidden (not a 404)
         assert response.status_code == 403
-        assert "administrators" in response.json()["detail"].lower()
+        # With RBAC, the error message mentions the specific permission needed
+        assert "manage_all_bookings" in response.json()["detail"].lower()
 
-    @patch("app.services.booking_service.BookingService.send_booking_reminders")
+    @patch("app.services.booking_service.BookingService.send_booking_reminders", new_callable=AsyncMock)
     def test_reminder_endpoint_calls_service(self, mock_send_reminders, client, db):
         """Test reminder endpoint delegates to service layer."""
-        # Mock the service to return a count - FIXED: Use AsyncMock for async method
-        mock_send_reminders.return_value = AsyncMock(return_value=5)()
+        # Mock the service to return a count - Use AsyncMock for async method
+        mock_send_reminders.return_value = 5
 
-        # Create admin user for testing
+        # Create admin user with proper RBAC permissions
+        from app.auth import create_access_token, get_password_hash
+        from app.core.enums import RoleName
+        from app.services.permission_service import PermissionService
+
         admin = User(
-            email="admin@instainstru.com",  # The hardcoded admin email
-            hashed_password="hashed",
-            full_name="Admin User",
-            # Role doesn't matter, email does
+            email="test.admin@example.com",
+            hashed_password=get_password_hash("Test1234"),
+            full_name="Test Admin",
             is_active=True,
         )
         db.add(admin)
+        db.flush()
+
+        # Assign admin role with proper permissions
+        permission_service = PermissionService(db)
+        permission_service.assign_role(admin.id, RoleName.ADMIN)
         db.commit()
 
         # Get auth token for admin
-        from app.auth import create_access_token
-
         token = create_access_token(data={"sub": admin.email})
         headers = {"Authorization": f"Bearer {token}"}
 

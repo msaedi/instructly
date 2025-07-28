@@ -6,9 +6,12 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/features/shared/hooks/useAuth';
+import { usePermissions } from '@/features/shared/hooks/usePermissions';
+import { PermissionName } from '@/types/enums';
 
 export function useAdminAuth() {
   const { user, isAuthenticated, isLoading } = useAuth();
+  const { hasPermission } = usePermissions();
   const router = useRouter();
 
   useEffect(() => {
@@ -21,19 +24,15 @@ export function useAdminAuth() {
       return;
     }
 
-    // For now, only allow specific admin emails until admin role is implemented
-    // In production, this should check for user.role === 'admin'
-    const adminEmails = ['admin@instainstru.com', 'mehdi@instainstru.com'];
-
-    if (user && !adminEmails.includes(user.email)) {
+    // Check for admin permissions using RBAC
+    if (user && !hasPermission(PermissionName.VIEW_SYSTEM_ANALYTICS)) {
       // Redirect to home page for non-admins
       router.push('/');
     }
-  }, [user, isAuthenticated, isLoading, router]);
+  }, [user, isAuthenticated, isLoading, router, hasPermission]);
 
-  // Check if current user is admin
-  const adminEmails = ['admin@instainstru.com', 'mehdi@instainstru.com'];
-  const isAdmin = user ? adminEmails.includes(user.email) : false;
+  // Check if current user has admin permissions
+  const isAdmin = hasPermission(PermissionName.VIEW_SYSTEM_ANALYTICS);
 
   return {
     isAdmin,

@@ -224,17 +224,43 @@ def upgrade() -> None:
     op.execute(
         """
         INSERT INTO permissions (name, description, resource, action) VALUES
-        ('view_analytics', 'View analytics dashboard', 'analytics', 'view'),
-        ('export_analytics', 'Export analytics data', 'analytics', 'export'),
-        ('manage_users', 'Manage all users', 'users', 'manage'),
-        ('view_financials', 'View financial data', 'financials', 'view'),
-        ('moderate_content', 'Moderate user content', 'content', 'moderate'),
-        ('manage_instructors', 'Manage instructor profiles', 'instructors', 'manage'),
-        ('manage_own_profile', 'Manage own profile', 'profile', 'manage'),
-        ('create_bookings', 'Create bookings', 'bookings', 'create'),
+        -- Shared permissions (all authenticated users)
+        ('manage_own_profile', 'Manage own profile information', 'profile', 'manage'),
+        ('view_own_bookings', 'View own bookings', 'bookings', 'view'),
+        ('view_own_search_history', 'View own search history', 'search', 'view'),
+        ('change_own_password', 'Change own password', 'account', 'update'),
+        ('delete_own_account', 'Delete own account', 'account', 'delete'),
+
+        -- Student-specific permissions
         ('view_instructors', 'View instructor profiles', 'instructors', 'view'),
-        ('manage_own_availability', 'Manage own availability', 'availability', 'manage'),
-        ('manage_own_bookings', 'Manage own bookings', 'bookings', 'manage')
+        ('view_instructor_availability', 'View instructor availability', 'availability', 'view'),
+        ('create_bookings', 'Create new bookings', 'bookings', 'create'),
+        ('cancel_own_bookings', 'Cancel own bookings', 'bookings', 'cancel'),
+        ('view_booking_details', 'View booking details', 'bookings', 'view'),
+
+        -- Instructor-specific permissions
+        ('manage_instructor_profile', 'Manage instructor profile', 'instructor_profile', 'manage'),
+        ('manage_services', 'Manage offered services', 'services', 'manage'),
+        ('manage_availability', 'Manage availability schedule', 'availability', 'manage'),
+        ('view_incoming_bookings', 'View incoming bookings', 'bookings', 'view'),
+        ('complete_bookings', 'Mark bookings as completed', 'bookings', 'complete'),
+        ('cancel_student_bookings', 'Cancel student bookings', 'bookings', 'cancel'),
+        ('view_own_instructor_analytics', 'View own instructor analytics', 'analytics', 'view'),
+        ('suspend_own_instructor_account', 'Suspend own instructor account', 'account', 'suspend'),
+
+        -- Admin permissions
+        ('view_all_users', 'View all users', 'users', 'view'),
+        ('manage_users', 'Manage all users', 'users', 'manage'),
+        ('view_system_analytics', 'View system-wide analytics', 'analytics', 'view'),
+        ('export_analytics', 'Export analytics data', 'analytics', 'export'),
+        ('view_all_bookings', 'View all bookings', 'bookings', 'view'),
+        ('manage_all_bookings', 'Manage all bookings', 'bookings', 'manage'),
+        ('access_monitoring', 'Access monitoring endpoints', 'monitoring', 'access'),
+        ('moderate_content', 'Moderate user content', 'content', 'moderate'),
+        ('view_financials', 'View financial data', 'financials', 'view'),
+        ('manage_financials', 'Manage financial data', 'financials', 'manage'),
+        ('manage_roles', 'Manage user roles', 'roles', 'manage'),
+        ('manage_permissions', 'Manage permissions', 'permissions', 'manage')
     """
     )
 
@@ -256,7 +282,15 @@ def upgrade() -> None:
         SELECT r.id, p.id
         FROM roles r, permissions p
         WHERE r.name = '{ROLE_INSTRUCTOR}'
-        AND p.name IN ('manage_own_profile', 'view_instructors', 'manage_own_availability', 'manage_own_bookings')
+        AND p.name IN (
+            -- Shared permissions
+            'manage_own_profile', 'view_own_bookings', 'view_own_search_history',
+            'change_own_password', 'delete_own_account',
+            -- Instructor-specific permissions
+            'manage_instructor_profile', 'manage_services', 'manage_availability',
+            'view_incoming_bookings', 'complete_bookings', 'cancel_student_bookings',
+            'view_own_instructor_analytics', 'suspend_own_instructor_account'
+        )
     """
     )
 
@@ -267,7 +301,14 @@ def upgrade() -> None:
         SELECT r.id, p.id
         FROM roles r, permissions p
         WHERE r.name = '{ROLE_STUDENT}'
-        AND p.name IN ('create_bookings', 'view_instructors', 'manage_own_profile', 'manage_own_bookings')
+        AND p.name IN (
+            -- Shared permissions
+            'manage_own_profile', 'view_own_bookings', 'view_own_search_history',
+            'change_own_password', 'delete_own_account',
+            -- Student-specific permissions
+            'view_instructors', 'view_instructor_availability', 'create_bookings',
+            'cancel_own_bookings', 'view_booking_details'
+        )
     """
     )
 

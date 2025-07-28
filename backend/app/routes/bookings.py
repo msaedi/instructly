@@ -41,8 +41,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from ..api.dependencies import get_booking_service, get_current_active_user
 from ..core.config import settings
-from ..core.enums import RoleName
+from ..core.enums import PermissionName, RoleName
 from ..core.exceptions import DomainException, NotFoundException, ValidationException
+from ..dependencies.permissions import require_permission
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ..models.booking import BookingStatus
 from ..models.user import User
@@ -165,7 +166,7 @@ async def check_availability(
 )
 async def send_reminder_emails(
     request: Request,  # ADD THIS for rate limiting
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_permission(PermissionName.MANAGE_ALL_BOOKINGS)),
     booking_service: BookingService = Depends(get_booking_service),
 ):
     """
@@ -173,13 +174,9 @@ async def send_reminder_emails(
 
     Should be called by scheduled job/cron.
     Rate limited to prevent email spam.
+
+    Requires: MANAGE_ALL_BOOKINGS permission (admin only)
     """
-    # Simple admin check - improve in future
-    if current_user.email != "admin@instainstru.com":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only administrators can trigger reminder emails",
-        )
 
     try:
         count = await booking_service.send_booking_reminders()
@@ -351,10 +348,14 @@ async def cancel_booking(
 @router.post("/{booking_id}/complete", response_model=BookingResponse)
 async def complete_booking(
     booking_id: int,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_permission(PermissionName.COMPLETE_BOOKINGS)),
     booking_service: BookingService = Depends(get_booking_service),
 ):
-    """Mark a booking as completed (instructor only)."""
+    """
+    Mark a booking as completed.
+
+    Requires: COMPLETE_BOOKINGS permission (instructor only)
+    """
     try:
         booking = booking_service.complete_booking(booking_id=booking_id, instructor=current_user)
         return BookingResponse.model_validate(booking)

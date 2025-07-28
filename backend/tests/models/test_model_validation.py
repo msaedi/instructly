@@ -602,8 +602,10 @@ class TestFieldValidation:
         # Student should have student-specific permissions
         student_permissions = permission_service.get_user_permissions(user.id)
         assert "create_bookings" in student_permissions
-        assert "manage_own_bookings" in student_permissions
+        assert "view_own_bookings" in student_permissions
+        assert "cancel_own_bookings" in student_permissions
         assert "view_instructors" in student_permissions
+        assert "view_instructor_availability" in student_permissions
 
     def test_booking_status_values(self, db, test_student, test_instructor):
         """Test Booking status field accepts valid enum values."""

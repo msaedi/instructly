@@ -5,6 +5,7 @@ Tests for search analytics API endpoints.
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -15,6 +16,31 @@ from app.models.user import User
 
 class TestSearchAnalyticsEndpoints:
     """Test search analytics endpoints."""
+
+    @pytest.fixture
+    def admin_auth_headers(self, db: Session):
+        """Create admin user and return auth headers."""
+        from app.auth import create_access_token, get_password_hash
+        from app.core.enums import RoleName
+        from app.services.permission_service import PermissionService
+
+        admin = User(
+            email="test.admin@example.com",
+            hashed_password=get_password_hash("Test1234"),
+            full_name="Test Admin",
+            is_active=True,
+        )
+        db.add(admin)
+        db.flush()
+
+        # Assign admin role with proper permissions
+        permission_service = PermissionService(db)
+        permission_service.assign_role(admin.id, RoleName.ADMIN)
+        db.commit()
+
+        # Create auth token
+        token = create_access_token(data={"sub": admin.email})
+        return {"Authorization": f"Bearer {token}"}
 
     def setup_test_data(self, db: Session):
         """Create test data for analytics."""
@@ -124,11 +150,11 @@ class TestSearchAnalyticsEndpoints:
 
         return user1, user2
 
-    def test_get_search_trends(self, client: TestClient, db: Session, auth_headers: dict):
+    def test_get_search_trends(self, client: TestClient, db: Session, admin_auth_headers: dict):
         """Test search trends endpoint."""
         self.setup_test_data(db)
 
-        response = client.get("/api/analytics/search/search-trends?days=7", headers=auth_headers)
+        response = client.get("/api/analytics/search/search-trends?days=7", headers=admin_auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -142,13 +168,13 @@ class TestSearchAnalyticsEndpoints:
             assert "unique_users" in day
             assert "unique_guests" in day
 
-    def test_get_search_trends_filtered(self, client: TestClient, db: Session, auth_headers: dict):
+    def test_get_search_trends_filtered(self, client: TestClient, db: Session, admin_auth_headers: dict):
         """Test search trends with filters."""
         self.setup_test_data(db)
 
         # Filter by search type
         response = client.get(
-            "/api/analytics/search/search-trends?days=7&search_type=natural_language", headers=auth_headers
+            "/api/analytics/search/search-trends?days=7&search_type=natural_language", headers=admin_auth_headers
         )
 
         assert response.status_code == 200
@@ -156,15 +182,17 @@ class TestSearchAnalyticsEndpoints:
         assert isinstance(data, list)
 
         # Without soft-deleted
-        response = client.get("/api/analytics/search/search-trends?days=7&include_deleted=false", headers=auth_headers)
+        response = client.get(
+            "/api/analytics/search/search-trends?days=7&include_deleted=false", headers=admin_auth_headers
+        )
 
         assert response.status_code == 200
 
-    def test_get_popular_searches(self, client: TestClient, db: Session, auth_headers: dict):
+    def test_get_popular_searches(self, client: TestClient, db: Session, admin_auth_headers: dict):
         """Test popular searches endpoint."""
         self.setup_test_data(db)
 
-        response = client.get("/api/analytics/search/popular-searches?days=30&limit=10", headers=auth_headers)
+        response = client.get("/api/analytics/search/popular-searches?days=30&limit=10", headers=admin_auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -181,11 +209,11 @@ class TestSearchAnalyticsEndpoints:
         if len(data) > 1:
             assert data[0]["search_count"] >= data[1]["search_count"]
 
-    def test_get_analytics_summary(self, client: TestClient, db: Session, auth_headers: dict):
+    def test_get_analytics_summary(self, client: TestClient, db: Session, admin_auth_headers: dict):
         """Test analytics summary endpoint."""
         self.setup_test_data(db)
 
-        response = client.get("/api/analytics/search/search-analytics-summary?days=30", headers=auth_headers)
+        response = client.get("/api/analytics/search/search-analytics-summary?days=30", headers=admin_auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -204,20 +232,20 @@ class TestSearchAnalyticsEndpoints:
         assert totals["deleted_searches"] > 0
         assert totals["deletion_rate"] > 0
 
-    def test_get_user_search_behavior(self, client: TestClient, db: Session, auth_headers: dict):
+    def test_get_user_search_behavior(self, client: TestClient, db: Session, admin_auth_headers: dict):
         """Test user behavior analytics endpoint."""
         user1, _ = self.setup_test_data(db)
 
         # Get current user's behavior
         response = client.get(
-            f"/api/analytics/search/user-search-behavior?user_id={user1.id}&days=30", headers=auth_headers
+            f"/api/analytics/search/user-search-behavior?user_id={user1.id}&days=30", headers=admin_auth_headers
         )
 
         # Should fail - not the current user
         assert response.status_code == 403
 
         # Get behavior without specific user (uses current user)
-        response = client.get("/api/analytics/search/user-search-behavior?days=30", headers=auth_headers)
+        response = client.get("/api/analytics/search/user-search-behavior?days=30", headers=admin_auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -233,11 +261,11 @@ class TestSearchAnalyticsEndpoints:
             assert "time_patterns" in data
             assert "search_effectiveness" in data
 
-    def test_get_conversion_metrics(self, client: TestClient, db: Session, auth_headers: dict):
+    def test_get_conversion_metrics(self, client: TestClient, db: Session, admin_auth_headers: dict):
         """Test conversion metrics endpoint."""
         self.setup_test_data(db)
 
-        response = client.get("/api/analytics/search/conversion-metrics?days=30", headers=auth_headers)
+        response = client.get("/api/analytics/search/conversion-metrics?days=30", headers=admin_auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -252,11 +280,11 @@ class TestSearchAnalyticsEndpoints:
         assert guest_data["converted"] > 0
         assert guest_data["conversion_rate"] > 0
 
-    def test_get_search_performance(self, client: TestClient, db: Session, auth_headers: dict):
+    def test_get_search_performance(self, client: TestClient, db: Session, admin_auth_headers: dict):
         """Test search performance endpoint."""
         self.setup_test_data(db)
 
-        response = client.get("/api/analytics/search/search-performance?days=30", headers=auth_headers)
+        response = client.get("/api/analytics/search/search-performance?days=30", headers=admin_auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -290,24 +318,24 @@ class TestSearchAnalyticsEndpoints:
             response = client.get(endpoint)
             assert response.status_code == 401
 
-    def test_analytics_date_range_validation(self, client: TestClient, auth_headers: dict):
+    def test_analytics_date_range_validation(self, client: TestClient, admin_auth_headers: dict):
         """Test date range validation."""
         # Too many days
-        response = client.get("/api/analytics/search/search-trends?days=400", headers=auth_headers)
+        response = client.get("/api/analytics/search/search-trends?days=400", headers=admin_auth_headers)
         assert response.status_code == 422
 
         # Negative days
-        response = client.get("/api/analytics/search/search-trends?days=-1", headers=auth_headers)
+        response = client.get("/api/analytics/search/search-trends?days=-1", headers=admin_auth_headers)
         assert response.status_code == 422
 
-    def test_analytics_with_no_data(self, client: TestClient, db: Session, auth_headers: dict):
+    def test_analytics_with_no_data(self, client: TestClient, db: Session, admin_auth_headers: dict):
         """Test analytics endpoints with no data."""
         # Don't create any test data
         # Note: There might be data from other tests, so we can't assume empty
 
         response = client.get(
             "/api/analytics/search/search-trends?days=1",  # Use 1 day to reduce chance of pollution
-            headers=auth_headers,
+            headers=admin_auth_headers,
         )
 
         assert response.status_code == 200
@@ -317,7 +345,7 @@ class TestSearchAnalyticsEndpoints:
         assert isinstance(data, list)
 
         response = client.get(
-            "/api/analytics/search/search-analytics-summary?days=1", headers=auth_headers  # Use 1 day
+            "/api/analytics/search/search-analytics-summary?days=1", headers=admin_auth_headers  # Use 1 day
         )
 
         assert response.status_code == 200

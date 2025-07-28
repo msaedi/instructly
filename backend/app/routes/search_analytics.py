@@ -14,7 +14,9 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from ..api.dependencies.auth import get_current_active_user
+from ..core.enums import PermissionName
 from ..database import get_db
+from ..dependencies.permissions import require_permission
 from ..models.user import User
 from ..services.search_analytics_service import SearchAnalyticsService
 
@@ -26,7 +28,7 @@ async def get_search_trends(
     days: int = Query(30, ge=1, le=365, description="Number of days to analyze"),
     include_deleted: bool = Query(True, description="Include soft-deleted searches"),
     search_type: Optional[str] = Query(None, description="Filter by search type"),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
     db: Session = Depends(get_db),
 ):
     """
@@ -35,11 +37,13 @@ async def get_search_trends(
     Returns aggregated search data by day, including soft-deleted searches
     for accurate analytics.
 
+    Requires: VIEW_SYSTEM_ANALYTICS permission (admin only)
+
     Args:
         days: Number of days to look back (1-365)
         include_deleted: Whether to include soft-deleted searches
         search_type: Optional filter by search type
-        current_user: Must be authenticated
+        current_user: Must be authenticated admin
         db: Database session
 
     Returns:

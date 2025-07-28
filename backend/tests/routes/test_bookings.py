@@ -653,12 +653,9 @@ class TestBookingRoutes:
         self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
     ):
         """Test that students cannot complete bookings."""
-        mock_booking_service.complete_booking.side_effect = ValidationException(
-            "Only instructors can mark bookings as complete"
-        )
-
+        # With RBAC, students are blocked at permission level (403) before service validation (400)
         response = client_with_mock_booking_service.post("/bookings/123/complete", headers=auth_headers_student)
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_get_bookings_pagination_edge_cases(
         self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
@@ -818,20 +815,27 @@ class TestBookingRoutes:
         )
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_send_reminders_as_admin(self, client_with_mock_booking_service, mock_booking_service):
+    def test_send_reminders_as_admin(self, client_with_mock_booking_service, mock_booking_service, db):
         """Test admin successfully sending reminders."""
-        from app.api.dependencies import get_current_active_user
-        from app.auth import create_access_token
+        from app.auth import create_access_token, get_password_hash
+        from app.core.enums import RoleName
+        from app.models.user import User
+        from app.services.permission_service import PermissionService
 
-        # Create admin user mock
-        admin_user = Mock()
-        admin_user.email = "admin@instainstru.com"
-        admin_user.id = 999
-        # Use the enum for roles
+        # Create a real admin user in the database
+        admin_user = User(
+            email="test.admin@example.com", hashed_password=get_password_hash("Test1234"), full_name="Test Admin"
+        )
+        db.add(admin_user)
+        db.flush()
 
-        app.dependency_overrides[get_current_active_user] = lambda: admin_user
+        # Assign admin role with proper permissions
+        permission_service = PermissionService(db)
+        permission_service.assign_role(admin_user.id, RoleName.ADMIN)
+        db.commit()
 
-        admin_token = create_access_token(data={"sub": "admin@instainstru.com"})
+        # Create real auth token
+        admin_token = create_access_token(data={"sub": admin_user.email})
         admin_headers = {"Authorization": f"Bearer {admin_token}"}
 
         # send_booking_reminders is async
@@ -849,10 +853,6 @@ class TestBookingRoutes:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["reminders_sent"] == 5
-
-        # Clean up
-        app.dependency_overrides.clear()
-        app.dependency_overrides[get_booking_service] = lambda: mock_booking_service
 
     def test_create_booking_invalid_location_type(self, client, auth_headers_student, booking_data):
         """Test booking with invalid location type."""

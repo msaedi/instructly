@@ -31,36 +31,43 @@ class PermissionName(str, Enum):
     permissions can be added to the database dynamically.
     """
 
-    # Analytics permissions
-    VIEW_ANALYTICS = "view_analytics"
-    EXPORT_ANALYTICS = "export_analytics"
+    # Shared permissions (all authenticated users)
+    MANAGE_OWN_PROFILE = "manage_own_profile"
+    VIEW_OWN_BOOKINGS = "view_own_bookings"
+    VIEW_OWN_SEARCH_HISTORY = "view_own_search_history"
+    CHANGE_OWN_PASSWORD = "change_own_password"
+    DELETE_OWN_ACCOUNT = "delete_own_account"
 
-    # User management permissions
-    MANAGE_USERS = "manage_users"
+    # Student-specific permissions
+    VIEW_INSTRUCTORS = "view_instructors"
+    VIEW_INSTRUCTOR_AVAILABILITY = "view_instructor_availability"
+    CREATE_BOOKINGS = "create_bookings"
+    CANCEL_OWN_BOOKINGS = "cancel_own_bookings"
+    VIEW_BOOKING_DETAILS = "view_booking_details"
+
+    # Instructor-specific permissions
+    MANAGE_INSTRUCTOR_PROFILE = "manage_instructor_profile"
+    MANAGE_SERVICES = "manage_services"
+    MANAGE_AVAILABILITY = "manage_availability"
+    VIEW_INCOMING_BOOKINGS = "view_incoming_bookings"
+    COMPLETE_BOOKINGS = "complete_bookings"
+    CANCEL_STUDENT_BOOKINGS = "cancel_student_bookings"
+    VIEW_OWN_INSTRUCTOR_ANALYTICS = "view_own_instructor_analytics"
+    SUSPEND_OWN_INSTRUCTOR_ACCOUNT = "suspend_own_instructor_account"
+
+    # Admin permissions
     VIEW_ALL_USERS = "view_all_users"
-
-    # Financial permissions
+    MANAGE_USERS = "manage_users"
+    VIEW_SYSTEM_ANALYTICS = "view_system_analytics"
+    EXPORT_ANALYTICS = "export_analytics"
+    VIEW_ALL_BOOKINGS = "view_all_bookings"
+    MANAGE_ALL_BOOKINGS = "manage_all_bookings"
+    ACCESS_MONITORING = "access_monitoring"
+    MODERATE_CONTENT = "moderate_content"
     VIEW_FINANCIALS = "view_financials"
     MANAGE_FINANCIALS = "manage_financials"
-
-    # Content moderation
-    MODERATE_CONTENT = "moderate_content"
-
-    # Instructor management
-    MANAGE_INSTRUCTORS = "manage_instructors"
-    VIEW_INSTRUCTORS = "view_instructors"
-
-    # Profile management
-    MANAGE_OWN_PROFILE = "manage_own_profile"
-
-    # Booking permissions
-    CREATE_BOOKINGS = "create_bookings"
-    MANAGE_OWN_BOOKINGS = "manage_own_bookings"
-    VIEW_ALL_BOOKINGS = "view_all_bookings"
-
-    # Availability management
-    MANAGE_OWN_AVAILABILITY = "manage_own_availability"
-    VIEW_ALL_AVAILABILITY = "view_all_availability"
+    MANAGE_ROLES = "manage_roles"
+    MANAGE_PERMISSIONS = "manage_permissions"
 
 
 class AccountStatus(str, Enum):
