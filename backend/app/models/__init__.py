@@ -20,15 +20,22 @@ from .booking import Booking, BookingStatus
 from .instructor import InstructorProfile
 from .monitoring import AlertHistory
 from .password_reset import PasswordResetToken
+from .rbac import Permission, Role, RolePermission, UserPermission, UserRole
 from .search_event import SearchEvent
 from .search_history import SearchHistory
+from .search_interaction import SearchInteraction
 from .service_catalog import InstructorService, ServiceAnalytics, ServiceCatalog, ServiceCategory
-from .user import User, UserRole
+from .user import User
 
 __all__ = [
     # User models
     "User",
+    # RBAC models
+    "Role",
+    "Permission",
     "UserRole",
+    "RolePermission",
+    "UserPermission",
     # Instructor models
     "InstructorProfile",
     # Service catalog models
@@ -49,4 +56,5 @@ __all__ = [
     # Search history
     "SearchHistory",
     "SearchEvent",
+    "SearchInteraction",
 ]

@@ -16,10 +16,11 @@ from fastapi import status
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.core.enums import RoleName
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.service_catalog import ServiceCatalog
-from app.models.user import User, UserRole
+from app.models.user import User
 
 
 class TestInstructorRoutes:
@@ -39,7 +40,6 @@ class TestInstructorRoutes:
             hashed_password="hashedpassword",
             full_name="Inactive Instructor",
             is_active=True,
-            role=UserRole.INSTRUCTOR,
         )
         db.add(inactive_instructor)
         db.flush()
@@ -88,7 +88,6 @@ class TestInstructorRoutes:
                 hashed_password="hashedpassword",
                 full_name=f"Instructor {i}",
                 is_active=True,
-                role=UserRole.INSTRUCTOR,
             )
             db.add(user)
             db.flush()
@@ -162,7 +161,7 @@ class TestInstructorRoutes:
 
         # Verify user role was updated
         db.refresh(test_student)
-        assert test_student.role == UserRole.INSTRUCTOR
+        assert any(role.name == RoleName.INSTRUCTOR for role in test_student.roles)
 
     def test_create_instructor_profile_duplicate(
         self, client: TestClient, test_instructor: User, auth_headers_instructor: dict, db: Session
@@ -305,7 +304,7 @@ class TestInstructorRoutes:
 
         # Verify user role changed to student
         db.refresh(test_instructor)
-        assert test_instructor.role == UserRole.STUDENT
+        assert any(role.name == RoleName.STUDENT for role in test_instructor.roles)
 
         # Verify profile is deleted
         profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).first()
@@ -476,7 +475,6 @@ class TestInstructorRoutes:
             hashed_password=get_password_hash("Password123!"),
             full_name="New Student",
             is_active=True,
-            role=UserRole.STUDENT,
         )
         db.add(new_user)
         db.commit()

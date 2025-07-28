@@ -31,14 +31,12 @@ def create_test_booking():
         id=1,
         email="delivered@resend.dev",  # Resend's test email OR use your real email
         full_name="Test Student",
-        role="student",
     )
 
     instructor = User(
         id=2,
         email="delivered@resend.dev",  # Resend's test email OR use your real email
         full_name="Test Instructor",
-        role="instructor",
     )
 
     # Create a mock booking

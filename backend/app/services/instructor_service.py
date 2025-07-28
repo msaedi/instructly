@@ -15,11 +15,12 @@ from typing import Dict, List, Optional, Set
 
 from sqlalchemy.orm import Session
 
+from ..core.enums import RoleName
 from ..core.exceptions import BusinessRuleException, NotFoundException
 from ..models.instructor import InstructorProfile
 from ..models.service_catalog import InstructorService as Service
 from ..models.service_catalog import ServiceCatalog, ServiceCategory
-from ..models.user import User, UserRole
+from ..models.user import User
 from ..repositories.factory import RepositoryFactory
 from ..schemas.instructor import InstructorProfileCreate, InstructorProfileUpdate, ServiceCreate
 from .base import BaseService
@@ -265,7 +266,7 @@ class InstructorService(BaseService):
                 services = []
 
             # Update user role
-            self.user_repository.update(user.id, role=UserRole.INSTRUCTOR)
+            self.user_repository.update(user.id, role=RoleName.INSTRUCTOR)
 
             # Load user for response
             user = self.user_repository.get_by_id(user.id)
@@ -346,8 +347,12 @@ class InstructorService(BaseService):
             # Now delete the profile
             self.profile_repository.delete(profile.id)
 
-            # Revert user role
-            self.user_repository.update(user_id, role=UserRole.STUDENT)
+            # Revert user role - remove instructor role and add student role
+            from app.services.permission_service import PermissionService
+
+            permission_service = PermissionService(self.db)
+            permission_service.remove_role(user_id, RoleName.INSTRUCTOR)
+            permission_service.assign_role(user_id, RoleName.STUDENT)
 
         # Invalidate caches
         if self.cache_service:

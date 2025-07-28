@@ -20,7 +20,7 @@ from app.services.search_history_service import SearchHistoryService
 @pytest.fixture
 def test_user(db: Session):
     """Create a test user."""
-    user = User(email="tracker@example.com", role="student", full_name="Tracker Test", hashed_password="hashed")
+    user = User(email="tracker@example.com", full_name="Tracker Test", hashed_password="hashed")
     db.add(user)
     db.commit()
     db.refresh(user)

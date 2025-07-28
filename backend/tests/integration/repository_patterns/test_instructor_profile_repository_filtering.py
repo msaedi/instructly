@@ -6,7 +6,6 @@ These tests verify the SQL query generation, eager loading, and complex
 filter combinations with a real database.
 """
 
-
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -15,7 +14,7 @@ from app.database import Base
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.service_catalog import ServiceCatalog, ServiceCategory
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 
 
@@ -47,28 +46,24 @@ class TestInstructorProfileRepositoryFiltering:
                 email="john.doe@example.com",
                 full_name="John Doe",
                 hashed_password="hashed",
-                role=UserRole.INSTRUCTOR,
                 is_active=True,
             ),
             User(
                 email="jane.smith@example.com",
                 full_name="Jane Smith",
                 hashed_password="hashed",
-                role=UserRole.INSTRUCTOR,
                 is_active=True,
             ),
             User(
                 email="bob.wilson@example.com",
                 full_name="Bob Wilson",
                 hashed_password="hashed",
-                role=UserRole.INSTRUCTOR,
                 is_active=True,
             ),
             User(
                 email="alice.brown@example.com",
                 full_name="Alice Brown",
                 hashed_password="hashed",
-                role=UserRole.INSTRUCTOR,
                 is_active=True,
             ),
         ]
@@ -389,7 +384,6 @@ class TestInstructorProfileRepositoryFiltering:
             email="special@example.com",
             full_name="Test O'Brien",
             hashed_password="hashed",
-            role=UserRole.INSTRUCTOR,
             is_active=True,
         )
         repository.db.add(user)

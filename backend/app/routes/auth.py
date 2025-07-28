@@ -21,8 +21,9 @@ from ..core.config import settings
 from ..core.exceptions import ConflictException, NotFoundException
 from ..database import get_db
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
-from ..schemas import Token, UserCreate, UserLogin, UserResponse
+from ..schemas import Token, UserCreate, UserLogin, UserResponse, UserWithPermissionsResponse
 from ..services.auth_service import AuthService
+from ..services.permission_service import PermissionService
 from ..services.search_history_service import SearchHistoryService
 
 logger = logging.getLogger(__name__)
@@ -78,7 +79,16 @@ async def register(
                 logger.error(f"Failed to convert guest searches during registration: {str(e)}")
                 # Don't fail registration if conversion fails
 
-        return db_user
+        # Convert roles to strings for response
+        user_dict = {
+            "id": db_user.id,
+            "email": db_user.email,
+            "full_name": db_user.full_name,
+            "is_active": db_user.is_active,
+            "roles": [role.name for role in db_user.roles],
+            "permissions": [],  # TODO: Add permissions if needed
+        }
+        return user_dict
     except ConflictException as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -202,29 +212,45 @@ async def login_with_session(
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-@router.get("/me", response_model=UserResponse)
+@router.get("/me", response_model=UserWithPermissionsResponse)
 async def read_users_me(
     current_user: str = Depends(get_current_user),
     auth_service: AuthService = Depends(get_auth_service),
+    db: Session = Depends(get_db),
 ):
     """
-    Get current user information.
+    Get current user information with roles and permissions.
 
     No additional rate limiting as this requires authentication.
 
     Args:
         current_user: Current user email from JWT
         auth_service: Authentication service
+        db: Database session
 
     Returns:
-        UserResponse: Current user data
+        UserWithPermissionsResponse: Current user data with roles and permissions
 
     Raises:
         HTTPException: If user not found
     """
     try:
         user = auth_service.get_current_user(email=current_user)
-        return user
+
+        # Get permissions for the user
+        permission_service = PermissionService(db)
+        permissions = permission_service.get_user_permissions(user.id)
+        roles = permission_service.get_user_roles(user.id)
+
+        # Create response with roles and permissions
+        return UserWithPermissionsResponse(
+            id=user.id,
+            email=user.email,
+            full_name=user.full_name,
+            is_active=user.is_active,
+            roles=roles,
+            permissions=list(permissions),
+        )
     except NotFoundException:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

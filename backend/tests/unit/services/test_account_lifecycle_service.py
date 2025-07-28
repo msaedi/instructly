@@ -11,9 +11,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from app.core.enums import RoleName
 from app.core.exceptions import BusinessRuleException, ValidationException
 from app.models.booking import Booking, BookingStatus
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.services.account_lifecycle_service import AccountLifecycleService
 
 
@@ -79,10 +80,15 @@ class TestAccountLifecycleServiceUnit:
     def mock_instructor(self):
         """Create a mock instructor user."""
         instructor = Mock(spec=User)
+
+        mock_instructor_role = Mock()
+
+        mock_instructor_role.name = RoleName.INSTRUCTOR
+
+        instructor.roles = [mock_instructor_role]
         instructor.id = 1
         instructor.email = "instructor@example.com"
         instructor.full_name = "Test Instructor"
-        instructor.role = UserRole.INSTRUCTOR
         instructor.account_status = "active"
         instructor.is_instructor = True
         instructor.is_student = False
@@ -98,10 +104,15 @@ class TestAccountLifecycleServiceUnit:
     def mock_student(self):
         """Create a mock student user."""
         student = Mock(spec=User)
+
+        mock_student_role = Mock()
+
+        mock_student_role.name = RoleName.STUDENT
+
+        student.roles = [mock_student_role]
         student.id = 2
         student.email = "student@example.com"
         student.full_name = "Test Student"
-        student.role = UserRole.STUDENT
         student.account_status = "active"
         student.is_instructor = False
         student.is_student = True
@@ -310,7 +321,7 @@ class TestAccountLifecycleServiceUnit:
         result = service.get_account_status(mock_instructor)
 
         assert result["user_id"] == mock_instructor.id
-        assert result["role"] == mock_instructor.role
+        assert result["role"] == RoleName.INSTRUCTOR
         assert result["account_status"] == "active"
         assert result["can_login"] is True
         assert result["can_receive_bookings"] is True
@@ -364,7 +375,7 @@ class TestAccountLifecycleServiceUnit:
         result = service.get_account_status(mock_student)
 
         assert result["user_id"] == mock_student.id
-        assert result["role"] == mock_student.role
+        assert result["role"] == RoleName.STUDENT
         assert result["account_status"] == "active"
         assert result["can_login"] is True
         assert result["can_receive_bookings"] is False

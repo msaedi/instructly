@@ -21,10 +21,10 @@ import { logger } from '@/lib/logger';
 
 // Import centralized types
 import type { InstructorService } from '@/types/instructor';
-import type { UserData } from '@/types/user';
-import { UserRole, isInstructorUser } from '@/types/user';
 import { RequestStatus } from '@/types/api';
 import { getErrorMessage } from '@/types/common';
+import { useAuth, hasRole, type User } from '@/features/shared/hooks/useAuth';
+import { RoleName } from '@/types/enums';
 
 /**
  * Form data interface for instructor onboarding
@@ -144,14 +144,16 @@ export default function BecomeInstructorPage() {
           throw new Error('Failed to fetch user data');
         }
 
-        const userData: UserData = await response.json();
+        const userData = await response.json();
         logger.info('User data fetched for onboarding check', {
           userId: userData.id,
-          role: userData.role,
-          isInstructor: isInstructorUser(userData),
+          roles: userData.roles,
+          isInstructor: hasRole(userData, RoleName.INSTRUCTOR),
         });
 
-        setUserRole(userData.role);
+        // Get primary role for display
+        const primaryRole = userData.roles?.[0] || RoleName.STUDENT;
+        setUserRole(primaryRole);
         setAuthCheckStatus(RequestStatus.SUCCESS);
       } catch (error) {
         logger.error('Error checking user authentication', error);
@@ -395,7 +397,7 @@ export default function BecomeInstructorPage() {
   }
 
   // Already an instructor
-  if (userRole === UserRole.INSTRUCTOR || userRole === 'instructor') {
+  if (userRole === RoleName.INSTRUCTOR) {
     logger.debug('User is already an instructor');
     return (
       <div className="min-h-screen flex items-center justify-center">

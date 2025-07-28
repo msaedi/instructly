@@ -17,7 +17,8 @@ from app.api.dependencies.auth import (
     get_current_student,
     get_current_user,
 )
-from app.models.user import User, UserRole
+from app.core.enums import RoleName
+from app.models.user import User
 
 
 class TestAuthDependencies:
@@ -36,7 +37,11 @@ class TestAuthDependencies:
         user.email = "student@example.com"
         user.full_name = "Test Student"
         user.is_active = True
-        user.role = UserRole.STUDENT
+        # RBAC: Mock roles
+        student_role = Mock()
+        student_role.name = RoleName.STUDENT
+        user.roles = [student_role]
+        # Add properties
         user.is_instructor = False
         user.is_student = True
         return user
@@ -49,7 +54,11 @@ class TestAuthDependencies:
         user.email = "instructor@example.com"
         user.full_name = "Test Instructor"
         user.is_active = True
-        user.role = UserRole.INSTRUCTOR
+        # RBAC: Mock roles
+        instructor_role = Mock()
+        instructor_role.name = RoleName.INSTRUCTOR
+        user.roles = [instructor_role]
+        # Add properties
         user.is_instructor = True
         user.is_student = False
         return user
@@ -62,7 +71,11 @@ class TestAuthDependencies:
         user.email = "inactive@example.com"
         user.full_name = "Inactive User"
         user.is_active = False
-        user.role = UserRole.STUDENT
+        # RBAC: Mock roles
+        student_role = Mock()
+        student_role.name = RoleName.STUDENT
+        user.roles = [student_role]
+        # Add properties
         user.is_instructor = False
         user.is_student = True
         return user
@@ -283,7 +296,6 @@ class TestAuthDependenciesEdgeCases:
         weird_user.id = 999
         weird_user.email = "weird@example.com"
         weird_user.is_active = True
-        weird_user.role = UserRole.INSTRUCTOR
         weird_user.is_instructor = False  # Conflict!
         weird_user.is_student = True  # Conflict!
 

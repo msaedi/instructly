@@ -10,6 +10,7 @@ import { logger } from '@/lib/logger';
 import InstructorCard from '@/components/InstructorCard';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { recordSearch } from '@/lib/searchTracking';
+import { SearchType } from '@/types/enums';
 
 interface Service {
   id: number;
@@ -412,19 +413,14 @@ function SearchPageContent() {
 
       // Determine search query and type
       const searchQuery = query || serviceName || category || 'Unknown search';
-      let searchType:
-        | 'natural_language'
-        | 'category'
-        | 'service_pill'
-        | 'filter'
-        | 'search_history' = 'natural_language';
+      let searchType: SearchType = SearchType.NATURAL_LANGUAGE;
 
       if (query) {
         // Determine if this is a search history click or a new natural language search
         if (fromPage === 'recent') {
-          searchType = 'search_history';
+          searchType = SearchType.SEARCH_HISTORY;
         } else {
-          searchType = 'natural_language';
+          searchType = SearchType.NATURAL_LANGUAGE;
         }
 
         // Skip recording if search is coming from home page or recent searches
@@ -439,7 +435,7 @@ function SearchPageContent() {
           return;
         }
       } else if (serviceCatalogId && serviceName) {
-        searchType = 'service_pill';
+        searchType = SearchType.SERVICE_PILL;
         // Skip recording if service pill click is coming from home or services page
         // (already recorded on originating page)
         if (fromPage === 'home' || fromPage === 'services') {
@@ -455,7 +451,7 @@ function SearchPageContent() {
           return;
         }
       } else if (category) {
-        searchType = 'category';
+        searchType = SearchType.CATEGORY;
       }
 
       try {

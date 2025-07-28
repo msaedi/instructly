@@ -283,7 +283,7 @@ class TestBookingServiceAccountStatus:
         from app.auth import get_password_hash
         from app.models.instructor import InstructorProfile
         from app.models.service_catalog import InstructorService as Service
-        from app.models.user import User, UserRole
+        from app.models.user import User
         from app.repositories.instructor_profile_repository import InstructorProfileRepository
 
         # Create an active instructor with services
@@ -292,7 +292,6 @@ class TestBookingServiceAccountStatus:
             hashed_password=get_password_hash("TestPassword123!"),
             full_name="Active Instructor",
             is_active=True,
-            role=UserRole.INSTRUCTOR,
             account_status="active",
         )
         db.add(active_instructor)
@@ -344,7 +343,7 @@ class TestBookingServiceAccountStatus:
         from app.auth import get_password_hash
         from app.models.instructor import InstructorProfile
         from app.models.service_catalog import InstructorService as Service
-        from app.models.user import User, UserRole
+        from app.models.user import User
         from app.repositories.instructor_profile_repository import InstructorProfileRepository
 
         # Create an active instructor with services
@@ -353,7 +352,6 @@ class TestBookingServiceAccountStatus:
             hashed_password=get_password_hash("TestPassword123!"),
             full_name="Active Instructor 2",
             is_active=True,
-            role=UserRole.INSTRUCTOR,
             account_status="active",
         )
         db.add(active_instructor)

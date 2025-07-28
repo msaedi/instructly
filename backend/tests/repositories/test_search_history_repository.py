@@ -22,7 +22,11 @@ class TestSearchHistoryRepository:
         repo = SearchHistoryRepository(db)
 
         # Create user and search
-        user = User(email="test@example.com", hashed_password="hash", full_name="Test", role="student")
+        user = User(
+            email="test@example.com",
+            hashed_password="hash",
+            full_name="Test",
+        )
         db.add(user)
         db.commit()
 
@@ -77,7 +81,11 @@ class TestSearchHistoryRepository:
         """Test that soft-deleted searches are excluded."""
         repo = SearchHistoryRepository(db)
 
-        user = User(email="deleted@example.com", hashed_password="hash", full_name="Test", role="student")
+        user = User(
+            email="deleted@example.com",
+            hashed_password="hash",
+            full_name="Test",
+        )
         db.add(user)
         db.commit()
 
@@ -137,7 +145,11 @@ class TestSearchHistoryRepository:
         """Test counting searches with various filters."""
         repo = SearchHistoryRepository(db)
 
-        user = User(email="count@example.com", hashed_password="hash", full_name="Count", role="student")
+        user = User(
+            email="count@example.com",
+            hashed_password="hash",
+            full_name="Count",
+        )
         db.add(user)
         db.commit()
 
@@ -228,7 +240,10 @@ class TestSearchHistoryRepository:
 
         # Create user
         user = User(
-            id=user_id, email="softdel@example.com", hashed_password="hash", full_name="SoftDel", role="student"
+            id=user_id,
+            email="softdel@example.com",
+            hashed_password="hash",
+            full_name="SoftDel",
         )
         db.add(user)
         db.commit()
@@ -271,7 +286,11 @@ class TestSearchHistoryRepository:
         repo = SearchHistoryRepository(db)
 
         # Create user and searches
-        user = User(email="delbyid@example.com", hashed_password="hash", full_name="Del", role="student")
+        user = User(
+            email="delbyid@example.com",
+            hashed_password="hash",
+            full_name="Del",
+        )
         db.add(user)
         db.commit()
 
@@ -309,7 +328,11 @@ class TestSearchHistoryRepository:
         assert deleted is False
 
         # Try to delete another user's search
-        other_user = User(email="other@example.com", hashed_password="hash", full_name="Other", role="student")
+        other_user = User(
+            email="other@example.com",
+            hashed_password="hash",
+            full_name="Other",
+        )
         db.add(other_user)
         db.commit()
 
@@ -326,7 +349,9 @@ class TestSearchHistoryRepository:
 
         # Create a user for the converted search
         user = User(
-            email=f"converted-{unique_id}@example.com", hashed_password="hash", full_name="Converted", role="student"
+            email=f"converted-{unique_id}@example.com",
+            hashed_password="hash",
+            full_name="Converted",
         )
         db.add(user)
         db.commit()
@@ -377,7 +402,11 @@ class TestSearchHistoryRepository:
         guest_id = f"mark-converted-{unique_id}"
 
         # Create a user
-        user = User(email=f"mark-{unique_id}@example.com", hashed_password="hash", full_name="Mark", role="student")
+        user = User(
+            email=f"mark-{unique_id}@example.com",
+            hashed_password="hash",
+            full_name="Mark",
+        )
         db.add(user)
         db.commit()
         user_id = user.id
@@ -417,7 +446,9 @@ class TestSearchHistoryRepository:
 
         # Create user
         user = User(
-            email=f"analytics-{unique_id}@example.com", hashed_password="hash", full_name="Analytics", role="student"
+            email=f"analytics-{unique_id}@example.com",
+            hashed_password="hash",
+            full_name="Analytics",
         )
         db.add(user)
         db.commit()

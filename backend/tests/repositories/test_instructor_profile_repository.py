@@ -17,7 +17,7 @@ import pytest
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.service_catalog import ServiceCatalog, ServiceCategory
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.repositories import RepositoryFactory
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 
@@ -104,7 +104,6 @@ class TestInstructorProfileRepositoryEagerLoading:
             email="service.filter.test@example.com",
             hashed_password="test_hash",
             full_name="Service Filter Test",
-            role=UserRole.INSTRUCTOR,
         )
         db.add(user)
         db.flush()
@@ -215,7 +214,6 @@ class TestInstructorProfileRepositoryMethods:
             email="new.instructor@test.com",
             hashed_password="hashed",
             full_name="New Instructor",
-            role=UserRole.INSTRUCTOR,
         )
         db.add(new_user)
         db.flush()
@@ -238,7 +236,6 @@ class TestInstructorProfileRepositoryMethods:
                 email=f"instructor{i}@test.com",
                 hashed_password="hashed",
                 full_name=f"Instructor {i}",
-                role=UserRole.INSTRUCTOR,
             )
             db.add(user)
             db.flush()
@@ -342,7 +339,6 @@ class TestPerformanceImprovement:
                 email=f"perf_test{i}@test.com",
                 hashed_password="hashed",
                 full_name=f"Perf Test {i}",
-                role=UserRole.INSTRUCTOR,
             )
             db.add(user)
             db.flush()
@@ -465,13 +461,11 @@ class TestDiagnosticAndDebugging:
         from app.models.instructor import InstructorProfile
         from app.models.service_catalog import InstructorService as Service
         from app.models.service_catalog import ServiceCatalog, ServiceCategory
-        from app.models.user import User, UserRole
+        from app.models.user import User
         from app.repositories.instructor_profile_repository import InstructorProfileRepository
 
         # Create a fresh instructor
-        user = User(
-            email="debug.test@example.com", hashed_password="hashed", full_name="Debug Test", role=UserRole.INSTRUCTOR
-        )
+        user = User(email="debug.test@example.com", hashed_password="hashed", full_name="Debug Test")
         db.add(user)
         db.flush()
 
@@ -586,13 +580,11 @@ class TestDiagnosticAndDebugging:
         from app.models.instructor import InstructorProfile
         from app.models.service_catalog import InstructorService as Service
         from app.models.service_catalog import ServiceCatalog, ServiceCategory
-        from app.models.user import User, UserRole
+        from app.models.user import User
         from app.repositories.instructor_profile_repository import InstructorProfileRepository
 
         # Create test data
-        user = User(
-            email="diagnose@test.com", hashed_password="test", full_name="Diagnose Test", role=UserRole.INSTRUCTOR
-        )
+        user = User(email="diagnose@test.com", hashed_password="test", full_name="Diagnose Test")
         db.add(user)
         db.flush()
 

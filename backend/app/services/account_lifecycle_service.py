@@ -231,9 +231,13 @@ class AccountLifecycleService(BaseService):
         """
         self.log_operation("get_account_status", user_id=user.id)
 
+        # For backwards compatibility, return the first role as 'role'
+        # In RBAC, users can have multiple roles but the schema expects single role
+        primary_role = user.roles[0].name if user.roles else "unknown"
+
         result = {
             "user_id": user.id,
-            "role": user.role,
+            "role": primary_role,
             "account_status": user.account_status,
             "can_login": user.can_login,
             "can_receive_bookings": user.can_receive_bookings,

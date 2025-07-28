@@ -29,7 +29,7 @@ from app.core.exceptions import RepositoryException
 from app.models import AvailabilitySlot, Booking, BookingStatus, InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.service_catalog import ServiceCatalog, ServiceCategory
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.repositories import (
     AvailabilityRepository,
     BookingRepository,
@@ -690,7 +690,6 @@ class TestInstructorProfileRepositoryValidation:
             email="mixed.instructor_services@test.com",
             hashed_password="hashed",
             full_name="Mixed Services",
-            role=UserRole.INSTRUCTOR,
         )
         db.add(user)
         db.flush()

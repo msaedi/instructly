@@ -28,12 +28,14 @@ from sqlalchemy.orm import Session  # noqa: E402
 
 from app.auth import get_password_hash  # noqa: E402
 from app.core.config import settings  # noqa: E402
+from app.core.enums import RoleName
 from app.models.availability import AvailabilitySlot, BlackoutDate, InstructorAvailability  # noqa: E402
 from app.models.booking import Booking, BookingStatus  # noqa: E402
 from app.models.instructor import InstructorProfile  # noqa: E402
 from app.models.password_reset import PasswordResetToken  # noqa: E402
+from app.models.rbac import UserRole  # noqa: E402
 from app.models.service import Service  # noqa: E402
-from app.models.user import User, UserRole  # noqa: E402
+from app.models.user import User
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -635,7 +637,7 @@ def create_dummy_students(session: Session):
             email=template["email"],
             full_name=template["name"],
             hashed_password=get_password_hash(TEST_PASSWORD),
-            role=UserRole.STUDENT,
+            role=RoleName.STUDENT,
             is_active=True,
         )
         session.add(user)
@@ -666,7 +668,7 @@ def create_dummy_instructors(session: Session):
             email=template["email"],
             full_name=template["name"],
             hashed_password=get_password_hash(TEST_PASSWORD),
-            role=UserRole.INSTRUCTOR,
+            role=RoleName.INSTRUCTOR,
             is_active=True,
         )
         session.add(user)
@@ -710,8 +712,8 @@ def create_sample_bookings(session: Session):
     logger.info("Creating sample bookings...")
 
     # Get all students and instructors
-    students = session.query(User).filter(User.role == UserRole.STUDENT).all()
-    instructors = session.query(User).filter(User.role == UserRole.INSTRUCTOR).all()
+    students = session.query(User).filter(User.role == RoleName.STUDENT).all()
+    instructors = session.query(User).filter(User.role == RoleName.INSTRUCTOR).all()
 
     if not students or not instructors:
         logger.warning("No students or instructors found, skipping bookings")
@@ -944,8 +946,8 @@ def main():
 
         # Step 5: Summary
         total_users = session.query(User).count()
-        total_instructors = session.query(User).filter(User.role == UserRole.INSTRUCTOR).count()
-        total_students = session.query(User).filter(User.role == UserRole.STUDENT).count()
+        total_instructors = session.query(User).filter(User.role == RoleName.INSTRUCTOR).count()
+        total_students = session.query(User).filter(User.role == RoleName.STUDENT).count()
         total_bookings = session.query(Booking).count()
         upcoming_bookings = (
             session.query(Booking)

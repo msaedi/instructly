@@ -15,6 +15,7 @@ import {
   recordSearch,
   type SearchRecord,
 } from '@/lib/searchTracking';
+import { SearchType } from '@/types/enums';
 
 interface SearchHistoryItem {
   id: number;
@@ -171,7 +172,7 @@ export function RecentSearches() {
                     await recordSearch(
                       {
                         query: searchQuery,
-                        search_type: 'search_history',
+                        search_type: SearchType.SEARCH_HISTORY,
                         results_count: null, // Will be determined on results page
                       },
                       isAuthenticated

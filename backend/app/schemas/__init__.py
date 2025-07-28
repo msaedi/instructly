@@ -79,15 +79,15 @@ from .public_availability import (
 )
 
 # User and authentication schemas
-from .user import Token, UserCreate, UserLogin, UserResponse, UserRole
+from .user import Token, UserCreate, UserLogin, UserResponse, UserWithPermissionsResponse
 
 __all__ = [
     # User schemas
     "UserCreate",
     "UserLogin",
     "UserResponse",
+    "UserWithPermissionsResponse",
     "Token",
-    "UserRole",
     # Instructor schemas
     "InstructorProfileBase",
     "InstructorProfileCreate",

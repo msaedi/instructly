@@ -12,8 +12,9 @@ from fastapi import status
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.core.enums import RoleName
 from app.models.booking import Booking, BookingStatus
-from app.models.user import User, UserRole
+from app.models.user import User
 
 
 class TestAccountLifecycleEndpoints:
@@ -323,7 +324,7 @@ class TestAccountLifecycleEndpoints:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["user_id"] == test_student.id
-        assert data["role"] == UserRole.STUDENT.value
+        assert data["role"] == RoleName.STUDENT.value
         assert data["account_status"] == "active"
         # Students should get None for all instructor-specific fields
         assert data.get("can_suspend") is None

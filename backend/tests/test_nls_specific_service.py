@@ -145,21 +145,18 @@ class TestNLSSpecificServiceMatching:
             full_name="Piano Teacher",
             account_status="active",
             hashed_password=dummy_hash,
-            role="instructor",
         )
         guitar_user = User(
             email="guitar@test.com",
             full_name="Guitar Teacher",
             account_status="active",
             hashed_password=dummy_hash,
-            role="instructor",
         )
         drums_user = User(
             email="drums@test.com",
             full_name="Drums Teacher",
             account_status="active",
             hashed_password=dummy_hash,
-            role="instructor",
         )
         db.add_all([piano_user, guitar_user, drums_user])
         db.flush()

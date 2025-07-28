@@ -19,8 +19,16 @@ class TestSearchAnalyticsEndpoints:
     def setup_test_data(self, db: Session):
         """Create test data for analytics."""
         # Create users
-        user1 = User(email="user1@example.com", hashed_password="hash", full_name="User 1", role="student")
-        user2 = User(email="user2@example.com", hashed_password="hash", full_name="User 2", role="student")
+        user1 = User(
+            email="user1@example.com",
+            hashed_password="hash",
+            full_name="User 1",
+        )
+        user2 = User(
+            email="user2@example.com",
+            hashed_password="hash",
+            full_name="User 2",
+        )
         db.add_all([user1, user2])
         db.commit()
 

@@ -18,10 +18,10 @@ import { BRAND } from '@/app/config/brand';
 import { logger } from '@/lib/logger';
 
 // Import centralized types
-import type { UserData } from '@/types/user';
-import { UserRole, isInstructorUser, isStudentUser } from '@/types/user';
 import { RequestStatus } from '@/types/api';
 import { getErrorMessage } from '@/types/common';
+import { hasRole, type User } from '@/features/shared/hooks/useAuth';
+import { RoleName } from '@/types/enums';
 
 /**
  * Dashboard router component
@@ -69,32 +69,33 @@ export default function Dashboard() {
           return;
         }
 
-        const userData: UserData = await response.json();
+        const userData = await response.json();
         logger.info('Dashboard: User data fetched successfully', {
           userId: userData.id,
-          role: userData.role,
-          hasInstructorProfile: !!userData.instructor_profile_id,
+          roles: userData.roles,
+          permissions: userData.permissions,
         });
 
         // Redirect based on role
-        if (isInstructorUser(userData)) {
+        if (hasRole(userData, RoleName.INSTRUCTOR)) {
           logger.info('Dashboard: Redirecting instructor to instructor dashboard', {
             userId: userData.id,
-            instructorProfileId: userData.instructor_profile_id,
+            roles: userData.roles,
           });
           router.push('/dashboard/instructor');
-        } else if (isStudentUser(userData)) {
+        } else if (hasRole(userData, RoleName.STUDENT)) {
           logger.info('Dashboard: Redirecting student to student dashboard', {
             userId: userData.id,
+            roles: userData.roles,
           });
           router.push('/dashboard/student');
         } else {
           // Handle unexpected role
-          logger.error('Dashboard: Unknown user role', null, {
+          logger.error('Dashboard: Unknown user roles', null, {
             userId: userData.id,
-            role: userData.role,
+            roles: userData.roles,
           });
-          setError(`Unknown user role: ${userData.role}`);
+          setError(`Unknown user roles: ${userData.roles?.join(', ') || 'none'}`);
           setStatus(RequestStatus.ERROR);
         }
       } catch (error) {

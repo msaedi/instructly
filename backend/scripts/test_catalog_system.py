@@ -23,10 +23,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.auth import get_password_hash
 from app.core.config import settings
+from app.core.enums import RoleName
 from app.models.availability import AvailabilitySlot
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import ServiceCatalog, ServiceCategory
-from app.models.user import User, UserRole
+from app.models.user import User
 from scripts.seed_catalog_only import seed_catalog
 
 # Test configuration
@@ -114,7 +115,7 @@ class CatalogSystemTester:
                 email=TEST_EMAIL,
                 full_name="Sarah Chen",
                 hashed_password=get_password_hash(TEST_PASSWORD),
-                role=UserRole.INSTRUCTOR,
+                role=RoleName.INSTRUCTOR,
                 is_active=True,
             )
             self.session.add(instructor)
@@ -124,7 +125,7 @@ class CatalogSystemTester:
                 email=STUDENT_EMAIL,
                 full_name="John Smith",
                 hashed_password=get_password_hash(TEST_PASSWORD),
-                role=UserRole.STUDENT,
+                role=RoleName.STUDENT,
                 is_active=True,
             )
             self.session.add(student)

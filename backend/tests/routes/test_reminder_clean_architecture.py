@@ -53,7 +53,7 @@ class TestReminderEndpointCleanArchitecture:
             email="admin@instainstru.com",  # The hardcoded admin email
             hashed_password="hashed",
             full_name="Admin User",
-            role="instructor",  # Role doesn't matter, email does
+            # Role doesn't matter, email does
             is_active=True,
         )
         db.add(admin)

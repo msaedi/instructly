@@ -25,7 +25,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.service_catalog import ServiceCatalog, ServiceCategory
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.schemas.booking import BookingCreate, BookingUpdate
 from app.services.booking_service import BookingService
 from app.services.notification_service import NotificationService
@@ -301,7 +301,6 @@ class TestBookingServiceCompleteEdgeCases:
             email="another.instructor@example.com",
             full_name="Another Instructor",
             hashed_password="hashed",
-            role=UserRole.INSTRUCTOR,
             is_active=True,
         )
         db.add(another_instructor)
@@ -309,7 +308,7 @@ class TestBookingServiceCompleteEdgeCases:
 
         booking_service = BookingService(db, mock_notification_service)
 
-        with pytest.raises(ValidationException, match="You can only complete your own bookings"):
+        with pytest.raises(ValidationException, match="Only instructors can mark bookings as complete"):
             booking_service.complete_booking(
                 booking_id=test_booking.id, instructor=another_instructor  # Wrong instructor
             )
@@ -509,14 +508,13 @@ class TestStudentDoubleBookingPrevention:
 
         # Create a truly different second instructor
         from app.auth import get_password_hash
-        from app.models.user import User, UserRole
+        from app.models.user import User
 
         second_instructor = User(
             email="second.instructor@example.com",
             hashed_password=get_password_hash("password123"),
             full_name="Second Instructor",
             is_active=True,
-            role=UserRole.INSTRUCTOR,
         )
         db.add(second_instructor)
         db.flush()

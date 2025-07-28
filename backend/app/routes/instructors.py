@@ -31,8 +31,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from ..api.dependencies.auth import get_current_active_user
 from ..api.dependencies.services import get_account_lifecycle_service, get_cache_service_dep, get_instructor_service
+from ..core.enums import RoleName
 from ..core.exceptions import BusinessRuleException, ValidationException
-from ..models.user import User, UserRole
+from ..models.user import User
 from ..schemas.account_lifecycle import AccountStatusChangeResponse, AccountStatusResponse
 from ..schemas.instructor import (
     InstructorFilterParams,
@@ -123,7 +124,7 @@ async def get_my_profile(
     instructor_service: InstructorService = Depends(get_instructor_service),
 ):
     """Get current instructor's profile."""
-    if current_user.role != UserRole.INSTRUCTOR:
+    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only instructors can access profiles",
@@ -146,7 +147,7 @@ async def update_profile(
     cache_service: CacheService = Depends(get_cache_service_dep),
 ):
     """Update instructor profile with soft delete support."""
-    if current_user.role != UserRole.INSTRUCTOR:
+    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only instructors can update profiles",
@@ -172,7 +173,7 @@ async def delete_instructor_profile(
     cache_service: CacheService = Depends(get_cache_service_dep),
 ):
     """Delete instructor profile and revert to student role."""
-    if current_user.role != UserRole.INSTRUCTOR:
+    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only instructors can delete their profiles",
@@ -225,7 +226,7 @@ async def suspend_instructor_account(
     if current_user.id != instructor_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only modify your own account status")
 
-    if current_user.role != UserRole.INSTRUCTOR:
+    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only instructors can suspend their accounts")
 
     try:
@@ -260,7 +261,7 @@ async def deactivate_instructor_account(
     if current_user.id != instructor_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only modify your own account status")
 
-    if current_user.role != UserRole.INSTRUCTOR:
+    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Only instructors can deactivate their accounts"
         )
@@ -297,7 +298,7 @@ async def reactivate_instructor_account(
     if current_user.id != instructor_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only modify your own account status")
 
-    if current_user.role != UserRole.INSTRUCTOR:
+    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Only instructors can reactivate their accounts"
         )

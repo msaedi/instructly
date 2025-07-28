@@ -11,8 +11,8 @@ Classes:
     User: Main user model for authentication and role management
 """
 
-import enum
 import logging
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, Column, DateTime, Integer, String
 from sqlalchemy.orm import relationship
@@ -20,20 +20,13 @@ from sqlalchemy.sql import func
 
 from ..database import Base
 
+if TYPE_CHECKING:
+    pass
+
 logger = logging.getLogger(__name__)
 
 
-class UserRole(str, enum.Enum):
-    """
-    Enumeration of possible user roles in the system.
-
-    Values:
-        INSTRUCTOR: Users who provide instruction services
-        STUDENT: Users who book instruction services
-    """
-
-    INSTRUCTOR = "instructor"
-    STUDENT = "student"
+# UserRole enum removed - now using RBAC system with roles table
 
 
 class User(Base):
@@ -50,12 +43,12 @@ class User(Base):
         hashed_password: Bcrypt hashed password
         full_name: User's display name
         is_active: Whether the user account is active
-        role: User's role (instructor or student)
         account_status: Lifecycle status (active, suspended, deactivated)
         created_at: Account creation timestamp
         updated_at: Last update timestamp
 
     Relationships:
+        roles: Many-to-many with Role through user_roles table
         instructor_profile: One-to-one with InstructorProfile (instructors only)
         availability_slots: One-to-many with AvailabilitySlot (instructors only)
         blackout_dates: One-to-many with BlackoutDate (instructors only)
@@ -73,9 +66,7 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     full_name = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
-    # Using String instead of Enum to avoid SQLAlchemy enum issues
-    # The database has a check constraint to ensure valid values
-    role = Column(String(10), nullable=False)
+    # Role removed - now using RBAC system with user_roles table
     # Account lifecycle status - active, suspended, or deactivated
     # Check constraint in migration ensures valid values
     account_status = Column(String(20), nullable=False, default="active")
@@ -83,6 +74,9 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
+    # RBAC relationship
+    roles = relationship("Role", secondary="user_roles", back_populates="users", lazy="selectin")  # Eager load roles
+
     instructor_profile = relationship("InstructorProfile", back_populates="user", uselist=False)
 
     # Availability relationships - Single-table design
@@ -110,17 +104,34 @@ class User(Base):
 
     def __repr__(self):
         """String representation of the User object."""
-        return f"<User {self.email} ({self.role.value if self.role else 'no role'})>"
+        role_names = [role.name for role in self.roles] if self.roles else ["no roles"]
+        return f"<User {self.email} ({', '.join(role_names)})>"
+
+    @property
+    def role(self):
+        """Get primary role name for backward compatibility."""
+        return self.roles[0].name if self.roles else None
 
     @property
     def is_instructor(self):
-        """Check if the user is an instructor."""
-        return self.role == UserRole.INSTRUCTOR
+        """Check if user has instructor role."""
+        from app.core.enums import RoleName
+
+        return any(role.name == RoleName.INSTRUCTOR for role in self.roles)
 
     @property
     def is_student(self):
-        """Check if the user is a student."""
-        return self.role == UserRole.STUDENT
+        """Check if user has student role."""
+        from app.core.enums import RoleName
+
+        return any(role.name == RoleName.STUDENT for role in self.roles)
+
+    @property
+    def is_admin(self):
+        """Check if the user has admin role."""
+        from app.core.enums import RoleName
+
+        return any(role.name == RoleName.ADMIN for role in self.roles)
 
     # Account status helper properties
     @property

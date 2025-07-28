@@ -41,10 +41,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from ..api.dependencies import get_booking_service, get_current_active_user
 from ..core.config import settings
+from ..core.enums import RoleName
 from ..core.exceptions import DomainException, NotFoundException, ValidationException
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ..models.booking import BookingStatus
-from ..models.user import User, UserRole
+from ..models.user import User
 from ..schemas.booking import (
     AvailabilityCheckRequest,
     AvailabilityCheckResponse,
@@ -88,8 +89,22 @@ async def get_upcoming_bookings(
             limit=limit,
         )
 
-        # Use schema for clean response
-        return [UpcomingBookingResponse.model_validate(b) for b in bookings]
+        # Transform bookings to include names from relationships
+        upcoming_bookings = []
+        for booking in bookings:
+            upcoming_bookings.append(
+                UpcomingBookingResponse(
+                    id=booking.id,
+                    booking_date=booking.booking_date,
+                    start_time=booking.start_time,
+                    end_time=booking.end_time,
+                    service_name=booking.service_name,
+                    student_name=booking.student.full_name if booking.student else "Unknown",
+                    instructor_name=booking.instructor.full_name if booking.instructor else "Unknown",
+                    meeting_location=booking.meeting_location,
+                )
+            )
+        return upcoming_bookings
     except DomainException as e:
         handle_domain_exception(e)
 
@@ -101,7 +116,7 @@ async def get_booking_stats(
 ):
     """Get booking statistics for instructors."""
     try:
-        if current_user.role != UserRole.INSTRUCTOR:
+        if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
             raise ValidationException("Only instructors can view booking stats")
 
         stats = booking_service.get_booking_stats_for_instructor(current_user.id)

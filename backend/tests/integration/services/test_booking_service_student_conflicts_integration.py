@@ -10,13 +10,14 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.auth import get_password_hash
+from app.core.enums import RoleName
 from app.core.exceptions import ConflictException
 from app.models.availability import AvailabilitySlot
 from app.models.booking import BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.service_catalog import ServiceCatalog, ServiceCategory
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
 
@@ -31,10 +32,18 @@ class TestStudentConflictValidationIntegration:
             email="conflict.test.student@test.com",
             hashed_password=get_password_hash("testpass123"),
             full_name="Conflict Test Student",
-            role=UserRole.STUDENT,
             is_active=True,
         )
         db.add(student)
+        db.flush()
+
+        # RBAC: Assign student role
+        from app.services.permission_service import PermissionService
+
+        permission_service = PermissionService(db)
+        permission_service.assign_role(student.id, RoleName.STUDENT)
+        db.refresh(student)
+
         db.commit()
         return student
 
@@ -45,11 +54,16 @@ class TestStudentConflictValidationIntegration:
             email="math.conflict.instructor@test.com",
             hashed_password=get_password_hash("testpass123"),
             full_name="Math Conflict Instructor",
-            role=UserRole.INSTRUCTOR,
             is_active=True,
         )
         db.add(instructor)
         db.flush()
+        # RBAC: Assign role
+        from app.services.permission_service import PermissionService
+
+        permission_service = PermissionService(db)
+        permission_service.assign_role(instructor.id, RoleName.INSTRUCTOR)
+        db.refresh(instructor)
 
         profile = InstructorProfile(
             user_id=instructor.id,
@@ -58,6 +72,12 @@ class TestStudentConflictValidationIntegration:
         )
         db.add(profile)
         db.flush()
+        # RBAC: Assign role
+        from app.services.permission_service import PermissionService
+
+        permission_service = PermissionService(db)
+        permission_service.assign_role(profile.id, RoleName.INSTRUCTOR)
+        db.refresh(profile)
 
         # Get or create Math catalog service
         math_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "math-tutoring").first()
@@ -67,9 +87,17 @@ class TestStudentConflictValidationIntegration:
                 category = ServiceCategory(name="Academic", slug="academic")
                 db.add(category)
                 db.flush()
+                # RBAC: Assign role
+                from app.services.permission_service import PermissionService
+
+                permission_service = PermissionService(db)
             math_catalog = ServiceCatalog(name="Math Tutoring", slug="math-tutoring", category_id=category.id)
             db.add(math_catalog)
             db.flush()
+            # RBAC: Assign role
+            from app.services.permission_service import PermissionService
+
+            permission_service = PermissionService(db)
 
         service = Service(
             instructor_profile_id=profile.id,
@@ -99,11 +127,16 @@ class TestStudentConflictValidationIntegration:
             email="piano.conflict.instructor@test.com",
             hashed_password=get_password_hash("testpass123"),
             full_name="Piano Conflict Instructor",
-            role=UserRole.INSTRUCTOR,
             is_active=True,
         )
         db.add(instructor)
         db.flush()
+        # RBAC: Assign role
+        from app.services.permission_service import PermissionService
+
+        permission_service = PermissionService(db)
+        permission_service.assign_role(instructor.id, RoleName.INSTRUCTOR)
+        db.refresh(instructor)
 
         profile = InstructorProfile(
             user_id=instructor.id,
@@ -112,6 +145,12 @@ class TestStudentConflictValidationIntegration:
         )
         db.add(profile)
         db.flush()
+        # RBAC: Assign role
+        from app.services.permission_service import PermissionService
+
+        permission_service = PermissionService(db)
+        permission_service.assign_role(profile.id, RoleName.INSTRUCTOR)
+        db.refresh(profile)
 
         # Get or create Piano catalog service
         piano_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "piano-lessons").first()
@@ -292,17 +331,26 @@ class TestStudentConflictValidationIntegration:
             email="student1.conflict@test.com",
             hashed_password=get_password_hash("testpass123"),
             full_name="Student One",
-            role=UserRole.STUDENT,
             is_active=True,
         )
         student2 = User(
             email="student2.conflict@test.com",
             hashed_password=get_password_hash("testpass123"),
             full_name="Student Two",
-            role=UserRole.STUDENT,
             is_active=True,
         )
         db.add_all([student1, student2])
+        db.flush()
+
+        # RBAC: Assign student roles
+        from app.services.permission_service import PermissionService
+
+        permission_service = PermissionService(db)
+        permission_service.assign_role(student1.id, RoleName.STUDENT)
+        permission_service.assign_role(student2.id, RoleName.STUDENT)
+        db.refresh(student1)
+        db.refresh(student2)
+
         db.commit()
 
         booking_service = BookingService(db)

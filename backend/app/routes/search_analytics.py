@@ -45,10 +45,6 @@ async def get_search_trends(
     Returns:
         Daily search counts and trends
     """
-    # TODO: Add role check for admin/analytics access
-    # if current_user.role not in ["admin", "analytics"]:
-    #     raise HTTPException(status_code=403, detail="Access denied")
-
     analytics_service = SearchAnalyticsService(db)
     return analytics_service.get_search_trends(days=days, search_type=search_type, include_deleted=include_deleted)
 
@@ -247,7 +243,6 @@ async def get_user_search_behavior(
     """
     # Non-admin users can only view their own behavior
     if user_id and user_id != current_user.id:
-        # TODO: Add proper admin check
         from fastapi import HTTPException
 
         raise HTTPException(status_code=403, detail="Cannot view other users' behavior")

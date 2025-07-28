@@ -7,7 +7,8 @@ import { Calendar, MapPin } from 'lucide-react';
 import { getUpcomingBookings } from '@/lib/api';
 import { UpcomingBooking } from '@/types/booking';
 import { logger } from '@/lib/logger';
-import { useAuth } from '@/features/shared/hooks/useAuth';
+import { useAuth, hasRole, getPrimaryRole } from '@/features/shared/hooks/useAuth';
+import { RoleName } from '@/types/enums';
 
 export function UpcomingLessons() {
   const { isAuthenticated, user } = useAuth();
@@ -132,7 +133,7 @@ export function UpcomingLessons() {
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                   with{' '}
-                  {user?.role === 'student'
+                  {hasRole(user, RoleName.STUDENT)
                     ? booking.instructor_name
                         .split(' ')
                         .map((n, i) => (i === 0 ? n : n[0] + '.'))
@@ -146,7 +147,9 @@ export function UpcomingLessons() {
                   </div>
                 )}
                 <Link
-                  href={`/dashboard/${user?.role}/bookings/${booking.id}`}
+                  href={`/dashboard/${getPrimaryRole(user) || RoleName.STUDENT}/bookings/${
+                    booking.id
+                  }`}
                   className="text-blue-600 dark:text-blue-400 hover:underline text-sm font-medium"
                 >
                   View Details
@@ -159,7 +162,7 @@ export function UpcomingLessons() {
         {bookings.length > 2 && (
           <div className="mt-4 text-center">
             <Link
-              href={`/dashboard/${user?.role}/bookings`}
+              href={`/dashboard/${getPrimaryRole(user) || RoleName.STUDENT}/bookings`}
               className="text-blue-600 dark:text-blue-400 hover:underline"
             >
               View all {bookings.length} upcoming lessons →

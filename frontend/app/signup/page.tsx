@@ -22,10 +22,11 @@ import { logger } from '@/lib/logger';
 import { getGuestSessionId } from '@/lib/searchTracking';
 
 // Import centralized types
-import type { RegisterRequest, AuthResponse, UserData } from '@/types/user';
-import { UserRole, isInstructorUser } from '@/types/user';
+import type { RegisterRequest, AuthResponse } from '@/types/user';
 import { RequestStatus } from '@/types/api';
 import { getErrorMessage } from '@/types/common';
+import { hasRole, type User } from '@/features/shared/hooks/useAuth';
+import { RoleName } from '@/types/enums';
 
 /**
  * Form validation errors interface
@@ -158,7 +159,7 @@ function SignUpForm() {
         full_name: formData.fullName.trim(),
         email: formData.email.trim().toLowerCase(),
         password: formData.password,
-        role: UserRole.STUDENT,
+        role: RoleName.STUDENT,
         ...(guestSessionId && { guest_session_id: guestSessionId }),
       };
 
@@ -287,15 +288,15 @@ function SignUpForm() {
       });
 
       if (userResponse.ok) {
-        const userData: UserData = await userResponse.json();
+        const userData = await userResponse.json();
         logger.info('User data fetched, redirecting based on role', {
           userId: userData.id,
-          role: userData.role,
-          redirectTo: isInstructorUser(userData) ? '/dashboard/instructor' : redirect,
+          roles: userData.roles,
+          redirectTo: hasRole(userData, RoleName.INSTRUCTOR) ? '/dashboard/instructor' : redirect,
         });
 
         // Redirect based on role
-        if (isInstructorUser(userData)) {
+        if (hasRole(userData, RoleName.INSTRUCTOR)) {
           router.push('/dashboard/instructor');
         } else {
           router.push(redirect);

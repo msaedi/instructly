@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { publicApi, type TopServiceSummary } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
-import { useAuth, getUserInitials, getAvatarColor } from '@/features/shared/hooks/useAuth';
+import { useAuth, getUserInitials, getAvatarColor, hasRole } from '@/features/shared/hooks/useAuth';
+import { RoleName, SearchType } from '@/types/enums';
 import { recordSearch } from '@/lib/searchTracking';
 import { NotificationBar } from '@/components/NotificationBar';
 import { UpcomingLessons } from '@/components/UpcomingLessons';
@@ -75,7 +76,7 @@ export default function HomePage() {
       await recordSearch(
         {
           query: searchQuery,
-          search_type: 'natural_language',
+          search_type: SearchType.NATURAL_LANGUAGE,
           results_count: null, // Will be determined on results page
         },
         isAuthenticated
@@ -213,7 +214,7 @@ export default function HomePage() {
                 <>
                   <Link
                     href={
-                      user?.role === 'student'
+                      hasRole(user, RoleName.STUDENT)
                         ? '/dashboard/student/bookings'
                         : '/dashboard/instructor'
                     }
@@ -227,7 +228,9 @@ export default function HomePage() {
                   <div className="flex items-center space-x-6">
                     <Link
                       href={
-                        user?.role === 'student' ? '/dashboard/student' : '/dashboard/instructor'
+                        hasRole(user, RoleName.STUDENT)
+                          ? '/dashboard/student'
+                          : '/dashboard/instructor'
                       }
                       className="text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 relative hidden md:inline-flex items-center"
                     >
@@ -266,7 +269,7 @@ export default function HomePage() {
                         >
                           <Link
                             href={
-                              user?.role === 'student'
+                              hasRole(user, RoleName.STUDENT)
                                 ? '/dashboard/student'
                                 : '/dashboard/instructor'
                             }
@@ -402,7 +405,7 @@ export default function HomePage() {
                     await recordSearch(
                       {
                         query: `${category.name} lessons`,
-                        search_type: 'category',
+                        search_type: SearchType.CATEGORY,
                         results_count: null,
                       },
                       isAuthenticated
@@ -493,7 +496,7 @@ export default function HomePage() {
                       await recordSearch(
                         {
                           query: service.name,
-                          search_type: 'service_pill',
+                          search_type: SearchType.SERVICE_PILL,
                           results_count: null, // Will be determined on results page
                         },
                         isAuthenticated

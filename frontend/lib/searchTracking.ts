@@ -8,12 +8,13 @@
 
 import { logger } from '@/lib/logger';
 import { getSessionId, refreshSession, getAnalyticsContext } from '@/lib/sessionTracking';
+import { SearchType } from '@/types/enums';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export interface SearchRecord {
   query: string;
-  search_type: 'natural_language' | 'category' | 'service_pill' | 'filter' | 'search_history';
+  search_type: SearchType;
   results_count?: number | null;
   timestamp?: string;
 }

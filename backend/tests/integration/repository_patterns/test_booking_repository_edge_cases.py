@@ -16,6 +16,7 @@ import pytest
 from sqlalchemy import DateTime, and_, func
 from sqlalchemy.orm import Session
 
+from app.core.enums import RoleName
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
@@ -41,6 +42,12 @@ def test_service(db, test_instructor):
         )
         db.add(profile)
         db.flush()
+        # RBAC: Assign role
+        from app.services.permission_service import PermissionService
+
+        permission_service = PermissionService(db)
+        permission_service.assign_role(profile.id, RoleName.STUDENT)
+        db.refresh(profile)
 
     # Check if instructor already has a service
     existing_service = (
@@ -56,9 +63,17 @@ def test_service(db, test_instructor):
         category = ServiceCategory(name="Test Category", slug="test-category")
         db.add(category)
         db.flush()
+        # RBAC: Assign role
+        from app.services.permission_service import PermissionService
+
+        permission_service = PermissionService(db)
         catalog_service = ServiceCatalog(name="Test Service", slug="test-service", category_id=category.id)
         db.add(catalog_service)
         db.flush()
+        # RBAC: Assign role
+        from app.services.permission_service import PermissionService
+
+        permission_service = PermissionService(db)
 
     # Check if service already exists for this instructor and catalog
     existing_service = (
@@ -477,9 +492,8 @@ class TestBookingRepositoryEdgeCases:
         db.commit()
 
         # Test statistics queries - fix method signature
-        from app.models.user import UserRole
 
-        stats = repository.count_bookings_by_status(test_instructor.id, UserRole.INSTRUCTOR)
+        stats = repository.count_bookings_by_status(test_instructor.id, RoleName.INSTRUCTOR)
 
         assert stats[BookingStatus.COMPLETED.value] == 5
         assert stats[BookingStatus.CONFIRMED.value] == 3

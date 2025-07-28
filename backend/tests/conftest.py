@@ -39,6 +39,7 @@ from app.auth import get_password_hash
 
 # Now we can import from app
 from app.core.config import settings
+from app.core.enums import RoleName
 from app.database import Base, get_db
 from app.main import app
 from app.models.availability import AvailabilitySlot
@@ -46,7 +47,8 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.service_catalog import ServiceCatalog, ServiceCategory
-from app.models.user import User, UserRole
+from app.models.user import User
+from app.services.permission_service import PermissionService
 from app.services.template_service import TemplateService
 
 # ============================================================================
@@ -163,10 +165,40 @@ except Exception as e:
 # Create test session factory
 TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
-
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
+
+def _ensure_rbac_roles():
+    """Ensure RBAC roles exist in the test database."""
+    from app.models.rbac import Role
+
+    session = TestSessionLocal()
+    try:
+        # Check if roles already exist
+        existing_roles = session.query(Role).count()
+        if existing_roles > 0:
+            return
+
+        # Create standard roles
+        roles = [
+            Role(name=RoleName.ADMIN, description="Administrator with full access"),
+            Role(name=RoleName.INSTRUCTOR, description="Instructor who can manage their profile and availability"),
+            Role(name=RoleName.STUDENT, description="Student who can book lessons"),
+        ]
+
+        for role in roles:
+            session.add(role)
+
+        session.commit()
+        print(f"✅ Created {len(roles)} RBAC roles")
+    except Exception as e:
+        print(f"❌ Error creating RBAC roles: {e}")
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 
 def _ensure_catalog_data():
@@ -248,6 +280,8 @@ def db():
 
     # Seed catalog data if needed
     _ensure_catalog_data()
+    # Seed RBAC roles
+    _ensure_rbac_roles()
 
     # Create a fresh session
     session = TestSessionLocal()
@@ -330,15 +364,25 @@ def test_password():
 @pytest.fixture
 def test_student(db: Session, test_password: str) -> User:
     """Create a test student user."""
+    # Check if user already exists and delete it
+    existing_user = db.query(User).filter(User.email == "test.student@example.com").first()
+    if existing_user:
+        db.delete(existing_user)
+        db.commit()
+
     student = User(
         email="test.student@example.com",
         hashed_password=get_password_hash(test_password),
         full_name="Test Student",
         is_active=True,
-        role=UserRole.STUDENT,
     )
     db.add(student)
     db.flush()
+
+    # Assign student role
+    permission_service = PermissionService(db)
+    permission_service.assign_role(student.id, RoleName.STUDENT)
+    db.refresh(student)
     db.commit()
     return student
 
@@ -346,16 +390,29 @@ def test_student(db: Session, test_password: str) -> User:
 @pytest.fixture
 def test_instructor(db: Session, test_password: str) -> User:
     """Create a test instructor user with profile and services."""
+    # Check if user already exists and delete it
+    existing_user = db.query(User).filter(User.email == "test.instructor@example.com").first()
+    if existing_user:
+        # Delete profile first if it exists (cascade will handle services)
+        if hasattr(existing_user, "instructor_profile") and existing_user.instructor_profile:
+            db.delete(existing_user.instructor_profile)
+        db.delete(existing_user)
+        db.commit()
+
     # Create instructor user
     instructor = User(
         email="test.instructor@example.com",
         hashed_password=get_password_hash(test_password),
         full_name="Test Instructor",
         is_active=True,
-        role=UserRole.INSTRUCTOR,
     )
     db.add(instructor)
     db.flush()
+
+    # Assign instructor role
+    permission_service = PermissionService(db)
+    permission_service.assign_role(instructor.id, RoleName.INSTRUCTOR)
+    db.refresh(instructor)
 
     # Create instructor profile
     profile = InstructorProfile(
@@ -416,16 +473,29 @@ def test_instructor(db: Session, test_password: str) -> User:
 @pytest.fixture
 def test_instructor_2(db: Session, test_password: str) -> User:
     """Create a second test instructor user with profile."""
+    # Check if user already exists and delete it
+    existing_user = db.query(User).filter(User.email == "test.instructor2@example.com").first()
+    if existing_user:
+        # Delete profile first if it exists (cascade will handle services)
+        if hasattr(existing_user, "instructor_profile") and existing_user.instructor_profile:
+            db.delete(existing_user.instructor_profile)
+        db.delete(existing_user)
+        db.commit()
+
     # Create instructor user
     instructor = User(
         email="test.instructor2@example.com",
         hashed_password=get_password_hash(test_password),
         full_name="Test Instructor 2",
         is_active=True,
-        role=UserRole.INSTRUCTOR,
     )
     db.add(instructor)
     db.flush()
+
+    # Assign instructor role
+    permission_service = PermissionService(db)
+    permission_service.assign_role(instructor.id, RoleName.INSTRUCTOR)
+    db.refresh(instructor)
 
     # Create instructor profile
     profile = InstructorProfile(
@@ -846,14 +916,27 @@ def sample_instructors_with_services(db: Session, test_password: str) -> list[Us
     instructors = []
 
     # Piano instructor
+    # Check if user already exists and delete it
+    existing_piano = db.query(User).filter(User.email == "piano.instructor@example.com").first()
+    if existing_piano:
+        if hasattr(existing_piano, "instructor_profile") and existing_piano.instructor_profile:
+            db.delete(existing_piano.instructor_profile)
+        db.delete(existing_piano)
+        db.commit()
+
     piano_instructor = User(
         email="piano.instructor@example.com",
         hashed_password=get_password_hash(test_password),
-        role=UserRole.INSTRUCTOR,
         is_active=True,
         full_name="Piano Teacher",
     )
     db.add(piano_instructor)
+    db.flush()
+
+    # Assign instructor role
+    permission_service = PermissionService(db)
+    permission_service.assign_role(piano_instructor.id, RoleName.INSTRUCTOR)
+    db.refresh(piano_instructor)
     db.commit()
 
     piano_profile = InstructorProfile(
@@ -891,14 +974,27 @@ def sample_instructors_with_services(db: Session, test_password: str) -> list[Us
     instructors.append(piano_instructor)
 
     # Yoga instructor
+    # Check if user already exists and delete it
+    existing_yoga = db.query(User).filter(User.email == "yoga.instructor@example.com").first()
+    if existing_yoga:
+        if hasattr(existing_yoga, "instructor_profile") and existing_yoga.instructor_profile:
+            db.delete(existing_yoga.instructor_profile)
+        db.delete(existing_yoga)
+        db.commit()
+
     yoga_instructor = User(
         email="yoga.instructor@example.com",
         hashed_password=get_password_hash(test_password),
-        role=UserRole.INSTRUCTOR,
         is_active=True,
         full_name="Yoga Teacher",
     )
     db.add(yoga_instructor)
+    db.flush()
+
+    # Assign instructor role
+    permission_service = PermissionService(db)
+    permission_service.assign_role(yoga_instructor.id, RoleName.INSTRUCTOR)
+    db.refresh(yoga_instructor)
     db.commit()
 
     yoga_profile = InstructorProfile(

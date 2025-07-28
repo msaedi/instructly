@@ -26,7 +26,6 @@ from app.api.dependencies.services import get_booking_service
 from app.core.exceptions import ConflictException, NotFoundException, ValidationException
 from app.main import app
 from app.models.booking import BookingStatus
-from app.models.user import UserRole
 
 
 class TestBookingRoutes:
@@ -828,7 +827,7 @@ class TestBookingRoutes:
         admin_user = Mock()
         admin_user.email = "admin@instainstru.com"
         admin_user.id = 999
-        admin_user.role = UserRole.INSTRUCTOR  # Use the enum
+        # Use the enum for roles
 
         app.dependency_overrides[get_current_active_user] = lambda: admin_user
 
@@ -1108,9 +1107,18 @@ class TestBookingIntegration:
             hashed_password=get_password_hash("TestPassword123!"),
             full_name="Second Student",
             is_active=True,
-            role=UserRole.STUDENT,
         )
         db.add(student2)
+        db.flush()
+
+        # RBAC: Assign student role
+        from app.core.enums import RoleName
+        from app.services.permission_service import PermissionService
+
+        permission_service = PermissionService(db)
+        permission_service.assign_role(student2.id, RoleName.STUDENT)
+        db.refresh(student2)
+
         db.commit()
 
         student2_token = create_access_token(data={"sub": student2.email})

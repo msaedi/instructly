@@ -15,7 +15,8 @@ export interface User {
   id: number;
   email: string;
   full_name: string;
-  role: 'student' | 'instructor';
+  roles: string[]; // Changed from single role to roles array
+  permissions: string[]; // Added permissions array
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -73,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         logger.info('User authenticated', {
           userId: userData.id,
-          role: userData.role,
+          roles: userData.roles,
           email: userData.email,
         });
         setUser(userData);
@@ -245,4 +246,28 @@ export function getAvatarColor(userId: number): string {
   ];
 
   return colors[userId % colors.length];
+}
+
+// Helper function to check if user has a specific role
+export function hasRole(user: User | null, role: string): boolean {
+  if (!user || !user.roles) return false;
+  return user.roles.includes(role);
+}
+
+// Helper function to check if user has any of the specified roles
+export function hasAnyRole(user: User | null, roles: string[]): boolean {
+  if (!user || !user.roles) return false;
+  return roles.some((role) => user.roles.includes(role));
+}
+
+// Helper function to check if user has a specific permission
+export function hasPermission(user: User | null, permission: string): boolean {
+  if (!user || !user.permissions) return false;
+  return user.permissions.includes(permission);
+}
+
+// Helper function to get the primary role (first role in the array)
+export function getPrimaryRole(user: User | null): string | null {
+  if (!user || !user.roles || user.roles.length === 0) return null;
+  return user.roles[0];
 }

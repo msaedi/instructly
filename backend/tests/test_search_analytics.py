@@ -23,7 +23,6 @@ def test_user(db: Session):
     unique_id = str(uuid.uuid4())[:8]
     user = User(
         email=f"analytics-{unique_id}@example.com",
-        role="instructor",
         full_name="Analytics Test",
         hashed_password="hashed",
     )

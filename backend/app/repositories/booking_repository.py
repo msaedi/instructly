@@ -22,9 +22,9 @@ from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session, joinedload
 
+from ..core.enums import RoleName
 from ..core.exceptions import NotFoundException, RepositoryException
 from ..models.booking import Booking, BookingStatus
-from ..models.user import UserRole
 from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
@@ -537,9 +537,9 @@ class BookingRepository(BaseRepository[Booking]):
         try:
             query = self.db.query(Booking)
 
-            if user_role == UserRole.STUDENT:
+            if user_role == RoleName.STUDENT:
                 query = query.filter(Booking.student_id == user_id)
-            elif user_role == UserRole.INSTRUCTOR:
+            elif user_role == RoleName.INSTRUCTOR:
                 query = query.filter(Booking.instructor_id == user_id)
 
             bookings = query.all()

@@ -125,7 +125,11 @@ class TestSearchHistoryCleanup:
         now = datetime.now(timezone.utc)
 
         # Create user for conversions
-        user = User(email="test@example.com", hashed_password="hash", full_name="Test", role="student")
+        user = User(
+            email="test@example.com",
+            hashed_password="hash",
+            full_name="Test",
+        )
         db.add(user)
         db.commit()
 
@@ -239,7 +243,11 @@ class TestSearchHistoryCleanup:
         now = datetime.now(timezone.utc)
 
         # Create user for converted guest
-        user = User(email="stats@example.com", hashed_password="hash", full_name="Stats User", role="student")
+        user = User(
+            email="stats@example.com",
+            hashed_password="hash",
+            full_name="Stats User",
+        )
         db.add(user)
         db.commit()
 

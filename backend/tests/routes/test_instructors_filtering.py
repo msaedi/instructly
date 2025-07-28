@@ -14,7 +14,7 @@ from app.main import app
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.service_catalog import ServiceCatalog
-from app.models.user import User, UserRole
+from app.models.user import User
 
 
 class TestInstructorsFilteringAPI:
@@ -33,7 +33,6 @@ class TestInstructorsFilteringAPI:
             email="test@example.com",
             full_name="Test User",
             hashed_password="hashed",
-            role=UserRole.STUDENT,
             is_active=True,
         )
         db.add(user)
@@ -55,7 +54,6 @@ class TestInstructorsFilteringAPI:
                 email=f"instructor{i}@example.com",
                 full_name=f"Instructor {i}",
                 hashed_password="hashed",
-                role=UserRole.INSTRUCTOR,
                 is_active=True,
             )
             db.add(user)
@@ -348,7 +346,6 @@ class TestInstructorsFilteringAPI:
             email="mixed@example.com",
             full_name="Mixed Services Instructor",
             hashed_password="hashed",
-            role=UserRole.INSTRUCTOR,
             is_active=True,
         )
         db.add(user)

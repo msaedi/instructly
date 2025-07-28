@@ -179,7 +179,11 @@ class TestPasswordResetService:
 
         for email, expected_masked in test_cases:
             # Create user with specific email
-            user = User(email=email, hashed_password="dummy", full_name="Test User", role="student")
+            user = User(
+                email=email,
+                hashed_password="dummy",
+                full_name="Test User",
+            )
             db.add(user)
             db.flush()
 

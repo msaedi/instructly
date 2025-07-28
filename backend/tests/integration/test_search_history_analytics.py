@@ -116,7 +116,11 @@ class TestSoftDeleteFunctionality:
         service = SearchHistoryService(db)
 
         # Create a user and a search
-        user = User(email="test@example.com", hashed_password="hash", full_name="Test User", role="student")
+        user = User(
+            email="test@example.com",
+            hashed_password="hash",
+            full_name="Test User",
+        )
         db.add(user)
         db.commit()
 
@@ -149,7 +153,11 @@ class TestSoftDeleteFunctionality:
         repo = SearchHistoryRepository(db)
 
         # Create user
-        user = User(email="test2@example.com", hashed_password="hash", full_name="Test User", role="student")
+        user = User(
+            email="test2@example.com",
+            hashed_password="hash",
+            full_name="Test User",
+        )
         db.add(user)
         db.commit()
 
@@ -188,7 +196,11 @@ class TestGuestToUserConversion:
         guest_session_id = "convert-test-123"
 
         # Create user
-        user = User(email="convert@example.com", hashed_password="hash", full_name="Convert User", role="student")
+        user = User(
+            email="convert@example.com",
+            hashed_password="hash",
+            full_name="Convert User",
+        )
         db.add(user)
         db.commit()
 
@@ -225,7 +237,11 @@ class TestGuestToUserConversion:
         guest_session_id = "no-dup-test"
 
         # Create user with existing search
-        user = User(email="existing@example.com", hashed_password="hash", full_name="Existing User", role="student")
+        user = User(
+            email="existing@example.com",
+            hashed_password="hash",
+            full_name="Existing User",
+        )
         db.add(user)
         db.commit()
 
@@ -273,7 +289,6 @@ class TestGuestToUserConversion:
             email=f"timestamp-{unique_id}@example.com",
             hashed_password="hash",
             full_name="Timestamp User",
-            role="student",
         )
         db.add(user)
         db.commit()
@@ -309,7 +324,11 @@ class TestSearchLimitConfiguration:
         monkeypatch.setattr(settings, "search_history_max_per_user", 3)
 
         service = SearchHistoryService(db)
-        user = User(email="limit@example.com", hashed_password="hash", full_name="Limit User", role="student")
+        user = User(
+            email="limit@example.com",
+            hashed_password="hash",
+            full_name="Limit User",
+        )
         db.add(user)
         db.commit()
 
@@ -329,7 +348,11 @@ class TestSearchLimitConfiguration:
         monkeypatch.setattr(settings, "search_history_max_per_user", 0)
 
         service = SearchHistoryService(db)
-        user = User(email="nolimit@example.com", hashed_password="hash", full_name="No Limit User", role="student")
+        user = User(
+            email="nolimit@example.com",
+            hashed_password="hash",
+            full_name="No Limit User",
+        )
         db.add(user)
         db.commit()
 
@@ -397,7 +420,6 @@ class TestAnalyticsEligibility:
             email=f"analytics-{unique_id}@example.com",
             hashed_password="hash",
             full_name="Analytics User",
-            role="student",
         )
         db.add(user)
         db.commit()

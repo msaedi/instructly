@@ -117,7 +117,9 @@ class TestAuthWithGuestSession:
         # Create user
         auth_service = AuthService(db, None, None)
         user = auth_service.register_user(
-            email="convert@example.com", password="testpass123", full_name="Convert User", role="student"
+            email="convert@example.com",
+            password="testpass123",
+            full_name="Convert User",
         )
 
         # Create guest searches
@@ -206,7 +208,9 @@ class TestAuthWithGuestSession:
         # Create user
         auth_service = AuthService(db, None, None)
         auth_service.register_user(
-            email="regular@example.com", password="regularpass123", full_name="Regular User", role="student"
+            email="regular@example.com",
+            password="regularpass123",
+            full_name="Regular User",
         )
 
         # Regular login (OAuth2 format)

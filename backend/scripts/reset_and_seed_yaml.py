@@ -23,11 +23,14 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_password_hash
 from app.core.config import settings
+from app.core.enums import RoleName
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
+from app.models.rbac import Role
+from app.models.rbac import UserRole as UserRoleJunction
 from app.models.service_catalog import InstructorService, ServiceCatalog
-from app.models.user import User, UserRole
+from app.models.user import User
 
 
 class DatabaseSeeder:
@@ -107,7 +110,9 @@ class DatabaseSeeder:
                     "DELETE FROM instructor_profiles WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@example.com')"
                 )
             )
-            session.execute(text("DELETE FROM users WHERE email LIKE '%@example.com'"))
+            session.execute(
+                text("DELETE FROM users WHERE email LIKE '%@example.com' OR email = 'admin@instainstru.com'")
+            )
 
             session.commit()
             print("✅ Cleaned all test data, search history, and service catalog from database")
@@ -135,22 +140,39 @@ class DatabaseSeeder:
         password = self.loader.get_default_password()
 
         with Session(self.engine) as session:
+            # Get roles
+            admin_role = session.query(Role).filter_by(name=RoleName.ADMIN).first()
+            student_role = session.query(Role).filter_by(name=RoleName.STUDENT).first()
+
+            if not admin_role or not student_role:
+                print("❌ Error: Roles not found. Make sure migrations ran successfully.")
+                return
+
             for student_data in students:
+                # Determine role based on email
+                is_admin = student_data["email"] == "admin@instainstru.com"
+
                 user = User(
                     email=student_data["email"],
                     full_name=student_data["full_name"],
-                    role=UserRole.STUDENT,
                     hashed_password=get_password_hash(password),
                     is_active=True,
                     account_status="active",
                 )
                 session.add(user)
                 session.flush()
+
+                # Assign role
+                role_to_assign = admin_role if is_admin else student_role
+                user_role = UserRoleJunction(user_id=user.id, role_id=role_to_assign.id)
+                session.add(user_role)
+
                 self.created_users[user.email] = user.id
-                print(f"  ✅ Created student: {user.full_name}")
+                role_text = "admin" if is_admin else "student"
+                print(f"  ✅ Created {role_text}: {user.full_name}")
 
             session.commit()
-        print(f"✅ Created {len(students)} students")
+        print(f"✅ Created {len(students)} users (students and admins)")
 
     def create_instructors(self):
         """Create instructor accounts with profiles and services from YAML"""
@@ -158,6 +180,13 @@ class DatabaseSeeder:
         password = self.loader.get_default_password()
 
         with Session(self.engine) as session:
+            # Get instructor role
+            instructor_role = session.query(Role).filter_by(name=RoleName.INSTRUCTOR).first()
+
+            if not instructor_role:
+                print("❌ Error: Instructor role not found. Make sure migrations ran successfully.")
+                return
+
             for instructor_data in instructors:
                 # Create user account
                 # Allow account_status to be specified in YAML, default to "active"
@@ -165,13 +194,16 @@ class DatabaseSeeder:
                 user = User(
                     email=instructor_data["email"],
                     full_name=instructor_data["full_name"],
-                    role=UserRole.INSTRUCTOR,
                     hashed_password=get_password_hash(password),
                     is_active=True,
                     account_status=account_status,
                 )
                 session.add(user)
                 session.flush()
+
+                # Assign instructor role
+                user_role = UserRoleJunction(user_id=user.id, role_id=instructor_role.id)
+                session.add(user_role)
 
                 # Create instructor profile
                 profile_data = instructor_data.get("profile", {})
@@ -305,7 +337,14 @@ class DatabaseSeeder:
 
         with Session(self.engine) as session:
             # Get all students
-            students = session.query(User).filter(User.role == UserRole.STUDENT, User.email.like("%@example.com")).all()
+            # Get students by joining with roles
+            student_role = session.query(Role).filter_by(name=RoleName.STUDENT).first()
+            students = (
+                session.query(User)
+                .join(UserRoleJunction)
+                .filter(UserRoleJunction.role_id == student_role.id, User.email.like("%@example.com"))
+                .all()
+            )
 
             if not students:
                 print("  ⚠️  No students found to create bookings")
@@ -324,7 +363,7 @@ class DatabaseSeeder:
 
                 # Skip students
                 instructor = session.query(User).filter(User.id == instructor_id).first()
-                if instructor.role != UserRole.INSTRUCTOR:
+                if not any(role.name == RoleName.INSTRUCTOR for role in instructor.roles):
                     continue
 
                 # Get instructor's services
@@ -424,10 +463,12 @@ class DatabaseSeeder:
         historical_count = 0
 
         # Get suspended/deactivated instructors
+        instructor_role = session.query(Role).filter_by(name=RoleName.INSTRUCTOR).first()
         inactive_instructors = (
             session.query(User)
+            .join(UserRoleJunction)
             .filter(
-                User.role == UserRole.INSTRUCTOR,
+                UserRoleJunction.role_id == instructor_role.id,
                 User.email.like("%@example.com"),
                 User.account_status.in_(["suspended", "deactivated"]),
             )
@@ -438,8 +479,13 @@ class DatabaseSeeder:
             return
 
         # Get some students
+        student_role = session.query(Role).filter_by(name=RoleName.STUDENT).first()
         students = (
-            session.query(User).filter(User.role == UserRole.STUDENT, User.email.like("%@example.com")).limit(3).all()
+            session.query(User)
+            .join(UserRoleJunction)
+            .filter(UserRoleJunction.role_id == student_role.id, User.email.like("%@example.com"))
+            .limit(3)
+            .all()
         )
 
         if not students:
@@ -500,11 +546,21 @@ class DatabaseSeeder:
     def print_summary(self):
         """Print summary of created data"""
         with Session(self.engine) as session:
+            # Get role IDs
+            student_role = session.query(Role).filter_by(name=RoleName.STUDENT).first()
+            instructor_role = session.query(Role).filter_by(name=RoleName.INSTRUCTOR).first()
+
             student_count = (
-                session.query(User).filter(User.role == UserRole.STUDENT, User.email.like("%@example.com")).count()
+                session.query(User)
+                .join(UserRoleJunction)
+                .filter(UserRoleJunction.role_id == student_role.id, User.email.like("%@example.com"))
+                .count()
             )
             instructor_count = (
-                session.query(User).filter(User.role == UserRole.INSTRUCTOR, User.email.like("%@example.com")).count()
+                session.query(User)
+                .join(UserRoleJunction)
+                .filter(UserRoleJunction.role_id == instructor_role.id, User.email.like("%@example.com"))
+                .count()
             )
             service_count = (
                 session.query(InstructorService)

@@ -16,12 +16,13 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.enums import RoleName
 from app.core.exceptions import BusinessRuleException, ConflictException, NotFoundException, ValidationException
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.repositories.booking_repository import BookingRepository
 from app.schemas.booking import BookingCreate, BookingUpdate
 from app.services.booking_service import BookingService
@@ -99,20 +100,30 @@ class TestBookingServiceUnit:
     def mock_student(self):
         """Create a mock student user."""
         student = Mock(spec=User)
+
+        mock_student_role = Mock()
+
+        mock_student_role.name = RoleName.STUDENT
+
+        student.roles = [mock_student_role]
         student.id = 1
         student.email = "student@example.com"
         student.full_name = "Test Student"
-        student.role = UserRole.STUDENT
         return student
 
     @pytest.fixture
     def mock_instructor(self):
         """Create a mock instructor user."""
         instructor = Mock(spec=User)
+
+        mock_instructor_role = Mock()
+
+        mock_instructor_role.name = RoleName.INSTRUCTOR
+
+        instructor.roles = [mock_instructor_role]
         instructor.id = 2
         instructor.email = "instructor@example.com"
         instructor.full_name = "Test Instructor"
-        instructor.role = UserRole.INSTRUCTOR
         instructor.account_status = "active"
         return instructor
 
@@ -505,9 +516,13 @@ class TestBookingServiceUnit:
     def test_complete_booking_wrong_instructor(self, booking_service, mock_booking):
         """Test instructor can only complete their own bookings."""
         wrong_instructor = Mock(spec=User)
-        wrong_instructor.id = 999
-        wrong_instructor.role = UserRole.INSTRUCTOR
 
+        mock_instructor_role = Mock()
+
+        mock_instructor_role.name = RoleName.INSTRUCTOR
+
+        wrong_instructor.roles = [mock_instructor_role]
+        wrong_instructor.id = 999
         booking_service.repository.get_booking_with_details.return_value = mock_booking
 
         with pytest.raises(ValidationException, match="You can only complete your own bookings"):

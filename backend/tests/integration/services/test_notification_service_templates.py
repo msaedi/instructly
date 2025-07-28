@@ -19,9 +19,17 @@ from app.models.user import User
 @pytest.fixture
 def test_booking():
     """Create a test booking with all required fields."""
-    student = User(id=1, email="student@example.com", full_name="Test Student", role="student")
+    student = User(
+        id=1,
+        email="student@example.com",
+        full_name="Test Student",
+    )
 
-    instructor = User(id=2, email="instructor@example.com", full_name="Test Instructor", role="instructor")
+    instructor = User(
+        id=2,
+        email="instructor@example.com",
+        full_name="Test Instructor",
+    )
 
     booking = Booking(
         id=100,

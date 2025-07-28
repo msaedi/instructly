@@ -24,14 +24,16 @@ from decimal import Decimal
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.enums import RoleName
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.service_catalog import ServiceCatalog, ServiceCategory
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.services.booking_service import BookingService
 from app.services.instructor_service import InstructorService
+from app.services.permission_service import PermissionService
 
 
 class TestCircularDependencyEdgeCases:
@@ -623,15 +625,27 @@ class TestSoftDeleteEdgeCases:
 @pytest.fixture
 def instructor_user(db: Session) -> User:
     """Create an instructor user with profile and services."""
+    # Check if user already exists and delete it
+    existing_user = db.query(User).filter(User.email == "instructor@example.com").first()
+    if existing_user:
+        if hasattr(existing_user, "instructor_profile") and existing_user.instructor_profile:
+            db.delete(existing_user.instructor_profile)
+        db.delete(existing_user)
+        db.commit()
+
     user = User(
         email="instructor@example.com",
         full_name="Test Instructor",
         hashed_password="hashed",
-        role=UserRole.INSTRUCTOR,
         is_active=True,
     )
     db.add(user)
     db.flush()
+
+    # RBAC: Assign role
+    permission_service = PermissionService(db)
+    permission_service.assign_role(user.id, RoleName.INSTRUCTOR)
+    db.refresh(user)
 
     profile = InstructorProfile(
         user_id=user.id, bio="Test bio", years_experience=5, areas_of_service="Manhattan, Brooklyn"
@@ -670,14 +684,29 @@ def instructor_user(db: Session) -> User:
 @pytest.fixture
 def student_user(db: Session) -> User:
     """Create a student user."""
+    # Check if user already exists and delete it
+    existing_user = db.query(User).filter(User.email == "student@example.com").first()
+    if existing_user:
+        db.delete(existing_user)
+        db.commit()
+
     user = User(
         email="student@example.com",
         full_name="Test Student",
         hashed_password="hashed",
-        role=UserRole.STUDENT,
         is_active=True,
     )
     db.add(user)
+    db.flush()
+
+    # RBAC: Assign student role
+    from app.core.enums import RoleName
+    from app.services.permission_service import PermissionService
+
+    permission_service = PermissionService(db)
+    permission_service.assign_role(user.id, RoleName.STUDENT)
+    db.refresh(user)
+
     db.commit()
     return user
 

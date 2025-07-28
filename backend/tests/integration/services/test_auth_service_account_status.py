@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.auth import get_password_hash
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.services.auth_service import AuthService
 
 
@@ -36,7 +36,6 @@ class TestAuthServiceAccountStatus:
             email="active.instructor@example.com",
             hashed_password=get_password_hash(test_password),
             full_name="Active Instructor",
-            role=UserRole.INSTRUCTOR,
             account_status="active",
             is_active=True,
         )
@@ -51,7 +50,6 @@ class TestAuthServiceAccountStatus:
             email="suspended.instructor@example.com",
             hashed_password=get_password_hash(test_password),
             full_name="Suspended Instructor",
-            role=UserRole.INSTRUCTOR,
             account_status="suspended",
             is_active=True,
         )
@@ -66,7 +64,6 @@ class TestAuthServiceAccountStatus:
             email="deactivated.instructor@example.com",
             hashed_password=get_password_hash(test_password),
             full_name="Deactivated Instructor",
-            role=UserRole.INSTRUCTOR,
             account_status="deactivated",
             is_active=True,
         )
@@ -81,7 +78,6 @@ class TestAuthServiceAccountStatus:
             email="active.student@example.com",
             hashed_password=get_password_hash(test_password),
             full_name="Active Student",
-            role=UserRole.STUDENT,
             account_status="active",
             is_active=True,
         )
@@ -165,9 +161,7 @@ class TestAuthServiceAccountStatus:
 
     def test_register_user_with_default_status(self, auth_service: AuthService, db: Session):
         """Test that new users are registered with active status by default."""
-        new_user = auth_service.register_user(
-            email="newuser@example.com", password="password123", full_name="New User", role=UserRole.STUDENT
-        )
+        new_user = auth_service.register_user(email="newuser@example.com", password="password123", full_name="New User")
 
         assert new_user is not None
         assert new_user.account_status == "active"

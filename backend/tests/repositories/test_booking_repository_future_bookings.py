@@ -317,14 +317,12 @@ class TestBookingRepositoryFutureBookings:
         # Create a second instructor
         from app.auth import get_password_hash
         from app.models.instructor import InstructorProfile
-        from app.models.user import UserRole
 
         second_instructor = User(
             email="second.instructor@example.com",
             hashed_password=get_password_hash("TestPassword123!"),
             full_name="Second Instructor",
             is_active=True,
-            role=UserRole.INSTRUCTOR,
         )
         db.add(second_instructor)
         db.flush()

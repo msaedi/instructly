@@ -20,11 +20,12 @@ from datetime import date, time, timedelta
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.enums import RoleName
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.service_catalog import InstructorService as Service
 from app.models.service_catalog import ServiceCatalog, ServiceCategory
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.schemas.booking import BookingCreate
 from app.schemas.instructor import InstructorProfileUpdate, ServiceCreate
 from app.services.booking_service import BookingService
@@ -433,7 +434,7 @@ class TestSoftDeleteServices:
         # Verify user role changed
         db.expire_all()  # Clear SQLAlchemy cache
         user = db.query(User).filter(User.id == test_instructor.id).first()
-        assert user.role == UserRole.STUDENT, "User should be reverted to student role"
+        assert any(role.name == RoleName.STUDENT for role in user.roles), "User should be reverted to student role"
 
         # Verify bookings are preserved with their service information
         if services_with_bookings:

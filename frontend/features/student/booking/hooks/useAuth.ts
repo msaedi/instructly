@@ -8,7 +8,8 @@ interface User {
   id: number;
   email: string;
   full_name: string;
-  role: 'student' | 'instructor';
+  roles: string[];
+  permissions: string[];
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -64,7 +65,7 @@ export function useAuth(): UseAuthReturn {
         const userData = await response.json();
         logger.info('User authenticated', {
           userId: userData.id,
-          role: userData.role,
+          roles: userData.roles,
           email: userData.email,
         });
         setUser(userData);

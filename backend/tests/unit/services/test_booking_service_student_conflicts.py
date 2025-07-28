@@ -9,11 +9,12 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.enums import RoleName
 from app.core.exceptions import ConflictException
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
 
@@ -72,20 +73,30 @@ class TestStudentConflictValidation:
     def student(self):
         """Create a test student."""
         student = Mock(spec=User)
+
+        mock_student_role = Mock()
+
+        mock_student_role.name = RoleName.STUDENT
+
+        student.roles = [mock_student_role]
         student.id = 1
         student.email = "student@test.com"
         student.full_name = "Test Student"
-        student.role = UserRole.STUDENT
         return student
 
     @pytest.fixture
     def instructor(self):
         """Create a test instructor."""
         instructor = Mock(spec=User)
+
+        mock_instructor_role = Mock()
+
+        mock_instructor_role.name = RoleName.INSTRUCTOR
+
+        instructor.roles = [mock_instructor_role]
         instructor.id = 2
         instructor.email = "instructor@test.com"
         instructor.full_name = "Test Instructor"
-        instructor.role = UserRole.INSTRUCTOR
         instructor.account_status = "active"
         return instructor
 
@@ -212,12 +223,21 @@ class TestStudentConflictValidation:
         """Test that different students can book the same instructor at different times."""
         # Create two different students
         student1 = Mock(spec=User)
-        student1.id = 1
-        student1.role = UserRole.STUDENT
 
+        mock_student_role = Mock()
+
+        mock_student_role.name = RoleName.STUDENT
+
+        student1.roles = [mock_student_role]
+        student1.id = 1
         student2 = Mock(spec=User)
+
+        mock_student_role = Mock()
+
+        mock_student_role.name = RoleName.STUDENT
+
+        student2.roles = [mock_student_role]
         student2.id = 2
-        student2.role = UserRole.STUDENT
 
         # No conflicts for either student
         mock_repository.check_student_time_conflict.return_value = []

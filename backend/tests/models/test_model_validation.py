@@ -25,6 +25,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.inspection import inspect
 
 from app.auth import get_password_hash
+from app.core.enums import RoleName
 from app.database import Base
 from app.models import (
     AvailabilitySlot,
@@ -34,9 +35,9 @@ from app.models import (
     InstructorProfile,
     PasswordResetToken,
     User,
-    UserRole,
 )
 from app.models.service_catalog import InstructorService as Service
+from app.services.permission_service import PermissionService
 
 
 class TestArchitecturalValidation:
@@ -133,14 +134,18 @@ class TestModelInstantiation:
             email="test@example.com",
             hashed_password="hashed_password_value",
             full_name="Test User",
-            role=UserRole.STUDENT,
         )
         db.add(user)
         db.flush()
 
+        # Assign student role using PermissionService
+        permission_service = PermissionService(db)
+        permission_service.assign_role(user.id, RoleName.STUDENT)
+        db.refresh(user)
+
         assert user.id is not None
         assert user.email == "test@example.com"
-        assert user.role == UserRole.STUDENT
+        assert any(role.name == RoleName.STUDENT for role in user.roles)
         assert user.is_active is True  # Default value
         assert user.created_at is not None
 
@@ -151,7 +156,6 @@ class TestModelInstantiation:
             email="new.instructor@example.com",
             hashed_password=get_password_hash("TestPassword123!"),
             full_name="New Instructor",
-            role=UserRole.INSTRUCTOR,
         )
         db.add(instructor_user)
         db.flush()
@@ -538,43 +542,68 @@ class TestFieldValidation:
         with pytest.raises(IntegrityError):
             db.flush()
 
-    def test_user_role_constraint(self, db):
-        """Test that User role is constrained to valid values."""
-        # First test that the field length is enforced
+    def test_user_rbac_role_assignment(self, db):
+        """Test that RBAC role assignment works correctly."""
+        # Create a user without roles
         user = User(
             email="test@example.com",
             hashed_password="hash",
-            full_name="Test",
-            role="invalid_role",  # 12 characters, exceeds VARCHAR(10)
+            full_name="Test User",
         )
         db.add(user)
+        db.flush()
 
-        # Should fail due to length constraint
-        with pytest.raises(Exception) as exc_info:
-            db.flush()
+        # User should have no roles initially
+        assert len(user.roles) == 0
 
-        # Should be a data error for exceeding field length
-        assert "value too long" in str(exc_info.value) or isinstance(exc_info.value, Exception)
-        db.rollback()
+        # Assign a valid role
+        permission_service = PermissionService(db)
+        permission_service.assign_role(user.id, RoleName.STUDENT)
+        db.refresh(user)
 
-        # Now test a value that fits but isn't valid
-        user2 = User(
-            email="test2@example.com",
+        # User should now have the student role
+        assert len(user.roles) == 1
+        assert any(role.name == RoleName.STUDENT for role in user.roles)
+
+        # Assign another role (users can have multiple roles)
+        permission_service.assign_role(user.id, RoleName.INSTRUCTOR)
+        db.refresh(user)
+
+        # User should now have both roles
+        assert len(user.roles) == 2
+        assert any(role.name == RoleName.STUDENT for role in user.roles)
+        assert any(role.name == RoleName.INSTRUCTOR for role in user.roles)
+
+        # Try to assign invalid role should return False
+        result = permission_service.assign_role(user.id, "invalid_role")
+        assert result is False  # Invalid role assignment should fail
+
+    def test_user_rbac_permissions(self, db):
+        """Test that RBAC permissions work correctly."""
+        # Create a student user
+        user = User(
+            email="student@example.com",
             hashed_password="hash",
-            full_name="Test",
-            role="teacher",  # Fits in VARCHAR(10) but not a valid role
+            full_name="Student User",
         )
-        db.add(user2)
+        db.add(user)
+        db.flush()
 
-        # This might pass Python validation but should fail at DB constraint
-        # The exact behavior depends on whether there's a CHECK constraint
-        try:
-            db.flush()
-            # If it succeeds, the check constraint might not be enforced
-            # This is still valuable info about the DB setup
-        except IntegrityError:
-            # Expected if CHECK constraint is working
-            db.rollback()
+        permission_service = PermissionService(db)
+        permission_service.assign_role(user.id, RoleName.STUDENT)
+        db.refresh(user)
+
+        # Test role checking
+        user_roles = permission_service.get_user_roles(user.id)
+        assert RoleName.STUDENT in user_roles
+        assert RoleName.INSTRUCTOR not in user_roles
+        assert RoleName.ADMIN not in user_roles
+
+        # Student should have student-specific permissions
+        student_permissions = permission_service.get_user_permissions(user.id)
+        assert "create_bookings" in student_permissions
+        assert "manage_own_bookings" in student_permissions
+        assert "view_instructors" in student_permissions
 
     def test_booking_status_values(self, db, test_student, test_instructor):
         """Test Booking status field accepts valid enum values."""
@@ -607,7 +636,7 @@ class TestDefaultValues:
 
     def test_user_defaults(self, db):
         """Test User model default values."""
-        user = User(email="defaults@test.com", hashed_password="hash", full_name="Default Test", role=UserRole.STUDENT)
+        user = User(email="defaults@test.com", hashed_password="hash", full_name="Default Test")
         db.add(user)
         db.flush()
 

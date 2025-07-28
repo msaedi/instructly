@@ -19,11 +19,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
+from ..core.enums import RoleName
 from ..core.exceptions import BusinessRuleException, ConflictException, NotFoundException, ValidationException
 from ..models.booking import Booking, BookingStatus
 from ..models.instructor import InstructorProfile
 from ..models.service_catalog import InstructorService
-from ..models.user import User, UserRole
+from ..models.user import User
 from ..repositories.factory import RepositoryFactory
 from ..schemas.booking import BookingCreate, BookingUpdate
 from .base import BaseService
@@ -250,7 +251,7 @@ class BookingService(BaseService):
         Returns:
             List of bookings
         """
-        if user.role == UserRole.STUDENT:
+        if any(role.name == RoleName.STUDENT for role in user.roles):
             return self.repository.get_student_bookings(
                 student_id=user.id, status=status, upcoming_only=upcoming_only, limit=limit
             )
@@ -381,7 +382,7 @@ class BookingService(BaseService):
             ValidationException: If user is not instructor
             BusinessRuleException: If booking cannot be completed
         """
-        if instructor.role != UserRole.INSTRUCTOR:
+        if not any(role.name == RoleName.INSTRUCTOR for role in instructor.roles):
             raise ValidationException("Only instructors can mark bookings as complete")
 
         with self.transaction():
@@ -510,7 +511,7 @@ class BookingService(BaseService):
             NotFoundException: If resources not found
         """
         # Validate student role
-        if student.role != UserRole.STUDENT:
+        if not any(role.name == RoleName.STUDENT for role in student.roles):
             raise ValidationException("Only students can create bookings")
 
         # Use repositories instead of direct queries

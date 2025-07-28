@@ -34,7 +34,6 @@ class TestBaseServiceTransactions:
                 email="transaction_test@example.com",
                 hashed_password="hashed",
                 full_name="Transaction Test",
-                role="student",
             )
             db.add(user)
 
@@ -56,7 +55,6 @@ class TestBaseServiceTransactions:
                     email="rollback_test@example.com",
                     hashed_password="hashed",
                     full_name="Rollback Test",
-                    role="student",
                 )
                 db.add(user)
                 # Force an error
@@ -129,7 +127,9 @@ class TestBaseServiceTransactions:
         # Can't use decorator syntax, so we'll test the wrapper manually
         def create_test_user(self):
             user = User(
-                email="decorator_test@example.com", hashed_password="hashed", full_name="Decorator Test", role="student"
+                email="decorator_test@example.com",
+                hashed_password="hashed",
+                full_name="Decorator Test",
             )
             self.db.add(user)
             return user
@@ -158,7 +158,6 @@ class TestBaseServiceTransactions:
                     email="outer_transaction@example.com",
                     hashed_password="hashed",
                     full_name="Outer User",
-                    role="student",
                 )
                 db.add(user1)
 
@@ -168,7 +167,6 @@ class TestBaseServiceTransactions:
                         email="inner_transaction@example.com",
                         hashed_password="hashed",
                         full_name="Inner User",
-                        role="student",
                     )
                     db.add(user2)
                     raise SQLAlchemyError("Inner transaction error")

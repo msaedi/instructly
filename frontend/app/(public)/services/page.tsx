@@ -8,6 +8,7 @@ import { publicApi, type CatalogService, type ServiceCategory } from '@/features
 import { logger } from '@/lib/logger';
 import { recordSearch } from '@/lib/searchTracking';
 import { useAuth } from '@/features/shared/hooks/useAuth';
+import { SearchType } from '@/types/enums';
 
 // Progressive loading configuration
 const INITIAL_SERVICES_COUNT = 15;
@@ -285,7 +286,7 @@ export default function AllServicesPage() {
                 await recordSearch(
                   {
                     query: service.name,
-                    search_type: 'service_pill',
+                    search_type: SearchType.SERVICE_PILL,
                     results_count: null, // Will be determined on results page
                   },
                   isAuthenticated

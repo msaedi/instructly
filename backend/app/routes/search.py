@@ -11,10 +11,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from ..api.dependencies.auth import get_current_active_user_optional
 from ..database import get_db
-from ..models.user import User
-from ..services.search_history_service import SearchHistoryService
 from ..services.search_service import SearchService
 
 router = APIRouter()
@@ -25,7 +22,6 @@ async def search_instructors(
     q: str = Query(..., description="Search query", min_length=1),
     limit: Optional[int] = Query(20, ge=1, le=100, description="Maximum results to return"),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_active_user_optional),
 ):
     """
     Search for instructors using natural language queries.
@@ -55,24 +51,10 @@ async def search_instructors(
         # Perform search
         results = search_service.search(q, limit=limit)
 
-        # Record search history for authenticated users
-        if current_user:
-            search_history_service = SearchHistoryService(db)
-            # Count actual results returned
-            results_count = len(results.get("results", [])) if isinstance(results, dict) else 0
-
-            try:
-                # Record the search
-                search_history_service.record_search(
-                    user_id=current_user.id, query=q, search_type="natural_language", results_count=results_count
-                )
-            except Exception as history_error:
-                # Log error but don't fail the search
-                # This ensures search history doesn't break the main search functionality
-                import logging
-
-                logger = logging.getLogger(__name__)
-                logger.error(f"Failed to record search history: {str(history_error)}")
+        # Search recording is handled by frontend which has full context
+        # (session ID, referrer, interaction type, etc.)
+        # Backend focuses on returning search results efficiently
+        # This ensures consistent behavior for both guests and authenticated users
 
         return results
 

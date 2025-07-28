@@ -16,10 +16,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.enums import RoleName
 from app.models.booking import Booking
 from app.models.instructor import InstructorProfile
 from app.models.service import Service
-from app.models.user import User, UserRole
+from app.models.user import User
 
 
 def check_bookings():
@@ -36,7 +37,7 @@ def check_bookings():
         if not sarah:
             print("ERROR: Sarah Chen not found in database!")
             print("\nAll instructor emails:")
-            instructors = session.query(User).filter(User.role == UserRole.INSTRUCTOR).all()
+            instructors = session.query(User).filter(User.role == RoleName.INSTRUCTOR).all()
             for inst in instructors:
                 print(f"  - {inst.email}")
             return

@@ -9,6 +9,8 @@
  * @module user
  */
 
+import { RoleName } from './enums';
+
 /**
  * User role enumeration
  * Defines the possible roles a user can have in the system
@@ -125,7 +127,7 @@ export interface RegisterRequest {
   password_confirm?: string;
 
   /** User role selection */
-  role: UserRole;
+  role: string; // Accepts RoleName enum values as strings
 
   /** Agreement to terms (if required) */
   terms_accepted?: boolean;
@@ -199,7 +201,15 @@ export function isValidUserRole(role: string): role is UserRole {
  * @returns boolean indicating if user is an instructor
  */
 export function isInstructorUser(user: User | UserData): boolean {
-  return user.role === UserRole.INSTRUCTOR || user.role === 'instructor';
+  // Legacy check for backward compatibility
+  if ('role' in user && user.role) {
+    return user.role === UserRole.INSTRUCTOR || user.role === 'instructor';
+  }
+  // New RBAC check
+  if ('roles' in user && Array.isArray(user.roles)) {
+    return user.roles.includes(RoleName.INSTRUCTOR);
+  }
+  return false;
 }
 
 /**
@@ -209,7 +219,15 @@ export function isInstructorUser(user: User | UserData): boolean {
  * @returns boolean indicating if user is a student
  */
 export function isStudentUser(user: User | UserData): boolean {
-  return user.role === UserRole.STUDENT || user.role === 'student';
+  // Legacy check for backward compatibility
+  if ('role' in user && user.role) {
+    return user.role === UserRole.STUDENT || user.role === 'student';
+  }
+  // New RBAC check
+  if ('roles' in user && Array.isArray(user.roles)) {
+    return user.roles.includes(RoleName.STUDENT);
+  }
+  return false;
 }
 
 /**

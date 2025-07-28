@@ -19,12 +19,13 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.enums import RoleName
 from app.core.exceptions import BusinessRuleException, ConflictException, NotFoundException, ValidationException
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.schemas.booking import BookingCreate, BookingUpdate
 from app.services.booking_service import BookingService
 from app.services.notification_service import NotificationService
@@ -166,9 +167,16 @@ class TestBookingServiceCreation:
             email="another.student@example.com",
             full_name="Another Student",
             hashed_password="hashed",
-            role=UserRole.STUDENT,
         )
         db.add(another_student)
+        db.flush()
+
+        # RBAC: Assign student role
+        from app.services.permission_service import PermissionService
+
+        permission_service = PermissionService(db)
+        permission_service.assign_role(another_student.id, RoleName.STUDENT)
+        db.refresh(another_student)
         db.commit()
 
         # Try to book the same time slot
@@ -299,9 +307,7 @@ class TestBookingServiceCancellation:
     ):
         """Test cancellation by unauthorized user fails."""
         # Create another user
-        other_user = User(
-            email="other@example.com", full_name="Other User", hashed_password="hashed", role=UserRole.STUDENT
-        )
+        other_user = User(email="other@example.com", full_name="Other User", hashed_password="hashed")
         db.add(other_user)
         db.commit()
 
@@ -388,7 +394,6 @@ class TestBookingServiceRetrieval:
             email="unauthorized@example.com",
             full_name="Unauthorized User",
             hashed_password="hashed",
-            role=UserRole.STUDENT,
         )
         db.add(other_user)
         db.commit()

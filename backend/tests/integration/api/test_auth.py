@@ -7,7 +7,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.auth import create_access_token, get_password_hash, verify_password
-from app.models.user import User, UserRole
+from app.core.enums import RoleName
+from app.models.user import User
 
 
 class TestAuth:
@@ -53,13 +54,13 @@ class TestAuth:
         data = response.json()
         assert data["email"] == "newuser@example.com"
         assert data["full_name"] == "New User"
-        assert data["role"] == "student"
+        assert data["roles"] == ["student"]
         assert "id" in data
 
         # Verify user in database
         user = db.query(User).filter(User.email == "newuser@example.com").first()
         assert user is not None
-        assert user.role == UserRole.STUDENT
+        assert any(role.name == RoleName.STUDENT for role in user.roles)
 
     def test_register_duplicate_user(self, db: Session, client: TestClient, test_student: User):
         """Test registering with existing email fails."""
@@ -107,7 +108,7 @@ class TestAuth:
         data = response.json()
         assert data["email"] == test_student.email
         assert data["full_name"] == test_student.full_name
-        assert data["role"] == "student"
+        assert data["roles"] == ["student"]
 
     def test_get_current_user_invalid_token(self, db: Session, client: TestClient):
         """Test getting current user with invalid token."""

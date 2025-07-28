@@ -55,8 +55,9 @@ from ..api.dependencies.services import (
     get_week_operation_service,
 )
 from ..core.constants import ERROR_INSTRUCTOR_ONLY
+from ..core.enums import RoleName
 from ..core.exceptions import DomainException
-from ..models.user import User, UserRole
+from ..models.user import User
 from ..schemas.availability_window import (
     ApplyToDateRangeRequest,
     AvailabilityWindowResponse,
@@ -86,7 +87,7 @@ router = APIRouter(prefix="/instructors/availability-windows", tags=["availabili
 
 def verify_instructor(current_user: User) -> User:
     """Verify the current user is an instructor."""
-    if current_user.role != UserRole.INSTRUCTOR:
+    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
         logger.warning(f"Non-instructor user {current_user.email} attempted to access instructor-only endpoint")
         raise HTTPException(status_code=403, detail=ERROR_INSTRUCTOR_ONLY)
     return current_user

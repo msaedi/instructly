@@ -10,14 +10,16 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.auth import get_password_hash
+from app.core.enums import RoleName
 from app.models.availability import AvailabilitySlot
 from app.models.booking import BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.service_catalog import ServiceCatalog, ServiceCategory
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.schemas.booking import BookingCreate
 from app.services.booking_service import BookingService
+from app.services.permission_service import PermissionService
 
 
 @pytest.mark.asyncio
@@ -31,21 +33,30 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
         email="double.booking.student@test.com",
         hashed_password=get_password_hash("testpass123"),
         full_name="Double Booking Student",
-        role=UserRole.STUDENT,
         is_active=True,
     )
     db.add(student)
+    db.flush()
+
+    # RBAC: Assign student role
+    permission_service = PermissionService(db)
+    permission_service.assign_role(student.id, RoleName.STUDENT)
+    db.refresh(student)
 
     # Create first instructor with Math service
     instructor1 = User(
         email="math.instructor@test.com",
         hashed_password=get_password_hash("testpass123"),
         full_name="Math Instructor",
-        role=UserRole.INSTRUCTOR,
         is_active=True,
     )
     db.add(instructor1)
     db.flush()
+
+    # RBAC: Assign instructor role
+    permission_service = PermissionService(db)
+    permission_service.assign_role(instructor1.id, RoleName.INSTRUCTOR)
+    db.refresh(instructor1)
 
     profile1 = InstructorProfile(
         user_id=instructor1.id,
@@ -77,11 +88,15 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
         email="piano.instructor@test.com",
         hashed_password=get_password_hash("testpass123"),
         full_name="Piano Instructor",
-        role=UserRole.INSTRUCTOR,
         is_active=True,
     )
     db.add(instructor2)
     db.flush()
+
+    # RBAC: Assign role
+    permission_service = PermissionService(db)
+    permission_service.assign_role(instructor2.id, RoleName.INSTRUCTOR)
+    db.refresh(instructor2)
 
     profile2 = InstructorProfile(
         user_id=instructor2.id,

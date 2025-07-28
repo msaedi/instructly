@@ -15,11 +15,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..auth import get_password_hash, verify_password
+from ..core.enums import RoleName
 from ..core.exceptions import ConflictException, NotFoundException, ValidationException
 from ..models.instructor import InstructorProfile
-from ..models.user import User, UserRole
+from ..models.user import User
 from ..repositories.factory import RepositoryFactory
 from .base import BaseService
+from .permission_service import PermissionService
 
 if TYPE_CHECKING:
     from .cache_service import CacheService
@@ -48,7 +50,7 @@ class AuthService(BaseService):
         )
 
     @BaseService.measure_operation("register_user")
-    def register_user(self, email: str, password: str, full_name: str, role: UserRole) -> User:
+    def register_user(self, email: str, password: str, full_name: str, role: Optional[str] = None) -> User:
         """
         Register a new user.
 
@@ -56,7 +58,7 @@ class AuthService(BaseService):
             email: User's email address
             password: Plain text password (will be hashed)
             full_name: User's full name
-            role: User role (student or instructor)
+            role: Optional role name (defaults to 'student')
 
         Returns:
             Created user object
@@ -78,13 +80,19 @@ class AuthService(BaseService):
 
         try:
             with self.transaction():
-                # Create user using repository
-                user = self.user_repository.create(
-                    email=email, hashed_password=hashed_password, full_name=full_name, role=role
-                )
+                # Create user without role (will be assigned via RBAC)
+                user = self.user_repository.create(email=email, hashed_password=hashed_password, full_name=full_name)
+
+                # Assign role using PermissionService
+                permission_service = PermissionService(self.db)
+                role_name = role or RoleName.STUDENT  # Default to student if not specified
+                permission_service.assign_role(user.id, role_name)
+
+                # Refresh user to get roles
+                self.db.refresh(user)
 
                 # If registering as instructor, create empty profile
-                if role == UserRole.INSTRUCTOR:
+                if role_name == RoleName.INSTRUCTOR:
                     instructor_profile = self.instructor_repository.create(
                         user_id=user.id,
                         bio="",

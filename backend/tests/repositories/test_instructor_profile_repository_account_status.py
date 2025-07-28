@@ -6,14 +6,13 @@ Tests that all repository methods properly filter out suspended/deactivated inst
 from search results and listings.
 """
 
-
 import pytest
 from sqlalchemy.orm import Session
 
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.service_catalog import ServiceCatalog
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.repositories.instructor_profile_repository import InstructorProfileRepository
 
 
@@ -34,7 +33,6 @@ class TestInstructorProfileRepositoryAccountStatus:
                 email=email,
                 hashed_password="hashedpassword",
                 full_name=f"{account_status.title()} Instructor",
-                role=UserRole.INSTRUCTOR,
                 account_status=account_status,
                 is_active=True,
             )

@@ -18,6 +18,20 @@ import sqlalchemy as sa
 
 from alembic import op
 
+# Import enums for seed data
+try:
+    from app.core.enums import RoleName
+
+    # Use enums if available
+    ROLE_ADMIN = RoleName.ADMIN.value
+    ROLE_INSTRUCTOR = RoleName.INSTRUCTOR.value
+    ROLE_STUDENT = RoleName.STUDENT.value
+except ImportError:
+    # Fallback to strings if running in isolation
+    ROLE_ADMIN = "admin"
+    ROLE_INSTRUCTOR = "instructor"
+    ROLE_STUDENT = "student"
+
 # revision identifiers, used by Alembic.
 revision: str = "001_initial_schema"
 down_revision: Union[str, None] = None
@@ -39,11 +53,6 @@ def upgrade() -> None:
         sa.Column("hashed_password", sa.String(), nullable=False),
         sa.Column("full_name", sa.String(), nullable=False),
         sa.Column("is_active", sa.Boolean(), nullable=True, server_default="true"),
-        sa.Column(
-            "role",
-            sa.String(10),  # VARCHAR(10) instead of ENUM
-            nullable=False,
-        ),
         sa.Column(
             "account_status",
             sa.String(20),
@@ -86,18 +95,180 @@ def upgrade() -> None:
         unique=False,
     )
 
-    # Add check constraint for role values
-    op.create_check_constraint(
-        "ck_users_role",
-        "users",
-        "role IN ('instructor', 'student')",
-    )
-
     # Add check constraint for account_status values
     op.create_check_constraint(
         "ck_users_account_status",
         "users",
         "account_status IN ('active', 'suspended', 'deactivated')",
+    )
+
+    # Create RBAC tables
+    print("Creating RBAC tables...")
+
+    # Create roles table
+    op.create_table(
+        "roles",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("name", sa.String(50), nullable=False, unique=True),
+        sa.Column("description", sa.Text(), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.timezone("UTC", sa.func.now()),
+            nullable=False,
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        comment="User roles for access control",
+    )
+
+    # Create permissions table
+    op.create_table(
+        "permissions",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("name", sa.String(100), nullable=False, unique=True),
+        sa.Column("description", sa.Text(), nullable=True),
+        sa.Column("resource", sa.String(50), nullable=True),
+        sa.Column("action", sa.String(50), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.timezone("UTC", sa.func.now()),
+            nullable=False,
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        comment="System permissions for granular access control",
+    )
+
+    # Create user_roles junction table
+    op.create_table(
+        "user_roles",
+        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("role_id", sa.Integer(), nullable=False),
+        sa.Column(
+            "assigned_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.timezone("UTC", sa.func.now()),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"],
+            ["users.id"],
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["role_id"],
+            ["roles.id"],
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("user_id", "role_id"),
+        comment="User-to-role mapping",
+    )
+
+    # Create role_permissions junction table
+    op.create_table(
+        "role_permissions",
+        sa.Column("role_id", sa.Integer(), nullable=False),
+        sa.Column("permission_id", sa.Integer(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["role_id"],
+            ["roles.id"],
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["permission_id"],
+            ["permissions.id"],
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("role_id", "permission_id"),
+        comment="Role-to-permission mapping",
+    )
+
+    # Create user_permissions for individual overrides
+    op.create_table(
+        "user_permissions",
+        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("permission_id", sa.Integer(), nullable=False),
+        sa.Column("granted", sa.Boolean(), nullable=False, server_default="true"),
+        sa.ForeignKeyConstraint(
+            ["user_id"],
+            ["users.id"],
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["permission_id"],
+            ["permissions.id"],
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("user_id", "permission_id"),
+        comment="Individual permission overrides",
+    )
+
+    # Create indexes for RBAC tables
+    op.create_index("idx_roles_name", "roles", ["name"], unique=True)
+    op.create_index("idx_permissions_name", "permissions", ["name"], unique=True)
+    op.create_index("idx_permissions_resource_action", "permissions", ["resource", "action"])
+    op.create_index("idx_user_roles_user_id", "user_roles", ["user_id"])
+    op.create_index("idx_user_roles_role_id", "user_roles", ["role_id"])
+
+    # Seed initial roles
+    op.execute(
+        f"""
+        INSERT INTO roles (name, description) VALUES
+        ('{ROLE_ADMIN}', 'Full system access'),
+        ('{ROLE_INSTRUCTOR}', 'Can manage own profile and availability'),
+        ('{ROLE_STUDENT}', 'Can search and book instructors')
+    """
+    )
+
+    # Seed initial permissions
+    op.execute(
+        """
+        INSERT INTO permissions (name, description, resource, action) VALUES
+        ('view_analytics', 'View analytics dashboard', 'analytics', 'view'),
+        ('export_analytics', 'Export analytics data', 'analytics', 'export'),
+        ('manage_users', 'Manage all users', 'users', 'manage'),
+        ('view_financials', 'View financial data', 'financials', 'view'),
+        ('moderate_content', 'Moderate user content', 'content', 'moderate'),
+        ('manage_instructors', 'Manage instructor profiles', 'instructors', 'manage'),
+        ('manage_own_profile', 'Manage own profile', 'profile', 'manage'),
+        ('create_bookings', 'Create bookings', 'bookings', 'create'),
+        ('view_instructors', 'View instructor profiles', 'instructors', 'view'),
+        ('manage_own_availability', 'Manage own availability', 'availability', 'manage'),
+        ('manage_own_bookings', 'Manage own bookings', 'bookings', 'manage')
+    """
+    )
+
+    # Assign permissions to roles
+    # Admin gets everything
+    op.execute(
+        f"""
+        INSERT INTO role_permissions (role_id, permission_id)
+        SELECT r.id, p.id
+        FROM roles r, permissions p
+        WHERE r.name = '{ROLE_ADMIN}'
+    """
+    )
+
+    # Instructor permissions
+    op.execute(
+        f"""
+        INSERT INTO role_permissions (role_id, permission_id)
+        SELECT r.id, p.id
+        FROM roles r, permissions p
+        WHERE r.name = '{ROLE_INSTRUCTOR}'
+        AND p.name IN ('manage_own_profile', 'view_instructors', 'manage_own_availability', 'manage_own_bookings')
+    """
+    )
+
+    # Student permissions
+    op.execute(
+        f"""
+        INSERT INTO role_permissions (role_id, permission_id)
+        SELECT r.id, p.id
+        FROM roles r, permissions p
+        WHERE r.name = '{ROLE_STUDENT}'
+        AND p.name IN ('create_bookings', 'view_instructors', 'manage_own_profile', 'manage_own_bookings')
+    """
     )
 
     # Create search_history table for tracking user searches (deduplicated for UX)
@@ -170,6 +341,18 @@ def upgrade() -> None:
         sa.Column("session_id", sa.String(36), nullable=True),  # Browser session tracking
         sa.Column("referrer", sa.String(255), nullable=True),
         sa.Column("search_context", sa.JSON(), nullable=True),  # JSONB for PostgreSQL
+        # Enhanced analytics columns
+        sa.Column("ip_address", sa.String(45), nullable=True),  # Support IPv6
+        sa.Column("ip_address_hash", sa.String(64), nullable=True),  # SHA-256 hash
+        sa.Column("geo_data", sa.JSON(), nullable=True),
+        sa.Column("device_type", sa.String(20), nullable=True),
+        sa.Column("browser_info", sa.JSON(), nullable=True),
+        sa.Column("connection_type", sa.String(20), nullable=True),
+        sa.Column("page_view_count", sa.Integer(), nullable=True),
+        sa.Column("session_duration", sa.Integer(), nullable=True),
+        sa.Column("is_returning_user", sa.Boolean(), nullable=True, server_default="false"),
+        sa.Column("consent_given", sa.Boolean(), nullable=True, server_default="true"),
+        sa.Column("consent_type", sa.String(50), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -284,12 +467,64 @@ def upgrade() -> None:
         "search_type IN ('natural_language', 'category', 'service_pill', 'filter', 'search_history')",
     )
 
+    # Create search_interactions table
+    op.create_table(
+        "search_interactions",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("search_event_id", sa.Integer(), nullable=False),
+        sa.Column("session_id", sa.String(36), nullable=True),
+        sa.Column("interaction_type", sa.String(50), nullable=False),  # 'click', 'hover', 'bookmark'
+        sa.Column("instructor_id", sa.Integer(), nullable=True),
+        sa.Column("result_position", sa.Integer(), nullable=True),
+        sa.Column("time_to_interaction", sa.Float(), nullable=True),
+        sa.Column("interaction_duration", sa.Float(), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.timezone("UTC", sa.func.now()),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["search_event_id"],
+            ["search_events.id"],
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["instructor_id"],
+            ["users.id"],
+            ondelete="SET NULL",
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        comment="Tracks user interactions with search results",
+    )
+
+    # Create indexes for search_interactions
+    op.create_index("idx_search_interactions_event_id", "search_interactions", ["search_event_id"])
+    op.create_index("idx_search_interactions_type", "search_interactions", ["interaction_type"])
+    op.create_index("idx_search_interactions_instructor", "search_interactions", ["instructor_id"])
+
+    # Add analytics-specific indexes for search_events
+    op.create_index("idx_search_events_geo_country", "search_events", [sa.text("(geo_data->>'country_code')")])
+    op.create_index("idx_search_events_geo_borough", "search_events", [sa.text("(geo_data->>'borough')")])
+    op.create_index("idx_search_events_geo_postal", "search_events", [sa.text("(geo_data->>'postal_code')")])
+    op.create_index("idx_search_events_device_type", "search_events", ["device_type"])
+    op.create_index(
+        "idx_search_events_created_at",
+        "search_events",
+        ["created_at"],
+        postgresql_using="btree",
+        postgresql_ops={"created_at": "DESC"},
+    )
+    op.create_index("idx_search_events_user_date", "search_events", ["user_id", "created_at"])
+
     print("Initial schema created successfully!")
-    print("- Created users table with VARCHAR role field and account_status")
-    print("- Added check constraints for role and account_status values")
-    print("- Created indexes for email lookups")
+    print("- Created users table WITHOUT role field (using RBAC)")
+    print("- Created RBAC tables: roles, permissions, user_roles, role_permissions, user_permissions")
+    print("- Seeded initial roles (admin, instructor, student) and permissions")
     print("- Created search_history table for tracking deduplicated user searches")
-    print("- Created search_events table for append-only analytics tracking")
+    print("- Created search_events table with enhanced analytics columns")
+    print("- Created search_interactions table for tracking result interactions")
+    print("- Added analytics-specific indexes for performance")
 
 
 def downgrade() -> None:
@@ -298,12 +533,19 @@ def downgrade() -> None:
 
     # Drop search tables if they exist
     # Using execute to handle if table doesn't exist
+    op.execute("DROP TABLE IF EXISTS search_interactions CASCADE")
     op.execute("DROP TABLE IF EXISTS search_events CASCADE")
     op.execute("DROP TABLE IF EXISTS search_history CASCADE")
 
+    # Drop RBAC tables
+    op.execute("DROP TABLE IF EXISTS user_permissions CASCADE")
+    op.execute("DROP TABLE IF EXISTS role_permissions CASCADE")
+    op.execute("DROP TABLE IF EXISTS user_roles CASCADE")
+    op.execute("DROP TABLE IF EXISTS permissions CASCADE")
+    op.execute("DROP TABLE IF EXISTS roles CASCADE")
+
     # Drop check constraints first
     op.drop_constraint("ck_users_account_status", "users", type_="check")
-    op.drop_constraint("ck_users_role", "users", type_="check")
 
     # Drop indexes first
     op.drop_index("idx_users_email", table_name="users")

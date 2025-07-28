@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from ..api.dependencies.auth import get_current_active_user
 from ..api.dependencies.services import get_instructor_service
-from ..models.user import User, UserRole
+from ..models.user import User
 from ..schemas.service_catalog import (
     CatalogServiceResponse,
     CategoryResponse,
@@ -65,7 +65,9 @@ async def add_service_to_profile(
 
     Requires INSTRUCTOR role.
     """
-    if current_user.role != UserRole.INSTRUCTOR:
+    from app.core.enums import RoleName
+
+    if not any(role.name == RoleName.INSTRUCTOR for role in current_user.roles):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only instructors can add services")
 
     try:

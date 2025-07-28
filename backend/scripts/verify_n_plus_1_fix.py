@@ -133,9 +133,11 @@ def test_single_profile():
         service = InstructorService(db, cache_service=None)
 
         # First get an instructor to test with
-        from app.models.user import User, UserRole
+        from app.core.enums import RoleName
+        from app.models.user import User
 
-        instructor_user = db.query(User).filter(User.role == UserRole.INSTRUCTOR).first()
+        # Find an instructor user - use roles relationship
+        instructor_user = db.query(User).join(User.roles).filter(User.roles.any(name=RoleName.INSTRUCTOR)).first()
 
         if instructor_user:
             query_counter.reset()

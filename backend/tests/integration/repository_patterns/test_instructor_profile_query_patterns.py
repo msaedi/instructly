@@ -18,7 +18,7 @@ from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.service_catalog import ServiceCatalog, ServiceCategory
-from app.models.user import User, UserRole
+from app.models.user import User
 
 
 @pytest.fixture
@@ -111,7 +111,6 @@ def test_instructors_with_profiles(db: Session) -> List[User]:
             email=data["email"],
             hashed_password="test_hash",
             is_active=True,
-            role=UserRole.INSTRUCTOR,
         )
         db.add(user)
         db.flush()

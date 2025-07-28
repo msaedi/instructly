@@ -10,8 +10,8 @@ import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { bookingsApi } from '@/lib/api/bookings';
 import { Booking } from '@/types/booking';
 import { logger } from '@/lib/logger';
-import { UserData } from '@/types/user';
-import { useAuth } from '@/features/shared/hooks/useAuth';
+import { useAuth, hasRole, type User } from '@/features/shared/hooks/useAuth';
+import { RoleName } from '@/types/enums';
 
 /**
  * StudentDashboard Component
@@ -36,7 +36,7 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 export default function StudentDashboard() {
   const router = useRouter();
   const { logout } = useAuth();
-  const [userData, setUserData] = useState<UserData | null>(null);
+  const [userData, setUserData] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([]);
   const [bookingsLoading, setBookingsLoading] = useState(true);
@@ -66,13 +66,13 @@ export default function StudentDashboard() {
         throw new Error('Failed to fetch user data');
       }
 
-      const data: UserData = await response.json();
+      const data = await response.json();
 
       // Verify user role
-      if (data.role !== 'student') {
-        logger.info('User is instructor, redirecting to instructor dashboard', {
+      if (!hasRole(data, RoleName.STUDENT)) {
+        logger.info('User is not a student, redirecting to instructor dashboard', {
           userId: data.id,
-          role: data.role,
+          roles: data.roles,
         });
         router.push('/dashboard/instructor');
         return;

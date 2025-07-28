@@ -118,9 +118,17 @@ class TestNotificationService:
     @pytest.fixture
     def sample_booking(self):
         """Create a sample booking for testing."""
-        student = User(id=1, email="student@test.com", full_name="Test Student", role="student")
+        student = User(
+            id=1,
+            email="student@test.com",
+            full_name="Test Student",
+        )
 
-        instructor = User(id=2, email="instructor@test.com", full_name="Test Instructor", role="instructor")
+        instructor = User(
+            id=2,
+            email="instructor@test.com",
+            full_name="Test Instructor",
+        )
 
         booking = Booking(
             id=123,
