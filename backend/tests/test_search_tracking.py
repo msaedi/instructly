@@ -33,7 +33,8 @@ def search_service(db: Session):
     return SearchHistoryService(db)
 
 
-def test_session_id_tracking(search_service, test_user, db):
+@pytest.mark.asyncio
+async def test_session_id_tracking(search_service, test_user, db):
     """Test that session IDs are properly tracked in search events."""
     # Create context with session ID
     session_id = "test-browser-session-123"
@@ -42,7 +43,7 @@ def test_session_id_tracking(search_service, test_user, db):
     # Record a search
     search_data = {"search_query": "guitar lessons", "search_type": "natural_language", "results_count": 15}
 
-    search_service.record_search(context=context, search_data=search_data)
+    await search_service.record_search(context=context, search_data=search_data)
 
     # Verify session ID is stored in search_events
     event = (
@@ -55,7 +56,8 @@ def test_session_id_tracking(search_service, test_user, db):
     assert event.session_id == session_id
 
 
-def test_referrer_tracking(search_service, test_user, db):
+@pytest.mark.asyncio
+async def test_referrer_tracking(search_service, test_user, db):
     """Test that referrer headers are properly tracked."""
     # Create context with search origin
     context = SearchUserContext.from_user(user_id=test_user.id)
@@ -69,7 +71,7 @@ def test_referrer_tracking(search_service, test_user, db):
         "referrer": context.search_origin,
     }
 
-    search_service.record_search(context=context, search_data=search_data)
+    await search_service.record_search(context=context, search_data=search_data)
 
     # Verify referrer is stored
     event = (
@@ -82,7 +84,8 @@ def test_referrer_tracking(search_service, test_user, db):
     assert event.referrer == "/services/music"
 
 
-def test_service_pill_tracking(search_service, test_user, db):
+@pytest.mark.asyncio
+async def test_service_pill_tracking(search_service, test_user, db):
     """Test that service pill clicks are tracked with origin page."""
     context = SearchUserContext.from_user(user_id=test_user.id)
     context.search_origin = "/home"
@@ -96,7 +99,7 @@ def test_service_pill_tracking(search_service, test_user, db):
         "context": {"pill_location": "homepage_popular", "position": 3},
     }
 
-    search_service.record_search(context=context, search_data=search_data)
+    await search_service.record_search(context=context, search_data=search_data)
 
     # Verify it's tracked as service_pill with context
     event = (
@@ -110,7 +113,8 @@ def test_service_pill_tracking(search_service, test_user, db):
     assert event.search_context["pill_location"] == "homepage_popular"
 
 
-def test_guest_session_tracking(search_service, db):
+@pytest.mark.asyncio
+async def test_guest_session_tracking(search_service, db):
     """Test that guest sessions are tracked properly."""
     guest_session_id = "guest-abc-123"
     browser_session_id = "browser-xyz-789"
@@ -126,7 +130,7 @@ def test_guest_session_tracking(search_service, db):
         "referrer": context.search_origin,
     }
 
-    search_service.record_search(context=context, search_data=search_data)
+    await search_service.record_search(context=context, search_data=search_data)
 
     # Verify both session IDs are tracked
     event = (
@@ -141,7 +145,8 @@ def test_guest_session_tracking(search_service, db):
     assert event.referrer == "/search"
 
 
-def test_search_journey_tracking(search_service, test_user, db):
+@pytest.mark.asyncio
+async def test_search_journey_tracking(search_service, test_user, db):
     """Test that we can track a complete search journey."""
     session_id = "journey-session-456"
 
@@ -150,7 +155,7 @@ def test_search_journey_tracking(search_service, test_user, db):
     context1.search_origin = "/home"
 
     # First search from homepage
-    search_service.record_search(
+    await search_service.record_search(
         context=context1,
         search_data={
             "search_query": "music lessons",
@@ -164,7 +169,7 @@ def test_search_journey_tracking(search_service, test_user, db):
     context2 = SearchUserContext.from_user(user_id=test_user.id, session_id=session_id)
     context2.search_origin = "/services"
 
-    search_service.record_search(
+    await search_service.record_search(
         context=context2,
         search_data={
             "search_query": "piano lessons manhattan",
@@ -178,7 +183,7 @@ def test_search_journey_tracking(search_service, test_user, db):
     context3 = SearchUserContext.from_user(user_id=test_user.id, session_id=session_id)
     context3.search_origin = "/search?q=piano+lessons+manhattan"
 
-    search_service.record_search(
+    await search_service.record_search(
         context=context3,
         search_data={
             "search_query": "Piano",
@@ -207,7 +212,8 @@ def test_search_journey_tracking(search_service, test_user, db):
     assert events[2].referrer == "/search?q=piano+lessons+manhattan"
 
 
-def test_search_context_storage(search_service, test_user, db):
+@pytest.mark.asyncio
+async def test_search_context_storage(search_service, test_user, db):
     """Test that additional search context is properly stored."""
     context = SearchUserContext.from_user(user_id=test_user.id)
 
@@ -224,7 +230,7 @@ def test_search_context_storage(search_service, test_user, db):
         },
     }
 
-    search_service.record_search(context=context, search_data=search_data)
+    await search_service.record_search(context=context, search_data=search_data)
 
     # Verify context is stored as JSONB
     event = (

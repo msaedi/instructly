@@ -8,7 +8,6 @@ import { publicApi, type TopServiceSummary } from '@/features/shared/api/client'
 import { logger } from '@/lib/logger';
 import { useAuth, getUserInitials, getAvatarColor, hasRole } from '@/features/shared/hooks/useAuth';
 import { RoleName, SearchType } from '@/types/enums';
-import { recordSearch } from '@/lib/searchTracking';
 import { NotificationBar } from '@/components/NotificationBar';
 import { UpcomingLessons } from '@/components/UpcomingLessons';
 import { BookAgain } from '@/components/BookAgain';
@@ -35,6 +34,7 @@ import {
   X,
 } from 'lucide-react';
 import { PrivacySettings } from '@/components/PrivacySettings';
+import { recordSearch } from '@/lib/searchTracking';
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -72,16 +72,7 @@ export default function HomePage() {
         });
       }
 
-      // Record search for search bar
-      await recordSearch(
-        {
-          query: searchQuery,
-          search_type: SearchType.NATURAL_LANGUAGE,
-          results_count: null, // Will be determined on results page
-        },
-        isAuthenticated
-      );
-
+      // Don't track here - let the search page track with correct results count
       router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=home`);
     }
   };
@@ -492,15 +483,7 @@ export default function HomePage() {
                         });
                       }
 
-                      // Record search for service pill click BEFORE navigation
-                      await recordSearch(
-                        {
-                          query: service.name,
-                          search_type: SearchType.SERVICE_PILL,
-                          results_count: null, // Will be determined on results page
-                        },
-                        isAuthenticated
-                      );
+                      // Don't track here - let the search page track with correct results count
                     }}
                     className="group relative px-4 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-full text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 hover:border-gray-300 dark:hover:border-gray-500 hover:text-gray-900 dark:hover:text-white transition-all duration-200 cursor-pointer animate-fade-in-up"
                     style={{

@@ -9,7 +9,7 @@ import { publicApi } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import InstructorCard from '@/components/InstructorCard';
 import { useAuth } from '@/features/shared/hooks/useAuth';
-import { recordSearch } from '@/lib/searchTracking';
+import { recordSearch, trackSearchInteraction } from '@/lib/searchTracking';
 import { SearchType } from '@/types/enums';
 
 interface Service {
@@ -53,6 +53,11 @@ function SearchPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { isAuthenticated } = useAuth();
+
+  // Debug logging to track renders
+  useEffect(() => {
+    logger.debug('SearchPageContent rendered');
+  });
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [metadata, setMetadata] = useState<SearchMetadata | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,6 +68,7 @@ function SearchPageContent() {
   const [previousPath, setPreviousPath] = useState<string>('/');
   const [hasRecordedSearch, setHasRecordedSearch] = useState(false);
   const [fromPage, setFromPage] = useState<string | null>(null);
+  const [searchEventId, setSearchEventId] = useState<number | null>(null);
 
   // Parse search parameters from URL
   const query = searchParams.get('q') || '';
@@ -400,16 +406,41 @@ function SearchPageContent() {
   // Record search when we have all necessary data
   useEffect(() => {
     const recordSearchIfReady = async () => {
-      // Skip if already recorded
-      if (hasRecordedSearch) return;
+      logger.debug('recordSearchIfReady called', {
+        hasRecordedSearch,
+        loading,
+        query,
+        category,
+        serviceCatalogId,
+        serviceName,
+        total,
+      });
 
-      // Skip if we don't have results yet (but allow searches with 0 results)
-      if (loading) return;
+      // Skip if already recorded
+      if (hasRecordedSearch) {
+        logger.debug('Skipping - already recorded');
+        return;
+      }
+
+      // Skip if we don't have results yet
+      // We need to wait for loading to finish
+      if (loading) {
+        logger.debug('Skipping - still loading');
+        return;
+      }
 
       // Determine if we have all required data
       const hasRequiredData = query || category || (serviceCatalogId && serviceName);
 
-      if (!hasRequiredData) return;
+      if (!hasRequiredData) {
+        logger.debug('Skipping - no required data', {
+          query: !!query,
+          category: !!category,
+          serviceCatalogId: !!serviceCatalogId,
+          serviceName: !!serviceName,
+        });
+        return;
+      }
 
       // Determine search query and type
       const searchQuery = query || serviceName || category || 'Unknown search';
@@ -422,39 +453,20 @@ function SearchPageContent() {
         } else {
           searchType = SearchType.NATURAL_LANGUAGE;
         }
-
-        // Skip recording if search is coming from home page or recent searches
-        // (already recorded on originating page)
-        if (fromPage === 'home' || fromPage === 'recent') {
-          logger.info('Skipping search recording (already recorded on originating page)', {
-            query: searchQuery,
-            searchType,
-            fromPage,
-          });
-          setHasRecordedSearch(true);
-          return;
-        }
       } else if (serviceCatalogId && serviceName) {
         searchType = SearchType.SERVICE_PILL;
-        // Skip recording if service pill click is coming from home or services page
-        // (already recorded on originating page)
-        if (fromPage === 'home' || fromPage === 'services') {
-          logger.info(
-            'Skipping service pill search recording (already recorded on originating page)',
-            {
-              query: searchQuery,
-              serviceName,
-              fromPage,
-            }
-          );
-          setHasRecordedSearch(true);
-          return;
-        }
       } else if (category) {
         searchType = SearchType.CATEGORY;
       }
 
+      logger.debug('About to record search', {
+        searchQuery,
+        searchType,
+        total,
+      });
+
       try {
+        // Record search with unified tracker
         await recordSearch(
           {
             query: searchQuery,
@@ -472,7 +484,7 @@ function SearchPageContent() {
           isAuthenticated,
         });
       } catch (error) {
-        logger.error('Error in recordSearch:', error as Error, {
+        logger.error('Error in search tracking:', error as Error, {
           searchQuery,
           searchType,
           resultsCount: total,
@@ -642,7 +654,7 @@ function SearchPageContent() {
           <>
             {/* Results Grid */}
             <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
-              {instructors.map((instructor) => {
+              {instructors.map((instructor, index) => {
                 // Add mock rating and reviews
                 const enhancedInstructor = {
                   ...instructor,
@@ -652,11 +664,26 @@ function SearchPageContent() {
                 };
 
                 return (
-                  <InstructorCard
+                  <div
                     key={instructor.id}
-                    instructor={enhancedInstructor}
-                    nextAvailableSlots={getNextAvailableSlots(instructor.user_id)}
-                  />
+                    onClick={() => {
+                      // Track interaction when clicking anywhere on the card
+                      if (searchEventId) {
+                        trackSearchInteraction(
+                          searchEventId,
+                          'click',
+                          instructor.id,
+                          index + 1,
+                          isAuthenticated
+                        );
+                      }
+                    }}
+                  >
+                    <InstructorCard
+                      instructor={enhancedInstructor}
+                      nextAvailableSlots={getNextAvailableSlots(instructor.user_id)}
+                    />
+                  </div>
                 );
               })}
             </div>

@@ -46,6 +46,9 @@ class SearchHistoryCreate(SearchHistoryBase):
     search_context: Optional[Dict[str, Any]] = Field(
         None, description="Additional context like page origin, viewport size, etc."
     )
+    device_context: Optional[Dict[str, Any]] = Field(
+        None, description="Device context from frontend including screen size, connection type, etc."
+    )
 
 
 class GuestSearchHistoryCreate(BaseModel):

@@ -27,6 +27,7 @@ h11==0.14.0
 hiredis==3.2.1
 httpx==0.23.3
 idna==3.10
+user-agents==2.2.0
 importlib_resources==6.5.2
 iniconfig==2.1.0
 Jinja2==3.1.6

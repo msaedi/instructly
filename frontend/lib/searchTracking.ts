@@ -9,6 +9,7 @@
 import { logger } from '@/lib/logger';
 import { getSessionId, refreshSession, getAnalyticsContext } from '@/lib/sessionTracking';
 import { SearchType } from '@/types/enums';
+import { captureDeviceContext, formatDeviceContextForAnalytics } from '@/lib/deviceContext';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -105,8 +106,26 @@ function getHeaders(isAuthenticated: boolean): HeadersInit {
       headers['X-Session-ID'] = sessionId;
     }
 
-    // Current page path for referrer analytics
-    headers['X-Search-Origin'] = window.location.pathname;
+    // Use the actual referrer or stored navigation source
+    let searchOrigin = window.location.pathname; // fallback
+
+    // Check if we have navigation tracking info
+    const navigationFrom = sessionStorage.getItem('navigationFrom');
+    if (navigationFrom) {
+      searchOrigin = navigationFrom;
+      // Clear it after use to prevent stale data
+      sessionStorage.removeItem('navigationFrom');
+    } else if (document.referrer) {
+      // Use document.referrer if available
+      try {
+        const referrerUrl = new URL(document.referrer);
+        searchOrigin = referrerUrl.pathname;
+      } catch (e) {
+        // If parsing fails, keep the fallback
+      }
+    }
+
+    headers['X-Search-Origin'] = searchOrigin;
   }
 
   return headers;
@@ -128,6 +147,13 @@ export async function recordSearch(
     // Get analytics context
     const analyticsContext = getAnalyticsContext();
 
+    // Capture device context
+    const deviceContext = captureDeviceContext();
+    const deviceInfo = formatDeviceContextForAnalytics(deviceContext);
+
+    logger.debug('Search tracking - device context', { deviceContext });
+    logger.debug('Search tracking - device info', { deviceInfo });
+
     const response = await fetch(`${API_BASE_URL}/api/search-history/`, {
       method: 'POST',
       headers: getHeaders(isAuthenticated),
@@ -136,6 +162,7 @@ export async function recordSearch(
         search_type: searchRecord.search_type,
         results_count: searchRecord.results_count,
         search_context: analyticsContext,
+        device_context: deviceInfo,
       }),
     });
 
@@ -205,6 +232,53 @@ export async function getRecentSearches(
       return getGuestSearches().slice(0, limit);
     }
     return [];
+  }
+}
+
+/**
+ * Track search result interaction
+ */
+export async function trackSearchInteraction(
+  searchEventId: number,
+  interactionType: 'click' | 'hover' | 'bookmark',
+  instructorId: number,
+  resultPosition: number,
+  isAuthenticated: boolean
+): Promise<void> {
+  try {
+    const timeToInteraction = Date.now() / 1000; // Convert to seconds
+
+    logger.debug('Tracking search interaction', {
+      searchEventId,
+      interactionType,
+      instructorId,
+      resultPosition,
+    });
+
+    const response = await fetch(`${API_BASE_URL}/api/search-history/interaction`, {
+      method: 'POST',
+      headers: getHeaders(isAuthenticated),
+      body: JSON.stringify({
+        search_event_id: searchEventId,
+        interaction_type: interactionType,
+        instructor_id: instructorId,
+        result_position: resultPosition,
+        time_to_interaction: timeToInteraction,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error(
+        'Failed to track search interaction',
+        new Error(`Status: ${response.status}, ${errorText}`)
+      );
+      return;
+    }
+
+    logger.info('Search interaction tracked successfully');
+  } catch (error) {
+    logger.error('Error tracking search interaction', error as Error);
   }
 }
 

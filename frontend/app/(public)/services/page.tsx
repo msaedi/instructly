@@ -6,9 +6,8 @@ import Link from 'next/link';
 import { Search, Music, BookOpen, Dumbbell, Globe, Palette, Baby, Sparkles } from 'lucide-react';
 import { publicApi, type CatalogService, type ServiceCategory } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
-import { recordSearch } from '@/lib/searchTracking';
 import { useAuth } from '@/features/shared/hooks/useAuth';
-import { SearchType } from '@/types/enums';
+// Removed recordSearch and SearchType - tracking now handled by search page
 
 // Progressive loading configuration
 const INITIAL_SERVICES_COUNT = 15;
@@ -282,15 +281,7 @@ export default function AllServicesPage() {
                   });
                 }
 
-                // Record search for service click BEFORE navigation
-                await recordSearch(
-                  {
-                    query: service.name,
-                    search_type: SearchType.SERVICE_PILL,
-                    results_count: null, // Will be determined on results page
-                  },
-                  isAuthenticated
-                );
+                // Don't record here - let the search page handle it with correct counts
               }}
               className="group block text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-[#FFD700] dark:hover:bg-[#FFD700] hover:text-gray-900 dark:hover:text-gray-900 px-2 py-0.5 -mx-2 rounded transition-all duration-200 cursor-pointer"
             >

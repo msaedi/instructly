@@ -14,6 +14,8 @@ const SESSION_ID_KEY = 'searchSessionId';
 const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes in milliseconds
 
 let sessionTimeout: NodeJS.Timeout | null = null;
+let pageViewCount = 0;
+let sessionStartTime = Date.now(); // UTC timestamp in milliseconds
 
 /**
  * Generate a new UUID v4
@@ -55,6 +57,11 @@ function resetSession(): void {
   if (typeof window === 'undefined') return;
 
   sessionStorage.removeItem(SESSION_ID_KEY);
+
+  // Reset tracking data
+  pageViewCount = 0;
+  sessionStartTime = Date.now();
+
   logger.debug('Session reset due to inactivity');
 }
 
@@ -84,6 +91,10 @@ export function initializeSessionTracking(): void {
   getSessionId();
   refreshSession();
 
+  // Increment page view count
+  pageViewCount++;
+  logger.debug('Page view tracked', { pageViewCount });
+
   // Refresh session on user activity
   const handleActivity = () => refreshSession();
 
@@ -94,6 +105,20 @@ export function initializeSessionTracking(): void {
   window.addEventListener('touchstart', handleActivity, { passive: true });
 
   logger.info('Session tracking initialized');
+}
+
+/**
+ * Track page navigation
+ * Should be called when navigating to a new page
+ */
+export function trackPageView(): void {
+  if (typeof window === 'undefined') return;
+
+  pageViewCount++;
+  logger.debug('Page view tracked', {
+    pageViewCount,
+    path: window.location.pathname,
+  });
 }
 
 /**
@@ -113,18 +138,27 @@ export function getAnalyticsContext(): {
   page: string;
   viewport: string;
   timestamp: string;
+  page_view_count: number;
+  session_duration: number;
 } {
   if (typeof window === 'undefined') {
     return {
       page: '/',
       viewport: '0x0',
       timestamp: new Date().toISOString(),
+      page_view_count: 0,
+      session_duration: 0,
     };
   }
+
+  const currentTime = Date.now();
+  const sessionDurationSeconds = Math.floor((currentTime - sessionStartTime) / 1000);
 
   return {
     page: window.location.pathname,
     viewport: `${window.innerWidth}x${window.innerHeight}`,
     timestamp: new Date().toISOString(),
+    page_view_count: pageViewCount,
+    session_duration: sessionDurationSeconds,
   };
 }

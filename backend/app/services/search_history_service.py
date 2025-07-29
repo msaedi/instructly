@@ -6,18 +6,22 @@ Unified implementation that handles both authenticated and guest users
 without code duplication.
 """
 
+import hashlib
 import logging
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
+from ..models.search_event import SearchEvent
 from ..models.search_history import SearchHistory
 from ..repositories.search_event_repository import SearchEventRepository
 from ..repositories.search_history_repository import SearchHistoryRepository
 from ..schemas.search_context import SearchUserContext
 from .base import BaseService
+from .device_tracking_service import DeviceTrackingService
+from .geolocation_service import GeolocationService
 
 logger = logging.getLogger(__name__)
 
@@ -29,14 +33,21 @@ class SearchHistoryService(BaseService):
     Unified implementation that works for both authenticated and guest users.
     """
 
-    def __init__(self, db: Session):
-        """Initialize the search history service."""
+    def __init__(
+        self,
+        db: Session,
+        geolocation_service: Optional[GeolocationService] = None,
+        device_tracking_service: Optional[DeviceTrackingService] = None,
+    ):
+        """Initialize the search history service with analytics capabilities."""
         super().__init__(db)
         self.repository = SearchHistoryRepository(db)
         self.event_repository = SearchEventRepository(db)
+        self.geolocation_service = geolocation_service or GeolocationService(db)
+        self.device_tracking_service = device_tracking_service or DeviceTrackingService(db)
 
     @BaseService.measure_operation("record_search")
-    def record_search(
+    async def record_search(
         self,
         user_id: Optional[int] = None,
         guest_session_id: Optional[str] = None,
@@ -45,6 +56,9 @@ class SearchHistoryService(BaseService):
         results_count: Optional[int] = None,
         context: Optional[SearchUserContext] = None,
         search_data: Optional[dict] = None,
+        request_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        device_context: Optional[Dict] = None,
     ) -> SearchHistory:
         """
         Record a search - supports both old and new API.
@@ -54,7 +68,7 @@ class SearchHistoryService(BaseService):
         """
         # If context is provided, use new API
         if context is not None and search_data is not None:
-            return self._record_search_impl(context, search_data)
+            return await self._record_search_impl(context, search_data, request_ip, user_agent, device_context)
 
         # Otherwise use old API parameters
         if user_id:
@@ -66,12 +80,15 @@ class SearchHistoryService(BaseService):
 
         data = {"search_query": query, "search_type": search_type, "results_count": results_count}
 
-        return self._record_search_impl(ctx, data)
+        return await self._record_search_impl(ctx, data, request_ip, user_agent, device_context)
 
-    def _record_search_impl(
+    async def _record_search_impl(
         self,
         context: SearchUserContext,
         search_data: dict,
+        request_ip: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        device_context: Optional[Dict] = None,
     ) -> SearchHistory:
         """
         Internal implementation of search recording.
@@ -108,7 +125,68 @@ class SearchHistoryService(BaseService):
                 # Maintain limit per user/guest
                 self._enforce_search_limit(context)
 
-            # Always create event for analytics (append-only)
+            # Process analytics data
+            ip_hash = None
+            geo_data = None
+            browser_info = None
+
+            # Hash IP address for privacy
+            if request_ip:
+                ip_hash = hashlib.sha256(request_ip.encode()).hexdigest()
+
+                # Get geolocation data
+                try:
+                    geo_data = await self.geolocation_service.get_location_from_ip(request_ip)
+                except Exception as e:
+                    logger.warning(f"Failed to get geolocation: {str(e)}")
+
+            # Parse device/browser info
+            if user_agent:
+                device_info = self.device_tracking_service.parse_user_agent(user_agent)
+                browser_info = self.device_tracking_service.format_for_analytics(device_info)
+
+            # Merge with frontend device context
+            if device_context and browser_info:
+                browser_info.update(
+                    {
+                        "device": {
+                            **browser_info.get("device", {}),
+                            "type": device_context.get("device_type", browser_info.get("device", {}).get("type")),
+                        },
+                        "viewport": device_context.get("viewport_size"),
+                        "screen": device_context.get("screen_resolution"),
+                        "connection": {
+                            "type": device_context.get("connection_type"),
+                            "effective_type": device_context.get("connection_effective_type"),
+                        },
+                    }
+                )
+
+            # Check if returning user
+            is_returning = False
+            if context.user_id:
+                # Check if user has searched before
+                previous_search = (
+                    self.db.query(SearchEvent)
+                    .filter(
+                        SearchEvent.user_id == context.user_id, SearchEvent.searched_at < datetime.now(timezone.utc)
+                    )
+                    .first()
+                )
+                is_returning = previous_search is not None
+            elif context.guest_session_id:
+                # Check guest session history
+                previous_search = (
+                    self.db.query(SearchEvent)
+                    .filter(
+                        SearchEvent.guest_session_id == context.guest_session_id,
+                        SearchEvent.searched_at < datetime.now(timezone.utc) - timedelta(minutes=30),
+                    )
+                    .first()
+                )
+                is_returning = previous_search is not None
+
+            # Always create event for analytics (append-only) with enhanced data
             event_data = {
                 "user_id": context.user_id,
                 "guest_session_id": context.guest_session_id,
@@ -118,6 +196,22 @@ class SearchHistoryService(BaseService):
                 "session_id": getattr(context, "session_id", None),
                 "referrer": search_data.get("referrer"),
                 "search_context": search_data.get("context"),
+                # Enhanced analytics fields
+                "ip_address": None,  # Never store raw IP
+                "ip_address_hash": ip_hash,
+                "geo_data": geo_data,
+                "device_type": device_context.get("device_type") if device_context else None,
+                "browser_info": browser_info,
+                "connection_type": device_context.get("connection_type") if device_context else None,
+                "is_returning_user": is_returning,
+                "page_view_count": search_data.get("context", {}).get("page_view_count")
+                if search_data.get("context")
+                else None,
+                "session_duration": search_data.get("context", {}).get("session_duration")
+                if search_data.get("context")
+                else None,
+                "consent_given": True,  # Default for now
+                "consent_type": "analytics",  # Default for now
             }
             self.event_repository.create_event(event_data)
 

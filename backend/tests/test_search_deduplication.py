@@ -51,7 +51,8 @@ def test_user(db: Session):
     return user
 
 
-def test_search_deduplication(search_service, search_repository, event_repository, test_user, db):
+@pytest.mark.asyncio
+async def test_search_deduplication(search_service, search_repository, event_repository, test_user, db):
     """Test that repeat searches are deduplicated in history but all recorded in events."""
     # Create context for a test user
     context = SearchUserContext.from_user(user_id=test_user.id, session_id="test-session-123")
@@ -65,7 +66,7 @@ def test_search_deduplication(search_service, search_repository, event_repositor
     }
 
     # Record first search
-    result1 = search_service.record_search(context=context, search_data=search_data)
+    result1 = await search_service.record_search(context=context, search_data=search_data)
 
     # Verify search_history has 1 entry with count=1
     history_entries = (
@@ -86,7 +87,7 @@ def test_search_deduplication(search_service, search_repository, event_repositor
     assert len(event_entries) == 1
 
     # Record second search for same query
-    result2 = search_service.record_search(context=context, search_data=search_data)
+    result2 = await search_service.record_search(context=context, search_data=search_data)
 
     # Verify search_history still has 1 entry but count=2
     history_entries = (
@@ -108,7 +109,7 @@ def test_search_deduplication(search_service, search_repository, event_repositor
     assert len(event_entries) == 2
 
     # Record third search
-    result3 = search_service.record_search(context=context, search_data=search_data)
+    result3 = await search_service.record_search(context=context, search_data=search_data)
 
     # Verify count is now 3
     history_entries = (
@@ -128,7 +129,8 @@ def test_search_deduplication(search_service, search_repository, event_repositor
     assert len(event_entries) == 3
 
 
-def test_timestamp_ordering(search_service, test_user, db):
+@pytest.mark.asyncio
+async def test_timestamp_ordering(search_service, test_user, db):
     """Test that searches are ordered by last_searched_at."""
     context = SearchUserContext.from_user(user_id=test_user.id)
 
@@ -137,7 +139,7 @@ def test_timestamp_ordering(search_service, test_user, db):
 
     for i, query in enumerate(searches):
         search_data = {"search_query": query, "search_type": "natural_language"}
-        search_service.record_search(context=context, search_data=search_data)
+        await search_service.record_search(context=context, search_data=search_data)
 
         # Manually update last_searched_at to ensure ordering
         search = (
@@ -158,7 +160,7 @@ def test_timestamp_ordering(search_service, test_user, db):
     assert recent[2].search_query == "guitar lessons"  # Oldest
 
     # Now search for "guitar lessons" again
-    search_service.record_search(context=context, search_data={"search_query": "guitar lessons"})
+    await search_service.record_search(context=context, search_data={"search_query": "guitar lessons"})
 
     # Get recent searches again
     recent = search_service.get_recent_searches(context=context, limit=10)
@@ -168,13 +170,14 @@ def test_timestamp_ordering(search_service, test_user, db):
     assert recent[0].search_count == 2  # Incremented
 
 
-def test_soft_delete_preserves_events(search_service, search_repository, event_repository, test_user, db):
+@pytest.mark.asyncio
+async def test_soft_delete_preserves_events(search_service, search_repository, event_repository, test_user, db):
     """Test that deleting a search only affects search_history, not events."""
     context = SearchUserContext.from_user(user_id=test_user.id)
 
     # Create a search
     search_data = {"search_query": "drum lessons", "search_type": "natural_language"}
-    result = search_service.record_search(context=context, search_data=search_data)
+    result = await search_service.record_search(context=context, search_data=search_data)
 
     # Verify both tables have the entry
     history = db.query(SearchHistory).filter(SearchHistory.id == result.id).first()
@@ -209,7 +212,8 @@ def test_soft_delete_preserves_events(search_service, search_repository, event_r
     assert len(recent) == 0
 
 
-def test_guest_search_deduplication(search_service, db):
+@pytest.mark.asyncio
+async def test_guest_search_deduplication(search_service, db):
     """Test deduplication works for guest sessions too."""
     import uuid
 
@@ -220,7 +224,7 @@ def test_guest_search_deduplication(search_service, db):
     search_data = {"search_query": "swimming lessons", "search_type": "natural_language", "results_count": 8}
 
     for _ in range(3):
-        search_service.record_search(context=context, search_data=search_data)
+        await search_service.record_search(context=context, search_data=search_data)
 
     # Verify deduplication in search_history
     history = (

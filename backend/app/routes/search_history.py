@@ -6,10 +6,13 @@ Unified implementation that handles both authenticated and guest users
 with a single set of endpoints.
 """
 
+import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from ..auth import get_current_user_optional as auth_get_current_user_optional
 from ..database import get_db
@@ -111,6 +114,7 @@ async def get_recent_searches(
 @router.post("/", response_model=SearchHistoryResponse, status_code=status.HTTP_201_CREATED)
 async def record_search(
     search_data: SearchHistoryCreate,
+    request: Request,
     context: SearchUserContext = Depends(get_search_context),
     db: Session = Depends(get_db),
 ):
@@ -133,6 +137,23 @@ async def record_search(
     """
     search_service = SearchHistoryService(db)
 
+    # Extract analytics data
+    # Get client IP (handling proxies)
+    client_ip = request.headers.get("X-Forwarded-For")
+    if client_ip:
+        # Take the first IP if there are multiple
+        client_ip = client_ip.split(",")[0].strip()
+    else:
+        client_ip = request.client.host if request.client else None
+
+    # Get user agent
+    user_agent = request.headers.get("User-Agent")
+
+    # Extract device context from request body if provided
+    device_context = None
+    if hasattr(search_data, "device_context"):
+        device_context = search_data.device_context
+
     try:
         # Build search dict with all data including tracking info
         search_dict = {
@@ -143,7 +164,13 @@ async def record_search(
             "context": search_data.search_context if hasattr(search_data, "search_context") else None,
         }
 
-        search = search_service.record_search(context=context, search_data=search_dict)
+        search = await search_service.record_search(
+            context=context,
+            search_data=search_dict,
+            request_ip=client_ip,
+            user_agent=user_agent,
+            device_context=device_context,
+        )
 
         return SearchHistoryResponse(
             id=search.id,
@@ -213,3 +240,50 @@ async def delete_search(
         )
 
     return None
+
+
+@router.post("/interaction", status_code=status.HTTP_201_CREATED)
+async def track_interaction(
+    interaction_data: dict,
+    request: Request,
+    context: SearchUserContext = Depends(get_search_context),
+    db: Session = Depends(get_db),
+):
+    """
+    Track user interaction with search results.
+
+    Records clicks, hovers, bookmarks, and other interactions with search results
+    to measure search effectiveness and result relevance.
+
+    Args:
+        interaction_data: Interaction details including:
+            - search_event_id: ID of the search event
+            - interaction_type: Type of interaction (click, hover, bookmark)
+            - instructor_id: ID of the instructor interacted with
+            - result_position: Position in search results
+            - time_to_interaction: Time from search to interaction (seconds)
+        request: HTTP request for headers
+        context: Search user context
+        db: Database session
+
+    Returns:
+        Interaction tracking confirmation
+    """
+    SearchHistoryService(db)
+
+    try:
+        # TODO: Implement interaction tracking method in SearchHistoryService
+        # For now, just log the interaction
+        logger.info(
+            "Search interaction tracked",
+            {
+                "user_id": context.user_id,
+                "guest_session_id": context.guest_session_id,
+                "interaction_data": interaction_data,
+            },
+        )
+
+        return {"status": "tracked", "message": "Interaction tracking not yet implemented"}
+    except Exception as e:
+        logger.error(f"Error tracking interaction: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to track interaction")

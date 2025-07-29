@@ -30,13 +30,14 @@ pytestmark = pytest.mark.integration
 class TestGuestSearchTracking:
     """Test guest search tracking functionality."""
 
-    def test_guest_search_recording(self, db: Session):
+    @pytest.mark.asyncio
+    async def test_guest_search_recording(self, db: Session):
         """Test that guest searches are recorded with session ID."""
         service = SearchHistoryService(db)
         guest_session_id = "test-guest-123"
 
         # Record a guest search
-        search = service.record_search(
+        search = await service.record_search(
             guest_session_id=guest_session_id, query="piano lessons", search_type="natural_language", results_count=5
         )
 
@@ -47,7 +48,8 @@ class TestGuestSearchTracking:
         assert search.results_count == 5
         assert search.deleted_at is None
 
-    def test_guest_search_deduplication(self, db: Session):
+    @pytest.mark.asyncio
+    async def test_guest_search_deduplication(self, db: Session):
         """Test that duplicate guest searches update timestamp."""
         service = SearchHistoryService(db)
         import uuid
@@ -55,7 +57,7 @@ class TestGuestSearchTracking:
         guest_session_id = f"test-guest-{uuid.uuid4().hex[:8]}"
 
         # Record first search
-        search1 = service.record_search(
+        search1 = await service.record_search(
             guest_session_id=guest_session_id, query="guitar lessons", search_type="natural_language", results_count=3
         )
 
@@ -65,7 +67,7 @@ class TestGuestSearchTracking:
         time.sleep(0.1)
 
         # Record same search again
-        search2 = service.record_search(
+        search2 = await service.record_search(
             guest_session_id=guest_session_id, query="guitar lessons", search_type="natural_language", results_count=7
         )
 
@@ -318,7 +320,8 @@ class TestGuestToUserConversion:
 class TestSearchLimitConfiguration:
     """Test configurable search limits."""
 
-    def test_search_limit_enforcement(self, db: Session, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_search_limit_enforcement(self, db: Session, monkeypatch):
         """Test that search limits are enforced."""
         # Set low limit for testing
         monkeypatch.setattr(settings, "search_history_max_per_user", 3)
@@ -334,7 +337,7 @@ class TestSearchLimitConfiguration:
 
         # Add more searches than limit
         for i in range(5):
-            service.record_search(user_id=user.id, query=f"search {i}", search_type="natural_language")
+            await service.record_search(user_id=user.id, query=f"search {i}", search_type="natural_language")
 
         # Should only have 3 most recent
         searches = service.get_recent_searches(user_id=user.id, limit=10)
@@ -342,7 +345,8 @@ class TestSearchLimitConfiguration:
         assert searches[0].search_query == "search 4"  # Most recent
         assert searches[2].search_query == "search 2"  # Oldest kept
 
-    def test_search_limit_disabled(self, db: Session, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_search_limit_disabled(self, db: Session, monkeypatch):
         """Test that setting limit to 0 disables it."""
         # Disable limit
         monkeypatch.setattr(settings, "search_history_max_per_user", 0)
@@ -358,7 +362,7 @@ class TestSearchLimitConfiguration:
 
         # Add many searches
         for i in range(20):
-            service.record_search(user_id=user.id, query=f"search {i}", search_type="natural_language")
+            await service.record_search(user_id=user.id, query=f"search {i}", search_type="natural_language")
 
         # All should be kept
         count = db.query(SearchHistory).filter_by(user_id=user.id, deleted_at=None).count()

@@ -12,10 +12,9 @@ import {
   getRecentSearches,
   deleteSearch,
   getGuestSessionId,
-  recordSearch,
   type SearchRecord,
 } from '@/lib/searchTracking';
-import { SearchType } from '@/types/enums';
+// Removed recordSearch and SearchType - tracking now handled by search page
 
 interface SearchHistoryItem {
   id: number;
@@ -168,15 +167,7 @@ export function RecentSearches() {
                       sessionStorage.setItem('navigationFrom', window.location.pathname);
                     }
 
-                    // Record search for recent search click BEFORE navigation
-                    await recordSearch(
-                      {
-                        query: searchQuery,
-                        search_type: SearchType.SEARCH_HISTORY,
-                        results_count: null, // Will be determined on results page
-                      },
-                      isAuthenticated
-                    );
+                    // Don't record here - let the search page handle it with correct counts
                   }}
                 >
                   <div className="flex items-start justify-between">
