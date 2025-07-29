@@ -363,7 +363,25 @@ describe('Search Tracking', () => {
       expect(body.interaction_type).toBe('click');
       expect(body.instructor_id).toBe(456);
       expect(body.result_position).toBe(2);
-      expect(typeof body.time_to_interaction).toBe('number');
+      expect(body.time_to_interaction).toBeNull();
+    });
+
+    it('should track search interaction with time to interaction', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ status: 'tracked' }),
+      } as Response);
+
+      await trackSearchInteraction(123, 'view_profile', 789, 1, true, 5.5);
+
+      const callArgs = mockFetch.mock.calls[0];
+      const requestInit = callArgs[1] as RequestInit;
+      const body = JSON.parse(requestInit.body as string);
+      expect(body.search_event_id).toBe(123);
+      expect(body.interaction_type).toBe('view_profile');
+      expect(body.instructor_id).toBe(789);
+      expect(body.result_position).toBe(1);
+      expect(body.time_to_interaction).toBe(5.5);
     });
   });
 
