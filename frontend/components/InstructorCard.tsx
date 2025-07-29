@@ -31,11 +31,17 @@ interface InstructorCardProps {
     time: string;
     displayText: string;
   }>;
+  onViewProfile?: () => void;
+  onBookNow?: () => void;
+  onTimeSlotClick?: () => void;
 }
 
 export default function InstructorCard({
   instructor,
   nextAvailableSlots = [],
+  onViewProfile,
+  onBookNow,
+  onTimeSlotClick,
 }: InstructorCardProps) {
   const router = useRouter();
 
@@ -127,7 +133,10 @@ export default function InstructorCard({
               {futureAvailableSlots.slice(0, 3).map((slot, idx) => (
                 <button
                   key={idx}
-                  onClick={() => handleInstantBook(slot.date, slot.time)}
+                  onClick={() => {
+                    onTimeSlotClick?.();
+                    handleInstantBook(slot.date, slot.time);
+                  }}
                   className="px-3 py-2 bg-gray-100 rounded-lg text-sm hover:bg-gray-200"
                 >
                   <div className="font-medium">{slot.displayText.split(' ')[0]}</div>
@@ -147,12 +156,14 @@ export default function InstructorCard({
           <Link
             href={`/instructors/${instructor.user_id}`}
             className="flex-1 text-center py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white transition-colors"
+            onClick={onViewProfile}
           >
             View Profile
           </Link>
           <Link
             href={`/book/${instructor.user_id}`}
             className="flex-1 text-center py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 transition-colors"
+            onClick={onBookNow}
           >
             Book Now →
           </Link>

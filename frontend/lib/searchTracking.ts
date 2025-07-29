@@ -137,7 +137,7 @@ function getHeaders(isAuthenticated: boolean): HeadersInit {
 export async function recordSearch(
   searchRecord: SearchRecord,
   isAuthenticated: boolean
-): Promise<void> {
+): Promise<number | null> {
   try {
     logger.debug('Recording search', { searchRecord, isAuthenticated });
 
@@ -177,7 +177,7 @@ export async function recordSearch(
       if (!isAuthenticated) {
         recordGuestSearchFallback(searchRecord);
       }
-      return;
+      return null;
     }
 
     const data = await response.json();
@@ -189,6 +189,9 @@ export async function recordSearch(
         new Event(isAuthenticated ? 'searchHistoryUpdated' : 'guestSearchUpdated')
       );
     }
+
+    // Return the search event ID for interaction tracking
+    return data.search_event_id || null;
   } catch (error) {
     logger.error('Error recording search', error as Error);
 
@@ -196,6 +199,7 @@ export async function recordSearch(
     if (!isAuthenticated) {
       recordGuestSearchFallback(searchRecord);
     }
+    return null;
   }
 }
 
@@ -240,19 +244,21 @@ export async function getRecentSearches(
  */
 export async function trackSearchInteraction(
   searchEventId: number,
-  interactionType: 'click' | 'hover' | 'bookmark',
+  interactionType: 'click' | 'hover' | 'bookmark' | 'view_profile' | 'contact' | 'book',
   instructorId: number,
   resultPosition: number,
-  isAuthenticated: boolean
+  isAuthenticated: boolean,
+  timeToInteraction: number | null = null
 ): Promise<void> {
   try {
-    const timeToInteraction = Date.now() / 1000; // Convert to seconds
+    // If time not provided, don't send it (backend will handle as null)
 
     logger.debug('Tracking search interaction', {
       searchEventId,
       interactionType,
       instructorId,
       resultPosition,
+      timeToInteraction,
     });
 
     const response = await fetch(`${API_BASE_URL}/api/search-history/interaction`, {

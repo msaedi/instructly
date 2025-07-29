@@ -69,6 +69,7 @@ function SearchPageContent() {
   const [hasRecordedSearch, setHasRecordedSearch] = useState(false);
   const [fromPage, setFromPage] = useState<string | null>(null);
   const [searchEventId, setSearchEventId] = useState<number | null>(null);
+  const [searchTimestamp, setSearchTimestamp] = useState<number | null>(null);
 
   // Parse search parameters from URL
   const query = searchParams.get('q') || '';
@@ -467,7 +468,7 @@ function SearchPageContent() {
 
       try {
         // Record search with unified tracker
-        await recordSearch(
+        const eventId = await recordSearch(
           {
             query: searchQuery,
             search_type: searchType,
@@ -476,13 +477,19 @@ function SearchPageContent() {
           isAuthenticated
         );
 
+        if (eventId) {
+          setSearchEventId(eventId);
+          setSearchTimestamp(Date.now() / 1000); // Store timestamp in seconds
+          logger.info('Search recorded successfully with event ID', {
+            query: searchQuery,
+            searchType,
+            resultsCount: total,
+            isAuthenticated,
+            searchEventId: eventId,
+          });
+        }
+
         setHasRecordedSearch(true);
-        logger.info('Search recorded successfully', {
-          query: searchQuery,
-          searchType,
-          resultsCount: total,
-          isAuthenticated,
-        });
       } catch (error) {
         logger.error('Error in search tracking:', error as Error, {
           searchQuery,
@@ -663,25 +670,50 @@ function SearchPageContent() {
                   verified: true,
                 };
 
+                const handleInteraction = (
+                  interactionType:
+                    | 'click'
+                    | 'hover'
+                    | 'bookmark'
+                    | 'view_profile'
+                    | 'contact'
+                    | 'book' = 'click'
+                ) => {
+                  const currentTime = Date.now() / 1000; // Current time in seconds
+                  const timeToInteraction = searchTimestamp ? currentTime - searchTimestamp : null;
+
+                  logger.info('Instructor interaction', {
+                    searchEventId,
+                    instructorId: instructor.id,
+                    instructorUserId: instructor.user_id,
+                    position: index + 1,
+                    isAuthenticated,
+                    interactionType,
+                    timeToInteraction,
+                  });
+
+                  if (searchEventId) {
+                    trackSearchInteraction(
+                      searchEventId,
+                      interactionType,
+                      instructor.user_id, // Use user_id instead of id
+                      index + 1,
+                      isAuthenticated,
+                      timeToInteraction
+                    );
+                  } else {
+                    logger.warn('No searchEventId available for interaction tracking');
+                  }
+                };
+
                 return (
-                  <div
-                    key={instructor.id}
-                    onClick={() => {
-                      // Track interaction when clicking anywhere on the card
-                      if (searchEventId) {
-                        trackSearchInteraction(
-                          searchEventId,
-                          'click',
-                          instructor.id,
-                          index + 1,
-                          isAuthenticated
-                        );
-                      }
-                    }}
-                  >
+                  <div key={instructor.id}>
                     <InstructorCard
                       instructor={enhancedInstructor}
                       nextAvailableSlots={getNextAvailableSlots(instructor.user_id)}
+                      onViewProfile={() => handleInteraction('view_profile')}
+                      onBookNow={() => handleInteraction('book')}
+                      onTimeSlotClick={() => handleInteraction('click')}
                     />
                   </div>
                 );

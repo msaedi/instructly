@@ -181,6 +181,7 @@ async def record_search(
             last_searched_at=search.last_searched_at,
             search_count=search.search_count,
             guest_session_id=search.guest_session_id if not context.user_id else None,
+            search_event_id=getattr(search, "search_event_id", None),
         )
     except ValueError as e:
         # Handle validation errors with 400
@@ -279,6 +280,16 @@ async def track_interaction(
         result_position = interaction_data.get("result_position")
         time_to_interaction = interaction_data.get("time_to_interaction")
 
+        logger.info(
+            f"Track interaction request",
+            {
+                "search_event_id": search_event_id,
+                "interaction_type": interaction_type,
+                "context_user_id": context.user_id,
+                "context_guest_session_id": context.guest_session_id,
+            },
+        )
+
         # Validate required fields
         if not search_event_id or not interaction_type:
             raise HTTPException(
@@ -316,5 +327,13 @@ async def track_interaction(
         # Re-raise HTTP exceptions as-is
         raise
     except Exception as e:
-        logger.error(f"Error tracking interaction: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to track interaction")
+        logger.error(f"Error tracking interaction: {str(e)}", exc_info=True)
+        # Return more specific error in development
+        import os
+
+        if os.getenv("ENV", "development") == "development":
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to track interaction: {str(e)}"
+            )
+        else:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to track interaction")

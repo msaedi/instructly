@@ -216,7 +216,7 @@ class SearchHistoryService(BaseService):
                 "consent_given": True,  # Default for now
                 "consent_type": "analytics",  # Default for now
             }
-            self.event_repository.create_event(event_data)
+            event = self.event_repository.create_event(event_data)
 
             # Use service transaction pattern instead of direct DB operations
             with self.transaction():
@@ -224,6 +224,9 @@ class SearchHistoryService(BaseService):
 
             # Refresh through repository
             self.db.refresh(result)
+
+            # Store the event ID on the result for frontend use
+            result.search_event_id = event.id
 
             return result
 
@@ -444,10 +447,14 @@ class SearchHistoryService(BaseService):
             Created SearchInteraction instance
         """
         try:
+            logger.info(f"Looking for search event {search_event_id}")
+
             # Validate search event exists
             search_event = self.db.query(SearchEvent).filter(SearchEvent.id == search_event_id).first()
             if not search_event:
                 raise ValueError(f"Search event {search_event_id} not found")
+
+            logger.info(f"Found search event {search_event_id}")
 
             # Create interaction record
             interaction_data = {

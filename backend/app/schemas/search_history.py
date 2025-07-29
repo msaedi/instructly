@@ -87,6 +87,9 @@ class SearchHistoryResponse(SearchHistoryBase):
     first_searched_at: datetime = Field(..., description="When the search was first performed")
     last_searched_at: datetime = Field(..., description="When the search was last performed")
     search_count: int = Field(..., description="Number of times this search was performed")
+    search_event_id: Optional[int] = Field(
+        None, description="ID of the associated search event for tracking interactions"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
