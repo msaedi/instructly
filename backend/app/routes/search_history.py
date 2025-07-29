@@ -269,21 +269,52 @@ async def track_interaction(
     Returns:
         Interaction tracking confirmation
     """
-    SearchHistoryService(db)
+    search_service = SearchHistoryService(db)
 
     try:
-        # TODO: Implement interaction tracking method in SearchHistoryService
-        # For now, just log the interaction
+        # Extract interaction data
+        search_event_id = interaction_data.get("search_event_id")
+        interaction_type = interaction_data.get("interaction_type")
+        instructor_id = interaction_data.get("instructor_id")
+        result_position = interaction_data.get("result_position")
+        time_to_interaction = interaction_data.get("time_to_interaction")
+
+        # Validate required fields
+        if not search_event_id or not interaction_type:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="search_event_id and interaction_type are required"
+            )
+
+        # Get session ID from context
+        session_id = getattr(context, "session_id", None)
+
+        # Track the interaction
+        interaction = search_service.track_interaction(
+            search_event_id=search_event_id,
+            interaction_type=interaction_type,
+            instructor_id=instructor_id,
+            result_position=result_position,
+            time_to_interaction=time_to_interaction,
+            session_id=session_id,
+        )
+
         logger.info(
-            "Search interaction tracked",
+            f"Search interaction tracked successfully",
             {
+                "interaction_id": interaction.id,
                 "user_id": context.user_id,
                 "guest_session_id": context.guest_session_id,
-                "interaction_data": interaction_data,
+                "interaction_type": interaction_type,
             },
         )
 
-        return {"status": "tracked", "message": "Interaction tracking not yet implemented"}
+        return {"status": "tracked", "interaction_id": interaction.id, "message": "Interaction tracked successfully"}
+    except ValueError as e:
+        # Handle specific validation errors
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
         logger.error(f"Error tracking interaction: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to track interaction")

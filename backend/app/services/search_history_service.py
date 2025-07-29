@@ -16,8 +16,10 @@ from sqlalchemy.orm import Session
 from ..core.config import settings
 from ..models.search_event import SearchEvent
 from ..models.search_history import SearchHistory
+from ..models.search_interaction import SearchInteraction
 from ..repositories.search_event_repository import SearchEventRepository
 from ..repositories.search_history_repository import SearchHistoryRepository
+from ..repositories.search_interaction_repository import SearchInteractionRepository
 from ..schemas.search_context import SearchUserContext
 from .base import BaseService
 from .device_tracking_service import DeviceTrackingService
@@ -43,6 +45,7 @@ class SearchHistoryService(BaseService):
         super().__init__(db)
         self.repository = SearchHistoryRepository(db)
         self.event_repository = SearchEventRepository(db)
+        self.interaction_repository = SearchInteractionRepository(db)
         self.geolocation_service = geolocation_service or GeolocationService(db)
         self.device_tracking_service = device_tracking_service or DeviceTrackingService(db)
 
@@ -413,3 +416,62 @@ class SearchHistoryService(BaseService):
             logger.error(f"Failed to convert guest searches: {str(e)}")
             # Don't fail auth if conversion fails
             return 0
+
+    @BaseService.measure_operation("track_interaction")
+    def track_interaction(
+        self,
+        search_event_id: int,
+        interaction_type: str,
+        instructor_id: Optional[int] = None,
+        result_position: Optional[int] = None,
+        time_to_interaction: Optional[float] = None,
+        session_id: Optional[str] = None,
+        interaction_duration: Optional[float] = None,
+    ) -> SearchInteraction:
+        """
+        Track user interaction with search results.
+
+        Args:
+            search_event_id: ID of the search event
+            interaction_type: Type of interaction (click, hover, bookmark, view_profile, contact, book)
+            instructor_id: ID of the instructor interacted with
+            result_position: Position in search results (1-based)
+            time_to_interaction: Seconds from search to interaction
+            session_id: Browser session ID for tracking
+            interaction_duration: Duration of interaction in seconds (e.g., hover time)
+
+        Returns:
+            Created SearchInteraction instance
+        """
+        try:
+            # Validate search event exists
+            search_event = self.db.query(SearchEvent).filter(SearchEvent.id == search_event_id).first()
+            if not search_event:
+                raise ValueError(f"Search event {search_event_id} not found")
+
+            # Create interaction record
+            interaction_data = {
+                "search_event_id": search_event_id,
+                "session_id": session_id or getattr(search_event, "session_id", None),
+                "interaction_type": interaction_type,
+                "instructor_id": instructor_id,
+                "result_position": result_position,
+                "time_to_interaction": time_to_interaction,
+                "interaction_duration": interaction_duration,
+            }
+
+            interaction = self.interaction_repository.create_interaction(interaction_data)
+
+            with self.transaction():
+                pass  # Transaction commits automatically
+
+            logger.info(
+                f"Tracked {interaction_type} interaction for search event {search_event_id}"
+                + (f" on instructor {instructor_id}" if instructor_id else "")
+            )
+
+            return interaction
+
+        except Exception as e:
+            logger.error(f"Failed to track interaction: {str(e)}")
+            raise
