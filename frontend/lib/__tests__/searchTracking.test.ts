@@ -88,19 +88,8 @@ Object.defineProperty(window, 'sessionStorage', {
   value: mockSessionStorage,
 });
 
-// Mock window.location (workaround for jsdom)
-delete (window as any).location;
-window.location = {
-  pathname: '/test',
-  href: 'http://localhost:3000/test',
-  hostname: 'localhost',
-  port: '3000',
-  protocol: 'http:',
-  search: '',
-  hash: '',
-  host: 'localhost:3000',
-  origin: 'http://localhost:3000',
-} as any;
+// Mock window.location properties for tests
+// We'll override specific properties as needed in tests
 
 Object.defineProperty(document, 'referrer', {
   value: 'http://localhost:3000/',
@@ -152,7 +141,8 @@ describe('Search Tracking', () => {
 
       // Verify body separately for more flexible matching
       const callArgs = mockFetch.mock.calls[0];
-      const body = JSON.parse(callArgs[1].body as string);
+      const requestInit = callArgs[1] as RequestInit;
+      const body = JSON.parse(requestInit.body as string);
       expect(body.search_query).toBe('piano lessons');
       expect(body.search_type).toBe('natural_language');
       expect(body.results_count).toBe(5);
@@ -191,7 +181,8 @@ describe('Search Tracking', () => {
       expect(mockFetch).toHaveBeenCalled();
 
       const callArgs = mockFetch.mock.calls[0];
-      const body = JSON.parse(callArgs[1].body as string);
+      const requestInit = callArgs[1] as RequestInit;
+      const body = JSON.parse(requestInit.body as string);
       expect(body.search_query).toBe('Music lessons');
       expect(body.search_type).toBe('category');
       expect(body.results_count).toBe(null);
@@ -224,7 +215,8 @@ describe('Search Tracking', () => {
       expect(mockFetch).toHaveBeenCalled();
 
       const callArgs = mockFetch.mock.calls[0];
-      const body = JSON.parse(callArgs[1].body as string);
+      const requestInit = callArgs[1] as RequestInit;
+      const body = JSON.parse(requestInit.body as string);
       expect(body.search_query).toBe('Piano');
       expect(body.search_type).toBe('service_pill');
       expect(body.results_count).toBe(8);
@@ -255,7 +247,8 @@ describe('Search Tracking', () => {
       expect(mockFetch).toHaveBeenCalled();
 
       const callArgs = mockFetch.mock.calls[0];
-      const body = JSON.parse(callArgs[1].body as string);
+      const requestInit = callArgs[1] as RequestInit;
+      const body = JSON.parse(requestInit.body as string);
       expect(body.search_query).toBe('guitar lessons');
       expect(body.search_type).toBe('search_history');
       expect(body.results_count).toBe(3);
@@ -320,15 +313,12 @@ describe('Search Tracking', () => {
         })
       );
 
-      // Should NOT include guest session header for authenticated users
-      expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/search-history/',
-        expect.objectContaining({
-          headers: expect.not.objectContaining({
-            'X-Guest-Session-ID': expect.anything(),
-          }),
-        })
-      );
+      // Verify the headers contain the auth token
+      const callArgs = mockFetch.mock.calls[0];
+      const requestInit = callArgs[1] as RequestInit;
+      const headers = requestInit.headers as any;
+      expect(headers['Authorization']).toBe('Bearer test-auth-token');
+      expect(headers['X-Guest-Session-ID']).toBeUndefined();
     });
 
     it('should handle API errors gracefully', async () => {
@@ -372,7 +362,8 @@ describe('Search Tracking', () => {
       );
 
       const callArgs = mockFetch.mock.calls[0];
-      const body = JSON.parse(callArgs[1].body as string);
+      const requestInit = callArgs[1] as RequestInit;
+      const body = JSON.parse(requestInit.body as string);
       expect(body.search_event_id).toBe(123);
       expect(body.interaction_type).toBe('click');
       expect(body.instructor_id).toBe(456);
