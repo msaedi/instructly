@@ -293,7 +293,10 @@ describe('Search Tracking', () => {
         json: async () => ({ id: 6 }),
       } as Response);
 
-      mockLocalStorage.getItem.mockReturnValue('test-auth-token');
+      mockLocalStorage.getItem.mockImplementation((key) => {
+        if (key === 'access_token') return 'test-auth-token';
+        return null;
+      });
       // Ensure sessionStorage.getItem returns null for navigationFrom
       mockSessionStorage.getItem.mockReturnValue(null);
 
