@@ -84,7 +84,7 @@ services:
     runtime: docker
     plan: starter  # $7/month
     dockerfilePath: ./redis/Dockerfile
-    dockerContext: ./redis
+    dockerContext: .
     envVars:
       - key: REDIS_PORT
         value: 6379

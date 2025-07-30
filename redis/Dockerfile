@@ -2,7 +2,7 @@
 FROM redis:7-alpine
 
 # Copy custom Redis configuration
-COPY redis.conf /usr/local/etc/redis/redis.conf
+COPY ./redis/redis.conf /usr/local/etc/redis/redis.conf
 
 # Expose Redis port
 EXPOSE 6379
