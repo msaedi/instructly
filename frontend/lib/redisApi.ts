@@ -35,12 +35,45 @@ export interface RedisStats {
     current_ops_per_sec: number;
     estimated_daily_ops: number;
   };
+  database_pool?: {
+    size: number;
+    checked_in: number;
+    checked_out: number;
+    overflow: number;
+    total: number;
+    max_size: number;
+  };
 }
 
 export interface CeleryQueues {
   status: string;
   queues: Record<string, number>;
   total_pending: number;
+}
+
+export interface ConnectionAudit {
+  api_cache: string;
+  celery_broker: string;
+  active_connections: {
+    local_redis: number;
+    upstash: number;
+  };
+  upstash_detected: boolean;
+  service_connections: {
+    api_service: {
+      url: string;
+      host: string;
+      type: string;
+    };
+    celery_broker: {
+      url: string;
+      host: string;
+      type: string;
+    };
+  };
+  environment_variables: Record<string, string>;
+  migration_status: string;
+  recommendation: string;
 }
 
 /**
@@ -119,5 +152,12 @@ export const redisApi = {
     error?: string;
   }> {
     return fetchPublic('/api/redis/test');
+  },
+
+  /**
+   * Get Redis connection audit (requires admin auth)
+   */
+  async getConnectionAudit(token: string): Promise<ConnectionAudit> {
+    return fetchWithAuth<ConnectionAudit>('/api/redis/connection-audit', token);
   },
 };

@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { redisApi } from '@/lib/redisApi';
-import type { RedisHealth, RedisStats, CeleryQueues } from '@/lib/redisApi';
+import type { RedisHealth, RedisStats, CeleryQueues, ConnectionAudit } from '@/lib/redisApi';
 
 interface RedisData {
   health: RedisHealth | null;
@@ -16,6 +16,7 @@ interface RedisData {
     ping: boolean;
     message: string;
   } | null;
+  connectionAudit: ConnectionAudit | null;
 }
 
 interface UseRedisDataReturn {
@@ -31,6 +32,7 @@ export function useRedisData(token: string | null): UseRedisDataReturn {
     stats: null,
     queues: null,
     testConnection: null,
+    connectionAudit: null,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,11 +51,13 @@ export function useRedisData(token: string | null): UseRedisDataReturn {
       // Fetch authenticated data if token is available
       let stats = null;
       let queues = null;
+      let connectionAudit = null;
 
       if (token) {
-        [stats, queues] = await Promise.all([
+        [stats, queues, connectionAudit] = await Promise.all([
           redisApi.getStats(token),
           redisApi.getCeleryQueues(token),
+          redisApi.getConnectionAudit(token),
         ]);
       }
 
@@ -62,6 +66,7 @@ export function useRedisData(token: string | null): UseRedisDataReturn {
         stats,
         queues,
         testConnection,
+        connectionAudit,
       });
     } catch (err) {
       console.error('Failed to fetch Redis data:', err);

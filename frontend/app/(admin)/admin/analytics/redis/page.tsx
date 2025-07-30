@@ -9,6 +9,8 @@ import StatusCards from './components/StatusCards';
 import MemoryUsageChart from './components/MemoryUsageChart';
 import CeleryQueuesChart from './components/CeleryQueuesChart';
 import OperationsMetrics from './components/OperationsMetrics';
+import ConnectionAudit from './components/ConnectionAudit';
+import DatabasePoolStatus from './components/DatabasePoolStatus';
 import { AnalyticsNav } from '../AnalyticsNav';
 
 export default function RedisAnalyticsPage() {
@@ -139,6 +141,40 @@ export default function RedisAnalyticsPage() {
             <div className="h-80 bg-gray-100 dark:bg-gray-700 rounded animate-pulse"></div>
           ) : (
             <CeleryQueuesChart queues={data.queues} />
+          )}
+        </div>
+      </div>
+
+      {/* Database Pool Status - CRITICAL FOR PRODUCTION */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900 dark:text-gray-100">
+            <Database className="h-5 w-5" />
+            Database Connection Pool
+          </h3>
+        </div>
+        <div className="p-6">
+          {loading ? (
+            <div className="h-64 bg-gray-100 dark:bg-gray-700 rounded animate-pulse"></div>
+          ) : (
+            <DatabasePoolStatus pool={data.stats?.database_pool} />
+          )}
+        </div>
+      </div>
+
+      {/* Connection Audit */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900 dark:text-gray-100">
+            <Server className="h-5 w-5" />
+            Connection Audit
+          </h3>
+        </div>
+        <div className="p-6">
+          {loading ? (
+            <div className="h-64 bg-gray-100 dark:bg-gray-700 rounded animate-pulse"></div>
+          ) : (
+            <ConnectionAudit audit={data.connectionAudit} />
           )}
         </div>
       </div>

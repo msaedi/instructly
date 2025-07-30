@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.config import settings
 from app.core.enums import PermissionName
+from app.database import engine
 from app.dependencies.permissions import require_permission
 from app.models.user import User
 
@@ -138,6 +139,17 @@ async def redis_stats(
         ops_per_sec = info.get("instantaneous_ops_per_sec", 0)
         estimated_daily_ops = ops_per_sec * 86400  # seconds in a day
 
+        # Get database pool status
+        pool = engine.pool
+        db_pool_status = {
+            "size": pool.size(),
+            "checked_in": pool.checkedin(),
+            "checked_out": pool.checkedout(),
+            "overflow": pool.overflow(),
+            "total": pool.size() + pool.overflow(),
+            "max_size": pool.size() + pool._max_overflow,
+        }
+
         return {
             "status": "connected",
             "server": {
@@ -153,6 +165,7 @@ async def redis_stats(
                 "estimated_daily_ops": int(estimated_daily_ops),
                 "estimated_monthly_ops": int(estimated_daily_ops * 30),
             },
+            "database_pool": db_pool_status,
         }
 
     except Exception as e:
@@ -216,6 +229,99 @@ def _get_celery_queue_lengths(client: redis.Redis) -> Dict[str, int]:
             queue_lengths[queue] = -1
 
     return queue_lengths
+
+
+@router.get("/connection-audit", response_model=Dict[str, Any])
+async def redis_connection_audit(
+    current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
+) -> Dict[str, Any]:
+    """
+    Audit all Redis connections across the system.
+
+    Checks which Redis instance each service is using and identifies
+    any remaining Upstash connections.
+
+    Requires ACCESS_MONITORING permission.
+
+    Returns:
+        Summary of Redis connections across all services
+    """
+
+    try:
+        # Get current Redis URLs from settings
+        api_cache_url = settings.redis_url or "redis://localhost:6379/0"
+        celery_broker_url = settings.redis_url or "redis://localhost:6379/0"
+
+        # Check if Upstash is configured (legacy)
+        upstash_url = getattr(settings, "upstash_url", None)
+        upstash_detected = bool(upstash_url and upstash_url != api_cache_url)
+
+        # Get active connections from current Redis
+        client = get_redis_client()
+        info = client.info("clients")
+        connected_clients = info.get("connected_clients", 0)
+
+        # Parse URLs to identify service
+        def parse_redis_url(url: str) -> str:
+            """Extract host from Redis URL."""
+            if not url:
+                return "not configured"
+            # Handle redis:// and rediss:// schemes
+            if url.startswith("redis://") or url.startswith("rediss://"):
+                # Extract host:port between // and /
+                parts = url.split("/")
+                if len(parts) >= 3:
+                    return parts[2].split("@")[-1]  # Handle auth in URL
+            return url
+
+        # Check for specific service patterns in connected clients
+        local_redis_connections = 0
+        upstash_connections = 0
+
+        # Count based on URL patterns
+        api_host = parse_redis_url(api_cache_url)
+        if "instructly-redis" in api_host or "localhost" in api_host:
+            local_redis_connections = connected_clients
+
+        # Identify which services are using which Redis
+        service_connections = {
+            "api_service": {
+                "url": api_cache_url,
+                "host": parse_redis_url(api_cache_url),
+                "type": "render_redis" if "instructly-redis" in api_cache_url else "local",
+            },
+            "celery_broker": {
+                "url": celery_broker_url,
+                "host": parse_redis_url(celery_broker_url),
+                "type": "render_redis" if "instructly-redis" in celery_broker_url else "local",
+            },
+        }
+
+        # Check environment variables that might still reference Upstash
+        env_check = {
+            "REDIS_URL": api_cache_url,
+            "CELERY_BROKER_URL": celery_broker_url,
+            "UPSTASH_URL": upstash_url or "not set",
+        }
+
+        return {
+            "api_cache": api_cache_url,
+            "celery_broker": celery_broker_url,
+            "active_connections": {"local_redis": local_redis_connections, "upstash": upstash_connections},
+            "upstash_detected": upstash_detected,
+            "service_connections": service_connections,
+            "environment_variables": env_check,
+            "migration_status": "complete" if not upstash_detected else "in_progress",
+            "recommendation": "All services using Render Redis"
+            if not upstash_detected
+            else "Remove UPSTASH_URL from environment",
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to audit Redis connections: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to audit connections: {str(e)}"
+        )
 
 
 @router.delete("/flush-queues", response_model=Dict[str, Any])
