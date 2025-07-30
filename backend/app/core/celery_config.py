@@ -29,15 +29,21 @@ class CeleryConfig:
             2: 3,  # TCP_KEEPINTVL
             3: 5,  # TCP_KEEPCNT
         },
+        # Reduce BRPOP frequency from 1s to 10s
+        # This reduces polling operations by 90%
+        "polling_interval": 10.0,
     }
 
     # Result backend settings
-    result_backend = settings.redis_url or "redis://localhost:6379/0"
-    result_expires = 3600  # 1 hour
-    result_persistent = True
-    result_compression = "gzip"
-    result_serializer = "json"
-    result_backend_transport_options = broker_transport_options
+    # Disabled to reduce Redis operations unless we need task results
+    # Uncomment if you need to track task results
+    result_backend = None  # Saves significant Redis operations
+    # result_backend = settings.redis_url or "redis://localhost:6379/0"
+    # result_expires = 3600  # 1 hour
+    # result_persistent = True
+    # result_compression = "gzip"
+    # result_serializer = "json"
+    # result_backend_transport_options = broker_transport_options
 
     # Task execution settings
     task_serializer = "json"
@@ -47,22 +53,27 @@ class CeleryConfig:
     task_soft_time_limit = 300  # 5 minutes soft limit
     task_acks_late = True
     task_reject_on_worker_lost = True
-    task_ignore_result = False
+    task_ignore_result = True  # Since result_backend is None
     task_store_eager_result = True
     task_track_started = True
     task_send_sent_event = True
     accept_content = ["json"]
 
-    # Worker settings
-    worker_prefetch_multiplier = 4
-    worker_max_tasks_per_child = 1000
+    # Worker settings - Balanced for monitoring and Redis optimization
+    worker_prefetch_multiplier = 1  # Reduce connection pool usage
+    worker_max_tasks_per_child = 1000  # Standard value for stability
     worker_disable_rate_limits = False
-    worker_concurrency = os.cpu_count() or 4
+    worker_concurrency = os.cpu_count() or 4  # Proper testing capacity
     worker_enable_remote_control = True
-    worker_send_task_events = True
+    worker_send_task_events = True  # Keep enabled for Flower monitoring
     worker_hijack_root_logger = False
     worker_redirect_stdouts = True
     worker_redirect_stdouts_level = "INFO"
+
+    # Heartbeat settings - Reduce frequency to minimize Redis operations
+    # Default is 2 seconds, we increase to 30 seconds
+    # This reduces heartbeat operations from 43,200/day to 2,880/day per worker
+    worker_heartbeat_interval = 30  # seconds
 
     # Timezone settings
     timezone = "US/Eastern"

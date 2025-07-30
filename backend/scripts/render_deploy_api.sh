@@ -72,40 +72,57 @@ deploy_service() {
 echo ""
 echo "What would you like to deploy?"
 echo "1) Backend API (instructly)"
-echo "2) Celery Worker"
-echo "3) Celery Beat"
-echo "4) Flower"
-echo "5) Celery Stack (Worker + Beat + Flower)"
-echo "6) All services (including Backend API)"
+echo "2) Redis (instructly-redis)"
+echo "3) Celery Worker (instructly-celery-worker)"
+echo "4) Celery Beat (instructly-celery-beat)"
+echo "5) Flower (instructly-flower)"
+echo "6) Celery Stack (Worker + Beat + Flower)"
+echo "7) All services (including Backend API)"
+echo "8) Full Stack (Redis + All services)"
 echo "0) Exit"
 echo ""
-read -p "Enter your choice (0-6): " choice
+read -p "Enter your choice (0-8): " choice
 
 case $choice in
     1)
         deploy_service "instructly"
         ;;
     2)
-        deploy_service "instructly-celery-worker"
+        deploy_service "instructly-redis"
         ;;
     3)
-        deploy_service "instructly-celery-beat"
+        deploy_service "instructly-celery-worker"
         ;;
     4)
-        deploy_service "instructly-flower"
+        deploy_service "instructly-celery-beat"
         ;;
     5)
+        deploy_service "instructly-flower"
+        ;;
+    6)
         echo "Deploying Celery Stack..."
         deploy_service "instructly-celery-worker"
         deploy_service "instructly-celery-beat"
         deploy_service "instructly-flower"
         ;;
-    6)
-        echo "Deploying all services..."
+    7)
+        echo "Deploying all services (except Redis)..."
         deploy_service "instructly"
         deploy_service "instructly-celery-worker"
         deploy_service "instructly-celery-beat"
         deploy_service "instructly-flower"
+        ;;
+    8)
+        echo "Deploying full stack (including Redis)..."
+        echo "⚠️  Note: Redis should be deployed first and allowed to start before other services"
+        deploy_service "instructly-redis"
+        echo ""
+        echo "Waiting 10 seconds for Redis to initialize..."
+        sleep 10
+        deploy_service "instructly-celery-worker"
+        deploy_service "instructly-celery-beat"
+        deploy_service "instructly-flower"
+        deploy_service "instructly"
         ;;
     0)
         echo "Exiting..."

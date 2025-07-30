@@ -21,7 +21,9 @@ services:
       - key: DATABASE_MAX_OVERFLOW
         value: 5
       - key: REDIS_MAX_CONNECTIONS
-        value: 10  # Optimized for Upstash
+        value: 20  # Optimized for local Redis
+      - key: REDIS_URL
+        value: redis://instainstru-redis:6379
     healthCheckPath: /health/lite  # New lightweight health check
     autoDeploy: false  # Manual deploys for production safety
 
@@ -40,6 +42,10 @@ services:
         value: 100  # Prevent memory leaks
       - key: CELERY_WORKER_PREFETCH_MULTIPLIER
         value: 1  # Reduce memory usage
+      - key: REDIS_URL
+        value: redis://instainstru-redis:6379
+      - key: CELERY_BROKER_URL
+        value: redis://instainstru-redis:6379
     autoDeploy: false
 
   - type: worker
@@ -51,6 +57,10 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.18
+      - key: REDIS_URL
+        value: redis://instainstru-redis:6379
+      - key: CELERY_BROKER_URL
+        value: redis://instainstru-redis:6379
     autoDeploy: false
 
   - type: web
@@ -63,11 +73,27 @@ services:
       - key: PYTHON_VERSION
         value: 3.9.18
       - key: REDIS_URL
-        sync: false
+        value: redis://instainstru-redis:6379
       - key: FLOWER_BASIC_AUTH
         sync: false
     healthCheckPath: /healthcheck
     autoDeploy: false
 
+  - type: pserv
+    name: instainstru-redis
+    runtime: docker
+    plan: starter  # $7/month
+    dockerfilePath: ./redis/Dockerfile
+    dockerContext: ./redis
+    envVars:
+      - key: REDIS_PORT
+        value: 6379
+      - key: REDIS_MAXMEMORY
+        value: 256mb
+      - key: REDIS_MAXMEMORY_POLICY
+        value: allkeys-lru
+    # Health check for Redis
+    healthCheckPath: /
+    autoDeploy: false
+
 # Database configuration is external (Supabase)
-# Redis configuration is external (Upstash)

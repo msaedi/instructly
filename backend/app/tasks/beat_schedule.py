@@ -12,10 +12,10 @@ from celery.schedules import crontab
 
 # Main beat schedule configuration
 CELERYBEAT_SCHEDULE = {
-    # Analytics calculation - runs daily at 2:00 AM Eastern Time
+    # Analytics calculation - runs every 3 hours
     "calculate-service-analytics": {
         "task": "app.tasks.analytics.calculate_analytics",
-        "schedule": crontab(hour=2, minute=0),  # Daily at 2 AM
+        "schedule": crontab(hour="*/3", minute=0),  # Every 3 hours
         # For testing: uncomment the line below to run every minute
         # "schedule": crontab(minute="*/1"),  # Every minute
         "args": (90,),  # Calculate analytics for last 90 days
@@ -24,6 +24,7 @@ CELERYBEAT_SCHEDULE = {
             "queue": "analytics",
             "priority": 3,
         },
+        "description": "Calculate service analytics every 3 hours",
     },
     # Generate daily report - runs after analytics calculation
     "generate-daily-analytics-report": {
@@ -95,6 +96,28 @@ CELERYBEAT_SCHEDULE = {
             "priority": 2,
         },
         # Note: Clean up old soft-deleted searches and expired guest sessions
+    },
+    # Calculate search metrics - runs every hour
+    "calculate-search-metrics": {
+        "task": "app.tasks.search_analytics.calculate_search_metrics",
+        "schedule": crontab(minute=0),  # Every hour at :00
+        "kwargs": {"hours_back": 24},  # Last 24 hours
+        "options": {
+            "queue": "analytics",
+            "priority": 4,
+        },
+        "description": "Calculate hourly search metrics and engagement",
+    },
+    # Generate search insights - runs daily at 4 AM
+    "generate-search-insights": {
+        "task": "app.tasks.search_analytics.generate_search_insights",
+        "schedule": crontab(hour=4, minute=0),  # Daily at 4 AM
+        "kwargs": {"days_back": 7},  # Last 7 days
+        "options": {
+            "queue": "analytics",
+            "priority": 3,
+        },
+        "description": "Generate weekly search behavior insights",
     },
     # Cleanup old data - runs daily at 3 AM
     # "cleanup-old-notifications": {

@@ -63,10 +63,15 @@ def create_celery_app() -> Celery:
         "result_serializer": "json",
         "timezone": "US/Eastern",
         "enable_utc": True,
-        # Result backend settings
-        "result_expires": 3600,  # Results expire after 1 hour
-        "result_persistent": True,
-        "result_compression": "gzip",
+        # Result backend settings - Disabled to reduce Redis operations
+        # Only uncomment these if:
+        # 1. You need to use task.get() to retrieve results
+        # 2. You need to check task status from the API
+        # 3. You're implementing async result polling
+        # Otherwise, keeping these disabled saves ~50% of Redis operations
+        # "result_expires": 3600,  # Results expire after 1 hour
+        # "result_persistent": True,
+        # "result_compression": "gzip",
         # Worker settings
         "worker_prefetch_multiplier": 4,
         "worker_max_tasks_per_child": 1000,
@@ -85,6 +90,11 @@ def create_celery_app() -> Celery:
         "worker_hijack_root_logger": False,
         "worker_redirect_stdouts": True,
         "worker_redirect_stdouts_level": "INFO",
+        # Broker transport options - Reduce Redis polling frequency
+        "broker_transport_options": {
+            "visibility_timeout": 3600,
+            "polling_interval": 10.0,  # Reduce BRPOP from 1s to 10s (90% reduction)
+        },
     }
 
     # Apply production optimizations if available
