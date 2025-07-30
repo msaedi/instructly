@@ -13,21 +13,24 @@ InstaInstru is a marketplace platform for instantly booking private instructors 
 
 ### Critical Context
 - **Mission**: Building for MEGAWATTS of energy allocation - quality over speed
-- **Platform Status**: ~60% complete - instructor features work, student booking NOT IMPLEMENTED
-- **Test Coverage**: 73.6% (468/636 tests passing) - many failures due to missing specific_date field
+- **Platform Status**: ~65% complete - instructor features work, student booking NOT IMPLEMENTED
+- **Test Coverage**: Backend tests need fixes (specific_date field issues), new search analytics tests passing
 - **Major Blocker**: Frontend has 3,000+ lines of technical debt from wrong mental model
 
 ### Immediate Priorities
 1. **Frontend Technical Debt (Work Stream #13)**: Delete operation pattern, fix mental model
 2. **Student Booking Features**: Core functionality missing (not broken, never built)
-3. **Test Suite Fixes**: Add missing specific_date field to failing tests
-4. **Service Metrics**: ✅ COMPLETE: All service methods already have @measure_operation decorators
+3. **Redis Migration**: ✅ COMPLETE: Migrated from Upstash to Render Redis ($7/month)
+4. **Search Analytics**: ✅ COMPLETE: Full tracking system with Celery async processing
+5. **Service Metrics**: ✅ COMPLETE: All service methods already have @measure_operation decorators
 
 ### Key Architectural Decisions
 - **NO SLOT IDs**: Time-based booking only (instructor_id, date, start_time, end_time)
 - **Layer Independence**: Bookings don't reference availability slots (Work Stream #9)
 - **Single-Table Design**: Just availability_slots table (no InstructorAvailability)
 - **Repository Pattern**: 100% implemented across all services
+- **RBAC System**: Full Role-Based Access Control with permissions, NOT simple role checking
+- **Redis Architecture**: Single Redis instance for caching, Celery broker, and sessions
 
 ### Technical Debt Details
 Frontend believes slots are database entities with IDs (WRONG). The operation pattern in useAvailabilityOperations.ts is 600+ lines that should be ~50 lines. Mental model mismatch causes 5x slower development.
@@ -66,10 +69,30 @@ Frontend believes slots are database entities with IDs (WRONG). The operation pa
 - Repository Pattern: 100% implementation (7/7 services)
 - N+1 query fixed: 99.5% improvement in InstructorProfileRepository
 - 5 production bugs found and fixed through testing
+- Search Analytics: Complete tracking system with async Celery processing
+- Redis Migration: Moved from Upstash to Render, 89% reduction in operations
+- RBAC System: Full permission-based access control implemented
+- Celery Integration: Scheduled tasks, async processing, monitoring with Flower
 
 ### Team Structure
 - **X-Team**: Technical implementation (you are part of this)
 - **A-Team**: UX/Design decisions (separate team, we await their input)
+
+## Current Infrastructure
+
+### Production Services (Render)
+- **API**: instructly-backend (Web Service)
+- **Redis**: instructly-redis (Private Service, $7/month)
+- **Celery Worker**: instructly-celery (Background Worker)
+- **Celery Beat**: instructly-celery-beat (Background Worker)
+- **Flower**: instructly-flower (Web Service for monitoring)
+- **Database**: Supabase PostgreSQL (external)
+
+### Key Infrastructure Updates
+- Redis handles all caching, Celery broker, and session needs
+- Celery runs analytics every 3 hours, search metrics hourly
+- All services configured with optimized settings for cost efficiency
+- Monitoring endpoints require ACCESS_MONITORING permission
 
 ## Documentation Structure
 
@@ -138,10 +161,15 @@ npm run build                   # Production build
 npm run lint                    # Run ESLint
 ```
 
-### Cache Management
+### Redis & Celery Management
 ```bash
-docker-compose up -d            # Start DragonflyDB
+docker-compose up -d            # Start Redis (replaced DragonflyDB)
 docker-compose down             # Stop services
+
+# Local Celery commands
+celery -A app.tasks.celery_app worker --loglevel=info
+celery -A app.tasks.celery_app beat --loglevel=info
+celery -A app.tasks.celery_app flower  # Monitoring UI
 ```
 
 ## High-Level Architecture
@@ -190,13 +218,22 @@ The frontend uses Next.js 15 App Router with:
        return AuthService(db, email_service, token_service)
    ```
 
-2. **Caching Strategy**: Redis/DragonflyDB for performance
-   - Availability queries are heavily cached
-   - Cache invalidation on updates
+2. **Caching & Infrastructure**:
+   - Single Redis instance (Render $7/month) for all needs:
+     - Application caching
+     - Celery message broker
+     - Session storage
+   - Optimized Celery config reduces operations by 89%
+   - Redis monitoring available at `/api/redis/*` endpoints
 
-3. **Authentication Flow**: JWT-based with refresh tokens
-   - Tokens stored in localStorage (frontend)
-   - Bearer token authentication for API requests
+3. **Authentication & Authorization**:
+   - JWT-based authentication with refresh tokens
+   - **RBAC System**: Full permission-based access control
+     - Use `require_permission(PermissionName.PERMISSION)` NOT role checks
+     - Permissions are defined in `app/core/enums.py`
+     - Example: `Depends(require_permission(PermissionName.ACCESS_MONITORING))`
+   - Roles: admin, instructor, student, guest
+   - Each role has specific permissions assigned
 
 4. **Error Handling**: Consistent error responses
    - Custom exception classes

@@ -10,11 +10,11 @@ from typing import Any, Dict
 
 import redis
 from fastapi import APIRouter, Depends, HTTPException, status
-from redis.exceptions import ConnectionError, TimeoutError
 
 from app.core.config import settings
+from app.core.enums import PermissionName
+from app.dependencies.permissions import require_permission
 from app.models.user import User
-from app.services.auth_service import AuthService
 
 logger = logging.getLogger(__name__)
 
@@ -43,17 +43,19 @@ async def redis_health() -> Dict[str, Any]:
         client = get_redis_client()
         client.ping()
         return {"status": "healthy", "connected": True}
-    except (ConnectionError, TimeoutError) as e:
+    except (redis.ConnectionError, redis.TimeoutError) as e:
         logger.error(f"Redis health check failed: {e}")
         return {"status": "unhealthy", "connected": False, "error": str(e)}
 
 
 @router.get("/stats", response_model=Dict[str, Any])
-async def redis_stats(current_user: User = Depends(AuthService.get_current_admin_user)) -> Dict[str, Any]:
+async def redis_stats(
+    current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
+) -> Dict[str, Any]:
     """
     Get detailed Redis statistics and metrics.
 
-    Requires admin authentication.
+    Requires ACCESS_MONITORING permission.
 
     Returns:
         Comprehensive Redis metrics including:
@@ -62,6 +64,7 @@ async def redis_stats(current_user: User = Depends(AuthService.get_current_admin
         - Operation counts
         - Celery queue lengths
     """
+
     try:
         client = get_redis_client()
 
@@ -123,15 +126,18 @@ async def redis_stats(current_user: User = Depends(AuthService.get_current_admin
 
 
 @router.get("/celery-queues", response_model=Dict[str, Any])
-async def celery_queue_status(current_user: User = Depends(AuthService.get_current_admin_user)) -> Dict[str, Any]:
+async def celery_queue_status(
+    current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
+) -> Dict[str, Any]:
     """
     Get Celery queue status and pending tasks.
 
-    Requires admin authentication.
+    Requires ACCESS_MONITORING permission.
 
     Returns:
         Queue lengths and task counts
     """
+
     try:
         client = get_redis_client()
         queues = _get_celery_queue_lengths(client)
@@ -176,16 +182,19 @@ def _get_celery_queue_lengths(client: redis.Redis) -> Dict[str, int]:
 
 
 @router.delete("/flush-queues", response_model=Dict[str, Any])
-async def flush_celery_queues(current_user: User = Depends(AuthService.get_current_admin_user)) -> Dict[str, Any]:
+async def flush_celery_queues(
+    current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
+) -> Dict[str, Any]:
     """
     Flush all Celery queues (DANGER: removes all pending tasks).
 
-    Requires admin authentication.
+    Requires ACCESS_MONITORING permission.
     Use with caution - this will delete all pending tasks!
 
     Returns:
         Number of tasks removed from each queue
     """
+
     try:
         client = get_redis_client()
 
