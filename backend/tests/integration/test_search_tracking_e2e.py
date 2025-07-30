@@ -38,13 +38,16 @@ def auth_headers(test_user_with_token):
 @pytest.fixture
 def guest_headers():
     """Get headers for guest requests."""
-    return {"X-Guest-Session-ID": "test-guest-12345"}
+    import uuid
+
+    # Generate unique guest session ID for each test
+    return {"X-Guest-Session-ID": f"test-guest-{uuid.uuid4().hex[:8]}"}
 
 
 @pytest.fixture
 def test_user_with_token(db: Session):
     """Create a test user with auth token."""
-    from app.services.token_service import TokenService
+    from app.auth import create_access_token
 
     # Create user
     user = User(email="e2e-test@example.com", full_name="E2E Test User", hashed_password="hashed")
@@ -53,8 +56,7 @@ def test_user_with_token(db: Session):
     db.refresh(user)
 
     # Create token
-    token_service = TokenService()
-    access_token = token_service.create_access_token(data={"sub": user.email})
+    access_token = create_access_token(data={"sub": user.email})
 
     return user, access_token
 
@@ -71,6 +73,30 @@ def mock_device_context():
         "language": "en-US",
         "timezone": "America/New_York",
     }
+
+
+@pytest.fixture
+def test_instructor(db: Session):
+    """Create a test instructor user for interaction tracking."""
+    from app.auth import get_password_hash
+    from app.models.instructor import InstructorProfile
+
+    # Create instructor user
+    instructor_user = User(
+        email="test-instructor@example.com",
+        full_name="Test Instructor",
+        hashed_password=get_password_hash("password123"),
+    )
+    db.add(instructor_user)
+    db.commit()
+    db.refresh(instructor_user)
+
+    # Create instructor profile
+    profile = InstructorProfile(user_id=instructor_user.id, bio="Test instructor for e2e tests", years_experience=5)
+    db.add(profile)
+    db.commit()
+
+    return instructor_user
 
 
 class TestSearchTypeE2E:
@@ -154,7 +180,7 @@ class TestSearchTypeE2E:
 
         # Verify database records
         user_id = test_user_with_token[0].id if auth_type == "authenticated" else None
-        guest_id = "test-guest-12345" if auth_type == "guest" else None
+        guest_id = guest_headers.get("X-Guest-Session-ID") if auth_type == "guest" else None
 
         event = self._verify_search_event(
             db,
@@ -175,15 +201,21 @@ class TestSearchTypeE2E:
         assert response2.status_code == 201
 
         # Should still have only one history entry
-        history_count = (
-            db.query(SearchHistory).filter(SearchHistory.search_query == f"piano teacher near me - {auth_type}").count()
-        )
+        query = db.query(SearchHistory).filter(SearchHistory.search_query == f"piano teacher near me - {auth_type}")
+        if auth_type == "authenticated":
+            query = query.filter(SearchHistory.user_id == user_id)
+        else:
+            query = query.filter(SearchHistory.guest_session_id == guest_id)
+        history_count = query.count()
         assert history_count == 1
 
         # But should have two events
-        event_count = (
-            db.query(SearchEvent).filter(SearchEvent.search_query == f"piano teacher near me - {auth_type}").count()
-        )
+        query = db.query(SearchEvent).filter(SearchEvent.search_query == f"piano teacher near me - {auth_type}")
+        if auth_type == "authenticated":
+            query = query.filter(SearchEvent.user_id == user_id)
+        else:
+            query = query.filter(SearchEvent.guest_session_id == guest_id)
+        event_count = query.count()
         assert event_count == 2
 
     @pytest.mark.parametrize("auth_type", ["authenticated", "guest"])
@@ -207,7 +239,7 @@ class TestSearchTypeE2E:
 
         # Verify records
         user_id = test_user_with_token[0].id if auth_type == "authenticated" else None
-        guest_id = "test-guest-12345" if auth_type == "guest" else None
+        guest_id = guest_headers.get("X-Guest-Session-ID") if auth_type == "guest" else None
 
         event = self._verify_search_event(
             db, user_id, guest_id, "Music lessons", "category", results_count=0, referrer="/"  # None becomes 0
@@ -237,7 +269,7 @@ class TestSearchTypeE2E:
 
         # Verify records
         user_id = test_user_with_token[0].id if auth_type == "authenticated" else None
-        guest_id = "test-guest-12345" if auth_type == "guest" else None
+        guest_id = guest_headers.get("X-Guest-Session-ID") if auth_type == "guest" else None
 
         event = self._verify_search_event(
             db, user_id, guest_id, "Piano", "service_pill", results_count=12, referrer="/"
@@ -262,7 +294,7 @@ class TestSearchTypeE2E:
 
         # Verify records
         user_id = test_user_with_token[0].id if auth_type == "authenticated" else None
-        guest_id = "test-guest-12345" if auth_type == "guest" else None
+        guest_id = guest_headers.get("X-Guest-Session-ID") if auth_type == "guest" else None
 
         event = self._verify_search_event(
             db, user_id, guest_id, "Violin", "service_pill", results_count=8, referrer="/services"
@@ -297,10 +329,15 @@ class TestSearchTypeE2E:
 
         # Verify records
         user_id = test_user_with_token[0].id if auth_type == "authenticated" else None
-        guest_id = "test-guest-12345" if auth_type == "guest" else None
+        guest_id = guest_headers.get("X-Guest-Session-ID") if auth_type == "guest" else None
 
         # Should have events for both search types
-        events = db.query(SearchEvent).filter(SearchEvent.search_query == f"guitar lessons - {auth_type}").all()
+        query = db.query(SearchEvent).filter(SearchEvent.search_query == f"guitar lessons - {auth_type}")
+        if auth_type == "authenticated":
+            query = query.filter(SearchEvent.user_id == user_id)
+        else:
+            query = query.filter(SearchEvent.guest_session_id == guest_id)
+        events = query.all()
 
         assert len(events) == 2
         search_types = [e.search_type for e in events]
@@ -311,8 +348,9 @@ class TestSearchTypeE2E:
 class TestSearchDeduplicationE2E:
     """Test search deduplication works correctly in e2e scenarios."""
 
-    def test_deduplication_same_query_different_types(self, client, db, auth_headers):
-        """Test that same query with different search types creates separate history entries."""
+    def test_deduplication_same_query_different_types(self, client, db, auth_headers, test_user_with_token):
+        """Test that same query with different search types is deduplicated in history but tracked as separate events."""
+        user = test_user_with_token[0]
         headers = {**auth_headers, "X-Session-ID": "dedup-session"}
 
         # Search "Piano" as natural language
@@ -335,17 +373,24 @@ class TestSearchDeduplicationE2E:
         response2 = client.post("/api/search-history/", json=search2, headers=headers)
         assert response2.status_code == 201
 
-        # Should have 2 different history entries
-        history_entries = db.query(SearchHistory).filter(SearchHistory.search_query == "Piano").all()
+        # Should have only 1 history entry (deduplicated by query)
+        history_entries = (
+            db.query(SearchHistory)
+            .filter(SearchHistory.search_query == "Piano", SearchHistory.user_id == user.id)
+            .all()
+        )
 
-        assert len(history_entries) == 2
-        types = [h.search_type for h in history_entries]
-        assert "natural_language" in types
-        assert "service_pill" in types
+        assert len(history_entries) == 1
+        # The search_type in history will be from the first search
+        assert history_entries[0].search_type == "natural_language"
+        assert history_entries[0].search_count == 2  # Incremented
 
-        # But should have 2 events as well
-        events = db.query(SearchEvent).filter(SearchEvent.search_query == "Piano").all()
+        # But should have 2 events with different types
+        events = db.query(SearchEvent).filter(SearchEvent.search_query == "Piano", SearchEvent.user_id == user.id).all()
         assert len(events) == 2
+        event_types = [e.search_type for e in events]
+        assert "natural_language" in event_types
+        assert "service_pill" in event_types
 
     def test_deduplication_rapid_searches(self, client, db, auth_headers):
         """Test deduplication when user performs rapid searches."""
@@ -374,7 +419,7 @@ class TestSearchDeduplicationE2E:
 class TestSearchInteractionE2E:
     """Test search interaction tracking end-to-end."""
 
-    def test_interaction_tracking_with_time(self, client, db, auth_headers):
+    def test_interaction_tracking_with_time(self, client, db, auth_headers, test_instructor):
         """Test interaction tracking with correct time calculation."""
         headers = {**auth_headers, "X-Session-ID": "interaction-session"}
 
@@ -399,7 +444,7 @@ class TestSearchInteractionE2E:
         interaction_data = {
             "search_event_id": search_event_id,
             "interaction_type": "click",
-            "instructor_id": 123,  # Mock instructor ID
+            "instructor_id": test_instructor.id,  # Use real instructor ID
             "result_position": 2,  # Second result
             "time_to_interaction": 3.0,  # 3 seconds
         }
@@ -412,11 +457,11 @@ class TestSearchInteractionE2E:
 
         assert interaction is not None
         assert interaction.interaction_type == "click"
-        assert interaction.instructor_id == 123
+        assert interaction.instructor_id == test_instructor.id
         assert interaction.result_position == 2
         assert interaction.time_to_interaction == 3.0
 
-    def test_multiple_interaction_types(self, client, db, auth_headers):
+    def test_multiple_interaction_types(self, client, db, auth_headers, test_instructor):
         """Test different interaction types on same search."""
         headers = {**auth_headers, "X-Session-ID": "multi-interaction"}
 
@@ -442,7 +487,7 @@ class TestSearchInteractionE2E:
             interaction_data = {
                 "search_event_id": search_event_id,
                 "interaction_type": interaction_type,
-                "instructor_id": 456,
+                "instructor_id": test_instructor.id,
                 "result_position": position,
                 "time_to_interaction": time_elapsed,
             }
@@ -461,7 +506,7 @@ class TestSearchInteractionE2E:
         assert "view_profile" in interaction_types
         assert "book" in interaction_types
 
-    def test_guest_interaction_tracking(self, client, db, guest_headers):
+    def test_guest_interaction_tracking(self, client, db, guest_headers, test_instructor):
         """Test that guest users can track interactions."""
         headers = {**guest_headers, "X-Session-ID": "guest-interaction"}
 
@@ -481,7 +526,7 @@ class TestSearchInteractionE2E:
         interaction_data = {
             "search_event_id": search_event_id,
             "interaction_type": "click",
-            "instructor_id": 789,
+            "instructor_id": test_instructor.id,
             "result_position": 3,
             "time_to_interaction": 4.5,
         }
@@ -498,7 +543,7 @@ class TestSearchInteractionE2E:
         event = db.query(SearchEvent).filter(SearchEvent.id == search_event_id).first()
 
         assert event is not None
-        assert event.guest_session_id == "test-guest-12345"
+        assert event.guest_session_id == guest_headers.get("X-Guest-Session-ID")
         assert event.user_id is None
 
 

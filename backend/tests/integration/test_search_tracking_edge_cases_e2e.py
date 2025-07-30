@@ -36,7 +36,7 @@ def auth_headers(test_user_with_token):
 @pytest.fixture
 def test_user_with_token(db: Session):
     """Create a test user with auth token."""
-    from app.services.token_service import TokenService
+    from app.auth import create_access_token
 
     # Create user
     user = User(email="edge-case-test@example.com", full_name="Edge Case User", hashed_password="hashed")
@@ -45,8 +45,7 @@ def test_user_with_token(db: Session):
     db.refresh(user)
 
     # Create token
-    token_service = TokenService()
-    access_token = token_service.create_access_token(data={"sub": user.email})
+    access_token = create_access_token(data={"sub": user.email})
 
     return user, access_token
 
@@ -115,7 +114,9 @@ class TestSearchTrackingEdgeCases:
     def test_very_long_search_query(self, client, db, auth_headers):
         """Test handling of very long search queries."""
         # Create a very long query (but within DB limits)
-        long_query = "piano " * 100  # 600 characters
+        # Note: The schema strips whitespace, so we need a query that won't be affected
+        long_query = "piano teacher " * 50  # ~700 characters before stripping
+        stripped_query = long_query.strip()  # This is what will be stored
 
         search_data = {
             "search_query": long_query,
@@ -126,11 +127,12 @@ class TestSearchTrackingEdgeCases:
         response = client.post("/api/search-history/", json=search_data, headers=auth_headers)
         assert response.status_code == 201
 
-        # Verify it was stored properly
-        event = db.query(SearchEvent).filter(SearchEvent.search_query == long_query).first()
+        # Verify it was stored properly (search by stripped version)
+        event = db.query(SearchEvent).filter(SearchEvent.search_query == stripped_query).first()
 
         assert event is not None
-        assert len(event.search_query) == len(long_query)
+        assert event.search_query == stripped_query
+        assert len(event.search_query) == len(stripped_query)
 
     def test_unicode_search_queries(self, client, db, auth_headers):
         """Test handling of unicode characters in search queries."""
@@ -222,7 +224,7 @@ class TestSearchInteractionEdgeCases:
         interaction_data = {
             "search_event_id": search_event_id,
             "interaction_type": "invalid_action",  # Not a valid type
-            "instructor_id": 123,
+            # Don't include instructor_id to test nullable field
         }
 
         response = client.post("/api/search-history/interaction", json=interaction_data, headers=auth_headers)
@@ -247,7 +249,7 @@ class TestSearchInteractionEdgeCases:
         interaction_data = {
             "search_event_id": search_event_id,
             "interaction_type": "click",
-            "instructor_id": 123,
+            # Don't include instructor_id to avoid FK constraint
             "time_to_interaction": -5.0,  # Negative time
         }
 
@@ -323,7 +325,7 @@ class TestConcurrencyAndPerformance:
             interaction_data = {
                 "search_event_id": search_event_id,
                 "interaction_type": "hover",
-                "instructor_id": 100 + i,
+                # Don't include instructor_id to avoid FK constraint
                 "result_position": i + 1,
                 "time_to_interaction": time.time() - start_time,
             }
@@ -349,7 +351,9 @@ class TestDataIntegrity:
 
     def test_guest_to_user_conversion_integrity(self, client, db):
         """Test that guest searches maintain integrity when user logs in."""
-        guest_session_id = "guest-convert-test-123"
+        import uuid
+
+        guest_session_id = f"guest-convert-test-{uuid.uuid4().hex[:8]}"
         guest_headers = {"X-Guest-Session-ID": guest_session_id}
 
         # Guest performs searches
