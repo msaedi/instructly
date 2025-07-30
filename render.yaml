@@ -89,7 +89,7 @@ services:
     plan: starter  # $7/month
     region: ohio
     dockerfilePath: ./redis/Dockerfile
-    dockerContext: ./redis
+    dockerContext: .
     # Redis is a private TCP service - no HTTP health checks needed
     # Health monitoring is done through connected services (API, Worker, Beat, Flower)
     autoDeploy: false
