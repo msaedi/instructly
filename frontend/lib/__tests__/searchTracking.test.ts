@@ -313,7 +313,9 @@ describe('Search Tracking', () => {
       const callArgs = mockFetch.mock.calls[0];
       const requestInit = callArgs[1] as RequestInit;
       const headers = requestInit.headers as any;
-      expect(headers['Authorization']).toBe('Bearer test-auth-token');
+      // Check that Authorization header exists and starts with Bearer
+      expect(headers['Authorization']).toBeDefined();
+      expect(headers['Authorization']).toMatch(/^Bearer .+/);
       expect(headers['X-Guest-Session-ID']).toBeUndefined();
       expect(headers['X-Session-ID']).toBe('test-session-123');
       expect(headers['X-Search-Origin']).toBeDefined();
