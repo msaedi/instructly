@@ -6,7 +6,6 @@ Unit tests for search analytics Celery tasks.
 from unittest.mock import MagicMock, patch
 
 import pytest
-from celery.exceptions import Retry
 
 from app.models.search_event import SearchEvent
 from app.tasks.search_analytics import calculate_search_metrics, generate_search_insights, process_search_event
@@ -62,23 +61,30 @@ class TestProcessSearchEvent:
         assert "not found" in result["message"]
         mock_db.close.assert_called_once()
 
+    @patch("app.tasks.search_analytics.process_search_event.retry")
     @patch("app.tasks.search_analytics.get_db")
-    def test_process_search_event_retry_on_error(self, mock_get_db):
+    def test_process_search_event_retry_on_error(self, mock_get_db, mock_retry):
         """Test task retry on database error."""
         # Mock database error
         mock_db = MagicMock()
         mock_get_db.return_value = iter([mock_db])
         mock_db.query.side_effect = Exception("Database error")
 
-        # Mock task
-        task = MagicMock()
-        task.request.retries = 0
-        task.retry = MagicMock(side_effect=Retry)
+        # Mock retry to prevent actual retry
+        from celery.exceptions import Retry
+
+        mock_retry.side_effect = Retry("Retry called")
 
         # Execute task and expect retry
         with pytest.raises(Retry):
-            process_search_event.apply(args=[1], task_id="test-task")
+            process_search_event.run(1)
 
+        # Verify retry was called with correct parameters
+        mock_retry.assert_called_once()
+        call_args = mock_retry.call_args
+        assert isinstance(call_args.kwargs["exc"], Exception)
+        assert str(call_args.kwargs["exc"]) == "Database error"
+        assert call_args.kwargs["countdown"] == 60
         mock_db.close.assert_called_once()
 
 

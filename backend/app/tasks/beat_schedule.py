@@ -24,7 +24,7 @@ CELERYBEAT_SCHEDULE = {
             "queue": "analytics",
             "priority": 3,
         },
-        "description": "Calculate service analytics every 3 hours",
+        # Note: Calculate service analytics every 3 hours
     },
     # Generate daily report - runs after analytics calculation
     "generate-daily-analytics-report": {
@@ -106,7 +106,7 @@ CELERYBEAT_SCHEDULE = {
             "queue": "analytics",
             "priority": 4,
         },
-        "description": "Calculate hourly search metrics and engagement",
+        # Note: Calculate hourly search metrics and engagement
     },
     # Generate search insights - runs daily at 4 AM
     "generate-search-insights": {
@@ -117,7 +117,7 @@ CELERYBEAT_SCHEDULE = {
             "queue": "analytics",
             "priority": 3,
         },
-        "description": "Generate weekly search behavior insights",
+        # Note: Generate weekly search behavior insights
     },
     # Cleanup old data - runs daily at 3 AM
     # "cleanup-old-notifications": {

@@ -10,6 +10,7 @@ import { PopularSearchesTable } from './components/PopularSearchesTable';
 import { SearchTypesChart } from './components/SearchTypesChart';
 import { RefreshCw, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { AnalyticsNav } from '../AnalyticsNav';
 
 export default function SearchAnalyticsDashboard() {
   const { isAdmin, isLoading: authLoading } = useAdminAuth();
@@ -64,6 +65,11 @@ export default function SearchAnalyticsDashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Navigation */}
+        <div className="mb-6">
+          <AnalyticsNav />
+        </div>
+
         {error && (
           <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
             <div className="flex items-center">
