@@ -110,7 +110,7 @@ async def get_slow_requests(limit: int = 10, _: None = Depends(verify_monitoring
 async def get_extended_cache_stats(
     db: Session = Depends(get_db), _: None = Depends(verify_monitoring_api_key)
 ) -> Dict[str, Any]:
-    """Get extended cache statistics including Upstash metrics."""
+    """Get extended cache statistics."""
     cache_service = get_cache_service(db)
 
     # Check if we have the extended stats method

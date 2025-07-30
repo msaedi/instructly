@@ -46,8 +46,6 @@ services:
         value: 1  # Reduce memory usage
       - key: REDIS_URL
         value: redis://instructly-redis:6379
-      - key: CELERY_BROKER_URL
-        value: redis://instructly-redis:6379
     autoDeploy: false
 
   - type: worker
@@ -61,8 +59,6 @@ services:
       - key: PYTHON_VERSION
         value: 3.9.18
       - key: REDIS_URL
-        value: redis://instructly-redis:6379
-      - key: CELERY_BROKER_URL
         value: redis://instructly-redis:6379
     autoDeploy: false
 

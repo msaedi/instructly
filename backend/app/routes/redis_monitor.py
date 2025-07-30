@@ -239,9 +239,8 @@ async def redis_connection_audit(
         api_cache_url = settings.redis_url or "redis://localhost:6379/0"
         celery_broker_url = settings.redis_url or "redis://localhost:6379/0"
 
-        # Check if Upstash is configured (legacy)
-        upstash_url = getattr(settings, "upstash_url", None)
-        upstash_detected = bool(upstash_url and upstash_url != api_cache_url)
+        # All services now use single Redis instance
+        upstash_detected = False  # Migration complete
 
         # Get active connections from current Redis
         client = get_redis_client()
@@ -284,11 +283,9 @@ async def redis_connection_audit(
             },
         }
 
-        # Check environment variables that might still reference Upstash
+        # Check environment variables
         env_check = {
             "REDIS_URL": api_cache_url,
-            "CELERY_BROKER_URL": celery_broker_url,
-            "UPSTASH_URL": upstash_url or "not set",
         }
 
         return {

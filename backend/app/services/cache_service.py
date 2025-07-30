@@ -786,13 +786,11 @@ def get_cache_service(db: Session = Depends(get_db)) -> CacheService:
     with proper Redis connection handling. Uses FastAPI's dependency injection
     to manage instance lifecycle.
 
-    Now supports Upstash-optimized service when Upstash is detected.
-
     Args:
         db: Database session from FastAPI dependency
 
     Returns:
-        CacheService: Fresh cache service instance (UpstashCacheService if using Upstash)
+        CacheService: Fresh cache service instance
     """
     try:
         redis_client = redis.from_url(settings.redis_url or "redis://localhost:6379", decode_responses=True)
@@ -800,13 +798,5 @@ def get_cache_service(db: Session = Depends(get_db)) -> CacheService:
     except:
         redis_client = None
         logger.warning("Redis not available, using in-memory cache fallback")
-
-    # Use Upstash-optimized service if Upstash is detected
-    redis_url = settings.redis_url or ""
-    if "upstash" in redis_url.lower():
-        from .upstash_cache_service import UpstashCacheService
-
-        logger.info("Using Upstash-optimized cache service")
-        return UpstashCacheService(db, redis_client)
 
     return CacheService(db, redis_client)

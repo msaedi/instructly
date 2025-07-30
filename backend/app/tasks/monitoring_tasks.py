@@ -51,7 +51,7 @@ class MonitoringTask(Task):
     @property
     def email_service(self):
         if self._email_service is None:
-            self._email_service = EmailService()
+            self._email_service = EmailService(self.db)
         return self._email_service
 
     def after_return(self, status, retval, task_id, args, kwargs, einfo):

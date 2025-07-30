@@ -6,7 +6,6 @@ This module sets up the Celery app with Redis as the broker and backend,
 configures task serialization, timezone, and autodiscovery.
 """
 
-import ssl
 from typing import Any
 
 from celery import Celery
@@ -37,22 +36,10 @@ def create_celery_app() -> Celery:
     if not redis_url.endswith("/0") and not any(redis_url.endswith(f"/{i}") for i in range(16)):
         redis_url = f"{redis_url}/0"
 
-    # Handle SSL for Upstash Redis (rediss://)
-    broker_use_ssl = None
-    if redis_url.startswith("rediss://"):
-        broker_use_ssl = {
-            "ssl_cert_reqs": ssl.CERT_NONE,  # Upstash doesn't require client certs
-            "ssl_ca_certs": None,
-            "ssl_certfile": None,
-            "ssl_keyfile": None,
-        }
-
     celery_app = Celery(
         "instainstru",
         broker=redis_url,
         backend=redis_url,
-        broker_use_ssl=broker_use_ssl,
-        redis_backend_use_ssl=broker_use_ssl,
     )
 
     # Base configuration

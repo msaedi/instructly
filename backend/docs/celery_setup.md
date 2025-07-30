@@ -43,8 +43,6 @@ docker run -d -p 6379:6379 --name redis redis:7-alpine
 Add to your `.env` file:
 ```env
 REDIS_URL=redis://localhost:6379/0
-CELERY_BROKER_URL=redis://localhost:6379/0
-CELERY_RESULT_BACKEND=redis://localhost:6379/0
 ```
 
 ### 3. Directory Structure
@@ -202,8 +200,6 @@ celery -A app.tasks worker --loglevel=info --concurrency=2
 ```
 DATABASE_URL=<your-database-url>
 REDIS_URL=<your-redis-url>
-CELERY_BROKER_URL=<your-redis-url>
-CELERY_RESULT_BACKEND=<your-redis-url>
 ```
 
 ### 3. Beat Service Configuration

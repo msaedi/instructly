@@ -1,10 +1,10 @@
 # backend/app/core/config_production.py
 """
-Production-optimized configuration for Render + Upstash deployment.
+Production-optimized configuration for Render deployment.
 
 This module contains performance-tuned settings specifically for:
 - Render Standard plan ($25/month) constraints
-- Upstash Redis serverless architecture
+- Render Redis service
 - Supabase PostgreSQL connection pooling
 """
 
@@ -26,29 +26,22 @@ DATABASE_POOL_CONFIG = {
     },
 }
 
-# Redis/Upstash Configuration (Optimized for serverless)
+# Redis Configuration (Optimized for Render Redis)
 REDIS_CONFIG = {
-    "max_connections": int(os.getenv("REDIS_MAX_CONNECTIONS", "10")),  # Reduced from 50
-    "socket_connect_timeout": 2,  # Reduced from 5
-    "socket_timeout": 2,
+    "max_connections": int(os.getenv("REDIS_MAX_CONNECTIONS", "20")),  # Increased for local Redis
+    "socket_connect_timeout": 5,
+    "socket_timeout": 5,
     "retry_on_timeout": True,
-    "health_check_interval": 60,  # Increased from 30
+    "health_check_interval": 30,
     "decode_responses": True,
     "connection_pool_kwargs": {
-        "max_connections": 10,
+        "max_connections": 20,
         "retry": 3,
         "retry_on_error": [ConnectionError, TimeoutError],
     },
 }
 
-# Upstash-specific optimizations
-UPSTASH_CONFIG = {
-    "enable_auto_pipelining": True,  # Batch commands automatically
-    "pipeline_max_size": 50,  # Max commands per pipeline
-    "pipeline_timeout_ms": 10,  # Auto-flush pipeline after 10ms
-}
-
-# Cache TTL Optimizations (Shorter for Upstash pricing)
+# Cache TTL Optimizations
 CACHE_TTL_TIERS = {
     "hot": 180,  # 3 minutes (was 5)
     "warm": 1800,  # 30 minutes (was 1 hour)
@@ -121,7 +114,6 @@ def get_production_settings() -> Dict[str, Any]:
     return {
         "database": DATABASE_POOL_CONFIG,
         "redis": REDIS_CONFIG,
-        "upstash": UPSTASH_CONFIG,
         "cache_ttl": CACHE_TTL_TIERS,
         "gunicorn": GUNICORN_CONFIG,
         "celery": CELERY_WORKER_CONFIG,
