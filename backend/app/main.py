@@ -20,6 +20,7 @@ from .routes import (
     auth,
     availability_windows,
     bookings,
+    database_monitor,
     instructors,
     metrics,
     monitoring,
@@ -123,6 +124,7 @@ app.include_router(public.router)
 app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(search_history.router, prefix="/api/search-history", tags=["search-history"])
 app.include_router(redis_monitor.router)
+app.include_router(database_monitor.router)
 app.include_router(prometheus.router)
 
 

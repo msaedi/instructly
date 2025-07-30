@@ -35,14 +35,6 @@ export interface RedisStats {
     current_ops_per_sec: number;
     estimated_daily_ops: number;
   };
-  database_pool?: {
-    size: number;
-    checked_in: number;
-    checked_out: number;
-    overflow: number;
-    total: number;
-    max_size: number;
-  };
 }
 
 export interface CeleryQueues {

@@ -13,7 +13,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.config import settings
 from app.core.enums import PermissionName
-from app.database import engine
 from app.dependencies.permissions import require_permission
 from app.models.user import User
 
@@ -139,17 +138,6 @@ async def redis_stats(
         ops_per_sec = info.get("instantaneous_ops_per_sec", 0)
         estimated_daily_ops = ops_per_sec * 86400  # seconds in a day
 
-        # Get database pool status
-        pool = engine.pool
-        db_pool_status = {
-            "size": pool.size(),
-            "checked_in": pool.checkedin(),
-            "checked_out": pool.checkedout(),
-            "overflow": pool.overflow(),
-            "total": pool.size() + pool.overflow(),
-            "max_size": pool.size() + pool._max_overflow,
-        }
-
         return {
             "status": "connected",
             "server": {
@@ -165,7 +153,6 @@ async def redis_stats(
                 "estimated_daily_ops": int(estimated_daily_ops),
                 "estimated_monthly_ops": int(estimated_daily_ops * 30),
             },
-            "database_pool": db_pool_status,
         }
 
     except Exception as e:
