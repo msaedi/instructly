@@ -21,15 +21,26 @@ def test_default_is_int_database():
 def test_cannot_access_prod_without_confirmation():
     """Production database requires confirmation in non-interactive mode."""
     os.environ["USE_PROD_DATABASE"] = "true"
+    # Ensure we're not in CI environment for this test
+    ci_env = os.environ.pop("CI", None)
+    github_env = os.environ.pop("GITHUB_ACTIONS", None)
 
-    # In non-interactive mode (like tests), it should raise RuntimeError
-    from app.core.config import settings
+    try:
+        # Create fresh DatabaseConfig to test
+        from app.core.database_config import DatabaseConfig
 
-    with pytest.raises(RuntimeError, match="Production database access requested in non-interactive mode"):
-        _ = settings.database_url
+        config = DatabaseConfig()
 
-    # Cleanup
-    os.environ.pop("USE_PROD_DATABASE", None)
+        # In non-interactive mode (like tests), this should raise RuntimeError
+        with pytest.raises(RuntimeError, match="Production database access requested in non-interactive mode"):
+            _ = config.get_database_url()
+    finally:
+        # Cleanup
+        os.environ.pop("USE_PROD_DATABASE", None)
+        if ci_env:
+            os.environ["CI"] = ci_env
+        if github_env:
+            os.environ["GITHUB_ACTIONS"] = github_env
 
 
 def test_old_scripts_safe_by_default():
@@ -54,9 +65,12 @@ def test_stg_database_with_flag():
     db_url = os.environ.pop("DATABASE_URL", None)
 
     try:
-        from app.core.config import settings
+        # Create fresh DatabaseConfig to test
+        from app.core.database_config import DatabaseConfig
 
-        url = settings.database_url
+        config = DatabaseConfig()
+
+        url = config.get_database_url()
         assert "instainstru_stg" in url, f"Expected STG database, got {url}"
     finally:
         # Cleanup
@@ -145,15 +159,27 @@ def test_local_prod_requires_confirmation():
     # Set production flag but not production mode
     os.environ["USE_PROD_DATABASE"] = "true"
     os.environ.pop("INSTAINSTRU_PRODUCTION_MODE", None)
+    os.environ.pop("RENDER", None)
+    # Ensure we're not in CI environment for this test
+    ci_env = os.environ.pop("CI", None)
+    github_env = os.environ.pop("GITHUB_ACTIONS", None)
 
-    from app.core.config import settings
+    try:
+        # Create fresh DatabaseConfig to test
+        from app.core.database_config import DatabaseConfig
 
-    # In non-interactive mode (tests), this should raise
-    with pytest.raises(RuntimeError, match="non-interactive mode"):
-        _ = settings.database_url
+        config = DatabaseConfig()
 
-    # Cleanup
-    os.environ.pop("USE_PROD_DATABASE", None)
+        # In non-interactive mode (tests), this should raise
+        with pytest.raises(RuntimeError, match="non-interactive mode"):
+            _ = config.get_database_url()
+    finally:
+        # Cleanup
+        os.environ.pop("USE_PROD_DATABASE", None)
+        if ci_env:
+            os.environ["CI"] = ci_env
+        if github_env:
+            os.environ["GITHUB_ACTIONS"] = github_env
 
 
 def test_ci_environment_detection():
