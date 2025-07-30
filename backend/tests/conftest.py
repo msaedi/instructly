@@ -121,12 +121,17 @@ def _validate_test_database_url(database_url: str) -> None:
 os.environ["is_testing"] = "true"
 settings.is_testing = True
 
-# Get test database URL (lowercase to match settings)
-TEST_DATABASE_URL = os.getenv("test_database_url", settings.test_database_url)
+# CRITICAL: Force INT database for all tests - ignore any environment flags
+# This ensures tests ALWAYS use the INT database for safety
+os.environ.pop("USE_STG_DATABASE", None)
+os.environ.pop("USE_PROD_DATABASE", None)
+
+# Get test database URL - this will now always use INT database
+TEST_DATABASE_URL = settings.test_database_url
 
 if not TEST_DATABASE_URL:
     # Try to use a default local test database if none configured
-    TEST_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/instainstru_test"
+    TEST_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/instainstru_int"
     print(
         f"\n⚠️  No test_database_url configured. Using default: {TEST_DATABASE_URL}\n"
         f"   Set test_database_url in your .env file for custom configuration.\n"

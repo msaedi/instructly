@@ -51,6 +51,13 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info(f"{BRAND_NAME} API starting up...")
     logger.info(f"Environment: {settings.environment}")
+
+    # Log database selection (this will show which database is being used)
+    from .core.database_config import DatabaseConfig
+
+    db_config = DatabaseConfig()
+    logger.info(f"Database safety score: {db_config.get_safety_score()['score']}%")
+
     logger.info(f"Allowed origins: {ALLOWED_ORIGINS}")
     logger.info("GZip compression enabled for responses > 500 bytes")
     logger.info("Rate limiting enabled for DDoS and brute force protection")

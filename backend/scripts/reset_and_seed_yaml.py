@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
 Reset and seed database using YAML configuration files.
-Usage: USE_TEST_DATABASE=true python backend/scripts/reset_and_seed_yaml.py
+
+Usage:
+  Default (INT database): python backend/scripts/reset_and_seed_yaml.py
+  Staging database: USE_STG_DATABASE=true python backend/scripts/reset_and_seed_yaml.py
+  Production: USE_PROD_DATABASE=true python backend/scripts/reset_and_seed_yaml.py (requires confirmation)
 """
 
-import os
 import sys
 from pathlib import Path
 
@@ -43,8 +46,8 @@ class DatabaseSeeder:
         self.created_services = {}
 
     def _create_engine(self):
-        db_url = settings.test_database_url if os.getenv("USE_TEST_DATABASE") == "true" else settings.database_url
-        print(f"Using database: {'TEST' if os.getenv('USE_TEST_DATABASE') == 'true' else 'PRODUCTION'}")
+        db_url = settings.get_database_url()
+        # The DatabaseConfig will print which database is being used
         return create_engine(db_url)
 
     def reset_database(self):

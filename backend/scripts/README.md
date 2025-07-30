@@ -2,6 +2,18 @@
 
 This directory contains utility scripts to help with development, debugging, and onboarding.
 
+## 🛡️ Database Safety System
+
+For database management scripts and the three-tier safety system, see:
+📚 **[Database Safety Guide](../docs/database/database-safety-guide.md)**
+
+Quick reference:
+- `prep_db.py` - Main database management tool
+- `check_database_safety.py` - Verify safety system
+- `verify_database_safety.py` - Quick status check
+- Default database: INT (safe for testing)
+- Local development: Use `./run_backend.py` (auto-selects STG)
+
 ## project_overview.py
 Generates a comprehensive overview of the project for new developers, including database structure, codebase organization, feature status, and quick start guide.
 

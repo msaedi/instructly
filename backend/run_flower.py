@@ -7,6 +7,9 @@ import os
 import subprocess
 import sys
 
+# Force staging database for local development
+os.environ["USE_STG_DATABASE"] = "true"
+
 # Get environment variables
 port = os.getenv("PORT", "5555")
 basic_auth = os.getenv("FLOWER_BASIC_AUTH", "admin:password")

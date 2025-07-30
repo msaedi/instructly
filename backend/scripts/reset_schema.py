@@ -1,4 +1,11 @@
 # backend/scripts/reset_schema.py
+"""
+Reset database schema - DROPS ALL TABLES!
+
+Database safety: This script now uses safe database selection
+Default: INT database
+Use USE_STG_DATABASE=true or USE_PROD_DATABASE=true for other databases
+"""
 import os
 import sys
 
@@ -8,9 +15,12 @@ from sqlalchemy import create_engine, text
 
 from app.core.config import settings
 
-# Use test database if USE_TEST_DATABASE is set
-db_url = settings.test_database_url if os.getenv("USE_TEST_DATABASE") == "true" else settings.database_url
-print(f"Using database: {'TEST' if os.getenv('USE_TEST_DATABASE') == 'true' else 'PRODUCTION'}")
+# Use the safe database URL property
+db_url = settings.database_url
+
+print("\n" + "=" * 60)
+print("⚠️  SCHEMA RESET - This will DROP ALL TABLES!")
+print("=" * 60)
 
 engine = create_engine(db_url)
 with engine.connect() as conn:

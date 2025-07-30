@@ -18,11 +18,8 @@ from app.database import Base  # noqa: E402
 # access to the values within the .ini file in use.
 config = context.config
 
-# Use test database if USE_TEST_DATABASE is set
-if os.getenv("USE_TEST_DATABASE") == "true":
-    config.set_main_option("sqlalchemy.url", settings.test_database_url)
-else:
-    config.set_main_option("sqlalchemy.url", settings.database_url)
+# Use the safe database URL property - defaults to INT, requires confirmation for PROD
+config.set_main_option("sqlalchemy.url", settings.database_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

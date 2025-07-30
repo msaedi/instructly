@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# backend/run_dev.py
+# backend/run.py
 """
-Development server runner that uses test database
-For local development only - forces is_testing=True
+Development server runner that uses staging database
+For local development only - preserves development data
 """
 import os
 import sys
@@ -13,14 +13,14 @@ backend_dir = Path(__file__).parent
 sys.path.insert(0, str(backend_dir))
 os.chdir(backend_dir)
 
-# Force test database for local development
-os.environ["IS_TESTING"] = "true"
+# Force staging database for local development
+os.environ["USE_STG_DATABASE"] = "true"
 
 import uvicorn
 
 if __name__ == "__main__":
-    print("🚀 Starting development server with TEST database...")
-    print("📊 This ensures local development doesn't touch production data")
+    print("🚀 Starting development server with STAGING database...")
+    print("📊 This preserves your local development data between test runs")
     print("🌐 Access at: http://localhost:8000")
     print("📚 API Docs: http://localhost:8000/docs")
 

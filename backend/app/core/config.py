@@ -20,13 +20,26 @@ if not os.getenv("CI"):
 
 
 class Settings(BaseSettings):
-    secret_key: SecretStr
+    # Use a default secret key for CI/testing environments
+    secret_key: SecretStr = Field(
+        default="ci-test-secret-key-not-for-production" if os.getenv("CI") else ...,
+        description="Secret key for JWT tokens",
+    )
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
-    database_url: str
 
-    # Test database configuration
-    test_database_url: str = ""  # Must be explicitly set for tests
+    # Raw database URLs - DO NOT USE DIRECTLY! Use properties instead
+    # In CI environments, DATABASE_URL is the CI database, not production
+    prod_database_url_raw: str = Field(
+        default="" if os.getenv("CI") else ..., alias="database_url"
+    )  # From env DATABASE_URL
+    int_database_url_raw: str = Field(
+        default="postgresql://postgres:postgres@localhost:5432/instainstru_test" if os.getenv("CI") else "",
+        alias="test_database_url",
+    )  # From env TEST_DATABASE_URL
+    stg_database_url_raw: str = Field("", alias="stg_database_url")  # From env STG_DATABASE_URL
+
+    # Legacy flags for backward compatibility
     is_testing: bool = False  # Set to True when running tests
 
     # Email settings
@@ -127,7 +140,7 @@ class Settings(BaseSettings):
         default=True, description="Enable template service caching (disable for development if needed)"
     )
 
-    @field_validator("test_database_url")
+    @field_validator("int_database_url_raw")
     @classmethod
     def validate_test_database(cls, v: str, info) -> str:
         """Ensure test database is not a production database."""
@@ -158,24 +171,63 @@ class Settings(BaseSettings):
 
     def get_database_url(self) -> str:
         """Get the appropriate database URL based on context."""
-        # If we're explicitly in testing mode and have a test database URL
-        if self.is_testing and self.test_database_url:
-            return self.test_database_url
-
-        # If we're testing but no test database is configured
-        if self.is_testing:
-            raise ValueError(
-                "Testing mode is enabled but TEST_DATABASE_URL is not configured. "
-                "Please set TEST_DATABASE_URL in your environment."
+        # Check for deprecated USE_TEST_DATABASE flag
+        if os.getenv("USE_TEST_DATABASE", "").lower() == "true":
+            logger.warning(
+                "DEPRECATION WARNING: USE_TEST_DATABASE is deprecated. "
+                "The new system uses three databases:\n"
+                "  - INT (default): Integration test database\n"
+                "  - STG: Set USE_STG_DATABASE=true for local development\n"
+                "  - PROD: Set USE_PROD_DATABASE=true for production (requires confirmation)\n"
+                "USE_TEST_DATABASE now maps to the default INT behavior."
             )
 
-        # Production mode - return normal database URL
-        return self.database_url
+        # Import here to avoid circular dependency
+        from app.core.database_config import DatabaseConfig
+
+        # Use the new database configuration system
+        try:
+            return DatabaseConfig().get_database_url()
+        except Exception as e:
+            # Fallback to old behavior if new system fails
+            logger.error(f"Failed to use new database config: {e}")
+
+            # Old behavior for backward compatibility
+            if self.is_testing and self.test_database_url:
+                return self.test_database_url
+            elif self.is_testing:
+                raise ValueError(
+                    "Testing mode is enabled but TEST_DATABASE_URL is not configured. "
+                    "Please set TEST_DATABASE_URL in your environment."
+                )
+            return self.database_url
 
     def is_production_database(self, url: str = None) -> bool:
         """Check if a database URL appears to be a production database."""
-        check_url = url or self.database_url
+        check_url = url or self.prod_database_url_raw
         return any(indicator in check_url.lower() for indicator in self.production_database_indicators)
+
+    @property
+    def database_url(self) -> str:
+        """
+        SAFE database URL property - defaults to INT database.
+        Only returns production if USE_PROD_DATABASE=true AND confirmed.
+        This makes ALL database access safe by default, even for old scripts!
+        """
+        # Import here to avoid circular dependency
+        from app.core.database_config import DatabaseConfig
+
+        return DatabaseConfig().get_database_url()
+
+    @property
+    def test_database_url(self) -> str:
+        """Backward compatibility - always returns INT database."""
+        return self.int_database_url_raw
+
+    @property
+    def stg_database_url(self) -> str:
+        """Staging database URL."""
+        return self.stg_database_url_raw
 
 
 settings = Settings()

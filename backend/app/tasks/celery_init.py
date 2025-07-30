@@ -2,17 +2,26 @@
 """
 Initialize Celery with proper database configuration.
 
-This module handles the USE_TEST_DATABASE environment variable
-BEFORE any database connections are created.
+This module ensures Celery uses the correct database based on the
+three-tier system (INT/STG/PROD).
 """
 
 import os
+import sys
 
-# Check if we should use test database BEFORE importing anything else
-if os.getenv("USE_TEST_DATABASE") == "true":
-    # Override DATABASE_URL with test database
-    test_db_url = os.getenv("test_database_url", "postgresql://postgres:postgres@localhost:5432/instainstru_test")
-    os.environ["DATABASE_URL"] = test_db_url
-    print(f"[Celery Init] Using TEST database: {test_db_url.split('@')[1]}")
+# Determine which database to use
+if "pytest" in sys.modules:
+    # Force INT for tests
+    os.environ.pop("USE_STG_DATABASE", None)
+    os.environ.pop("USE_PROD_DATABASE", None)
+    print("[Celery Init] Using INT database (pytest detected)")
+elif os.getenv("USE_PROD_DATABASE") == "true":
+    print("[Celery Init] Using PROD database")
+elif os.getenv("USE_STG_DATABASE") == "true":
+    print("[Celery Init] Using STG database")
 else:
-    print(f"[Celery Init] Using PRODUCTION database")
+    # Handle legacy USE_TEST_DATABASE flag
+    if os.getenv("USE_TEST_DATABASE") == "true":
+        print("[Celery Init] Using INT database (legacy flag)")
+    else:
+        print("[Celery Init] Using INT database (default)")

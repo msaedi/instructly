@@ -94,6 +94,156 @@ Frontend believes slots are database entities with IDs (WRONG). The operation pa
 - All services configured with optimized settings for cost efficiency
 - Monitoring endpoints require ACCESS_MONITORING permission
 
+## 🛡️ Critical: Database Safety System
+
+### Three-Tier Database Architecture
+We use a **safe-by-default** three-tier database system:
+
+1. **INT (Integration Test DB)** 🟢
+   - **Default database** - no flags needed
+   - Database name: `instainstru_test`
+   - Used for: pytest, scripts without explicit database selection
+   - Can be freely dropped/reset
+
+2. **STG (Staging/Local Dev DB)** 🟡
+   - Requires `USE_STG_DATABASE=true`
+   - Database name: `instainstru_stg`
+   - Used for: local development, preserves data between test runs
+   - Automatically used by: `./run_backend.py`, `./run_celery_worker.py`, etc.
+
+3. **PROD (Production DB)** 🔴
+   - Requires `USE_PROD_DATABASE=true` + interactive confirmation
+   - Database: Supabase PostgreSQL
+   - Protection: Must type "yes" to confirm access
+   - Non-interactive mode: Raises error (production servers need `INSTAINSTRU_PRODUCTION_MODE=true`)
+
+### How Database Safety Works
+
+**The Critical Innovation**: `settings.database_url` is now a **property** that defaults to INT database!
+
+```python
+# This used to be dangerous (went straight to production):
+db_url = settings.database_url  # ❌ OLD: Production!
+
+# Now it's safe by default:
+db_url = settings.database_url  # ✅ NEW: INT database!
+```
+
+**Implementation Details**:
+- Raw database URLs are stored as `*_raw` fields (not for direct use)
+- Public `database_url` property uses `DatabaseConfig` for safety
+- Old scripts are automatically protected without code changes
+
+### Database Commands
+
+**Primary tool**: `prep_db.py` - Does everything (migrations, seeding, embeddings)
+```bash
+python scripts/prep_db.py        # Default: INT database
+python scripts/prep_db.py int    # Explicit INT
+python scripts/prep_db.py stg    # Staging database
+python scripts/prep_db.py prod   # Production (requires confirmation)
+```
+
+**Local development setup**:
+```bash
+# First time only - create databases
+python scripts/prep_db.py int
+python scripts/prep_db.py stg
+
+# Start services (automatically use STG)
+./run_backend.py
+./run_celery_worker.py
+./run_celery_beat.py
+./run_flower.py
+
+# Run tests (automatically use INT)
+pytest -v
+```
+
+### Safety Verification
+
+**Check database safety**:
+```bash
+python scripts/check_database_safety.py
+```
+
+**See safety demonstration**:
+```bash
+python scripts/demonstrate_database_safety.py
+```
+
+### Environment Variables
+
+- `USE_STG_DATABASE=true` - Use staging database
+- `USE_PROD_DATABASE=true` - Use production (requires confirmation)
+- `INSTAINSTRU_PRODUCTION_MODE=true` - Allow production servers to access without confirmation
+- `CI=true` - CI/CD environments can use their own DATABASE_URL
+- No flag = INT database (safest default)
+
+### Common Scenarios
+
+**Running any script** (defaults to INT):
+```bash
+python scripts/some_script.py         # Uses INT
+alembic upgrade head                  # Uses INT
+python scripts/reset_schema.py        # Uses INT (safe!)
+```
+
+**Local development** (use STG):
+```bash
+USE_STG_DATABASE=true python scripts/some_script.py
+# OR use the convenience scripts:
+./run_backend.py  # Already sets USE_STG_DATABASE=true
+```
+
+**Production operations** (requires confirmation):
+```bash
+USE_PROD_DATABASE=true alembic upgrade head
+# Will show warning and ask for "yes" confirmation
+```
+
+**Production server operations** (no confirmation needed):
+```bash
+# On Render/Vercel with both flags set:
+INSTAINSTRU_PRODUCTION_MODE=true USE_PROD_DATABASE=true
+# Automatically uses production database without confirmation
+```
+
+**CI/CD operations** (uses CI database):
+```bash
+# GitHub Actions with CI=true and DATABASE_URL set
+CI=true DATABASE_URL=postgresql://postgres:postgres@localhost/test_db
+# Uses the CI-provided database automatically
+```
+
+### Safety Features
+
+1. **Default to INT**: Any database access without explicit flags uses INT
+2. **Visual indicators**: Green [INT], Yellow [STG], Red [PROD], Blue [CI]
+3. **Audit logging**: All database operations logged to `logs/database_audit.jsonl`
+4. **Production confirmation**: Interactive "yes" required for production
+5. **Non-interactive protection**: Scripts/CI can't accidentally access production
+6. **Zero breaking changes**: Old code automatically becomes safe
+7. **Production server mode**: Authorized servers can access production without confirmation
+8. **CI/CD support**: Automatically detects CI environments and uses their databases
+9. **Environment detection**: Automatically suggests appropriate database based on context
+
+### Testing Database Safety
+
+Run the test suite to verify safety:
+```bash
+pytest tests/test_database_safety.py -v
+```
+
+### Important Files
+
+- `app/core/config.py` - Settings with safe database_url property
+- `app/core/database_config.py` - Three-tier database selection logic with CI/production support
+- `scripts/prep_db.py` - Main database management tool
+- `scripts/check_database_safety.py` - Verify safety is working
+- `tests/test_database_safety.py` - Automated safety tests
+- `.github/workflows/backend-tests.yml` - GitHub Actions configuration with CI database
+
 ## Documentation Structure
 
 Key project documentation is organized in `docs/`:
