@@ -2,14 +2,8 @@
 FROM redis:7-alpine
 
 # Copy custom Redis configuration
-COPY ./redis/redis.conf /usr/local/etc/redis/redis.conf
-
-# Expose Redis port
-EXPOSE 6379
-
-# Health check to ensure Redis is running
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD redis-cli ping || exit 1
+COPY redis.conf /usr/local/etc/redis/redis.conf
 
 # Run Redis with custom configuration
+# Note: No EXPOSE or HEALTHCHECK - this is a private TCP service
 CMD ["redis-server", "/usr/local/etc/redis/redis.conf"]

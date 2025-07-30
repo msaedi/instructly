@@ -3,6 +3,7 @@ services:
     name: instainstru-backend
     runtime: python
     plan: standard # $25/month plan
+    region: ohio
     buildCommand: "pip install -r requirements.txt"
     startCommand: "gunicorn app.main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 120 --keep-alive 5 --access-logfile - --error-logfile - --preload"
     envVars:
@@ -23,7 +24,7 @@ services:
       - key: REDIS_MAX_CONNECTIONS
         value: 20  # Optimized for local Redis
       - key: REDIS_URL
-        value: redis://instainstru-redis:6379
+        value: redis://instructly-redis:6379
     healthCheckPath: /health/lite  # New lightweight health check
     autoDeploy: false  # Manual deploys for production safety
 
@@ -31,6 +32,7 @@ services:
     name: instainstru-celery
     runtime: python
     plan: starter
+    region: ohio
     buildCommand: "pip install -r requirements.txt"
     startCommand: "celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=100 --pool=prefork"
     envVars:
@@ -43,57 +45,53 @@ services:
       - key: CELERY_WORKER_PREFETCH_MULTIPLIER
         value: 1  # Reduce memory usage
       - key: REDIS_URL
-        value: redis://instainstru-redis:6379
+        value: redis://instructly-redis:6379
       - key: CELERY_BROKER_URL
-        value: redis://instainstru-redis:6379
+        value: redis://instructly-redis:6379
     autoDeploy: false
 
   - type: worker
     name: instainstru-celery-beat
     runtime: python
     plan: starter
+    region: ohio
     buildCommand: "pip install -r requirements.txt"
     startCommand: "celery -A app.tasks.celery_app beat --loglevel=info"
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.18
       - key: REDIS_URL
-        value: redis://instainstru-redis:6379
+        value: redis://instructly-redis:6379
       - key: CELERY_BROKER_URL
-        value: redis://instainstru-redis:6379
+        value: redis://instructly-redis:6379
     autoDeploy: false
 
   - type: web
     name: instructly-flower
     runtime: python
     plan: starter  # $7/month
+    region: ohio
     buildCommand: "pip install -r requirements.txt"
     startCommand: "celery -A app.tasks.celery_app flower --port=10000 --basic_auth=$FLOWER_BASIC_AUTH"
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.18
       - key: REDIS_URL
-        value: redis://instainstru-redis:6379
+        value: redis://instructly-redis:6379
       - key: FLOWER_BASIC_AUTH
         sync: false
     healthCheckPath: /healthcheck
     autoDeploy: false
 
   - type: pserv
-    name: instainstru-redis
+    name: instructly-redis
     runtime: docker
     plan: starter  # $7/month
+    region: ohio
     dockerfilePath: ./redis/Dockerfile
-    dockerContext: .
-    envVars:
-      - key: REDIS_PORT
-        value: 6379
-      - key: REDIS_MAXMEMORY
-        value: 256mb
-      - key: REDIS_MAXMEMORY_POLICY
-        value: allkeys-lru
-    # Redis is a TCP service - health is monitored through connected services
-    # (API, Worker, Beat, and Flower all verify Redis connectivity)
+    dockerContext: ./redis
+    # Redis is a private TCP service - no HTTP health checks needed
+    # Health monitoring is done through connected services (API, Worker, Beat, Flower)
     autoDeploy: false
 
 # Database configuration is external (Supabase)
