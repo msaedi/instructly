@@ -92,8 +92,8 @@ services:
         value: 256mb
       - key: REDIS_MAXMEMORY_POLICY
         value: allkeys-lru
-    # Health check for Redis
-    healthCheckPath: /
+    # Redis is a TCP service - health is monitored through connected services
+    # (API, Worker, Beat, and Flower all verify Redis connectivity)
     autoDeploy: false
 
 # Database configuration is external (Supabase)

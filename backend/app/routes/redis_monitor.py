@@ -48,6 +48,43 @@ async def redis_health() -> Dict[str, Any]:
         return {"status": "unhealthy", "connected": False, "error": str(e)}
 
 
+@router.get("/test", response_model=Dict[str, Any])
+async def redis_test() -> Dict[str, Any]:
+    """
+    Simple Redis connection test endpoint.
+
+    No authentication required - helps verify Redis migration is working.
+
+    Returns:
+        Connection status and basic info
+    """
+    try:
+        client = get_redis_client()
+
+        # Test basic connectivity
+        ping_result = client.ping()
+
+        # Get server info
+        info = client.info("server")
+
+        return {
+            "status": "connected",
+            "ping": ping_result,
+            "redis_version": info.get("redis_version", "unknown"),
+            "uptime_seconds": info.get("uptime_in_seconds", 0),
+            "connected_clients": client.info("clients").get("connected_clients", 0),
+            "message": "Redis migration successful! Connection to instainstru-redis:6379 is working.",
+        }
+    except Exception as e:
+        logger.error(f"Redis test failed: {e}")
+        return {
+            "status": "error",
+            "ping": False,
+            "error": str(e),
+            "message": "Failed to connect to Redis. Please check the migration status.",
+        }
+
+
 @router.get("/stats", response_model=Dict[str, Any])
 async def redis_stats(
     current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
