@@ -25,6 +25,7 @@ from .routes import (
     metrics,
     monitoring,
     password_reset,
+    privacy,
     prometheus,
     public,
     redis_monitor,
@@ -125,6 +126,7 @@ app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(search_history.router, prefix="/api/search-history", tags=["search-history"])
 app.include_router(redis_monitor.router)
 app.include_router(database_monitor.router)
+app.include_router(privacy.router, prefix="/api", tags=["privacy"])
 app.include_router(prometheus.router)
 
 

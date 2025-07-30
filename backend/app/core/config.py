@@ -51,6 +51,13 @@ class Settings(BaseSettings):
     search_history_max_per_user: int = 1000  # Maximum searches to keep per user (set to 0 to disable limit)
     search_analytics_enabled: bool = True  # Enable/disable analytics tracking
 
+    # Privacy and Data Retention Configuration (GDPR compliance)
+    search_event_retention_days: int = 365  # Keep detailed search events for 1 year
+    booking_pii_retention_days: int = 2555  # Keep booking PII for 7 years (business requirement)
+    alert_retention_days: int = 365  # Keep alert history for 1 year
+    privacy_data_export_enabled: bool = True  # Enable user data export (GDPR right to data portability)
+    privacy_data_deletion_enabled: bool = True  # Enable user data deletion (GDPR right to be forgotten)
+
     # Production database protection
     production_database_indicators: list[str] = [
         "supabase.com",

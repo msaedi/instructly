@@ -88,13 +88,10 @@ class CeleryConfig:
     task_retry_jitter = True
 
     # Security settings
-    worker_enable_remote_control = True
     control_queue_ttl = 300
     control_queue_expires = 10.0
 
-    # Monitoring
-    worker_send_task_events = True
-    task_send_sent_event = True
+    # Monitoring (worker_enable_remote_control and task_send_sent_event already set above)
 
     # Beat scheduler configuration
     beat_schedule_filename = "celerybeat-schedule"
@@ -142,6 +139,11 @@ CELERY_TASK_ROUTES = {
         "routing_key": "cache",
         "priority": 4,
     },
+    "app.tasks.privacy.*": {
+        "queue": "privacy",
+        "routing_key": "privacy",
+        "priority": 2,  # Important for GDPR compliance
+    },
 }
 
 
@@ -181,6 +183,11 @@ CELERY_TASK_QUEUES = {
         "exchange": "cache",
         "routing_key": "cache",
         "priority": 4,
+    },
+    "privacy": {
+        "exchange": "privacy",
+        "routing_key": "privacy",
+        "priority": 2,  # Important for GDPR compliance
     },
 }
 

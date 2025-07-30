@@ -89,13 +89,33 @@ CELERYBEAT_SCHEDULE = {
     # },
     # Search history cleanup - runs daily at 3 AM
     "cleanup-search-history": {
-        "task": "cleanup_search_history",
+        "task": "privacy.cleanup_search_history",
         "schedule": crontab(hour=3, minute=0),  # Daily at 3 AM
         "options": {
-            "queue": "maintenance",
+            "queue": "privacy",
             "priority": 2,
         },
         # Note: Clean up old soft-deleted searches and expired guest sessions
+    },
+    # Privacy data retention - runs daily at 2 AM (before search cleanup)
+    "apply-data-retention-policies": {
+        "task": "privacy.apply_retention_policies",
+        "schedule": crontab(hour=2, minute=0),  # Daily at 2 AM
+        "options": {
+            "queue": "privacy",
+            "priority": 2,
+        },
+        # Note: Apply GDPR data retention policies across all data types
+    },
+    # Privacy compliance report - runs weekly on Sunday at 1 AM
+    "generate-privacy-report": {
+        "task": "privacy.generate_privacy_report",
+        "schedule": crontab(day_of_week=0, hour=1, minute=0),  # Sunday  # 1 AM
+        "options": {
+            "queue": "privacy",
+            "priority": 1,
+        },
+        # Note: Generate weekly privacy compliance statistics
     },
     # Calculate search metrics - runs every hour
     "calculate-search-metrics": {

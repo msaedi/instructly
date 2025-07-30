@@ -42,6 +42,7 @@ from app.core.config import settings
 from app.core.enums import RoleName
 from app.database import Base, get_db
 from app.main import app
+from app.models import SearchEvent, SearchHistory
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
@@ -1043,3 +1044,81 @@ def mock_cache_service():
     mock.set = Mock(return_value=True)
     mock.delete = Mock(return_value=True)
     return mock
+
+
+# Privacy Service Test Fixtures
+@pytest.fixture
+def sample_user_for_privacy(db):
+    """Create a sample user with related data for privacy testing."""
+    from datetime import datetime, timezone
+
+    user = User(
+        email="privacy_test@example.com",
+        full_name="Privacy Test User",
+        hashed_password="hashed_password",
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    # Add search history
+    search = SearchHistory(
+        user_id=user.id,
+        search_query="math tutoring",
+        results_count=5,
+        search_count=3,
+        first_searched_at=datetime.now(timezone.utc),
+        last_searched_at=datetime.now(timezone.utc),
+    )
+    db.add(search)
+
+    # Add search events
+    event = SearchEvent(
+        user_id=user.id,
+        search_query="math",
+        results_count=10,
+        search_context={},
+    )
+    db.add(event)
+
+    # Note: AlertHistory doesn't have user_id - it's for system alerts
+
+    db.commit()
+    return user
+
+
+@pytest.fixture
+def sample_instructor_for_privacy(db):
+    """Create a sample instructor user with profile for privacy testing."""
+    user = User(
+        email="privacy_instructor@example.com",
+        full_name="Privacy Test Instructor",
+        hashed_password="hashed_password",
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    # Add instructor profile
+    instructor = InstructorProfile(
+        user_id=user.id,
+        bio="Experienced math tutor",
+        years_experience=5,
+    )
+    db.add(instructor)
+    db.commit()
+
+    return user
+
+
+@pytest.fixture
+def sample_admin_for_privacy(db):
+    """Create a sample admin user for privacy testing."""
+    user = User(
+        email="privacy_admin@example.com",
+        full_name="Privacy Admin User",
+        hashed_password="hashed_password",
+    )
+    db.add(user)
+    db.commit()
+    return user
