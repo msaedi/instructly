@@ -259,15 +259,22 @@ class DatabaseConfig:
         """
         errors = []
 
-        if not self.int_url:
-            errors.append("INT database (test_database_url) not configured")
+        # In production mode, we only need the production database
+        if self._check_production_mode() or os.getenv("USE_PROD_DATABASE", "").lower() == "true":
+            if not self.prod_url:
+                errors.append("PROD database (database_url) not configured")
+            # Skip INT/STG validation in production
+        else:
+            # In non-production, validate INT database
+            if not self.int_url:
+                errors.append("INT database (test_database_url) not configured")
 
-        if not self.stg_url:
-            # Not an error if stg_database_url is missing - falls back to database_url
-            logger.warning("STG database (stg_database_url) not configured, using database_url as fallback")
+            if not self.stg_url:
+                # Not an error if stg_database_url is missing - falls back to database_url
+                logger.warning("STG database (stg_database_url) not configured, using database_url as fallback")
 
-        if not self.prod_url:
-            errors.append("PROD database (database_url) not configured")
+            if not self.prod_url:
+                errors.append("PROD database (database_url) not configured")
 
         if errors:
             raise ValueError(f"Database configuration errors:\n" + "\n".join(f"  - {error}" for error in errors))

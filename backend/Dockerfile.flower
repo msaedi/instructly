@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --no-cache-dir flower==2.0.1
 
 # Copy Flower startup script and standalone Celery config
-COPY flower_start.py .
+COPY run_flower.py .
 COPY flower_celery_standalone.py .
 
 # Copy app module for task discovery
@@ -24,4 +24,4 @@ COPY app app/
 EXPOSE 5555
 
 # Run Flower via startup script
-CMD ["python", "flower_start.py"]
+CMD ["python", "run_flower.py"]

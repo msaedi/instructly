@@ -48,14 +48,25 @@ def test_old_scripts_safe_by_default():
 def test_stg_database_with_flag():
     """Staging database accessible with flag."""
     os.environ["USE_STG_DATABASE"] = "true"
+    # Ensure we're not in CI environment for this test
+    ci_env = os.environ.pop("CI", None)
+    github_env = os.environ.pop("GITHUB_ACTIONS", None)
+    db_url = os.environ.pop("DATABASE_URL", None)
 
-    from app.core.config import settings
+    try:
+        from app.core.config import settings
 
-    url = settings.database_url
-    assert "instainstru_stg" in url, f"Expected STG database, got {url}"
-
-    # Cleanup
-    os.environ.pop("USE_STG_DATABASE", None)
+        url = settings.database_url
+        assert "instainstru_stg" in url, f"Expected STG database, got {url}"
+    finally:
+        # Cleanup
+        os.environ.pop("USE_STG_DATABASE", None)
+        if ci_env:
+            os.environ["CI"] = ci_env
+        if github_env:
+            os.environ["GITHUB_ACTIONS"] = github_env
+        if db_url:
+            os.environ["DATABASE_URL"] = db_url
 
 
 def test_backward_compatibility():
