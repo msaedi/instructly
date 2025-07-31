@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 InstaInstru is a marketplace platform for instantly booking private instructors in NYC. It's a full-stack application with:
-- **Backend**: FastAPI (Python) with PostgreSQL, SQLAlchemy, and DragonflyDB caching
+- **Backend**: FastAPI (Python) with PostgreSQL, SQLAlchemy, and Redis caching
 - **Frontend**: Next.js 15 with TypeScript and Tailwind CSS v4
 - **Architecture**: Clean architecture with separated services, repositories, and route handlers
 
@@ -13,16 +13,24 @@ InstaInstru is a marketplace platform for instantly booking private instructors 
 
 ### Critical Context
 - **Mission**: Building for MEGAWATTS of energy allocation - quality over speed
-- **Platform Status**: ~65% complete - instructor features work, student booking NOT IMPLEMENTED
-- **Test Coverage**: Backend tests need fixes (specific_date field issues), new search analytics tests passing
-- **Major Blocker**: Frontend has 3,000+ lines of technical debt from wrong mental model
+- **Platform Status**: ~96% complete - instructor features work, student booking ready for implementation
+- **Test Coverage**: 1415+ tests passing (100%), database safety tests complete
+- **Major Blocker**: Only 2 critical pages remaining (Instructor Profile + My Lessons Tab)
 
 ### Immediate Priorities
-1. **Frontend Technical Debt (Work Stream #13)**: Delete operation pattern, fix mental model
-2. **Student Booking Features**: Core functionality missing (not broken, never built)
-3. **Redis Migration**: ✅ COMPLETE: Migrated from Upstash to Render Redis ($7/month)
-4. **Search Analytics**: ✅ COMPLETE: Full tracking system with Celery async processing
-5. **Service Metrics**: ✅ COMPLETE: All service methods already have @measure_operation decorators
+1. **Instructor Profile Page**: Next critical component (1-2 days)
+2. **My Lessons Tab**: Complete user management interface (2 days)
+3. **Phoenix Week 4**: Final instructor migration (1 week)
+4. **Security Audit**: Critical for launch (1-2 days)
+5. **Load Testing**: Verify scalability (3-4 hours)
+
+### Recently Completed ✅
+1. **Database Safety System**: Three-tier protection (INT/STG/PROD)
+2. **Search History Race Condition Fix**: PostgreSQL UPSERT eliminating duplicates
+3. **Analytics Enhancement 100% Complete**: Privacy framework with GDPR compliance
+4. **RBAC System**: 30 permissions replacing role-based access
+5. **Redis Migration**: Migrated from Upstash to Render Redis ($7/month)
+6. **Privacy Framework**: Complete GDPR compliance with automated retention
 
 ### Key Architectural Decisions
 - **NO SLOT IDs**: Time-based booking only (instructor_id, date, start_time, end_time)
@@ -31,6 +39,9 @@ InstaInstru is a marketplace platform for instantly booking private instructors 
 - **Repository Pattern**: 100% implemented across all services
 - **RBAC System**: Full Role-Based Access Control with permissions, NOT simple role checking
 - **Redis Architecture**: Single Redis instance for caching, Celery broker, and sessions
+- **Database Safety**: Three-tier protection system preventing production accidents
+- **Privacy Framework**: GDPR compliance with automated retention and user controls
+- **Race Condition Prevention**: PostgreSQL UPSERT for atomic operations
 
 ### Technical Debt Details
 Frontend believes slots are database entities with IDs (WRONG). The operation pattern in useAvailabilityOperations.ts is 600+ lines that should be ~50 lines. Mental model mismatch causes 5x slower development.
@@ -65,13 +76,17 @@ Frontend believes slots are database entities with IDs (WRONG). The operation pa
 - AvailabilityService: 8/10 (63% coverage - needs work)
 
 ### Recent Achievements
+- **Database Safety System**: Three-tier protection preventing production accidents
+- **Search History Race Condition Fix**: PostgreSQL UPSERT eliminating duplicates
+- **Analytics Enhancement 100% Complete**: Privacy framework with GDPR compliance
+- **RBAC System**: 30 permissions replacing role-based access
+- **Redis Migration**: Moved from Upstash to Render, 89% reduction in operations
+- **Privacy Framework**: Complete GDPR compliance with automated retention
+- **Infrastructure Monitoring**: Redis and database dashboards operational
 - Public API complete: GET /api/public/instructors/{id}/availability
 - Repository Pattern: 100% implementation (7/7 services)
 - N+1 query fixed: 99.5% improvement in InstructorProfileRepository
 - 5 production bugs found and fixed through testing
-- Search Analytics: Complete tracking system with async Celery processing
-- Redis Migration: Moved from Upstash to Render, 89% reduction in operations
-- RBAC System: Full permission-based access control implemented
 - Celery Integration: Scheduled tasks, async processing, monitoring with Flower
 
 ### Team Structure
@@ -90,9 +105,10 @@ Frontend believes slots are database entities with IDs (WRONG). The operation pa
 
 ### Key Infrastructure Updates
 - Redis handles all caching, Celery broker, and session needs
-- Celery runs analytics every 3 hours, search metrics hourly
+- Celery runs analytics processing with async privacy-first design
 - All services configured with optimized settings for cost efficiency
 - Monitoring endpoints require ACCESS_MONITORING permission
+- Total infrastructure cost: $53/month (increased from $46 due to Redis)
 
 ## 🛡️ Critical: Database Safety System
 

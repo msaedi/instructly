@@ -1,5 +1,5 @@
 # InstaInstru Architecture State
-*Last Updated: July 27, 2025 - Session v80*
+*Last Updated: July 31, 2025 - Session v82*
 
 ## 🏗️ Service Layer Architecture (100% COMPLETE)
 
@@ -442,7 +442,7 @@ backend/app/routes/
 - **API Integration**: ✅ Clean patterns throughout
 - **Search Integration**: ✅ Working (needs backend NLS fix)
 - **Technical Architecture**: ✅ Aligned with backend
-- **Analytics Integration**: ✅ Automated daily production runs
+- **Analytics Integration**: ✅ 100% complete with privacy framework
 
 ## 🔒 Security Architecture
 
@@ -452,28 +452,50 @@ backend/app/routes/
    - Configurable cost factor
    - No plain text storage
 
-2. **JWT Authentication**
+2. **JWT Authentication with RBAC** ✅ NEW
    - HS256 algorithm
    - Configurable expiration
    - User email in claims
+   - **30 permissions** replacing role-based access
+   - Permission-based endpoint protection
+   - Frontend usePermissions hook
 
 3. **Input Validation**
    - Pydantic models for all inputs
    - Type checking
    - Value constraints
 
-4. **Rate Limiting** ✅ NEW
+4. **Rate Limiting** ✅
    - Comprehensive implementation across all endpoints
    - Redis-based tracking
    - Configurable limits per endpoint
 
-5. **SSL/HTTPS** ✅ NEW
+5. **SSL/HTTPS** ✅
    - Complete for production (Render/Vercel)
    - Local development HTTPS setup
    - Automatic redirects
 
-### Critical Gap ❌ → ✅ FIXED
+6. **Database Safety System** ✅ NEW
+   - **Three-tier architecture** (INT/STG/PROD)
+   - **Visual indicators** preventing human error
+   - **Interactive confirmation** required for production
+   - **Audit logging** to database_audit.jsonl
+   - **CI/CD support** with automatic detection
+   - **Zero breaking changes** - all existing code works
+
+7. **Privacy Framework** ✅ NEW
+   - **GDPR compliance** with data export
+   - **Right to be Forgotten** implementation
+   - **Automated retention** via Celery
+   - **Privacy API endpoints** (6 endpoints)
+   - **IP hashing** for privacy-first analytics
+   - **Business record preservation** during deletion
+
+### Security Achievements ✅
 - ~~No public endpoints for core functionality~~ ✅ Public API implemented
+- ~~No permission system~~ ✅ RBAC with 30 permissions operational
+- ~~No database safety~~ ✅ Three-tier protection system active
+- ~~No privacy framework~~ ✅ GDPR compliance ready
 - ~~Security audit pending~~ ⚠️ Still needed (1-2 days)
 
 ## 📈 Performance Architecture
@@ -498,10 +520,11 @@ backend/app/routes/
    - Automatic invalidation
    - Cache-aside pattern
    - Circuit breaker protection
-   - Upstash Redis for production ✅
-   - Auto-pipelining for batch operations
-   - Msgpack compression for smaller payloads
-   - Request coalescing to reduce API calls
+   - **Render Redis for production** ✅ (migrated from Upstash)
+   - **89% reduction in operations** (450K → 50K/day)
+   - **Fixed monthly cost** ($7/month vs usage-based)
+   - **Better performance** with dedicated instance
+   - **Unmetered usage** removing service interruptions
 
 3. **Query Optimization**
    - Eager loading with joinedload
@@ -518,12 +541,13 @@ backend/app/routes/
 
 ### Performance Metrics
 - Average API response: <100ms (production optimized)
-- Cache hit rate: >80% (with Upstash optimizations)
+- Cache hit rate: >80% (with Render Redis)
 - Database query time: 15-40ms
 - Cache read time: 0.7-1.5ms
 - **Monitored operations**: 98 (79% coverage) ✅
-- Database pool usage: <50% (optimized for Render)
+- Database pool usage: <67% (20/30 connections used)
 - Memory usage: <80% with auto-GC
+- **Redis operations**: ~50K/day (down from 450K)
 
 ## 📊 Monitoring Architecture
 
@@ -619,27 +643,30 @@ Complete observability stack with both Prometheus/Grafana AND custom production 
 - Caching Strategy ✅
 - Authentication System ✅
 - Error Handling Patterns ✅
-- Test Infrastructure (1094+ tests, 100% passing) ✅
+- Test Infrastructure (1415+ tests, 100% passing) ✅
 - Layer Independence ✅
 - Single-Table Design ✅
 - No Singletons ✅
 - Performance Monitoring ✅
-- Analytics Automation ✅
+- Analytics Enhancement (100% Complete) ✅
+- RBAC System (30 permissions) ✅
+- Database Safety System ✅
+- Privacy Framework (GDPR ready) ✅
 
 ### Frontend: B+ Grade ✅ (SERVICE-FIRST COMPLETE)
 - Service-First Architecture (270+ services) ✅
 - Clean API integration patterns ✅
 - Service-based browsing operational ✅
 - Natural language search integrated ✅
-- Analytics automation integrated ✅
+- Analytics enhancement (100% complete) ✅
 - Performance significantly improved ✅
 
-### Current Priority: NLS Algorithm Fix 🔥
-- **Natural Language Search**: Working but category-level matching bug
-- **Impact**: Affects search precision and user experience
-- **Status**: Identified as session v75 critical priority
-- **Backend Architecture**: 100% complete, ready for algorithm refinement
-- **Frontend Integration**: Service-first pattern operational, ready for enhanced search
+### ✅ RESOLVED: NLS Algorithm Fix
+- **Natural Language Search**: ✅ FIXED with 10x accuracy improvement
+- **Impact**: Service-specific matching now works perfectly
+- **Status**: ✅ COMPLETE as of session v76
+- **Backend Architecture**: 100% complete with precise search
+- **Frontend Integration**: Service-first pattern operational with accurate results
 
 ## 📝 Architecture Decision Records
 
@@ -654,6 +681,11 @@ Key decisions documented:
 8. **ADR-008**: Time-Based Booking ✅
 9. **ADR-009**: No Singletons - Dependency Injection ✅
 10. **ADR-010**: Performance Monitoring Strategy ✅
+11. **ADR-011**: RBAC over Role-Based Access ✅
+12. **ADR-012**: Database Safety Three-Tier Architecture ✅
+13. **ADR-013**: Privacy-First Analytics Design ✅
+14. **ADR-014**: PostgreSQL UPSERT for Race Conditions ✅
+15. **ADR-015**: Render Redis Migration Strategy ✅
 
 ## 🚀 Next Architecture Steps
 
