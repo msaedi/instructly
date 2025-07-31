@@ -16,6 +16,9 @@ import { logger } from '@/lib/logger';
 import { publicApi } from '@/features/shared/api/client';
 import SearchInput from '@/components/SearchInput';
 
+// Force dynamic rendering to avoid build-time API calls
+export const dynamic = 'force-dynamic';
+
 // Import centralized types
 import type { InstructorProfile, InstructorService } from '@/types/instructor';
 import { getErrorMessage } from '@/types/common';

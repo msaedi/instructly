@@ -8,6 +8,9 @@ import AvailabilityCalendar from '@/components/AvailabilityCalendar';
 import InstructorProfileNav from '@/components/InstructorProfileNav';
 import { logger } from '@/lib/logger';
 
+// Force dynamic rendering to avoid build-time API calls
+export const dynamic = 'force-dynamic';
+
 interface InstructorProfilePageProps {
   params: Promise<{ id: string }>;
 }
