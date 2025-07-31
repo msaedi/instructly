@@ -104,8 +104,11 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         if not search_query:
             return None
 
+        # Normalize the query for lookup
+        normalized_query = search_query.strip().lower()
+
         query = self.db.query(SearchHistory).filter(
-            SearchHistory.search_query == search_query, SearchHistory.deleted_at.is_(None)
+            SearchHistory.normalized_query == normalized_query, SearchHistory.deleted_at.is_(None)
         )
 
         if user_id:
@@ -278,10 +281,16 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         last_searched_at = kwargs.get("last_searched_at", now)
         search_count = kwargs.get("search_count", 1)
 
+        # Normalize the query for deduplication
+        normalized_query = kwargs.get("normalized_query")
+        if not normalized_query and search_query:
+            normalized_query = search_query.strip().lower()
+
         search_history = SearchHistory(
             user_id=user_id,
             guest_session_id=guest_session_id,
             search_query=search_query,
+            normalized_query=normalized_query,
             search_type=search_type,
             results_count=results_count,
             first_searched_at=first_searched_at,

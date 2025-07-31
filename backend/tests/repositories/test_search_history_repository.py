@@ -33,6 +33,7 @@ class TestSearchHistoryRepository:
         search = SearchHistory(
             user_id=user.id,
             search_query="test query",
+            normalized_query="test query",
             search_type="natural_language",
             first_searched_at=datetime.now(timezone.utc),
             last_searched_at=datetime.now(timezone.utc),
@@ -61,6 +62,7 @@ class TestSearchHistoryRepository:
         search = SearchHistory(
             guest_session_id=guest_id,
             search_query=query,
+            normalized_query=query.strip().lower(),
             search_type="category",
             first_searched_at=datetime.now(timezone.utc),
             last_searched_at=datetime.now(timezone.utc),
@@ -93,6 +95,7 @@ class TestSearchHistoryRepository:
         search = SearchHistory(
             user_id=user.id,
             search_query="deleted query",
+            normalized_query="deleted query",
             search_type="natural_language",
             deleted_at=datetime.now(timezone.utc),
             first_searched_at=datetime.now(timezone.utc),
@@ -122,6 +125,7 @@ class TestSearchHistoryRepository:
             search = SearchHistory(
                 guest_session_id=guest_id,
                 search_query=f"query {i}",
+                normalized_query=f"query {i}".strip().lower(),
                 search_type="natural_language",
                 first_searched_at=base_time - timedelta(hours=i),
                 last_searched_at=base_time - timedelta(hours=i),
@@ -158,6 +162,7 @@ class TestSearchHistoryRepository:
             SearchHistory(
                 user_id=user.id,
                 search_query="active 1",
+                normalized_query="active 1",
                 search_type="natural_language",
                 first_searched_at=datetime.now(timezone.utc),
                 last_searched_at=datetime.now(timezone.utc),
@@ -165,6 +170,7 @@ class TestSearchHistoryRepository:
             SearchHistory(
                 user_id=user.id,
                 search_query="active 2",
+                normalized_query="active 2",
                 search_type="natural_language",
                 first_searched_at=datetime.now(timezone.utc),
                 last_searched_at=datetime.now(timezone.utc),
@@ -172,6 +178,7 @@ class TestSearchHistoryRepository:
             SearchHistory(
                 user_id=user.id,
                 search_query="deleted",
+                normalized_query="deleted",
                 search_type="natural_language",
                 deleted_at=datetime.now(timezone.utc),
                 first_searched_at=datetime.now(timezone.utc),
@@ -207,6 +214,7 @@ class TestSearchHistoryRepository:
             search = SearchHistory(
                 guest_session_id=guest_id,
                 search_query=f"query {i} {unique_id}",
+                normalized_query=f"query {i} {unique_id}".strip().lower(),
                 search_type="natural_language",
                 first_searched_at=base_time - timedelta(minutes=i),
                 last_searched_at=base_time - timedelta(minutes=i),
@@ -253,6 +261,7 @@ class TestSearchHistoryRepository:
             search = SearchHistory(
                 user_id=user_id,
                 search_query=f"query {i}",
+                normalized_query=f"query {i}",
                 search_type="natural_language",
                 first_searched_at=datetime.now(timezone.utc) - timedelta(minutes=i),
                 last_searched_at=datetime.now(timezone.utc) - timedelta(minutes=i),
@@ -297,6 +306,7 @@ class TestSearchHistoryRepository:
         search1 = SearchHistory(
             user_id=user.id,
             search_query="keep me",
+            normalized_query="keep me",
             search_type="natural_language",
             first_searched_at=datetime.now(timezone.utc),
             last_searched_at=datetime.now(timezone.utc),
@@ -304,6 +314,7 @@ class TestSearchHistoryRepository:
         search2 = SearchHistory(
             user_id=user.id,
             search_query="delete me",
+            normalized_query="delete me",
             search_type="natural_language",
             first_searched_at=datetime.now(timezone.utc),
             last_searched_at=datetime.now(timezone.utc),
@@ -360,15 +371,22 @@ class TestSearchHistoryRepository:
         searches = [
             # Should be included
             SearchHistory(
-                guest_session_id=guest_id, search_query=f"convert 1 {unique_id}", search_type="natural_language"
+                guest_session_id=guest_id,
+                search_query=f"convert 1 {unique_id}",
+                normalized_query=f"convert 1 {unique_id}".strip().lower(),
+                search_type="natural_language",
             ),
             SearchHistory(
-                guest_session_id=guest_id, search_query=f"convert 2 {unique_id}", search_type="natural_language"
+                guest_session_id=guest_id,
+                search_query=f"convert 2 {unique_id}",
+                normalized_query=f"convert 2 {unique_id}".strip().lower(),
+                search_type="natural_language",
             ),
             # Should be included - deleted searches are now converted too
             SearchHistory(
                 guest_session_id=guest_id,
                 search_query=f"deleted {unique_id}",
+                normalized_query=f"deleted {unique_id}".strip().lower(),
                 search_type="natural_language",
                 deleted_at=datetime.now(timezone.utc),
             ),
@@ -376,6 +394,7 @@ class TestSearchHistoryRepository:
             SearchHistory(
                 guest_session_id=guest_id,
                 search_query=f"converted {unique_id}",
+                normalized_query=f"converted {unique_id}".strip().lower(),
                 search_type="natural_language",
                 converted_to_user_id=user.id,
                 converted_at=datetime.now(timezone.utc),
@@ -415,7 +434,10 @@ class TestSearchHistoryRepository:
         searches = []
         for i in range(3):
             search = SearchHistory(
-                guest_session_id=guest_id, search_query=f"query {i} {unique_id}", search_type="natural_language"
+                guest_session_id=guest_id,
+                search_query=f"query {i} {unique_id}",
+                normalized_query=f"query {i} {unique_id}".strip().lower(),
+                search_type="natural_language",
             )
             db.add(search)
             searches.append(search)
@@ -460,6 +482,7 @@ class TestSearchHistoryRepository:
             SearchHistory(
                 user_id=user.id,
                 search_query=f"user search {unique_id}",
+                normalized_query=f"user search {unique_id}".strip().lower(),
                 search_type="natural_language",
                 first_searched_at=base_time - timedelta(days=1),
                 last_searched_at=base_time - timedelta(days=1),
@@ -468,6 +491,7 @@ class TestSearchHistoryRepository:
             SearchHistory(
                 user_id=user.id,
                 search_query=f"deleted search {unique_id}",
+                normalized_query=f"deleted search {unique_id}".strip().lower(),
                 search_type="natural_language",
                 deleted_at=base_time,
                 first_searched_at=base_time - timedelta(days=2),
@@ -477,6 +501,7 @@ class TestSearchHistoryRepository:
             SearchHistory(
                 guest_session_id=f"guest-123-{unique_id}",
                 search_query=f"converted guest {unique_id}",
+                normalized_query=f"converted guest {unique_id}".strip().lower(),
                 search_type="natural_language",
                 converted_to_user_id=user.id,
                 converted_at=base_time,
@@ -487,6 +512,7 @@ class TestSearchHistoryRepository:
             SearchHistory(
                 guest_session_id=f"guest-456-{unique_id}",
                 search_query=f"active guest {unique_id}",
+                normalized_query=f"active guest {unique_id}".strip().lower(),
                 search_type="natural_language",
                 first_searched_at=base_time - timedelta(days=1),
                 last_searched_at=base_time - timedelta(days=1),
@@ -533,10 +559,13 @@ class TestSearchHistoryRepository:
     def test_repository_inherits_base_methods(self, db: Session):
         """Test that repository inherits BaseRepository methods."""
         repo = SearchHistoryRepository(db)
+        import uuid
+
+        unique_id = uuid.uuid4().hex[:8]
 
         # Test create (inherited)
         search = repo.create(
-            guest_session_id="test-inherit",
+            guest_session_id=f"test-inherit-{unique_id}",
             search_query="inherited create",
             search_type="natural_language",
             results_count=5,

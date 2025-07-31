@@ -3,7 +3,7 @@
 Tests for PrivacyService.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
@@ -57,8 +57,8 @@ def sample_booking(db, sample_user_for_privacy, sample_instructor_for_privacy):
         instructor_id=sample_instructor_for_privacy.id,
         instructor_service_id=instructor_service.id,
         booking_date=datetime.now(timezone.utc).date(),
-        start_time=datetime.now(timezone.utc).time(),
-        end_time=(datetime.now(timezone.utc) + timedelta(hours=1)).time(),
+        start_time=time(14, 0),  # Fixed 2 PM
+        end_time=time(15, 0),  # Fixed 3 PM
         service_name="Test Service",
         hourly_rate=50.00,
         total_price=50.00,
@@ -238,8 +238,8 @@ class TestPrivacyService:
             instructor_id=sample_instructor_for_privacy.id,
             instructor_service_id=instructor_service.id,
             booking_date=(old_date - timedelta(days=400)).date(),
-            start_time=old_date.time(),
-            end_time=(old_date + timedelta(hours=1)).time(),
+            start_time=time(10, 0),  # Fixed time to avoid wrap-around
+            end_time=time(11, 0),  # One hour later
             service_name="Old Service",
             hourly_rate=40.00,
             total_price=40.00,

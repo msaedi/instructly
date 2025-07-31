@@ -3,3 +3,7 @@ login.json
 backend/.coverage
 backend/htmlcov/
 .env.render
+
+# Logs
+logs/database_audit.jsonl
+*.log

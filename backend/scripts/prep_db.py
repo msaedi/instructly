@@ -136,17 +136,14 @@ def run_command(cmd, description, cwd=None):
     print(f"\n▶ {description}...")
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd or backend_dir)
+        # Use subprocess.call for real-time output
+        returncode = subprocess.call(cmd, cwd=cwd or backend_dir)
 
-        if result.returncode == 0:
+        if returncode == 0:
             print(f"{GREEN}✓{NC} {description} completed")
-            if result.stdout and len(result.stdout) < 1000:  # Show short output
-                print(result.stdout)
             return True
         else:
             print(f"{RED}✗{NC} {description} failed")
-            if result.stderr:
-                print(result.stderr)
             return False
 
     except Exception as e:

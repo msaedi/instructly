@@ -26,7 +26,9 @@ class TestGuestSearchEndpoints:
 
     def test_record_guest_search(self, client: TestClient, db: Session):
         """Test POST /api/search-history/ endpoint with guest header."""
-        guest_session_id = "test-guest-endpoint-123"
+        import uuid
+
+        guest_session_id = f"test-guest-endpoint-{uuid.uuid4().hex[:8]}"
 
         response = client.post(
             "/api/search-history/",
@@ -80,6 +82,7 @@ class TestGuestSearchEndpoints:
             search = SearchHistory(
                 guest_session_id=guest_session_id,
                 search_query=f"{query} {unique_id}",  # Make unique
+                normalized_query=f"{query} {unique_id}".strip().lower(),
                 search_type="natural_language",
                 first_searched_at=base_time - timedelta(minutes=i),
                 last_searched_at=base_time - timedelta(minutes=i),
@@ -114,20 +117,23 @@ class TestAuthWithGuestSession:
 
     def test_login_with_session_converts_searches(self, client: TestClient, db: Session):
         """Test POST /auth/login-with-session endpoint."""
+        # Create guest session ID first
+        import uuid
+
+        guest_session_id = f"convert-login-{uuid.uuid4().hex[:8]}"
+
         # Create user
         auth_service = AuthService(db, None, None)
         user = auth_service.register_user(
-            email="convert@example.com",
+            email=f"convert-{guest_session_id}@example.com",
             password="testpass123",
             full_name="Convert User",
         )
-
-        # Create guest searches
-        guest_session_id = "convert-login-123"
         for query in ["piano lessons", "guitar teachers"]:
             search = SearchHistory(
                 guest_session_id=guest_session_id,
                 search_query=query,
+                normalized_query=query.strip().lower(),
                 search_type="natural_language",
                 first_searched_at=datetime.now(timezone.utc),
                 last_searched_at=datetime.now(timezone.utc),
@@ -138,7 +144,11 @@ class TestAuthWithGuestSession:
         # Login with guest session
         response = client.post(
             "/auth/login-with-session",
-            json={"email": "convert@example.com", "password": "testpass123", "guest_session_id": guest_session_id},
+            json={
+                "email": f"convert-{guest_session_id}@example.com",
+                "password": "testpass123",
+                "guest_session_id": guest_session_id,
+            },
         )
 
         assert response.status_code == 200
@@ -168,13 +178,16 @@ class TestAuthWithGuestSession:
 
     def test_register_with_guest_session(self, client: TestClient, db: Session):
         """Test registration with guest session conversion."""
-        guest_session_id = "register-convert-123"
+        import uuid
+
+        guest_session_id = f"register-convert-{uuid.uuid4().hex[:8]}"
 
         # Create guest searches
         for query in ["math tutoring", "science help"]:
             search = SearchHistory(
                 guest_session_id=guest_session_id,
                 search_query=query,
+                normalized_query=query.strip().lower(),
                 search_type="natural_language",
                 first_searched_at=datetime.now(timezone.utc),
                 last_searched_at=datetime.now(timezone.utc),

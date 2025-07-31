@@ -244,3 +244,5 @@
 {"timestamp": "2025-07-30T22:02:26.613041", "operation": "ci_database_selection", "user": "mehdisaedi", "pid": 90201, "details": {"url": "postgresql://***:***@localhost/ci_test_db", "ci_environment": "true"}}
 {"timestamp": "2025-07-30T22:02:26.613659", "operation": "database_selection", "user": "mehdisaedi", "pid": 90201, "details": {"environment": "int", "url": "postgresql://***:***@localhost:5432/instainstru_test"}}
 {"timestamp": "2025-07-30T22:02:26.614424", "operation": "production_server_access", "user": "mehdisaedi", "pid": 90201, "details": {"url": "postgresql://***:***@aws-0-us-east-1.pooler.supabase.com:6543/postgres", "production_mode": true, "environment": "true"}}
+{"timestamp": "2025-07-31T01:05:43.390623", "operation": "database_selection", "user": "mehdisaedi", "pid": 17720, "details": {"environment": "int", "url": "postgresql://***:***@localhost:5432/instainstru_test"}}
+{"timestamp": "2025-07-31T01:13:53.363045", "operation": "database_selection", "user": "mehdisaedi", "pid": 19686, "details": {"environment": "stg", "url": "postgresql://***:***@localhost:5432/instainstru_stg"}}

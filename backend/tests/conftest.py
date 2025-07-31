@@ -1070,6 +1070,7 @@ def sample_user_for_privacy(db):
     search = SearchHistory(
         user_id=user.id,
         search_query="math tutoring",
+        normalized_query="math tutoring",  # Required field
         results_count=5,
         search_count=3,
         first_searched_at=datetime.now(timezone.utc),

@@ -38,6 +38,7 @@ class SearchHistory(Base):
 
     # Search details matching migration
     search_query = Column(Text, nullable=False)  # The exact search string
+    normalized_query = Column(String, nullable=False)  # Lowercase, trimmed for deduplication
     search_type = Column(
         String(20), nullable=False, default="natural_language"
     )  # 'natural_language', 'category', 'service_pill', 'filter', or 'search_history'

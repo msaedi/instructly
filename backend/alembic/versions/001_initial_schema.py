@@ -318,6 +318,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("user_id", sa.Integer(), nullable=True),  # Now nullable for guest searches
         sa.Column("search_query", sa.Text(), nullable=False),
+        sa.Column("normalized_query", sa.String(), nullable=False),  # For deduplication
         sa.Column(
             "search_type",
             sa.String(20),
@@ -441,12 +442,30 @@ def upgrade() -> None:
         unique=False,
     )
 
-    # Add unique constraint to prevent duplicate searches
-    # Modified to include guest_session_id for uniqueness
-    op.create_unique_constraint(
-        "uq_search_history_user_guest_query",
+    # Add index on normalized_query for performance
+    op.create_index(
+        "idx_search_history_normalized_query",
         "search_history",
-        ["user_id", "guest_session_id", "search_query"],
+        ["normalized_query"],
+        unique=False,
+    )
+
+    # Add unique constraints to prevent race conditions
+    # We need actual constraints, not partial indexes, for ON CONFLICT to work
+    # First, create a regular unique index for user searches
+    op.create_index(
+        "uq_search_history_user_normalized_query",
+        "search_history",
+        ["user_id", "normalized_query"],
+        unique=True,
+    )
+
+    # Create a regular unique index for guest searches
+    op.create_index(
+        "uq_search_history_guest_normalized_query",
+        "search_history",
+        ["guest_session_id", "normalized_query"],
+        unique=True,
     )
 
     # Add check constraint for search_type values

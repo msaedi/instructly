@@ -71,9 +71,9 @@ class TestGuestSearchTracking:
             guest_session_id=guest_session_id, query="guitar lessons", search_type="natural_language", results_count=7
         )
 
-        # Should be same record with updated timestamp but NOT updated results
+        # Should be same record with updated values
         assert search1.id == search2.id
-        assert search2.results_count == 3  # Results count should NOT change
+        assert search2.results_count == 7  # Results count SHOULD update to latest
         assert search2.search_count == 2  # Count should increment
         assert search2.last_searched_at >= search1.last_searched_at  # Allow equal due to timing
 
@@ -92,6 +92,7 @@ class TestGuestSearchTracking:
             search = SearchHistory(
                 guest_session_id=guest_session_id,
                 search_query=f"{query} {unique_id}",  # Make queries unique too
+                normalized_query=f"{query} {unique_id}".strip().lower(),
                 search_type="natural_language",
                 first_searched_at=base_time - timedelta(minutes=i),
                 last_searched_at=base_time - timedelta(minutes=i),
@@ -129,6 +130,7 @@ class TestSoftDeleteFunctionality:
         search = SearchHistory(
             user_id=user.id,
             search_query="test search",
+            normalized_query="test search",
             search_type="natural_language",
             first_searched_at=datetime.now(timezone.utc),
             last_searched_at=datetime.now(timezone.utc),
@@ -167,6 +169,7 @@ class TestSoftDeleteFunctionality:
         active_search = SearchHistory(
             user_id=user.id,
             search_query="active search",
+            normalized_query="active search",
             search_type="natural_language",
             first_searched_at=datetime.now(timezone.utc),
             last_searched_at=datetime.now(timezone.utc),
@@ -174,6 +177,7 @@ class TestSoftDeleteFunctionality:
         deleted_search = SearchHistory(
             user_id=user.id,
             search_query="deleted search",
+            normalized_query="deleted search",
             search_type="natural_language",
             deleted_at=datetime.now(timezone.utc),
             first_searched_at=datetime.now(timezone.utc),
@@ -195,11 +199,13 @@ class TestGuestToUserConversion:
     def test_guest_search_conversion(self, db: Session):
         """Test converting guest searches to user searches."""
         service = SearchHistoryService(db)
-        guest_session_id = "convert-test-123"
+        import uuid
+
+        guest_session_id = f"convert-test-{uuid.uuid4().hex[:8]}"
 
         # Create user
         user = User(
-            email="convert@example.com",
+            email=f"convert-{guest_session_id}@example.com",
             hashed_password="hash",
             full_name="Convert User",
         )
@@ -211,6 +217,7 @@ class TestGuestToUserConversion:
             search = SearchHistory(
                 guest_session_id=guest_session_id,
                 search_query=query,
+                normalized_query=query.strip().lower(),
                 search_type="natural_language",
                 first_searched_at=datetime.now(timezone.utc) - timedelta(hours=1),
                 last_searched_at=datetime.now(timezone.utc) - timedelta(hours=1),
@@ -236,11 +243,13 @@ class TestGuestToUserConversion:
     def test_conversion_avoids_duplicates(self, db: Session):
         """Test that conversion doesn't create duplicate searches."""
         service = SearchHistoryService(db)
-        guest_session_id = "no-dup-test"
+        import uuid
+
+        guest_session_id = f"no-dup-test-{uuid.uuid4().hex[:8]}"
 
         # Create user with existing search
         user = User(
-            email="existing@example.com",
+            email=f"existing-{guest_session_id}@example.com",
             hashed_password="hash",
             full_name="Existing User",
         )
@@ -250,6 +259,7 @@ class TestGuestToUserConversion:
         existing_search = SearchHistory(
             user_id=user.id,
             search_query="piano lessons",
+            normalized_query="piano lessons",
             search_type="natural_language",
             first_searched_at=datetime.now(timezone.utc),
             last_searched_at=datetime.now(timezone.utc),
@@ -260,6 +270,7 @@ class TestGuestToUserConversion:
         guest_search = SearchHistory(
             guest_session_id=guest_session_id,
             search_query="piano lessons",
+            normalized_query="piano lessons",
             search_type="natural_language",
             first_searched_at=datetime.now(timezone.utc),
             last_searched_at=datetime.now(timezone.utc),
@@ -300,6 +311,7 @@ class TestGuestToUserConversion:
         guest_search = SearchHistory(
             guest_session_id=guest_session_id,
             search_query=query,
+            normalized_query=query.strip().lower(),
             search_type="natural_language",
             first_searched_at=old_timestamp,
             last_searched_at=old_timestamp,
@@ -385,20 +397,28 @@ class TestAnalyticsEligibility:
 
         searches = [
             SearchHistory(
-                guest_session_id=guest_id_1, search_query=f"active 1 {unique_id}", search_type="natural_language"
+                guest_session_id=guest_id_1,
+                search_query=f"active 1 {unique_id}",
+                normalized_query=f"active 1 {unique_id}".strip().lower(),
+                search_type="natural_language",
             ),
             SearchHistory(
                 guest_session_id=guest_id_1,
                 search_query=f"deleted 1 {unique_id}",
+                normalized_query=f"deleted 1 {unique_id}".strip().lower(),
                 search_type="natural_language",
                 deleted_at=datetime.now(timezone.utc),
             ),
             SearchHistory(
-                guest_session_id=guest_id_2, search_query=f"active 2 {unique_id}", search_type="natural_language"
+                guest_session_id=guest_id_2,
+                search_query=f"active 2 {unique_id}",
+                normalized_query=f"active 2 {unique_id}".strip().lower(),
+                search_type="natural_language",
             ),
             SearchHistory(
                 guest_session_id=guest_id_2,
                 search_query=f"deleted 2 {unique_id}",
+                normalized_query=f"deleted 2 {unique_id}".strip().lower(),
                 search_type="natural_language",
                 deleted_at=datetime.now(timezone.utc),
             ),
@@ -433,6 +453,7 @@ class TestAnalyticsEligibility:
         guest_search = SearchHistory(
             guest_session_id=f"analytics-guest-{unique_id}",
             search_query=query,
+            normalized_query=query.strip().lower(),
             search_type="natural_language",
             converted_to_user_id=user.id,
             converted_at=datetime.now(timezone.utc),
@@ -440,6 +461,7 @@ class TestAnalyticsEligibility:
         user_search = SearchHistory(
             user_id=user.id,
             search_query=query,
+            normalized_query=query.strip().lower(),
             search_type="natural_language",
             first_searched_at=datetime.now(timezone.utc),
             last_searched_at=datetime.now(timezone.utc),
@@ -476,6 +498,7 @@ class TestEdgeCases:
         # This should fail - no user_id or guest_session_id
         search = SearchHistory(
             search_query="invalid search",
+            normalized_query="invalid search",
             search_type="natural_language",
             first_searched_at=datetime.now(timezone.utc),
             last_searched_at=datetime.now(timezone.utc),

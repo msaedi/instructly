@@ -46,6 +46,7 @@ class TestSearchHistoryCleanup:
             SearchHistory(
                 guest_session_id=guest_ids[0],
                 search_query=f"active search {unique_id}",
+                normalized_query=f"active search {unique_id}".strip().lower(),
                 search_type="natural_language",
                 first_searched_at=now - timedelta(days=60),
             ),
@@ -53,6 +54,7 @@ class TestSearchHistoryCleanup:
             SearchHistory(
                 guest_session_id=guest_ids[1],
                 search_query=f"recent delete {unique_id}",
+                normalized_query=f"recent delete {unique_id}".strip().lower(),
                 search_type="natural_language",
                 deleted_at=now - timedelta(days=10),
                 first_searched_at=now - timedelta(days=20),
@@ -61,6 +63,7 @@ class TestSearchHistoryCleanup:
             SearchHistory(
                 guest_session_id=guest_ids[2],
                 search_query=f"old delete 1 {unique_id}",
+                normalized_query=f"old delete 1 {unique_id}".strip().lower(),
                 search_type="natural_language",
                 deleted_at=now - timedelta(days=45),
                 first_searched_at=now - timedelta(days=50),
@@ -69,6 +72,7 @@ class TestSearchHistoryCleanup:
             SearchHistory(
                 guest_session_id=guest_ids[3],
                 search_query=f"old delete 2 {unique_id}",
+                normalized_query=f"old delete 2 {unique_id}".strip().lower(),
                 search_type="natural_language",
                 deleted_at=now - timedelta(days=90),
                 first_searched_at=now - timedelta(days=100),
@@ -100,6 +104,7 @@ class TestSearchHistoryCleanup:
         search = SearchHistory(
             guest_session_id="cleanup-disabled-test",
             search_query="old search",
+            normalized_query="old search",
             search_type="natural_language",
             deleted_at=datetime.now(timezone.utc) - timedelta(days=365),
             first_searched_at=datetime.now(timezone.utc),
@@ -145,6 +150,7 @@ class TestSearchHistoryCleanup:
             SearchHistory(
                 guest_session_id=guest_ids[0],
                 search_query=f"recent guest {unique_id}",
+                normalized_query=f"recent guest {unique_id}".strip().lower(),
                 search_type="natural_language",
                 first_searched_at=now - timedelta(days=10),
             ),
@@ -152,6 +158,7 @@ class TestSearchHistoryCleanup:
             SearchHistory(
                 guest_session_id=guest_ids[1],
                 search_query=f"old converted {unique_id}",
+                normalized_query=f"old converted {unique_id}".strip().lower(),
                 search_type="natural_language",
                 converted_to_user_id=user.id,
                 converted_at=now - timedelta(days=45),
@@ -161,6 +168,7 @@ class TestSearchHistoryCleanup:
             SearchHistory(
                 guest_session_id=guest_ids[2],
                 search_query=f"expired guest {unique_id}",
+                normalized_query=f"expired guest {unique_id}".strip().lower(),
                 search_type="natural_language",
                 first_searched_at=now - timedelta(days=90),  # Older than expiry + purge
             ),
@@ -168,6 +176,7 @@ class TestSearchHistoryCleanup:
             SearchHistory(
                 guest_session_id=guest_ids[3],
                 search_query=f"recent converted {unique_id}",
+                normalized_query=f"recent converted {unique_id}".strip().lower(),
                 search_type="natural_language",
                 converted_to_user_id=user.id,
                 converted_at=now - timedelta(days=5),
@@ -199,20 +208,26 @@ class TestSearchHistoryCleanup:
         service = SearchHistoryCleanupService(db)
         now = datetime.now(timezone.utc)
 
+        import uuid
+
+        unique_id = uuid.uuid4().hex[:8]
+
         # Create searches to be cleaned
         searches = [
             # Old soft-deleted
             SearchHistory(
-                guest_session_id="cleanup-all-1",
+                guest_session_id=f"cleanup-all-1-{unique_id}",
                 search_query="old deleted",
+                normalized_query="old deleted",
                 search_type="natural_language",
                 deleted_at=now - timedelta(days=45),
                 first_searched_at=now - timedelta(days=50),
             ),
             # Old guest session
             SearchHistory(
-                guest_session_id="old-guest",
+                guest_session_id=f"old-guest-{unique_id}",
                 search_query="old guest",
+                normalized_query="old guest",
                 search_type="natural_language",
                 first_searched_at=now - timedelta(days=90),
             ),
@@ -228,7 +243,9 @@ class TestSearchHistoryCleanup:
         assert guest_sessions >= 1
         # Check only our test records are gone
         remaining = (
-            db.query(SearchHistory).filter(SearchHistory.guest_session_id.in_(["cleanup-all-1", "old-guest"])).count()
+            db.query(SearchHistory)
+            .filter(SearchHistory.guest_session_id.in_([f"cleanup-all-1-{unique_id}", f"old-guest-{unique_id}"]))
+            .count()
         )
         assert remaining == 0
 
@@ -242,9 +259,13 @@ class TestSearchHistoryCleanup:
         service = SearchHistoryCleanupService(db)
         now = datetime.now(timezone.utc)
 
+        import uuid
+
+        unique_id = uuid.uuid4().hex[:8]
+
         # Create user for converted guest
         user = User(
-            email="stats@example.com",
+            email=f"stats-{unique_id}@example.com",
             hashed_password="hash",
             full_name="Stats User",
         )
@@ -255,16 +276,18 @@ class TestSearchHistoryCleanup:
         searches = [
             # Active search
             SearchHistory(
-                guest_session_id="stats-test-1",
+                guest_session_id=f"stats-test-1-{unique_id}",
                 search_query="active",
+                normalized_query="active",
                 search_type="natural_language",
                 first_searched_at=datetime.now(timezone.utc),
                 last_searched_at=datetime.now(timezone.utc),
             ),
             # Recent soft-deleted (not eligible)
             SearchHistory(
-                guest_session_id="stats-test-2",
+                guest_session_id=f"stats-test-2-{unique_id}",
                 search_query="recent delete",
+                normalized_query="recent delete",
                 search_type="natural_language",
                 deleted_at=now - timedelta(days=10),
                 first_searched_at=now - timedelta(days=10),
@@ -272,8 +295,9 @@ class TestSearchHistoryCleanup:
             ),
             # Old soft-deleted (eligible)
             SearchHistory(
-                guest_session_id="stats-test-3",
+                guest_session_id=f"stats-test-3-{unique_id}",
                 search_query="old delete",
+                normalized_query="old delete",
                 search_type="natural_language",
                 deleted_at=now - timedelta(days=45),
                 first_searched_at=now - timedelta(days=45),
@@ -281,16 +305,18 @@ class TestSearchHistoryCleanup:
             ),
             # Guest search (not eligible)
             SearchHistory(
-                guest_session_id="guest-1",
+                guest_session_id=f"guest-1-{unique_id}",
                 search_query="guest",
+                normalized_query="guest",
                 search_type="natural_language",
                 first_searched_at=datetime.now(timezone.utc),
                 last_searched_at=datetime.now(timezone.utc),
             ),
             # Old converted guest (eligible)
             SearchHistory(
-                guest_session_id="guest-2",
+                guest_session_id=f"guest-2-{unique_id}",
                 search_query="old converted",
+                normalized_query="old converted",
                 search_type="natural_language",
                 converted_to_user_id=user.id,
                 converted_at=now - timedelta(days=45),

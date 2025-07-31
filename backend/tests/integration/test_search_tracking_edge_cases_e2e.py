@@ -298,7 +298,7 @@ class TestConcurrencyAndPerformance:
         assert all(status == 201 for status in results)
 
         # But should only have 1 history entry (deduplicated)
-        history_count = db.query(SearchHistory).filter(SearchHistory.search_query == "concurrent test").count()
+        history_count = db.query(SearchHistory).filter(SearchHistory.normalized_query == "concurrent test").count()
         assert history_count == 1
 
         # Should have 5 events

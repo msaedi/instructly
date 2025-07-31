@@ -11,6 +11,8 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
+from sqlalchemy import and_
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
@@ -85,6 +87,12 @@ class SearchHistoryService(BaseService):
 
         return await self._record_search_impl(ctx, data, request_ip, user_agent, device_context)
 
+    def normalize_search_query(self, query: str) -> str:
+        """Normalize a search query for deduplication."""
+        if not query:
+            return ""
+        return query.strip().lower()
+
     async def _record_search_impl(
         self,
         context: SearchUserContext,
@@ -94,39 +102,93 @@ class SearchHistoryService(BaseService):
         device_context: Optional[Dict] = None,
     ) -> SearchHistory:
         """
-        Internal implementation of search recording.
+        Internal implementation of search recording using PostgreSQL UPSERT.
+        This is atomic and handles race conditions perfectly.
         """
         try:
-            # Check if this exact query already exists (excluding soft-deleted)
-            existing = self.repository.find_existing_search_for_update(
+            query = search_data["search_query"]
+            normalized_query = self.normalize_search_query(query)
+            now = datetime.now(timezone.utc)
+
+            # PostgreSQL UPSERT - atomic operation, no race condition possible
+            stmt = insert(SearchHistory).values(
                 user_id=context.user_id,
                 guest_session_id=context.guest_session_id,
-                search_query=search_data["search_query"],
+                search_query=query,  # Keep original query
+                normalized_query=normalized_query,
+                search_type=search_data.get("search_type", "natural_language"),
+                results_count=search_data.get("results_count"),
+                search_count=1,
+                first_searched_at=now,
+                last_searched_at=now,
             )
 
-            if existing:
-                # Update existing record (increment count, update timestamp)
-                result = self.repository.increment_search_count(existing.id)
-                logger.info(
-                    f"Updated existing search history for {context.identifier}: {search_data['search_query']} (count: {result.search_count})"
+            # On conflict, increment the count and update timestamp
+            if context.user_id:
+                # For authenticated users
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["user_id", "normalized_query"],
+                    set_={
+                        "search_count": SearchHistory.search_count + 1,
+                        "last_searched_at": now,
+                        "results_count": stmt.excluded.results_count,
+                        # Keep the original query if it differs in case
+                        "search_query": stmt.excluded.search_query
+                        # NOTE: We do NOT update search_type - it preserves the original discovery method
+                    },
                 )
             else:
-                # Create new search history entry with timestamps
-                search_history = self.repository.create(
-                    user_id=context.user_id,
-                    guest_session_id=context.guest_session_id,
-                    search_query=search_data["search_query"],
-                    search_type=search_data.get("search_type", "natural_language"),
-                    results_count=search_data.get("results_count"),
-                    first_searched_at=datetime.now(timezone.utc),
-                    last_searched_at=datetime.now(timezone.utc),
-                    search_count=1,
+                # For guest users
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["guest_session_id", "normalized_query"],
+                    set_={
+                        "search_count": SearchHistory.search_count + 1,
+                        "last_searched_at": now,
+                        "results_count": stmt.excluded.results_count,
+                        # Keep the original query if it differs in case
+                        "search_query": stmt.excluded.search_query
+                        # NOTE: We do NOT update search_type - it preserves the original discovery method
+                    },
                 )
-                result = search_history
-                logger.info(f"Created new search history for {context.identifier}: {search_data['search_query']}")
 
-                # Maintain limit per user/guest
-                self._enforce_search_limit(context)
+            # Execute the UPSERT
+            self.db.execute(stmt)
+            self.db.commit()
+
+            # Fetch and return the result
+            if context.user_id:
+                result = (
+                    self.db.query(SearchHistory)
+                    .filter(
+                        and_(
+                            SearchHistory.user_id == context.user_id,
+                            SearchHistory.normalized_query == normalized_query,
+                            SearchHistory.deleted_at.is_(None),
+                        )
+                    )
+                    .first()
+                )
+            else:
+                result = (
+                    self.db.query(SearchHistory)
+                    .filter(
+                        and_(
+                            SearchHistory.guest_session_id == context.guest_session_id,
+                            SearchHistory.normalized_query == normalized_query,
+                            SearchHistory.deleted_at.is_(None),
+                        )
+                    )
+                    .first()
+                )
+
+            # Log what happened
+            if result.search_count == 1:
+                logger.info(f"Created new search history for {context.identifier}: {query}")
+            else:
+                logger.info(f"Updated search history for {context.identifier}: {query} (count: {result.search_count})")
+
+            # Maintain limit per user/guest
+            self._enforce_search_limit(context)
 
             # Process analytics data
             ip_hash = None
