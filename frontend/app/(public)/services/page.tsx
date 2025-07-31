@@ -8,6 +8,8 @@ import { publicApi, type CatalogService, type ServiceCategory } from '@/features
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 // Removed recordSearch and SearchType - tracking now handled by search page
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/react-query/queryClient';
 
 // Progressive loading configuration
 const INITIAL_SERVICES_COUNT = 15;
@@ -85,7 +87,101 @@ export default function AllServicesPage() {
   const categoryRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const { isAuthenticated } = useAuth();
 
+  // Add React Query hook for fetching services
+  const {
+    data: servicesResponse,
+    error: queryError,
+    isLoading: queryLoading,
+  } = useQuery({
+    queryKey: queryKeys.services?.withInstructors || ['services', 'withInstructors'],
+    queryFn: () => publicApi.getAllServicesWithInstructors(),
+    staleTime: 1000 * 60 * 15, // 15 minutes - service counts change moderately
+    gcTime: 1000 * 60 * 30, // 30 minutes
+  });
+
+  // Sync loading state with React Query
   useEffect(() => {
+    setLoading(queryLoading);
+  }, [queryLoading]);
+
+  useEffect(() => {
+    // Handle React Query error
+    if (queryError) {
+      logger.error('Failed to fetch services', queryError as Error);
+      setError('Failed to load services. Please try again later.');
+      return;
+    }
+
+    // If React Query has the data, use it
+    if (servicesResponse) {
+      if (servicesResponse.error) {
+        logger.error(
+          'Failed to fetch services with instructors',
+          new Error(servicesResponse.error)
+        );
+        setError('Failed to load services');
+        setLoading(false);
+        return;
+      }
+
+      if (!servicesResponse.data) {
+        logger.error('No services data received');
+        setError('No services available');
+        setLoading(false);
+        return;
+      }
+
+      // Transform the response to match our component's expected structure
+      const categories: CategoryWithServices[] = servicesResponse.data.categories.map(
+        (category: any) => {
+          // Find matching emoji from CATEGORY_CONFIG
+          const config = CATEGORY_CONFIG.find((c) => c.slug === category.slug);
+
+          return {
+            id: category.id,
+            slug: category.slug,
+            name: category.name.toUpperCase(), // Ensure uppercase for consistency
+            icon: config?.icon || Search, // Default icon if not found
+            subtitle: category.subtitle,
+            services: category.services.map((service: any) => ({
+              id: service.id,
+              category_id: service.category_id,
+              name: service.name,
+              slug: service.slug,
+              description: service.description,
+              search_terms: service.search_terms,
+              display_order: service.display_order,
+              online_capable: service.online_capable,
+              requires_certification: service.requires_certification,
+              is_active: service.is_active,
+              instructor_count: service.instructor_count,
+              actual_min_price: service.actual_min_price,
+              actual_max_price: service.actual_max_price,
+            })),
+          };
+        }
+      );
+
+      setCategoriesWithServices(categories);
+
+      // Initialize visible services count for each category
+      const initialVisible: Record<string, number> = {};
+      categories.forEach((cat) => {
+        initialVisible[cat.slug] = INITIAL_SERVICES_COUNT;
+      });
+      setVisibleServices(initialVisible);
+
+      logger.info('Loaded all services with instructor data', {
+        categoriesCount: categories.length,
+        totalServices: servicesResponse.data.metadata.total_services,
+        cached: servicesResponse.data.metadata.cached_for_seconds,
+      });
+
+      setLoading(false);
+      return;
+    }
+
+    // Fallback to original fetching logic if React Query data not available
     const fetchServices = async () => {
       try {
         setLoading(true);
@@ -117,7 +213,7 @@ export default function AllServicesPage() {
             name: category.name.toUpperCase(), // Ensure uppercase for consistency
             icon: config?.icon || Search, // Default icon if not found
             subtitle: category.subtitle,
-            services: category.services.map((service) => ({
+            services: category.services.map((service: any) => ({
               id: service.id,
               category_id: service.category_id,
               name: service.name,
@@ -158,7 +254,7 @@ export default function AllServicesPage() {
     };
 
     fetchServices();
-  }, []);
+  }, [servicesResponse, queryError]);
 
   // Set up intersection observer for progressive loading
   useEffect(() => {

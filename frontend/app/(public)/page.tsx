@@ -12,6 +12,9 @@ import { NotificationBar } from '@/components/NotificationBar';
 import { UpcomingLessons } from '@/components/UpcomingLessons';
 import { BookAgain } from '@/components/BookAgain';
 import { RecentSearches } from '@/components/RecentSearches';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/react-query/queryClient';
+import { convertApiResponse } from '@/lib/react-query/api';
 import {
   Search,
   Zap,
@@ -50,6 +53,14 @@ export default function HomePage() {
   const userMenuRef = useRef<HTMLDivElement>(null);
   const avatarRef = useRef<HTMLDivElement>(null);
 
+  // Add React Query hook for fetching top services
+  const { data: topServicesResponse } = useQuery({
+    queryKey: queryKeys.services?.featured || ['services', 'featured'],
+    queryFn: () => publicApi.getTopServicesPerCategory(),
+    staleTime: 1000 * 60 * 60, // 1 hour - rarely changes
+    gcTime: 1000 * 60 * 60 * 2, // Keep for 2 hours
+  });
+
   const categories = [
     { icon: Music, name: 'Music', slug: 'music', subtitle: 'Instrument Voice Theory' },
     { icon: BookOpen, name: 'Tutoring', slug: 'tutoring', subtitle: 'Academic STEM Tech' },
@@ -79,6 +90,42 @@ export default function HomePage() {
 
   // Fetch services for all categories on mount
   useEffect(() => {
+    // If React Query has already fetched the data, use it
+    if (topServicesResponse) {
+      if (topServicesResponse.error) {
+        logger.error('API error fetching top services', new Error(topServicesResponse.error), {
+          status: topServicesResponse.status,
+        });
+        return;
+      }
+
+      if (!topServicesResponse.data) {
+        logger.error('No data received from top services endpoint');
+        return;
+      }
+
+      // Map the response to our state structure
+      const servicesMap: Record<string, TopServiceSummary[]> = {};
+
+      topServicesResponse.data.categories.forEach((category) => {
+        servicesMap[category.slug] = category.services;
+      });
+
+      setCategoryServices(servicesMap);
+
+      // Log summary
+      const totalServicesLoaded = Object.values(servicesMap).reduce(
+        (sum, services) => sum + services.length,
+        0
+      );
+      logger.info('All category services loaded with single request', {
+        categoriesLoaded: Object.keys(servicesMap).length,
+        totalServices: totalServicesLoaded,
+      });
+      return;
+    }
+
+    // Fallback to original fetching logic if React Query data not available
     const fetchCategoryServices = async () => {
       try {
         // Fetch all categories with their top services in a single request
@@ -120,7 +167,7 @@ export default function HomePage() {
     };
 
     fetchCategoryServices();
-  }, []);
+  }, [topServicesResponse]);
 
   // Detect touch device
   useEffect(() => {

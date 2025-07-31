@@ -9,6 +9,72 @@ InstaInstru is a marketplace platform for instantly booking private instructors 
 - **Frontend**: Next.js 15 with TypeScript and Tailwind CSS v4
 - **Architecture**: Clean architecture with separated services, repositories, and route handlers
 
+## 🚨 CRITICAL: Client-Side Caching with React Query
+
+InstaInstru uses React Query (TanStack Query v5) for ALL data fetching. This is MANDATORY - no exceptions.
+
+### Why This Matters
+- 60-80% reduction in API calls
+- Instant page navigation
+- Better user experience
+- Reduced server costs
+
+### The Golden Rules
+1. **NEVER use fetch() or useEffect for API calls** - Always use React Query
+2. **INCREMENTAL approach only** - Add caching to existing code, don't rewrite entire files
+3. **Preserve ALL UI/UX** - Caching changes data fetching, not appearance
+4. **Test caching works** - Use DevTools to verify
+
+### Quick Implementation Pattern
+```jsx
+// ✅ CORRECT - Use React Query
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/react-query/queryClient';
+import { queryFn } from '@/lib/react-query/api';
+
+const { data, isLoading } = useQuery({
+  queryKey: queryKeys.instructors.search({ service: 'yoga' }),
+  queryFn: () => queryFn('/api/instructors/search?service=yoga'),
+  staleTime: 1000 * 60 * 5, // 5 minutes
+});
+
+// ❌ WRONG - Direct fetch
+useEffect(() => {
+  fetch('/api/instructors/search?service=yoga')
+    .then(res => res.json())
+    .then(setData);
+}, []);
+```
+
+### Cache Time Quick Reference
+- **User data**: `Infinity` (session-long)
+- **Categories/Services**: `1 hour` (static content)
+- **Instructor profiles**: `15 minutes`
+- **Search results**: `5 minutes`
+- **Availability**: `5 minutes` with background refresh
+- **Real-time data**: `1 minute`
+
+### For New Features
+1. Identify all API calls needed
+2. Use React Query from the start
+3. Include filters/params in query keys
+4. Test cache hit rate in DevTools
+5. Verify instant navigation works
+
+### Common Mistakes to Avoid
+- ❌ Rewriting entire components (use incremental approach)
+- ❌ Forgetting to include params in query keys
+- ❌ Using staleTime: 0 (defeats caching purpose)
+- ❌ Not testing cache behavior
+
+### Testing Your Implementation
+1. Load page → Check Network tab for API calls
+2. Navigate away and back
+3. ✅ Success: No API calls (using cache)
+4. ❌ Failure: API calls made (cache not working)
+
+Remember: Every API call costs money and time. React Query saves both.
+
 ## Current Project State & Priorities
 
 ### Critical Context

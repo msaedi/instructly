@@ -105,4 +105,19 @@ export const queryKeys = {
     recent: ['search', 'recent'] as const,
     suggestions: (query: string) => ['search', 'suggestions', query] as const,
   },
+
+  // Services queries
+  services: {
+    all: ['services'] as const,
+    featured: ['services', 'featured'] as const,
+    categories: ['services', 'categories'] as const,
+    byCategory: (categorySlug: string) => ['services', 'category', categorySlug] as const,
+    withInstructors: ['services', 'with-instructors'] as const,
+  },
+
+  // Notifications queries
+  notifications: {
+    current: ['notifications', 'current'] as const,
+    unread: ['notifications', 'unread'] as const,
+  },
 } as const;
