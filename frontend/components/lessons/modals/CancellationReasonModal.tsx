@@ -89,7 +89,7 @@ export function CancellationReasonModal({
               {CANCELLATION_REASONS.map((reason) => (
                 <label
                   key={reason}
-                  className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-gray-50 transition-colors"
+                  className="flex items-start gap-3 p-3 rounded-lg border cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 dark:hover:text-gray-100 transition-colors"
                 >
                   <input
                     type="radio"

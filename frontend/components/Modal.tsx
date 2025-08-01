@@ -116,7 +116,7 @@ const Modal: React.FC<ModalProps> = ({
         <div
           className={`
             pointer-events-auto w-full ${sizeClasses[size]}
-            bg-white rounded-xl shadow-2xl
+            bg-white dark:bg-gray-800 rounded-xl shadow-2xl
             transform transition-all duration-200 ease-out
             ${className}
           `}
@@ -126,9 +126,12 @@ const Modal: React.FC<ModalProps> = ({
         >
           {/* Enhanced Header */}
           {(title || showCloseButton) && (
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               {title && (
-                <h2 id="modal-title" className="text-xl font-semibold text-gray-900">
+                <h2
+                  id="modal-title"
+                  className="text-xl font-semibold text-gray-900 dark:text-gray-100"
+                >
                   {title}
                 </h2>
               )}
@@ -140,12 +143,12 @@ const Modal: React.FC<ModalProps> = ({
                   }}
                   className={`
                     ${title ? 'ml-auto' : ''}
-                    p-2 hover:bg-gray-100 rounded-lg transition-colors duration-150
-                    focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400
+                    p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors duration-150
+                    focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 cursor-pointer
                   `}
                   aria-label="Close modal"
                 >
-                  <X className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+                  <X className="w-5 h-5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300" />
                 </button>
               )}
             </div>
@@ -164,7 +167,7 @@ const Modal: React.FC<ModalProps> = ({
 
           {/* Optional Footer */}
           {footer && (
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 rounded-b-xl">
+            <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600 rounded-b-xl">
               {footer}
             </div>
           )}
