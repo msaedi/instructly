@@ -28,7 +28,8 @@ async function loginAsStudent(page: any) {
   await page.fill('input[name="email"]', studentCredentials.email);
   await page.fill('input[name="password"]', studentCredentials.password);
   await page.click('button[type="submit"]');
-  await page.waitForNavigation();
+  // Wait for successful navigation after login (expect redirect to dashboard or home)
+  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15000 });
 }
 
 test.describe('My Lessons Page', () => {
