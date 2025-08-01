@@ -52,7 +52,7 @@ export function CancellationConfirmationModal({
               }}
               className="px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90
                        focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary
-                       transition-all duration-150 font-medium"
+                       transition-all duration-150 font-medium cursor-pointer"
             >
               Done
             </button>
@@ -104,7 +104,7 @@ export function CancellationConfirmationModal({
             Questions?{' '}
             <button
               onClick={() => console.log('Contact support')}
-              className="text-primary hover:underline"
+              className="text-primary hover:underline cursor-pointer"
             >
               Contact support
             </button>
@@ -130,7 +130,7 @@ export function CancellationConfirmationModal({
             className="px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg
                      hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2
                      focus:ring-gray-500 transition-all duration-150 font-medium
-                     disabled:opacity-50 disabled:cursor-not-allowed"
+                     disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             Keep Lesson
           </button>
@@ -140,7 +140,7 @@ export function CancellationConfirmationModal({
             className="px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700
                      focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500
                      transition-all duration-150 font-medium disabled:opacity-50
-                     disabled:cursor-not-allowed"
+                     disabled:cursor-not-allowed cursor-pointer"
           >
             {cancelLesson.isPending ? 'Cancelling...' : 'Confirm Cancellation'}
           </button>

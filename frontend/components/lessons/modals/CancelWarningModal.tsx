@@ -42,7 +42,7 @@ export function CancelWarningModal({
               onClick={onReschedule}
               className="px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90
                        focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary
-                       transition-all duration-150 font-medium"
+                       transition-all duration-150 font-medium cursor-pointer"
             >
               Reschedule lesson
             </button>
@@ -50,7 +50,7 @@ export function CancelWarningModal({
               onClick={handleContinueCancel}
               className="px-4 py-2.5 text-red-600 bg-white border border-red-300 rounded-lg
                        hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2
-                       focus:ring-red-500 transition-all duration-150 font-medium"
+                       focus:ring-red-500 transition-all duration-150 font-medium cursor-pointer"
             >
               Cancel lesson
             </button>

@@ -79,7 +79,7 @@ export function RescheduleModal({ isOpen, onClose, lesson }: RescheduleModalProp
             onClick={onClose}
             className="px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg
                      hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2
-                     focus:ring-gray-500 transition-all duration-150 font-medium"
+                     focus:ring-gray-500 transition-all duration-150 font-medium cursor-pointer"
           >
             Cancel
           </button>
@@ -89,7 +89,7 @@ export function RescheduleModal({ isOpen, onClose, lesson }: RescheduleModalProp
             className="px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90
                      focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary
                      transition-all duration-150 font-medium disabled:opacity-50
-                     disabled:cursor-not-allowed"
+                     disabled:cursor-not-allowed cursor-pointer"
           >
             {rescheduleLesson.isPending ? 'Rescheduling...' : 'Confirm reschedule'}
           </button>
@@ -130,9 +130,9 @@ export function RescheduleModal({ isOpen, onClose, lesson }: RescheduleModalProp
                     p-2 text-sm rounded-lg transition-colors relative
                     ${
                       selectedDate && isSameDay(selectedDate, day)
-                        ? 'bg-primary text-white'
+                        ? 'bg-primary text-white cursor-pointer'
                         : hasAvailability && !isPast
-                          ? 'hover:bg-gray-100 text-gray-900'
+                          ? 'hover:bg-gray-100 text-gray-900 cursor-pointer'
                           : 'text-gray-300 cursor-not-allowed'
                     }
                     ${isCurrentBooking ? 'ring-2 ring-primary' : ''}
@@ -164,7 +164,7 @@ export function RescheduleModal({ isOpen, onClose, lesson }: RescheduleModalProp
                     key={slot}
                     onClick={() => setSelectedTime(slot)}
                     className={`
-                      px-4 py-2 rounded-lg border transition-colors
+                      px-4 py-2 rounded-lg border transition-colors cursor-pointer
                       ${
                         selectedTime === slot
                           ? 'bg-primary text-white border-primary'
@@ -200,7 +200,7 @@ export function RescheduleModal({ isOpen, onClose, lesson }: RescheduleModalProp
                 onClose();
                 // Open chat
               }}
-              className="text-primary hover:underline"
+              className="text-primary hover:underline cursor-pointer"
             >
               Chat to reschedule
             </button>

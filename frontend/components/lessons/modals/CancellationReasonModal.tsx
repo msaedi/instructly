@@ -50,7 +50,7 @@ export function CancellationReasonModal({
               onClick={onClose}
               className="px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg
                        hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2
-                       focus:ring-gray-500 transition-all duration-150 font-medium"
+                       focus:ring-gray-500 transition-all duration-150 font-medium cursor-pointer"
             >
               Back
             </button>
@@ -60,7 +60,7 @@ export function CancellationReasonModal({
               className="px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700
                        focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500
                        transition-all duration-150 font-medium disabled:opacity-50
-                       disabled:cursor-not-allowed"
+                       disabled:cursor-not-allowed cursor-pointer"
             >
               Continue
             </button>
@@ -72,7 +72,10 @@ export function CancellationReasonModal({
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <p className="text-sm text-blue-900">
               Need to reschedule instead?{' '}
-              <button onClick={onReschedule} className="font-medium underline hover:no-underline">
+              <button
+                onClick={onReschedule}
+                className="font-medium underline hover:no-underline cursor-pointer"
+              >
                 Reschedule
               </button>
             </p>
