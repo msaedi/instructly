@@ -7,6 +7,212 @@ import { ConfirmationPage } from '../pages/ConfirmationPage';
 import { testData } from '../fixtures/test-data';
 
 test.describe('Student Booking Journey', () => {
+  test.beforeEach(async ({ page, context }) => {
+    // Mock ALL API calls needed for the booking journey
+
+    // 1. Mock search history (for homepage)
+    await context.route('**/api/search-history/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
+
+    // 2. Mock search results
+    await context.route('**/api/search/instructors**', async (route) => {
+      const url = route.request().url();
+      const searchQuery = new URL(url).searchParams.get('q');
+
+      if (searchQuery === 'didgeridoo') {
+        // No results for uncommon instrument
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            query: 'didgeridoo',
+            parsed: {
+              services: ['didgeridoo'],
+              location: null,
+            },
+            total_found: 0,
+            results: [],
+          }),
+        });
+      } else {
+        // Return results for piano and other searches
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            query: searchQuery || 'piano',
+            parsed: {
+              services: [searchQuery || 'piano'],
+              location: null,
+            },
+            total_found: 2,
+            results: [
+              {
+                instructor: {
+                  id: 1,
+                  name: 'Test Instructor 1',
+                  bio: 'Experienced instructor',
+                  profile_image_url: null,
+                  location: 'Manhattan',
+                  areas_of_service: 'Manhattan, Brooklyn',
+                  years_experience: 10,
+                },
+                service: {
+                  id: 1,
+                  name: 'Piano',
+                  actual_min_price: 100,
+                  description: 'Piano lessons',
+                },
+                offering: {
+                  hourly_rate: 100,
+                  description: 'Piano lessons',
+                  duration_options: [30, 60, 90],
+                },
+                match_score: 0.95,
+                availability_summary: 'Available this week',
+                rating: 4.9,
+                total_reviews: 25,
+                location: 'Manhattan',
+                distance_miles: null,
+              },
+              {
+                instructor: {
+                  id: 2,
+                  name: 'Test Instructor 2',
+                  bio: 'Professional instructor',
+                  profile_image_url: null,
+                  location: 'Brooklyn',
+                  areas_of_service: 'Brooklyn, Queens',
+                  years_experience: 5,
+                },
+                service: {
+                  id: 2,
+                  name: 'Piano',
+                  actual_min_price: 80,
+                  description: 'Piano lessons for beginners',
+                },
+                offering: {
+                  hourly_rate: 80,
+                  description: 'Piano lessons for beginners',
+                  duration_options: [30, 60],
+                },
+                match_score: 0.9,
+                availability_summary: 'Available this week',
+                rating: 4.7,
+                total_reviews: 15,
+                location: 'Brooklyn',
+                distance_miles: null,
+              },
+            ],
+          }),
+        });
+      }
+    });
+
+    // 3. Mock instructor profile
+    await context.route('**/api/public/instructors/*', async (route) => {
+      const url = route.request().url();
+      if (!url.includes('availability')) {
+        const id = url.match(/instructors\/(\d+)/)?.[1] || '1';
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            id: parseInt(id),
+            user_id: parseInt(id),
+            full_name: `Test Instructor ${id}`,
+            hourly_rate: 100,
+            bio: 'Experienced instructor',
+            services: ['Piano'],
+            availability_windows: [],
+            rating: 4.9,
+            total_reviews: 25,
+          }),
+        });
+      }
+    });
+
+    // 4. Mock availability
+    await context.route('**/api/public/instructors/*/availability**', async (route) => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dateStr = tomorrow.toISOString().split('T')[0];
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          instructor_id: 1,
+          instructor_name: 'Test Instructor 1',
+          availability_by_date: {
+            [dateStr]: {
+              date: dateStr,
+              available_slots: [
+                { start_time: '10:00', end_time: '11:00' },
+                { start_time: '11:00', end_time: '12:00' },
+                { start_time: '14:00', end_time: '15:00' },
+              ],
+              is_blackout: false,
+            },
+          },
+          timezone: 'America/New_York',
+          total_available_slots: 3,
+          earliest_available_date: dateStr,
+        }),
+      });
+    });
+
+    // 5. Mock booking creation
+    await context.route('**/api/bookings', async (route) => {
+      if (route.request().method() === 'POST') {
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            id: 12345,
+            booking_date: '2025-08-02',
+            start_time: '10:00',
+            end_time: '11:00',
+            status: 'CONFIRMED',
+            confirmation_code: 'ABC123',
+            instructor: {
+              id: 1,
+              full_name: 'Test Instructor 1',
+              email: 'instructor@example.com',
+            },
+            student: {
+              id: 1,
+              full_name: 'Test Student',
+              email: 'student@example.com',
+            },
+            service: {
+              id: 1,
+              name: 'Piano Lesson',
+              description: 'One hour piano lesson',
+            },
+            total_price: 100.0,
+            meeting_location: "Instructor's Studio",
+            created_at: new Date().toISOString(),
+          }),
+        });
+      }
+    });
+
+    // 6. Mock auth check
+    await context.route('**/api/auth/me', async (route) => {
+      // Return 401 to simulate not logged in
+      await route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: 'Not authenticated' }),
+      });
+    });
+  });
   test('should complete full booking flow from search to confirmation', async ({ page }) => {
     // Step 1: Start at homepage
     const homePage = new HomePage(page);

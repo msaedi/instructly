@@ -23,8 +23,8 @@ export class SearchResultsPage {
   }
 
   async clickFirstInstructor() {
-    // Click on "View Profile" link instead of the card
-    const viewProfileLink = this.firstInstructorCard.locator('a:has-text("View Profile")');
+    // Click on "View Profile" link in the first card specifically
+    const viewProfileLink = this.firstInstructorCard.locator('a:has-text("View Profile")').first();
     await viewProfileLink.click();
   }
 

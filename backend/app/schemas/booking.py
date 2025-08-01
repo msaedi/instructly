@@ -325,6 +325,20 @@ class UpcomingBookingResponse(StandardizedModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class UpcomingBookingsListResponse(StandardizedModel):
+    """Response for upcoming bookings endpoint - consistent paginated format."""
+
+    bookings: List[UpcomingBookingResponse]
+    total: int
+    page: int
+    per_page: int
+
+    @property
+    def total_pages(self) -> int:
+        """Calculate total number of pages."""
+        return (self.total + self.per_page - 1) // self.per_page
+
+
 class FindBookingOpportunitiesRequest(BaseModel):
     """
     Request to find available booking opportunities.

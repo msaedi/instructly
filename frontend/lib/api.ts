@@ -335,13 +335,13 @@ export async function getUpcomingBookings(limit: number = 5): Promise<UpcomingBo
     }
 
     const data = await response.json();
-    // Handle paginated response - check if it's wrapped or direct array
-    const bookings = Array.isArray(data) ? data : data.bookings || [];
+    // Now always returns consistent paginated format
     logger.debug('Upcoming bookings fetched successfully', {
-      count: bookings.length,
+      count: data.bookings.length,
+      total: data.total,
     });
 
-    return bookings;
+    return data.bookings;
   } catch (error) {
     logger.error('Upcoming bookings fetch error', error);
     throw error;

@@ -35,7 +35,7 @@ Router Endpoints:
 """
 
 import logging
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
@@ -57,6 +57,7 @@ from ..schemas.booking import (
     BookingStatsResponse,
     BookingUpdate,
     UpcomingBookingResponse,
+    UpcomingBookingsListResponse,
 )
 from ..services.booking_service import BookingService
 
@@ -75,7 +76,7 @@ def handle_domain_exception(exc: DomainException):
 # 1. First: all specific routes
 
 
-@router.get("/upcoming", response_model=List[UpcomingBookingResponse])
+@router.get("/upcoming", response_model=UpcomingBookingsListResponse)
 async def get_upcoming_bookings(
     limit: int = Query(5, ge=1, le=20),
     current_user: User = Depends(get_current_active_user),
@@ -105,7 +106,11 @@ async def get_upcoming_bookings(
                     meeting_location=booking.meeting_location,
                 )
             )
-        return upcoming_bookings
+
+        # Return consistent paginated format
+        return UpcomingBookingsListResponse(
+            bookings=upcoming_bookings, total=len(upcoming_bookings), page=1, per_page=limit
+        )
     except DomainException as e:
         handle_domain_exception(e)
 

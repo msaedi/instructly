@@ -56,25 +56,30 @@ async function setupMocksAndAuth(page: Page) {
     });
   });
 
-  // Mock upcoming lessons for homepage (returns array directly)
+  // Mock upcoming lessons for homepage (returns paginated format)
   await page.route('http://localhost:8000/bookings/upcoming*limit=2*', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify([
-        {
-          id: 1,
-          instructor_name: upcomingLesson.instructor,
-          service_name: upcomingLesson.service,
-          booking_date: '2024-12-25',
-          start_time: '14:00:00',
-          end_time: '15:00:00',
-          price: 60,
-          status: 'CONFIRMED',
-          location_type: 'online',
-          location_details: 'Zoom meeting',
-        },
-      ]),
+      body: JSON.stringify({
+        bookings: [
+          {
+            id: 1,
+            instructor_name: upcomingLesson.instructor,
+            service_name: upcomingLesson.service,
+            booking_date: '2024-12-25',
+            start_time: '14:00:00',
+            end_time: '15:00:00',
+            price: 60,
+            status: 'CONFIRMED',
+            location_type: 'online',
+            location_details: 'Zoom meeting',
+          },
+        ],
+        total: 1,
+        page: 1,
+        per_page: 2,
+      }),
     });
   });
 
@@ -306,9 +311,7 @@ test.describe('My Lessons Page', () => {
     await setupMocksAndAuth(page);
   });
 
-  test.skip('should navigate to My Lessons from homepage', async ({ page }) => {
-    // Skip this test due to homepage runtime errors with bookings.slice
-    // This test will be re-enabled once the homepage is fixed
+  test('should navigate to My Lessons from homepage', async ({ page }) => {
     await setupMocksAndAuth(page);
 
     await page.goto('/');

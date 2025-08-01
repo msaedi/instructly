@@ -454,12 +454,13 @@ export const bookingsApi = {
       throw new Error(error.detail || 'Failed to fetch upcoming bookings');
     }
 
-    const bookings = await response.json();
+    const data = await response.json();
     logger.debug('Upcoming bookings fetched', {
-      count: bookings.length,
+      count: data.bookings.length,
+      total: data.total,
       requestedLimit: limit,
     });
-    return bookings;
+    return data.bookings;
   },
 
   /**

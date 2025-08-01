@@ -500,9 +500,13 @@ class TestBookingRoutes:
         # Verify
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert len(data) == 2
-        assert data[0]["service_name"] == "Service 1"
-        assert data[0]["student_name"] == "Test Student"
+        assert "bookings" in data
+        assert data["total"] == 2
+        assert data["page"] == 1
+        assert data["per_page"] == 5
+        assert len(data["bookings"]) == 2
+        assert data["bookings"][0]["service_name"] == "Service 1"
+        assert data["bookings"][0]["student_name"] == "Test Student"
 
     def test_get_booking_preview(self, client_with_mock_booking_service, auth_headers_student, mock_booking_service):
         """Test getting booking preview."""
@@ -742,7 +746,11 @@ class TestBookingRoutes:
         response = client_with_mock_booking_service.get("/bookings/upcoming", headers=auth_headers_student)
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert len(data) == 0
+        assert "bookings" in data
+        assert data["total"] == 0
+        assert data["page"] == 1
+        assert data["per_page"] == 5
+        assert len(data["bookings"]) == 0
 
     def test_check_availability_time_conflicts(
         self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
