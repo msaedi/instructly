@@ -449,8 +449,8 @@ test.describe('Error Handling', () => {
   });
 
   test('should show error state when API fails', async ({ page }) => {
-    // Mock API error
-    await page.route('**/bookings/*', async (route) => {
+    // Override the mock to return error
+    await page.route('**/api/bookings/upcoming', async (route) => {
       await route.fulfill({
         status: 500,
         contentType: 'application/json',
@@ -479,7 +479,10 @@ test.describe('Error Handling', () => {
 
   test('should return to My Lessons after login', async ({ page }) => {
     // Clear auth token
-    await page.evaluate(() => localStorage.removeItem('access_token'));
+    await page.evaluate(() => {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('user');
+    });
 
     // Try to access My Lessons
     await page.goto('/student/lessons');
@@ -487,12 +490,29 @@ test.describe('Error Handling', () => {
     // Should be on login page
     await expect(page).toHaveURL('/login?redirect=%2Fstudent%2Flessons');
 
+    // Mock login response
+    await page.route('**/api/auth/login', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          access_token: 'mock_access_token',
+          token_type: 'bearer',
+          user: {
+            id: 1,
+            email: studentCredentials.email,
+            full_name: 'Test Student',
+            role: 'student',
+          },
+        }),
+      });
+    });
+
     // Login
     await page.fill('input[name="email"]', studentCredentials.email);
     await page.fill('input[name="password"]', studentCredentials.password);
-    await page.click('button[type="submit"]');
 
-    // Should return to My Lessons
-    await expect(page).toHaveURL('/student/lessons');
+    // Click submit and wait for navigation
+    await Promise.all([page.waitForURL('**/student/lessons'), page.click('button[type="submit"]')]);
   });
 });
