@@ -252,9 +252,7 @@ export default function HomePage() {
                 <>
                   <Link
                     href={
-                      hasRole(user, RoleName.STUDENT)
-                        ? '/dashboard/student/bookings'
-                        : '/dashboard/instructor'
+                      hasRole(user, RoleName.STUDENT) ? '/student/lessons' : '/dashboard/instructor'
                     }
                     className="text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 relative"
                   >

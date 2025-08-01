@@ -141,10 +141,10 @@ END:VCALENDAR`;
         <div className="text-center">
           <p className="text-red-600 dark:text-red-400 mb-4">{error || 'Booking not found'}</p>
           <Link
-            href="/dashboard/student/bookings"
+            href="/student/lessons"
             className="text-indigo-600 hover:text-indigo-500 dark:text-indigo-400"
           >
-            Go to My Bookings
+            Go to My Lessons
           </Link>
         </div>
       </div>
@@ -262,10 +262,10 @@ END:VCALENDAR`;
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Link
-              href="/dashboard/student/bookings"
+              href="/student/lessons"
               className="text-center bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-3 px-4 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition duration-200 font-medium"
             >
-              View My Bookings
+              View My Lessons
             </Link>
             <Link
               href="/search"

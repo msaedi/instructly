@@ -120,7 +120,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack }: Paym
 
         // After a delay, redirect to dashboard
         setTimeout(() => {
-          router.push('/dashboard/student/bookings');
+          router.push('/student/lessons');
         }, 3000);
       } else {
         throw new Error(bookingError || 'Failed to create booking');

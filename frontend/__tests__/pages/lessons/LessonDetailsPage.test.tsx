@@ -1,0 +1,398 @@
+import React from 'react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useRouter, useParams } from 'next/navigation';
+import LessonDetailsPage from '@/app/(auth)/student/lessons/[id]/page';
+
+// Mock next/navigation
+jest.mock('next/navigation', () => ({
+  useRouter: jest.fn(),
+  useParams: jest.fn(),
+}));
+
+// Mock the auth hook
+jest.mock('@/features/shared/hooks/useAuth', () => ({
+  useAuth: jest.fn(() => ({
+    isAuthenticated: true,
+    isLoading: false,
+    redirectToLogin: jest.fn(),
+  })),
+}));
+
+// Mock the lesson hooks
+jest.mock('@/hooks/useMyLessons', () => ({
+  useLessonDetails: jest.fn(),
+  calculateCancellationFee: jest.fn(() => 0),
+}));
+
+// Mock the API error check
+jest.mock('@/lib/react-query/api', () => ({
+  isApiError: jest.fn((error) => error?.status !== undefined),
+}));
+
+// Mock the modal components
+jest.mock('@/components/lessons/modals/RescheduleModal', () => ({
+  RescheduleModal: ({ isOpen, onClose }: any) =>
+    isOpen ? <div data-testid="reschedule-modal">Reschedule Modal</div> : null,
+}));
+
+jest.mock('@/components/lessons/modals/CancelWarningModal', () => ({
+  CancelWarningModal: ({ isOpen, onClose, onReschedule }: any) =>
+    isOpen ? (
+      <div data-testid="cancel-modal">
+        Cancel Warning Modal
+        <button onClick={onReschedule}>Reschedule instead</button>
+      </div>
+    ) : null,
+}));
+
+const createTestQueryClient = () => {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+};
+
+const renderWithProviders = (ui: React.ReactElement) => {
+  const queryClient = createTestQueryClient();
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+};
+
+describe('LessonDetailsPage', () => {
+  const mockRouter = {
+    push: jest.fn(),
+    back: jest.fn(),
+  };
+
+  const mockLesson = {
+    id: 1,
+    booking_date: '2024-12-25',
+    start_time: '14:00:00',
+    end_time: '15:00:00',
+    status: 'CONFIRMED',
+    total_price: 60,
+    hourly_rate: 60,
+    duration_minutes: 60,
+    location_type: 'student_home',
+    meeting_location: '123 Main St, NYC',
+    student_note: 'Looking forward to the lesson!',
+    service_area: 'Manhattan',
+    service_name: 'Mathematics',
+    instructor_id: 1,
+    student_id: 1,
+    service_id: 1,
+    created_at: '2024-12-01T10:00:00Z',
+    updated_at: '2024-12-01T10:00:00Z',
+    instructor: {
+      id: 1,
+      full_name: 'John Doe',
+      rating: 4.5,
+      rating_count: 20,
+      completed_lesson_count: 100,
+    },
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (useRouter as jest.Mock).mockReturnValue(mockRouter);
+    (useParams as jest.Mock).mockReturnValue({ id: '1' });
+  });
+
+  it('renders lesson details correctly', () => {
+    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    useLessonDetails.mockReturnValue({
+      data: mockLesson,
+      isLoading: false,
+      error: null,
+    });
+
+    renderWithProviders(<LessonDetailsPage />);
+
+    // Check lesson title - service_name is displayed directly (appears in both breadcrumb and title)
+    const mathElements = screen.getAllByText('Mathematics');
+    expect(mathElements).toHaveLength(2); // One in breadcrumb, one in title
+
+    // Check date and time
+    expect(screen.getByText(/December 25, 2024/)).toBeInTheDocument();
+    expect(screen.getByText(/2:00 PM/)).toBeInTheDocument();
+
+    // Check price
+    expect(screen.getByText('$60.00')).toBeInTheDocument();
+
+    // Check instructor
+    expect(screen.getByText('John Doe')).toBeInTheDocument();
+
+    // Check location
+    expect(screen.getByText('123 Main St, NYC')).toBeInTheDocument();
+  });
+
+  it('shows back button that navigates to My Lessons', () => {
+    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    useLessonDetails.mockReturnValue({
+      data: mockLesson,
+      isLoading: false,
+      error: null,
+    });
+
+    renderWithProviders(<LessonDetailsPage />);
+
+    const backButton = screen.getByRole('button', { name: /back to my lessons/i });
+    fireEvent.click(backButton);
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/student/lessons');
+  });
+
+  it('shows reschedule and cancel buttons for upcoming lessons', () => {
+    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    useLessonDetails.mockReturnValue({
+      data: mockLesson,
+      isLoading: false,
+      error: null,
+    });
+
+    renderWithProviders(<LessonDetailsPage />);
+
+    expect(screen.getByRole('button', { name: /reschedule lesson/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /cancel lesson/i })).toBeInTheDocument();
+  });
+
+  it('opens reschedule modal when reschedule button is clicked', async () => {
+    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    useLessonDetails.mockReturnValue({
+      data: mockLesson,
+      isLoading: false,
+      error: null,
+    });
+
+    renderWithProviders(<LessonDetailsPage />);
+
+    const rescheduleButton = screen.getByRole('button', { name: /reschedule lesson/i });
+    fireEvent.click(rescheduleButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('reschedule-modal')).toBeInTheDocument();
+    });
+  });
+
+  it('opens cancel modal when cancel button is clicked', async () => {
+    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    useLessonDetails.mockReturnValue({
+      data: mockLesson,
+      isLoading: false,
+      error: null,
+    });
+
+    renderWithProviders(<LessonDetailsPage />);
+
+    const cancelButton = screen.getByRole('button', { name: /cancel lesson/i });
+    fireEvent.click(cancelButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('cancel-modal')).toBeInTheDocument();
+    });
+  });
+
+  it('switches from cancel to reschedule modal', async () => {
+    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    useLessonDetails.mockReturnValue({
+      data: mockLesson,
+      isLoading: false,
+      error: null,
+    });
+
+    renderWithProviders(<LessonDetailsPage />);
+
+    // Open cancel modal
+    const cancelButton = screen.getByRole('button', { name: /cancel lesson/i });
+    fireEvent.click(cancelButton);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('cancel-modal')).toBeInTheDocument();
+    });
+
+    // Click reschedule instead
+    const rescheduleInsteadButton = screen.getByRole('button', { name: /reschedule instead/i });
+    fireEvent.click(rescheduleInsteadButton);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('cancel-modal')).not.toBeInTheDocument();
+      expect(screen.getByTestId('reschedule-modal')).toBeInTheDocument();
+    });
+  });
+
+  it('shows completed lesson UI for completed lessons', () => {
+    const completedLesson = {
+      ...mockLesson,
+      status: 'COMPLETED',
+    };
+
+    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    useLessonDetails.mockReturnValue({
+      data: completedLesson,
+      isLoading: false,
+      error: null,
+    });
+
+    renderWithProviders(<LessonDetailsPage />);
+
+    // Check for completed status
+    expect(screen.getByText(/Mathematics - COMPLETED/)).toBeInTheDocument();
+
+    // Check for completed lesson buttons
+    expect(screen.getByRole('button', { name: /review & tip/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /chat history/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /book again/i })).toBeInTheDocument();
+
+    // Check for receipt
+    expect(screen.getByText('Receipt')).toBeInTheDocument();
+
+    // Should not show reschedule/cancel buttons
+    expect(screen.queryByRole('button', { name: /reschedule lesson/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /cancel lesson/i })).not.toBeInTheDocument();
+  });
+
+  it('navigates to instructor profile when Book Again is clicked', () => {
+    const completedLesson = {
+      ...mockLesson,
+      status: 'COMPLETED',
+    };
+
+    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    useLessonDetails.mockReturnValue({
+      data: completedLesson,
+      isLoading: false,
+      error: null,
+    });
+
+    renderWithProviders(<LessonDetailsPage />);
+
+    const bookAgainButton = screen.getByRole('button', { name: /book again/i });
+    fireEvent.click(bookAgainButton);
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/instructors/1');
+  });
+
+  it('shows loading state', () => {
+    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    useLessonDetails.mockReturnValue({
+      data: null,
+      isLoading: true,
+      error: null,
+    });
+
+    renderWithProviders(<LessonDetailsPage />);
+
+    // Should show skeleton loading states
+    const skeletons = document.querySelectorAll('.animate-pulse');
+    expect(skeletons.length).toBeGreaterThan(0);
+  });
+
+  it('shows error state when lesson not found', () => {
+    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    useLessonDetails.mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: new Error('Lesson not found'),
+    });
+
+    renderWithProviders(<LessonDetailsPage />);
+
+    expect(screen.getByText('Unable to load lesson details')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /back to my lessons/i })).toBeInTheDocument();
+  });
+
+  it('redirects to login when not authenticated', () => {
+    const { useAuth } = require('@/features/shared/hooks/useAuth');
+    const mockRedirectToLogin = jest.fn();
+    useAuth.mockReturnValue({
+      isAuthenticated: false,
+      isLoading: false,
+      redirectToLogin: mockRedirectToLogin,
+    });
+
+    renderWithProviders(<LessonDetailsPage />);
+
+    expect(mockRedirectToLogin).toHaveBeenCalledWith('/student/lessons/1');
+  });
+
+  it('handles 401 error by redirecting to login', () => {
+    const { useAuth } = require('@/features/shared/hooks/useAuth');
+    const mockRedirectToLogin = jest.fn();
+    useAuth.mockReturnValue({
+      isAuthenticated: true,
+      isLoading: false,
+      redirectToLogin: mockRedirectToLogin,
+    });
+
+    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    useLessonDetails.mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: { status: 401, message: 'Unauthorized' },
+    });
+
+    renderWithProviders(<LessonDetailsPage />);
+
+    expect(mockRedirectToLogin).toHaveBeenCalledWith('/student/lessons/1');
+  });
+
+  it('shows lesson notes when available', () => {
+    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    useLessonDetails.mockReturnValue({
+      data: mockLesson,
+      isLoading: false,
+      error: null,
+    });
+
+    renderWithProviders(<LessonDetailsPage />);
+
+    expect(screen.getByText('Description')).toBeInTheDocument();
+    expect(screen.getByText('Looking forward to the lesson!')).toBeInTheDocument();
+  });
+
+  it('shows receipt details for completed lessons', () => {
+    const completedLesson = {
+      ...mockLesson,
+      status: 'COMPLETED',
+    };
+
+    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    useLessonDetails.mockReturnValue({
+      data: completedLesson,
+      isLoading: false,
+      error: null,
+    });
+
+    renderWithProviders(<LessonDetailsPage />);
+
+    // Check receipt details
+    expect(screen.getByText('Date of Lesson')).toBeInTheDocument();
+    expect(screen.getByText('$60.00/hr x 1 hr')).toBeInTheDocument();
+    expect(screen.getByText('Platform Fee')).toBeInTheDocument();
+    expect(screen.getByText('$9.00')).toBeInTheDocument(); // 15% of $60
+    expect(screen.getByText('Total')).toBeInTheDocument();
+    // There might be multiple $69.00 values (total and paid), so use getAllByText
+    const total69 = screen.getAllByText('$69.00');
+    expect(total69.length).toBeGreaterThan(0);
+  });
+
+  it('shows view receipt button for completed lessons', () => {
+    const completedLesson = {
+      ...mockLesson,
+      status: 'COMPLETED',
+    };
+
+    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    useLessonDetails.mockReturnValue({
+      data: completedLesson,
+      isLoading: false,
+      error: null,
+    });
+
+    renderWithProviders(<LessonDetailsPage />);
+
+    expect(screen.getByRole('button', { name: /view receipt/i })).toBeInTheDocument();
+  });
+});

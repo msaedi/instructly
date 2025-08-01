@@ -171,10 +171,10 @@ export default function PaymentSuccess({
           {/* Actions */}
           <div className="space-y-3">
             <Link
-              href="/dashboard/student/bookings"
+              href="/student/lessons"
               className="flex items-center justify-center w-full py-3 bg-[#FFD700] hover:bg-[#FFC700] text-black rounded-full font-medium transition-colors"
             >
-              View in Dashboard
+              View My Lessons
               <ArrowRight className="ml-2 w-4 h-4" />
             </Link>
             <Link

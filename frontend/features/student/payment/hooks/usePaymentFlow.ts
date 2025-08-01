@@ -107,7 +107,7 @@ export function usePaymentFlow({
 
       // Redirect to dashboard after 3 seconds
       setTimeout(() => {
-        router.push('/dashboard/student/bookings');
+        router.push('/student/lessons');
       }, 3000);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Payment failed';

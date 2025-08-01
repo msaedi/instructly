@@ -221,15 +221,15 @@ export default function StudentDashboard() {
           </Link>
 
           <Link
-            href="/dashboard/student/bookings"
+            href="/student/lessons"
             className="block"
-            onClick={() => logger.debug('Navigating to my bookings')}
+            onClick={() => logger.debug('Navigating to my lessons')}
           >
             <div className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow">
               <div className="flex items-center">
                 <Calendar className="h-8 w-8 text-indigo-600 mr-4" />
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">My Bookings</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">My Lessons</h3>
                   <p className="text-gray-600">View and manage your sessions</p>
                 </div>
               </div>
@@ -300,15 +300,15 @@ export default function StudentDashboard() {
 
               {upcomingBookings.length > 3 && (
                 <Link
-                  href="/dashboard/student/bookings"
+                  href="/student/lessons"
                   className="block text-center text-indigo-600 hover:text-indigo-700 font-medium transition-colors"
                   onClick={() =>
-                    logger.debug('View all bookings clicked', {
-                      totalBookings: upcomingBookings.length,
+                    logger.debug('View all lessons clicked', {
+                      totalLessons: upcomingBookings.length,
                     })
                   }
                 >
-                  View all {upcomingBookings.length} bookings →
+                  View all {upcomingBookings.length} lessons →
                 </Link>
               )}
             </div>

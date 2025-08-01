@@ -461,6 +461,60 @@ export const bookingsApi = {
     });
     return bookings;
   },
+
+  /**
+   * Reschedule a booking to a new time
+   *
+   * @param bookingId - ID of the booking to reschedule
+   * @param data - New date and time information
+   * @returns Promise with updated booking
+   * @throws Error if rescheduling fails
+   *
+   * @example
+   * ```ts
+   * const rescheduledBooking = await bookingsApi.rescheduleBooking(123, {
+   *   booking_date: '2025-07-16',
+   *   start_time: '10:00',
+   *   end_time: '11:00'
+   * });
+   * ```
+   */
+  rescheduleBooking: async (
+    bookingId: number,
+    data: {
+      booking_date: string;
+      start_time: string;
+      end_time: string;
+    }
+  ): Promise<Booking> => {
+    logger.info('Rescheduling booking', {
+      bookingId,
+      newDate: data.booking_date,
+      newTime: `${data.start_time}-${data.end_time}`,
+    });
+
+    const response = await fetchWithAuth(`/bookings/${bookingId}/reschedule`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      logger.error('Failed to reschedule booking', undefined, { bookingId, error });
+      throw new Error(error.detail || 'Failed to reschedule booking');
+    }
+
+    const result = await response.json();
+    logger.info('Booking rescheduled successfully', {
+      bookingId,
+      newDate: result.booking_date,
+      newTime: `${result.start_time}-${result.end_time}`,
+    });
+    return result;
+  },
 };
 
 /**
