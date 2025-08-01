@@ -24,47 +24,7 @@ const completedLesson = {
 
 // Mock API responses
 async function mockMyLessonsAPI(page: Page) {
-  // Mock upcoming lessons
-  await page.route('**/api/bookings/upcoming', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify([
-        {
-          id: 1,
-          instructor: { id: 1, full_name: upcomingLesson.instructor },
-          service_name: upcomingLesson.service,
-          booking_date: '2024-12-25',
-          start_time: '14:00:00',
-          end_time: '15:00:00',
-          price: 60,
-          status: 'confirmed',
-        },
-      ]),
-    });
-  });
-
-  // Mock completed lessons
-  await page.route('**/api/bookings/history', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify([
-        {
-          id: 2,
-          instructor: { id: 2, full_name: completedLesson.instructor },
-          service_name: completedLesson.service,
-          booking_date: '2024-12-20',
-          start_time: '10:00:00',
-          end_time: '11:00:00',
-          price: 80,
-          status: 'completed',
-        },
-      ]),
-    });
-  });
-
-  // Mock auth endpoints
+  // Mock auth check endpoint
   await page.route('**/api/auth/me', async (route) => {
     await route.fulfill({
       status: 200,
@@ -77,43 +37,126 @@ async function mockMyLessonsAPI(page: Page) {
       }),
     });
   });
+
+  // Mock upcoming lessons
+  await page.route('**/api/bookings/upcoming', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        bookings: [
+          {
+            id: 1,
+            instructor: { id: 1, full_name: upcomingLesson.instructor },
+            service_name: upcomingLesson.service,
+            booking_date: '2024-12-25',
+            start_time: '14:00:00',
+            end_time: '15:00:00',
+            price: 60,
+            status: 'confirmed',
+          },
+        ],
+        total: 1,
+      }),
+    });
+  });
+
+  // Mock completed lessons
+  await page.route('**/api/bookings/history', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        bookings: [
+          {
+            id: 2,
+            instructor: { id: 2, full_name: completedLesson.instructor },
+            service_name: completedLesson.service,
+            booking_date: '2024-12-20',
+            start_time: '10:00:00',
+            end_time: '11:00:00',
+            price: 80,
+            status: 'completed',
+          },
+        ],
+        total: 1,
+      }),
+    });
+  });
+
+  // Mock lesson details endpoint
+  await page.route('**/api/bookings/[0-9]+', async (route) => {
+    const url = new URL(route.request().url());
+    const id = url.pathname.split('/').pop();
+    const lesson =
+      id === '1'
+        ? {
+            id: 1,
+            instructor: { id: 1, full_name: upcomingLesson.instructor },
+            service_name: upcomingLesson.service,
+            booking_date: '2024-12-25',
+            start_time: '14:00:00',
+            end_time: '15:00:00',
+            price: 60,
+            status: 'confirmed',
+          }
+        : {
+            id: 2,
+            instructor: { id: 2, full_name: completedLesson.instructor },
+            service_name: completedLesson.service,
+            booking_date: '2024-12-20',
+            start_time: '10:00:00',
+            end_time: '11:00:00',
+            price: 80,
+            status: 'completed',
+          };
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(lesson),
+    });
+  });
+
+  // Mock empty lessons for empty state test
+  await page.route('**/api/bookings/upcoming/empty', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ bookings: [], total: 0 }),
+    });
+  });
 }
 
 // Helper function to login
 async function loginAsStudent(page: any) {
-  // In CI/test environments, use mock authentication
-  if (process.env.CI || process.env.NODE_ENV === 'test') {
-    // Set mock auth token directly
-    await page.goto('/');
-    await page.evaluate(() => {
-      localStorage.setItem('auth_token', 'mock_access_token');
-      // Also set user data if needed
-      localStorage.setItem(
-        'user',
-        JSON.stringify({
-          id: 1,
-          email: 'student@example.com',
-          full_name: 'Test Student',
-          role: 'student',
-        })
-      );
-    });
-    // Force a reload to pick up the auth state
-    await page.reload();
-    // Wait for the page to recognize auth state
-    await page.waitForLoadState('networkidle');
-  } else {
-    // For local development, use real login
-    await page.goto('/login');
-    await page.fill('input[name="email"]', studentCredentials.email);
-    await page.fill('input[name="password"]', studentCredentials.password);
-    await page.click('button[type="submit"]');
-    // Wait for redirect after login
-    await page.waitForURL('**/*', {
-      waitUntil: 'networkidle',
-      timeout: 10000,
-    });
-  }
+  // Navigate to homepage first
+  await page.goto('/');
+
+  // Set auth token and user data before any API calls
+  await page.evaluate(() => {
+    // The app uses 'access_token' not 'auth_token'
+    localStorage.setItem('access_token', 'mock_access_token');
+
+    // Set user data with proper structure including roles array
+    const userData = {
+      id: 1,
+      email: 'student@example.com',
+      full_name: 'Test Student',
+      roles: ['student'],
+      permissions: [],
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    localStorage.setItem('user', JSON.stringify(userData));
+  });
+
+  // Reload the page to pick up auth state
+  await page.reload({ waitUntil: 'networkidle' });
+
+  // Wait for auth to be processed and My Lessons link to appear
+  await page.waitForSelector('text=My Lessons', { timeout: 10000 });
 }
 
 test.describe('My Lessons Page', () => {
@@ -480,7 +523,7 @@ test.describe('Error Handling', () => {
   test('should return to My Lessons after login', async ({ page }) => {
     // Clear auth token
     await page.evaluate(() => {
-      localStorage.removeItem('auth_token');
+      localStorage.removeItem('access_token');
       localStorage.removeItem('user');
     });
 
