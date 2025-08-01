@@ -72,7 +72,10 @@ export default function InstructorCard({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow">
+    <div
+      className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow"
+      data-testid="instructor-card"
+    >
       <div className="p-6">
         {/* Header with photo placeholder and name */}
         <div className="flex items-start mb-4">
@@ -82,7 +85,9 @@ export default function InstructorCard({
             </div>
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-lg text-gray-900">{instructor.user.full_name}</h3>
+            <h3 className="font-semibold text-lg text-gray-900" data-testid="instructor-name">
+              {instructor.user.full_name}
+            </h3>
             <p className="text-gray-600">
               {instructor.services && instructor.services.length > 0
                 ? instructor.services.map((s) => formatSubject(s.skill || '')).join(', ') +
@@ -104,7 +109,7 @@ export default function InstructorCard({
           <MapPin className="h-4 w-4 mr-1" />
           <span>{instructor.areas_of_service[0] || 'Manhattan'}</span>
           <span className="mx-2">·</span>
-          <span className="font-medium text-gray-900">
+          <span className="font-medium text-gray-900" data-testid="instructor-price">
             ${instructor.services[0]?.hourly_rate || 0}/hour
           </span>
         </div>

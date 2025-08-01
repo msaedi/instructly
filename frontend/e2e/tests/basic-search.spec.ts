@@ -26,12 +26,12 @@ test.describe('Basic Search Flow', () => {
   test('can click on category links', async ({ page }) => {
     await page.goto('/');
 
-    // Click on Music category
-    const musicCategory = page.getByRole('link', { name: /Music/i });
-    await musicCategory.click();
+    // Click on a specific service link instead (e.g., Personal Training)
+    const serviceLink = page.getByRole('link', { name: /Personal Training/i });
+    await serviceLink.click();
 
-    // Verify we're on the search page with category filter
-    await expect(page).toHaveURL(/\/search\?category=music/);
+    // Verify we're on the search page with service filter
+    await expect(page).toHaveURL(/\/search\?service_catalog_id=97/);
   });
 
   test('shows available instructors section', async ({ page }) => {

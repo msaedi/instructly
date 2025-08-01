@@ -307,10 +307,14 @@ test.describe('My Lessons Page', () => {
   });
 
   test.skip('should navigate to My Lessons from homepage', async ({ page }) => {
+    // Skip this test due to homepage runtime errors with bookings.slice
+    // This test will be re-enabled once the homepage is fixed
+    await setupMocksAndAuth(page);
+
     await page.goto('/');
 
-    // Wait for page to load and handle any errors
-    await page.waitForLoadState('domcontentloaded');
+    // Wait for page to load completely
+    await page.waitForLoadState('networkidle');
 
     // Click My Lessons link in header - using more specific selector
     const myLessonsLink = page.getByRole('link', { name: 'My Lessons' });
@@ -517,7 +521,7 @@ test.describe('Lesson Details Page', () => {
     await expect(page.locator('text=Need to reschedule?')).not.toBeVisible();
   });
 
-  test.skip('should show cancellation warning when cancel button is clicked', async ({ page }) => {
+  test('should show cancellation warning when cancel button is clicked', async ({ page }) => {
     await page.goto('/student/lessons/1');
     await page.waitForLoadState('networkidle');
 
@@ -530,12 +534,14 @@ test.describe('Lesson Details Page', () => {
     await expect(page.locator('text=Cancel lesson').first()).toBeVisible();
     await expect(page.locator('text=Cancellation Policy')).toBeVisible();
 
-    // Verify action buttons in modal - be specific about which buttons
-    await expect(page.locator('dialog button:has-text("Reschedule lesson")')).toBeVisible();
-    await expect(page.locator('dialog button:has-text("Cancel lesson")')).toBeVisible();
+    // Verify action buttons in modal - look for buttons within the modal, not specifically dialog element
+    // The modal is there but might not use dialog element
+    const modal = page.locator('[role="dialog"], dialog');
+    await expect(modal.locator('button:has-text("Reschedule lesson")')).toBeVisible();
+    await expect(modal.locator('button:has-text("Cancel lesson")')).toBeVisible();
   });
 
-  test.skip('should switch from cancel to reschedule modal', async ({ page }) => {
+  test('should switch from cancel to reschedule modal', async ({ page }) => {
     await page.goto('/student/lessons/1');
     await page.waitForLoadState('networkidle');
 
@@ -547,7 +553,8 @@ test.describe('Lesson Details Page', () => {
     await expect(page.locator('text=Cancel lesson').first()).toBeVisible();
 
     // Click reschedule button in the modal
-    await page.locator('dialog button:has-text("Reschedule lesson")').click();
+    const modal = page.locator('[role="dialog"], dialog');
+    await modal.locator('button:has-text("Reschedule lesson")').click();
 
     // Verify switched to reschedule modal
     await expect(page.locator('text=Cancellation Policy')).not.toBeVisible();
@@ -735,31 +742,62 @@ test.describe('Error Handling', () => {
     await expect(page.locator('button:has-text("Retry")')).toBeVisible();
   });
 
-  test.skip('should return to My Lessons after login', async ({ page }) => {
-    // Set up login mock
-    await page.route('http://localhost:8000/auth/login', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          access_token: 'mock_access_token',
-          token_type: 'bearer',
-          user: {
-            id: 1,
-            email: studentCredentials.email,
-            full_name: 'Test Student',
-            roles: ['student'],
-            permissions: [],
-            is_active: true,
-          },
-        }),
-      });
-    });
+  test('should return to My Lessons after login', async ({ page }) => {
+    // Set up login mock with proper response structure - handle both regular and session login
+    const loginHandler = async (route: any) => {
+      const request = route.request();
+      const contentType = request.headers()['content-type'] || '';
 
-    // Mock auth endpoint to return 401 initially, then success after login
-    let loginCompleted = false;
+      let email = '';
+      let password = '';
+
+      // Check if it's form data or JSON
+      if (contentType.includes('application/x-www-form-urlencoded')) {
+        const postData = await request.postData();
+        const params = new URLSearchParams(postData);
+        email = params.get('username') || '';
+        password = params.get('password') || '';
+      } else {
+        const postData = request.postDataJSON();
+        email = postData?.email || '';
+        password = postData?.password || '';
+      }
+
+      // Check credentials match what we expect
+      if (email === studentCredentials.email && password === studentCredentials.password) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            access_token: 'mock_access_token',
+            token_type: 'bearer',
+            user: {
+              id: 1,
+              email: studentCredentials.email,
+              full_name: 'Test Student',
+              roles: ['student'],
+              permissions: [],
+              is_active: true,
+            },
+          }),
+        });
+      } else {
+        await route.fulfill({
+          status: 401,
+          contentType: 'application/json',
+          body: JSON.stringify({ detail: 'Invalid email or password' }),
+        });
+      }
+    };
+
+    // Mock both possible login endpoints
+    await page.route('http://localhost:8000/auth/login', loginHandler);
+    await page.route('http://localhost:8000/auth/login-with-session', loginHandler);
+
+    // Mock auth endpoint to success after we set the token
     await page.route('http://localhost:8000/auth/me', async (route) => {
-      if (loginCompleted) {
+      const token = route.request().headers()['authorization'];
+      if (token === 'Bearer mock_access_token') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -805,6 +843,8 @@ test.describe('Error Handling', () => {
             },
           ],
           total: 1,
+          page: 1,
+          per_page: 50,
         }),
       });
     });
@@ -819,14 +859,16 @@ test.describe('Error Handling', () => {
     await page.fill('input[name="email"]', studentCredentials.email);
     await page.fill('input[name="password"]', studentCredentials.password);
 
-    // Mark login as completed
-    loginCompleted = true;
+    // Submit the form
+    await Promise.all([
+      page.waitForResponse(
+        (response) => response.url().includes('/auth/login') && response.status() === 200
+      ),
+      page.click('button[type="submit"]'),
+    ]);
 
-    // Click submit button
-    await page.click('button[type="submit"]');
-
-    // Wait for navigation to complete
-    await page.waitForURL('/student/lessons', { timeout: 10000 });
+    // Should redirect to My Lessons after successful login
+    await page.waitForURL('/student/lessons', { timeout: 5000 });
 
     // Verify we're on My Lessons page
     await expect(page).toHaveURL('/student/lessons');

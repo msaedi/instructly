@@ -651,7 +651,7 @@ function SearchPageContent() {
             </Link>
           </div>
         ) : instructors.length === 0 ? (
-          <div className="text-center py-12">
+          <div className="text-center py-12" data-testid="no-results">
             <p className="text-gray-600 text-lg mb-4">No instructors found matching your search.</p>
             <Link href="/" className="text-blue-600 hover:underline">
               Try a different search

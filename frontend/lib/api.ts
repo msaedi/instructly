@@ -334,7 +334,9 @@ export async function getUpcomingBookings(limit: number = 5): Promise<UpcomingBo
       throw new Error('Failed to fetch upcoming bookings');
     }
 
-    const bookings = await response.json();
+    const data = await response.json();
+    // Handle paginated response - check if it's wrapped or direct array
+    const bookings = Array.isArray(data) ? data : data.bookings || [];
     logger.debug('Upcoming bookings fetched successfully', {
       count: bookings.length,
     });
