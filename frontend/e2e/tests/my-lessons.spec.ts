@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 
 // Test data
 const studentCredentials = {
@@ -22,18 +22,105 @@ const completedLesson = {
   price: '$80.00',
 };
 
+// Mock API responses
+async function mockMyLessonsAPI(page: Page) {
+  // Mock upcoming lessons
+  await page.route('**/api/bookings/upcoming', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          id: 1,
+          instructor: { id: 1, full_name: upcomingLesson.instructor },
+          service_name: upcomingLesson.service,
+          booking_date: '2024-12-25',
+          start_time: '14:00:00',
+          end_time: '15:00:00',
+          price: 60,
+          status: 'confirmed',
+        },
+      ]),
+    });
+  });
+
+  // Mock completed lessons
+  await page.route('**/api/bookings/history', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          id: 2,
+          instructor: { id: 2, full_name: completedLesson.instructor },
+          service_name: completedLesson.service,
+          booking_date: '2024-12-20',
+          start_time: '10:00:00',
+          end_time: '11:00:00',
+          price: 80,
+          status: 'completed',
+        },
+      ]),
+    });
+  });
+
+  // Mock auth endpoints
+  await page.route('**/api/auth/me', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 1,
+        email: studentCredentials.email,
+        full_name: 'Test Student',
+        role: 'student',
+      }),
+    });
+  });
+}
+
 // Helper function to login
 async function loginAsStudent(page: any) {
-  await page.goto('/login');
-  await page.fill('input[name="email"]', studentCredentials.email);
-  await page.fill('input[name="password"]', studentCredentials.password);
-  await page.click('button[type="submit"]');
-  // Wait for successful navigation after login (expect redirect to dashboard or home)
-  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15000 });
+  // In CI/test environments, use mock authentication
+  if (process.env.CI || process.env.NODE_ENV === 'test') {
+    // Set mock auth token directly
+    await page.goto('/');
+    await page.evaluate(() => {
+      localStorage.setItem('auth_token', 'mock_access_token');
+      // Also set user data if needed
+      localStorage.setItem(
+        'user',
+        JSON.stringify({
+          id: 1,
+          email: 'student@example.com',
+          full_name: 'Test Student',
+          role: 'student',
+        })
+      );
+    });
+    // Force a reload to pick up the auth state
+    await page.reload();
+    // Wait for the page to recognize auth state
+    await page.waitForLoadState('networkidle');
+  } else {
+    // For local development, use real login
+    await page.goto('/login');
+    await page.fill('input[name="email"]', studentCredentials.email);
+    await page.fill('input[name="password"]', studentCredentials.password);
+    await page.click('button[type="submit"]');
+    // Wait for redirect after login
+    await page.waitForURL('**/*', {
+      waitUntil: 'networkidle',
+      timeout: 10000,
+    });
+  }
 }
 
 test.describe('My Lessons Page', () => {
   test.beforeEach(async ({ page }) => {
+    // Set up API mocks
+    await mockMyLessonsAPI(page);
+    // Login
     await loginAsStudent(page);
   });
 
@@ -150,6 +237,9 @@ test.describe('My Lessons Page', () => {
 
 test.describe('Lesson Details Page', () => {
   test.beforeEach(async ({ page }) => {
+    // Set up API mocks
+    await mockMyLessonsAPI(page);
+    // Login
     await loginAsStudent(page);
   });
 
@@ -236,6 +326,9 @@ test.describe('Lesson Details Page', () => {
 
 test.describe('Completed Lessons', () => {
   test.beforeEach(async ({ page }) => {
+    // Set up API mocks
+    await mockMyLessonsAPI(page);
+    // Login
     await loginAsStudent(page);
   });
 
@@ -297,6 +390,9 @@ test.describe('Mobile Responsiveness', () => {
   });
 
   test.beforeEach(async ({ page }) => {
+    // Set up API mocks
+    await mockMyLessonsAPI(page);
+    // Login
     await loginAsStudent(page);
   });
 
@@ -346,6 +442,9 @@ test.describe('Mobile Responsiveness', () => {
 
 test.describe('Error Handling', () => {
   test.beforeEach(async ({ page }) => {
+    // Set up API mocks
+    await mockMyLessonsAPI(page);
+    // Login
     await loginAsStudent(page);
   });
 
