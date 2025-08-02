@@ -505,6 +505,11 @@ The frontend uses Next.js 15 App Router with:
    - Fixtures for common test data
    - Async test support with pytest-asyncio
    - **API contract tests** ensure response model compliance
+   - **Test Isolation**: Use UUID-based unique data generation to prevent test conflicts
+     - Import from `tests.fixtures.unique_test_data` for unique emails, names, etc.
+     - Example: `unique_data.unique_email("instructor")` → `instructor.abc123@example.com`
+     - This prevents test failures when running tests together locally
+     - See `tests/fixtures/unique_test_data.py` for available generators
 
 ## Important Configuration
 

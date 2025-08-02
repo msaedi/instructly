@@ -937,20 +937,17 @@ def sample_instructors_with_services(db: Session, test_password: str) -> list[Us
 
     instructors = []
 
-    # Piano instructor
-    # Check if user already exists and delete it
-    existing_piano = db.query(User).filter(User.email == "piano.instructor@example.com").first()
-    if existing_piano:
-        if hasattr(existing_piano, "instructor_profile") and existing_piano.instructor_profile:
-            db.delete(existing_piano.instructor_profile)
-        db.delete(existing_piano)
-        db.commit()
+    # Import unique data generator
+    from tests.fixtures.unique_test_data import unique_data
+
+    # Piano instructor - use unique email to avoid conflicts
+    piano_email = unique_data.unique_email("piano.instructor")
 
     piano_instructor = User(
-        email="piano.instructor@example.com",
+        email=piano_email,
         hashed_password=get_password_hash(test_password),
         is_active=True,
-        full_name="Piano Teacher",
+        full_name=unique_data.unique_name("Piano Teacher"),
     )
     db.add(piano_instructor)
     db.flush()
@@ -995,20 +992,14 @@ def sample_instructors_with_services(db: Session, test_password: str) -> list[Us
 
     instructors.append(piano_instructor)
 
-    # Yoga instructor
-    # Check if user already exists and delete it
-    existing_yoga = db.query(User).filter(User.email == "yoga.instructor@example.com").first()
-    if existing_yoga:
-        if hasattr(existing_yoga, "instructor_profile") and existing_yoga.instructor_profile:
-            db.delete(existing_yoga.instructor_profile)
-        db.delete(existing_yoga)
-        db.commit()
+    # Yoga instructor - use unique email to avoid conflicts
+    yoga_email = unique_data.unique_email("yoga.instructor")
 
     yoga_instructor = User(
-        email="yoga.instructor@example.com",
+        email=yoga_email,
         hashed_password=get_password_hash(test_password),
         is_active=True,
-        full_name="Yoga Teacher",
+        full_name=unique_data.unique_name("Yoga Teacher"),
     )
     db.add(yoga_instructor)
     db.flush()
