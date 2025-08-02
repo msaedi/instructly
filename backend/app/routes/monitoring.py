@@ -18,6 +18,13 @@ from sqlalchemy.orm import Session
 from ..core.config import settings
 from ..database import get_db, get_db_pool_status
 from ..monitoring.production_monitor import monitor
+from ..schemas.monitoring_responses import (
+    AlertAcknowledgeResponse,
+    ExtendedCacheStats,
+    MonitoringDashboardResponse,
+    SlowQueriesResponse,
+    SlowRequestsResponse,
+)
 from ..services.cache_service import get_cache_service
 
 router = APIRouter(
@@ -49,10 +56,10 @@ async def verify_monitoring_api_key(api_key: Optional[str] = Header(None, alias=
         raise HTTPException(status_code=403, detail="Invalid monitoring API key")
 
 
-@router.get("/dashboard")
+@router.get("/dashboard", response_model=MonitoringDashboardResponse)
 async def get_monitoring_dashboard(
     db: Session = Depends(get_db), _: None = Depends(verify_monitoring_api_key)
-) -> Dict[str, Any]:
+) -> MonitoringDashboardResponse:
     """
     Get comprehensive monitoring dashboard data.
 
@@ -71,61 +78,68 @@ async def get_monitoring_dashboard(
         db_pool = get_db_pool_status()
 
         # Build dashboard response
-        return {
-            "status": "ok",
-            "timestamp": performance["timestamp"],
-            "database": {
+        return MonitoringDashboardResponse(
+            status="ok",
+            timestamp=performance["timestamp"],
+            database={
                 **performance["database"],
                 "pool": db_pool,
             },
-            "cache": cache_health,
-            "requests": performance["requests"],
-            "memory": performance["memory"],
-            "alerts": performance["alerts"],
-            "recommendations": _generate_recommendations(performance, cache_health),
-        }
+            cache=cache_health,
+            requests=performance["requests"],
+            memory=performance["memory"],
+            alerts=performance["alerts"],
+            recommendations=_generate_recommendations(performance, cache_health),
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Monitoring error: {str(e)}")
 
 
-@router.get("/slow-queries")
-async def get_slow_queries(limit: int = 10, _: None = Depends(verify_monitoring_api_key)) -> Dict[str, Any]:
+@router.get("/slow-queries", response_model=SlowQueriesResponse)
+async def get_slow_queries(limit: int = 10, _: None = Depends(verify_monitoring_api_key)) -> SlowQueriesResponse:
     """Get recent slow queries."""
-    return {
-        "slow_queries": list(monitor.slow_queries)[-limit:],
-        "total_count": len(monitor.slow_queries),
-    }
+    return SlowQueriesResponse(
+        slow_queries=list(monitor.slow_queries)[-limit:],
+        total_count=len(monitor.slow_queries),
+    )
 
 
-@router.get("/slow-requests")
-async def get_slow_requests(limit: int = 10, _: None = Depends(verify_monitoring_api_key)) -> Dict[str, Any]:
+@router.get("/slow-requests", response_model=SlowRequestsResponse)
+async def get_slow_requests(limit: int = 10, _: None = Depends(verify_monitoring_api_key)) -> SlowRequestsResponse:
     """Get recent slow requests."""
-    return {
-        "slow_requests": list(monitor.slow_requests)[-limit:],
-        "total_count": len(monitor.slow_requests),
-    }
+    return SlowRequestsResponse(
+        slow_requests=list(monitor.slow_requests)[-limit:],
+        total_count=len(monitor.slow_requests),
+    )
 
 
-@router.get("/cache/extended-stats")
+@router.get("/cache/extended-stats", response_model=ExtendedCacheStats)
 async def get_extended_cache_stats(
     db: Session = Depends(get_db), _: None = Depends(verify_monitoring_api_key)
-) -> Dict[str, Any]:
+) -> ExtendedCacheStats:
     """Get extended cache statistics."""
     cache_service = get_cache_service(db)
 
     # Check if we have the extended stats method
-    if hasattr(cache_service, "get_extended_stats"):
-        return cache_service.get_extended_stats()
-    else:
-        return cache_service.get_stats()
+    stats = (
+        cache_service.get_extended_stats()
+        if hasattr(cache_service, "get_extended_stats")
+        else cache_service.get_stats()
+    )
+
+    return ExtendedCacheStats(
+        basic_stats=stats.get("basic_stats", stats),
+        redis_info=stats.get("redis_info"),
+        key_patterns=stats.get("key_patterns"),
+    )
 
 
-@router.post("/alerts/acknowledge/{alert_type}")
-async def acknowledge_alert(alert_type: str, _: None = Depends(verify_monitoring_api_key)) -> Dict[str, Any]:
+@router.post("/alerts/acknowledge/{alert_type}", response_model=AlertAcknowledgeResponse)
+async def acknowledge_alert(alert_type: str, _: None = Depends(verify_monitoring_api_key)) -> AlertAcknowledgeResponse:
     """Acknowledge an alert to reset its cooldown."""
     if alert_type in monitor._last_alert_time:
         del monitor._last_alert_time[alert_type]
-        return {"status": "acknowledged", "alert_type": alert_type}
+        return AlertAcknowledgeResponse(status="acknowledged", alert_type=alert_type)
     else:
         raise HTTPException(status_code=404, detail=f"Alert type '{alert_type}' not found")
 

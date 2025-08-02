@@ -8,21 +8,23 @@ database connectivity, and service availability.
 
 import logging
 import os
-from typing import Dict
+from datetime import datetime
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..schemas.base_responses import HealthCheckResponse
+from ..schemas.monitoring_responses import ComponentHealth, DetailedHealthCheckResponse
 from ..services.cache_service import CacheService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["health"])
 
 
-@router.get("/health")
-def health_check(db: Session = Depends(get_db)) -> Dict[str, str]:
+@router.get("/health", response_model=HealthCheckResponse)
+def health_check(db: Session = Depends(get_db)) -> HealthCheckResponse:
     """
     Basic health check endpoint.
 
@@ -32,45 +34,50 @@ def health_check(db: Session = Depends(get_db)) -> Dict[str, str]:
     # Check database connectivity
     try:
         db.execute(text("SELECT 1"))
-        db_status = "healthy"
+        db_status = True
+        status = "healthy"
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
-        db_status = "unhealthy"
+        db_status = False
+        status = "degraded"
 
-    return {
-        "status": "healthy" if db_status == "healthy" else "degraded",
-        "database": db_status,
-        "service": "InstaInstru API",
-        "version": "1.0.0",
-    }
+    return HealthCheckResponse(
+        status=status,
+        service="InstaInstru API",
+        version="1.0.0",
+        timestamp=datetime.utcnow(),
+        checks={"database": db_status},
+    )
 
 
-@router.get("/health/detailed")
-def detailed_health_check(db: Session = Depends(get_db)) -> Dict[str, any]:
+@router.get("/health/detailed", response_model=DetailedHealthCheckResponse)
+def detailed_health_check(db: Session = Depends(get_db)) -> DetailedHealthCheckResponse:
     """
     Detailed health check with component status.
 
     Returns:
         Detailed status of all system components.
     """
-    health_status = {
-        "status": "healthy",
-        "components": {},
-        "environment": os.getenv("ENVIRONMENT", "unknown"),
-    }
+    components = {}
+    overall_status = "healthy"
+    cache_stats = None
 
     # Database check
     try:
         result = db.execute(text("SELECT COUNT(*) FROM users"))
         user_count = result.scalar()
-        health_status["components"]["database"] = {
-            "status": "healthy",
-            "type": "postgresql",
-            "user_count": user_count,
-        }
+        components["database"] = ComponentHealth(
+            status="healthy",
+            type="postgresql",
+            details={"user_count": user_count},
+        )
     except Exception as e:
-        health_status["components"]["database"] = {"status": "unhealthy", "error": str(e)}
-        health_status["status"] = "degraded"
+        components["database"] = ComponentHealth(
+            status="unhealthy",
+            type="postgresql",
+            details={"error": str(e)},
+        )
+        overall_status = "degraded"
 
     # Cache check
     try:
@@ -88,22 +95,33 @@ def detailed_health_check(db: Session = Depends(get_db)) -> Dict[str, any]:
         redis_url = os.getenv("REDIS_URL", "Not configured")
         is_redis = "redis" in redis_url.lower()
 
-        health_status["components"]["cache"] = {
-            "status": "healthy" if cache_working else "unhealthy",
-            "type": cache_type,
-            "redis_configured": is_redis,
-            "redis_url_set": redis_url != "Not configured",
-            "test_passed": cache_working,
-        }
+        components["cache"] = ComponentHealth(
+            status="healthy" if cache_working else "unhealthy",
+            type=cache_type,
+            details={
+                "redis_configured": is_redis,
+                "redis_url_set": redis_url != "Not configured",
+                "test_passed": cache_working,
+            },
+        )
+
+        # Get cache stats if available
+        try:
+            cache_stats = cache_service.get_stats()
+        except:
+            pass
+
     except Exception as e:
-        health_status["components"]["cache"] = {"status": "unhealthy", "error": str(e)}
-        health_status["status"] = "degraded"
+        components["cache"] = ComponentHealth(
+            status="unhealthy",
+            type="unknown",
+            details={"error": str(e)},
+        )
+        overall_status = "degraded"
 
-    # Add cache stats if available
-    try:
-        stats = cache_service.get_stats()
-        health_status["components"]["cache"]["stats"] = stats
-    except:
-        pass
-
-    return health_status
+    return DetailedHealthCheckResponse(
+        status=overall_status,
+        environment=os.getenv("ENVIRONMENT", "unknown"),
+        components=components,
+        cache_stats=cache_stats,
+    )

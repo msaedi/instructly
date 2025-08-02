@@ -22,18 +22,34 @@ from ..api.dependencies.services import (
 from ..database import get_db, get_db_pool_status
 from ..middleware.rate_limiter import RateLimitAdmin, RateLimitKeyType, rate_limit
 from ..models.user import User
+from ..schemas.base_responses import HealthCheckResponse, SuccessResponse
+from ..schemas.monitoring_responses import (
+    AvailabilityCacheMetricsResponse,
+    CacheMetricsResponse,
+    PerformanceMetricsResponse,
+    RateLimitResetResponse,
+    RateLimitStats,
+    RateLimitTestResponse,
+    SlowQueriesResponse,
+)
 from ..services.cache_service import CacheService
 
 router = APIRouter(prefix="/metrics", tags=["monitoring"])
 
 
-@router.get("/health")
-async def health_check():
+@router.get("/health", response_model=HealthCheckResponse)
+async def health_check() -> HealthCheckResponse:
     """Basic health check endpoint."""
-    return {"status": "healthy", "service": "InstaInstru API"}
+    return HealthCheckResponse(
+        status="healthy",
+        service="InstaInstru API",
+        version="1.0.0",
+        timestamp=datetime.utcnow(),
+        checks={"api": True},
+    )
 
 
-@router.get("/performance")
+@router.get("/performance", response_model=PerformanceMetricsResponse)
 async def get_performance_metrics(
     current_user: User = Depends(get_current_user),
     availability_service=Depends(get_availability_service),
@@ -41,28 +57,18 @@ async def get_performance_metrics(
     conflict_checker=Depends(get_conflict_checker),
     cache_service: CacheService = Depends(get_cache_service_dep),
     db: Session = Depends(get_db),
-):
+) -> PerformanceMetricsResponse:
     """Get performance metrics from all services."""
 
     # Only allow admin users or specific monitoring user
     if current_user.email not in ["admin@instainstru.com", "profiling@instainstru.com", "sarah.chen@example.com"]:
-        return {"error": "Unauthorized"}
-
-    # Collect service metrics
-    metrics = {
-        "availability_service": availability_service.get_metrics(),
-        "booking_service": booking_service.get_metrics(),
-        "conflict_checker": conflict_checker.get_metrics(),
-    }
+        raise HTTPException(status_code=403, detail="Unauthorized")
 
     # Cache metrics
-    if cache_service:
-        metrics["cache"] = cache_service.get_stats()
-    else:
-        metrics["cache"] = {"error": "Cache service not available"}
+    cache_stats = cache_service.get_stats() if cache_service else {"error": "Cache service not available"}
 
     # System metrics
-    metrics["system"] = {
+    system_metrics = {
         "cpu_percent": psutil.cpu_percent(interval=1),
         "memory_percent": psutil.virtual_memory().percent,
         "disk_usage": psutil.disk_usage("/").percent,
@@ -70,33 +76,40 @@ async def get_performance_metrics(
 
     # Database metrics
     db_stats = db.execute(text("SELECT count(*) FROM pg_stat_activity")).scalar()
-    metrics["database"] = {
+    database_metrics = {
         "active_connections": db_stats,
         "pool_status": get_db_pool_status(),
     }
 
-    return metrics
+    return PerformanceMetricsResponse(
+        availability_service=availability_service.get_metrics(),
+        booking_service=booking_service.get_metrics(),
+        conflict_checker=conflict_checker.get_metrics(),
+        cache=cache_stats,
+        system=system_metrics,
+        database=database_metrics,
+    )
 
 
-@router.get("/cache")
+@router.get("/cache", response_model=CacheMetricsResponse)
 async def get_cache_metrics(
     current_user: User = Depends(get_current_user),
     cache_service: CacheService = Depends(get_cache_service_dep),
-):
+) -> CacheMetricsResponse:
     """Get detailed cache metrics including availability-specific stats."""
 
     if current_user.email not in ["admin@instainstru.com", "profiling@instainstru.com"]:
-        return {"error": "Unauthorized"}
+        raise HTTPException(status_code=403, detail="Unauthorized")
 
     if not cache_service:
-        return {"error": "Cache service not available"}
+        raise HTTPException(status_code=503, detail="Cache service not available")
 
     # Get basic cache stats
     stats = cache_service.get_stats()
 
     # Add availability-specific metrics
     availability_stats = {
-        "availability_hit_rate": 0,
+        "availability_hit_rate": "0%",
         "availability_total_requests": 0,
         "availability_invalidations": stats.get("availability_invalidations", 0),
     }
@@ -111,29 +124,31 @@ async def get_cache_metrics(
         availability_stats["availability_total_requests"] = avail_total
 
     # Add cache size estimates (if Redis is available)
-    cache_info = {}
+    redis_info = None
     if hasattr(cache_service, "redis") and cache_service.redis:
         try:
             # Get approximate cache size
             info = cache_service.redis.info()
-            cache_info = {
+            redis_info = {
                 "used_memory_human": info.get("used_memory_human", "Unknown"),
                 "keyspace_hits": info.get("keyspace_hits", 0),
                 "keyspace_misses": info.get("keyspace_misses", 0),
                 "evicted_keys": info.get("evicted_keys", 0),
             }
-        except Exception as e:
-            cache_info = {"error": f"Could not get Redis info: {e}"}
+        except Exception:
+            pass  # Redis info is optional
 
-    # Combine all metrics
-    enhanced_stats = {
-        **stats,
-        "availability_metrics": availability_stats,
-        "redis_info": cache_info,
-        "performance_insights": _get_cache_performance_insights(stats),
-    }
-
-    return enhanced_stats
+    return CacheMetricsResponse(
+        hits=stats.get("hits", 0),
+        misses=stats.get("misses", 0),
+        errors=stats.get("errors", 0),
+        hit_rate=f"{(stats.get('hits', 0) / (stats.get('hits', 0) + stats.get('misses', 0)) * 100):.2f}%"
+        if (stats.get("hits", 0) + stats.get("misses", 0)) > 0
+        else "0%",
+        availability_metrics=availability_stats,
+        redis_info=redis_info,
+        performance_insights=_get_cache_performance_insights(stats),
+    )
 
 
 def _get_cache_performance_insights(stats):
@@ -173,18 +188,18 @@ def _get_cache_performance_insights(stats):
     return insights
 
 
-@router.get("/cache/availability")
+@router.get("/cache/availability", response_model=AvailabilityCacheMetricsResponse)
 async def get_availability_cache_metrics(
     current_user: User = Depends(get_current_user),
     cache_service: CacheService = Depends(get_cache_service_dep),
-):
+) -> AvailabilityCacheMetricsResponse:
     """Get detailed availability-specific cache metrics and top cached keys."""
 
     if current_user.email not in ["admin@instainstru.com", "profiling@instainstru.com"]:
-        return {"error": "Unauthorized"}
+        raise HTTPException(status_code=403, detail="Unauthorized")
 
     if not cache_service:
-        return {"error": "Cache service not available"}
+        raise HTTPException(status_code=503, detail="Cache service not available")
 
     stats = cache_service.get_stats()
 
@@ -233,24 +248,26 @@ async def get_availability_cache_metrics(
     if not recommendations:
         recommendations.append("Availability caching performance is optimal")
 
-    return {
-        "availability_cache_metrics": availability_metrics,
-        "top_cached_keys_sample": top_keys,
-        "recommendations": recommendations,
-        "cache_tiers_info": {
+    return AvailabilityCacheMetricsResponse(
+        availability_cache_metrics=availability_metrics,
+        top_cached_keys_sample=top_keys,
+        recommendations=recommendations,
+        cache_tiers_info={
             "hot": "5 minutes (current/future availability)",
             "warm": "1 hour (past availability)",
             "cold": "24 hours (historical data)",
         },
-    }
+    )
 
 
-@router.get("/slow-queries")
-async def get_slow_queries(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+@router.get("/slow-queries", response_model=SlowQueriesResponse)
+async def get_slow_queries(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> SlowQueriesResponse:
     """Get recent slow queries."""
 
     if current_user.email not in ["admin@instainstru.com", "profiling@instainstru.com"]:
-        return {"error": "Unauthorized"}
+        raise HTTPException(status_code=403, detail="Unauthorized")
 
     # Get slow queries from PostgreSQL
     try:
@@ -275,38 +292,48 @@ async def get_slow_queries(current_user: User = Depends(get_current_user), db: S
             slow_queries.append(
                 {
                     "query": row[0][:200],  # First 200 chars
-                    "avg_time_ms": row[1],
-                    "calls": row[2],
-                    "total_time_ms": row[3],
+                    "duration_ms": float(row[1]),
+                    "timestamp": datetime.utcnow(),  # Approximate timestamp
+                    "endpoint": None,  # Not available from pg_stat_statements
                 }
             )
 
-        return {"slow_queries": slow_queries}
-    except Exception as e:
-        return {"error": f"pg_stat_statements not available: {str(e)}"}
+        return SlowQueriesResponse(
+            slow_queries=slow_queries,
+            total_count=len(slow_queries),
+        )
+    except Exception:
+        # Return empty list if pg_stat_statements not available
+        return SlowQueriesResponse(
+            slow_queries=[],
+            total_count=0,
+        )
 
 
-@router.post("/cache/reset-stats")
+@router.post("/cache/reset-stats", response_model=SuccessResponse)
 async def reset_cache_stats(
     current_user: User = Depends(get_current_user),
     cache_service: CacheService = Depends(get_cache_service_dep),
-):
+) -> SuccessResponse:
     """Reset cache statistics."""
 
     if current_user.email not in ["admin@instainstru.com", "profiling@instainstru.com"]:
-        return {"error": "Unauthorized"}
+        raise HTTPException(status_code=403, detail="Unauthorized")
 
     if cache_service:
         cache_service.reset_stats()
-        return {"status": "Cache stats reset"}
+        return SuccessResponse(
+            success=True,
+            message="Cache statistics have been reset",
+        )
 
-    return {"error": "Cache service not available"}
+    raise HTTPException(status_code=503, detail="Cache service not available")
 
 
-@router.get("/rate-limits")
+@router.get("/rate-limits", response_model=RateLimitStats)
 def get_rate_limit_stats(
     current_user: User = Depends(get_current_active_user),
-):
+) -> RateLimitStats:
     """
     Get current rate limit statistics.
 
@@ -320,11 +347,11 @@ def get_rate_limit_stats(
     return RateLimitAdmin.get_rate_limit_stats()
 
 
-@router.post("/rate-limits/reset")
+@router.post("/rate-limits/reset", response_model=RateLimitResetResponse)
 def reset_rate_limits(
     pattern: str = Query(..., description="Pattern to match (e.g., 'email_*', 'ip_192.168.*')"),
     current_user: User = Depends(get_current_active_user),
-):
+) -> RateLimitResetResponse:
     """
     Reset rate limits matching a pattern.
 
@@ -341,31 +368,31 @@ def reset_rate_limits(
 
     count = RateLimitAdmin.reset_all_limits(pattern)
 
-    return {
-        "status": "success",
-        "pattern": pattern,
-        "limits_reset": count,
-        "message": f"Reset {count} rate limits matching pattern '{pattern}'",
-    }
+    return RateLimitResetResponse(
+        status="success",
+        pattern=pattern,
+        limits_reset=count,
+        message=f"Reset {count} rate limits matching pattern '{pattern}'",
+    )
 
 
-@router.get("/rate-limits/test")
+@router.get("/rate-limits/test", response_model=RateLimitTestResponse)
 @rate_limit("3/minute", key_type=RateLimitKeyType.IP)
 async def test_rate_limit(
     request: Request,  # Add this for rate limiting
     requests: int = Query(default=5, ge=1, le=20, description="Number of requests to simulate"),
-):
+) -> RateLimitTestResponse:
     """
     Test endpoint to verify rate limiting is working.
 
     This endpoint has a low rate limit for testing purposes.
     Try making multiple requests to see rate limiting in action.
     """
-    return {
-        "message": "Rate limit test successful",
-        "timestamp": datetime.now().isoformat(),
-        "note": "This endpoint is rate limited to 3 requests per minute",
-    }
+    return RateLimitTestResponse(
+        message="Rate limit test successful",
+        timestamp=datetime.now().isoformat(),
+        note="This endpoint is rate limited to 3 requests per minute",
+    )
 
 
 # Apply rate limit to the test endpoint
