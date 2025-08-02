@@ -55,33 +55,46 @@ export default async function InstructorProfilePage({ params }: InstructorProfil
 
   let instructor: InstructorData | null = null;
   let error: string | null = null;
+  let serviceCatalog: any[] = [];
 
   try {
-    // Use the direct instructor profile endpoint
-    const response = await publicApi.getInstructorProfile(instructorId);
+    // Fetch both instructor profile and service catalog in parallel
+    const [instructorResponse, catalogResponse] = await Promise.all([
+      publicApi.getInstructorProfile(instructorId),
+      publicApi.getCatalogServices(),
+    ]);
 
-    logger.debug('API Response received', {
-      hasData: !!response.data,
-      hasError: !!response.error,
-      status: response.status,
-    });
-
-    if (response.error) {
-      logger.error('API Error from get instructor profile', undefined, { error: response.error });
-      throw new Error(response.error);
+    // Handle service catalog
+    if (catalogResponse.data) {
+      serviceCatalog = catalogResponse.data;
     }
 
-    if (response.data) {
+    logger.debug('API Response received', {
+      hasData: !!instructorResponse.data,
+      hasError: !!instructorResponse.error,
+      status: instructorResponse.status,
+    });
+
+    if (instructorResponse.error) {
+      logger.error('API Error from get instructor profile', undefined, {
+        error: instructorResponse.error,
+      });
+      throw new Error(instructorResponse.error);
+    }
+
+    if (instructorResponse.data) {
       instructor = {
-        ...response.data,
+        ...instructorResponse.data,
         // Add default values for fields that might not be in the API response
-        rating: response.data.rating || 4.8,
-        total_reviews: response.data.total_reviews || Math.floor(Math.random() * 200) + 50,
+        rating: instructorResponse.data.rating || 4.8,
+        total_reviews:
+          instructorResponse.data.total_reviews || Math.floor(Math.random() * 200) + 50,
         total_hours_taught:
-          response.data.total_hours_taught || Math.floor(Math.random() * 1000) + 500,
-        education: response.data.education || 'Professional Music Education',
-        languages: response.data.languages || ['English'],
-        verified: response.data.verified !== undefined ? response.data.verified : true,
+          instructorResponse.data.total_hours_taught || Math.floor(Math.random() * 1000) + 500,
+        education: instructorResponse.data.education || 'Professional Music Education',
+        languages: instructorResponse.data.languages || ['English'],
+        verified:
+          instructorResponse.data.verified !== undefined ? instructorResponse.data.verified : true,
       };
     } else {
       notFound();
@@ -117,6 +130,19 @@ export default async function InstructorProfilePage({ params }: InstructorProfil
     return Math.min(...instructor.services.map((s) => s.hourly_rate));
   };
 
+  // Helper function to get service name from catalog
+  const getServiceName = (serviceId: number): string => {
+    const service = serviceCatalog.find((s: any) => s.id === serviceId);
+    return service?.name || `Service ${serviceId}`;
+  };
+
+  // Helper function to get instructor service names
+  const getInstructorServiceNames = (): string => {
+    if (instructor.services.length === 0) return 'Expert Instructor';
+    const serviceNames = instructor.services.map((s) => getServiceName(s.service_catalog_id));
+    return serviceNames.join(', ') + ' Expert';
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Navigation */}
@@ -140,10 +166,7 @@ export default async function InstructorProfilePage({ params }: InstructorProfil
                     {instructor.user.full_name}
                   </h2>
                   <p className="text-gray-600 dark:text-gray-300 mb-2">
-                    {instructor.services
-                      .map((s) => s.name || `Service ${s.service_catalog_id}`)
-                      .join(', ')}{' '}
-                    Expert
+                    {getInstructorServiceNames()}
                   </p>
                   <div className="flex items-center">
                     <Star className="h-4 w-4 text-yellow-500 fill-current" />
