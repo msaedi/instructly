@@ -63,6 +63,34 @@ def upgrade() -> None:
         ["student_id", "booking_date"],
     )
 
+    # Index for student's bookings by status (for history queries)
+    op.create_index(
+        "idx_bookings_student_status",
+        "bookings",
+        ["student_id", "status", "booking_date"],
+    )
+
+    # Index for instructor's bookings by status
+    op.create_index(
+        "idx_bookings_instructor_status",
+        "bookings",
+        ["instructor_id", "status", "booking_date"],
+    )
+
+    # Index for time-based conflict checking
+    op.create_index(
+        "idx_bookings_time_conflicts",
+        "bookings",
+        ["instructor_id", "booking_date", "start_time", "end_time"],
+    )
+
+    # Index for availability slots by time (for overlap queries)
+    op.create_index(
+        "idx_availability_time_range",
+        "availability_slots",
+        ["instructor_id", "specific_date", "end_time"],
+    )
+
     # Instructor search and filtering indexes
     print("Creating instructor search indexes...")
 
@@ -132,6 +160,43 @@ def upgrade() -> None:
     )
     print("- Created composite index for category filtering")
 
+    # Search history and analytics indexes
+    print("Creating search and analytics indexes...")
+
+    # NOTE: Search history indexes already created in 001_initial_schema.py:
+    # - idx_search_history_user_last_searched
+    # - idx_search_history_guest_session
+    # - idx_search_history_normalized_query
+
+    # Index for blackout dates lookup
+    op.create_index(
+        "idx_blackout_dates_instructor",
+        "blackout_dates",
+        ["instructor_id", "date"],
+    )
+
+    # Index for service catalog search terms (GIN index for array search)
+    try:
+        op.execute(
+            """
+            CREATE INDEX idx_service_catalog_search_terms_gin
+            ON service_catalog
+            USING gin(search_terms)
+        """
+        )
+        print("- Created GIN index for search_terms array (PostgreSQL)")
+    except Exception:
+        print("- Skipped search_terms GIN index (non-PostgreSQL)")
+
+    # Index for instructor services by catalog ID (for filtering)
+    op.create_index(
+        "idx_instructor_services_catalog_active",
+        "instructor_services",
+        ["service_catalog_id", "is_active"],
+    )
+
+    print("- Created search history and analytics indexes")
+
     # Note: The following indexes were already created in previous migrations:
     # - idx_bookings_instructor_date_status (composite index for instructor dashboard)
     # - idx_bookings_instructor_service_id (foreign key index)
@@ -174,7 +239,23 @@ def downgrade() -> None:
         except Exception:
             pass
 
+    # Drop search and analytics indexes
+    print("Dropping search and analytics indexes...")
+    op.drop_index("idx_instructor_services_catalog_active", table_name="instructor_services")
+
+    try:
+        op.execute("DROP INDEX IF EXISTS idx_service_catalog_search_terms_gin")
+        print("- Dropped GIN index for search_terms")
+    except Exception:
+        pass
+
+    op.drop_index("idx_blackout_dates_instructor", table_name="blackout_dates")
+
     # Drop booking and availability indexes
+    op.drop_index("idx_availability_time_range", table_name="availability_slots")
+    op.drop_index("idx_bookings_time_conflicts", table_name="bookings")
+    op.drop_index("idx_bookings_instructor_status", table_name="bookings")
+    op.drop_index("idx_bookings_student_status", table_name="bookings")
     op.drop_index("idx_bookings_student_date", table_name="bookings")
     op.drop_index("idx_bookings_upcoming", table_name="bookings")
     op.drop_index("idx_availability_future", table_name="availability_slots")

@@ -357,6 +357,26 @@ All designs are provided as ASCII mockups with exact measurements, interactions,
 
 When implementing any student-facing feature, ALWAYS check these documents first.
 
+## Development Approach: Database Migrations
+
+### During Development Phase (No Production Data)
+**Important**: While we're in development without production data, we **modify existing Alembic migration files** instead of creating new ones. This prevents accumulation of migration files that need to be squashed later.
+
+**Workflow for Schema Changes**:
+1. **Modify existing migration files** in `backend/alembic/versions/`
+2. **Test using INT database**: `python scripts/prep_db.py int`
+3. **Reset and rebuild**: Since no production data exists, we can drop and rebuild the schema
+4. **Use prep_db.py** for all database operations (migrations, seeding, embeddings)
+
+**DO NOT** create new migration files with `alembic revision` during development unless absolutely necessary.
+
+**When to create new migrations**:
+- Only after production launch
+- When we have real user data to preserve
+- For hotfixes that need to be applied without dropping tables
+
+This approach keeps our migration history clean and manageable.
+
 ## Essential Commands
 
 ### Backend Development
@@ -374,10 +394,10 @@ pytest -k "test_name"           # Single test
 pytest tests/test_file.py       # Single file
 pytest -vv                      # Verbose output
 
-# Database operations
-alembic upgrade head            # Apply migrations
-alembic revision -m "message"   # Create new migration
-python scripts/reset_and_seed_yaml.py  # Reset and seed DB
+# Database operations (DEVELOPMENT MODE)
+python scripts/prep_db.py int   # Reset INT database with migrations + seed
+python scripts/prep_db.py stg   # Reset STG database with migrations + seed
+# DO NOT use: alembic revision -m "message" (modify existing files instead)
 
 # Code quality
 black .                         # Format Python code

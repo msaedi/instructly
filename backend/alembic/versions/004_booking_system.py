@@ -102,7 +102,8 @@ def upgrade() -> None:
         "bookings",
         ["instructor_id", "booking_date", "status"],
     )
-    op.create_index("idx_bookings_student_status", "bookings", ["student_id", "status"])
+    # NOTE: idx_bookings_student_status moved to 005_performance_indexes.py
+    # with better 3-column design including booking_date for date-filtered queries
     op.create_index("idx_bookings_instructor_service_id", "bookings", ["instructor_service_id"])
     op.create_index("idx_bookings_cancelled_by_id", "bookings", ["cancelled_by_id"])
 
@@ -165,7 +166,7 @@ def downgrade() -> None:
     # Drop bookings indexes
     op.drop_index("idx_bookings_cancelled_by_id", table_name="bookings")
     op.drop_index("idx_bookings_instructor_service_id", table_name="bookings")
-    op.drop_index("idx_bookings_student_status", table_name="bookings")
+    # NOTE: idx_bookings_student_status removed - now in 005_performance_indexes.py
     op.drop_index("idx_bookings_instructor_date_status", table_name="bookings")
     op.drop_index("idx_bookings_instructor_datetime", table_name="bookings")
     op.drop_index("idx_bookings_created_at", table_name="bookings")

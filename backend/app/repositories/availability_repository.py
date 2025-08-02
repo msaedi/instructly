@@ -506,7 +506,8 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
         """
         Get aggregated statistics for instructor availability.
 
-        UPDATED: Uses time-based overlap for counting booked slots instead of FK join.
+        OPTIMIZED: Single query gets all stats using SQL aggregation.
+        Uses time-based overlap for counting booked slots instead of FK join.
 
         Args:
             instructor_id: The instructor ID
@@ -515,63 +516,46 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             Dict with availability statistics
         """
         try:
-            # Get total slots for future dates
-            future_slots = (
-                self.db.query(func.count(AvailabilitySlot.id))
-                .filter(
-                    and_(
-                        AvailabilitySlot.instructor_id == instructor_id,
-                        AvailabilitySlot.specific_date >= date.today(),
-                    )
-                )
-                .scalar()
-            ) or 0
-
-            # Get count of slots that have overlapping bookings
-            # This is more complex without direct FK, but maintains independence
-            booked_slots_query = text(
+            # Single optimized query to get all stats at once
+            stats_query = text(
                 """
-                SELECT COUNT(DISTINCT s.id) as booked_count
+                SELECT
+                    COUNT(DISTINCT s.id) as total_slots,
+                    COUNT(DISTINCT CASE
+                        WHEN EXISTS (
+                            SELECT 1 FROM bookings b
+                            WHERE b.instructor_id = s.instructor_id
+                              AND b.booking_date = s.specific_date
+                              AND b.start_time < s.end_time
+                              AND b.end_time > s.start_time
+                              AND b.status IN ('CONFIRMED', 'COMPLETED')
+                        ) THEN s.id
+                    END) as booked_slots,
+                    MIN(s.specific_date) as earliest_availability,
+                    MAX(s.specific_date) as latest_availability
                 FROM availability_slots s
                 WHERE s.instructor_id = :instructor_id
                   AND s.specific_date >= :today
-                  AND EXISTS (
-                      SELECT 1 FROM bookings b
-                      WHERE b.instructor_id = s.instructor_id
-                        AND b.booking_date = s.specific_date
-                        AND b.start_time < s.end_time
-                        AND b.end_time > s.start_time
-                        AND b.status IN ('CONFIRMED', 'COMPLETED')
-                  )
                 """
             )
 
-            booked_count_result = self.db.execute(
-                booked_slots_query, {"instructor_id": instructor_id, "today": date.today()}
-            ).fetchone()
-            booked_count = booked_count_result.booked_count if booked_count_result else 0
+            result = self.db.execute(stats_query, {"instructor_id": instructor_id, "today": date.today()}).fetchone()
 
-            # Get date range
-            date_stats = (
-                self.db.query(
-                    func.min(AvailabilitySlot.specific_date).label("earliest_availability"),
-                    func.max(AvailabilitySlot.specific_date).label("latest_availability"),
-                )
-                .filter(
-                    and_(
-                        AvailabilitySlot.instructor_id == instructor_id,
-                        AvailabilitySlot.specific_date >= date.today(),
-                    )
-                )
-                .first()
-            )
+            if result and result.total_slots:
+                total_slots = result.total_slots
+                booked_slots = result.booked_slots or 0
+                utilization_rate = (booked_slots / total_slots * 100) if total_slots > 0 else 0
+            else:
+                total_slots = 0
+                booked_slots = 0
+                utilization_rate = 0
 
             return {
-                "total_slots": future_slots,
-                "booked_slots": booked_count,
-                "earliest_availability": date_stats.earliest_availability if date_stats else None,
-                "latest_availability": date_stats.latest_availability if date_stats else None,
-                "utilization_rate": ((booked_count / future_slots * 100) if future_slots > 0 else 0),
+                "total_slots": total_slots,
+                "booked_slots": booked_slots,
+                "earliest_availability": result.earliest_availability if result else None,
+                "latest_availability": result.latest_availability if result else None,
+                "utilization_rate": utilization_rate,
             }
 
         except SQLAlchemyError as e:

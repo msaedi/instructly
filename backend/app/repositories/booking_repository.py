@@ -623,6 +623,8 @@ class BookingRepository(BaseRepository[Booking]):
         """
         Count bookings grouped by status for a user.
 
+        OPTIMIZED: Uses SQL aggregation instead of Python-side counting.
+
         Args:
             user_id: The user's ID
             user_role: The user's role (student/instructor)
@@ -631,19 +633,30 @@ class BookingRepository(BaseRepository[Booking]):
             Dictionary with status as key and count as value
         """
         try:
-            query = self.db.query(Booking)
+            from sqlalchemy import case, func
 
+            # Build the filter based on role
             if user_role == RoleName.STUDENT:
-                query = query.filter(Booking.student_id == user_id)
+                filter_condition = Booking.student_id == user_id
             elif user_role == RoleName.INSTRUCTOR:
-                query = query.filter(Booking.instructor_id == user_id)
+                filter_condition = Booking.instructor_id == user_id
+            else:
+                return {status.value: 0 for status in BookingStatus}
 
-            bookings = query.all()
+            # Use SQL aggregation to count by status in a single query
+            status_counts_query = (
+                self.db.query(Booking.status, func.count(Booking.id).label("count"))
+                .filter(filter_condition)
+                .group_by(Booking.status)
+                .all()
+            )
 
-            # Count by status
-            status_counts = {}
-            for status in BookingStatus:
-                status_counts[status.value] = sum(1 for b in bookings if b.status == status)
+            # Convert to dictionary with all statuses (even those with 0 count)
+            status_counts = {status.value: 0 for status in BookingStatus}
+            for row in status_counts_query:
+                if row.status:  # Handle potential None values
+                    # row.status is already a string from the database
+                    status_counts[row.status] = row.count
 
             return status_counts
 
