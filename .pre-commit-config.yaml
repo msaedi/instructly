@@ -26,8 +26,9 @@ repos:
     hooks:
       - id: api-contracts
         name: API Contract Check
-        entry: bash -c 'if [ -d backend ]; then cd backend; elif [ -d ../backend ]; then cd ../backend; fi; python -m tests.test_api_contracts 2>&1 | grep -q "Found 0 contract violations" && echo "✓ API contracts valid" || (echo "✗ API contract violations found" && exit 1)'
-        language: system
+        entry: backend/scripts/check_api_contracts_wrapper.sh
+        language: script
         files: ^backend/app/routes/.*\.py$
         pass_filenames: false
         description: Check API endpoints follow contract standards
+        always_run: false
