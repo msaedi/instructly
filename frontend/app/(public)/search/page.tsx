@@ -11,32 +11,7 @@ import InstructorCard from '@/components/InstructorCard';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { recordSearch, trackSearchInteraction } from '@/lib/searchTracking';
 import { SearchType } from '@/types/enums';
-
-interface Service {
-  id: number;
-  skill: string;
-  hourly_rate: number;
-  description?: string;
-  duration_options: number[];
-  duration: number;
-}
-
-interface Instructor {
-  id: number;
-  user_id: number;
-  bio: string;
-  areas_of_service: string[];
-  years_experience: number;
-  user: {
-    full_name: string;
-    email: string;
-  };
-  services: Service[];
-  // Mock fields for now
-  rating?: number;
-  total_reviews?: number;
-  total_hours_taught?: number;
-}
+import { Instructor } from '@/types/api';
 
 interface SearchMetadata {
   filters_applied: Record<string, any>;
@@ -223,13 +198,13 @@ function SearchPageContent() {
                   services: [
                     {
                       id: result.service?.id || 1,
-                      skill: result.service?.name || 'Service',
+                      service_catalog_id: result.service?.id || 1,
                       hourly_rate:
                         result.offering?.hourly_rate || result.service?.actual_min_price || 0,
                       description:
                         result.offering?.description || result.service?.description || '',
                       duration_options: result.offering?.duration_options || [60],
-                      duration: result.offering?.duration_options?.[0] || 60,
+                      is_active: true,
                     },
                   ],
                   // Add match score for sorting
@@ -271,12 +246,10 @@ function SearchPageContent() {
           }
         } else if (serviceCatalogId) {
           // Service catalog ID provided - fetch instructors for specific service
-          const limit = 20;
-          const skip = (page - 1) * limit;
-          let apiParams: Record<string, any> = {
-            service_catalog_id: serviceCatalogId,
-            skip,
-            limit,
+          const apiParams = {
+            service_catalog_id: parseInt(serviceCatalogId),
+            page: page,
+            per_page: 20,
           };
 
           logger.info('Filtering by service catalog ID', { serviceCatalogId });
@@ -294,80 +267,23 @@ function SearchPageContent() {
             setError(response.error);
             return;
           } else if (response.data) {
-            // Check if response has metadata (filtered results) or is just an array
-            if (Array.isArray(response.data)) {
-              // No filters applied - simple array response
-              logger.info('Received simple array response', {
-                count: response.data.length,
-              });
+            // API now always returns standardized paginated response
+            logger.info('Received standardized paginated response', {
+              count: response.data.items.length,
+              total: response.data.total,
+              page: response.data.page,
+            });
 
-              instructorsData = response.data;
-              totalResults = response.data.length;
-              setMetadata(null);
-            } else {
-              // Filters applied - response with metadata
-              logger.info('Received filtered response with metadata', {
-                instructorCount: response.data.instructors.length,
-                metadata: response.data.metadata,
-              });
-
-              instructorsData = response.data.instructors;
-              totalResults = response.data.metadata.active_instructors;
-              setMetadata(response.data.metadata);
-            }
+            instructorsData = response.data.items;
+            totalResults = response.data.total;
+            setMetadata(null); // No legacy metadata structure
           }
         } else {
-          // No query or service ID - use the old API for browsing all instructors or by category
-          const limit = 20;
-          const skip = (page - 1) * limit;
-          let apiParams: Record<string, any> = { skip, limit };
-
-          // Handle category filter
-          if (category) {
-            apiParams.skill = category;
-            logger.info('Filtering by category', { category });
-          }
-
-          logger.info('Calling instructor API', {
-            endpoint: '/instructors',
-            params: apiParams,
-          });
-
-          response = await publicApi.searchInstructors(apiParams);
-
-          logger.info('API Response received', {
-            hasError: !!response.error,
-            hasData: !!response.data,
-            status: response.status,
-          });
-
-          if (response.error) {
-            logger.error('API Error', new Error(response.error), { status: response.status });
-            setError(response.error);
-            return;
-          } else if (response.data) {
-            // Check if response has metadata (filtered results) or is just an array
-            if (Array.isArray(response.data)) {
-              // No filters applied - simple array response
-              logger.info('Received simple array response', {
-                count: response.data.length,
-              });
-
-              instructorsData = response.data;
-              totalResults = response.data.length;
-              setMetadata(null);
-            } else {
-              // Filters applied - response with metadata
-              logger.info('Received filtered response with metadata', {
-                instructorCount: response.data.instructors.length,
-                metadata: response.data.metadata,
-              });
-
-              instructorsData = response.data.instructors;
-              totalResults = response.data.metadata.active_instructors;
-              setMetadata(response.data.metadata);
-            }
-          }
+          // No query provided - this is no longer supported with service-first model
+          // The old browsing functionality is disabled since it goes against service-first architecture
+          logger.warn('Attempted to browse instructors without service or query', { category });
+          setError('Please search for a specific service or use natural language search');
+          return;
         }
 
         // Set the final data

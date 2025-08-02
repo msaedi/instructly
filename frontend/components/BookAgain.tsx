@@ -40,23 +40,55 @@ export function BookAgain({ onLoadComplete }: BookAgainProps) {
     try {
       logger.debug('Fetching booking history for Book Again section');
 
-      // Fetch past bookings (completed ones)
+      // Fetch all bookings (same as My Lessons page) and filter client-side
       const response = await bookingsApi.getMyBookings({
-        status: 'COMPLETED',
+        upcoming: false,
         per_page: 50, // Get more to ensure we find 3 unique instructors
       });
 
+      logger.info('BookAgain: API response received', {
+        hasResponse: !!response,
+        hasBookings: !!response?.bookings,
+        bookingsLength: response?.bookings?.length || 0,
+        responseKeys: response ? Object.keys(response) : [],
+        firstBooking: response?.bookings?.[0]
+          ? {
+              id: response.bookings[0].id,
+              status: response.bookings[0].status,
+              hasInstructor: !!response.bookings[0].instructor,
+              serviceName: response.bookings[0].service_name,
+            }
+          : null,
+      });
+
       if (response.bookings && response.bookings.length > 0) {
-        // Extract unique instructors
+        // Filter for completed bookings only (same logic as My Lessons but only completed)
+        const now = new Date();
+        const completedBookings = response.bookings.filter((booking: Booking) => {
+          // Only include bookings that are actually COMPLETED status
+          return booking.status === 'COMPLETED';
+        });
+
+        logger.info('BookAgain: Filtered completed bookings', {
+          totalBookings: response.bookings.length,
+          completedBookings: completedBookings.length,
+          statuses: response.bookings.map((b) => b.status),
+          statusBreakdown: response.bookings.reduce((acc: any, b) => {
+            acc[b.status] = (acc[b.status] || 0) + 1;
+            return acc;
+          }, {}),
+        });
+
+        // Extract unique instructors from completed bookings
         const instructorMap = new Map<number, UniqueInstructor>();
 
-        response.bookings.forEach((booking: Booking) => {
+        completedBookings.forEach((booking: Booking) => {
           if (booking.instructor && !instructorMap.has(booking.instructor.id)) {
             instructorMap.set(booking.instructor.id, {
               instructorId: booking.instructor.id,
               instructorName: booking.instructor.full_name,
               serviceName: booking.service_name,
-              serviceId: booking.id, // Using booking ID as we don't have instructor_service_id
+              serviceId: booking.instructor_service_id, // Correct: use instructor_service_id
               hourlyRate: booking.hourly_rate,
               rating: 4.8, // TODO: Get actual rating from instructor profile
               lastBookingDate: booking.booking_date,
@@ -71,13 +103,15 @@ export function BookAgain({ onLoadComplete }: BookAgainProps) {
 
         logger.info('Book Again section loaded', {
           totalBookings: response.bookings.length,
+          completedBookings: completedBookings.length,
           uniqueInstructors: uniqueList.length,
         });
       } else {
+        logger.info('BookAgain: No bookings found in API response');
         setHasBookingHistory(false);
       }
     } catch (error) {
-      logger.error('Error fetching booking history', error);
+      logger.error('BookAgain: Error fetching booking history', error);
       setHasBookingHistory(false);
     } finally {
       setIsLoading(false);
@@ -106,13 +140,30 @@ export function BookAgain({ onLoadComplete }: BookAgainProps) {
 
   // Don't render anything if not authenticated or still loading
   if (!isAuthenticated || isLoading) {
+    logger.debug('BookAgain: Not rendering - not authenticated or loading', {
+      isAuthenticated,
+      isLoading,
+    });
     return null;
   }
 
   // Return loading state or null if no booking history
   if (!hasBookingHistory) {
+    logger.debug('BookAgain: Not rendering - no booking history', {
+      hasBookingHistory,
+      uniqueInstructorsLength: uniqueInstructors.length,
+    });
     return null;
   }
+
+  logger.info('BookAgain: Rendering component', {
+    uniqueInstructorsLength: uniqueInstructors.length,
+    instructors: uniqueInstructors.map((i) => ({
+      id: i.instructorId,
+      name: i.instructorName,
+      service: i.serviceName,
+    })),
+  });
 
   // Show Book Again section
   return (

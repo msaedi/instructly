@@ -18,10 +18,11 @@ import {
 
 interface Service {
   id: number;
-  skill: string;
+  service_catalog_id: number;
   hourly_rate: number;
-  duration: number;
   description?: string;
+  duration_options: number[];
+  is_active?: boolean;
 }
 
 interface InstructorData {
@@ -62,11 +63,12 @@ export default function QuickBookingPage() {
   useEffect(() => {
     const fetchInstructor = async () => {
       try {
-        const response = await publicApi.searchInstructors({});
+        const response = await publicApi.searchInstructors({
+          service_catalog_id: 1, // Temporary fix - this page should use getInstructorProfile instead
+        });
         if (response.data) {
-          const instructorsList = Array.isArray(response.data)
-            ? response.data
-            : response.data.instructors;
+          // API now returns standardized paginated response
+          const instructorsList = response.data.items;
           const found = instructorsList.find(
             (inst: any) => inst.user_id.toString() === instructorId
           );
@@ -82,7 +84,9 @@ export default function QuickBookingPage() {
             // Set default service
             if (found.services.length > 0) {
               setSelectedService(found.services[0]);
-              setDuration(found.services[0].duration);
+              // Use first available duration option, default to 60 if none available
+              const defaultDuration = found.services[0].duration_options?.[0] || 60;
+              setDuration(defaultDuration);
             }
           } else {
             setError('Instructor not found');
@@ -170,7 +174,7 @@ export default function QuickBookingPage() {
       bookingId: '', // Will be set after creation
       instructorId: String(instructor.user_id),
       instructorName: instructor.user.full_name,
-      lessonType: selectedService.skill,
+      lessonType: `Service ${selectedService.service_catalog_id}`, // TODO: Get actual service name from catalog
       date: bookingDate,
       startTime: selectedTime,
       endTime: calculateEndTime(selectedTime, duration),
@@ -273,7 +277,7 @@ export default function QuickBookingPage() {
 
             <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 mb-8 text-left">
               <h2 className="font-semibold text-gray-900 dark:text-white mb-4">
-                {selectedService?.skill} with {instructor.user.full_name}
+                Service {selectedService?.service_catalog_id} with {instructor.user.full_name}
               </h2>
 
               <div className="space-y-3 text-sm">
@@ -361,16 +365,18 @@ export default function QuickBookingPage() {
                         checked={selectedService?.id === service.id}
                         onChange={() => {
                           setSelectedService(service);
-                          setDuration(service.duration);
+                          const defaultDuration = service.duration_options?.[0] || 60;
+                          setDuration(defaultDuration);
                         }}
                         className="text-blue-600 focus:ring-blue-500"
                       />
                       <div className="ml-3 flex-1">
                         <div className="font-medium text-gray-900 dark:text-white">
-                          {service.skill}
+                          Service {service.service_catalog_id}
                         </div>
                         <div className="text-sm text-gray-600 dark:text-gray-400">
-                          ${service.hourly_rate}/hour • {service.duration} minutes
+                          ${service.hourly_rate}/hour •{' '}
+                          {service.duration_options?.join(', ') || '60'} min options
                         </div>
                       </div>
                     </label>

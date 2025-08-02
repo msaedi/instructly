@@ -25,7 +25,6 @@ Router Endpoints:
 """
 
 import logging
-from typing import Dict, List, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -35,6 +34,7 @@ from ..core.enums import RoleName
 from ..core.exceptions import BusinessRuleException, ValidationException
 from ..models.user import User
 from ..schemas.account_lifecycle import AccountStatusChangeResponse, AccountStatusResponse
+from ..schemas.base_responses import PaginatedResponse
 from ..schemas.instructor import (
     InstructorFilterParams,
     InstructorProfileCreate,
@@ -49,53 +49,59 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/instructors", tags=["instructors"])
 
 
-@router.get("/", response_model=Union[List[InstructorProfileResponse], Dict])
+@router.get("/", response_model=PaginatedResponse[InstructorProfileResponse])
 async def get_all_instructors(
-    search: str = Query(None, description="Text search across name, bio, and skills"),
-    service_catalog_id: int = Query(None, description="Filter by specific service catalog ID"),
+    service_catalog_id: int = Query(..., description="Service catalog ID (required)"),
     min_price: float = Query(None, ge=0, le=1000, description="Minimum hourly rate"),
     max_price: float = Query(None, ge=0, le=1000, description="Maximum hourly rate"),
-    skip: int = Query(0, ge=0, description="Number of records to skip"),
-    limit: int = Query(100, ge=1, le=100, description="Maximum number of records to return"),
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     instructor_service: InstructorService = Depends(get_instructor_service),
 ):
     """
-    Get instructor profiles with optional filtering.
+    Get instructors offering a specific service.
 
-    Supports filtering by:
-    - search: Text search across instructor name, bio, and skills
-    - skill: Filter by specific skill/service
-    - min_price/max_price: Price range filtering
+    Service-first model: service_catalog_id is required.
+    Additional filters:
+    - min_price/max_price: Price range filtering for the specified service
 
-    Returns filtered results with metadata when filters are applied,
-    or a simple list when no filters are used (backward compatibility).
+    Returns a standardized paginated response with 'items' field.
     """
-    # Check if any filters are applied
-    has_filters = any([search, service_catalog_id is not None, min_price is not None, max_price is not None])
+    # Calculate skip from page and per_page
+    skip = (page - 1) * per_page
 
-    if has_filters:
-        # Validate filter parameters using the schema
-        try:
-            filters = InstructorFilterParams(
-                search=search, service_catalog_id=service_catalog_id, min_price=min_price, max_price=max_price
-            )
-        except ValueError as e:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-
-        # Use the new filtering method
-        result = instructor_service.get_instructors_filtered(
-            search=filters.search,
-            service_catalog_id=filters.service_catalog_id,
-            min_price=filters.min_price,
-            max_price=filters.max_price,
-            skip=skip,
-            limit=limit,
+    # Validate filter parameters using the schema
+    try:
+        filters = InstructorFilterParams(
+            service_catalog_id=service_catalog_id, min_price=min_price, max_price=max_price
         )
-        return result
-    else:
-        # No filters - use the original method for backward compatibility
-        profiles = instructor_service.get_all_instructors(skip=skip, limit=limit)
-        return profiles
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    # Get filtered instructors for the specified service
+    result = instructor_service.get_instructors_filtered(
+        search=None,
+        service_catalog_id=filters.service_catalog_id,
+        min_price=filters.min_price,
+        max_price=filters.max_price,
+        skip=skip,
+        limit=per_page,
+    )
+
+    # Extract data from the filtered result
+    # The service returns a dict with 'instructors' and 'metadata'
+    instructors = result.get("instructors", [])
+    total = result.get("metadata", {}).get("total_found", len(instructors))
+
+    # Return standardized paginated response
+    return PaginatedResponse(
+        items=instructors,
+        total=total,
+        page=page,
+        per_page=per_page,
+        has_next=page * per_page < total,
+        has_prev=page > 1,
+    )
 
 
 @router.post(

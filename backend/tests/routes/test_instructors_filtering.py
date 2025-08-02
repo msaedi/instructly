@@ -124,42 +124,22 @@ class TestInstructorsFilteringAPI:
         db.commit()
         return instructors
 
-    def test_get_all_instructors_no_filters(self, client, sample_instructors):
-        """Test GET /instructors/ without filters returns list (backward compatibility)."""
+    def test_get_all_instructors_requires_service(self, client, sample_instructors):
+        """Test GET /instructors/ requires service_catalog_id parameter."""
         response = client.get("/instructors/")
 
-        assert response.status_code == 200
-        data = response.json()
+        # Should fail without service_catalog_id
+        assert response.status_code == 422  # Unprocessable Entity - missing required field
 
-        # Should return a list, not a dict (backward compatibility)
-        assert isinstance(data, list)
-        assert len(data) == 5
+    def test_service_filter_required(self, client, sample_instructors, db: Session):
+        """Test that service_catalog_id is required."""
+        # First get a valid service catalog ID
+        piano_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "piano").first()
+        assert piano_catalog is not None
 
-        # Verify structure
-        for instructor in data:
-            assert "id" in instructor
-            assert "user" in instructor
-            assert "services" in instructor
-            assert len(instructor["services"]) > 0
-
-    def test_search_filter(self, client, sample_instructors):
-        """Test search query parameter."""
-        response = client.get("/instructors/?search=experienced")  # Search for word in bio
-
-        assert response.status_code == 200
-        data = response.json()
-
-        # With filters, should return dict with metadata
-        assert isinstance(data, dict)
-        assert "instructors" in data
-        assert "metadata" in data
-
-        assert len(data["instructors"]) >= 1
-        assert "experienced" in data["instructors"][0]["bio"].lower()
-
-        # Check metadata
-        assert data["metadata"]["filters_applied"]["search"] == "experienced"
-        assert data["metadata"]["total_matches"] >= 1
+        # Test with only price filters (should fail)
+        response = client.get("/instructors/?min_price=50&max_price=100")
+        assert response.status_code == 422  # Missing required service_catalog_id
 
     def test_skill_filter(self, client, sample_instructors, db: Session):
         """Test service_catalog_id query parameter."""
@@ -173,60 +153,67 @@ class TestInstructorsFilteringAPI:
         assert response.status_code == 200
         data = response.json()
 
-        assert len(data["instructors"]) >= 1  # At least one instructor has piano
+        # Should return standardized paginated response
+        assert "items" in data
+        assert "total" in data
+        assert "page" in data
+        assert "per_page" in data
+        assert "has_next" in data
+        assert "has_prev" in data
+
+        assert len(data["items"]) >= 1  # At least one instructor has piano
         # Check that all returned instructors have the Piano service
-        for instructor in data["instructors"]:
+        for instructor in data["items"]:
             assert any(s["service_catalog_id"] == piano_catalog.id for s in instructor["services"])
 
-        assert data["metadata"]["filters_applied"]["service_catalog_id"] == piano_catalog.id
-
     def test_price_range_filter(self, client, sample_instructors):
-        """Test min_price and max_price query parameters."""
+        """Test min_price and max_price query parameters without service_catalog_id."""
         response = client.get("/instructors/?min_price=70&max_price=90")
 
-        assert response.status_code == 200
-        data = response.json()
+        # This should fail - service_catalog_id is required
+        assert response.status_code == 422
 
-        # Should find instructors with services in this range
-        assert len(data["instructors"]) >= 2
+    def test_combined_filters(self, client, sample_instructors, db: Session):
+        """Test service filter with price filters."""
+        # Get a service that exists in our test data
+        service_catalog = db.query(ServiceCatalog).first()
+        assert service_catalog is not None
 
-        assert data["metadata"]["filters_applied"]["min_price"] == 70.0
-        assert data["metadata"]["filters_applied"]["max_price"] == 90.0
-
-    def test_combined_filters(self, client, sample_instructors):
-        """Test multiple filters together."""
-        response = client.get("/instructors/?search=teacher&min_price=50&max_price=100")
+        response = client.get(f"/instructors/?service_catalog_id={service_catalog.id}&min_price=50&max_price=100")
 
         assert response.status_code == 200
         data = response.json()
 
-        # Verify all filters are applied
-        metadata = data["metadata"]["filters_applied"]
-        assert metadata["search"] == "teacher"
-        assert metadata["min_price"] == 50.0
-        assert metadata["max_price"] == 100.0
+        # Should return standardized paginated response
+        assert "items" in data
+        assert "total" in data
 
-    def test_pagination_parameters(self, client, sample_instructors):
-        """Test skip and limit parameters."""
+    def test_pagination_parameters(self, client, sample_instructors, db: Session):
+        """Test page and per_page parameters."""
+        # Get a service catalog ID
+        service_catalog = db.query(ServiceCatalog).first()
+        assert service_catalog is not None
+
         # Get first page
-        response = client.get("/instructors/?skip=0&limit=2&search=instructor")
+        response = client.get(f"/instructors/?service_catalog_id={service_catalog.id}&page=1&per_page=2")
         assert response.status_code == 200
         data = response.json()
 
-        assert len(data["instructors"]) <= 2
-        assert data["metadata"]["pagination"]["skip"] == 0
-        assert data["metadata"]["pagination"]["limit"] == 2
+        assert len(data["items"]) <= 2
+        assert data["page"] == 1
+        assert data["per_page"] == 2
 
         # Get second page
-        response = client.get("/instructors/?skip=2&limit=2&search=instructor")
+        response = client.get(f"/instructors/?service_catalog_id={service_catalog.id}&page=2&per_page=2")
         assert response.status_code == 200
         data = response.json()
 
-        assert data["metadata"]["pagination"]["skip"] == 2
+        assert data["page"] == 2
 
-    def test_validation_error_price_range(self, client, sample_instructors):
+    def test_validation_error_price_range(self, client, sample_instructors, db: Session):
         """Test validation error when max_price < min_price."""
-        response = client.get("/instructors/?min_price=100&max_price=50")
+        service_catalog = db.query(ServiceCatalog).first()
+        response = client.get(f"/instructors/?service_catalog_id={service_catalog.id}&min_price=100&max_price=50")
 
         assert response.status_code == 400
         error = response.json()
@@ -244,43 +231,63 @@ class TestInstructorsFilteringAPI:
 
         assert response.status_code == 422  # Exceeds max of 1000
 
-    def test_empty_search_results(self, client, sample_instructors):
+    def test_empty_search_results(self, client, sample_instructors, db: Session):
         """Test response when no instructors match filters."""
-        response = client.get("/instructors/?search=nonexistent")
+        # Create a category and service that no instructor offers
+        import uuid
+
+        from app.models.service_catalog import ServiceCategory
+
+        unique_id = str(uuid.uuid4())[:8]
+        category = ServiceCategory(name=f"Unused Category {unique_id}", slug=f"unused-category-{unique_id}")
+        db.add(category)
+        db.flush()
+
+        unused_service = ServiceCatalog(
+            name=f"Unused Service {unique_id}", slug=f"unused-service-{unique_id}", category_id=category.id
+        )
+        db.add(unused_service)
+        db.commit()
+
+        response = client.get(f"/instructors/?service_catalog_id={unused_service.id}")
 
         assert response.status_code == 200
         data = response.json()
 
-        assert len(data["instructors"]) == 0
-        assert data["metadata"]["total_matches"] == 0
-        assert data["metadata"]["active_instructors"] == 0
+        assert len(data["items"]) == 0
+        assert data["total"] == 0
 
-    def test_case_insensitive_search(self, client, sample_instructors):
-        """Test that search is case insensitive."""
-        # Test uppercase
-        response = client.get("/instructors/?search=EXPERIENCED")
+    def test_price_filter_with_service(self, client, sample_instructors, db: Session):
+        """Test price filtering works with service filter."""
+        # Get a service
+        service_catalog = db.query(ServiceCatalog).first()
+
+        # Test with low price range
+        response = client.get(f"/instructors/?service_catalog_id={service_catalog.id}&max_price=80")
         assert response.status_code == 200
         data = response.json()
-        assert len(data["instructors"]) >= 1
 
-        # Test lowercase
-        response = client.get("/instructors/?search=experienced")
-        assert response.status_code == 200
-        data2 = response.json()
-        assert len(data2["instructors"]) >= 1
+        # Should find instructors with that service under $80
+        if len(data["items"]) > 0:
+            for instructor in data["items"]:
+                service = next(
+                    (s for s in instructor["services"] if s["service_catalog_id"] == service_catalog.id), None
+                )
+                if service:
+                    assert service["hourly_rate"] <= 80
 
-        # Should find the same instructor
-        assert data["instructors"][0]["id"] == data2["instructors"][0]["id"]
+    def test_standardized_response_format(self, client, sample_instructors, db: Session):
+        """Test that response always has standardized format."""
+        service_catalog = db.query(ServiceCatalog).first()
 
-    def test_special_characters_in_search(self, client, sample_instructors):
-        """Test search with special characters."""
-        # Search for something that exists in our test data
-        response = client.get("/instructors/?search=professional%20instructor")  # "professional instructor"
-
+        response = client.get(f"/instructors/?service_catalog_id={service_catalog.id}")
         assert response.status_code == 200
         data = response.json()
-        # Should find the professional instructor
-        assert len(data["instructors"]) >= 1
+
+        # Verify all required fields are present
+        required_fields = ["items", "total", "page", "per_page", "has_next", "has_prev"]
+        for field in required_fields:
+            assert field in data
 
     def test_only_active_services_returned(self, client, db: Session, sample_instructors):
         """Test that only active services are included in response."""
@@ -301,43 +308,45 @@ class TestInstructorsFilteringAPI:
         data = response.json()
 
         # Should not find any instructors since all Music Theory services are inactive
-        assert len(data["instructors"]) == 0
+        assert len(data["items"]) == 0
 
-    def test_response_format_consistency(self, client, sample_instructors):
+    def test_response_format_consistency(self, client, sample_instructors, db: Session):
         """Test that response format is consistent."""
-        response = client.get("/instructors/?search=teacher")
+        service_catalog = db.query(ServiceCatalog).first()
+        response = client.get(f"/instructors/?service_catalog_id={service_catalog.id}")
 
         assert response.status_code == 200
         data = response.json()
 
-        # Check top-level structure
-        assert set(data.keys()) == {"instructors", "metadata"}
+        # Check standardized paginated structure
+        assert "items" in data
+        assert "total" in data
+        assert "page" in data
+        assert "per_page" in data
+        assert "has_next" in data
+        assert "has_prev" in data
 
-        # Check metadata structure
-        metadata = data["metadata"]
-        assert "filters_applied" in metadata
-        assert "pagination" in metadata
-        assert "total_matches" in metadata
-        assert "active_instructors" in metadata
+        # No more metadata with nested structure
+        assert "metadata" not in data
 
-        # Check pagination structure
-        pagination = metadata["pagination"]
-        assert set(pagination.keys()) == {"skip", "limit", "count"}
+    def test_per_page_validation(self, client, sample_instructors, db: Session):
+        """Test per_page parameter validation."""
+        service_catalog = db.query(ServiceCatalog).first()
 
-    def test_limit_validation(self, client, sample_instructors):
-        """Test limit parameter validation."""
-        # Test max limit
-        response = client.get("/instructors/?limit=101")
+        # Test max per_page
+        response = client.get(f"/instructors/?service_catalog_id={service_catalog.id}&per_page=101")
         assert response.status_code == 422  # Exceeds max of 100
 
-        # Test min limit
-        response = client.get("/instructors/?limit=0")
+        # Test min per_page
+        response = client.get(f"/instructors/?service_catalog_id={service_catalog.id}&per_page=0")
         assert response.status_code == 422  # Below min of 1
 
-    def test_skip_validation(self, client, sample_instructors):
-        """Test skip parameter validation."""
-        response = client.get("/instructors/?skip=-1")
-        assert response.status_code == 422  # Negative skip not allowed
+    def test_page_validation(self, client, sample_instructors, db: Session):
+        """Test page parameter validation."""
+        service_catalog = db.query(ServiceCatalog).first()
+
+        response = client.get(f"/instructors/?service_catalog_id={service_catalog.id}&page=0")
+        assert response.status_code == 422  # Page must be >= 1
 
     def test_metadata_accuracy(self, client, db: Session, sample_instructors):
         """Test that metadata accurately reflects the results."""
@@ -388,13 +397,21 @@ class TestInstructorsFilteringAPI:
             db.add(service)
         db.commit()
 
-        response = client.get("/instructors/?search=instructor")
+        # Test with the active service
+        response = client.get(f"/instructors/?service_catalog_id={active_catalog.id}")
 
         assert response.status_code == 200
         data = response.json()
 
-        # Should find all 6 instructors (5 from sample_instructors + 1 mixed)
-        # All have active services so total_matches == active_instructors
-        assert data["metadata"]["total_matches"] == 6
-        assert data["metadata"]["active_instructors"] == 6
-        assert len(data["instructors"]) == 6
+        # Should find only instructors offering this specific service
+        # Check that we get at least the mixed instructor
+        found_mixed = False
+        for instructor in data["items"]:  # Use the correct PaginatedResponse field name
+            if instructor["user"]["email"] == "mixed@example.com":
+                found_mixed = True
+                # Verify only active services are returned (by the backend filtering)
+                assert len(instructor["services"]) == 1
+                # Note: is_active field not included in response schema, but
+                # backend only returns active services so this is implicit
+
+        assert found_mixed, "Should find the mixed services instructor"

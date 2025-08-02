@@ -45,7 +45,7 @@ export function useCompletedLessons(page: number = 1) {
         params: {
           upcoming_only: false,
           page,
-          per_page: 20,
+          per_page: 50, // Increase to match BookAgain component
         },
         requireAuth: true,
       });

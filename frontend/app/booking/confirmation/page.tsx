@@ -58,7 +58,8 @@ function BookingConfirmationContent() {
       (booking.instructor as any)?.user?.full_name ||
       (booking.instructor as any)?.full_name ||
       `Instructor #${booking.instructor_id}`;
-    const serviceName = (booking.service as any)?.skill || `Service #${booking.service_id}`;
+    const serviceName =
+      (booking.service as any)?.skill || `Service #${booking.instructor_service_id}`;
 
     const icsContent = `BEGIN:VCALENDAR
 VERSION:2.0
@@ -153,7 +154,8 @@ END:VCALENDAR`;
     (booking.instructor as any)?.user?.full_name ||
     (booking.instructor as any)?.full_name ||
     `Instructor #${booking.instructor_id}`;
-  const serviceName = (booking.service as any)?.skill || `Service #${booking.service_id}`;
+  const serviceName =
+    (booking.service as any)?.skill || `Service #${booking.instructor_service_id}`;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">

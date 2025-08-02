@@ -461,6 +461,9 @@ class DatabaseSeeder:
             # Create historical bookings for suspended/deactivated instructors
             self._create_historical_bookings_for_inactive_instructors(session)
 
+            # Create completed bookings for active students (for testing Book Again)
+            self._create_completed_bookings_for_active_students(session)
+
     def _create_historical_bookings_for_inactive_instructors(self, session):
         """Create past bookings for suspended/deactivated instructors for testing"""
         historical_count = 0
@@ -545,6 +548,100 @@ class DatabaseSeeder:
         session.commit()
         if historical_count > 0:
             print(f"  📚 Created {historical_count} historical bookings for inactive instructors")
+
+    def _create_completed_bookings_for_active_students(self, session):
+        """Create completed bookings for active students with active instructors (for testing Book Again)"""
+        completed_count = 0
+
+        # Get active students
+        student_role = session.query(Role).filter_by(name=RoleName.STUDENT).first()
+        active_students = (
+            session.query(User)
+            .join(UserRoleJunction)
+            .filter(
+                UserRoleJunction.role_id == student_role.id,
+                User.email.like("%@example.com"),
+                User.account_status == "active",
+            )
+            .all()
+        )
+
+        # Get active instructors
+        instructor_role = session.query(Role).filter_by(name=RoleName.INSTRUCTOR).first()
+        active_instructors = (
+            session.query(User)
+            .join(UserRoleJunction)
+            .filter(
+                UserRoleJunction.role_id == instructor_role.id,
+                User.email.like("%@example.com"),
+                User.account_status == "active",
+            )
+            .all()
+        )
+
+        if not active_students or not active_instructors:
+            print("  ⚠️  No active students or instructors found for completed bookings")
+            return
+
+        # Create completed bookings for Emma Johnson specifically (and other students)
+        for student in active_students:
+            # Create 2-3 completed bookings per student
+            num_completed = random.randint(2, 3)
+
+            for _ in range(num_completed):
+                # Pick a random active instructor
+                instructor = random.choice(active_instructors)
+
+                # Get instructor's services
+                services = (
+                    session.query(InstructorService)
+                    .join(InstructorProfile)
+                    .filter(InstructorProfile.user_id == instructor.id)
+                    .all()
+                )
+
+                if not services:
+                    continue
+
+                service = random.choice(services)
+                duration = random.choice(service.duration_options)
+
+                # Create a booking from 1-8 weeks ago (in the past)
+                days_ago = random.randint(7, 56)
+                booking_date = date.today() - timedelta(days=days_ago)
+
+                # Random time between 10 AM and 6 PM
+                hour = random.randint(10, 17)
+                start_time = time(hour, 0)
+                end_time = (datetime.combine(date.today(), start_time) + timedelta(minutes=duration)).time()
+
+                # Get service details from catalog
+                catalog_service = session.query(ServiceCatalog).filter_by(id=service.service_catalog_id).first()
+
+                booking = Booking(
+                    student_id=student.id,
+                    instructor_id=instructor.id,
+                    instructor_service_id=service.id,
+                    booking_date=booking_date,
+                    start_time=start_time,
+                    end_time=end_time,
+                    status=BookingStatus.COMPLETED,
+                    location_type="neutral",
+                    meeting_location="In-person",
+                    service_name=catalog_service.name if catalog_service else "Service",
+                    service_area="Manhattan",
+                    hourly_rate=service.hourly_rate,
+                    total_price=service.hourly_rate * (duration / 60),
+                    duration_minutes=duration,
+                    student_note="Completed lesson for testing Book Again feature",
+                    completed_at=datetime.now() - timedelta(days=days_ago - 1),  # Mark as completed day after booking
+                )
+                session.add(booking)
+                completed_count += 1
+
+        session.commit()
+        if completed_count > 0:
+            print(f"  🎯 Created {completed_count} completed bookings for active students (Book Again testing)")
 
     def print_summary(self):
         """Print summary of created data"""

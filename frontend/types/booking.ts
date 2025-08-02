@@ -9,7 +9,7 @@ export interface Booking {
   id: number;
   student_id: number;
   instructor_id: number;
-  service_id: number;
+  instructor_service_id: number;
   // REMOVED: availability_slot_id - no longer exists in backend
 
   // Date and time fields

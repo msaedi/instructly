@@ -62,13 +62,15 @@ UID:${booking.id}@instainstru.com
 DTSTAMP:${formatDate(new Date())}
 DTSTART:${formatDate(startDateTime)}
 DTEND:${formatDate(endDateTime)}
-SUMMARY:${(booking.service as any)?.skill || `Service #${booking.service_id}`} Lesson with ${
+SUMMARY:${
+      (booking.service as any)?.skill || `Service #${booking.instructor_service_id}`
+    } Lesson with ${
       (booking.instructor as any)?.user?.full_name ||
       (booking.instructor as any)?.full_name ||
       `Instructor #${booking.instructor_id}`
     }
 DESCRIPTION:Booking ID: ${booking.id}\\nService: ${
-      (booking.service as any)?.skill || `Service #${booking.service_id}`
+      (booking.service as any)?.skill || `Service #${booking.instructor_service_id}`
     }\\nInstructor: ${
       (booking.instructor as any)?.user?.full_name ||
       (booking.instructor as any)?.full_name ||
@@ -195,7 +197,7 @@ END:VCALENDAR`;
                     `Instructor #${booking.instructor_id}`}
                 </h3>
                 <p className="text-gray-600 dark:text-gray-400">
-                  {(booking.service as any)?.skill || `Service #${booking.service_id}`}
+                  {(booking.service as any)?.skill || `Service #${booking.instructor_service_id}`}
                 </p>
               </div>
             </div>

@@ -328,3 +328,95 @@ export function handleAPIError(error: any): string {
 
   return 'An unexpected error occurred. Please try again.';
 }
+
+// ============================================================================
+// SHARED DOMAIN TYPES
+// ============================================================================
+
+/**
+ * Service offered by an instructor
+ *
+ * @interface Service
+ */
+export interface Service {
+  /** Service ID */
+  id: number;
+
+  /** Reference to service catalog item */
+  service_catalog_id: number;
+
+  /** Hourly rate for this service */
+  hourly_rate: number;
+
+  /** Optional description of the service */
+  description?: string;
+
+  /** Available duration options in minutes */
+  duration_options: number[];
+
+  /** Whether the service is currently active */
+  is_active?: boolean;
+}
+
+/**
+ * Instructor profile information
+ *
+ * @interface Instructor
+ */
+export interface Instructor {
+  /** Internal instructor ID */
+  id: number;
+
+  /** Associated user ID */
+  user_id: number;
+
+  /** Instructor biography */
+  bio: string;
+
+  /** Areas where instructor provides services */
+  areas_of_service: string[];
+
+  /** Years of teaching experience */
+  years_experience: number;
+
+  /** Associated user information */
+  user: {
+    full_name: string;
+    email: string;
+  };
+
+  /** Services offered by the instructor */
+  services: Service[];
+
+  // Optional fields that might come from the API
+  /** Average rating */
+  rating?: number;
+
+  /** Total number of reviews */
+  total_reviews?: number;
+
+  /** Total hours taught */
+  total_hours_taught?: number;
+
+  /** Whether instructor is verified */
+  verified?: boolean;
+}
+
+/**
+ * Service catalog item (master list of available services)
+ *
+ * @interface ServiceCatalogItem
+ */
+export interface ServiceCatalogItem {
+  /** Catalog item ID */
+  id: number;
+
+  /** Service name */
+  name: string;
+
+  /** Category this service belongs to */
+  category_id: number;
+
+  /** Optional description */
+  description?: string;
+}

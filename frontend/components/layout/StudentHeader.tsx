@@ -35,7 +35,7 @@ export function StudentHeader() {
 
   const navItems = [
     { href: '/', label: 'Home', icon: Home },
-    { href: '/search', label: 'Find Instructors', icon: Search },
+    { href: '/search', label: 'Search', icon: Search },
     { href: '/student/lessons', label: 'My Lessons', icon: Calendar },
   ];
 

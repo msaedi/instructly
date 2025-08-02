@@ -508,94 +508,49 @@ export const publicApi = {
   },
 
   /**
-   * @deprecated Use searchWithNaturalLanguage instead for better search results
-   * Search for instructors with backend filtering
+   * Search for instructors by service ID (service-first model)
+   * Note: service_catalog_id is now required
    */
   async searchInstructors(params: {
-    search?: string; // Text search across name, bio, skills
-    skill?: string; // Filter by specific skill
+    service_catalog_id: number; // Required: Service catalog ID
     min_price?: number; // Minimum hourly rate
     max_price?: number; // Maximum hourly rate
-    skip?: number; // Pagination offset
-    limit?: number; // Page size
+    page?: number; // Page number (1-based)
+    per_page?: number; // Items per page
   }) {
-    // Backend returns different formats based on whether filters are applied
-    const hasFilters =
-      params.search ||
-      params.skill ||
-      params.min_price !== undefined ||
-      params.max_price !== undefined;
-
-    if (hasFilters) {
-      // With filters: returns object with instructors array and metadata
-      return cleanFetch<{
-        instructors: Array<{
-          id: number;
-          user_id: number;
-          bio: string;
-          areas_of_service: string[];
-          years_experience: number;
-          min_advance_booking_hours: number;
-          buffer_time_minutes: number;
-          created_at: string;
-          updated_at?: string;
-          user: {
-            full_name: string;
-            email: string;
-          };
-          services: Array<{
-            id: number;
-            skill: string;
-            hourly_rate: number;
-            description?: string;
-            duration_options: number[];
-            duration: number;
-            is_active?: boolean;
-          }>;
-        }>;
-        metadata: {
-          filters_applied: Record<string, any>;
-          pagination: {
-            skip: number;
-            limit: number;
-            count: number;
-          };
-          total_matches: number;
-          active_instructors: number;
+    // Backend now always returns standardized paginated response
+    return cleanFetch<{
+      items: Array<{
+        id: number;
+        user_id: number;
+        bio: string;
+        areas_of_service: string[];
+        years_experience: number;
+        min_advance_booking_hours: number;
+        buffer_time_minutes: number;
+        created_at: string;
+        updated_at?: string;
+        user: {
+          full_name: string;
+          email: string;
         };
-      }>(PUBLIC_ENDPOINTS.instructors.list, {
-        params,
-      });
-    } else {
-      // No filters: returns simple array
-      return cleanFetch<
-        Array<{
+        services: Array<{
           id: number;
-          user_id: number;
-          bio: string;
-          areas_of_service: string[];
-          years_experience: number;
-          min_advance_booking_hours: number;
-          buffer_time_minutes: number;
-          created_at: string;
-          updated_at?: string;
-          user: {
-            full_name: string;
-            email: string;
-          };
-          services: Array<{
-            id: number;
-            skill: string;
-            hourly_rate: number;
-            description?: string;
-            duration_options: number[];
-            duration: number;
-          }>;
-        }>
-      >(PUBLIC_ENDPOINTS.instructors.list, {
-        params,
-      });
-    }
+          service_catalog_id: number;
+          hourly_rate: number;
+          description?: string;
+          duration_options: number[];
+          is_active?: boolean;
+        }>;
+      }>;
+      total: number;
+      page: number;
+      per_page: number;
+      has_next: boolean;
+      has_prev: boolean;
+    }>(PUBLIC_ENDPOINTS.instructors.list, {
+      params,
+    });
   },
 
   /**

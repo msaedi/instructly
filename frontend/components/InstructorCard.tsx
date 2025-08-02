@@ -4,28 +4,12 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Star, MapPin, Check } from 'lucide-react';
-
-interface Service {
-  id: number;
-  skill: string;
-  hourly_rate: number;
-  duration: number;
-}
+import { Instructor, ServiceCatalogItem } from '@/types/api';
+import { useEffect, useState } from 'react';
+import { publicApi } from '@/features/shared/api/client';
 
 interface InstructorCardProps {
-  instructor: {
-    user_id: number;
-    user: {
-      full_name: string;
-    };
-    bio: string;
-    areas_of_service: string[];
-    years_experience: number;
-    services: Service[];
-    rating?: number;
-    total_reviews?: number;
-    verified?: boolean;
-  };
+  instructor: Instructor;
   nextAvailableSlots?: Array<{
     date: string;
     time: string;
@@ -44,6 +28,22 @@ export default function InstructorCard({
   onTimeSlotClick,
 }: InstructorCardProps) {
   const router = useRouter();
+  const [serviceCatalog, setServiceCatalog] = useState<ServiceCatalogItem[]>([]);
+
+  // Fetch service catalog on mount
+  useEffect(() => {
+    const fetchServiceCatalog = async () => {
+      try {
+        const response = await publicApi.getCatalogServices();
+        if (response.data) {
+          setServiceCatalog(response.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch service catalog:', error);
+      }
+    };
+    fetchServiceCatalog();
+  }, []);
 
   // Filter out past availability slots
   const futureAvailableSlots = nextAvailableSlots.filter((slot) => {
@@ -56,14 +56,16 @@ export default function InstructorCard({
     return Math.min(...instructor.services.map((s) => s.hourly_rate));
   };
 
-  const getPrimarySkill = () => {
-    if (instructor.services.length === 0) return 'Instructor';
-    return instructor.services[0].skill;
+  // Helper function to get service name from catalog
+  const getServiceName = (serviceId: number): string => {
+    const service = serviceCatalog.find((s) => s.id === serviceId);
+    return service?.name || `Service ${serviceId}`;
   };
 
-  const formatSubject = (subject: string) => {
-    if (!subject) return '';
-    return subject.charAt(0).toUpperCase() + subject.slice(1).replace('_', ' ');
+  const getInstructorServiceNames = (): string => {
+    if (instructor.services.length === 0) return 'Expert Instructor';
+    const serviceNames = instructor.services.map((s) => getServiceName(s.service_catalog_id));
+    return serviceNames.join(', ') + ' Expert';
   };
 
   const handleInstantBook = (date: string, time: string) => {
@@ -88,12 +90,7 @@ export default function InstructorCard({
             <h3 className="font-semibold text-lg text-gray-900" data-testid="instructor-name">
               {instructor.user.full_name}
             </h3>
-            <p className="text-gray-600">
-              {instructor.services && instructor.services.length > 0
-                ? instructor.services.map((s) => formatSubject(s.skill || '')).join(', ') +
-                  ' Expert'
-                : 'Expert Instructor'}
-            </p>
+            <p className="text-gray-600">{getInstructorServiceNames()}</p>
             <div className="flex items-center mt-1">
               <Star className="h-4 w-4 text-yellow-500 fill-current" />
               <span className="ml-1 text-sm font-medium">{instructor.rating || 4.8}</span>
