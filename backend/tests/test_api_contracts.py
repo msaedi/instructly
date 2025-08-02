@@ -109,11 +109,12 @@ class APIContractAnalyzer:
 
     def _has_direct_dict_return(self, source: str) -> bool:
         """Check if the function returns a dictionary directly."""
-        # Look for patterns like "return {" or "return dict("
+        # Look for patterns like "return {" or "return dict(" or "return variable_dict"
         dict_return_patterns = [
             r"return\s+{",
             r"return\s+dict\(",
             r"return\s+\w+\.dict\(\)",  # Catches model.dict()
+            r"return\s+\w+_dict\b",  # Catches variables named *_dict
         ]
 
         for pattern in dict_return_patterns:
@@ -121,6 +122,13 @@ class APIContractAnalyzer:
                 # Make sure it's not returning a response model
                 if not re.search(r"return\s+\w+Response\(", source):
                     return True
+
+        # Also check for manual dictionary construction followed by return
+        if re.search(r"\w+_dict\s*=\s*{", source) and re.search(r"return\s+\w+_dict", source):
+            # Found a pattern like: user_dict = {...}; return user_dict
+            if not re.search(r"return\s+\w+Response\(", source):
+                return True
+
         return False
 
     def _has_manual_json_response(self, source: str) -> bool:

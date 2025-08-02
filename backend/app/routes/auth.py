@@ -79,16 +79,15 @@ async def register(
                 logger.error(f"Failed to convert guest searches during registration: {str(e)}")
                 # Don't fail registration if conversion fails
 
-        # Convert roles to strings for response
-        user_dict = {
-            "id": db_user.id,
-            "email": db_user.email,
-            "full_name": db_user.full_name,
-            "is_active": db_user.is_active,
-            "roles": [role.name for role in db_user.roles],
-            "permissions": [],  # TODO: Add permissions if needed
-        }
-        return user_dict
+        # Use Pydantic model for response
+        return UserResponse(
+            id=db_user.id,
+            email=db_user.email,
+            full_name=db_user.full_name,
+            is_active=db_user.is_active,
+            roles=[role.name for role in db_user.roles],
+            permissions=[],  # TODO: Add permissions if needed
+        )
     except ConflictException as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
