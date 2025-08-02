@@ -46,10 +46,12 @@ analyzer = APIContractAnalyzer(app)
 violations = analyzer.analyze_all_routes()
 
 if violations:
-    print(f'✗ Found {len(violations)} contract violations')
+    print(f'Found {len(violations)} contract violations')
+    for v in violations[:5]:  # Show first 5 violations
+        print(f'  - {v}')
     sys.exit(1)
 else:
-    print('✓ API contracts valid')
+    print('Found 0 contract violations')
     sys.exit(0)
 "
         exit $?

@@ -26,9 +26,17 @@ def main():
     # Find backend directory
     backend_dir = Path(__file__).parent.parent
 
-    # Run the simple contract test
+    # Run the comprehensive contract test directly
+    # This is more reliable than the simple test
     result = subprocess.run(
-        [sys.executable, "-m", "pytest", "tests/test_api_contracts_simple.py", "-v", "--tb=short"],
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "tests/test_api_contracts.py::TestAPIContracts::test_no_contract_violations",
+            "-v",
+            "--tb=short",
+        ],
         cwd=backend_dir,
         capture_output=True,
         text=True,
@@ -45,46 +53,22 @@ def main():
 
     else:
         print(f"\n{RED}❌ API Contract Violations Found!{RESET}")
-        print("\nViolations detected:")
 
-        # Parse output for specific violations
-        output_lines = result.stdout.split("\n")
-        for line in output_lines:
-            if "MISSING_RESPONSE_MODEL" in line:
-                print(f"  {YELLOW}⚠️  Missing response_model declaration{RESET}")
-            elif "DIRECT_DICT_RETURN" in line:
-                print(f"  {YELLOW}⚠️  Direct dictionary return{RESET}")
-            elif "MANUAL_JSON_RESPONSE" in line:
-                print(f"  {YELLOW}⚠️  Manual JSON response{RESET}")
+        # Try to extract violations from the test output
+        if "contract violations:" in result.stdout:
+            print("\nViolations detected:")
+            violations_start = result.stdout.find("contract violations:")
+            if violations_start != -1:
+                violations_text = result.stdout[violations_start:]
+                for line in violations_text.split("\n")[1:33]:  # Show first 32 violations
+                    if line.strip() and (
+                        "GET" in line or "POST" in line or "PUT" in line or "PATCH" in line or "DELETE" in line
+                    ):
+                        print(f"  {YELLOW}⚠️  {line.strip()}{RESET}")
 
         print(f"\n{YELLOW}To see full details, run:{RESET}")
         print(f"  cd {backend_dir}")
-        print("  pytest tests/test_api_contracts_simple.py -v")
-
-        # Run the comprehensive test to show all violations
-        print(f"\n{BLUE}Running comprehensive contract analysis...{RESET}")
-        comprehensive_result = subprocess.run(
-            [sys.executable, "-m", "tests.test_api_contracts"], cwd=backend_dir, capture_output=True, text=True
-        )
-
-        if "Found" in comprehensive_result.stdout and "contract violations" in comprehensive_result.stdout:
-            print(f"\n{YELLOW}Full analysis found violations:{RESET}")
-            # Extract violation count and details
-            import re
-
-            match = re.search(r"Found (\d+) contract violations", comprehensive_result.stdout)
-            if match:
-                count = match.group(1)
-                print(f"  Total violations: {RED}{count}{RESET}")
-
-                # Show the violations
-                violations_start = comprehensive_result.stdout.find("Found")
-                if violations_start != -1:
-                    violations_text = comprehensive_result.stdout[violations_start:]
-                    print("\nDetailed violations:")
-                    for line in violations_text.split("\n")[1:33]:  # Show first 32 violations
-                        if line.strip() and line.startswith("  -"):
-                            print(line)
+        print("  pytest tests/test_api_contracts.py -v")
 
         return 1
 
