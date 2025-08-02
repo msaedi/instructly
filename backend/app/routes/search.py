@@ -12,17 +12,18 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from ..schemas.search_responses import InstructorSearchResponse
 from ..services.search_service import SearchService
 
 router = APIRouter()
 
 
-@router.get("/instructors")
+@router.get("/instructors", response_model=InstructorSearchResponse)
 async def search_instructors(
     q: str = Query(..., description="Search query", min_length=1),
     limit: Optional[int] = Query(20, ge=1, le=100, description="Maximum results to return"),
     db: Session = Depends(get_db),
-):
+) -> InstructorSearchResponse:
     """
     Search for instructors using natural language queries.
 
@@ -56,7 +57,7 @@ async def search_instructors(
         # Backend focuses on returning search results efficiently
         # This ensures consistent behavior for both guests and authenticated users
 
-        return results
+        return InstructorSearchResponse(**results)
 
     except ValueError as e:
         # Handle invalid search parameters

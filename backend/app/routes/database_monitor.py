@@ -14,6 +14,7 @@ from app.core.enums import PermissionName
 from app.database import engine, get_db_pool_status
 from app.dependencies.permissions import require_permission
 from app.models.user import User
+from app.schemas.database_monitor_responses import DatabaseHealthResponse
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +25,8 @@ router = APIRouter(
 )
 
 
-@router.get("/health", response_model=Dict[str, Any])
-async def database_health() -> Dict[str, Any]:
+@router.get("/health", response_model=DatabaseHealthResponse)
+async def database_health() -> DatabaseHealthResponse:
     """
     Simple database health check endpoint.
 
@@ -38,18 +39,18 @@ async def database_health() -> Dict[str, Any]:
         # Test basic connectivity by getting pool status
         pool_status = get_db_pool_status()
 
-        return {
-            "status": "healthy",
-            "message": "Database connection is working",
-            "pool_status": pool_status,
-        }
+        return DatabaseHealthResponse(
+            status="healthy",
+            message="Database connection is working",
+            pool_status=pool_status,
+        )
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
-        return {
-            "status": "unhealthy",
-            "message": "Database connection failed",
-            "error": str(e),
-        }
+        return DatabaseHealthResponse(
+            status="unhealthy",
+            message="Database connection failed",
+            error=str(e),
+        )
 
 
 @router.get("/pool-status", response_model=Dict[str, Any])
