@@ -36,7 +36,7 @@ export function UpcomingLessons() {
   });
 
   // Extract bookings from response
-  const bookings = response?.items || [];
+  const bookings = response?.items ?? [];
 
   // Don't render if not authenticated or no bookings
   if (!isAuthenticated || (!isLoading && bookings.length === 0)) {

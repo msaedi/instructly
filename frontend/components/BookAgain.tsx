@@ -45,7 +45,7 @@ export function BookAgain({ onLoadComplete }: BookAgainProps) {
 
   // Extract unique instructors from bookings
   const uniqueInstructors = useMemo(() => {
-    if (!bookingsData?.items?.length) {
+    if (!bookingsData || bookingsData.items.length === 0) {
       logger.info('BookAgain: No bookings found');
       return [];
     }

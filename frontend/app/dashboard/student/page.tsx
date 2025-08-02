@@ -65,12 +65,13 @@ export default function StudentDashboard() {
   });
 
   // Sort bookings by date (nearest first)
-  const upcomingBookings =
-    bookingsData?.items?.sort((a, b) => {
-      const dateTimeA = new Date(`${a.booking_date}T${a.start_time}`);
-      const dateTimeB = new Date(`${b.booking_date}T${b.start_time}`);
-      return dateTimeA.getTime() - dateTimeB.getTime();
-    }) || [];
+  const upcomingBookings = bookingsData
+    ? bookingsData.items.sort((a, b) => {
+        const dateTimeA = new Date(`${a.booking_date}T${a.start_time}`);
+        const dateTimeB = new Date(`${b.booking_date}T${b.start_time}`);
+        return dateTimeA.getTime() - dateTimeB.getTime();
+      })
+    : [];
 
   const isLoading = isLoadingUser;
   const bookingsLoading = isLoadingBookings;

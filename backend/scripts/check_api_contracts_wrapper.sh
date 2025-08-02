@@ -27,8 +27,11 @@ else
 fi
 
 # Try to run the contract check
-# First try the nice script
-if [ -f "scripts/check_api_contracts.py" ] && $PYTHON_CMD -c "import pytest" 2>/dev/null; then
+# First try the standalone version (doesn't need pytest)
+if [ -f "scripts/check_api_contracts_standalone.py" ]; then
+    $PYTHON_CMD scripts/check_api_contracts_standalone.py
+    exit $?
+elif [ -f "scripts/check_api_contracts.py" ] && $PYTHON_CMD -c "import pytest" 2>/dev/null; then
     # Dependencies are available, use the nice script
     $PYTHON_CMD scripts/check_api_contracts.py
     exit $?

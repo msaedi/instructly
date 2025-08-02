@@ -337,11 +337,11 @@ export async function getUpcomingBookings(limit: number = 5): Promise<UpcomingBo
     const data = await response.json();
     // Now always returns consistent paginated format
     logger.debug('Upcoming bookings fetched successfully', {
-      count: data.items?.length || 0,
+      count: data.items.length,
       total: data.total,
     });
 
-    return data.items || [];
+    return data.items;
   } catch (error) {
     logger.error('Upcoming bookings fetch error', error);
     throw error;

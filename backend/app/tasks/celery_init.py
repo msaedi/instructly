@@ -14,14 +14,19 @@ if "pytest" in sys.modules:
     # Force INT for tests
     os.environ.pop("USE_STG_DATABASE", None)
     os.environ.pop("USE_PROD_DATABASE", None)
-    print("[Celery Init] Using INT database (pytest detected)")
+    if not os.getenv("SUPPRESS_DB_MESSAGES"):
+        print("[Celery Init] Using INT database (pytest detected)")
 elif os.getenv("USE_PROD_DATABASE") == "true":
-    print("[Celery Init] Using PROD database")
+    if not os.getenv("SUPPRESS_DB_MESSAGES"):
+        print("[Celery Init] Using PROD database")
 elif os.getenv("USE_STG_DATABASE") == "true":
-    print("[Celery Init] Using STG database")
+    if not os.getenv("SUPPRESS_DB_MESSAGES"):
+        print("[Celery Init] Using STG database")
 else:
     # Handle legacy USE_TEST_DATABASE flag
     if os.getenv("USE_TEST_DATABASE") == "true":
-        print("[Celery Init] Using INT database (legacy flag)")
+        if not os.getenv("SUPPRESS_DB_MESSAGES"):
+            print("[Celery Init] Using INT database (legacy flag)")
     else:
-        print("[Celery Init] Using INT database (default)")
+        if not os.getenv("SUPPRESS_DB_MESSAGES"):
+            print("[Celery Init] Using INT database (default)")

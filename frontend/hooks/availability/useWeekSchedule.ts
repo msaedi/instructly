@@ -241,10 +241,10 @@ export function useWeekSchedule(
 
       const data = await response.json();
 
-      // Clean and set data
+      // Set data directly - API is standardized
       const cleanedData: WeekSchedule = {};
       Object.entries(data).forEach(([date, slots]) => {
-        if (Array.isArray(slots) && slots.length > 0) {
+        if (slots && (slots as any[]).length > 0) {
           cleanedData[date] = slots as any[];
         }
       });

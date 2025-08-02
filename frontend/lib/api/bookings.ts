@@ -222,7 +222,7 @@ export const bookingsApi = {
 
     const result = await response.json();
     logger.debug('Bookings fetched successfully', {
-      count: result.items?.length || 0,
+      count: result.items.length,
       total: result.total,
     });
     return result;
@@ -329,7 +329,7 @@ export const bookingsApi = {
             errorDetail = error.detail;
           } else if (Array.isArray(error.detail)) {
             errorDetail = error.detail
-              .map((e: any) => `${e.loc?.join(' > ') || 'Field'}: ${e.msg}`)
+              .map((e: any) => `${e.loc.join(' > ')}: ${e.msg}`)
               .join(', ');
           }
         }
@@ -463,12 +463,12 @@ export const bookingsApi = {
 
     const data = await response.json();
     logger.debug('Upcoming bookings fetched', {
-      count: data.bookings?.length || data.items?.length || 0,
+      count: data.items.length,
       total: data.total,
       requestedLimit: limit,
     });
-    // Handle both old (bookings) and new (items) response formats
-    return data.bookings || data.items || [];
+    // API is standardized - always uses items
+    return data.items;
   },
 
   /**
@@ -578,7 +578,7 @@ export const availabilityApi = {
     const availability = await response.json();
     logger.debug('Availability fetched', {
       instructorId,
-      slotsCount: availability.slots?.length || 0,
+      slotsCount: availability.slots.length,
     });
     return availability;
   },

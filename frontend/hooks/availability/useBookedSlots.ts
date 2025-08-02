@@ -152,7 +152,7 @@ export function useBookedSlots(
         }
 
         const data = await response.json();
-        const slots = data.booked_slots || [];
+        const slots = data.booked_slots;
 
         logger.info('Fetched booked slots', {
           weekStart: weekStartStr,

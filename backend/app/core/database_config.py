@@ -179,7 +179,8 @@ class DatabaseConfig:
         """Get integration test database URL."""
         if not self.int_url:
             raise ValueError("INT database URL not configured. " "Please set test_database_url in your .env file.")
-        print("\033[92m[INT]\033[0m Using Integration Test database (safe for drops/resets)")
+        if not os.getenv("SUPPRESS_DB_MESSAGES"):
+            print("\033[92m[INT]\033[0m Using Integration Test database (safe for drops/resets)")
         self._audit_log_operation("database_selection", {"environment": "int", "url": self._mask_url(self.int_url)})
         return self.int_url
 

@@ -40,8 +40,8 @@ function MyLessonsContent() {
   const error = activeTab === 'upcoming' ? errorUpcoming : errorHistory;
   const lessons =
     activeTab === 'upcoming'
-      ? (upcomingLessons as BookingListResponse | undefined)?.items
-      : (historyLessons as BookingListResponse | undefined)?.items;
+      ? upcomingLessons?.items
+      : historyLessons?.items;
 
   // Update URL when tab changes
   const handleTabChange = (tab: 'upcoming' | 'history') => {

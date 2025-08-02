@@ -153,7 +153,6 @@ export function isListResponse<T>(data: unknown): data is ListResponse<T> {
     typeof data === 'object' &&
     data !== null &&
     'items' in data &&
-    Array.isArray((data as any).items) &&
     'total' in data
   );
 }
