@@ -344,9 +344,9 @@ export default function AllServicesPage() {
             return (
               <div
                 key={service.id}
-                className="group block text-sm text-gray-400 dark:text-gray-500 px-2 py-0.5 -mx-2 rounded cursor-not-allowed relative"
+                className="group block text-sm px-2 py-0.5 -mx-2 rounded cursor-not-allowed relative"
               >
-                <span className="flex">
+                <span className="flex text-gray-400 dark:text-gray-600 opacity-60 dark:opacity-50">
                   <span className="flex-shrink-0 mr-1">•</span>
                   <span className="break-words">{service.name}</span>
                 </span>
@@ -379,7 +379,7 @@ export default function AllServicesPage() {
 
                 // Don't record here - let the search page handle it with correct counts
               }}
-              className="group block text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-[#FFD700] dark:hover:bg-[#FFD700] hover:text-gray-900 dark:hover:text-gray-900 px-2 py-0.5 -mx-2 rounded transition-all duration-200 cursor-pointer"
+              className="group block text-sm text-gray-700 dark:text-gray-300 hover:bg-[#FFD700] hover:!text-gray-900 px-2 py-0.5 -mx-2 rounded transition-all duration-200 cursor-pointer"
             >
               <span className="flex">
                 <span className="flex-shrink-0 mr-1">•</span>
