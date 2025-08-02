@@ -241,7 +241,13 @@ def downgrade() -> None:
 
     # Drop search and analytics indexes
     print("Dropping search and analytics indexes...")
-    op.drop_index("idx_instructor_services_catalog_active", table_name="instructor_services")
+
+    # Use DROP INDEX IF EXISTS for all indexes to handle cases where they don't exist
+    try:
+        op.execute("DROP INDEX IF EXISTS idx_instructor_services_catalog_active")
+        print("- Dropped idx_instructor_services_catalog_active")
+    except Exception:
+        pass
 
     try:
         op.execute("DROP INDEX IF EXISTS idx_service_catalog_search_terms_gin")
@@ -249,17 +255,25 @@ def downgrade() -> None:
     except Exception:
         pass
 
-    op.drop_index("idx_blackout_dates_instructor", table_name="blackout_dates")
+    try:
+        op.execute("DROP INDEX IF EXISTS idx_blackout_dates_instructor")
+        print("- Dropped idx_blackout_dates_instructor")
+    except Exception:
+        pass
 
-    # Drop booking and availability indexes
-    op.drop_index("idx_availability_time_range", table_name="availability_slots")
-    op.drop_index("idx_bookings_time_conflicts", table_name="bookings")
-    op.drop_index("idx_bookings_instructor_status", table_name="bookings")
-    op.drop_index("idx_bookings_student_status", table_name="bookings")
-    op.drop_index("idx_bookings_student_date", table_name="bookings")
-    op.drop_index("idx_bookings_upcoming", table_name="bookings")
-    op.drop_index("idx_availability_future", table_name="availability_slots")
-    op.drop_index("idx_availability_week_lookup", table_name="availability_slots")
-    op.drop_index("idx_bookings_date_status", table_name="bookings")
+    # Drop booking and availability indexes (use IF EXISTS for safety)
+    try:
+        op.execute("DROP INDEX IF EXISTS idx_availability_time_range")
+        op.execute("DROP INDEX IF EXISTS idx_bookings_time_conflicts")
+        op.execute("DROP INDEX IF EXISTS idx_bookings_instructor_status")
+        op.execute("DROP INDEX IF EXISTS idx_bookings_student_status")
+        op.execute("DROP INDEX IF EXISTS idx_bookings_student_date")
+        op.execute("DROP INDEX IF EXISTS idx_bookings_upcoming")
+        op.execute("DROP INDEX IF EXISTS idx_availability_future")
+        op.execute("DROP INDEX IF EXISTS idx_availability_week_lookup")
+        op.execute("DROP INDEX IF EXISTS idx_bookings_date_status")
+        print("- Dropped booking and availability indexes")
+    except Exception as e:
+        print(f"- Some indexes may not exist: {e}")
 
     print("Performance indexes dropped successfully!")
