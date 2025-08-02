@@ -15,19 +15,18 @@ import logging
 import os
 import sys
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-from sqlalchemy import create_engine, func
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import settings
-from app.models.booking import Booking, BookingStatus
-from app.models.service_catalog import InstructorService
+from app.models.booking import BookingStatus
 from app.repositories.factory import RepositoryFactory
 
 # Configure logging
@@ -56,19 +55,15 @@ class AnalyticsCalculator:
         Returns:
             Dictionary with booking metrics
         """
-        now = datetime.utcnow().date()
+        now = datetime.now(timezone.utc).date()
         cutoff_7d = now - timedelta(days=7)
         cutoff_30d = now - timedelta(days=30)
         cutoff_all = now - timedelta(days=days_back)
 
-        # Get all bookings for this service type
-        bookings_query = (
-            self.db.query(Booking)
-            .join(InstructorService, Booking.instructor_service_id == InstructorService.id)
-            .filter(InstructorService.service_catalog_id == service_catalog_id, Booking.booking_date >= cutoff_all)
+        # Use repository method to get bookings
+        all_bookings = self.booking_repository.get_bookings_for_service_catalog(
+            service_catalog_id=service_catalog_id, from_date=cutoff_all
         )
-
-        all_bookings = bookings_query.all()
 
         # Calculate counts
         count_7d = sum(1 for b in all_bookings if b.booking_date >= cutoff_7d)
@@ -138,19 +133,15 @@ class AnalyticsCalculator:
         Returns:
             Dictionary with instructor metrics
         """
-        # Count active instructors offering this service
-        active_instructors = (
-            self.db.query(func.count(InstructorService.id))
-            .filter(InstructorService.service_catalog_id == service_catalog_id, InstructorService.is_active == True)
-            .scalar()
-        )
+        # Use repository method to count active instructors
+        active_instructors = self.catalog_repository.count_active_instructors(service_catalog_id)
 
         # Calculate total weekly hours available
         # This is a simplified calculation - in reality would need availability data
         avg_hours_per_instructor = 20  # Assume 20 hours/week average
         total_weekly_hours = active_instructors * avg_hours_per_instructor
 
-        return {"active_instructors": active_instructors or 0, "total_weekly_hours": total_weekly_hours}
+        return {"active_instructors": active_instructors, "total_weekly_hours": total_weekly_hours}
 
     def calculate_all_analytics(self, days_back: int = 90) -> int:
         """
@@ -190,7 +181,7 @@ class AnalyticsCalculator:
                     "completion_rate": booking_stats.get("completion_rate"),
                     "active_instructors": instructor_stats["active_instructors"],
                     "total_weekly_hours": instructor_stats["total_weekly_hours"],
-                    "last_calculated": datetime.utcnow(),
+                    "last_calculated": datetime.now(timezone.utc),
                 }
 
                 # Store JSON data
@@ -220,8 +211,7 @@ class AnalyticsCalculator:
             except Exception as e:
                 logger.error(f"Error calculating analytics for service {service.id}: {str(e)}")
 
-        # Commit all updates
-        self.db.commit()
+        # Commits are handled by repositories automatically
 
         # Update display order based on new analytics
         logger.info("Updating display order based on popularity...")
@@ -273,7 +263,7 @@ class AnalyticsCalculator:
                     search_count_7d=int(search_count * 0.25),
                 )
 
-        self.db.commit()
+        # Commits are handled by repositories automatically
         logger.info("Search counts updated")
 
     def generate_report(self) -> Dict:

@@ -160,22 +160,30 @@ class TestCalculateSearchMetrics:
 class TestGenerateSearchInsights:
     """Test generate_search_insights task."""
 
+    @patch("app.tasks.search_analytics.SearchEventRepository")
     @patch("app.tasks.search_analytics.get_db")
-    def test_generate_insights_success(self, mock_get_db):
+    def test_generate_insights_success(self, mock_get_db, mock_search_repo_class):
         """Test successful insights generation."""
         # Mock database session
         mock_db = MagicMock()
         mock_get_db.return_value = iter([mock_db])
 
-        # Mock abandonment calculation
-        mock_db.query.return_value.filter.return_value.count.side_effect = [100, 60]  # total, with interactions
-        mock_db.query.return_value.join.return_value.filter.return_value.distinct.return_value.count.return_value = 60
+        # Mock repository
+        mock_repo = MagicMock()
+        mock_search_repo_class.return_value = mock_repo
 
-        # Mock peak hours
-        peak_hours = [(14, 50), (15, 45), (16, 40)]  # 2-4 PM peak
-        mock_db.query.return_value.filter.return_value.group_by.return_value.order_by.return_value.limit.return_value.all.return_value = (
-            peak_hours
-        )
+        # Mock repository methods
+        mock_repo.count_searches_since.return_value = 100
+        mock_repo.count_searches_with_interactions.return_value = 60
+        mock_repo.get_hourly_search_counts.return_value = [
+            {"hour": 14, "search_count": 50},
+            {"hour": 15, "search_count": 45},
+            {"hour": 16, "search_count": 40},
+        ]
+        mock_repo.get_popular_searches.return_value = [
+            {"search_query": "piano lessons", "frequency": 25, "last_searched": "2023-01-01T14:00:00"},
+            {"search_query": "guitar lessons", "frequency": 20, "last_searched": "2023-01-01T15:00:00"},
+        ]
 
         # Execute task
         result = generate_search_insights.run(7)
@@ -210,48 +218,59 @@ class TestSearchQualityCalculation:
 
     def test_quality_score_no_results(self):
         """Test quality score for search with no results."""
-        from app.tasks.search_analytics import _calculate_search_quality
+        from app.repositories.search_event_repository import SearchEventRepository
 
         mock_db = MagicMock()
+        repo = SearchEventRepository(mock_db)
+
+        # Mock the search event query
         mock_event = MagicMock(spec=SearchEvent)
         mock_event.id = 1
         mock_event.results_count = 0
         mock_event.search_type = "natural_language"
+        mock_db.query.return_value.filter.return_value.first.return_value = mock_event
 
         # No interactions
-        mock_db.query.return_value.filter.return_value.first.return_value = None
+        mock_db.query.return_value.filter.return_value.first.side_effect = [mock_event, None]
 
-        score = _calculate_search_quality(mock_db, mock_event)
+        score = repo.calculate_search_quality_score(1)
         assert score < 50  # Penalty for no results
 
     def test_quality_score_with_interactions(self):
         """Test quality score for search with interactions."""
-        from app.tasks.search_analytics import _calculate_search_quality
+        from app.repositories.search_event_repository import SearchEventRepository
 
         mock_db = MagicMock()
+        repo = SearchEventRepository(mock_db)
+
+        # Mock the search event query
         mock_event = MagicMock(spec=SearchEvent)
         mock_event.id = 1
         mock_event.results_count = 10
         mock_event.search_type = "service_pill"
 
         # Has interactions
-        mock_db.query.return_value.filter.return_value.first.return_value = MagicMock()
+        mock_interaction = MagicMock()
+        mock_db.query.return_value.filter.return_value.first.side_effect = [mock_event, mock_interaction]
 
-        score = _calculate_search_quality(mock_db, mock_event)
+        score = repo.calculate_search_quality_score(1)
         assert score > 50  # Bonus for interactions and good result count
 
     def test_quality_score_too_many_results(self):
         """Test quality score for search with too many results."""
-        from app.tasks.search_analytics import _calculate_search_quality
+        from app.repositories.search_event_repository import SearchEventRepository
 
         mock_db = MagicMock()
+        repo = SearchEventRepository(mock_db)
+
+        # Mock the search event query
         mock_event = MagicMock(spec=SearchEvent)
         mock_event.id = 1
         mock_event.results_count = 100
         mock_event.search_type = "natural_language"
 
         # No interactions
-        mock_db.query.return_value.filter.return_value.first.return_value = None
+        mock_db.query.return_value.filter.return_value.first.side_effect = [mock_event, None]
 
-        score = _calculate_search_quality(mock_db, mock_event)
+        score = repo.calculate_search_quality_score(1)
         assert score < 50  # Penalty for too many results

@@ -8,7 +8,7 @@ and updating metrics asynchronously.
 
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from sqlalchemy.orm import Session
@@ -203,10 +203,11 @@ def update_service_metrics(self, service_id: int) -> Dict[str, Any]:
 
         calculator = AnalyticsCalculator(db)
 
-        # Calculate analytics for specific service
-        from app.models.service_catalog import InstructorService as Service
+        # Use repository to get the service
+        from app.repositories.factory import RepositoryFactory
 
-        service = db.query(Service).filter(Service.id == service_id).first()
+        catalog_repo = RepositoryFactory.create_service_catalog_repository(db)
+        service = catalog_repo.get_by_id(service_id)
 
         if not service:
             logger.warning(f"Service {service_id} not found")
@@ -215,19 +216,34 @@ def update_service_metrics(self, service_id: int) -> Dict[str, Any]:
                 "message": f"Service {service_id} not found",
             }
 
-        # Calculate metrics
-        metrics = calculator._calculate_service_metrics(service)
+        # Calculate analytics for this specific service
+        booking_stats = calculator.calculate_booking_stats(service_id)
+        instructor_stats = calculator.calculate_instructor_stats(service_id)
 
-        # Update analytics record
-        updated = calculator._update_analytics_record(service.id, metrics)
+        # Update analytics using repository
+        analytics_repo = RepositoryFactory.create_service_analytics_repository(db)
+        analytics_repo.get_or_create(service_id)
+
+        update_data = {
+            "booking_count_7d": booking_stats.get("count_7d", 0),
+            "booking_count_30d": booking_stats.get("count_30d", 0),
+            "avg_price_booked": booking_stats.get("avg_price"),
+            "active_instructors": instructor_stats["active_instructors"],
+            "total_weekly_hours": instructor_stats["total_weekly_hours"],
+            "last_calculated": datetime.now(timezone.utc),
+        }
+
+        updated = analytics_repo.update(service_id, **update_data)
 
         logger.info(f"Metrics updated for service {service_id}")
 
         return {
             "status": "success",
             "service_id": service_id,
-            "metrics": metrics,
-            "updated": updated,
+            "booking_stats": booking_stats,
+            "instructor_stats": instructor_stats,
+            "updated": updated is not None,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as exc:

@@ -7,15 +7,13 @@ search events asynchronously, and generating search insights.
 """
 
 import logging
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Optional
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.search_event import SearchEvent
-from app.models.search_interaction import SearchInteraction
+from app.repositories.search_event_repository import SearchEventRepository
 from app.tasks.celery_app import BaseTask, celery_app
 
 logger = logging.getLogger(__name__)
@@ -45,15 +43,16 @@ def process_search_event(self, event_id: int) -> Dict[str, Any]:
     db: Optional[Session] = None
     try:
         db = next(get_db())
+        search_repo = SearchEventRepository(db)
 
         # Get the search event
-        event = db.query(SearchEvent).filter(SearchEvent.id == event_id).first()
+        event = search_repo.get_by_id(event_id)
         if not event:
             logger.warning(f"Search event {event_id} not found")
             return {"status": "error", "message": f"Event {event_id} not found"}
 
-        # Example processing: Calculate search quality score
-        quality_score = _calculate_search_quality(db, event)
+        # Calculate search quality score using repository method
+        quality_score = search_repo.calculate_search_quality_score(event_id)
 
         # Update event with calculated data
         event.quality_score = quality_score
@@ -65,7 +64,7 @@ def process_search_event(self, event_id: int) -> Dict[str, Any]:
             "status": "success",
             "event_id": event_id,
             "quality_score": quality_score,
-            "processed_at": datetime.utcnow().isoformat(),
+            "processed_at": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as exc:
@@ -101,68 +100,32 @@ def calculate_search_metrics(self, hours_back: int = 24) -> Dict[str, Any]:
     db: Optional[Session] = None
     try:
         db = next(get_db())
+        search_repo = SearchEventRepository(db)
 
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours_back)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours_back)
 
-        # Calculate popular searches
-        popular_searches = (
-            db.query(
-                SearchEvent.search_query,
-                func.count(SearchEvent.id).label("count"),
-                func.avg(SearchEvent.results_count).label("avg_results"),
-            )
-            .filter(SearchEvent.searched_at >= cutoff_time)
-            .group_by(SearchEvent.search_query)
-            .order_by(func.count(SearchEvent.id).desc())
-            .limit(20)
-            .all()
-        )
-
-        # Calculate search type distribution
-        type_distribution = (
-            db.query(
-                SearchEvent.search_type,
-                func.count(SearchEvent.id).label("count"),
-            )
-            .filter(SearchEvent.searched_at >= cutoff_time)
-            .group_by(SearchEvent.search_type)
-            .all()
-        )
-
-        # Calculate conversion rates
-        total_searches = db.query(SearchEvent).filter(SearchEvent.searched_at >= cutoff_time).count()
-
-        searches_with_interactions = (
-            db.query(SearchEvent)
-            .join(SearchInteraction)
-            .filter(SearchEvent.searched_at >= cutoff_time)
-            .distinct()
-            .count()
-        )
+        # Use repository methods for all data access
+        popular_searches = search_repo.get_popular_searches_with_avg_results(hours=hours_back, limit=20)
+        type_distribution = search_repo.get_search_type_distribution(hours=hours_back)
+        total_searches = search_repo.count_searches_since(cutoff_time)
+        searches_with_interactions = search_repo.count_searches_with_interactions(cutoff_time)
 
         conversion_rate = searches_with_interactions / total_searches * 100 if total_searches > 0 else 0
 
         metrics = {
             "period": {
                 "start": cutoff_time.isoformat(),
-                "end": datetime.utcnow().isoformat(),
+                "end": datetime.now(timezone.utc).isoformat(),
                 "hours": hours_back,
             },
-            "popular_searches": [
-                {
-                    "query": query,
-                    "count": count,
-                    "avg_results": float(avg_results) if avg_results else 0,
-                }
-                for query, count, avg_results in popular_searches
-            ],
-            "search_type_distribution": {search_type: count for search_type, count in type_distribution},
+            "popular_searches": popular_searches,
+            "search_type_distribution": type_distribution,
             "engagement": {
                 "total_searches": total_searches,
                 "searches_with_interactions": searches_with_interactions,
                 "conversion_rate": round(conversion_rate, 2),
             },
-            "calculated_at": datetime.utcnow().isoformat(),
+            "calculated_at": datetime.now(timezone.utc).isoformat(),
         }
 
         logger.info(f"Calculated search metrics for last {hours_back} hours")
@@ -202,25 +165,30 @@ def generate_search_insights(self, days_back: int = 7) -> Dict[str, Any]:
     db: Optional[Session] = None
     try:
         db = next(get_db())
+        search_repo = SearchEventRepository(db)
 
-        cutoff_time = datetime.utcnow() - timedelta(days=days_back)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(days=days_back)
 
-        # Find trending searches (increasing in frequency)
-        trending = _find_trending_searches(db, cutoff_time)
+        # Calculate insights using repository methods
+        total_searches = search_repo.count_searches_since(cutoff_time)
+        searches_with_interactions = search_repo.count_searches_with_interactions(cutoff_time)
 
-        # Analyze search abandonment (searches with no interactions)
-        abandonment_rate = _calculate_abandonment_rate(db, cutoff_time)
+        # Calculate abandonment rate
+        abandonment_rate = 0.0
+        if total_searches > 0:
+            abandonment_rate = round((total_searches - searches_with_interactions) / total_searches * 100, 2)
 
-        # Time-based patterns (peak hours)
-        peak_hours = _find_peak_search_hours(db, cutoff_time)
+        # Get peak hours using repository
+        peak_hours = search_repo.get_hourly_search_counts(cutoff_time, limit=5)
 
-        # User journey patterns
-        common_paths = _analyze_search_paths(db, cutoff_time)
+        # Trending searches can be approximated using popular searches
+        # In a real implementation, you'd compare time periods
+        trending = search_repo.get_popular_searches(days=days_back, limit=10)
 
         insights = {
             "period": {
                 "start": cutoff_time.isoformat(),
-                "end": datetime.utcnow().isoformat(),
+                "end": datetime.now(timezone.utc).isoformat(),
                 "days": days_back,
             },
             "trending_searches": trending,
@@ -229,8 +197,8 @@ def generate_search_insights(self, days_back: int = 7) -> Dict[str, Any]:
                 "description": "Percentage of searches with no follow-up interaction",
             },
             "peak_hours": peak_hours,
-            "common_search_paths": common_paths,
-            "generated_at": datetime.utcnow().isoformat(),
+            "common_search_paths": [],  # Placeholder - would need session analysis
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
         logger.info(f"Generated search insights for last {days_back} days")
@@ -244,107 +212,3 @@ def generate_search_insights(self, days_back: int = 7) -> Dict[str, Any]:
     finally:
         if db:
             db.close()
-
-
-def _calculate_search_quality(db: Session, event: SearchEvent) -> float:
-    """
-    Calculate a quality score for a search based on various factors.
-
-    Args:
-        db: Database session
-        event: Search event to score
-
-    Returns:
-        float: Quality score between 0 and 100
-    """
-    score = 50.0  # Base score
-
-    # Factor 1: Results count (penalize too many or too few)
-    if event.results_count == 0:
-        score -= 30
-    elif event.results_count > 50:
-        score -= 10
-    elif 5 <= event.results_count <= 20:
-        score += 10
-
-    # Factor 2: Has interactions (good signal)
-    has_interactions = (
-        db.query(SearchInteraction).filter(SearchInteraction.search_event_id == event.id).first() is not None
-    )
-
-    if has_interactions:
-        score += 20
-
-    # Factor 3: Search type (some types are more targeted)
-    if event.search_type in ["service_pill", "category"]:
-        score += 5
-
-    return max(0, min(100, score))
-
-
-def _find_trending_searches(db: Session, cutoff_time: datetime) -> List[Dict[str, Any]]:
-    """Find searches that are trending upward."""
-    # Simplified trending detection - compare last 24h to previous 24h
-    midpoint = cutoff_time + (datetime.utcnow() - cutoff_time) / 2
-
-    recent = (
-        db.query(SearchEvent.search_query, func.count(SearchEvent.id).label("count"))
-        .filter(SearchEvent.searched_at >= midpoint)
-        .group_by(SearchEvent.search_query)
-        .subquery()
-    )
-
-    older = (
-        db.query(SearchEvent.search_query, func.count(SearchEvent.id).label("count"))
-        .filter(
-            SearchEvent.searched_at >= cutoff_time,
-            SearchEvent.searched_at < midpoint,
-        )
-        .group_by(SearchEvent.search_query)
-        .subquery()
-    )
-
-    # This is a simplified approach - in production you'd want more sophisticated trending
-    trending = []
-
-    return trending
-
-
-def _calculate_abandonment_rate(db: Session, cutoff_time: datetime) -> float:
-    """Calculate the rate of searches with no follow-up interactions."""
-    total_searches = db.query(SearchEvent).filter(SearchEvent.searched_at >= cutoff_time).count()
-
-    searches_with_interactions = (
-        db.query(SearchEvent).join(SearchInteraction).filter(SearchEvent.searched_at >= cutoff_time).distinct().count()
-    )
-
-    if total_searches == 0:
-        return 0.0
-
-    abandonment_rate = (total_searches - searches_with_interactions) / total_searches * 100
-
-    return round(abandonment_rate, 2)
-
-
-def _find_peak_search_hours(db: Session, cutoff_time: datetime) -> List[Dict[str, Any]]:
-    """Find the hours with the most search activity."""
-    hourly_counts = (
-        db.query(
-            func.extract("hour", SearchEvent.searched_at).label("hour"),
-            func.count(SearchEvent.id).label("count"),
-        )
-        .filter(SearchEvent.searched_at >= cutoff_time)
-        .group_by(func.extract("hour", SearchEvent.searched_at))
-        .order_by(func.count(SearchEvent.id).desc())
-        .limit(5)
-        .all()
-    )
-
-    return [{"hour": int(hour), "search_count": count} for hour, count in hourly_counts]
-
-
-def _analyze_search_paths(db: Session, cutoff_time: datetime) -> List[Dict[str, Any]]:
-    """Analyze common search sequences within sessions."""
-    # This is a placeholder - actual implementation would analyze session data
-    # to find common search patterns (e.g., category -> specific search -> refinement)
-    return []

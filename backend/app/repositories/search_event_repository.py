@@ -9,7 +9,6 @@ recording every single search event without deduplication.
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
-import sqlalchemy as sa
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
@@ -67,10 +66,7 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
 
         results = query.group_by(SearchEvent.search_query).order_by(desc("frequency")).all()
 
-        return [
-            {"search_query": result.search_query, "frequency": result.frequency, "last_searched": result.last_searched}
-            for result in results
-        ]
+        return [{"search_query": result[0], "frequency": result[1], "last_searched": result[2]} for result in results]
 
     def get_search_patterns(self, search_query: str, days: int = 30) -> Dict:
         """
@@ -114,8 +110,8 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
 
         return {
             "query": search_query,
-            "daily_counts": [{"date": str(dc.date), "count": dc.count} for dc in daily_counts],
-            "type_distribution": [{"type": td.search_type, "count": td.count} for td in type_distribution],
+            "daily_counts": [{"date": str(dc[0]), "count": dc[1]} for dc in daily_counts],
+            "type_distribution": [{"type": td[0], "count": td[1]} for td in type_distribution],
             "average_results": float(avg_results) if avg_results else 0,
         }
 
@@ -164,14 +160,7 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
             self.db.query(
                 SearchEvent.search_query,
                 func.count(SearchEvent.id).label("search_count"),
-                func.count(
-                    func.distinct(
-                        func.concat(
-                            func.coalesce(func.cast(SearchEvent.user_id, sa.String), ""),
-                            func.coalesce(SearchEvent.guest_session_id, ""),
-                        )
-                    )
-                ).label("unique_users"),
+                func.count(func.distinct(SearchEvent.user_id)).label("unique_users"),
             )
             .filter(SearchEvent.searched_at >= cutoff_date)
             .group_by(SearchEvent.search_query)
@@ -182,9 +171,9 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
 
         return [
             {
-                "search_query": result.search_query,
-                "search_count": result.search_count,
-                "unique_users": result.unique_users,
+                "search_query": result[0],  # search_query
+                "search_count": result[1],  # search_count
+                "unique_users": result[2],  # unique_users
             }
             for result in results
         ]
@@ -216,8 +205,8 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
 
         # Calculate velocity trend
         if len(hourly_counts) >= 2:
-            first_half = sum(hc.count for hc in hourly_counts[: len(hourly_counts) // 2])
-            second_half = sum(hc.count for hc in hourly_counts[len(hourly_counts) // 2 :])
+            first_half = sum(hc[1] for hc in hourly_counts[: len(hourly_counts) // 2])
+            second_half = sum(hc[1] for hc in hourly_counts[len(hourly_counts) // 2 :])
             trend = "increasing" if second_half > first_half else "decreasing" if second_half < first_half else "stable"
         else:
             trend = "insufficient_data"
@@ -225,7 +214,163 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         return {
             "query": search_query,
             "period_hours": hours,
-            "total_searches": sum(hc.count for hc in hourly_counts),
-            "hourly_breakdown": [{"hour": str(hc.hour), "count": hc.count} for hc in hourly_counts],
+            "total_searches": sum(hc[1] for hc in hourly_counts),
+            "hourly_breakdown": [{"hour": str(hc[0]), "count": hc[1]} for hc in hourly_counts],
             "trend": trend,
         }
+
+    def get_popular_searches_with_avg_results(self, hours: int = 24, limit: int = 20) -> List[Dict]:
+        """
+        Get popular searches with average result counts.
+
+        Args:
+            hours: Number of hours to look back
+            limit: Maximum number of results
+
+        Returns:
+            List of popular searches with counts and average results
+        """
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+
+        results = (
+            self.db.query(
+                SearchEvent.search_query,
+                func.count(SearchEvent.id).label("count"),
+                func.avg(SearchEvent.results_count).label("avg_results"),
+            )
+            .filter(SearchEvent.searched_at >= cutoff_time)
+            .group_by(SearchEvent.search_query)
+            .order_by(func.count(SearchEvent.id).desc())
+            .limit(limit)
+            .all()
+        )
+
+        return [
+            {
+                "query": result[0],  # search_query
+                "count": result[1],  # count
+                "avg_results": float(result[2]) if result[2] else 0,  # avg_results
+            }
+            for result in results
+        ]
+
+    def get_search_type_distribution(self, hours: int = 24) -> Dict[str, int]:
+        """
+        Get distribution of search types.
+
+        Args:
+            hours: Number of hours to look back
+
+        Returns:
+            Dictionary mapping search type to count
+        """
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+
+        results = (
+            self.db.query(
+                SearchEvent.search_type,
+                func.count(SearchEvent.id).label("count"),
+            )
+            .filter(SearchEvent.searched_at >= cutoff_time)
+            .group_by(SearchEvent.search_type)
+            .all()
+        )
+
+        return {result[0]: result[1] for result in results}  # search_type: count
+
+    def count_searches_since(self, cutoff_time: datetime) -> int:
+        """
+        Count total searches since a given time.
+
+        Args:
+            cutoff_time: Time to count from
+
+        Returns:
+            Total search count
+        """
+        return self.db.query(SearchEvent).filter(SearchEvent.searched_at >= cutoff_time).count()
+
+    def count_searches_with_interactions(self, cutoff_time: datetime) -> int:
+        """
+        Count searches that have associated interactions.
+
+        Args:
+            cutoff_time: Time to count from
+
+        Returns:
+            Count of searches with interactions
+        """
+        from ..models.search_interaction import SearchInteraction
+
+        return (
+            self.db.query(SearchEvent)
+            .join(SearchInteraction)
+            .filter(SearchEvent.searched_at >= cutoff_time)
+            .distinct()
+            .count()
+        )
+
+    def get_hourly_search_counts(self, cutoff_time: datetime, limit: int = 5) -> List[Dict]:
+        """
+        Get search counts by hour.
+
+        Args:
+            cutoff_time: Time to count from
+            limit: Maximum number of hours to return
+
+        Returns:
+            List of hours with search counts
+        """
+        hourly_counts = (
+            self.db.query(
+                func.extract("hour", SearchEvent.searched_at).label("hour"),
+                func.count(SearchEvent.id).label("count"),
+            )
+            .filter(SearchEvent.searched_at >= cutoff_time)
+            .group_by(func.extract("hour", SearchEvent.searched_at))
+            .order_by(func.count(SearchEvent.id).desc())
+            .limit(limit)
+            .all()
+        )
+
+        return [{"hour": int(result[0]), "search_count": result[1]} for result in hourly_counts]
+
+    def calculate_search_quality_score(self, event_id: int) -> float:
+        """
+        Calculate quality score for a search event.
+
+        Args:
+            event_id: ID of the search event
+
+        Returns:
+            Quality score between 0 and 100
+        """
+        event = self.get_by_id(event_id)
+        if not event:
+            return 0.0
+
+        score = 50.0  # Base score
+
+        # Factor 1: Results count (penalize too many or too few)
+        if event.results_count == 0:
+            score -= 30
+        elif event.results_count > 50:
+            score -= 10
+        elif 5 <= event.results_count <= 20:
+            score += 10
+
+        # Factor 2: Has interactions (good signal)
+        from ..models.search_interaction import SearchInteraction
+
+        has_interactions = (
+            self.db.query(SearchInteraction).filter(SearchInteraction.search_event_id == event.id).first() is not None
+        )
+
+        if has_interactions:
+            score += 20
+
+        # Factor 3: Search type (some types are more targeted)
+        if event.search_type in ["service_pill", "category"]:
+            score += 5
+
+        return max(0, min(100, score))

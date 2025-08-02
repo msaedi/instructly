@@ -496,6 +496,44 @@ class BookingRepository(BaseRepository[Booking]):
             self.logger.error(f"Error getting instructor future bookings: {str(e)}")
             raise RepositoryException(f"Failed to get future bookings: {str(e)}")
 
+    def get_bookings_for_service_catalog(
+        self,
+        service_catalog_id: int,
+        from_date: date,
+        to_date: Optional[date] = None,
+    ) -> List[Booking]:
+        """
+        Get all bookings for a specific service catalog type within a date range.
+
+        This is used for analytics calculations to aggregate bookings across
+        all instructors offering the same service type.
+
+        Args:
+            service_catalog_id: The service catalog ID
+            from_date: Start date for the query
+            to_date: Optional end date (defaults to today)
+
+        Returns:
+            List of bookings for this service type
+        """
+        try:
+            from ..models.service_catalog import InstructorService
+
+            query = (
+                self.db.query(Booking)
+                .join(InstructorService, Booking.instructor_service_id == InstructorService.id)
+                .filter(InstructorService.service_catalog_id == service_catalog_id, Booking.booking_date >= from_date)
+            )
+
+            if to_date:
+                query = query.filter(Booking.booking_date <= to_date)
+
+            return query.all()
+
+        except Exception as e:
+            self.logger.error(f"Error getting bookings for service catalog: {str(e)}")
+            raise RepositoryException(f"Failed to get service catalog bookings: {str(e)}")
+
     # Detailed Booking Queries (unchanged)
 
     def get_booking_with_details(self, booking_id: int) -> Optional[Booking]:

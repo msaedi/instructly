@@ -12,13 +12,13 @@ This repository extends BaseRepository with search and analytics capabilities.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import or_, text
 from sqlalchemy.orm import Session, joinedload
 
-from ..models.service_catalog import ServiceAnalytics, ServiceCatalog
+from ..models.service_catalog import InstructorService, ServiceAnalytics, ServiceCatalog
 from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
@@ -265,6 +265,26 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
 
         return query.all()
 
+    def count_active_instructors(self, service_catalog_id: int) -> int:
+        """
+        Count the number of active instructors offering a specific service.
+
+        Args:
+            service_catalog_id: The service catalog ID to count instructors for
+
+        Returns:
+            Number of active instructors offering this service
+        """
+        from sqlalchemy import func
+
+        count = (
+            self.db.query(func.count(InstructorService.id))
+            .filter(InstructorService.service_catalog_id == service_catalog_id, InstructorService.is_active == True)
+            .scalar()
+        )
+
+        return count or 0
+
 
 class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
     """Repository for service analytics data."""
@@ -328,7 +348,7 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
                 booking_count_7d=0,
                 booking_count_30d=0,
                 active_instructors=0,
-                last_calculated=datetime.utcnow(),
+                last_calculated=datetime.now(timezone.utc),
             )
 
         return analytics
@@ -359,7 +379,7 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
         Returns:
             List of stale analytics records
         """
-        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
 
         return self.db.query(ServiceAnalytics).filter(ServiceAnalytics.last_calculated < cutoff).all()
 
@@ -383,7 +403,7 @@ class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):
             "most_booked_duration": booking_stats.get("most_popular_duration"),
             "completion_rate": booking_stats.get("completion_rate"),
             "avg_rating": booking_stats.get("avg_rating"),
-            "last_calculated": datetime.utcnow(),
+            "last_calculated": datetime.now(timezone.utc),
         }
 
         # Remove None values
