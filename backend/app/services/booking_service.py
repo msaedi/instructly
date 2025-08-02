@@ -277,7 +277,10 @@ class BookingService(BaseService):
     @BaseService.measure_operation("get_booking_stats_for_instructor")
     def get_booking_stats_for_instructor(self, instructor_id: int) -> Dict[str, Any]:
         """
-        Get booking statistics for an instructor.
+        Get booking statistics for an instructor with caching.
+
+        CACHED: Results are cached for 5 minutes at the service level to reduce
+        computation overhead for frequently accessed statistics.
 
         Args:
             instructor_id: Instructor user ID
@@ -285,6 +288,15 @@ class BookingService(BaseService):
         Returns:
             Dictionary of statistics
         """
+        # Try to get from cache first if available
+        if self.cache_service:
+            cache_key = f"booking_stats:instructor:{instructor_id}"
+            cached_stats = self.cache_service.get(cache_key)
+            if cached_stats is not None:
+                logger.debug(f"Cache hit for instructor {instructor_id} booking stats")
+                return cached_stats
+
+        # Calculate stats if not cached
         bookings = self.repository.get_instructor_bookings_for_stats(instructor_id)
 
         # Calculate stats
@@ -304,7 +316,7 @@ class BookingService(BaseService):
             if b.status == BookingStatus.COMPLETED and b.booking_date >= first_day_of_month
         )
 
-        return {
+        stats = {
             "total_bookings": total_bookings,
             "upcoming_bookings": upcoming_bookings,
             "completed_bookings": completed_bookings,
@@ -314,6 +326,13 @@ class BookingService(BaseService):
             "completion_rate": completed_bookings / total_bookings if total_bookings > 0 else 0,
             "cancellation_rate": cancelled_bookings / total_bookings if total_bookings > 0 else 0,
         }
+
+        # Cache the results for 5 minutes
+        if self.cache_service:
+            self.cache_service.set(cache_key, stats, tier="hot")
+            logger.debug(f"Cached stats for instructor {instructor_id}")
+
+        return stats
 
     @BaseService.measure_operation("get_booking_for_user")
     def get_booking_for_user(self, booking_id: int, user: User) -> Optional[Booking]:
@@ -883,9 +902,15 @@ class BookingService(BaseService):
             try:
                 # Invalidate all availability caches for the instructor and specific date
                 self.cache_service.invalidate_instructor_availability(booking.instructor_id, [booking.booking_date])
-                logger.debug(f"Invalidated availability caches for instructor {booking.instructor_id}")
+                # Invalidate booking statistics cache for the instructor
+                stats_cache_key = f"booking_stats:instructor:{booking.instructor_id}"
+                self.cache_service.delete(stats_cache_key)
+                # Invalidate booking statistics cache for the student
+                student_stats_cache_key = f"booking_stats:student:{booking.student_id}"
+                self.cache_service.delete(student_stats_cache_key)
+                logger.debug(f"Invalidated availability and stats caches for instructor {booking.instructor_id}")
             except Exception as cache_error:
-                logger.warning(f"Failed to invalidate availability caches: {cache_error}")
+                logger.warning(f"Failed to invalidate caches: {cache_error}")
 
         # Legacy cache invalidation for other booking-related caches
         self.invalidate_cache(f"user_bookings:{booking.student_id}")
@@ -897,5 +922,5 @@ class BookingService(BaseService):
         # Invalidate instructor availability caches (fallback)
         self.invalidate_cache(f"instructor_availability:{booking.instructor_id}:{booking.booking_date}")
 
-        # Invalidate stats caches
+        # Invalidate stats caches (legacy)
         self.invalidate_cache(f"instructor_stats:{booking.instructor_id}")

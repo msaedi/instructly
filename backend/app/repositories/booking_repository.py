@@ -3,6 +3,7 @@
 Booking Repository for InstaInstru Platform
 
 UPDATED FOR CLEAN ARCHITECTURE: Complete separation from availability slots.
+ENHANCED WITH CACHING: Repository-level caching for frequently accessed data.
 
 Implements all data access operations for booking management,
 with new methods for time-based queries without slot references.
@@ -14,6 +15,7 @@ This repository handles:
 - Booking statistics and counting
 - Date-based queries
 - Booking relationships eager loading
+- Caching for performance optimization
 """
 
 import logging
@@ -26,22 +28,24 @@ from ..core.enums import RoleName
 from ..core.exceptions import NotFoundException, RepositoryException
 from ..models.booking import Booking, BookingStatus
 from .base_repository import BaseRepository
+from .cached_repository_mixin import CachedRepositoryMixin
 
 logger = logging.getLogger(__name__)
 
 
-class BookingRepository(BaseRepository[Booking]):
+class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
     """
-    Repository for booking data access.
+    Repository for booking data access with caching support.
 
     Implements all booking queries using self-contained booking data
     without any reference to availability slots.
     """
 
-    def __init__(self, db: Session):
-        """Initialize with Booking model."""
+    def __init__(self, db: Session, cache_service=None):
+        """Initialize with Booking model and optional cache service."""
         super().__init__(db, Booking)
         self.logger = logging.getLogger(__name__)
+        self.init_cache(cache_service)
 
     # Time-based Booking Queries (NEW)
 
@@ -328,6 +332,8 @@ class BookingRepository(BaseRepository[Booking]):
         """
         Get bookings for a specific student with advanced filtering.
 
+        CACHED: Results are cached for 5 minutes to reduce database load.
+
         Args:
             student_id: The student's user ID
             status: Optional status filter
@@ -339,6 +345,22 @@ class BookingRepository(BaseRepository[Booking]):
         Returns:
             List of student's bookings
         """
+        # Try to get from cache first
+        if self.cache_service and self._cache_enabled:
+            cache_key = self._generate_cache_key(
+                "get_student_bookings",
+                student_id,
+                status,
+                upcoming_only,
+                exclude_future_confirmed,
+                include_past_confirmed,
+                limit,
+            )
+            cached_result = self.cache_service.get(cache_key)
+            if cached_result is not None:
+                self.logger.debug(f"Cache hit for get_student_bookings: {cache_key}")
+                return cached_result
+
         try:
             query = (
                 self.db.query(Booking)
@@ -382,7 +404,23 @@ class BookingRepository(BaseRepository[Booking]):
             if limit:
                 query = query.limit(limit)
 
-            return query.all()
+            result = query.all()
+
+            # Cache the result
+            if self.cache_service and self._cache_enabled:
+                cache_key = self._generate_cache_key(
+                    "get_student_bookings",
+                    student_id,
+                    status,
+                    upcoming_only,
+                    exclude_future_confirmed,
+                    include_past_confirmed,
+                    limit,
+                )
+                self.cache_service.set(cache_key, result, tier="hot")
+                self.logger.debug(f"Cached result for get_student_bookings: {cache_key}")
+
+            return result
 
         except Exception as e:
             self.logger.error(f"Error getting student bookings: {str(e)}")
@@ -691,6 +729,11 @@ class BookingRepository(BaseRepository[Booking]):
             self.db.flush()
             self.logger.info(f"Marked booking {booking_id} as completed")
 
+            # Invalidate caches for this booking and related entities
+            self.invalidate_entity_cache(booking_id)
+            self.invalidate_entity_cache(booking.student_id)
+            self.invalidate_entity_cache(booking.instructor_id)
+
             return booking
 
         except NotFoundException:
@@ -727,6 +770,11 @@ class BookingRepository(BaseRepository[Booking]):
 
             self.db.flush()
             self.logger.info(f"Cancelled booking {booking_id} by user {cancelled_by_id}")
+
+            # Invalidate caches for this booking and related entities
+            self.invalidate_entity_cache(booking_id)
+            self.invalidate_entity_cache(booking.student_id)
+            self.invalidate_entity_cache(booking.instructor_id)
 
             return booking
 
