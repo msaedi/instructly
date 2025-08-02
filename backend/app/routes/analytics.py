@@ -18,16 +18,28 @@ from ..dependencies.permissions import require_permission
 from ..models.search_event import SearchEvent
 from ..models.search_history import SearchHistory
 from ..models.user import User
+from ..schemas.analytics_responses import (
+    ConversionMetricsResponse,
+    DailySearchTrend,
+    ExportAnalyticsResponse,
+    PopularSearch,
+    PopularSearchesResponse,
+    SearchAnalyticsSummaryResponse,
+    SearchPerformanceResponse,
+    SearchReferrer,
+    SearchReferrersResponse,
+    SearchTrendsResponse,
+)
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 
-@router.get("/search/search-trends")
+@router.get("/search/search-trends", response_model=SearchTrendsResponse)
 async def get_search_trends(
     days: int = Query(30, ge=1, le=365),
     current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
     db: Session = Depends(get_db),
-):
+) -> SearchTrendsResponse:
     """
     Get search trends over time.
 
@@ -51,24 +63,26 @@ async def get_search_trends(
         .all()
     )
 
-    return [
-        {
-            "date": trend.date.isoformat(),
-            "total_searches": trend.total_searches,
-            "unique_users": trend.unique_users or 0,
-            "unique_guests": trend.unique_guests or 0,
-        }
-        for trend in search_trends
-    ]
+    return SearchTrendsResponse(
+        [
+            DailySearchTrend(
+                date=trend.date.isoformat(),
+                total_searches=trend.total_searches,
+                unique_users=trend.unique_users or 0,
+                unique_guests=trend.unique_guests or 0,
+            )
+            for trend in search_trends
+        ]
+    )
 
 
-@router.get("/search/popular-searches")
+@router.get("/search/popular-searches", response_model=PopularSearchesResponse)
 async def get_popular_searches(
     days: int = Query(30, ge=1, le=365),
     limit: int = Query(20, ge=1, le=100),
     current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
     db: Session = Depends(get_db),
-):
+) -> PopularSearchesResponse:
     """
     Get most popular search queries.
 
@@ -100,23 +114,25 @@ async def get_popular_searches(
         .all()
     )
 
-    return [
-        {
-            "query": search.search_query,
-            "search_count": search.search_count,
-            "unique_users": search.unique_users or 0,
-            "average_results": round(search.average_results or 0, 2),
-        }
-        for search in popular_searches
-    ]
+    return PopularSearchesResponse(
+        [
+            PopularSearch(
+                query=search.search_query,
+                search_count=search.search_count,
+                unique_users=search.unique_users or 0,
+                average_results=round(search.average_results or 0, 2),
+            )
+            for search in popular_searches
+        ]
+    )
 
 
-@router.get("/search/referrers")
+@router.get("/search/referrers", response_model=SearchReferrersResponse)
 async def get_search_referrers(
     days: int = Query(30, ge=1, le=365),
     current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
     db: Session = Depends(get_db),
-):
+) -> SearchReferrersResponse:
     """
     Get pages that drive searches (referrers).
 
@@ -147,23 +163,25 @@ async def get_search_referrers(
         .all()
     )
 
-    return [
-        {
-            "page": referrer.referrer,
-            "search_count": referrer.search_count,
-            "unique_sessions": referrer.unique_sessions or 0,
-            "search_types": [],  # Simplified for database compatibility
-        }
-        for referrer in referrers
-    ]
+    return SearchReferrersResponse(
+        [
+            SearchReferrer(
+                page=referrer.referrer,
+                search_count=referrer.search_count,
+                unique_sessions=referrer.unique_sessions or 0,
+                search_types=[],  # Simplified for database compatibility
+            )
+            for referrer in referrers
+        ]
+    )
 
 
-@router.get("/search/search-analytics-summary")
+@router.get("/search/search-analytics-summary", response_model=SearchAnalyticsSummaryResponse)
 async def get_search_analytics_summary(
     days: int = Query(30, ge=1, le=365),
     current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
     db: Session = Depends(get_db),
-):
+) -> SearchAnalyticsSummaryResponse:
     """
     Get comprehensive search analytics summary.
 
@@ -264,9 +282,9 @@ async def get_search_analytics_summary(
     unique_guests = totals.unique_guests or 0
     total_users = unique_users + unique_guests
 
-    return {
-        "date_range": {"start": start_date.isoformat(), "end": end_date.isoformat(), "days": days},
-        "totals": {
+    return SearchAnalyticsSummaryResponse(
+        date_range={"start": start_date.isoformat(), "end": end_date.isoformat(), "days": days},
+        totals={
             "total_searches": total_searches,
             "unique_users": unique_users,
             "unique_guests": unique_guests,
@@ -274,15 +292,15 @@ async def get_search_analytics_summary(
             "deleted_searches": deleted_searches,
             "deletion_rate": round((deleted_searches / total_searches * 100) if total_searches > 0 else 0, 2),
         },
-        "users": {
+        users={
             "authenticated": unique_users,
             "guests": unique_guests,
             "converted_guests": converted_guests,
             "user_percentage": round((unique_users / total_users * 100) if total_users > 0 else 0, 2),
             "guest_percentage": round((unique_guests / total_users * 100) if total_users > 0 else 0, 2),
         },
-        "search_types": search_types,
-        "conversions": {
+        search_types=search_types,
+        conversions={
             "guest_sessions": {
                 "total": guest_sessions,
                 "converted": converted_guests,
@@ -294,20 +312,20 @@ async def get_search_analytics_summary(
                 "most_common_first_search": "",  # Would need more complex query
             },
         },
-        "performance": {
+        performance={
             "avg_results_per_search": round(totals.avg_results or 0, 2),
             "zero_result_rate": round((zero_results / total_searches * 100) if total_searches > 0 else 0, 2),
             "most_effective_type": most_effective.search_type if most_effective else "",
         },
-    }
+    )
 
 
-@router.get("/search/conversion-metrics")
+@router.get("/search/conversion-metrics", response_model=ConversionMetricsResponse)
 async def get_conversion_metrics(
     days: int = Query(30, ge=1, le=365),
     current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
     db: Session = Depends(get_db),
-):
+) -> ConversionMetricsResponse:
     """
     Get guest-to-user conversion metrics.
 
@@ -374,32 +392,32 @@ async def get_conversion_metrics(
         or 0
     )
 
-    return {
-        "period": {"start": start_date.isoformat(), "end": end_date.isoformat(), "days": days},
-        "guest_sessions": {
+    return ConversionMetricsResponse(
+        period={"start": start_date.isoformat(), "end": end_date.isoformat(), "days": days},
+        guest_sessions={
             "total": guest_sessions,
             "converted": converted_guests,
             "conversion_rate": round((converted_guests / guest_sessions * 100) if guest_sessions > 0 else 0, 2),
         },
-        "conversion_behavior": {
+        conversion_behavior={
             "avg_searches_before_conversion": 0,  # Would need more complex query
             "avg_days_to_conversion": 0,  # Would need more complex query
             "most_common_first_search": "",  # Would need more complex query
         },
-        "guest_engagement": {
+        guest_engagement={
             "avg_searches_per_session": round(avg_searches, 2),
             "engaged_sessions": engaged_sessions,
             "engagement_rate": round((engaged_sessions / guest_sessions * 100) if guest_sessions > 0 else 0, 2),
         },
-    }
+    )
 
 
-@router.get("/search/search-performance")
+@router.get("/search/search-performance", response_model=SearchPerformanceResponse)
 async def get_search_performance(
     days: int = Query(30, ge=1, le=365),
     current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
     db: Session = Depends(get_db),
-):
+) -> SearchPerformanceResponse:
     """
     Get search performance metrics.
 
@@ -464,32 +482,32 @@ async def get_search_performance(
 
     total_searches = effectiveness.total_searches or 0
 
-    return {
-        "result_distribution": {
+    return SearchPerformanceResponse(
+        result_distribution={
             "zero_results": zero_results,
             "1_5_results": one_to_five,
             "6_10_results": six_to_ten,
             "over_10_results": over_ten,
         },
-        "effectiveness": {
+        effectiveness={
             "avg_results_per_search": round(effectiveness.avg_results or 0, 2),
             "median_results": round(median_results, 2),
             "searches_with_results": searches_with_results,
             "zero_result_rate": round((zero_results / total_searches * 100) if total_searches > 0 else 0, 2),
         },
-        "problematic_queries": [
+        problematic_queries=[
             {"query": query.search_query, "count": query.count, "avg_results": round(query.avg_results or 0, 2)}
             for query in problematic_queries
         ],
-    }
+    )
 
 
-@router.post("/export")
+@router.post("/export", response_model=ExportAnalyticsResponse)
 async def export_analytics(
     format: str = "csv",
     current_user: User = Depends(require_permission(PermissionName.EXPORT_ANALYTICS)),
     db: Session = Depends(get_db),
-):
+) -> ExportAnalyticsResponse:
     """
     Export analytics data in various formats.
 
@@ -503,9 +521,10 @@ async def export_analytics(
     Returns:
         Exported data or download link
     """
-    return {
-        "message": "Export analytics endpoint",
-        "format": format,
-        "user": current_user.email,
-        "status": "Not implemented",
-    }
+    return ExportAnalyticsResponse(
+        message="Export analytics endpoint",
+        format=format,
+        user=current_user.email,
+        status="Not implemented",
+        download_url=None,
+    )
