@@ -14,7 +14,11 @@ from app.core.enums import PermissionName
 from app.database import engine, get_db_pool_status
 from app.dependencies.permissions import require_permission
 from app.models.user import User
-from app.schemas.database_monitor_responses import DatabaseHealthResponse
+from app.schemas.database_monitor_responses import (
+    DatabaseHealthResponse,
+    DatabasePoolStatusResponse,
+    DatabaseStatsResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,10 +57,10 @@ async def database_health() -> DatabaseHealthResponse:
         )
 
 
-@router.get("/pool-status", response_model=Dict[str, Any])
+@router.get("/pool-status", response_model=DatabasePoolStatusResponse)
 async def database_pool_status(
     current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
-) -> Dict[str, Any]:
+) -> DatabasePoolStatusResponse:
     """
     Get detailed database connection pool statistics.
 
@@ -86,9 +90,9 @@ async def database_pool_status(
         # Determine health status
         health_status = "healthy" if usage_percent < 80 else "critical"
 
-        return {
-            "status": health_status,
-            "pool": {
+        return DatabasePoolStatusResponse(
+            status=health_status,
+            pool={
                 "size": pool_size,
                 "checked_in": checked_in,
                 "checked_out": checked_out,
@@ -97,17 +101,17 @@ async def database_pool_status(
                 "max_size": max_size,
                 "usage_percent": round(usage_percent, 2),
             },
-            "configuration": {
+            configuration={
                 "pool_size": pool._pool.maxsize if hasattr(pool._pool, "maxsize") else pool_size,
                 "max_overflow": pool._max_overflow,
                 "timeout": pool._timeout,
                 "recycle": pool._recycle,
             },
-            "recommendations": {
+            recommendations={
                 "increase_pool_size": usage_percent > 80,
                 "current_load": "high" if usage_percent > 60 else "normal" if usage_percent > 30 else "low",
             },
-        }
+        )
     except Exception as e:
         logger.error(f"Failed to get database pool status: {e}")
         raise HTTPException(
@@ -115,10 +119,10 @@ async def database_pool_status(
         )
 
 
-@router.get("/stats", response_model=Dict[str, Any])
+@router.get("/stats", response_model=DatabaseStatsResponse)
 async def database_stats(
     current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
-) -> Dict[str, Any]:
+) -> DatabaseStatsResponse:
     """
     Get comprehensive database statistics.
 
@@ -137,15 +141,15 @@ async def database_stats(
         # - Index usage
         # - Cache hit rates
 
-        return {
-            "status": "connected",
-            "pool": pool_status["pool"],
-            "configuration": pool_status["configuration"],
-            "health": {
-                "status": pool_status["status"],
-                "usage_percent": pool_status["pool"]["usage_percent"],
+        return DatabaseStatsResponse(
+            status="connected",
+            pool=pool_status.pool,
+            configuration=pool_status.configuration,
+            health={
+                "status": pool_status.status,
+                "usage_percent": pool_status.pool["usage_percent"],
             },
-        }
+        )
     except Exception as e:
         logger.error(f"Failed to get database stats: {e}")
         raise HTTPException(

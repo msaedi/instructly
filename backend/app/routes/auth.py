@@ -147,7 +147,7 @@ async def login(
         expires_delta=access_token_expires,
     )
 
-    return {"access_token": access_token, "token_type": "bearer"}
+    return Token(access_token=access_token, token_type="bearer")
 
 
 @router.post("/login-with-session", response_model=Token)
@@ -209,7 +209,7 @@ async def login_with_session(
         expires_delta=access_token_expires,
     )
 
-    return {"access_token": access_token, "token_type": "bearer"}
+    return Token(access_token=access_token, token_type="bearer")
 
 
 @router.get("/me", response_model=UserWithPermissionsResponse)

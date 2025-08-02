@@ -76,9 +76,9 @@ class TestReminderEndpointCleanArchitecture:
         response = client.post("/bookings/send-reminders", headers=headers)
 
         assert response.status_code == 200
-        assert response.json()["status"] == "success"
-        assert response.json()["reminders_sent"] == 5
-        assert "Successfully sent 5 reminder emails" in response.json()["message"]
+        response_data = response.json()
+        assert response_data["reminders_sent"] == 5
+        assert "Successfully sent 5 reminder emails" in response_data["message"]
 
         # Verify service was called
         mock_send_reminders.assert_called_once()

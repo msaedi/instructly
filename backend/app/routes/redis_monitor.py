@@ -15,7 +15,14 @@ from app.core.config import settings
 from app.core.enums import PermissionName
 from app.dependencies.permissions import require_permission
 from app.models.user import User
-from app.schemas.redis_monitor_responses import RedisHealthResponse, RedisTestResponse
+from app.schemas.redis_monitor_responses import (
+    RedisCeleryQueuesResponse,
+    RedisConnectionAuditResponse,
+    RedisFlushQueuesResponse,
+    RedisHealthResponse,
+    RedisStatsResponse,
+    RedisTestResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -86,10 +93,10 @@ async def redis_test() -> RedisTestResponse:
         )
 
 
-@router.get("/stats", response_model=Dict[str, Any])
+@router.get("/stats", response_model=RedisStatsResponse)
 async def redis_stats(
     current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
-) -> Dict[str, Any]:
+) -> RedisStatsResponse:
     """
     Get detailed Redis statistics and metrics.
 
@@ -139,7 +146,7 @@ async def redis_stats(
         ops_per_sec = info.get("instantaneous_ops_per_sec", 0)
         estimated_daily_ops = ops_per_sec * 86400  # seconds in a day
 
-        return {
+        stats_data = {
             "status": "connected",
             "server": {
                 "redis_version": info.get("redis_version", "unknown"),
@@ -155,6 +162,7 @@ async def redis_stats(
                 "estimated_monthly_ops": int(estimated_daily_ops * 30),
             },
         }
+        return RedisStatsResponse(stats=stats_data)
 
     except Exception as e:
         logger.error(f"Failed to get Redis stats: {e}")
@@ -163,10 +171,10 @@ async def redis_stats(
         )
 
 
-@router.get("/celery-queues", response_model=Dict[str, Any])
+@router.get("/celery-queues", response_model=RedisCeleryQueuesResponse)
 async def celery_queue_status(
     current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
-) -> Dict[str, Any]:
+) -> RedisCeleryQueuesResponse:
     """
     Get Celery queue status and pending tasks.
 
@@ -180,11 +188,12 @@ async def celery_queue_status(
         client = get_redis_client()
         queues = _get_celery_queue_lengths(client)
 
-        return {
+        queues_data = {
             "status": "ok",
             "queues": queues,
             "total_pending": sum(queues.values()),
         }
+        return RedisCeleryQueuesResponse(queues=queues_data)
 
     except Exception as e:
         logger.error(f"Failed to get Celery queue status: {e}")
@@ -219,10 +228,10 @@ def _get_celery_queue_lengths(client: redis.Redis) -> Dict[str, int]:
     return queue_lengths
 
 
-@router.get("/connection-audit", response_model=Dict[str, Any])
+@router.get("/connection-audit", response_model=RedisConnectionAuditResponse)
 async def redis_connection_audit(
     current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
-) -> Dict[str, Any]:
+) -> RedisConnectionAuditResponse:
     """
     Audit all Redis connections across the system.
 
@@ -289,18 +298,21 @@ async def redis_connection_audit(
             "REDIS_URL": api_cache_url,
         }
 
-        return {
-            "api_cache": api_cache_url,
-            "celery_broker": celery_broker_url,
-            "active_connections": {"local_redis": local_redis_connections, "upstash": upstash_connections},
-            "upstash_detected": upstash_detected,
-            "service_connections": service_connections,
-            "environment_variables": env_check,
-            "migration_status": "complete" if not upstash_detected else "in_progress",
-            "recommendation": "All services using Render Redis"
-            if not upstash_detected
-            else "Remove UPSTASH_URL from environment",
-        }
+        connections_data = [
+            {
+                "api_cache": api_cache_url,
+                "celery_broker": celery_broker_url,
+                "active_connections": {"local_redis": local_redis_connections, "upstash": upstash_connections},
+                "upstash_detected": upstash_detected,
+                "service_connections": service_connections,
+                "environment_variables": env_check,
+                "migration_status": "complete" if not upstash_detected else "in_progress",
+                "recommendation": "All services using Render Redis"
+                if not upstash_detected
+                else "Remove UPSTASH_URL from environment",
+            }
+        ]
+        return RedisConnectionAuditResponse(connections=connections_data)
 
     except Exception as e:
         logger.error(f"Failed to audit Redis connections: {e}")
@@ -309,10 +321,10 @@ async def redis_connection_audit(
         )
 
 
-@router.delete("/flush-queues", response_model=Dict[str, Any])
+@router.delete("/flush-queues", response_model=RedisFlushQueuesResponse)
 async def flush_celery_queues(
     current_user: User = Depends(require_permission(PermissionName.ACCESS_MONITORING)),
-) -> Dict[str, Any]:
+) -> RedisFlushQueuesResponse:
     """
     Flush all Celery queues (DANGER: removes all pending tasks).
 
@@ -352,11 +364,9 @@ async def flush_celery_queues(
                 logger.error(f"Failed to flush queue {queue}: {e}")
                 flushed[queue] = f"error: {str(e)}"
 
-        return {
-            "status": "completed",
-            "queues_flushed": flushed,
-            "total_tasks_removed": total_removed,
-        }
+        return RedisFlushQueuesResponse(
+            message=f"Flushed {len(flushed)} queues, removed {total_removed} tasks", queues_flushed=list(flushed.keys())
+        )
 
     except Exception as e:
         logger.error(f"Failed to flush queues: {e}")

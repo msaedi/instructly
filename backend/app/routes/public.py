@@ -19,6 +19,7 @@ from datetime import date, datetime, timedelta
 from typing import Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
@@ -26,6 +27,7 @@ from ..database import get_db
 from ..models.instructor import InstructorProfile
 from ..models.user import User
 from ..schemas.public_availability import (
+    NextAvailableSlotResponse,
     PublicAvailabilityMinimal,
     PublicAvailabilitySummary,
     PublicDayAvailability,
@@ -298,13 +300,17 @@ async def get_instructor_public_availability(
     # Get response data (either from cache or freshly built)
     if cached_result:
         response_data = cached_result
-        # For cached results, convert to JSON string for ETag generation
-        import json
+        # For cached results, we need to recreate the response model to use model_dump_json
+        # Determine the response model type based on settings
+        if settings.public_availability_detail_level == "minimal":
+            response_data = PublicAvailabilityMinimal(**cached_result)
+        elif settings.public_availability_detail_level == "summary":
+            response_data = PublicAvailabilitySummary(**cached_result)
+        else:
+            response_data = PublicInstructorAvailability(**cached_result)
 
-        response_json = json.dumps(response_data, sort_keys=True)
-    else:
-        # For fresh results, use model_dump_json
-        response_json = response_data.model_dump_json()
+    # Use model_dump_json for all cases to avoid json.dumps
+    response_json = response_data.model_dump_json()
 
     # Generate ETag based on response content
     # Include instructor_id, date range, and response data in the hash
@@ -315,10 +321,14 @@ async def get_instructor_public_availability(
     # Check If-None-Match header for conditional requests
     if_none_match = request.headers.get("If-None-Match")
     if if_none_match and if_none_match == etag:
-        # Return 304 Not Modified with proper headers
-        headers = {"ETag": etag, "Cache-Control": "public, max-age=300", "Vary": "Accept-Encoding"}
-        # Return proper 304 response with no content
-        return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
+        # Set headers on the response object and return the current data
+        # The client will handle the 304 logic based on ETag matching
+        response_obj.headers["ETag"] = etag
+        response_obj.headers["Cache-Control"] = "public, max-age=300"
+        response_obj.headers["Vary"] = "Accept-Encoding"
+        response_obj.status_code = status.HTTP_304_NOT_MODIFIED
+        # Return the existing data - FastAPI will handle 304 response properly
+        return response_data
 
     # Cache the response if not already cached
     if not cached_result and cache_service:
@@ -337,6 +347,7 @@ async def get_instructor_public_availability(
 
 @router.get(
     "/instructors/{instructor_id}/next-available",
+    response_model=NextAvailableSlotResponse,
     summary="Get next available slot for an instructor",
     description="Quick endpoint to find the next available booking slot",
 )
@@ -407,24 +418,20 @@ async def get_next_available_slot(
                             datetime.combine(date.min, slot.start_time) + timedelta(minutes=duration_minutes)
                         ).time()
 
-                        result = {
-                            "found": True,
-                            "date": current_date.isoformat(),
-                            "start_time": slot.start_time.strftime("%H:%M:%S"),
-                            "end_time": end_time.strftime("%H:%M:%S"),
-                            "duration_minutes": duration_minutes,
-                        }
-
                         # Set cache headers for successful results (2 minutes for next-available)
                         response_obj.headers["Cache-Control"] = "public, max-age=120"
 
-                        return result
+                        return NextAvailableSlotResponse(
+                            found=True,
+                            date=current_date.isoformat(),
+                            start_time=slot.start_time.strftime("%H:%M:%S"),
+                            end_time=end_time.strftime("%H:%M:%S"),
+                            duration_minutes=duration_minutes,
+                        )
 
         current_date += timedelta(days=1)
-
-    result = {"found": False, "message": f"No available slots found in the next {search_days} days"}
 
     # Set cache headers for no-availability results (1 minute)
     response_obj.headers["Cache-Control"] = "public, max-age=60"
 
-    return result
+    return NextAvailableSlotResponse(found=False, message=f"No available slots found in the next {search_days} days")

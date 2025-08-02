@@ -515,7 +515,7 @@ class TestBookingRoutes:
         # Setup mock
         mock_booking = Mock()
         mock_booking.id = booking_id
-        mock_booking.student = Mock(full_name="Test Student")
+        mock_booking.student = Mock(full_name="Test Student", first_name="Test", last_name="Student")
         mock_booking.instructor = Mock(full_name="Test Instructor")
         mock_booking.service_name = "Piano Lesson"
         mock_booking.booking_date = date.today() + timedelta(days=1)

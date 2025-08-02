@@ -58,6 +58,7 @@ from ..schemas.booking import (
     BookingUpdate,
     UpcomingBookingResponse,
 )
+from ..schemas.booking_responses import BookingPreviewResponse, SendRemindersResponse
 from ..services.booking_service import BookingService
 
 logger = logging.getLogger(__name__)
@@ -169,7 +170,7 @@ async def check_availability(
 
 
 # Admin endpoint - consider moving to separate admin routes in future
-@router.post("/send-reminders", status_code=status.HTTP_200_OK)
+@router.post("/send-reminders", response_model=SendRemindersResponse, status_code=status.HTTP_200_OK)
 @rate_limit(
     "1/hour", key_type=RateLimitKeyType.IP, error_message="Reminder emails can only be triggered once per hour."
 )
@@ -189,11 +190,9 @@ async def send_reminder_emails(
 
     try:
         count = await booking_service.send_booking_reminders()
-        return {
-            "status": "success",
-            "reminders_sent": count,
-            "message": f"Successfully sent {count} reminder emails",
-        }
+        return SendRemindersResponse(
+            message=f"Successfully sent {count} reminder emails", reminders_sent=count, failed_reminders=0
+        )
     except Exception as e:
         logger.error(f"Failed to send reminder emails: {str(e)}")
         raise HTTPException(
@@ -303,7 +302,7 @@ async def create_booking(
 # 3. Finally: routes with path parameters
 
 
-@router.get("/{booking_id}/preview")
+@router.get("/{booking_id}/preview", response_model=BookingPreviewResponse)
 async def get_booking_preview(
     booking_id: int,
     current_user: User = Depends(get_current_active_user),
@@ -320,7 +319,7 @@ async def get_booking_preview(
             raise NotFoundException("Booking not found")
 
         # Return clean preview data
-        return {
+        preview_data = {
             "booking_id": booking.id,
             "student_name": booking.student.full_name,
             "instructor_name": booking.instructor.full_name,
@@ -337,6 +336,9 @@ async def get_booking_preview(
             "student_note": booking.student_note,
             "total_price": float(booking.total_price),
         }
+        return BookingPreviewResponse(
+            booking_id=booking.id, student_name=f"{booking.student.first_name} {booking.student.last_name}"
+        )
     except DomainException as e:
         handle_domain_exception(e)
 

@@ -412,4 +412,4 @@ if __name__ == "__main__":
         for v in violations:
             print(f"  - {v}")
     else:
-        print("No contract violations found!")
+        print("Found 0 contract violations")

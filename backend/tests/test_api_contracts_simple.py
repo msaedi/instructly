@@ -3,6 +3,11 @@ Simple API Contract Tests - Static Analysis Only
 
 This test performs static analysis to find contract violations without
 making actual API calls.
+
+Note: This test currently passes even though violations exist because
+the static analysis patterns don't catch all violations. The comprehensive
+test (test_api_contracts.py) finds all violations by actually inspecting
+the FastAPI app instance.
 """
 
 import ast
@@ -255,3 +260,26 @@ if __name__ == "__main__":
             print(f"  - {v}")
     else:
         print("\nNo contract violations found! ✅")
+
+
+def test_comprehensive_contract_violations():
+    """Run the comprehensive contract test to catch all violations."""
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "-m", "tests.test_api_contracts"], cwd=BACKEND_DIR, capture_output=True, text=True
+    )
+
+    # Check if violations were found
+    if "Found" in result.stdout and "contract violations" in result.stdout:
+        # Extract violation count
+        import re
+
+        match = re.search(r"Found (\d+) contract violations", result.stdout)
+        if match:
+            count = int(match.group(1))
+            if count > 0:
+                # Get the violations text
+                violations_text = result.stdout[result.stdout.find("Found") :]
+                pytest.fail(f"{violations_text}")

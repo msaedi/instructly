@@ -18,6 +18,7 @@ from ..models import User
 from ..schemas.privacy import (
     DataExportResponse,
     PrivacyStatisticsResponse,
+    RetentionPolicyResponse,
     UserDataDeletionRequest,
     UserDataDeletionResponse,
 )
@@ -151,11 +152,11 @@ async def get_privacy_statistics(
         )
 
 
-@router.post("/retention/apply")
+@router.post("/retention/apply", response_model=RetentionPolicyResponse)
 async def apply_retention_policies(
     current_user: User = Depends(require_permission(PermissionName.MANAGE_USERS)),
     db: Session = Depends(get_db),
-):
+) -> RetentionPolicyResponse:
     """
     Manually trigger data retention policies (admin only).
 
@@ -165,11 +166,11 @@ async def apply_retention_policies(
 
     try:
         retention_stats = privacy_service.apply_retention_policies()
-        return {
-            "status": "success",
-            "message": "Retention policies applied",
-            "stats": retention_stats,
-        }
+        return RetentionPolicyResponse(
+            status="success",
+            message="Retention policies applied",
+            stats=retention_stats,
+        )
     except Exception as e:
         logger.error(f"Error applying retention policies: {str(e)}")
         raise HTTPException(

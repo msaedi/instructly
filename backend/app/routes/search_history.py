@@ -19,6 +19,7 @@ from ..database import get_db
 from ..models.user import User
 from ..schemas.search_context import SearchUserContext
 from ..schemas.search_history import SearchHistoryCreate, SearchHistoryResponse
+from ..schemas.search_history_responses import SearchInteractionResponse
 from ..services.search_history_service import SearchHistoryService
 
 router = APIRouter()
@@ -243,7 +244,7 @@ async def delete_search(
     return None
 
 
-@router.post("/interaction", status_code=status.HTTP_201_CREATED)
+@router.post("/interaction", response_model=SearchInteractionResponse, status_code=status.HTTP_201_CREATED)
 async def track_interaction(
     interaction_data: dict,
     request: Request,
@@ -319,7 +320,9 @@ async def track_interaction(
             },
         )
 
-        return {"status": "tracked", "interaction_id": interaction.id, "message": "Interaction tracked successfully"}
+        return SearchInteractionResponse(
+            success=True, message="Interaction tracked successfully", interaction_id=interaction.id
+        )
     except ValueError as e:
         # Handle specific validation errors
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

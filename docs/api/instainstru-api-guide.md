@@ -13,12 +13,14 @@ Current version: `1.0.0`
 
 ### General Principles
 - All requests and responses use JSON
+- **Standardized Response Models**: All endpoints use Pydantic response models for type safety
 - Authentication uses JWT Bearer tokens
 - Dates are in ISO 8601 format (YYYY-MM-DD)
 - Times are in 24-hour format (HH:MM:SS)
 - All timestamps are UTC
 - Monetary values are in USD
 - No trailing slashes on endpoints
+- **Contract Testing**: Automated tests ensure response model compliance
 
 ## Authentication
 
@@ -163,9 +165,13 @@ Register a new user account.
   "email": "user@example.com",
   "full_name": "John Doe",
   "role": "student",
-  "is_active": true
+  "is_active": true,
+  "created_at": "2024-01-15T10:30:00Z",
+  "updated_at": "2024-01-15T10:30:00Z"
 }
 ```
+
+*Note: All responses now use standardized Pydantic models for type safety and consistency.*
 
 **Errors**:
 - `400` - Invalid data (weak password, invalid email)
@@ -1098,6 +1104,70 @@ Get rate limit statistics.
 }
 ```
 
+### Infrastructure Monitoring Endpoints (ACCESS_MONITORING Permission Required)
+
+#### GET /api/redis/health
+Check Redis connection health.
+
+**Authentication**: Bearer token with ACCESS_MONITORING permission
+
+**Response (200)**:
+```json
+{
+  "status": "healthy",
+  "connected": true
+}
+```
+
+#### GET /api/redis/stats
+Get detailed Redis statistics and metrics.
+
+**Authentication**: Bearer token with ACCESS_MONITORING permission
+
+**Response (200)**:
+```json
+{
+  "stats": {
+    "status": "connected",
+    "server": {
+      "redis_version": "7.0.8",
+      "uptime_in_days": 15
+    },
+    "memory": {
+      "used_memory_human": "2.1M",
+      "used_memory_peak_human": "3.2M"
+    },
+    "operations": {
+      "current_ops_per_sec": 45,
+      "estimated_daily_ops": 3888000
+    }
+  }
+}
+```
+
+#### GET /api/database/pool-status
+Get database connection pool statistics.
+
+**Authentication**: Bearer token with ACCESS_MONITORING permission
+
+**Response (200)**:
+```json
+{
+  "status": "healthy",
+  "pool": {
+    "size": 5,
+    "checked_in": 3,
+    "checked_out": 2,
+    "usage_percent": 40.0
+  },
+  "configuration": {
+    "pool_size": 5,
+    "max_overflow": 10,
+    "timeout": 30
+  }
+}
+```
+
 ### Production Monitoring Endpoints (API Key Required)
 
 #### GET /api/monitoring/dashboard
@@ -1569,6 +1639,12 @@ const copyResponse = await fetch(
 - Minimize API calls
 - Use batch operations where available
 
+### 6. API Standards Compliance
+- **All endpoints use standardized Pydantic response models**
+- Response formats are consistent and type-safe
+- Automated contract testing ensures compliance
+- See `docs/api/api-standards-guide.md` for implementation details
+
 ## Webhook Events (Future Feature)
 Currently, InstaInstru does not support webhooks. This may be added in future versions for real-time updates.
 
@@ -1582,6 +1658,16 @@ The API currently uses URL-based versioning. Future versions may introduce:
 For API support, contact: support@instainstru.com
 
 ## Changelog
+- **v1.2.0** (2025-01-20): API Standardization & Infrastructure Monitoring
+  - **Breaking Change**: All endpoints now use standardized Pydantic response models
+  - Added comprehensive API contract testing with CI/CD integration
+  - New infrastructure monitoring endpoints:
+    - `/api/redis/health` - Redis connection health
+    - `/api/redis/stats` - Detailed Redis metrics
+    - `/api/database/pool-status` - Database connection pool statistics
+  - Enhanced error handling and response consistency
+  - Added API standards guide documentation
+
 - **v1.1.0** (2025-01-13): Instructor search and filtering
   - Added filtering to GET /instructors/ endpoint
   - Text search across name, bio, and skills

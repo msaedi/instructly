@@ -471,10 +471,20 @@ The frontend uses Next.js 15 App Router with:
    - Custom exception classes
    - Proper HTTP status codes
 
-5. **Testing Approach**:
+5. **API Standards & Contract Testing**:
+   - **ALL endpoints MUST use Pydantic response models** - No raw dict returns
+   - **Consistent response format** across all endpoints
+   - **Automated contract testing** prevents regression
+   - **CI/CD integration** blocks PRs with violations
+   - Response models defined in `app/schemas/*_responses.py`
+   - Use `response_model=ModelName` on ALL route decorators
+   - **See**: `docs/api/api-standards-guide.md` for complete implementation guide
+
+6. **Testing Approach**:
    - Separate test database with safety checks
    - Fixtures for common test data
    - Async test support with pytest-asyncio
+   - **API contract tests** ensure response model compliance
 
 ## Important Configuration
 
@@ -494,6 +504,10 @@ The frontend uses Next.js 15 App Router with:
 - CORS configured for local development
 
 ## Key Documentation
+
+### New Developer Onboarding
+- **`docs/architecture/new-developer-guide.md`** - **COMPLETE architecture guide for new developers**
+- **`docs/architecture/quick-reference.md`** - **Essential patterns and commands**
 
 ### Project Overview & State
 - `docs/project-overview/01_core_project_info.md` - Mission, team structure, priorities

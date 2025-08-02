@@ -17,7 +17,14 @@ from ..api.dependencies.services import get_password_reset_service
 from ..core.config import settings
 from ..core.exceptions import ValidationException
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
-from ..schemas.password_reset import PasswordResetConfirm, PasswordResetRequest, PasswordResetResponse
+from ..schemas.password_reset import (
+    PasswordResetConfirm,
+    PasswordResetRequest,
+    PasswordResetResponse,
+    PasswordResetVerifyResponse,
+    PasswordResetVerifyResponseInvalid,
+    PasswordResetVerifyResponseValid,
+)
 from ..services.password_reset_service import PasswordResetService
 
 logger = logging.getLogger(__name__)
@@ -117,7 +124,7 @@ async def confirm_password_reset(
         )
 
 
-@router.get("/verify/{token}")
+@router.get("/verify/{token}", response_model=PasswordResetVerifyResponse)
 @rate_limit(
     "20/minute", key_type=RateLimitKeyType.IP, error_message="Too many verification attempts. Please try again later."
 )
@@ -147,6 +154,6 @@ async def verify_reset_token(
     is_valid, masked_email = password_reset_service.verify_reset_token(token=token)
 
     if is_valid:
-        return {"valid": True, "email": masked_email}
+        return PasswordResetVerifyResponseValid(email=masked_email)
     else:
-        return {"valid": False}
+        return PasswordResetVerifyResponseInvalid()

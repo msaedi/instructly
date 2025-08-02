@@ -150,3 +150,29 @@ class PublicAvailabilitySummary(BaseModel):
             }
         }
     )
+
+
+class NextAvailableSlotResponse(BaseModel):
+    """Response for next available slot endpoint."""
+
+    found: bool
+    date: Optional[str] = Field(None, description="Date of the next available slot (YYYY-MM-DD)")
+    start_time: Optional[str] = Field(None, description="Start time (HH:MM:SS)")
+    end_time: Optional[str] = Field(None, description="End time (HH:MM:SS)")
+    duration_minutes: Optional[int] = Field(None, description="Duration in minutes")
+    message: Optional[str] = Field(None, description="Message when no slot is found")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "found": True,
+                    "date": "2025-07-15",
+                    "start_time": "09:00:00",
+                    "end_time": "10:00:00",
+                    "duration_minutes": 60,
+                },
+                {"found": False, "message": "No available slots found in the next 30 days"},
+            ]
+        }
+    )

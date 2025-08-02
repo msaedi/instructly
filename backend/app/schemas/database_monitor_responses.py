@@ -19,3 +19,21 @@ class DatabaseHealthResponse(BaseModel):
     message: str = Field(description="Health check message")
     pool_status: Optional[Dict[str, Any]] = Field(default=None, description="Connection pool status")
     error: Optional[str] = Field(default=None, description="Error message if unhealthy")
+
+
+class DatabasePoolStatusResponse(BaseModel):
+    """Response for database pool status endpoint."""
+
+    status: str
+    pool: Dict[str, Any]
+    configuration: Dict[str, Any]
+    recommendations: Dict[str, Any]
+
+
+class DatabaseStatsResponse(BaseModel):
+    """Response for database statistics endpoint."""
+
+    status: str
+    pool: Dict[str, Any]
+    configuration: Dict[str, Any]
+    health: Dict[str, Any]

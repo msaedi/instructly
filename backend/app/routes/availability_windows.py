@@ -58,6 +58,15 @@ from ..core.constants import ERROR_INSTRUCTOR_ONLY
 from ..core.enums import RoleName
 from ..core.exceptions import DomainException
 from ..models.user import User
+from ..schemas.availability_responses import (
+    ApplyToDateRangeResponse,
+    BookedSlotsResponse,
+    CopyWeekResponse,
+    DeleteBlackoutResponse,
+    DeleteWindowResponse,
+    WeekAvailabilityResponse,
+    WeekAvailabilityUpdateResponse,
+)
 from ..schemas.availability_window import (
     ApplyToDateRangeRequest,
     AvailabilityWindowResponse,
@@ -93,7 +102,7 @@ def verify_instructor(current_user: User) -> User:
     return current_user
 
 
-@router.get("/week")
+@router.get("/week", response_model=WeekAvailabilityResponse)
 async def get_week_availability(
     start_date: date = Query(..., description="Monday of the week"),
     current_user: User = Depends(get_current_active_user),
@@ -115,7 +124,7 @@ async def get_week_availability(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/week")
+@router.post("/week", response_model=WeekAvailabilityUpdateResponse)
 async def save_week_availability(
     week_data: WeekSpecificScheduleCreate,
     current_user: User = Depends(get_current_active_user),
@@ -144,7 +153,7 @@ async def save_week_availability(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/copy-week")
+@router.post("/copy-week", response_model=CopyWeekResponse)
 async def copy_week_availability(
     copy_data: CopyWeekRequest,
     current_user: User = Depends(get_current_active_user),
@@ -171,7 +180,7 @@ async def copy_week_availability(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/apply-to-date-range")
+@router.post("/apply-to-date-range", response_model=ApplyToDateRangeResponse)
 async def apply_to_date_range(
     apply_data: ApplyToDateRangeRequest,
     current_user: User = Depends(get_current_active_user),
@@ -329,7 +338,7 @@ def update_availability_window(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.delete("/{window_id}")
+@router.delete("/{window_id}", response_model=DeleteWindowResponse)
 def delete_availability_window(
     window_id: int,
     current_user: User = Depends(get_current_active_user),
@@ -340,7 +349,7 @@ def delete_availability_window(
 
     try:
         slot_manager.delete_slot(slot_id=window_id)
-        return {"message": "Availability time slot deleted"}
+        return DeleteWindowResponse(window_id=window_id)
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:
@@ -348,7 +357,7 @@ def delete_availability_window(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/week/booked-slots")
+@router.get("/week/booked-slots", response_model=BookedSlotsResponse)
 async def get_week_booked_slots(
     start_date: date = Query(..., description="Start date (Monday) of the week"),
     current_user: User = Depends(get_current_active_user),
@@ -366,7 +375,10 @@ async def get_week_booked_slots(
         # Format for frontend display
         formatted_slots = presentation_service.format_booked_slots_from_service_data(booked_slots_by_date)
 
-        return {"booked_slots": formatted_slots}
+        from datetime import timedelta
+
+        week_end = start_date + timedelta(days=6)
+        return BookedSlotsResponse(week_start=start_date, week_end=week_end, booked_slots=formatted_slots)
 
     except DomainException as e:
         raise e.to_http_exception()
@@ -434,7 +446,7 @@ def add_blackout_date(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.delete("/blackout-dates/{blackout_id}")
+@router.delete("/blackout-dates/{blackout_id}", response_model=DeleteBlackoutResponse)
 def delete_blackout_date(
     blackout_id: int,
     current_user: User = Depends(get_current_active_user),
@@ -445,7 +457,7 @@ def delete_blackout_date(
 
     try:
         availability_service.delete_blackout_date(instructor_id=current_user.id, blackout_id=blackout_id)
-        return {"message": "Blackout date deleted"}
+        return DeleteBlackoutResponse(blackout_id=blackout_id)
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:

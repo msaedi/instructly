@@ -17,6 +17,22 @@ import sys
 os.environ["is_testing"] = "true"
 os.environ["rate_limit_enabled"] = "false"
 
+# CRITICAL: Mock Resend API globally to prevent real emails in ANY test
+import unittest.mock
+
+# Create global mock that persists for all tests
+global_resend_mock = unittest.mock.patch("resend.Emails.send")
+mocked_send = global_resend_mock.start()
+mocked_send.return_value = {"id": "test-email-id", "status": "sent"}
+
+# Additional safety: Mock the entire resend module if needed
+import sys
+
+if "resend" not in sys.modules:
+    resend_module_mock = unittest.mock.MagicMock()
+    resend_module_mock.Emails.send.return_value = {"id": "test-email-id", "status": "sent"}
+    sys.modules["resend"] = resend_module_mock
+
 # Add the backend directory to Python path so imports work
 backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, backend_dir)
@@ -1128,3 +1144,9 @@ def sample_admin_for_privacy(db):
     db.add(user)
     db.commit()
     return user
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Cleanup after all tests are done."""
+    # Stop the global Resend mock
+    global_resend_mock.stop()

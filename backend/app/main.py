@@ -33,6 +33,7 @@ from .routes import (
     search_history,
     services,
 )
+from .schemas.main_responses import HealthLiteResponse, HealthResponse, PerformanceMetricsResponse, RootResponse
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -137,37 +138,37 @@ app.include_router(privacy.router, prefix="/api", tags=["privacy"])
 app.include_router(prometheus.router)
 
 
-@app.get("/")
-def read_root():
+@app.get("/", response_model=RootResponse)
+def read_root() -> RootResponse:
     """Root endpoint - API information"""
-    return {
-        "message": f"Welcome to the {BRAND_NAME} API!",
-        "version": API_VERSION,
-        "docs": "/docs",
-        "environment": settings.environment,
-        "secure": settings.environment == "production",
-    }
+    return RootResponse(
+        message=f"Welcome to the {BRAND_NAME} API!",
+        version=API_VERSION,
+        docs="/docs",
+        environment=settings.environment,
+        secure=settings.environment == "production",
+    )
 
 
-@app.get("/health")
-def health_check():
+@app.get("/health", response_model=HealthResponse)
+def health_check() -> HealthResponse:
     """Health check endpoint for monitoring"""
-    return {
-        "status": "healthy",
-        "service": f"{BRAND_NAME.lower()}-api",
-        "version": API_VERSION,
-        "environment": settings.environment,
-    }
+    return HealthResponse(
+        status="healthy",
+        service=f"{BRAND_NAME.lower()}-api",
+        version=API_VERSION,
+        environment=settings.environment,
+    )
 
 
-@app.get("/health/lite")
-def health_check_lite():
+@app.get("/health/lite", response_model=HealthLiteResponse)
+def health_check_lite() -> HealthLiteResponse:
     """Lightweight health check that doesn't hit database"""
-    return {"status": "ok"}
+    return HealthLiteResponse(status="ok")
 
 
-@app.get("/metrics/performance")
-def get_performance_metrics():
+@app.get("/metrics/performance", response_model=PerformanceMetricsResponse)
+def get_performance_metrics() -> PerformanceMetricsResponse:
     from .middleware.monitoring import monitor
 
-    return monitor.get_stats()
+    return PerformanceMetricsResponse(metrics=monitor.get_stats())

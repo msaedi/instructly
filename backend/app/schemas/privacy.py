@@ -46,3 +46,13 @@ class PrivacyStatisticsResponse(BaseModel):
 
     status: str = Field(description="Status of the request")
     statistics: Dict[str, Any] = Field(description="Privacy and retention statistics")
+
+
+class RetentionPolicyResponse(BaseModel):
+    """
+    Response schema for applying retention policies.
+    """
+
+    status: str = Field(description="Status of the retention policy application")
+    message: str = Field(description="Human-readable message")
+    stats: Dict[str, Any] = Field(description="Statistics of retention policy application")

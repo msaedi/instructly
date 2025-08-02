@@ -1,6 +1,7 @@
 # backend/app/schemas/password_reset.py
 
 from datetime import datetime
+from typing import Optional, Union
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -43,3 +44,20 @@ class PasswordResetToken(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PasswordResetVerifyResponseValid(BaseModel):
+    """Response for valid password reset token"""
+
+    valid: bool = True
+    email: str
+
+
+class PasswordResetVerifyResponseInvalid(BaseModel):
+    """Response for invalid password reset token"""
+
+    valid: bool = False
+
+
+# Union type for the actual response
+PasswordResetVerifyResponse = Union[PasswordResetVerifyResponseValid, PasswordResetVerifyResponseInvalid]

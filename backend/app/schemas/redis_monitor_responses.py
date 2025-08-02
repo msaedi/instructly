@@ -5,7 +5,7 @@ These models ensure consistent API responses for Redis health
 and monitoring endpoints.
 """
 
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -32,3 +32,28 @@ class RedisTestResponse(BaseModel):
     connected_clients: Optional[int] = Field(default=0, description="Number of connected clients")
     message: Optional[str] = Field(default=None, description="Status message")
     error: Optional[str] = Field(default=None, description="Error message if failed")
+
+
+class RedisStatsResponse(BaseModel):
+    """Response for Redis statistics."""
+
+    stats: Dict[str, Any]
+
+
+class RedisCeleryQueuesResponse(BaseModel):
+    """Response for Redis Celery queues."""
+
+    queues: Dict[str, Any]
+
+
+class RedisConnectionAuditResponse(BaseModel):
+    """Response for Redis connection audit."""
+
+    connections: List[Dict[str, Any]]
+
+
+class RedisFlushQueuesResponse(BaseModel):
+    """Response for flushing Redis queues."""
+
+    message: str
+    queues_flushed: List[str]
