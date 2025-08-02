@@ -30,7 +30,7 @@ async function setupMocksAndAuth(page: Page) {
   });
 
   // Mock auth endpoint
-  await page.route('http://localhost:8000/auth/me', async (route) => {
+  await page.route('**/auth/me', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -48,7 +48,7 @@ async function setupMocksAndAuth(page: Page) {
   });
 
   // Mock search history - this is required for homepage
-  await page.route('http://localhost:8000/api/search-history*', async (route) => {
+  await page.route('**/api/search-history*', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -57,7 +57,7 @@ async function setupMocksAndAuth(page: Page) {
   });
 
   // Mock upcoming lessons for homepage (returns paginated format)
-  await page.route('http://localhost:8000/bookings/upcoming*limit=2*', async (route) => {
+  await page.route('**/bookings/upcoming*', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -66,14 +66,12 @@ async function setupMocksAndAuth(page: Page) {
           {
             id: 1,
             instructor_name: upcomingLesson.instructor,
+            student_name: 'Test Student',
             service_name: upcomingLesson.service,
             booking_date: '2024-12-25',
             start_time: '14:00:00',
             end_time: '15:00:00',
-            price: 60,
-            status: 'CONFIRMED',
-            location_type: 'online',
-            location_details: 'Zoom meeting',
+            meeting_location: 'Zoom meeting',
           },
         ],
         total: 1,
@@ -83,8 +81,22 @@ async function setupMocksAndAuth(page: Page) {
     });
   });
 
+  // Mock bookings endpoint for completed lessons (BookAgain component)
+  await page.route('**/bookings/?status=COMPLETED*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        bookings: [],
+        total: 0,
+        page: 1,
+        per_page: 50,
+      }),
+    });
+  });
+
   // Mock upcoming lessons for My Lessons page (returns object with bookings array)
-  await page.route('http://localhost:8000/bookings/*', async (route) => {
+  await page.route('**/bookings/*', async (route) => {
     const url = new URL(route.request().url());
 
     // Check if this is a detail request
@@ -171,7 +183,9 @@ async function setupMocksAndAuth(page: Page) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(bookingDetails[bookingId] || bookingDetails['1']),
+        body: JSON.stringify(
+          bookingDetails[bookingId as keyof typeof bookingDetails] || bookingDetails['1']
+        ),
       });
     } else {
       // This is a list request
@@ -247,7 +261,7 @@ async function setupMocksAndAuth(page: Page) {
   });
 
   // Mock instructor profile
-  await page.route('http://localhost:8000/instructors/*', async (route) => {
+  await page.route('**/instructors/*', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -265,7 +279,7 @@ async function setupMocksAndAuth(page: Page) {
   });
 
   // Mock login endpoint
-  await page.route('http://localhost:8000/auth/login', async (route) => {
+  await page.route('**/auth/login', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -285,7 +299,7 @@ async function setupMocksAndAuth(page: Page) {
   });
 
   // Mock categories for homepage
-  await page.route('http://localhost:8000/categories*', async (route) => {
+  await page.route('**/categories*', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -297,11 +311,41 @@ async function setupMocksAndAuth(page: Page) {
   });
 
   // Mock featured instructors for homepage
-  await page.route('http://localhost:8000/instructors/featured*', async (route) => {
+  await page.route('**/instructors/featured*', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify([]),
+    });
+  });
+
+  // Mock top services per category for homepage
+  await page.route('**/api/services/top-per-category*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        categories: [
+          {
+            id: 1,
+            name: 'Music',
+            slug: 'music',
+            services: [
+              { id: 1, name: 'Piano', slug: 'piano' },
+              { id: 2, name: 'Guitar', slug: 'guitar' },
+            ],
+          },
+          {
+            id: 2,
+            name: 'Sports & Fitness',
+            slug: 'sports-fitness',
+            services: [
+              { id: 3, name: 'Yoga', slug: 'yoga' },
+              { id: 4, name: 'Tennis', slug: 'tennis' },
+            ],
+          },
+        ],
+      }),
     });
   });
 }
@@ -311,20 +355,184 @@ test.describe('My Lessons Page', () => {
     await setupMocksAndAuth(page);
   });
 
-  test('should navigate to My Lessons from homepage', async ({ page }) => {
-    await setupMocksAndAuth(page);
+  test('should navigate to My Lessons from homepage after login', async ({ page, context }) => {
+    // This test uses the real login flow to match actual user behavior
 
-    await page.goto('/');
+    // Mock the login endpoint to match what the app expects
+    await context.route('**/auth/login', async (route) => {
+      const request = route.request();
+      const contentType = request.headers()['content-type'] || '';
 
-    // Wait for page to load completely
+      // The login endpoint expects form data
+      if (contentType.includes('application/x-www-form-urlencoded')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            access_token: 'mock_access_token',
+            token_type: 'bearer',
+            user: {
+              id: 1,
+              email: studentCredentials.email,
+              full_name: 'Test Student',
+              roles: ['student'],
+              permissions: [],
+              is_active: true,
+            },
+          }),
+        });
+      }
+    });
+
+    // Also handle the session-based login endpoint
+    await context.route('**/auth/login-with-session', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          access_token: 'mock_jwt_token',
+          token_type: 'bearer',
+          user: {
+            id: 1,
+            email: studentCredentials.email,
+            full_name: 'Test Student',
+            roles: ['student'],
+            permissions: [],
+            is_active: true,
+          },
+        }),
+      });
+    });
+
+    // Mock the auth/me endpoint that gets called after login
+    await context.route('**/auth/me', async (route) => {
+      const authHeader = route.request().headers()['authorization'];
+      // Accept any auth header
+      if (authHeader && authHeader.includes('Bearer')) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            id: 1,
+            email: studentCredentials.email,
+            full_name: 'Test Student',
+            roles: ['student'],
+            permissions: [],
+            is_active: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }),
+        });
+      } else {
+        await route.fulfill({ status: 401 });
+      }
+    });
+
+    // Mock other required endpoints for the homepage
+    await context.route('**/api/search-history*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
+
+    await context.route('**/bookings/upcoming*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          bookings: [
+            {
+              id: 1,
+              booking_date: '2025-08-10',
+              start_time: '10:00:00',
+              end_time: '11:00:00',
+              service_name: 'Piano Lesson',
+              student_name: 'Test Student',
+              instructor_name: 'John Smith',
+              meeting_location: 'Instructor Studio',
+            },
+          ],
+          total: 1,
+          page: 1,
+          per_page: 2,
+        }),
+      });
+    });
+
+    await context.route('**/bookings/?status=COMPLETED*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          bookings: [],
+          total: 0,
+          page: 1,
+          per_page: 50,
+        }),
+      });
+    });
+
+    await context.route('**/categories*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          { id: 1, name: 'Music', description: 'Learn instruments' },
+          { id: 2, name: 'Languages', description: 'Learn new languages' },
+        ]),
+      });
+    });
+
+    await context.route('**/instructors/featured*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([]),
+      });
+    });
+
+    await context.route('**/api/services/top-per-category*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          categories: [
+            {
+              id: 1,
+              name: 'Music',
+              slug: 'music',
+              services: [
+                { id: 1, name: 'Piano', slug: 'piano' },
+                { id: 2, name: 'Guitar', slug: 'guitar' },
+              ],
+            },
+          ],
+        }),
+      });
+    });
+
+    // Start at login page (like real users)
+    await page.goto('/login');
+
+    // Perform actual login
+    await page.fill('input[name="email"]', studentCredentials.email);
+    await page.fill('input[name="password"]', studentCredentials.password);
+    await page.click('button[type="submit"]');
+
+    // Wait for redirect to homepage (matches real behavior)
+    await page.waitForURL('/');
+
+    // Wait for page to fully load
     await page.waitForLoadState('networkidle');
 
-    // Click My Lessons link in header - using more specific selector
+    // Now "My Lessons" should be visible (just like manual testing showed)
     const myLessonsLink = page.getByRole('link', { name: 'My Lessons' });
-    await expect(myLessonsLink).toBeVisible({ timeout: 15000 });
-    await myLessonsLink.click();
+    await expect(myLessonsLink).toBeVisible({ timeout: 5000 });
 
-    // Verify navigation to correct URL
+    // Click it and verify navigation
+    await myLessonsLink.click();
     await expect(page).toHaveURL('/student/lessons');
 
     // Verify page title
@@ -403,7 +611,7 @@ test.describe('My Lessons Page', () => {
 
   test('should show empty state when no upcoming lessons', async ({ page }) => {
     // Override mock to return empty lessons
-    await page.route('http://localhost:8000/bookings/*', async (route) => {
+    await page.route('**/bookings/*', async (route) => {
       const url = new URL(route.request().url());
       const isUpcoming = url.searchParams.get('upcoming_only') === 'true';
       const status = url.searchParams.get('status');
@@ -451,7 +659,7 @@ test.describe('My Lessons Page', () => {
 
   test('should navigate to search when Find Instructors is clicked', async ({ page }) => {
     // Mock empty lessons
-    await page.route('http://localhost:8000/bookings/*', async (route) => {
+    await page.route('**/bookings/*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -712,7 +920,7 @@ test.describe('Error Handling', () => {
       localStorage.setItem('access_token', 'mock_access_token');
     });
 
-    await page.route('http://localhost:8000/auth/me', async (route) => {
+    await page.route('**/auth/me', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -728,7 +936,7 @@ test.describe('Error Handling', () => {
     });
 
     // Override the mock to return error
-    await page.route('http://localhost:8000/bookings/*', async (route) => {
+    await page.route('**/bookings/*', async (route) => {
       await route.fulfill({
         status: 500,
         contentType: 'application/json',
@@ -798,7 +1006,7 @@ test.describe('Error Handling', () => {
     await page.route('http://localhost:8000/auth/login-with-session', loginHandler);
 
     // Mock auth endpoint to success after we set the token
-    await page.route('http://localhost:8000/auth/me', async (route) => {
+    await page.route('**/auth/me', async (route) => {
       const token = route.request().headers()['authorization'];
       if (token === 'Bearer mock_access_token') {
         await route.fulfill({
@@ -819,7 +1027,7 @@ test.describe('Error Handling', () => {
     });
 
     // Also mock the bookings for after login
-    await page.route('http://localhost:8000/bookings/*', async (route) => {
+    await page.route('**/bookings/*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

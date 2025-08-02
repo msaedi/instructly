@@ -8,7 +8,8 @@ export class HomePage {
 
   constructor(page: Page) {
     this.page = page;
-    this.searchInput = page.getByPlaceholder(/Ready to learn something new/i);
+    // The placeholder text changes based on auth status
+    this.searchInput = page.locator('input[type="text"][placeholder*="learn"]');
     this.authLink = page.getByRole('link', { name: /Sign up \/ Log in/i });
     this.becomeInstructorLink = page.getByRole('link', { name: /Become an Instructor/i });
   }

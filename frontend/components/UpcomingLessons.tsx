@@ -135,10 +135,12 @@ export function UpcomingLessons() {
                   with{' '}
                   {hasRole(user, RoleName.STUDENT)
                     ? booking.instructor_name
-                        .split(' ')
-                        .map((n, i) => (i === 0 ? n : n[0] + '.'))
-                        .join(' ')
-                    : booking.student_name}
+                      ? booking.instructor_name
+                          .split(' ')
+                          .map((n, i) => (i === 0 ? n : n[0] + '.'))
+                          .join(' ')
+                      : 'Instructor'
+                    : booking.student_name || 'Student'}
                 </div>
                 {getLocationArea(booking.meeting_location) && (
                   <div className="flex items-center text-sm text-gray-600 dark:text-gray-400 mb-3">
