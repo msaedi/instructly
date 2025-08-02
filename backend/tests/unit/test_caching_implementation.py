@@ -21,10 +21,10 @@ from app.services.cache_service import CacheService
 class TestRepositoryCaching:
     """Test repository-level caching functionality."""
 
-    def test_cache_mixin_initialization(self, db_session):
+    def test_cache_mixin_initialization(self, db):
         """Test that cached repository mixin initializes correctly."""
         # Create a repository with caching
-        repo = BookingRepository(db_session)
+        repo = BookingRepository(db)
 
         # Verify cache initialization
         assert hasattr(repo, "_cache_service")
@@ -32,14 +32,14 @@ class TestRepositoryCaching:
         assert repo._cache_prefix == "booking"
         assert repo._cache_enabled is True
 
-    def test_cache_result_decorator_hit(self, db_session):
+    def test_cache_result_decorator_hit(self, db):
         """Test cache hit with @cache_result decorator."""
         # Create mock cache service
         mock_cache = Mock(spec=CacheService)
         mock_cache.get.return_value = [{"id": 1, "status": "CONFIRMED"}]  # Cached result
 
         # Create repository with mock cache
-        repo = BookingRepository(db_session, cache_service=mock_cache)
+        repo = BookingRepository(db, cache_service=mock_cache)
 
         # Call a cached method
         result = repo.get_student_bookings(student_id=123)
@@ -49,14 +49,14 @@ class TestRepositoryCaching:
         # Verify database was NOT queried (would fail since we have mock data)
         assert result == [{"id": 1, "status": "CONFIRMED"}]
 
-    def test_cache_result_decorator_miss(self, db_session):
+    def test_cache_result_decorator_miss(self, db):
         """Test cache miss with @cache_result decorator."""
         # Create mock cache service
         mock_cache = Mock(spec=CacheService)
         mock_cache.get.return_value = None  # Cache miss
 
         # Create repository with mock cache
-        repo = BookingRepository(db_session, cache_service=mock_cache)
+        repo = BookingRepository(db, cache_service=mock_cache)
 
         # Mock the database query
         with patch.object(repo.db, "query") as mock_query:
@@ -72,13 +72,13 @@ class TestRepositoryCaching:
             # Verify database was queried
             mock_query.assert_called_once()
 
-    def test_cache_invalidation_on_update(self, db_session):
+    def test_cache_invalidation_on_update(self, db):
         """Test that cache is invalidated when booking is updated."""
         # Create mock cache service
         mock_cache = Mock(spec=CacheService)
 
         # Create repository with mock cache
-        repo = BookingRepository(db_session, cache_service=mock_cache)
+        repo = BookingRepository(db, cache_service=mock_cache)
 
         # Mock booking
         booking = Mock(spec=Booking)
@@ -117,7 +117,7 @@ class TestRepositoryCaching:
 class TestServiceCaching:
     """Test service-level caching functionality."""
 
-    def test_booking_stats_cache_hit(self, db_session):
+    def test_booking_stats_cache_hit(self, db):
         """Test that booking stats are cached at service level."""
         # Create mock cache service
         mock_cache = Mock(spec=CacheService)
@@ -125,9 +125,7 @@ class TestServiceCaching:
         mock_cache.get.return_value = cached_stats
 
         # Create service with mock cache
-        service = BookingService(
-            db=db_session, cache_service=mock_cache, notification_service=Mock(), repository=Mock()
-        )
+        service = BookingService(db=db, cache_service=mock_cache, notification_service=Mock(), repository=Mock())
 
         # Get stats
         stats = service.get_booking_stats_for_instructor(instructor_id=123)
@@ -139,7 +137,7 @@ class TestServiceCaching:
         # Verify repository was NOT called
         assert service.repository.get_instructor_bookings_for_stats.call_count == 0
 
-    def test_booking_stats_cache_miss(self, db_session):
+    def test_booking_stats_cache_miss(self, db):
         """Test that booking stats are calculated and cached on miss."""
         # Create mock cache service
         mock_cache = Mock(spec=CacheService)
@@ -154,9 +152,7 @@ class TestServiceCaching:
         mock_repo.get_instructor_bookings_for_stats.return_value = mock_bookings
 
         # Create service
-        service = BookingService(
-            db=db_session, cache_service=mock_cache, notification_service=Mock(), repository=mock_repo
-        )
+        service = BookingService(db=db, cache_service=mock_cache, notification_service=Mock(), repository=mock_repo)
 
         # Get stats
         stats = service.get_booking_stats_for_instructor(instructor_id=123)
@@ -175,7 +171,7 @@ class TestServiceCaching:
         assert stats["completed_bookings"] == 5
         assert stats["total_earnings"] == 500.0
 
-    def test_cache_invalidation_on_booking_change(self, db_session):
+    def test_cache_invalidation_on_booking_change(self, db):
         """Test that stats cache is invalidated when booking changes."""
         # Create mock cache service
         mock_cache = Mock(spec=CacheService)
@@ -187,9 +183,7 @@ class TestServiceCaching:
         mock_booking.booking_date = date.today()
 
         # Create service
-        service = BookingService(
-            db=db_session, cache_service=mock_cache, notification_service=Mock(), repository=Mock()
-        )
+        service = BookingService(db=db, cache_service=mock_cache, notification_service=Mock(), repository=Mock())
 
         # Invalidate caches
         service._invalidate_booking_caches(mock_booking)
@@ -202,14 +196,14 @@ class TestServiceCaching:
         # Verify availability cache was invalidated
         mock_cache.invalidate_instructor_availability.assert_called_once_with(123, [mock_booking.booking_date])
 
-    def test_cache_disabled_context_manager(self, db_session):
+    def test_cache_disabled_context_manager(self, db):
         """Test that caching can be temporarily disabled."""
         # Create mock cache service
         mock_cache = Mock(spec=CacheService)
         mock_cache.get.return_value = {"cached": True}
 
         # Create repository with mock cache
-        repo = BookingRepository(db_session, cache_service=mock_cache)
+        repo = BookingRepository(db, cache_service=mock_cache)
 
         # Use cache disabled context
         with repo.with_cache_disabled():
@@ -235,10 +229,10 @@ class TestServiceCaching:
 class TestCachePerformance:
     """Test cache performance improvements."""
 
-    def test_repository_cache_reduces_database_queries(self, db_session):
+    def test_repository_cache_reduces_database_queries(self, db):
         """Test that repository caching reduces database query count."""
         # Create repository with real cache service
-        repo = BookingRepository(db_session)
+        repo = BookingRepository(db)
 
         # Track query count
         query_count = 0
@@ -264,7 +258,7 @@ class TestCachePerformance:
             # With caching, second call should not increase query count
             assert second_query_count == first_query_count
 
-    def test_service_cache_reduces_computation(self, db_session):
+    def test_service_cache_reduces_computation(self, db):
         """Test that service caching reduces expensive computations."""
         # Create service with cache
         mock_cache = Mock(spec=CacheService)
@@ -277,9 +271,7 @@ class TestCachePerformance:
             for _ in range(1000)
         ]
 
-        service = BookingService(
-            db=db_session, cache_service=mock_cache, notification_service=Mock(), repository=mock_repo
-        )
+        service = BookingService(db=db, cache_service=mock_cache, notification_service=Mock(), repository=mock_repo)
 
         # First call - expensive computation
         stats1 = service.get_booking_stats_for_instructor(instructor_id=123)

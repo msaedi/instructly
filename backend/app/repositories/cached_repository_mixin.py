@@ -79,6 +79,8 @@ class CachedRepositoryMixin:
                 key_parts.append(f"id_{arg.id}")
             elif isinstance(arg, (str, int, float, bool)):
                 key_parts.append(str(arg))
+            elif hasattr(arg, "isoformat"):  # Handle date/datetime objects
+                key_parts.append(arg.isoformat())
             else:
                 # Hash complex objects
                 arg_hash = hashlib.md5(str(arg).encode()).hexdigest()[:8]
