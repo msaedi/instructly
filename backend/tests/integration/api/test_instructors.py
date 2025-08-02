@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from app.core.enums import RoleName
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
-from app.models.service_catalog import ServiceCatalog
+from app.models.service_catalog import ServiceCatalog, ServiceCategory
 from app.models.user import User
 
 
@@ -30,8 +30,6 @@ class TestInstructorRoutes:
         """Test getting instructors when none exist for a specific service."""
         # Create a service catalog entry for testing
         import uuid
-
-        from app.models.service_catalog import ServiceCatalog, ServiceCategory
 
         unique_id = str(uuid.uuid4())[:8]
         category = ServiceCategory(name=f"Test Category {unique_id}", slug=f"test-category-{unique_id}")
@@ -71,8 +69,6 @@ class TestInstructorRoutes:
         db.flush()
 
         # Add inactive service - need to link to catalog
-        from app.models.service_catalog import ServiceCatalog
-
         catalog_service = db.query(ServiceCatalog).first()  # Get any catalog service
         if catalog_service:
             inactive_service = Service(
@@ -86,8 +82,6 @@ class TestInstructorRoutes:
 
         # Create a service catalog entry for testing
         import uuid
-
-        from app.models.service_catalog import ServiceCatalog, ServiceCategory
 
         unique_id = str(uuid.uuid4())[:8]
         category = ServiceCategory(name=f"Test Category {unique_id}", slug=f"test-category-{unique_id}")
@@ -148,8 +142,6 @@ class TestInstructorRoutes:
 
         # Create a service catalog entry for testing
         import uuid
-
-        from app.models.service_catalog import ServiceCatalog, ServiceCategory
 
         unique_id = str(uuid.uuid4())[:8]
         category = ServiceCategory(name=f"Test Category {unique_id}", slug=f"test-category-{unique_id}")
