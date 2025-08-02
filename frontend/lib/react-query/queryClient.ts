@@ -50,6 +50,9 @@ export const CACHE_TIMES = {
   // Session-long data (user profile, settings)
   SESSION: Infinity,
 
+  // Very fresh data (upcoming lessons widget)
+  FAST: 1000 * 60, // 1 minute
+
   // Frequently changing data (availability, bookings)
   FREQUENT: 1000 * 60 * 5, // 5 minutes
 
@@ -78,7 +81,7 @@ export const queryKeys = {
   // Booking queries
   bookings: {
     all: ['bookings'] as const,
-    upcoming: ['bookings', 'upcoming'] as const,
+    upcoming: (limit?: number) => ['bookings', 'upcoming', { limit }] as const,
     history: (page?: number) => ['bookings', 'history', { page }] as const,
     detail: (id: string) => ['bookings', id] as const,
   },

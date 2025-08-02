@@ -8,7 +8,7 @@ eliminating the need for defensive coding in the frontend.
 from datetime import datetime
 from typing import Any, Dict, Generic, List, Optional, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 T = TypeVar("T")
 
@@ -28,10 +28,11 @@ class PaginatedResponse(BaseModel, Generic[T]):
     has_next: bool = Field(description="Whether there's a next page")
     has_prev: bool = Field(description="Whether there's a previous page")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {"items": ["..."], "total": 100, "page": 1, "per_page": 20, "has_next": True, "has_prev": False}
         }
+    )
 
 
 class SuccessResponse(BaseModel):
@@ -41,14 +42,15 @@ class SuccessResponse(BaseModel):
     message: str = Field(description="Human-readable success message")
     data: Optional[Dict[str, Any]] = Field(default=None, description="Optional additional data")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "success": True,
                 "message": "Operation completed successfully",
                 "data": {"updated_fields": ["name", "email"]},
             }
         }
+    )
 
 
 class DeleteResponse(BaseModel):
@@ -58,14 +60,15 @@ class DeleteResponse(BaseModel):
     message: str = Field(description="Human-readable deletion message")
     deleted_at: datetime = Field(default_factory=datetime.utcnow, description="Deletion timestamp")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "success": True,
                 "message": "Resource deleted successfully",
                 "deleted_at": "2025-01-20T10:30:00Z",
             }
         }
+    )
 
 
 class ErrorDetail(BaseModel):
@@ -75,10 +78,11 @@ class ErrorDetail(BaseModel):
     message: str = Field(description="Human-readable error message")
     field: Optional[str] = Field(default=None, description="Field that caused the error")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {"code": "VALIDATION_ERROR", "message": "Invalid date format", "field": "booking_date"}
         }
+    )
 
 
 class ErrorResponse(BaseModel):
@@ -95,14 +99,15 @@ class ErrorResponse(BaseModel):
     request_id: Optional[str] = Field(default=None, description="Request ID for tracking")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Error timestamp")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "error": {"code": "RESOURCE_NOT_FOUND", "message": "Instructor not found", "field": None},
                 "request_id": "req_123abc",
                 "timestamp": "2025-01-20T10:30:00Z",
             }
         }
+    )
 
 
 class BatchOperationResult(BaseModel):
@@ -113,8 +118,8 @@ class BatchOperationResult(BaseModel):
     failed: int = Field(description="Number of failed operations")
     errors: List[ErrorDetail] = Field(default_factory=list, description="List of errors for failed items")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "total": 10,
                 "successful": 8,
@@ -122,6 +127,7 @@ class BatchOperationResult(BaseModel):
                 "errors": [{"code": "VALIDATION_ERROR", "message": "Invalid date", "field": "date"}],
             }
         }
+    )
 
 
 class HealthCheckResponse(BaseModel):
@@ -133,8 +139,8 @@ class HealthCheckResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Check timestamp")
     checks: Dict[str, bool] = Field(description="Individual component health checks")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "status": "healthy",
                 "service": "InstaInstru API",
@@ -143,6 +149,7 @@ class HealthCheckResponse(BaseModel):
                 "checks": {"database": True, "redis": True, "services": True},
             }
         }
+    )
 
 
 class MetricsResponse(BaseModel):
@@ -152,14 +159,15 @@ class MetricsResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Metrics timestamp")
     period: str = Field(description="Time period for metrics")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "metrics": {"requests_per_second": 123.45, "average_response_time_ms": 234.56, "error_rate": 0.01},
                 "timestamp": "2025-01-20T10:30:00Z",
                 "period": "last_5_minutes",
             }
         }
+    )
 
 
 def create_paginated_response(items: List[T], total: int, page: int = 1, per_page: int = 20) -> PaginatedResponse[T]:

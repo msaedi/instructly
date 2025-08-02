@@ -62,7 +62,7 @@ async function setupMocksAndAuth(page: Page) {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        bookings: [
+        items: [
           {
             id: 1,
             instructor_name: upcomingLesson.instructor,
@@ -77,6 +77,8 @@ async function setupMocksAndAuth(page: Page) {
         total: 1,
         page: 1,
         per_page: 2,
+        has_next: false,
+        has_prev: false,
       }),
     });
   });
@@ -87,10 +89,12 @@ async function setupMocksAndAuth(page: Page) {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        bookings: [],
+        items: [],
         total: 0,
         page: 1,
         per_page: 50,
+        has_next: false,
+        has_prev: false,
       }),
     });
   });
@@ -198,7 +202,7 @@ async function setupMocksAndAuth(page: Page) {
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            bookings: [
+            items: [
               {
                 id: 1,
                 instructor: {
@@ -222,6 +226,8 @@ async function setupMocksAndAuth(page: Page) {
             total: 1,
             page: 1,
             per_page: 50,
+            has_next: false,
+            has_prev: false,
           }),
         });
       } else {
@@ -230,7 +236,7 @@ async function setupMocksAndAuth(page: Page) {
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            bookings: [
+            items: [
               {
                 id: 2,
                 instructor: {
@@ -254,6 +260,8 @@ async function setupMocksAndAuth(page: Page) {
             total: 1,
             page: 1,
             per_page: 20,
+            has_next: false,
+            has_prev: false,
           }),
         });
       }
@@ -442,7 +450,7 @@ test.describe('My Lessons Page', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          bookings: [
+          items: [
             {
               id: 1,
               booking_date: '2025-08-10',
@@ -457,6 +465,8 @@ test.describe('My Lessons Page', () => {
           total: 1,
           page: 1,
           per_page: 2,
+          has_next: false,
+          has_prev: false,
         }),
       });
     });
@@ -466,10 +476,12 @@ test.describe('My Lessons Page', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          bookings: [],
+          items: [],
           total: 0,
           page: 1,
           per_page: 50,
+          has_next: false,
+          has_prev: false,
         }),
       });
     });
@@ -620,7 +632,14 @@ test.describe('My Lessons Page', () => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ bookings: [], total: 0, page: 1, per_page: 50 }),
+          body: JSON.stringify({
+            items: [],
+            total: 0,
+            page: 1,
+            per_page: 50,
+            has_next: false,
+            has_prev: false,
+          }),
         });
       } else {
         // Keep history data
@@ -628,7 +647,7 @@ test.describe('My Lessons Page', () => {
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            bookings: [
+            items: [
               {
                 id: 2,
                 instructor: { id: 2, full_name: completedLesson.instructor },
@@ -641,6 +660,8 @@ test.describe('My Lessons Page', () => {
             total: 1,
             page: 1,
             per_page: 20,
+            has_next: false,
+            has_prev: false,
           }),
         });
       }
@@ -654,29 +675,33 @@ test.describe('My Lessons Page', () => {
       timeout: 10000,
     });
     await expect(page.locator('text=Ready to learn something new?')).toBeVisible();
-    await expect(page.locator('button:has-text("Find Instructors")')).toBeVisible();
   });
 
-  test('should navigate to search when Find Instructors is clicked', async ({ page }) => {
+  test('should show empty state message when no upcoming lessons', async ({ page }) => {
     // Mock empty lessons
     await page.route('**/bookings/*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ bookings: [], total: 0, page: 1, per_page: 50 }),
+        body: JSON.stringify({
+          items: [],
+          total: 0,
+          page: 1,
+          per_page: 50,
+          has_next: false,
+          has_prev: false,
+        }),
       });
     });
 
     await page.goto('/student/lessons');
     await page.waitForLoadState('networkidle');
 
-    // Wait for and click Find Instructors button
-    const findInstructorsBtn = page.locator('button:has-text("Find Instructors")');
-    await expect(findInstructorsBtn).toBeVisible({ timeout: 10000 });
-    await findInstructorsBtn.click();
-
-    // Verify navigation to search
-    await expect(page).toHaveURL('/search');
+    // Verify empty state message is shown
+    await expect(page.locator("text=You don't have any upcoming lessons")).toBeVisible({
+      timeout: 10000,
+    });
+    await expect(page.locator('text=Ready to learn something new?')).toBeVisible();
   });
 });
 

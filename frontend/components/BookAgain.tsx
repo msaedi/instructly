@@ -1,11 +1,13 @@
 // frontend/components/BookAgain.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Star } from 'lucide-react';
-import { bookingsApi } from '@/lib/api/bookings';
-import { Booking } from '@/types/booking';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
+import { queryFn } from '@/lib/react-query/api';
+import { BookingListResponse } from '@/types/booking';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 
@@ -26,97 +28,59 @@ interface BookAgainProps {
 export function BookAgain({ onLoadComplete }: BookAgainProps) {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
-  const [uniqueInstructors, setUniqueInstructors] = useState<UniqueInstructor[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasBookingHistory, setHasBookingHistory] = useState(false);
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchBookingHistory();
-    }
-  }, [isAuthenticated]);
-
-  const fetchBookingHistory = async () => {
-    try {
-      logger.debug('Fetching booking history for Book Again section');
-
-      // Fetch all bookings (same as My Lessons page) and filter client-side
-      const response = await bookingsApi.getMyBookings({
-        upcoming: false,
+  // Fetch past completed bookings with React Query
+  const { data: bookingsData, isLoading } = useQuery<BookingListResponse>({
+    queryKey: [...queryKeys.bookings.history(), { include_past_confirmed: true, per_page: 50 }],
+    queryFn: queryFn('/bookings/', {
+      params: {
+        include_past_confirmed: true,
         per_page: 50, // Get more to ensure we find 3 unique instructors
-      });
+      },
+      requireAuth: true,
+    }),
+    staleTime: CACHE_TIMES.SLOW, // 15 minutes - past bookings rarely change
+    enabled: isAuthenticated,
+  });
 
-      logger.info('BookAgain: API response received', {
-        hasResponse: !!response,
-        hasBookings: !!response?.bookings,
-        bookingsLength: response?.bookings?.length || 0,
-        responseKeys: response ? Object.keys(response) : [],
-        firstBooking: response?.bookings?.[0]
-          ? {
-              id: response.bookings[0].id,
-              status: response.bookings[0].status,
-              hasInstructor: !!response.bookings[0].instructor,
-              serviceName: response.bookings[0].service_name,
-            }
-          : null,
-      });
-
-      if (response.bookings && response.bookings.length > 0) {
-        // Filter for completed bookings only (same logic as My Lessons but only completed)
-        const now = new Date();
-        const completedBookings = response.bookings.filter((booking: Booking) => {
-          // Only include bookings that are actually COMPLETED status
-          return booking.status === 'COMPLETED';
-        });
-
-        logger.info('BookAgain: Filtered completed bookings', {
-          totalBookings: response.bookings.length,
-          completedBookings: completedBookings.length,
-          statuses: response.bookings.map((b) => b.status),
-          statusBreakdown: response.bookings.reduce((acc: any, b) => {
-            acc[b.status] = (acc[b.status] || 0) + 1;
-            return acc;
-          }, {}),
-        });
-
-        // Extract unique instructors from completed bookings
-        const instructorMap = new Map<number, UniqueInstructor>();
-
-        completedBookings.forEach((booking: Booking) => {
-          if (booking.instructor && !instructorMap.has(booking.instructor.id)) {
-            instructorMap.set(booking.instructor.id, {
-              instructorId: booking.instructor.id,
-              instructorName: booking.instructor.full_name,
-              serviceName: booking.service_name,
-              serviceId: booking.instructor_service_id, // Correct: use instructor_service_id
-              hourlyRate: booking.hourly_rate,
-              rating: 4.8, // TODO: Get actual rating from instructor profile
-              lastBookingDate: booking.booking_date,
-            });
-          }
-        });
-
-        // Get the first 3 unique instructors
-        const uniqueList = Array.from(instructorMap.values()).slice(0, 3);
-        setUniqueInstructors(uniqueList);
-        setHasBookingHistory(uniqueList.length > 0);
-
-        logger.info('Book Again section loaded', {
-          totalBookings: response.bookings.length,
-          completedBookings: completedBookings.length,
-          uniqueInstructors: uniqueList.length,
-        });
-      } else {
-        logger.info('BookAgain: No bookings found in API response');
-        setHasBookingHistory(false);
-      }
-    } catch (error) {
-      logger.error('BookAgain: Error fetching booking history', error);
-      setHasBookingHistory(false);
-    } finally {
-      setIsLoading(false);
+  // Extract unique instructors from bookings
+  const uniqueInstructors = useMemo(() => {
+    if (!bookingsData?.items?.length) {
+      logger.info('BookAgain: No bookings found');
+      return [];
     }
-  };
+
+    logger.info('BookAgain: Processing bookings', {
+      totalBookings: bookingsData.items.length,
+      total: bookingsData.total,
+    });
+
+    const instructorMap = new Map<number, UniqueInstructor>();
+
+    bookingsData.items.forEach((booking) => {
+      if (booking.instructor && !instructorMap.has(booking.instructor.id)) {
+        instructorMap.set(booking.instructor.id, {
+          instructorId: booking.instructor.id,
+          instructorName: booking.instructor.full_name,
+          serviceName: booking.service_name,
+          serviceId: booking.instructor_service_id,
+          hourlyRate: booking.hourly_rate,
+          rating: 4.8, // TODO: Get actual rating from instructor profile
+          lastBookingDate: booking.booking_date,
+        });
+      }
+    });
+
+    // Get the first 3 unique instructors
+    const uniqueList = Array.from(instructorMap.values()).slice(0, 3);
+    logger.info('Book Again section processed', {
+      uniqueInstructors: uniqueList.length,
+    });
+
+    return uniqueList;
+  }, [bookingsData]);
+
+  const hasBookingHistory = uniqueInstructors.length > 0;
 
   // Notify parent component when loading is complete
   useEffect(() => {

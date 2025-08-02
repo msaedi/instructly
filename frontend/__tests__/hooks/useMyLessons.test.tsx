@@ -28,7 +28,7 @@ jest.mock('@/lib/react-query/api', () => ({
       // Check if this is for upcoming lessons (has status=CONFIRMED and upcoming_only=true)
       if (options?.params?.status === 'CONFIRMED' && options?.params?.upcoming_only === true) {
         return {
-          bookings: [
+          items: [
             {
               id: 1,
               booking_date: '2024-12-25',
@@ -43,7 +43,7 @@ jest.mock('@/lib/react-query/api', () => ({
         };
       }
       return {
-        bookings: [
+        items: [
           {
             id: 2,
             booking_date: '2024-12-20',
@@ -93,8 +93,8 @@ describe('useMyLessons hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(result.current.data?.bookings).toHaveLength(1);
-      expect(result.current.data?.bookings[0].status).toBe('CONFIRMED');
+      expect(result.current.data?.items).toHaveLength(1);
+      expect(result.current.data?.items[0].status).toBe('CONFIRMED');
     });
 
     it('uses correct cache time', () => {
@@ -113,14 +113,14 @@ describe('useMyLessons hooks', () => {
         expect(result.current.isSuccess).toBe(true);
       });
 
-      expect(result.current.data?.bookings).toBeDefined();
+      expect(result.current.data?.items).toBeDefined();
     });
 
     it('filters lessons correctly', async () => {
       // Update mock to return mixed statuses
       const mockQueryFn = require('@/lib/react-query/api').queryFn;
       mockQueryFn.mockImplementation(() => async () => ({
-        bookings: [
+        items: [
           {
             id: 1,
             booking_date: '2024-12-30',
@@ -155,7 +155,7 @@ describe('useMyLessons hooks', () => {
       });
 
       // Should filter out future confirmed lessons
-      const bookings = result.current.data?.bookings || [];
+      const bookings = result.current.data?.items || [];
       const confirmedFuture = bookings.filter(
         (b) =>
           b.status === 'CONFIRMED' && new Date(`${b.booking_date}T${b.start_time}`) > new Date()

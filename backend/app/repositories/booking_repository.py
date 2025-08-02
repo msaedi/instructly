@@ -321,15 +321,19 @@ class BookingRepository(BaseRepository[Booking]):
         student_id: int,
         status: Optional[BookingStatus] = None,
         upcoming_only: bool = False,
+        exclude_future_confirmed: bool = False,
+        include_past_confirmed: bool = False,
         limit: Optional[int] = None,
     ) -> List[Booking]:
         """
-        Get bookings for a specific student.
+        Get bookings for a specific student with advanced filtering.
 
         Args:
             student_id: The student's user ID
             status: Optional status filter
             upcoming_only: Only return future bookings
+            exclude_future_confirmed: Exclude future confirmed bookings (for History tab)
+            include_past_confirmed: Include past confirmed bookings (for BookAgain)
             limit: Optional result limit
 
         Returns:
@@ -342,11 +346,36 @@ class BookingRepository(BaseRepository[Booking]):
                 .filter(Booking.student_id == student_id)
             )
 
+            # Handle status filter
             if status:
                 query = query.filter(Booking.status == status)
 
+            # Handle upcoming_only filter
             if upcoming_only:
                 query = query.filter(Booking.booking_date >= date.today(), Booking.status == BookingStatus.CONFIRMED)
+
+            # Handle exclude_future_confirmed (for History tab - past bookings + cancelled)
+            elif exclude_future_confirmed:
+                # Include: past bookings (any status) + future cancelled/no-show bookings
+                # Exclude: future confirmed bookings
+                from sqlalchemy import and_, or_
+
+                query = query.filter(
+                    or_(
+                        # Past bookings (any status)
+                        Booking.booking_date < date.today(),
+                        # Future bookings that are NOT confirmed
+                        and_(
+                            Booking.booking_date >= date.today(),
+                            Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
+                        ),
+                    )
+                )
+
+            # Handle include_past_confirmed (for BookAgain - only completed past bookings)
+            elif include_past_confirmed:
+                # Only past bookings with COMPLETED status
+                query = query.filter(Booking.booking_date < date.today(), Booking.status == BookingStatus.COMPLETED)
 
             query = query.order_by(Booking.booking_date.desc(), Booking.start_time.desc())
 
@@ -364,15 +393,19 @@ class BookingRepository(BaseRepository[Booking]):
         instructor_id: int,
         status: Optional[BookingStatus] = None,
         upcoming_only: bool = False,
+        exclude_future_confirmed: bool = False,
+        include_past_confirmed: bool = False,
         limit: Optional[int] = None,
     ) -> List[Booking]:
         """
-        Get bookings for a specific instructor.
+        Get bookings for a specific instructor with advanced filtering.
 
         Args:
             instructor_id: The instructor's user ID
             status: Optional status filter
             upcoming_only: Only return future bookings
+            exclude_future_confirmed: Exclude future confirmed bookings (for History tab)
+            include_past_confirmed: Include past confirmed bookings (for BookAgain)
             limit: Optional result limit
 
         Returns:
@@ -385,11 +418,36 @@ class BookingRepository(BaseRepository[Booking]):
                 .filter(Booking.instructor_id == instructor_id)
             )
 
+            # Handle status filter
             if status:
                 query = query.filter(Booking.status == status)
 
+            # Handle upcoming_only filter
             if upcoming_only:
                 query = query.filter(Booking.booking_date >= date.today(), Booking.status == BookingStatus.CONFIRMED)
+
+            # Handle exclude_future_confirmed (for History tab - past bookings + cancelled)
+            elif exclude_future_confirmed:
+                # Include: past bookings (any status) + future cancelled/no-show bookings
+                # Exclude: future confirmed bookings
+                from sqlalchemy import and_, or_
+
+                query = query.filter(
+                    or_(
+                        # Past bookings (any status)
+                        Booking.booking_date < date.today(),
+                        # Future bookings that are NOT confirmed
+                        and_(
+                            Booking.booking_date >= date.today(),
+                            Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
+                        ),
+                    )
+                )
+
+            # Handle include_past_confirmed (for BookAgain - only completed past bookings)
+            elif include_past_confirmed:
+                # Only past bookings with COMPLETED status
+                query = query.filter(Booking.booking_date < date.today(), Booking.status == BookingStatus.COMPLETED)
 
             query = query.order_by(Booking.booking_date.desc(), Booking.start_time.desc())
 

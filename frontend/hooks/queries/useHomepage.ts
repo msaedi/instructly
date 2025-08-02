@@ -3,7 +3,7 @@ import { queryFn, convertApiResponse } from '@/lib/react-query/api';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { publicApi } from '@/features/shared/api/client';
 import { useUser } from './useUser';
-import type { UpcomingBooking } from '@/types/booking';
+import type { UpcomingBooking, BookingListResponse } from '@/types/booking';
 
 /**
  * Homepage-specific React Query hooks
@@ -31,9 +31,9 @@ export function useUpcomingBookings(limit: number = 2) {
   const { data: user } = useUser();
   const isAuthenticated = !!user;
 
-  return useQuery<UpcomingBooking[]>({
-    queryKey: [...queryKeys.bookings.upcoming, { limit }] as const,
-    queryFn: queryFn<UpcomingBooking[]>(`/bookings/upcoming?limit=${limit}`, {
+  return useQuery<BookingListResponse>({
+    queryKey: queryKeys.bookings.upcoming(limit),
+    queryFn: queryFn(`/bookings/upcoming?limit=${limit}`, {
       requireAuth: true,
     }),
     enabled: isAuthenticated, // Only run if user is authenticated
@@ -132,7 +132,7 @@ export function useBookingHistory(limit: number = 50) {
  */
 interface HomepageData {
   upcomingBookings: {
-    data?: UpcomingBooking[];
+    data?: BookingListResponse;
     isLoading: boolean;
     error: Error | null;
   };
@@ -147,7 +147,7 @@ interface HomepageData {
     error: Error | null;
   };
   bookingHistory: {
-    data?: any;
+    data?: BookingListResponse;
     isLoading: boolean;
     error: Error | null;
   };
@@ -190,8 +190,8 @@ export function useHomepageData(): HomepageData {
     queries: [
       // Upcoming bookings - only if authenticated
       {
-        queryKey: [...queryKeys.bookings.upcoming, { limit: 2 }] as const,
-        queryFn: queryFn<UpcomingBooking[]>('/bookings/upcoming?limit=2', {
+        queryKey: queryKeys.bookings.upcoming(2),
+        queryFn: queryFn<BookingListResponse>('/bookings/upcoming?limit=2', {
           requireAuth: true,
         }),
         enabled: isAuthenticated,
@@ -201,7 +201,7 @@ export function useHomepageData(): HomepageData {
       },
       // Recent searches - always fetch
       {
-        queryKey: [...queryKeys.search.recent, { limit: 3 }] as const,
+        queryKey: queryKeys.search.recent,
         queryFn: async () => {
           const response = await publicApi.getRecentSearches(3);
           return convertApiResponse(response);
@@ -222,8 +222,8 @@ export function useHomepageData(): HomepageData {
       },
       // Booking history - only if authenticated
       {
-        queryKey: [...queryKeys.bookings.history(), { status: 'COMPLETED', limit: 50 }] as const,
-        queryFn: queryFn('/bookings/', {
+        queryKey: queryKeys.bookings.history(1), // Page 1 for BookAgain component
+        queryFn: queryFn<BookingListResponse>('/bookings/', {
           params: { status: 'COMPLETED', per_page: 50 },
           requireAuth: true,
         }),

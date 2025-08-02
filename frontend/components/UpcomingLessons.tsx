@@ -1,42 +1,42 @@
 // frontend/components/UpcomingLessons.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Calendar, MapPin } from 'lucide-react';
-import { getUpcomingBookings } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
+import { queryFn } from '@/lib/react-query/api';
 import { UpcomingBooking } from '@/types/booking';
 import { logger } from '@/lib/logger';
 import { useAuth, hasRole, getPrimaryRole } from '@/features/shared/hooks/useAuth';
 import { RoleName } from '@/types/enums';
 
+interface UpcomingBookingsResponse {
+  items: UpcomingBooking[];
+  total: number;
+  page: number;
+  per_page: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
 export function UpcomingLessons() {
   const { isAuthenticated, user } = useAuth();
-  const [bookings, setBookings] = useState<UpcomingBooking[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setIsLoading(false);
-      return;
-    }
+  // Use React Query to fetch upcoming bookings
+  const {
+    data: response,
+    isLoading,
+    error,
+  } = useQuery<UpcomingBookingsResponse>({
+    queryKey: queryKeys.bookings.upcoming(2),
+    queryFn: queryFn('/bookings/upcoming?limit=2', { requireAuth: true }),
+    enabled: isAuthenticated,
+    staleTime: CACHE_TIMES.FAST, // 1 minute - upcoming lessons can change frequently
+  });
 
-    const fetchUpcomingLessons = async () => {
-      try {
-        const upcomingBookings = await getUpcomingBookings(2);
-        setBookings(upcomingBookings);
-        logger.info('Upcoming lessons loaded', { count: upcomingBookings.length });
-      } catch (err) {
-        logger.error('Failed to load upcoming lessons', err);
-        setError('Failed to load upcoming lessons');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchUpcomingLessons();
-  }, [isAuthenticated]);
+  // Extract bookings from response
+  const bookings = response?.items || [];
 
   // Don't render if not authenticated or no bookings
   if (!isAuthenticated || (!isLoading && bookings.length === 0)) {

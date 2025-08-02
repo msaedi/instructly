@@ -27,6 +27,10 @@ export interface BookingFilters {
   status?: 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
   /** Filter for upcoming bookings only */
   upcoming?: boolean; // This will be converted to upcoming_only in the API call
+  /** Exclude future confirmed bookings (for History tab) */
+  exclude_future_confirmed?: boolean;
+  /** Include past confirmed bookings (for BookAgain) */
+  include_past_confirmed?: boolean;
   /** Page number for pagination */
   page?: number;
   /** Number of items per page */
@@ -201,8 +205,11 @@ export const bookingsApi = {
 
     const params = new URLSearchParams();
     if (filters?.status) params.append('status', filters.status);
-    if (filters?.upcoming !== undefined)
-      params.append('upcoming_only', filters.upcoming.toString());
+    if (filters?.upcoming !== undefined) params.append('upcoming', filters.upcoming.toString());
+    if (filters?.exclude_future_confirmed !== undefined)
+      params.append('exclude_future_confirmed', filters.exclude_future_confirmed.toString());
+    if (filters?.include_past_confirmed !== undefined)
+      params.append('include_past_confirmed', filters.include_past_confirmed.toString());
     if (filters?.page) params.append('page', filters.page.toString());
     if (filters?.per_page) params.append('per_page', filters.per_page.toString());
 
@@ -215,7 +222,7 @@ export const bookingsApi = {
 
     const result = await response.json();
     logger.debug('Bookings fetched successfully', {
-      count: result.bookings?.length || 0,
+      count: result.items?.length || 0,
       total: result.total,
     });
     return result;
@@ -456,11 +463,12 @@ export const bookingsApi = {
 
     const data = await response.json();
     logger.debug('Upcoming bookings fetched', {
-      count: data.bookings.length,
+      count: data.bookings?.length || data.items?.length || 0,
       total: data.total,
       requestedLimit: limit,
     });
-    return data.bookings;
+    // Handle both old (bookings) and new (items) response formats
+    return data.bookings || data.items || [];
   },
 
   /**

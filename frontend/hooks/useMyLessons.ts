@@ -16,7 +16,7 @@ import type {
  */
 export function useCurrentLessons() {
   return useQuery<BookingListResponse>({
-    queryKey: queryKeys.bookings.upcoming,
+    queryKey: queryKeys.bookings.all,
     queryFn: queryFn('/bookings/', {
       params: {
         status: 'CONFIRMED',
@@ -38,32 +38,14 @@ export function useCurrentLessons() {
 export function useCompletedLessons(page: number = 1) {
   return useQuery<BookingListResponse>({
     queryKey: queryKeys.bookings.history(page),
-    queryFn: async (context) => {
-      // Fetch all bookings and filter client-side
-      // This is because the backend doesn't support fetching multiple statuses at once
-      const fetchFn = queryFn('/bookings/', {
-        params: {
-          upcoming_only: false,
-          page,
-          per_page: 50, // Increase to match BookAgain component
-        },
-        requireAuth: true,
-      });
-
-      const response = await fetchFn(context);
-
-      // Filter out only confirmed future lessons (those belong in upcoming)
-      if (response && response.bookings) {
-        const now = new Date();
-        response.bookings = response.bookings.filter((booking: Booking) => {
-          const bookingDate = new Date(`${booking.booking_date}T${booking.start_time}`);
-          // Include in history if: not confirmed OR in the past
-          return booking.status !== 'CONFIRMED' || bookingDate < now;
-        });
-      }
-
-      return response;
-    },
+    queryFn: queryFn('/bookings/', {
+      params: {
+        exclude_future_confirmed: true, // Use new backend parameter
+        page,
+        per_page: 50, // Increase to match BookAgain component
+      },
+      requireAuth: true,
+    }),
     staleTime: CACHE_TIMES.SLOW, // 15 minutes for history lessons
   });
 }
@@ -126,30 +108,27 @@ export function useCancelLesson() {
       await queryClient.cancelQueries({ queryKey: queryKeys.bookings.all });
 
       // Optimistically update the lesson status
-      const previousData = queryClient.getQueryData<BookingListResponse>(
-        queryKeys.bookings.upcoming
-      );
+      const previousData = queryClient.getQueryData<BookingListResponse>(queryKeys.bookings.all);
 
       if (previousData) {
-        queryClient.setQueryData<BookingListResponse>(queryKeys.bookings.upcoming, {
+        queryClient.setQueryData<BookingListResponse>(queryKeys.bookings.all, {
           ...previousData,
-          bookings: previousData.bookings.filter((lesson) => lesson.id !== lessonId),
+          items: previousData.items.filter((lesson) => lesson.id !== lessonId),
         });
       }
 
       return { previousData };
     },
 
-    onError: (err, variables, context) => {
+    onError: (_err, _variables, context) => {
       // Rollback on error
       if (context?.previousData) {
-        queryClient.setQueryData(queryKeys.bookings.upcoming, context.previousData);
+        queryClient.setQueryData(queryKeys.bookings.all, context.previousData);
       }
     },
 
     onSettled: () => {
       // Refetch to ensure consistency
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.upcoming });
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
     },
   });
@@ -198,10 +177,10 @@ export function useRescheduleLesson() {
       return { previousDetail };
     },
 
-    onError: (err, variables, context) => {
+    onError: (_err, _variables, context) => {
       // Rollback on error
       if (context?.previousDetail) {
-        const detailKey = queryKeys.bookings.detail(String(variables.lessonId));
+        const detailKey = queryKeys.bookings.detail(String(_variables.lessonId));
         queryClient.setQueryData(detailKey, context.previousDetail);
       }
     },
@@ -224,7 +203,7 @@ export function useCompleteLesson() {
 
     onSuccess: (data) => {
       // Update cache
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.upcoming });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(String(data.id)) });
     },
   });
@@ -241,7 +220,7 @@ export function useMarkNoShow() {
 
     onSuccess: (data) => {
       // Update cache
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.upcoming });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(String(data.id)) });
     },
   });

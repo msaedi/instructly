@@ -62,7 +62,7 @@ const renderWithProviders = (ui: React.ReactElement) => {
 
 describe('MyLessonsPage', () => {
   const mockUpcomingLessons = {
-    bookings: [
+    items: [
       {
         id: 1,
         booking_date: '2024-12-25',
@@ -104,10 +104,15 @@ describe('MyLessonsPage', () => {
         },
       },
     ],
+    total: 2,
+    page: 1,
+    per_page: 50,
+    has_next: false,
+    has_prev: false,
   };
 
   const mockHistoryLessons = {
-    bookings: [
+    items: [
       {
         id: 3,
         booking_date: '2024-12-20',
@@ -151,6 +156,11 @@ describe('MyLessonsPage', () => {
         },
       },
     ],
+    total: 2,
+    page: 1,
+    per_page: 50,
+    has_next: false,
+    has_prev: false,
   };
 
   beforeEach(() => {
@@ -308,12 +318,12 @@ describe('MyLessonsPage', () => {
   it('shows empty state for upcoming lessons', () => {
     const { useCurrentLessons, useCompletedLessons } = require('@/hooks/useMyLessons');
     useCurrentLessons.mockReturnValue({
-      data: { bookings: [] },
+      data: { items: [], total: 0, page: 1, per_page: 50, has_next: false, has_prev: false },
       isLoading: false,
       error: null,
     });
     useCompletedLessons.mockReturnValue({
-      data: { bookings: [] },
+      data: { items: [], total: 0, page: 1, per_page: 50, has_next: false, has_prev: false },
       isLoading: false,
       error: null,
     });
@@ -322,18 +332,17 @@ describe('MyLessonsPage', () => {
 
     expect(screen.getByText("You don't have any upcoming lessons")).toBeInTheDocument();
     expect(screen.getByText('Ready to learn something new?')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /find instructors/i })).toBeInTheDocument();
   });
 
   it('shows empty state for history', async () => {
     const { useCurrentLessons, useCompletedLessons } = require('@/hooks/useMyLessons');
     useCurrentLessons.mockReturnValue({
-      data: { bookings: [] },
+      data: { items: [], total: 0, page: 1, per_page: 50, has_next: false, has_prev: false },
       isLoading: false,
       error: null,
     });
     useCompletedLessons.mockReturnValue({
-      data: { bookings: [] },
+      data: { items: [], total: 0, page: 1, per_page: 50, has_next: false, has_prev: false },
       isLoading: false,
       error: null,
     });
@@ -406,15 +415,15 @@ describe('MyLessonsPage', () => {
     expect(skeletons.length).toBeGreaterThan(0);
   });
 
-  it('navigates to search when Find Instructors is clicked', () => {
+  it('shows correct empty state message for upcoming lessons', () => {
     const { useCurrentLessons, useCompletedLessons } = require('@/hooks/useMyLessons');
     useCurrentLessons.mockReturnValue({
-      data: { bookings: [] },
+      data: { items: [], total: 0, page: 1, per_page: 50, has_next: false, has_prev: false },
       isLoading: false,
       error: null,
     });
     useCompletedLessons.mockReturnValue({
-      data: { bookings: [] },
+      data: { items: [], total: 0, page: 1, per_page: 50, has_next: false, has_prev: false },
       isLoading: false,
       error: null,
     });
@@ -423,11 +432,7 @@ describe('MyLessonsPage', () => {
 
     // Wait for the component to render
     expect(screen.getByText("You don't have any upcoming lessons")).toBeInTheDocument();
-
-    const findInstructorsButton = screen.getByRole('button', { name: /find instructors/i });
-    fireEvent.click(findInstructorsButton);
-
-    expect(mockPush).toHaveBeenCalledWith('/search');
+    expect(screen.getByText('Ready to learn something new?')).toBeInTheDocument();
   });
 
   it('maintains tab state when switching between tabs', async () => {

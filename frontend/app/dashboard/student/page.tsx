@@ -2,13 +2,14 @@
 'use client';
 
 import { BRAND } from '@/app/config/brand';
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Calendar, Search, LogOut } from 'lucide-react';
-import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
-import { bookingsApi } from '@/lib/api/bookings';
-import { Booking } from '@/types/booking';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
+import { queryFn } from '@/lib/react-query/api';
+import { BookingListResponse } from '@/types/booking';
 import { logger } from '@/lib/logger';
 import { useAuth, hasRole, type User } from '@/features/shared/hooks/useAuth';
 import { RoleName } from '@/types/enums';
@@ -36,95 +37,60 @@ import { RoleName } from '@/types/enums';
 export default function StudentDashboard() {
   const router = useRouter();
   const { logout } = useAuth();
-  const [userData, setUserData] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([]);
-  const [bookingsLoading, setBookingsLoading] = useState(true);
 
+  // Fetch user data with React Query
+  const {
+    data: userData,
+    isLoading: isLoadingUser,
+    error: userError,
+  } = useQuery<User>({
+    queryKey: queryKeys.user,
+    queryFn: queryFn('/auth/me', { requireAuth: true }),
+    staleTime: CACHE_TIMES.SESSION, // Session-long cache
+    retry: false,
+  });
+
+  // Fetch upcoming bookings with React Query
+  const { data: bookingsData, isLoading: isLoadingBookings } = useQuery<BookingListResponse>({
+    queryKey: queryKeys.bookings.upcoming(10), // Call the function with limit
+    queryFn: queryFn('/bookings/', {
+      params: {
+        upcoming: true,
+        per_page: 10,
+      },
+      requireAuth: true,
+    }),
+    staleTime: CACHE_TIMES.FREQUENT, // 5 minutes
+    enabled: !!userData && hasRole(userData, RoleName.STUDENT), // Only fetch if user is a student
+  });
+
+  // Sort bookings by date (nearest first)
+  const upcomingBookings =
+    bookingsData?.items?.sort((a, b) => {
+      const dateTimeA = new Date(`${a.booking_date}T${a.start_time}`);
+      const dateTimeB = new Date(`${b.booking_date}T${b.start_time}`);
+      return dateTimeA.getTime() - dateTimeB.getTime();
+    }) || [];
+
+  const isLoading = isLoadingUser;
+  const bookingsLoading = isLoadingBookings;
+
+  // Handle authentication and role-based redirects
   useEffect(() => {
-    logger.info('Student dashboard loaded');
-    fetchUserData();
-  }, [router]);
-
-  /**
-   * Fetch user data and verify student role
-   * Redirects to appropriate dashboard if not a student
-   */
-  const fetchUserData = async () => {
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      logger.warn('No access token found, redirecting to login');
+    if (userError || (!isLoadingUser && !userData)) {
+      logger.warn('No user data, redirecting to login');
       router.push('/login');
       return;
     }
 
-    try {
-      logger.debug('Fetching user data');
-      const response = await fetchWithAuth(API_ENDPOINTS.ME);
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch user data');
-      }
-
-      const data = await response.json();
-
-      // Verify user role
-      if (!hasRole(data, RoleName.STUDENT)) {
-        logger.info('User is not a student, redirecting to instructor dashboard', {
-          userId: data.id,
-          roles: data.roles,
-        });
-        router.push('/dashboard/instructor');
-        return;
-      }
-
-      logger.info('Student data loaded successfully', {
-        userId: data.id,
-        email: data.email,
+    if (userData && !hasRole(userData, RoleName.STUDENT)) {
+      logger.info('User is not a student, redirecting to instructor dashboard', {
+        userId: userData.id,
+        roles: userData.roles,
       });
-
-      setUserData(data);
-      // Once we have user data, fetch bookings
-      fetchBookings();
-    } catch (err) {
-      logger.error('Error fetching user data', err);
-      router.push('/login');
-    } finally {
-      setIsLoading(false);
+      router.push('/dashboard/instructor');
     }
-  };
-
-  /**
-   * Fetch upcoming bookings for the student
-   */
-  const fetchBookings = async () => {
-    try {
-      logger.debug('Fetching upcoming bookings for student dashboard');
-
-      const myBookings = await bookingsApi.getMyBookings({
-        upcoming: true,
-        per_page: 10,
-      });
-
-      // If we have bookings, sort them by date (nearest first) and store them
-      if (myBookings.bookings && Array.isArray(myBookings.bookings)) {
-        const sortedBookings = myBookings.bookings.sort((a, b) => {
-          const dateTimeA = new Date(`${a.booking_date}T${a.start_time}`);
-          const dateTimeB = new Date(`${b.booking_date}T${b.start_time}`);
-          return dateTimeA.getTime() - dateTimeB.getTime();
-        });
-
-        logger.info('Upcoming bookings loaded and sorted', {
-          count: sortedBookings.length,
-        });
-        setUpcomingBookings(sortedBookings);
-      }
-    } catch (error) {
-      logger.error('Error fetching bookings', error);
-    } finally {
-      setBookingsLoading(false);
-    }
-  };
+  }, [userData, userError, isLoadingUser, router]);
 
   /**
    * Handle user logout

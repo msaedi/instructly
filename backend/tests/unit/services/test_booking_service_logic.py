@@ -417,7 +417,12 @@ class TestBookingServiceUnit:
         assert len(bookings) == 1
         assert bookings[0] == mock_booking
         booking_service.repository.get_student_bookings.assert_called_once_with(
-            student_id=mock_student.id, status=None, upcoming_only=False, limit=None
+            student_id=mock_student.id,
+            status=None,
+            upcoming_only=False,
+            exclude_future_confirmed=False,
+            include_past_confirmed=False,
+            limit=None,
         )
 
     def test_get_bookings_for_instructor(self, booking_service, mock_instructor, mock_booking):
@@ -428,7 +433,12 @@ class TestBookingServiceUnit:
 
         assert len(bookings) == 1
         booking_service.repository.get_instructor_bookings.assert_called_once_with(
-            instructor_id=mock_instructor.id, status=None, upcoming_only=False, limit=None
+            instructor_id=mock_instructor.id,
+            status=None,
+            upcoming_only=False,
+            exclude_future_confirmed=False,
+            include_past_confirmed=False,
+            limit=None,
         )
 
     def test_get_booking_stats_empty(self, booking_service, mock_instructor):

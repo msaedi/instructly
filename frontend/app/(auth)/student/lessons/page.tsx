@@ -11,6 +11,7 @@ import { AlertCircle } from 'lucide-react';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { isApiError } from '@/lib/react-query/api';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
+import type { BookingListResponse } from '@/types/booking';
 
 function MyLessonsContent() {
   const router = useRouter();
@@ -37,7 +38,10 @@ function MyLessonsContent() {
 
   const isLoading = activeTab === 'upcoming' ? isLoadingUpcoming : isLoadingHistory;
   const error = activeTab === 'upcoming' ? errorUpcoming : errorHistory;
-  const lessons = activeTab === 'upcoming' ? upcomingLessons?.bookings : historyLessons?.bookings;
+  const lessons =
+    activeTab === 'upcoming'
+      ? (upcomingLessons as BookingListResponse | undefined)?.items
+      : (historyLessons as BookingListResponse | undefined)?.items;
 
   // Update URL when tab changes
   const handleTabChange = (tab: 'upcoming' | 'history') => {
@@ -157,13 +161,7 @@ function MyLessonsContent() {
                 <p className="text-lg text-muted-foreground mb-4">
                   You don't have any upcoming lessons
                 </p>
-                <p className="text-muted-foreground mb-6">Ready to learn something new?</p>
-                <Button
-                  onClick={() => router.push('/search')}
-                  className="bg-primary hover:bg-primary/90 cursor-pointer"
-                >
-                  Find Instructors
-                </Button>
+                <p className="text-muted-foreground">Ready to learn something new?</p>
               </>
             ) : (
               <>

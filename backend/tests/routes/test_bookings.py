@@ -238,7 +238,7 @@ class TestBookingRoutes:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["total"] == 3
-        assert len(data["bookings"]) == 3
+        assert len(data["items"]) == 3
         assert data["page"] == 1
         assert data["per_page"] == 20
 
@@ -500,13 +500,13 @@ class TestBookingRoutes:
         # Verify
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert "bookings" in data
+        assert "items" in data
         assert data["total"] == 2
         assert data["page"] == 1
         assert data["per_page"] == 5
-        assert len(data["bookings"]) == 2
-        assert data["bookings"][0]["service_name"] == "Service 1"
-        assert data["bookings"][0]["student_name"] == "Test Student"
+        assert len(data["items"]) == 2
+        assert data["items"][0]["service_name"] == "Service 1"
+        assert data["items"][0]["student_name"] == "Test Student"
 
     def test_get_booking_preview(self, client_with_mock_booking_service, auth_headers_student, mock_booking_service):
         """Test getting booking preview."""
@@ -672,7 +672,7 @@ class TestBookingRoutes:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["total"] == 0
-        assert len(data["bookings"]) == 0
+        assert len(data["items"]) == 0
 
     def test_get_bookings_invalid_pagination(self, client, auth_headers_student):
         """Test invalid pagination parameters."""
@@ -746,11 +746,11 @@ class TestBookingRoutes:
         response = client_with_mock_booking_service.get("/bookings/upcoming", headers=auth_headers_student)
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert "bookings" in data
+        assert "items" in data
         assert data["total"] == 0
         assert data["page"] == 1
         assert data["per_page"] == 5
-        assert len(data["bookings"]) == 0
+        assert len(data["items"]) == 0
 
     def test_check_availability_time_conflicts(
         self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
@@ -953,8 +953,8 @@ class TestBookingRoutes:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["total"] == 2
-        assert len(data["bookings"]) == 2
-        assert data["bookings"][0]["service_name"] == "Guitar Lesson"
+        assert len(data["items"]) == 2
+        assert data["items"][0]["service_name"] == "Guitar Lesson"
 
     def test_check_availability_blackout_date(
         self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
@@ -1076,13 +1076,13 @@ class TestBookingIntegration:
         # Verify booking appears in student's list
         response = client.get("/bookings/", headers=student_headers)
         assert response.status_code == status.HTTP_200_OK
-        bookings = response.json()["bookings"]
+        bookings = response.json()["items"]
         assert any(b["id"] == booking_id for b in bookings)
 
         # Verify booking appears in instructor's list
         response = client.get("/bookings/", headers=instructor_headers)
         assert response.status_code == status.HTTP_200_OK
-        bookings = response.json()["bookings"]
+        bookings = response.json()["items"]
         assert any(b["id"] == booking_id for b in bookings)
 
         # Complete the booking (as instructor)

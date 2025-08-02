@@ -558,21 +558,33 @@ export const publicApi = {
    */
   async getInstructorProfile(instructorId: string) {
     return cleanFetch<{
-      id: string;
+      user_id: number;
+      bio: string;
+      areas_of_service: string[];
+      years_experience: number;
+      min_advance_booking_hours: number;
+      buffer_time_minutes: number;
+      created_at: string;
+      updated_at?: string;
       user: {
-        first_name: string;
-        last_name: string;
+        full_name: string;
         email: string;
       };
-      bio: string;
-      subjects: string[];
-      hourly_rate: number;
-      rating: number;
-      total_reviews: number;
-      total_hours_taught: number;
-      years_of_experience: number;
-      education: string;
-      languages: string[];
+      services: Array<{
+        id: number;
+        service_catalog_id: number;
+        name?: string;
+        hourly_rate: number;
+        description?: string;
+        duration_options: number[];
+        is_active?: boolean;
+      }>;
+      rating?: number;
+      total_reviews?: number;
+      total_hours_taught?: number;
+      education?: string;
+      languages?: string[];
+      verified?: boolean;
     }>(PUBLIC_ENDPOINTS.instructors.profile(instructorId));
   },
 

@@ -63,34 +63,31 @@ export default function QuickBookingPage() {
   useEffect(() => {
     const fetchInstructor = async () => {
       try {
-        const response = await publicApi.searchInstructors({
-          service_catalog_id: 1, // Temporary fix - this page should use getInstructorProfile instead
-        });
+        const response = await publicApi.getInstructorProfile(instructorId);
+
+        if (response.error) {
+          logger.error('API error fetching instructor', new Error(response.error));
+          setError(response.error);
+          return;
+        }
+
         if (response.data) {
-          // API now returns standardized paginated response
-          const instructorsList = response.data.items;
-          const found = instructorsList.find(
-            (inst: any) => inst.user_id.toString() === instructorId
-          );
+          setInstructor({
+            ...response.data,
+            rating: response.data.rating || 4.8,
+            total_reviews: response.data.total_reviews || Math.floor(Math.random() * 200) + 50,
+            verified: response.data.verified !== undefined ? response.data.verified : true,
+          });
 
-          if (found) {
-            setInstructor({
-              ...found,
-              rating: (found as any).rating || 4.8,
-              total_reviews: (found as any).total_reviews || Math.floor(Math.random() * 200) + 50,
-              verified: (found as any).verified !== undefined ? (found as any).verified : true,
-            });
-
-            // Set default service
-            if (found.services.length > 0) {
-              setSelectedService(found.services[0]);
-              // Use first available duration option, default to 60 if none available
-              const defaultDuration = found.services[0].duration_options?.[0] || 60;
-              setDuration(defaultDuration);
-            }
-          } else {
-            setError('Instructor not found');
+          // Set default service
+          if (response.data.services.length > 0) {
+            setSelectedService(response.data.services[0]);
+            // Use first available duration option, default to 60 if none available
+            const defaultDuration = response.data.services[0].duration_options?.[0] || 60;
+            setDuration(defaultDuration);
           }
+        } else {
+          setError('Instructor not found');
         }
       } catch (err) {
         logger.error('Error fetching instructor', err);

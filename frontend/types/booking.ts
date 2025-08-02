@@ -113,14 +113,14 @@ export interface BlackoutDate {
 }
 
 // API Response wrappers
-export interface PaginatedResponse<T> {
-  bookings: T[]; // Changed from 'items' to match backend
+export interface BookingListResponse {
+  items: Booking[]; // Standardized PaginatedResponse format
   total: number;
   page: number;
   per_page: number;
+  has_next: boolean;
+  has_prev: boolean;
 }
-
-export interface BookingListResponse extends PaginatedResponse<Booking> {}
 
 export interface AvailabilityResponse {
   instructor_id: number;
@@ -271,22 +271,6 @@ export interface BookingFilters {
 export interface CancelBookingRequest {
   /** Reason for cancellation */
   cancellation_reason: string;
-}
-
-/**
- * Response for booking list queries
- */
-export interface BookingListResponse {
-  /** Array of bookings */
-  bookings: Booking[];
-  /** Total number of bookings (for pagination) */
-  total: number;
-  /** Current page number */
-  page: number;
-  /** Items per page */
-  per_page: number;
-  /** Total number of pages */
-  pages: number;
 }
 
 /**

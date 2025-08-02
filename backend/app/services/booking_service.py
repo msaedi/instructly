@@ -237,15 +237,19 @@ class BookingService(BaseService):
         user: User,
         status: Optional[BookingStatus] = None,
         upcoming_only: bool = False,
+        exclude_future_confirmed: bool = False,
+        include_past_confirmed: bool = False,
         limit: Optional[int] = None,
     ) -> List[Booking]:
         """
-        Get bookings for a user (student or instructor).
+        Get bookings for a user (student or instructor) with advanced filtering.
 
         Args:
             user: User to get bookings for
             status: Optional status filter
             upcoming_only: Only return future bookings
+            exclude_future_confirmed: Exclude future confirmed bookings (for History tab)
+            include_past_confirmed: Include past confirmed bookings (for BookAgain)
             limit: Optional result limit
 
         Returns:
@@ -253,11 +257,21 @@ class BookingService(BaseService):
         """
         if any(role.name == RoleName.STUDENT for role in user.roles):
             return self.repository.get_student_bookings(
-                student_id=user.id, status=status, upcoming_only=upcoming_only, limit=limit
+                student_id=user.id,
+                status=status,
+                upcoming_only=upcoming_only,
+                exclude_future_confirmed=exclude_future_confirmed,
+                include_past_confirmed=include_past_confirmed,
+                limit=limit,
             )
         else:  # INSTRUCTOR
             return self.repository.get_instructor_bookings(
-                instructor_id=user.id, status=status, upcoming_only=upcoming_only, limit=limit
+                instructor_id=user.id,
+                status=status,
+                upcoming_only=upcoming_only,
+                exclude_future_confirmed=exclude_future_confirmed,
+                include_past_confirmed=include_past_confirmed,
+                limit=limit,
             )
 
     @BaseService.measure_operation("get_booking_stats_for_instructor")

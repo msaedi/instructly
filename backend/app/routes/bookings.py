@@ -47,17 +47,16 @@ from ..dependencies.permissions import require_permission
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ..models.booking import BookingStatus
 from ..models.user import User
+from ..schemas.base_responses import PaginatedResponse
 from ..schemas.booking import (
     AvailabilityCheckRequest,
     AvailabilityCheckResponse,
     BookingCancel,
     BookingCreate,
-    BookingListResponse,
     BookingResponse,
     BookingStatsResponse,
     BookingUpdate,
     UpcomingBookingResponse,
-    UpcomingBookingsListResponse,
 )
 from ..services.booking_service import BookingService
 
@@ -76,7 +75,7 @@ def handle_domain_exception(exc: DomainException):
 # 1. First: all specific routes
 
 
-@router.get("/upcoming", response_model=UpcomingBookingsListResponse)
+@router.get("/upcoming", response_model=PaginatedResponse[UpcomingBookingResponse])
 async def get_upcoming_bookings(
     limit: int = Query(5, ge=1, le=20),
     current_user: User = Depends(get_current_active_user),
@@ -107,9 +106,14 @@ async def get_upcoming_bookings(
                 )
             )
 
-        # Return consistent paginated format
-        return UpcomingBookingsListResponse(
-            bookings=upcoming_bookings, total=len(upcoming_bookings), page=1, per_page=limit
+        # Return standardized paginated response
+        return PaginatedResponse(
+            items=upcoming_bookings,
+            total=len(upcoming_bookings),
+            page=1,
+            per_page=limit,
+            has_next=False,  # Single page for dashboard widget
+            has_prev=False,
         )
     except DomainException as e:
         handle_domain_exception(e)
@@ -201,18 +205,44 @@ async def send_reminder_emails(
 # 2. Then: routes without path params
 
 
-@router.get("/", response_model=BookingListResponse)
+@router.get("/", response_model=PaginatedResponse[BookingResponse])
 async def get_bookings(
     status: Optional[BookingStatus] = None,
-    upcoming_only: bool = False,
+    upcoming_only: Optional[bool] = None,
+    upcoming: Optional[bool] = None,  # Support both upcoming and upcoming_only for frontend compatibility
+    exclude_future_confirmed: bool = False,
+    include_past_confirmed: bool = False,
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
 ):
-    """Get bookings for the current user with pagination."""
+    """
+    Get bookings for the current user with advanced filtering.
+
+    Parameters:
+    - status: Filter by specific booking status
+    - upcoming/upcoming_only: Only return future bookings (accepts both parameter names)
+    - exclude_future_confirmed: Exclude future confirmed bookings (for History tab)
+    - include_past_confirmed: Include past confirmed bookings (for BookAgain)
+    - page/per_page: Pagination parameters
+
+    Returns: Standardized PaginatedResponse with BookingResponse items
+    """
     try:
-        bookings = booking_service.get_bookings_for_user(user=current_user, status=status, upcoming_only=upcoming_only)
+        # Handle both upcoming and upcoming_only parameters
+        if upcoming is not None:
+            upcoming_only = upcoming
+        elif upcoming_only is None:
+            upcoming_only = False
+
+        bookings = booking_service.get_bookings_for_user(
+            user=current_user,
+            status=status,
+            upcoming_only=upcoming_only,
+            exclude_future_confirmed=exclude_future_confirmed,
+            include_past_confirmed=include_past_confirmed,
+        )
 
         # Apply pagination
         total = len(bookings)
@@ -220,7 +250,17 @@ async def get_bookings(
         end = start + per_page
         paginated_bookings = bookings[start:end]
 
-        return BookingListResponse(bookings=paginated_bookings, total=total, page=page, per_page=per_page)
+        # Convert to BookingResponse objects
+        booking_responses = [BookingResponse.model_validate(booking) for booking in paginated_bookings]
+
+        return PaginatedResponse(
+            items=booking_responses,
+            total=total,
+            page=page,
+            per_page=per_page,
+            has_next=page * per_page < total,
+            has_prev=page > 1,
+        )
     except DomainException as e:
         handle_domain_exception(e)
 

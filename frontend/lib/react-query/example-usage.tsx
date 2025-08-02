@@ -122,13 +122,13 @@ function BookingForm({ instructorId, serviceId }: any) {
     }),
     onMutate: async (newBooking: any) => {
       // Cancel ongoing queries
-      await queryClient.cancelQueries({ queryKey: queryKeys.bookings.upcoming });
+      await queryClient.cancelQueries({ queryKey: queryKeys.bookings.all });
 
       // Snapshot previous value
-      const previousBookings = queryClient.getQueryData(queryKeys.bookings.upcoming);
+      const previousBookings = queryClient.getQueryData(queryKeys.bookings.all);
 
       // Optimistically update
-      queryClient.setQueryData(queryKeys.bookings.upcoming, (old: any) => {
+      queryClient.setQueryData(queryKeys.bookings.all, (old: any) => {
         return [...(old || []), { ...newBooking, id: 'temp-id', status: 'pending' }];
       });
 
@@ -136,11 +136,11 @@ function BookingForm({ instructorId, serviceId }: any) {
     },
     onError: (err, newBooking, context) => {
       // Rollback on error
-      queryClient.setQueryData(queryKeys.bookings.upcoming, context?.previousBookings);
+      queryClient.setQueryData(queryKeys.bookings.all, context?.previousBookings);
     },
     onSettled: () => {
       // Refetch after mutation
-      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.upcoming });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
     },
   });
 
