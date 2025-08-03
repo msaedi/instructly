@@ -1,12 +1,12 @@
 // frontend/app/instructors/[id]/page.tsx
 
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
 import { Star, MapPin, Check, Clock, BookOpen } from 'lucide-react';
 import { publicApi } from '@/features/shared/api/client';
 import AvailabilityCalendar from '@/components/AvailabilityCalendar';
 import InstructorProfileNav from '@/components/InstructorProfileNav';
 import { logger } from '@/lib/logger';
+import BackButton from '@/components/BackButton';
 
 // Force dynamic rendering to avoid build-time API calls
 export const dynamic = 'force-dynamic';
@@ -110,12 +110,9 @@ export default async function InstructorProfilePage({ params }: InstructorProfil
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Error</h1>
           <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
-          <Link
-            href="/search"
-            className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Back to Search
-          </Link>
+          <BackButton className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            Back
+          </BackButton>
         </div>
       </div>
     );

@@ -69,17 +69,25 @@ export function UpcomingLessons() {
   }
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
+    // Parse the date string properly (assuming YYYY-MM-DD format from backend)
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const bookingDate = new Date(year, month - 1, day); // month is 0-indexed
+
     const today = new Date();
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    if (date.toDateString() === today.toDateString()) {
+    // Compare using date strings to avoid timezone issues
+    const bookingDateStr = bookingDate.toDateString();
+    const todayStr = today.toDateString();
+    const tomorrowStr = tomorrow.toDateString();
+
+    if (bookingDateStr === todayStr) {
       return 'Today';
-    } else if (date.toDateString() === tomorrow.toDateString()) {
+    } else if (bookingDateStr === tomorrowStr) {
       return 'Tomorrow';
     } else {
-      return date.toLocaleDateString('en-US', {
+      return bookingDate.toLocaleDateString('en-US', {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
