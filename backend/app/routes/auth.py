@@ -21,7 +21,7 @@ from ..core.config import settings
 from ..core.exceptions import ConflictException, NotFoundException
 from ..database import get_db
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
-from ..schemas import Token, UserCreate, UserLogin, UserResponse, UserWithPermissionsResponse
+from ..schemas import Token, UserCreate, UserLogin, UserResponse, UserUpdate, UserWithPermissionsResponse
 from ..services.auth_service import AuthService
 from ..services.permission_service import PermissionService
 from ..services.search_history_service import SearchHistoryService
@@ -85,6 +85,7 @@ async def register(
             email=db_user.email,
             full_name=db_user.full_name,
             is_active=db_user.is_active,
+            timezone=db_user.timezone,
             roles=[role.name for role in db_user.roles],
             permissions=[],  # TODO: Add permissions if needed
         )
@@ -247,6 +248,7 @@ async def read_users_me(
             email=user.email,
             full_name=user.full_name,
             is_active=user.is_active,
+            timezone=user.timezone,
             roles=roles,
             permissions=list(permissions),
         )
@@ -254,4 +256,67 @@ async def read_users_me(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
+        )
+
+
+@router.patch("/me", response_model=UserWithPermissionsResponse)
+async def update_current_user(
+    user_update: UserUpdate,
+    current_user: str = Depends(get_current_user),
+    auth_service: AuthService = Depends(get_auth_service),
+    db: Session = Depends(get_db),
+):
+    """
+    Update current user's profile (including timezone).
+
+    Args:
+        user_update: Fields to update
+        current_user: Current user email from JWT
+        auth_service: Authentication service
+        db: Database session
+
+    Returns:
+        UserWithPermissionsResponse: Updated user data
+
+    Raises:
+        HTTPException: If user not found or update fails
+    """
+    try:
+        user = auth_service.get_current_user(email=current_user)
+
+        # Update fields if provided
+        if user_update.full_name is not None:
+            user.full_name = user_update.full_name
+        if user_update.timezone is not None:
+            user.timezone = user_update.timezone
+
+        # Save changes
+        db.commit()
+        db.refresh(user)
+
+        # Get permissions for the response
+        permission_service = PermissionService(db)
+        permissions = permission_service.get_user_permissions(user.id)
+        roles = permission_service.get_user_roles(user.id)
+
+        return UserWithPermissionsResponse(
+            id=user.id,
+            email=user.email,
+            full_name=user.full_name,
+            is_active=user.is_active,
+            timezone=user.timezone,
+            roles=roles,
+            permissions=list(permissions),
+        )
+    except NotFoundException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+    except Exception as e:
+        logger.error(f"Error updating user profile: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update user profile",
         )

@@ -1,79 +1,67 @@
 """
 Timezone utilities for InstaInstru platform.
 
-Provides user-based timezone support while maintaining NYC as default.
-This allows the platform to scale beyond NYC in the future.
+Provides user-based timezone support.
 """
 
 from datetime import date, datetime
-from typing import Optional
+from typing import TYPE_CHECKING
 
 import pytz
 from sqlalchemy.orm import Session
 
-# Default timezone for the platform (NYC for now)
-DEFAULT_TIMEZONE = pytz.timezone("America/New_York")
+if TYPE_CHECKING:
+    from app.models.user import User
 
 
-def get_user_timezone(user_id: Optional[int] = None, db: Optional[Session] = None) -> pytz.timezone:
+def get_user_timezone(user: "User") -> pytz.timezone:
     """
     Get user's timezone preference.
 
     Args:
-        user_id: User ID to look up timezone for
-        db: Database session (for future user timezone lookup)
+        user: User object (always has timezone field)
 
     Returns:
-        User's timezone or default NYC timezone
+        User's timezone as pytz timezone object
     """
-    # For now, always return NYC timezone
-    # TODO: When user timezone preferences are added, query from database
-    # if user_id and db:
-    #     user = db.query(User).filter(User.id == user_id).first()
-    #     if user and user.timezone:
-    #         return pytz.timezone(user.timezone)
-
-    return DEFAULT_TIMEZONE
+    return pytz.timezone(user.timezone)
 
 
-def get_user_today(user_id: Optional[int] = None, db: Optional[Session] = None) -> date:
+def get_user_today(user: "User") -> date:
     """
     Get 'today' in the user's timezone.
 
     Args:
-        user_id: User ID to get timezone for
-        db: Database session
+        user: User object
 
     Returns:
         Today's date in user's timezone
     """
-    user_tz = get_user_timezone(user_id, db)
+    user_tz = get_user_timezone(user)
     return datetime.now(user_tz).date()
 
 
-def get_user_now(user_id: Optional[int] = None, db: Optional[Session] = None) -> datetime:
+def get_user_now(user: "User") -> datetime:
     """
     Get current datetime in user's timezone.
 
     Args:
-        user_id: User ID to get timezone for
-        db: Database session
+        user: User object
 
     Returns:
         Current datetime in user's timezone
     """
-    user_tz = get_user_timezone(user_id, db)
+    user_tz = get_user_timezone(user)
     return datetime.now(user_tz)
 
 
-def convert_to_user_timezone(dt: datetime, user_id: Optional[int] = None, db: Optional[Session] = None) -> datetime:
+def convert_to_user_timezone(dt: datetime, user: "User") -> datetime:
     """
     Convert UTC datetime to user's timezone.
 
     Args:
         dt: Datetime to convert
-        user_id: User ID to get timezone for
-        db: Database session
+        user: User object
 
     Returns:
         Datetime in user's timezone
@@ -82,28 +70,52 @@ def convert_to_user_timezone(dt: datetime, user_id: Optional[int] = None, db: Op
         # Assume UTC if no timezone info
         dt = pytz.UTC.localize(dt)
 
-    user_tz = get_user_timezone(user_id, db)
+    user_tz = get_user_timezone(user)
     return dt.astimezone(user_tz)
 
 
-def format_datetime_for_user(dt: datetime, user_id: Optional[int] = None, db: Optional[Session] = None) -> dict:
+def format_datetime_for_user(dt: datetime, user: "User") -> dict:
     """
     Format datetime with timezone info for frontend.
 
     Args:
         dt: Datetime to format
-        user_id: User ID to get timezone for
-        db: Database session
+        user: User object
 
     Returns:
         Dictionary with various datetime formats
     """
-    user_dt = convert_to_user_timezone(dt, user_id, db)
+    user_dt = convert_to_user_timezone(dt, user)
 
     return {
         "iso": dt.isoformat(),  # UTC ISO format
         "local": user_dt.isoformat(),  # User's timezone
-        "timezone": str(get_user_timezone(user_id, db)),
+        "timezone": str(get_user_timezone(user)),
         "date": user_dt.date().isoformat(),
         "time": user_dt.time().isoformat(),
     }
+
+
+def get_user_today_by_id(user_id: int, db: Session) -> date:
+    """
+    Get today's date for a user by ID.
+
+    This helper is used by cached repository methods that work with user IDs
+    rather than User objects to maintain efficient cache keys.
+
+    Args:
+        user_id: The ID of the user
+        db: Database session to fetch user
+
+    Returns:
+        Today's date in user's timezone
+
+    Raises:
+        ValueError: If user not found
+    """
+    from app.models.user import User
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise ValueError(f"User with id {user_id} not found")
+    return get_user_today(user)

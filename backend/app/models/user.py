@@ -70,6 +70,7 @@ class User(Base):
     # Account lifecycle status - active, suspended, or deactivated
     # Check constraint in migration ensures valid values
     account_status = Column(String(20), nullable=False, default="active")
+    timezone = Column(String(50), nullable=False, default="America/New_York")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
