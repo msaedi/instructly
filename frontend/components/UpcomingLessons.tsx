@@ -157,9 +157,11 @@ export function UpcomingLessons() {
                   </div>
                 )}
                 <Link
-                  href={`/dashboard/${getPrimaryRole(user) || RoleName.STUDENT}/bookings/${
-                    booking.id
-                  }`}
+                  href={
+                    hasRole(user, RoleName.STUDENT)
+                      ? `/student/lessons/${booking.id}`
+                      : `/dashboard/instructor/bookings/${booking.id}`
+                  }
                   className="text-blue-600 dark:text-blue-400 hover:underline text-sm font-medium"
                 >
                   View Details
