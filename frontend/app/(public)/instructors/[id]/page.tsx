@@ -23,7 +23,7 @@ function InstructorProfileContent() {
   const params = useParams();
   const router = useRouter();
   const instructorId = params.id as string;
-  const [selectedSlot, setSelectedSlot] = useState<{ date: string; time: string; duration: number } | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<{ date: string; time: string; duration: number; availableDuration?: number } | null>(null);
   const [weekStart, setWeekStart] = useState<Date | null>(null);
 
   const { data: instructor, isLoading, error } = useInstructorProfile(instructorId);
@@ -144,7 +144,7 @@ function InstructorProfileContent() {
             <h2 className="text-xl font-semibold mb-4">Services & Pricing</h2>
             <ServiceCards
               services={instructor.services}
-              onBookService={(service) => bookingModal.openBookingModal({ service })}
+              onBookService={(service, duration) => bookingModal.openBookingModal({ service, duration })}
             />
           </section>
 
@@ -209,8 +209,8 @@ function InstructorProfileContent() {
                   weekStart={weekStart}
                   onWeekChange={setWeekStart}
                   selectedSlot={selectedSlot}
-                  onSelectSlot={(date: string, time: string) =>
-                    setSelectedSlot({ date, time, duration: 60 })
+                  onSelectSlot={(date: string, time: string, duration?: number, availableDuration?: number) =>
+                    setSelectedSlot({ date, time, duration: duration || 60, availableDuration })
                   }
                 />
               </div>
@@ -254,7 +254,7 @@ function InstructorProfileContent() {
             <ServiceCards
               services={instructor.services}
               selectedSlot={selectedSlot}
-              onBookService={(service) => bookingModal.openBookingModal({ service })}
+              onBookService={(service, duration) => bookingModal.openBookingModal({ service, duration })}
             />
           </div>
 
@@ -277,6 +277,10 @@ function InstructorProfileContent() {
         <BookingModal
           isOpen={bookingModal.isOpen}
           onClose={bookingModal.closeBookingModal}
+          onContinueToBooking={(bookingData) => {
+            // Handle booking continuation
+            bookingModal.closeBookingModal();
+          }}
           instructor={{
             id: instructor.id,
             user_id: instructor.user_id,
@@ -291,8 +295,8 @@ function InstructorProfileContent() {
               id: s.id,
               skill: s.skill,
               hourly_rate: s.hourly_rate,
-              duration: s.duration_minutes || 60,
-              duration_options: [30, 45, 60, 90],
+              duration: s.duration_options?.[0] || 60,
+              duration_options: s.duration_options || [60],
               description: s.description || '',
               is_active: s.is_active
             }))

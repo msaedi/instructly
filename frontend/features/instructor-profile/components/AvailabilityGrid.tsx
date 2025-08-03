@@ -12,8 +12,8 @@ interface AvailabilityGridProps {
   instructorId: string | number;
   weekStart: Date | null;
   onWeekChange: (date: Date) => void;
-  selectedSlot: { date: string; time: string; duration: number } | null;
-  onSelectSlot: (date: string, time: string, duration?: number) => void;
+  selectedSlot: { date: string; time: string; duration: number; availableDuration?: number } | null;
+  onSelectSlot: (date: string, time: string, duration?: number, availableDuration?: number) => void;
   hideDuration?: boolean;
   minAdvanceBookingHours?: number; // Optional prop for minimum advance booking
 }
@@ -69,6 +69,34 @@ export function AvailabilityGrid({
   if (useMockData) {
     logger.info('Using mock availability data', { reason: error ? 'error' : 'no data' });
   }
+
+  // Calculate available duration from a selected time slot
+  const calculateAvailableDuration = (dateStr: string, startTime: string): number => {
+    if (useMockData) {
+      // For mock data, just return 120 minutes as default
+      return 120;
+    }
+
+    const dayData = data?.availability_by_date?.[dateStr];
+    if (!dayData?.available_slots) return 60;
+
+    // Parse the start hour from the time string (format: "HH:00")
+    const startHour = parseInt(startTime.split(':')[0]);
+
+    // Find the slot that contains this start time
+    const containingSlot = dayData.available_slots.find((slot: any) => {
+      const slotStart = parseInt(slot.start_time.split(':')[0]);
+      const slotEnd = parseInt(slot.end_time.split(':')[0]);
+      return startHour >= slotStart && startHour < slotEnd;
+    });
+
+    if (!containingSlot) return 60;
+
+    // Calculate how many minutes are available from the start time to the end of the slot
+    const slotEndHour = parseInt(containingSlot.end_time.split(':')[0]);
+    const availableHours = slotEndHour - startHour;
+    return availableHours * 60;
+  };
 
   // Update scroll indicators
   const updateScrollIndicators = () => {
@@ -352,7 +380,11 @@ export function AvailabilityGrid({
                               ? "bg-transparent border-black"
                               : "bg-gray-50 border-gray-300 hover:bg-gray-100 hover:border-gray-400"
                           )}
-                          onClick={() => onSelectSlot(dateStr, useMockData ? time : timeStr, 60)}
+                          onClick={() => {
+                            const slotTime = useMockData ? time : timeStr;
+                            const availableDuration = calculateAvailableDuration(dateStr, slotTime);
+                            onSelectSlot(dateStr, slotTime, 60, availableDuration);
+                          }}
                           aria-label={`Select ${dayName} at ${time}`}
                         >
                           {isSelected && (

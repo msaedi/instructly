@@ -113,8 +113,8 @@ export interface InstructorService {
   /** Optional service description */
   description: string | null;
 
-  /** Default duration in minutes (optional) */
-  duration_minutes?: number;
+  /** Available duration options in minutes */
+  duration_options?: number[];
 
   /** Whether this service is currently active */
   is_active?: boolean;

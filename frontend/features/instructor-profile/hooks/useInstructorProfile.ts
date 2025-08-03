@@ -30,7 +30,7 @@ export function useInstructorProfile(instructorId: string) {
         return {
           ...service,
           skill: catalogService?.name || service.name || `Service ${service.service_catalog_id}`,
-          duration_minutes: service.duration_options?.[0] || 60,
+          duration_options: service.duration_options || [60], // Preserve all duration options
         };
       }) || [];
 

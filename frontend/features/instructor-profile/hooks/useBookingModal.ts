@@ -6,6 +6,7 @@ interface BookingModalState {
   selectedDate?: string;
   selectedTime?: string;
   selectedService?: InstructorService;
+  selectedDuration?: number;
 }
 
 /**
@@ -20,12 +21,14 @@ export function useBookingModal() {
     date?: string;
     time?: string;
     service?: InstructorService;
+    duration?: number;
   }) => {
     setModalState({
       isOpen: true,
       selectedDate: options?.date,
       selectedTime: options?.time,
       selectedService: options?.service,
+      selectedDuration: options?.duration,
     });
   };
 
