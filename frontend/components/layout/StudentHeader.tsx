@@ -33,11 +33,18 @@ export function StudentHeader() {
     router.push('/login');
   };
 
+  // Filter out search button on My Lessons page for cleaner navigation
   const navItems = [
     { href: '/', label: 'Home', icon: Home },
     { href: '/search', label: 'Search', icon: Search },
     { href: '/student/lessons', label: 'My Lessons', icon: Calendar },
-  ];
+  ].filter(item => {
+    // Hide search button when user is on My Lessons page
+    if (item.href === '/search' && pathname.startsWith('/student/lessons')) {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <header className="sticky top-0 z-50 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">

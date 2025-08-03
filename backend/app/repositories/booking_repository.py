@@ -487,7 +487,11 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 # Only past bookings with COMPLETED status
                 query = query.filter(Booking.booking_date < date.today(), Booking.status == BookingStatus.COMPLETED)
 
-            query = query.order_by(Booking.booking_date.desc(), Booking.start_time.desc())
+            # For upcoming lessons, show nearest first (ASC). For history, show latest first (DESC)
+            if upcoming_only:
+                query = query.order_by(Booking.booking_date.asc(), Booking.start_time.asc())
+            else:
+                query = query.order_by(Booking.booking_date.desc(), Booking.start_time.desc())
 
             if limit:
                 query = query.limit(limit)

@@ -1,10 +1,8 @@
 // frontend/components/InstructorProfileNav.tsx
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
-import { useEffect, useState } from 'react';
 
 interface InstructorProfileNavProps {
   instructorName: string;
@@ -12,27 +10,11 @@ interface InstructorProfileNavProps {
 
 export default function InstructorProfileNav({ instructorName }: InstructorProfileNavProps) {
   const router = useRouter();
-  const [canGoBack, setCanGoBack] = useState(false);
-
-  useEffect(() => {
-    // Check if we can go back (i.e., there's navigation history)
-    setCanGoBack(window.history.length > 1);
-  }, []);
 
   const handleBackClick = () => {
-    if (canGoBack) {
-      // Check if the referrer is from our domain
-      const referrer = document.referrer;
-      if (referrer && (referrer.includes('/search') || referrer.includes('/instructors'))) {
-        router.back();
-      } else {
-        // Default to search page
-        router.push('/search');
-      }
-    } else {
-      // No history, go to search
-      router.push('/search');
-    }
+    // Always use browser history for back navigation
+    // This provides the most natural user experience
+    router.back();
   };
 
   return (
@@ -54,7 +36,7 @@ export default function InstructorProfileNav({ instructorName }: InstructorProfi
             onClick={handleBackClick}
             className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
           >
-            Back to Search
+            Back
           </button>
         </div>
       </div>
