@@ -37,7 +37,6 @@ export function InstructorInfo({
       <div className="flex items-start gap-3 flex-1">
         {/* Avatar */}
         <Avatar className="h-10 w-10 sm:h-12 sm:w-12">
-          <AvatarImage src={`/api/placeholder/48/48`} alt={instructor.full_name} />
           <AvatarFallback>{initials}</AvatarFallback>
         </Avatar>
 

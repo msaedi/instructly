@@ -55,7 +55,6 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
       {/* Left Column - Photo */}
       <div className="flex justify-start">
         <Avatar className="h-20 w-20 lg:h-24 lg:w-24">
-          <AvatarImage src={`/api/placeholder/150/150`} alt={displayName} />
           <AvatarFallback className="text-xl lg:text-2xl">{initials}</AvatarFallback>
         </Avatar>
       </div>
