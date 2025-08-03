@@ -1,143 +1,72 @@
-// frontend/app/instructors/[id]/page.tsx
+'use client';
+// frontend/app/(public)/instructorz/[id]/page.tsx
 
-import { notFound } from 'next/navigation';
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import { Star, MapPin, Check, Clock, BookOpen } from 'lucide-react';
 import { publicApi } from '@/features/shared/api/client';
 import AvailabilityCalendar from '@/components/AvailabilityCalendar';
 import InstructorProfileNav from '@/components/InstructorProfileNav';
-import { logger } from '@/lib/logger';
-import BackButton from '@/components/BackButton';
 
-// Force dynamic rendering to avoid build-time API calls
-export const dynamic = 'force-dynamic';
-
-interface InstructorProfilePageProps {
-  params: Promise<{ id: string }>;
-}
-
-// Define the instructor data type based on what we expect from the API
-interface InstructorData {
-  user_id: number;
-  bio: string;
-  areas_of_service: string[];
-  years_experience: number;
-  min_advance_booking_hours: number;
-  buffer_time_minutes: number;
-  created_at: string;
-  updated_at?: string;
-  user: {
-    full_name: string;
-    email: string;
+// Mock instructor data - replace with actual API when available
+const getMockInstructorData = (id: string) => {
+  return {
+    id: id,
+    user_id: parseInt(id),
+    bio: 'Passionate piano instructor with over 5 years of experience teaching students of all ages and skill levels. I believe in making music fun and accessible while building strong technical foundations.',
+    areas_of_service: ['Manhattan', 'Brooklyn', 'Virtual'],
+    years_experience: 5,
+    min_advance_booking_hours: 2,
+    buffer_time_minutes: 15,
+    created_at: '2023-01-15T10:00:00Z',
+    user: {
+      full_name: 'Sarah Chen',
+      email: 'sarah@example.com',
+    },
+    services: [
+      {
+        id: 1,
+        skill: 'Piano',
+        hourly_rate: 75,
+        description: 'Classical and contemporary piano lessons for all levels',
+        duration: 60,
+        is_active: true,
+      },
+      {
+        id: 2,
+        skill: 'Music Theory',
+        hourly_rate: 60,
+        description: 'Comprehensive music theory and composition',
+        duration: 60,
+        is_active: true,
+      },
+    ],
+    // Additional profile fields
+    rating: 4.9,
+    total_reviews: 127,
+    total_hours_taught: 850,
+    education: 'Master of Music, Juilliard School',
+    languages: ['English', 'Mandarin'],
+    verified: true,
   };
-  services: Array<{
-    id: number;
-    service_catalog_id: number;
-    name?: string;
-    hourly_rate: number;
-    description?: string;
-    duration_options: number[];
-    is_active?: boolean;
-  }>;
-  // Additional fields that might come from the API
-  rating?: number;
-  total_reviews?: number;
-  total_hours_taught?: number;
-  education?: string;
-  languages?: string[];
-  verified?: boolean;
-}
+};
 
-export default async function InstructorProfilePage({ params }: InstructorProfilePageProps) {
-  const resolvedParams = await params;
-  const instructorId = resolvedParams.id;
+export default function InstructorProfilePage() {
+  const params = useParams();
+  const instructorId = params.id as string;
 
-  logger.info('Loading instructor profile page', { instructorId });
+  // For now, use mock data. Replace with actual API call:
+  // const response = await publicApi.getInstructorProfile(instructorId);
+  // if (response.error || !response.data) {
+  //   notFound();
+  // }
+  // const instructor = response.data;
 
-  let instructor: InstructorData | null = null;
-  let error: string | null = null;
-  let serviceCatalog: any[] = [];
-
-  try {
-    // Fetch both instructor profile and service catalog in parallel
-    const [instructorResponse, catalogResponse] = await Promise.all([
-      publicApi.getInstructorProfile(instructorId),
-      publicApi.getCatalogServices(),
-    ]);
-
-    // Handle service catalog
-    if (catalogResponse.data) {
-      serviceCatalog = catalogResponse.data;
-    }
-
-    logger.debug('API Response received', {
-      hasData: !!instructorResponse.data,
-      hasError: !!instructorResponse.error,
-      status: instructorResponse.status,
-    });
-
-    if (instructorResponse.error) {
-      logger.error('API Error from get instructor profile', undefined, {
-        error: instructorResponse.error,
-      });
-      throw new Error(instructorResponse.error);
-    }
-
-    if (instructorResponse.data) {
-      instructor = {
-        ...instructorResponse.data,
-        // Add default values for fields that might not be in the API response
-        rating: instructorResponse.data.rating || 4.8,
-        total_reviews:
-          instructorResponse.data.total_reviews || Math.floor(Math.random() * 200) + 50,
-        total_hours_taught:
-          instructorResponse.data.total_hours_taught || Math.floor(Math.random() * 1000) + 500,
-        education: instructorResponse.data.education || 'Professional Music Education',
-        languages: instructorResponse.data.languages || ['English'],
-        verified:
-          instructorResponse.data.verified !== undefined ? instructorResponse.data.verified : true,
-      };
-    } else {
-      notFound();
-    }
-  } catch (err) {
-    logger.error('Error fetching instructor', err, { instructorId });
-    error = 'Failed to load instructor profile';
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Error</h1>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
-          <BackButton className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-            Back
-          </BackButton>
-        </div>
-      </div>
-    );
-  }
-
-  if (!instructor) {
-    notFound();
-  }
+  const instructor = getMockInstructorData(instructorId);
 
   const getMinimumRate = () => {
     if (instructor.services.length === 0) return 0;
     return Math.min(...instructor.services.map((s) => s.hourly_rate));
-  };
-
-  // Helper function to get service name from catalog
-  const getServiceName = (serviceId: number): string => {
-    const service = serviceCatalog.find((s: any) => s.id === serviceId);
-    return service?.name || `Service ${serviceId}`;
-  };
-
-  // Helper function to get instructor service names
-  const getInstructorServiceNames = (): string => {
-    if (instructor.services.length === 0) return 'Expert Instructor';
-    const serviceNames = instructor.services.map((s) => getServiceName(s.service_catalog_id));
-    return serviceNames.join(', ') + ' Expert';
   };
 
   return (
@@ -163,7 +92,7 @@ export default async function InstructorProfilePage({ params }: InstructorProfil
                     {instructor.user.full_name}
                   </h2>
                   <p className="text-gray-600 dark:text-gray-300 mb-2">
-                    {getInstructorServiceNames()}
+                    {instructor.services.map((s) => s.skill).join(', ')} Expert
                   </p>
                   <div className="flex items-center">
                     <Star className="h-4 w-4 text-yellow-500 fill-current" />
@@ -260,9 +189,7 @@ export default async function InstructorProfilePage({ params }: InstructorProfil
                     className="border border-gray-200 dark:border-gray-600 rounded-lg p-4"
                   >
                     <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-medium text-gray-900 dark:text-white">
-                        {service.name || `Service ${service.service_catalog_id}`}
-                      </h4>
+                      <h4 className="font-medium text-gray-900 dark:text-white">{service.skill}</h4>
                       <span className="text-lg font-semibold text-gray-900 dark:text-white">
                         ${service.hourly_rate}/hr
                       </span>
@@ -274,7 +201,7 @@ export default async function InstructorProfilePage({ params }: InstructorProfil
                     )}
                     <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
                       <Clock className="h-4 w-4 mr-1" />
-                      <span>{service.duration_options?.join(', ') || '60'} minutes</span>
+                      <span>{service.duration} minutes</span>
                     </div>
                   </div>
                 ))}
@@ -284,18 +211,7 @@ export default async function InstructorProfilePage({ params }: InstructorProfil
 
           {/* Right Column - Availability Calendar */}
           <div className="lg:col-span-2">
-            <AvailabilityCalendar
-              instructorId={instructor.user_id.toString()}
-              instructor={{
-                ...instructor,
-                id: instructor.user_id,
-                services: instructor.services.map((service) => ({
-                  ...service,
-                  skill: service.name || `Service ${service.service_catalog_id}`,
-                  duration: service.duration_options[0] || 60,
-                })),
-              }}
-            />
+            <AvailabilityCalendar instructorId={instructorId} instructor={instructor as any} />
           </div>
         </div>
       </div>

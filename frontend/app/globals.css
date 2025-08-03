@@ -1,6 +1,11 @@
 /* frontend/app/globals.css */
 @import 'tailwindcss';
 
+/* Global body styles */
+body {
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
 /*
  * Root CSS Custom Properties
  * Define global design tokens for consistent theming
