@@ -1,0 +1,71 @@
+"""
+Pure ASGI Timing Middleware
+
+This is a pure ASGI implementation that avoids the BaseHTTPMiddleware
+"No response returned" issue.
+"""
+
+import logging
+import time
+
+from starlette.datastructures import MutableHeaders
+
+logger = logging.getLogger(__name__)
+
+
+class TimingMiddlewareASGI:
+    """
+    Pure ASGI middleware to measure and log request processing time.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        """ASGI application entrypoint."""
+
+        # Only handle HTTP requests
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        # Get the path
+        path = scope.get("path", "")
+        method = scope.get("method", "")
+
+        # Skip timing for health and metrics endpoints
+        if path in ["/health", "/metrics/health", "/metrics/performance", "/metrics/cache"]:
+            await self.app(scope, receive, send)
+            return
+
+        # Log request start
+        logger.info(f"[TIMING] Starting request: {method} {path}")
+        start_time = time.time()
+
+        # Create a wrapper for send to add timing header
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                # Calculate processing time
+                process_time = (time.time() - start_time) * 1000  # Convert to ms
+
+                # Log response timing
+                logger.info(f"[TIMING] Response for: {path}, duration: {process_time:.2f}ms")
+
+                # Add timing header
+                headers = MutableHeaders(scope=message)
+                headers["X-Process-Time"] = f"{process_time:.2f}ms"
+
+                # Log slow requests
+                if process_time > 100:  # Log requests slower than 100ms
+                    logger.warning(f"[TIMING] Slow request: {method} {path} took {process_time:.2f}ms")
+
+            await send(message)
+
+        try:
+            # Process the request with our wrapped send
+            await self.app(scope, receive, send_wrapper)
+        except Exception as e:
+            # Log any errors
+            process_time = (time.time() - start_time) * 1000
+            logger.error(f"[TIMING] Error in request {path} after {process_time:.2f}ms: {str(e)}")
+            raise

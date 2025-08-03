@@ -95,61 +95,99 @@ class CachedRepositoryMixin:
 
         return ":".join(key_parts)
 
-    def cache_result(self, ttl: Optional[int] = None, tier: str = "warm", invalidate_on: Optional[List[str]] = None):
+    def _serialize_for_cache(self, data: Any, _visited: set = None, _depth: int = 0) -> Any:
         """
-        Decorator to cache repository method results.
+        Serialize data for caching with cycle detection and depth limit.
 
         Args:
-            ttl: Time-to-live in seconds
-            tier: Cache tier (hot/warm/cold/static)
-            invalidate_on: List of method names that should invalidate this cache
-
-        Usage:
-            @cache_result(tier="hot")
-            def get_instructor_bookings(self, instructor_id: int):
-                return self.db.query(Booking)...
+            data: The data to serialize
+            _visited: Set of object IDs already being processed (for cycle detection)
+            _depth: Current recursion depth (to prevent deep nesting)
         """
+        MAX_DEPTH = 2  # Only serialize 2 levels deep
 
-        def decorator(func: Callable) -> Callable:
-            @wraps(func)
-            def wrapper(self, *args, **kwargs):
-                # Skip caching if disabled or no cache service
-                if not getattr(self, "_cache_enabled", True) or not self.cache_service:
-                    return func(self, *args, **kwargs)
+        if _visited is None:
+            _visited = set()
 
-                # Generate cache key
-                cache_key = self._generate_cache_key(func.__name__, *args, **kwargs)
+        # Handle None
+        if data is None:
+            return None
 
-                # Try to get from cache
-                try:
-                    cached_value = self.cache_service.get(cache_key)
-                    if cached_value is not None:
-                        logger.debug(f"Cache hit for {func.__name__}: {cache_key}")
-                        return cached_value
-                except Exception as e:
-                    logger.error(f"Cache get error in {func.__name__}: {e}")
+        # Handle basic types
+        if isinstance(data, (str, int, float, bool)):
+            return data
 
-                # Execute function
-                result = func(self, *args, **kwargs)
+        # Handle datetime objects
+        if hasattr(data, "isoformat"):
+            return data.isoformat()
 
-                # Cache the result
-                if result is not None:
-                    try:
-                        self.cache_service.set(cache_key, result, ttl=ttl, tier=tier)
-                        logger.debug(f"Cached result for {func.__name__}: {cache_key}")
-                    except Exception as e:
-                        logger.error(f"Cache set error in {func.__name__}: {e}")
+        # Handle lists
+        if isinstance(data, list):
+            if _depth >= MAX_DEPTH:
+                return []  # Stop at max depth
+            return [self._serialize_for_cache(item, _visited, _depth) for item in data]
+
+        # Handle SQLAlchemy objects
+        if hasattr(data, "__table__"):
+            obj_id = id(data)
+
+            # Cycle detection
+            if obj_id in _visited:
+                # Return minimal representation for circular reference
+                return {"id": getattr(data, "id", None), "__type__": data.__class__.__name__, "_circular_ref": True}
+
+            _visited.add(obj_id)
+
+            try:
+                # Start with basic columns
+                result = (
+                    data.to_dict()
+                    if hasattr(data, "to_dict")
+                    else {c.name: getattr(data, c.name) for c in data.__table__.columns}
+                )
+
+                # Add marker for cached data
+                result["_from_cache"] = True
+
+                # Handle relationships only if not at max depth
+                if _depth < MAX_DEPTH:
+                    for relationship in data.__mapper__.relationships:
+                        if relationship.key in data.__dict__:  # Only if loaded
+                            related = getattr(data, relationship.key)
+                            if related is not None:
+                                # For critical relationships, include all required fields
+                                if relationship.key in ["student", "instructor"]:
+                                    if hasattr(related, "id"):
+                                        # Include all fields needed by StudentInfo/InstructorInfo
+                                        result[relationship.key] = {
+                                            "id": related.id,
+                                            "full_name": getattr(related, "full_name", ""),
+                                            "email": getattr(related, "email", ""),
+                                            "__type__": related.__class__.__name__,
+                                        }
+                                elif relationship.key == "instructor_service":
+                                    if hasattr(related, "id"):
+                                        # Include all fields needed by ServiceInfo
+                                        result[relationship.key] = {
+                                            "id": related.id,
+                                            "name": getattr(related, "name", ""),
+                                            "description": getattr(related, "description", None),
+                                            "__type__": related.__class__.__name__,
+                                        }
+                                # Skip non-critical relationships at depth 1+
+                                elif _depth == 0:
+                                    result[relationship.key] = self._serialize_for_cache(related, _visited, _depth + 1)
 
                 return result
 
-            # Add invalidation helper
-            wrapper.invalidate_cache = lambda self, *args, **kwargs: self._invalidate_method_cache(
-                func.__name__, *args, **kwargs
-            )
+            finally:
+                _visited.remove(obj_id)
 
-            return wrapper
-
-        return decorator
+        elif isinstance(data, dict):
+            return {k: self._serialize_for_cache(v, _visited, _depth) for k, v in data.items()}
+        else:
+            # Default: return as-is
+            return data
 
     def _invalidate_method_cache(self, method_name: str, *args, **kwargs):
         """
@@ -237,3 +275,57 @@ class CachedRepositoryMixin:
         # Add repository-specific prefix
         stats["repository"] = self._cache_prefix
         return stats
+
+
+def cached_method(ttl: Optional[int] = None, tier: str = "warm"):
+    """
+    Decorator to cache repository method results with proper SQLAlchemy serialization.
+
+    Args:
+        ttl: Time-to-live in seconds
+        tier: Cache tier (hot/warm/cold/static)
+
+    Usage:
+        @cached_method(tier="hot")
+        def get_instructor_bookings(self, instructor_id: int):
+            return self.db.query(Booking)...
+    """
+
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            # Skip caching if disabled or no cache service
+            if not getattr(self, "_cache_enabled", True) or not getattr(self, "cache_service", None):
+                return func(self, *args, **kwargs)
+
+            # Generate cache key
+            cache_key = self._generate_cache_key(func.__name__, *args, **kwargs)
+
+            # Try to get from cache
+            try:
+                cached_value = self.cache_service.get(cache_key)
+                if cached_value is not None:
+                    logger.debug(f"Cache hit for {func.__name__}: {cache_key}")
+                    return cached_value
+            except Exception as e:
+                logger.error(f"Cache get error in {func.__name__}: {e}")
+
+            # Execute function
+            result = func(self, *args, **kwargs)
+
+            # Cache the result (convert SQLAlchemy objects to dicts)
+            if result is not None:
+                try:
+                    cache_data = self._serialize_for_cache(result)
+                    self.cache_service.set(cache_key, cache_data, ttl=ttl, tier=tier)
+                    logger.debug(f"Cached result for {func.__name__}: {cache_key}")
+                except RecursionError as e:
+                    logger.error(f"Recursion error during cache serialization in {func.__name__}: {e}")
+                except Exception as e:
+                    logger.error(f"Cache set error in {func.__name__}: {e}")
+
+            return result
+
+        return wrapper
+
+    return decorator

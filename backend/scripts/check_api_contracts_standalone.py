@@ -18,7 +18,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", message="urllib3")
 
 try:
-    from app.main import app
+    from app.main import fastapi_app as app
     from tests.test_api_contracts import APIContractAnalyzer
 except ImportError as e:
     print(f"Import error: {e}")

@@ -37,13 +37,13 @@ elif [ -f "scripts/check_api_contracts.py" ] && $PYTHON_CMD -c "import pytest" 2
     exit $?
 else
     # Fallback: Try to run the test directly
-    if $PYTHON_CMD -c "import sys; sys.path.insert(0, '.'); from tests.test_api_contracts import APIContractAnalyzer; from app.main import app" 2>/dev/null; then
+    if $PYTHON_CMD -c "import sys; sys.path.insert(0, '.'); from tests.test_api_contracts import APIContractAnalyzer; from app.main import fastapi_app as app" 2>/dev/null; then
         # Can import the modules, run a simple check
         $PYTHON_CMD -c "
 import sys
 sys.path.insert(0, '.')
 from tests.test_api_contracts import APIContractAnalyzer
-from app.main import app
+from app.main import fastapi_app as app
 
 analyzer = APIContractAnalyzer(app)
 violations = analyzer.analyze_all_routes()

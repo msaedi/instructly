@@ -12,8 +12,10 @@ from .middleware.https_redirect import create_https_redirect_middleware
 from .middleware.monitoring import MonitoringMiddleware
 from .middleware.performance import PerformanceMiddleware
 from .middleware.prometheus_middleware import PrometheusMiddleware
-from .middleware.rate_limiter import RateLimitMiddleware
-from .middleware.timing import TimingMiddleware
+
+# Use the new ASGI middleware to avoid "No response returned" errors
+from .middleware.rate_limiter_asgi import RateLimitMiddlewareASGI
+from .middleware.timing_asgi import TimingMiddlewareASGI
 from .routes import (
     alerts,
     analytics,
@@ -101,12 +103,10 @@ if settings.environment == "production":
     HTTPSRedirectMiddleware = create_https_redirect_middleware(force_https=True)
     app.add_middleware(HTTPSRedirectMiddleware)
 
-# Rate limiting should be early in the chain to block bad requests quickly
-app.add_middleware(TimingMiddleware)
+# Keep the BaseHTTPMiddleware-based ones for now (will convert later)
 app.add_middleware(MonitoringMiddleware)
 app.add_middleware(PerformanceMiddleware)  # Production performance monitoring
 app.add_middleware(PrometheusMiddleware)  # Prometheus metrics collection
-app.add_middleware(RateLimitMiddleware)  # Added rate limiting
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -172,3 +172,14 @@ def get_performance_metrics() -> PerformanceMetricsResponse:
     from .middleware.monitoring import monitor
 
     return PerformanceMetricsResponse(metrics=monitor.get_stats())
+
+
+# Keep the original FastAPI app for tools/tests that need access to routes
+fastapi_app = app
+
+# Wrap with ASGI middleware for production
+app = TimingMiddlewareASGI(app)
+app = RateLimitMiddlewareASGI(app)
+
+# Export what's needed
+__all__ = ["app", "fastapi_app"]

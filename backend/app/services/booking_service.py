@@ -61,7 +61,13 @@ class BookingService(BaseService):
         """
         super().__init__(db, cache=cache_service)
         self.notification_service = notification_service or NotificationService(db)
-        self.repository = repository or RepositoryFactory.create_booking_repository(db)
+        # Pass cache_service to BookingRepository for caching support
+        if repository:
+            self.repository = repository
+        else:
+            from ..repositories.booking_repository import BookingRepository
+
+            self.repository = BookingRepository(db, cache_service=cache_service)
         self.availability_repository = RepositoryFactory.create_availability_repository(db)
         self.conflict_checker_repository = (
             conflict_checker_repository or RepositoryFactory.create_conflict_checker_repository(db)

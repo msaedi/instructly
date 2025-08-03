@@ -8,7 +8,7 @@ import pytest
 
 def test_list_all_registered_routes():
     """List all routes to debug registration issues."""
-    from app.main import app
+    from app.main import fastapi_app as app
 
     print("\n" + "=" * 60)
     print("ALL REGISTERED ROUTES:")
@@ -54,7 +54,7 @@ def test_list_all_registered_routes():
 def test_public_route_specific_check(client):
     """Test accessing the specific public route."""
     # List all routes first for debugging
-    from app.main import app
+    from app.main import fastapi_app as app
 
     print("\nChecking for availability route specifically:")
     for route in app.routes:

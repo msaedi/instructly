@@ -12,7 +12,7 @@ from fastapi import status
 
 from app.api.dependencies.services import get_password_reset_service
 from app.core.exceptions import ValidationException
-from app.main import app
+from app.main import fastapi_app as app
 from app.models.password_reset import PasswordResetToken
 from app.services.email import EmailService
 from app.services.password_reset_service import PasswordResetService

@@ -24,7 +24,7 @@ from fastapi import status
 
 from app.api.dependencies.services import get_booking_service
 from app.core.exceptions import ConflictException, NotFoundException, ValidationException
-from app.main import app
+from app.main import fastapi_app as app
 from app.models.booking import BookingStatus
 
 

@@ -26,9 +26,10 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..core.enums import RoleName
 from ..core.exceptions import NotFoundException, RepositoryException
+from ..core.timezone_utils import get_user_today
 from ..models.booking import Booking, BookingStatus
 from .base_repository import BaseRepository
-from .cached_repository_mixin import CachedRepositoryMixin
+from .cached_repository_mixin import CachedRepositoryMixin, cached_method
 
 logger = logging.getLogger(__name__)
 
@@ -284,7 +285,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     # Calculate potential end time
                     from datetime import datetime, timedelta
 
-                    start_dt = datetime.combine(date.today(), current_time)
+                    start_dt = datetime.combine(target_date, current_time)
                     end_dt = start_dt + timedelta(minutes=duration_minutes)
                     potential_end = end_dt.time()
 
@@ -320,6 +321,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
     # User Booking Queries (unchanged)
 
+    @cached_method(tier="hot")
     def get_student_bookings(
         self,
         student_id: int,
@@ -332,7 +334,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         """
         Get bookings for a specific student with advanced filtering.
 
-        CACHED: Results are cached for 5 minutes to reduce database load.
+        CACHED: Results are cached for 5 minutes with proper serialization.
 
         Args:
             student_id: The student's user ID
@@ -345,26 +347,12 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         Returns:
             List of student's bookings
         """
-        # Try to get from cache first
-        if self.cache_service and self._cache_enabled:
-            cache_key = self._generate_cache_key(
-                "get_student_bookings",
-                student_id,
-                status,
-                upcoming_only,
-                exclude_future_confirmed,
-                include_past_confirmed,
-                limit,
-            )
-            cached_result = self.cache_service.get(cache_key)
-            if cached_result is not None:
-                self.logger.debug(f"Cache hit for get_student_bookings: {cache_key}")
-                return cached_result
-
         try:
             query = (
                 self.db.query(Booking)
-                .options(joinedload(Booking.instructor), joinedload(Booking.instructor_service))
+                .options(
+                    joinedload(Booking.student), joinedload(Booking.instructor), joinedload(Booking.instructor_service)
+                )
                 .filter(Booking.student_id == student_id)
             )
 
@@ -374,7 +362,8 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
             # Handle upcoming_only filter
             if upcoming_only:
-                query = query.filter(Booking.booking_date >= date.today(), Booking.status == BookingStatus.CONFIRMED)
+                today = get_user_today(student_id, self.db)
+                query = query.filter(Booking.booking_date >= today, Booking.status == BookingStatus.CONFIRMED)
 
             # Handle exclude_future_confirmed (for History tab - past bookings + cancelled)
             elif exclude_future_confirmed:
@@ -382,13 +371,14 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 # Exclude: future confirmed bookings
                 from sqlalchemy import and_, or_
 
+                today = get_user_today(student_id, self.db)
                 query = query.filter(
                     or_(
                         # Past bookings (any status)
-                        Booking.booking_date < date.today(),
+                        Booking.booking_date < today,
                         # Future bookings that are NOT confirmed
                         and_(
-                            Booking.booking_date >= date.today(),
+                            Booking.booking_date >= today,
                             Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
                         ),
                     )
@@ -397,30 +387,19 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             # Handle include_past_confirmed (for BookAgain - only completed past bookings)
             elif include_past_confirmed:
                 # Only past bookings with COMPLETED status
-                query = query.filter(Booking.booking_date < date.today(), Booking.status == BookingStatus.COMPLETED)
+                today = get_user_today(student_id, self.db)
+                query = query.filter(Booking.booking_date < today, Booking.status == BookingStatus.COMPLETED)
 
-            query = query.order_by(Booking.booking_date.desc(), Booking.start_time.desc())
+            # For upcoming lessons, show nearest first (ASC). For history, show latest first (DESC)
+            if upcoming_only:
+                query = query.order_by(Booking.booking_date.asc(), Booking.start_time.asc())
+            else:
+                query = query.order_by(Booking.booking_date.desc(), Booking.start_time.desc())
 
             if limit:
                 query = query.limit(limit)
 
-            result = query.all()
-
-            # Cache the result
-            if self.cache_service and self._cache_enabled:
-                cache_key = self._generate_cache_key(
-                    "get_student_bookings",
-                    student_id,
-                    status,
-                    upcoming_only,
-                    exclude_future_confirmed,
-                    include_past_confirmed,
-                    limit,
-                )
-                self.cache_service.set(cache_key, result, tier="hot")
-                self.logger.debug(f"Cached result for get_student_bookings: {cache_key}")
-
-            return result
+            return query.all()
 
         except Exception as e:
             self.logger.error(f"Error getting student bookings: {str(e)}")
@@ -452,7 +431,9 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         try:
             query = (
                 self.db.query(Booking)
-                .options(joinedload(Booking.student), joinedload(Booking.instructor_service))
+                .options(
+                    joinedload(Booking.student), joinedload(Booking.instructor), joinedload(Booking.instructor_service)
+                )
                 .filter(Booking.instructor_id == instructor_id)
             )
 
@@ -462,7 +443,8 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
             # Handle upcoming_only filter
             if upcoming_only:
-                query = query.filter(Booking.booking_date >= date.today(), Booking.status == BookingStatus.CONFIRMED)
+                today = get_user_today(instructor_id, self.db)
+                query = query.filter(Booking.booking_date >= today, Booking.status == BookingStatus.CONFIRMED)
 
             # Handle exclude_future_confirmed (for History tab - past bookings + cancelled)
             elif exclude_future_confirmed:
@@ -470,13 +452,15 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 # Exclude: future confirmed bookings
                 from sqlalchemy import and_, or_
 
+                today = get_user_today(instructor_id, self.db)
+
                 query = query.filter(
                     or_(
                         # Past bookings (any status)
-                        Booking.booking_date < date.today(),
+                        Booking.booking_date < today,
                         # Future bookings that are NOT confirmed
                         and_(
-                            Booking.booking_date >= date.today(),
+                            Booking.booking_date >= today,
                             Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
                         ),
                     )
@@ -485,7 +469,8 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             # Handle include_past_confirmed (for BookAgain - only completed past bookings)
             elif include_past_confirmed:
                 # Only past bookings with COMPLETED status
-                query = query.filter(Booking.booking_date < date.today(), Booking.status == BookingStatus.COMPLETED)
+                today = get_user_today(instructor_id, self.db)
+                query = query.filter(Booking.booking_date < today, Booking.status == BookingStatus.COMPLETED)
 
             # For upcoming lessons, show nearest first (ASC). For history, show latest first (DESC)
             if upcoming_only:
@@ -523,7 +508,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
         """
         try:
             if from_date is None:
-                from_date = date.today()
+                from_date = get_user_today(instructor_id, self.db)
 
             query = self.db.query(Booking).filter(
                 Booking.instructor_id == instructor_id, Booking.booking_date >= from_date

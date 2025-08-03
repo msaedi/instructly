@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 from prometheus_client.parser import text_string_to_metric_families
 
-from app.main import app
+from app.main import fastapi_app as app
 from app.monitoring.prometheus_metrics import errors_total, service_operation_duration_seconds, service_operations_total
 from app.services.base import BaseService
 

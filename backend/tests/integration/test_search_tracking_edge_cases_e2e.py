@@ -13,7 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.main import app
+from app.main import fastapi_app as app
 from app.models.search_event import SearchEvent
 from app.models.search_history import SearchHistory
 from app.models.search_interaction import SearchInteraction

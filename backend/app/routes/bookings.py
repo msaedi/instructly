@@ -92,20 +92,41 @@ async def get_upcoming_bookings(
         )
 
         # Transform bookings to include names from relationships
+        # Handle both SQLAlchemy objects and cached dictionaries
         upcoming_bookings = []
         for booking in bookings:
-            upcoming_bookings.append(
-                UpcomingBookingResponse(
-                    id=booking.id,
-                    booking_date=booking.booking_date,
-                    start_time=booking.start_time,
-                    end_time=booking.end_time,
-                    service_name=booking.service_name,
-                    student_name=booking.student.full_name if booking.student else "Unknown",
-                    instructor_name=booking.instructor.full_name if booking.instructor else "Unknown",
-                    meeting_location=booking.meeting_location,
+            if isinstance(booking, dict):
+                # Handle cached dictionary
+                upcoming_bookings.append(
+                    UpcomingBookingResponse(
+                        id=booking["id"],
+                        booking_date=booking["booking_date"],
+                        start_time=booking["start_time"],
+                        end_time=booking["end_time"],
+                        service_name=booking["service_name"],
+                        student_name=booking.get("student", {}).get("full_name", "Unknown")
+                        if booking.get("student")
+                        else "Unknown",
+                        instructor_name=booking.get("instructor", {}).get("full_name", "Unknown")
+                        if booking.get("instructor")
+                        else "Unknown",
+                        meeting_location=booking["meeting_location"],
+                    )
                 )
-            )
+            else:
+                # Handle SQLAlchemy object
+                upcoming_bookings.append(
+                    UpcomingBookingResponse(
+                        id=booking.id,
+                        booking_date=booking.booking_date,
+                        start_time=booking.start_time,
+                        end_time=booking.end_time,
+                        service_name=booking.service_name,
+                        student_name=booking.student.full_name if booking.student else "Unknown",
+                        instructor_name=booking.instructor.full_name if booking.instructor else "Unknown",
+                        meeting_location=booking.meeting_location,
+                    )
+                )
 
         # Return standardized paginated response
         return PaginatedResponse(
@@ -250,7 +271,24 @@ async def get_bookings(
         paginated_bookings = bookings[start:end]
 
         # Convert to BookingResponse objects
-        booking_responses = [BookingResponse.model_validate(booking) for booking in paginated_bookings]
+        # Trust cached data as already validated, only validate fresh SQLAlchemy objects
+        booking_responses = []
+        for booking in paginated_bookings:
+            try:
+                if isinstance(booking, dict) and booking.get("_from_cache", False):
+                    # Cached data is already validated, use as-is
+                    booking_responses.append(booking)
+                else:
+                    # Fresh SQLAlchemy object needs validation
+                    booking_responses.append(BookingResponse.model_validate(booking))
+            except Exception as e:
+                logger.error(f"Failed to process booking {getattr(booking, 'id', 'unknown')}: {e}")
+                logger.error(f"Booking type: {type(booking)}, is_dict: {isinstance(booking, dict)}")
+                if isinstance(booking, dict):
+                    logger.error(f"Dict keys: {list(booking.keys())}")
+                    logger.error(f"Has _from_cache: {booking.get('_from_cache', False)}")
+                # Skip problematic bookings rather than crashing
+                continue
 
         return PaginatedResponse(
             items=booking_responses,

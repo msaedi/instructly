@@ -57,7 +57,7 @@ def test_next_available_route_registered(client):
 
 def test_list_all_routes(client):
     """List all registered routes for debugging."""
-    from app.main import app
+    from app.main import fastapi_app as app
 
     print("\n📍 All registered routes:")
     for route in app.routes:

@@ -57,7 +57,7 @@ from app.auth import get_password_hash
 from app.core.config import settings
 from app.core.enums import RoleName
 from app.database import Base, get_db
-from app.main import app
+from app.main import fastapi_app as app  # Use FastAPI instance for tests
 from app.models import SearchEvent, SearchHistory
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus

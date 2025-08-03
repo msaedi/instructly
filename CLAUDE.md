@@ -379,6 +379,11 @@ This approach keeps our migration history clean and manageable.
 
 ## Essential Commands
 
+### Test Credentials
+- **Test User Email**: john.smith@example.com (or any seeded user)
+- **Test Password**: Test1234
+- All test users in the seeded database use this password
+
 ### Backend Development
 ```bash
 # Setup and run backend
