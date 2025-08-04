@@ -930,3 +930,16 @@ class BookingService(BaseService):
 
         # Invalidate stats caches (legacy)
         self.invalidate_cache(f"instructor_stats:{booking.instructor_id}")
+
+        # Invalidate BookingRepository cached methods
+        # The cache keys use hashed kwargs, so we need to invalidate ALL cached queries
+        # for student and instructor bookings when any booking changes
+        if self.cache_service:
+            try:
+                # Invalidate ALL student booking caches (can't target specific student due to hashing)
+                self.cache_service.delete_pattern("booking:get_student_bookings:*")
+                # Invalidate ALL instructor booking caches
+                self.cache_service.delete_pattern("booking:get_instructor_bookings:*")
+                logger.debug(f"Invalidated all BookingRepository caches after booking {booking.id} change")
+            except Exception as e:
+                logger.warning(f"Failed to invalidate BookingRepository caches: {e}")

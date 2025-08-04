@@ -128,8 +128,13 @@ export function useCancelLesson() {
     },
 
     onSettled: () => {
-      // Refetch to ensure consistency
+      // Refetch to ensure consistency - invalidate ALL booking-related queries
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
+      // Invalidate all upcoming queries regardless of limit parameter
+      queryClient.invalidateQueries({ queryKey: ['bookings', 'upcoming'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
+      // Also invalidate the generic 'bookings' queries
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
     },
   });
 }
@@ -186,8 +191,13 @@ export function useRescheduleLesson() {
     },
 
     onSettled: () => {
-      // Refetch to ensure consistency
+      // Refetch to ensure consistency - invalidate ALL booking-related queries
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
+      // Invalidate all upcoming queries regardless of limit parameter
+      queryClient.invalidateQueries({ queryKey: ['bookings', 'upcoming'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
+      // Also invalidate the generic 'bookings' queries
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
     },
   });
 }
@@ -202,9 +212,12 @@ export function useCompleteLesson() {
     mutationFn: (lessonId) => bookingsApi.completeBooking(lessonId),
 
     onSuccess: (data) => {
-      // Update cache
+      // Update cache - invalidate ALL booking-related queries
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.upcoming() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(String(data.id)) });
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
     },
   });
 }
@@ -219,9 +232,12 @@ export function useMarkNoShow() {
     mutationFn: (lessonId) => bookingsApi.markNoShow(lessonId),
 
     onSuccess: (data) => {
-      // Update cache
+      // Update cache - invalidate ALL booking-related queries
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.upcoming() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
       queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(String(data.id)) });
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
     },
   });
 }
