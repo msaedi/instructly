@@ -32,3 +32,11 @@ repos:
         pass_filenames: false
         description: Check API endpoints follow contract standards
         always_run: false
+
+      - id: check-timezone-usage
+        name: Check for date.today() usage in user code
+        entry: backend/scripts/check_timezone_usage.py
+        language: python
+        files: ^backend/app/(routes|services|api)/.*\.py$
+        exclude: ^backend/app/services/(cache_service|logging_service|metrics_service)\.py$
+        description: Prevent timezone bugs by checking for date.today() in user-facing code

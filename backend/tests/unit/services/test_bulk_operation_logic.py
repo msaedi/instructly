@@ -31,9 +31,21 @@ class TestBulkOperationLogic:
 
     @pytest.fixture
     def mock_db(self):
-        """Create mock database session."""
+        """Create mock database session with proper user timezone support."""
         db = Mock()
-        db.query = Mock()
+
+        # Mock user with proper timezone for get_user_today_by_id
+        mock_user = Mock()
+        mock_user.id = 1
+        mock_user.timezone = "America/New_York"  # Valid timezone string
+
+        # Set up the query chain
+        mock_query = Mock()
+        mock_filter = Mock()
+        mock_filter.first.return_value = mock_user
+        mock_query.filter.return_value = mock_filter
+        db.query.return_value = mock_query
+
         db.add = Mock()
         db.flush = Mock()
         db.commit = Mock()

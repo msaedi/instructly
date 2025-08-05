@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 from sqlalchemy.orm import Session
 
 from ..core.exceptions import BusinessRuleException
+from ..core.timezone_utils import get_user_today_by_id
 from ..repositories.factory import RepositoryFactory
 from ..schemas.availability_window import (
     BulkUpdateRequest,
@@ -424,17 +425,18 @@ class BulkOperationService(BaseService):
             return f"Missing required fields for add operation: {', '.join(missing_fields)}"
         return None
 
-    def _validate_add_operation_timing(self, operation: SlotOperation) -> Optional[str]:
+    def _validate_add_operation_timing(self, operation: SlotOperation, instructor_id: int) -> Optional[str]:
         """Validate time constraints and alignment."""
-        # Check for past dates
-        if operation.date < date.today():
+        # Check for past dates using instructor's timezone
+        instructor_today = get_user_today_by_id(instructor_id, self.db)
+        if operation.date < instructor_today:
             return (
                 f"Cannot add availability for past date {operation.date.isoformat()} "
-                f"(today is {date.today().isoformat()})"
+                f"(today is {instructor_today.isoformat()} in your timezone)"
             )
 
         # Check if it's today and time has passed
-        if operation.date == date.today():
+        if operation.date == instructor_today:
             now = datetime.now().time()
             if operation.end_time <= now:
                 return (
@@ -502,7 +504,7 @@ class BulkOperationService(BaseService):
             )
 
         # 2. Time validation
-        if error := self._validate_add_operation_timing(operation):
+        if error := self._validate_add_operation_timing(operation, instructor_id):
             return OperationResult(
                 operation_index=operation_index,
                 action="add",

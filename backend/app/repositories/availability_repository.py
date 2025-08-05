@@ -31,6 +31,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from ..core.exceptions import RepositoryException
+from ..core.timezone_utils import get_user_today_by_id
 from ..models.availability import AvailabilitySlot, BlackoutDate
 from ..models.booking import Booking, BookingStatus
 from .base_repository import BaseRepository
@@ -539,7 +540,11 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
                 """
             )
 
-            result = self.db.execute(stats_query, {"instructor_id": instructor_id, "today": date.today()}).fetchone()
+            # Use instructor's timezone for "today"
+            instructor_today = get_user_today_by_id(instructor_id, self.db)
+            result = self.db.execute(
+                stats_query, {"instructor_id": instructor_id, "today": instructor_today}
+            ).fetchone()
 
             if result and result.total_slots:
                 total_slots = result.total_slots
@@ -577,7 +582,12 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
         try:
             return (
                 self.db.query(BlackoutDate)
-                .filter(and_(BlackoutDate.instructor_id == instructor_id, BlackoutDate.date >= date.today()))
+                .filter(
+                    and_(
+                        BlackoutDate.instructor_id == instructor_id,
+                        BlackoutDate.date >= get_user_today_by_id(instructor_id, self.db),
+                    )
+                )
                 .order_by(BlackoutDate.date)
                 .all()
             )
