@@ -144,7 +144,13 @@ function InstructorProfileContent() {
             <h2 className="text-xl font-semibold mb-4">Services & Pricing</h2>
             <ServiceCards
               services={instructor.services}
-              onBookService={(service, duration) => bookingModal.openBookingModal({ service, duration })}
+              selectedSlot={selectedSlot}
+              onBookService={(service, duration) => bookingModal.openBookingModal({
+                service,
+                duration,
+                date: selectedSlot?.date,
+                time: selectedSlot?.time
+              })}
             />
           </section>
 
@@ -254,7 +260,12 @@ function InstructorProfileContent() {
             <ServiceCards
               services={instructor.services}
               selectedSlot={selectedSlot}
-              onBookService={(service, duration) => bookingModal.openBookingModal({ service, duration })}
+              onBookService={(service, duration) => bookingModal.openBookingModal({
+                service,
+                duration,
+                date: selectedSlot?.date,
+                time: selectedSlot?.time
+              })}
             />
           </div>
 

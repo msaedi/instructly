@@ -386,6 +386,7 @@ export function AvailabilityGrid({
                             onSelectSlot(dateStr, slotTime, 60, availableDuration);
                           }}
                           aria-label={`Select ${dayName} at ${time}`}
+                          data-testid={`time-slot-${dayName}-${time}`}
                         >
                           {isSelected && (
                             <span className="absolute inset-0 flex items-center justify-center">

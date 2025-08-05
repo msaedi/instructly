@@ -45,8 +45,8 @@ export class SearchResultsPage {
 
   async getInstructorName(index: number = 0) {
     const card = this.instructorCards.nth(index);
-    // Get the instructor name from the h3 heading
-    const heading = await card.locator('h3').textContent();
+    // Get the instructor name from the h3 heading - use first() to avoid strict mode violation
+    const heading = await card.locator('h3').first().textContent();
     return heading || '';
   }
 

@@ -52,8 +52,9 @@ interface ServiceCardItemProps {
 function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: ServiceCardItemProps) {
   const [showTooltip, setShowTooltip] = useState(false);
 
-  // Calculate price based on duration
-  const price = Math.round((service.hourly_rate * duration) / 60);
+  // Calculate price based on duration with safety check
+  const hourlyRate = typeof service.hourly_rate === 'number' ? service.hourly_rate : 0;
+  const price = Math.round((hourlyRate * duration) / 60);
 
   // Generate helpful message for unavailable services
   const getUnavailableMessage = () => {
@@ -137,9 +138,15 @@ export function ServiceCards({ services, selectedSlot, onBookService, searchedSe
   const serviceDurationCombos: Array<{ service: InstructorService; duration: number }> = [];
 
   services.forEach(service => {
-    const durations = service.duration_options || [60];
+    // Ensure we have valid duration options
+    const durations = Array.isArray(service.duration_options) && service.duration_options.length > 0
+      ? service.duration_options
+      : [60]; // Default to 60 minutes if no duration options
+
     durations.forEach(duration => {
-      serviceDurationCombos.push({ service, duration });
+      if (typeof duration === 'number' && duration > 0) {
+        serviceDurationCombos.push({ service, duration });
+      }
     });
   });
 

@@ -23,15 +23,24 @@ export class InstructorProfilePage {
     this.availabilityCalendar = page
       .locator('section:has-text("Availability"), div:has-text("Available times")')
       .first();
-    this.timeSlots = page.locator('button').filter({ hasText: /\d{1,2}:\d{2}/ });
-    this.bookButton = page.getByRole('button', { name: /book|continue|next/i });
+    // Look for availability slot buttons (they're small squares in the grid)
+    this.timeSlots = page.locator('button[aria-label*="Select"]');
+    // Be more specific - we want the "Book This" button that's in a service card
+    // after a time slot has been selected
+    this.bookButton = page.getByRole('button', { name: 'Book This' }).first();
     this.selectedTimeSlot = page.locator('button[aria-pressed="true"], button.selected');
   }
 
   async selectFirstAvailableSlot() {
-    // Click on the first time slot button
+    // Wait for the availability grid to render
+    await this.page.waitForSelector('[data-testid^="time-slot-"]', {
+      state: 'visible',
+      timeout: 10000
+    });
+
+    // Click on the first available time slot button
     try {
-      const firstSlot = this.timeSlots.first();
+      const firstSlot = this.page.locator('[data-testid^="time-slot-"]').first();
       await firstSlot.click();
     } catch (e) {
       console.log('No time slots found, skipping selection');
@@ -39,8 +48,31 @@ export class InstructorProfilePage {
   }
 
   async selectTimeSlot(time: string) {
-    const slot = this.timeSlots.filter({ hasText: time });
-    await slot.click();
+    // Wait for time slots to be available
+    await this.page.waitForSelector('[data-testid^="time-slot-"]', {
+      state: 'visible',
+      timeout: 10000
+    });
+
+    // Try multiple approaches to find the time slot
+    let slot = this.page.locator(`[data-testid*="${time}"]`).first();
+
+    // If not found by test-id, try by aria-label
+    if (!(await slot.isVisible())) {
+      slot = this.page.locator(`button[aria-label*="${time}"]`).first();
+    }
+
+    // If still not found, try by text content
+    if (!(await slot.isVisible())) {
+      slot = this.page.locator('button').filter({ hasText: time }).first();
+    }
+
+    // Click the slot if found
+    if (await slot.isVisible()) {
+      await slot.click();
+    } else {
+      throw new Error(`Time slot ${time} not found`);
+    }
   }
 
   async proceedToBooking() {

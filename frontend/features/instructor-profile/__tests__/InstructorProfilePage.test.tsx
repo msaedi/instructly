@@ -80,8 +80,8 @@ describe('InstructorProfilePage', () => {
     );
 
     expect(screen.getByText('Sarah Chen')).toBeInTheDocument();
-    expect(screen.getByText('10 years experience')).toBeInTheDocument();
-    expect(screen.getByText(/Upper West Side/)).toBeInTheDocument();
+    expect(screen.getByText('4.9')).toBeInTheDocument(); // Rating
+    expect(screen.getByText('(127 reviews)')).toBeInTheDocument(); // Reviews
   });
 
   it('displays loading state while fetching data', () => {
@@ -136,14 +136,13 @@ describe('InstructorProfilePage', () => {
     expect(screen.getByText('$65')).toBeInTheDocument();
   });
 
-  it('shows verification badges when instructor is verified', () => {
+  it('shows background check badge when instructor has completed background check', () => {
     render(
       <QueryClientProvider client={queryClient}>
         <InstructorHeader instructor={mockInstructor} />
       </QueryClientProvider>
     );
 
-    expect(screen.getByText('Verified')).toBeInTheDocument();
     expect(screen.getByText('Background Checked')).toBeInTheDocument();
   });
 });

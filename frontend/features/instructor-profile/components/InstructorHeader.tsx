@@ -11,12 +11,17 @@ interface InstructorHeaderProps {
 export function InstructorHeader({ instructor }: InstructorHeaderProps) {
   const [isSaved, setIsSaved] = useState(false);
   const displayName = instructor.user?.full_name || `Instructor #${instructor.user_id}`;
-  const initials = displayName
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
+
+  // Safe initials calculation
+  const getInitials = (name: string): string => {
+    if (!name) return 'IN';
+    const parts = name.trim().split(' ').filter(Boolean);
+    if (parts.length === 0) return 'IN';
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
+
+  const initials = getInitials(displayName);
 
   // Mock data for ratings - replace with real data when available
   const rating = 4.9;
@@ -63,7 +68,7 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
       <div className="flex flex-col items-center text-center space-y-2">
         {/* Name with Heart Button */}
         <div className="flex items-center gap-2">
-          <h1 className="text-2xl lg:text-3xl font-bold">{displayName}</h1>
+          <h1 className="text-2xl lg:text-3xl font-bold" data-testid="instructor-profile-name">{displayName}</h1>
           <button
             onClick={() => setIsSaved(!isSaved)}
             className="ml-2 p-1 bg-transparent border-none hover:scale-110 transition-transform cursor-pointer"
