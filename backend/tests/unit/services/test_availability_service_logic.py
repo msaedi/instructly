@@ -13,7 +13,7 @@ FIXES:
 """
 
 from datetime import date, time, timedelta
-from unittest.mock import Mock, PropertyMock
+from unittest.mock import Mock, PropertyMock, patch
 
 import pytest
 from sqlalchemy.orm import Session
@@ -57,11 +57,12 @@ class TestAvailabilityServiceBusinessLogic:
                 end_time=time(10, 0),  # Before start time
             )
 
-        # Past date
-        with pytest.raises(Exception):  # Pydantic validation error
-            SpecificDateAvailabilityCreate(
-                specific_date=date.today() - timedelta(days=1), start_time=time(9, 0), end_time=time(10, 0)
-            )
+        # Past date validation is now handled in service layer, not schema
+        # This should NOT raise an error at schema level
+        past_slot = SpecificDateAvailabilityCreate(
+            specific_date=date.today() - timedelta(days=1), start_time=time(9, 0), end_time=time(10, 0)
+        )
+        assert past_slot.specific_date < date.today()  # Verify it's actually a past date
 
     def test_week_date_calculation(self, service):
         """Test the _calculate_week_dates helper method."""
@@ -81,29 +82,35 @@ class TestAvailabilityServiceBusinessLogic:
         week_data = Mock()
         week_data.week_start = monday
         week_data.schedule = []
+        instructor_id = 1
 
-        result = service._determine_week_start(week_data)
+        result = service._determine_week_start(week_data, instructor_id)
         assert result == monday
 
     def test_group_schedule_by_date(self, service):
         """Test the _group_schedule_by_date helper method."""
-        # Create mock schedule items with proper date attribute
-        tomorrow = date.today() + timedelta(days=1)
-        day_after = date.today() + timedelta(days=2)
+        # Mock get_user_today_by_id to return a consistent date
+        with patch("app.services.availability_service.get_user_today_by_id") as mock_get_today:
+            mock_get_today.return_value = date.today()
 
-        # Create dictionary items that match what the method expects
-        # Based on the service code, it expects dicts with 'date' key as string
-        schedule = [
-            {"date": tomorrow.isoformat(), "start_time": "09:00", "end_time": "10:00"},
-            {"date": tomorrow.isoformat(), "start_time": "14:00", "end_time": "15:00"},
-            {"date": day_after.isoformat(), "start_time": "09:00", "end_time": "10:00"},
-        ]
+            # Create mock schedule items with proper date attribute
+            tomorrow = date.today() + timedelta(days=1)
+            day_after = date.today() + timedelta(days=2)
+            instructor_id = 1
 
-        result = service._group_schedule_by_date(schedule)
+            # Create dictionary items that match what the method expects
+            # Based on the service code, it expects dicts with 'date' key as string
+            schedule = [
+                {"date": tomorrow.isoformat(), "start_time": "09:00", "end_time": "10:00"},
+                {"date": tomorrow.isoformat(), "start_time": "14:00", "end_time": "15:00"},
+                {"date": day_after.isoformat(), "start_time": "09:00", "end_time": "10:00"},
+            ]
 
-        assert len(result) == 2  # Two unique dates
-        assert len(result[tomorrow]) == 2  # Two slots for tomorrow
-        assert len(result[day_after]) == 1  # One slot for day after
+            result = service._group_schedule_by_date(schedule, instructor_id)
+
+            assert len(result) == 2  # Two unique dates
+            assert len(result[tomorrow]) == 2  # Two slots for tomorrow
+            assert len(result[day_after]) == 1  # One slot for day after
 
     def test_slot_exists_check(self, service):
         """Test slot existence checking via repository."""

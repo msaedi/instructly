@@ -319,8 +319,8 @@ class BookingService(BaseService):
         # Calculate earnings (only completed bookings)
         total_earnings = sum(float(b.total_price) for b in bookings if b.status == BookingStatus.COMPLETED)
 
-        # This month's earnings
-        first_day_of_month = date.today().replace(day=1)
+        # This month's earnings (in instructor's timezone)
+        first_day_of_month = instructor_today.replace(day=1)
         this_month_earnings = sum(
             float(b.total_price)
             for b in bookings
@@ -519,14 +519,26 @@ class BookingService(BaseService):
         Returns:
             Number of reminders sent
         """
-        tomorrow = date.today() + timedelta(days=1)
+        # For reminders, we need to check each booking's instructor timezone
+        # We'll handle this per booking in the loop
+        # For now, get system date as a reference
+        system_tomorrow = date.today() + timedelta(days=1)
 
         bookings = self.repository.get_bookings_for_date(
-            booking_date=tomorrow, status=BookingStatus.CONFIRMED, with_relationships=True
+            booking_date=system_tomorrow, status=BookingStatus.CONFIRMED, with_relationships=True
         )
 
         sent_count = 0
         for booking in bookings:
+            # Verify this booking is actually tomorrow in the instructor's timezone
+            from ..core.timezone_utils import get_user_today_by_id
+
+            instructor_today = get_user_today_by_id(booking.instructor_id, self.db)
+            instructor_tomorrow = instructor_today + timedelta(days=1)
+
+            # Skip if not actually tomorrow for this instructor
+            if booking.booking_date != instructor_tomorrow:
+                continue
             try:
                 await self.notification_service.send_reminder_emails()
                 sent_count += 1
@@ -841,7 +853,10 @@ class BookingService(BaseService):
 
         while current_time < slot_end:
             # Calculate potential end time
-            start_dt = datetime.combine(date.today(), current_time)
+            # Use a reference date for time calculations
+            # This is just for duration math, not timezone-specific
+            reference_date = date(2024, 1, 1)
+            start_dt = datetime.combine(reference_date, current_time)
             end_dt = start_dt + timedelta(minutes=target_duration_minutes)
             potential_end = end_dt.time()
 
@@ -891,8 +906,11 @@ class BookingService(BaseService):
     def _calculate_pricing(self, service: InstructorService, start_time: time, end_time: time) -> Dict[str, Any]:
         """Calculate booking pricing based on time range."""
         # Calculate duration
-        start = datetime.combine(date.today(), start_time)
-        end = datetime.combine(date.today(), end_time)
+        # Use a reference date for duration calculations
+        # This is just for calculating the duration, not timezone-specific
+        reference_date = date(2024, 1, 1)
+        start = datetime.combine(reference_date, start_time)
+        end = datetime.combine(reference_date, end_time)
         duration = end - start
         duration_minutes = int(duration.total_seconds() / 60)
 

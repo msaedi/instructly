@@ -95,7 +95,9 @@ class BookingCreate(BaseModel):
         """Ensure end_time is after start_time and calculate if needed."""
         if self.end_time is None and self.start_time and self.selected_duration:
             # Calculate end_time from start_time + duration
-            start_datetime = datetime.combine(date.today(), self.start_time)
+            # Use a reference date for time calculation (this is just for math, not timezone-specific)
+            reference_date = date(2024, 1, 1)
+            start_datetime = datetime.combine(reference_date, self.start_time)
             end_datetime = start_datetime + timedelta(minutes=self.selected_duration)
             self.end_time = end_datetime.time()
 

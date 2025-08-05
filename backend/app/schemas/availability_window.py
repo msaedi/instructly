@@ -48,13 +48,8 @@ class SpecificDateAvailabilityCreate(AvailabilityWindowBase):
 
     specific_date: DateType
 
-    @field_validator("specific_date")
-    @classmethod
-    def validate_future_date(cls, v):
-        """Prevent setting availability for past dates."""
-        if v < date.today():
-            raise ValueError("Cannot set availability for past dates")
-        return v
+    # Date validation removed - handled in service layer with user timezone context
+    # Past date validation requires knowing the user's timezone
 
 
 class AvailabilityWindowUpdate(BaseModel):
@@ -94,13 +89,8 @@ class BlackoutDateCreate(BaseModel):
     date: DateType
     reason: Optional[str] = Field(None, max_length=255)
 
-    @field_validator("date")
-    @classmethod
-    def validate_future_date(cls, v):
-        """Prevent creating blackout dates in the past."""
-        if v < date.today():
-            raise ValueError("Cannot create blackout date in the past")
-        return v
+    # Date validation removed - handled in service layer with user timezone context
+    # Past date validation requires knowing the instructor's timezone
 
 
 class BlackoutDateResponse(StandardizedModel):
@@ -224,13 +214,8 @@ class ApplyToDateRangeRequest(BaseModel):
                 raise ValueError("Date range cannot exceed 1 year (365 days)")
         return v
 
-    @field_validator("start_date")
-    @classmethod
-    def validate_future_date(cls, v):
-        """Ensure we're not applying to past dates."""
-        if v < date.today():
-            raise ValueError("Cannot apply schedule to past dates")
-        return v
+    # Date validation removed - handled in service layer with user timezone context
+    # Past date validation requires knowing the instructor's timezone
 
 
 # Bulk update schemas

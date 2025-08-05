@@ -441,9 +441,14 @@ class TestBookingServiceUnit:
             limit=None,
         )
 
-    def test_get_booking_stats_empty(self, booking_service, mock_instructor):
+    def test_get_booking_stats_empty(self, booking_service, mock_instructor, mock_db):
         """Test booking statistics with no bookings."""
         booking_service.repository.get_instructor_bookings_for_stats.return_value = []
+
+        # Mock the timezone lookup for the instructor
+        mock_user = Mock()
+        mock_user.timezone = "America/New_York"
+        mock_db.query().filter().first.return_value = mock_user
 
         stats = booking_service.get_booking_stats_for_instructor(mock_instructor.id)
 
@@ -454,23 +459,28 @@ class TestBookingServiceUnit:
         assert stats["total_earnings"] == 0
         assert stats["completion_rate"] == 0
 
-    def test_get_booking_stats_with_bookings(self, booking_service, mock_instructor):
+    def test_get_booking_stats_with_bookings(self, booking_service, mock_instructor, mock_db):
         """Test booking statistics with various bookings."""
+        # Mock the timezone lookup for the instructor
+        mock_user = Mock()
+        mock_user.timezone = "America/New_York"
+        mock_db.query().filter().first.return_value = mock_user
+
         # Create different types of bookings
         completed_booking = Mock()
         completed_booking.status = BookingStatus.COMPLETED
-        completed_booking.is_upcoming = False
+        completed_booking.is_upcoming = Mock(return_value=False)  # Mock as method
         completed_booking.total_price = Decimal("100.00")
         completed_booking.booking_date = date.today()
 
         upcoming_booking = Mock()
         upcoming_booking.status = BookingStatus.CONFIRMED
-        upcoming_booking.is_upcoming = True
+        upcoming_booking.is_upcoming = Mock(return_value=True)  # Mock as method
         upcoming_booking.total_price = Decimal("50.00")
 
         cancelled_booking = Mock()
         cancelled_booking.status = BookingStatus.CANCELLED
-        cancelled_booking.is_upcoming = False
+        cancelled_booking.is_upcoming = Mock(return_value=False)  # Mock as method
         cancelled_booking.total_price = Decimal("75.00")
 
         booking_service.repository.get_instructor_bookings_for_stats.return_value = [
@@ -546,13 +556,18 @@ class TestBookingServiceUnit:
         tomorrow_booking.id = 1
         tomorrow_booking.booking_date = date.today() + timedelta(days=1)
         tomorrow_booking.status = BookingStatus.CONFIRMED
+        tomorrow_booking.instructor_id = 1
 
         booking_service.repository.get_bookings_for_date.return_value = [tomorrow_booking]
 
-        count = await booking_service.send_booking_reminders()
+        # Mock get_user_today_by_id to return today's date
+        with patch("app.core.timezone_utils.get_user_today_by_id") as mock_get_today:
+            mock_get_today.return_value = date.today()
 
-        assert count == 1
-        mock_notification_service.send_reminder_emails.assert_called()
+            count = await booking_service.send_booking_reminders()
+
+            assert count == 1
+            mock_notification_service.send_reminder_emails.assert_called()
 
     @pytest.mark.asyncio
     async def test_send_booking_reminders_with_failures(self, booking_service, mock_notification_service):
@@ -560,17 +575,26 @@ class TestBookingServiceUnit:
         # Create bookings
         booking1 = Mock()
         booking1.id = 1
+        booking1.booking_date = date.today() + timedelta(days=1)
+        booking1.instructor_id = 1
+
         booking2 = Mock()
         booking2.id = 2
+        booking2.booking_date = date.today() + timedelta(days=1)
+        booking2.instructor_id = 2
 
         booking_service.repository.get_bookings_for_date.return_value = [booking1, booking2]
 
         # Make first reminder fail
         mock_notification_service.send_reminder_emails.side_effect = [Exception("Email error"), None]  # Second succeeds
 
-        count = await booking_service.send_booking_reminders()
+        # Mock get_user_today_by_id to return today's date
+        with patch("app.core.timezone_utils.get_user_today_by_id") as mock_get_today:
+            mock_get_today.return_value = date.today()
 
-        assert count == 1  # Only one succeeded
+            count = await booking_service.send_booking_reminders()
+
+            assert count == 1  # Only one succeeded
 
     def test_calculate_pricing_standard(self, booking_service):
         """Test pricing calculation for standard booking."""

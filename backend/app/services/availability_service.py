@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, TypedDict
 from sqlalchemy.orm import Session
 
 from ..core.exceptions import ConflictException, NotFoundException, RepositoryException
+from ..core.timezone_utils import get_user_today_by_id
 from ..models.availability import AvailabilitySlot, BlackoutDate
 from ..repositories.factory import RepositoryFactory
 from ..schemas.availability_window import BlackoutDateCreate, SpecificDateAvailabilityCreate, WeekSpecificScheduleCreate
@@ -297,11 +298,11 @@ class AvailabilityService(BaseService):
 
         try:
             # Use repository method for date range queries
-            # If no dates provided, use a large range
+            # If no dates provided, use a large range based on instructor's timezone
             if not start_date:
-                start_date = date.today()
+                start_date = get_user_today_by_id(instructor_id, self.db)
             if not end_date:
-                end_date = date.today() + timedelta(days=365)  # One year ahead
+                end_date = get_user_today_by_id(instructor_id, self.db) + timedelta(days=365)  # One year ahead
 
             slots = self.repository.get_week_availability(instructor_id, start_date, end_date)
             return slots
@@ -311,7 +312,7 @@ class AvailabilityService(BaseService):
             raise
 
     def _validate_and_parse_week_data(
-        self, week_data: WeekSpecificScheduleCreate
+        self, week_data: WeekSpecificScheduleCreate, instructor_id: int
     ) -> Tuple[date, List[date], Dict[date, List[ProcessedSlot]]]:
         """
         Validate week data and parse into organized structure.
@@ -323,11 +324,11 @@ class AvailabilityService(BaseService):
             Tuple of (monday, week_dates, schedule_by_date)
         """
         # Determine week dates
-        monday = self._determine_week_start(week_data)
+        monday = self._determine_week_start(week_data, instructor_id)
         week_dates = self._calculate_week_dates(monday)
 
         # Group schedule by date
-        schedule_by_date = self._group_schedule_by_date(week_data.schedule)
+        schedule_by_date = self._group_schedule_by_date(week_data.schedule, instructor_id)
 
         return monday, week_dates, schedule_by_date
 
@@ -348,8 +349,9 @@ class AvailabilityService(BaseService):
         slots_to_create = []
 
         for week_date in week_dates:
-            # Skip past dates
-            if week_date < date.today():
+            # Skip past dates based on instructor's timezone
+            instructor_today = get_user_today_by_id(instructor_id, self.db)
+            if week_date < instructor_today:
                 continue
 
             if week_date in schedule_by_date:
@@ -481,7 +483,7 @@ class AvailabilityService(BaseService):
         )
 
         # 1. Validate and parse
-        monday, week_dates, schedule_by_date = self._validate_and_parse_week_data(week_data)
+        monday, week_dates, schedule_by_date = self._validate_and_parse_week_data(week_data, instructor_id)
 
         # 2. Prepare slots for creation
         slots_to_create = self._prepare_slots_for_creation(instructor_id, week_dates, schedule_by_date)
@@ -602,7 +604,7 @@ class AvailabilityService(BaseService):
         """Calculate all dates for a week starting from Monday."""
         return [monday + timedelta(days=i) for i in range(7)]
 
-    def _determine_week_start(self, week_data: WeekSpecificScheduleCreate) -> date:
+    def _determine_week_start(self, week_data: WeekSpecificScheduleCreate, instructor_id: int) -> date:
         """Determine the Monday of the week from schedule data."""
         if week_data.week_start:
             return week_data.week_start
@@ -611,11 +613,13 @@ class AvailabilityService(BaseService):
             first_date = min(slot.specific_date for slot in week_data.schedule)
             return first_date - timedelta(days=first_date.weekday())
         else:
-            # Fallback to current week
-            today = date.today()
-            return today - timedelta(days=today.weekday())
+            # Fallback to current week in instructor's timezone
+            instructor_today = get_user_today_by_id(instructor_id, self.db)
+            return instructor_today - timedelta(days=instructor_today.weekday())
 
-    def _group_schedule_by_date(self, schedule: List[Dict[str, str]]) -> Dict[date, List[ProcessedSlot]]:
+    def _group_schedule_by_date(
+        self, schedule: List[Dict[str, str]], instructor_id: int
+    ) -> Dict[date, List[ProcessedSlot]]:
         """
         Group schedule entries by date.
 
@@ -628,10 +632,11 @@ class AvailabilityService(BaseService):
         schedule_by_date: Dict[date, List[ProcessedSlot]] = {}
 
         for slot in schedule:
-            # Skip past dates
+            # Skip past dates based on instructor's timezone
             slot_date = date.fromisoformat(slot["date"])
-            if slot_date < date.today():
-                logger.warning(f"Skipping past date: {slot_date}")
+            instructor_today = get_user_today_by_id(instructor_id, self.db)
+            if slot_date < instructor_today:
+                logger.warning(f"Skipping past date: {slot_date} (instructor today: {instructor_today})")
                 continue
 
             if slot_date not in schedule_by_date:
