@@ -68,18 +68,18 @@ class TestBookingCleanArchitecture:
             )
         assert "End time must be after start time" in str(exc.value)
 
-    def test_booking_create_validates_future_date(self):
-        """Test that bookings must be for future dates."""
-        with pytest.raises(ValidationError) as exc:
-            BookingCreate(
-                instructor_id=1,
-                instructor_service_id=1,
-                booking_date=date.today() - timedelta(days=1),  # Past date
-                start_time=time(9, 0),
-                end_time=time(10, 0),
-                selected_duration=60,
-            )
-        assert "Cannot book for past dates" in str(exc.value)
+    def test_booking_create_accepts_any_date(self):
+        """Test that date validation is handled at service layer, not schema."""
+        # Schema should accept past dates - validation moved to service layer for timezone support
+        booking = BookingCreate(
+            instructor_id=1,
+            instructor_service_id=1,
+            booking_date=date.today() - timedelta(days=1),  # Past date is allowed in schema
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            selected_duration=60,
+        )
+        assert booking.booking_date == date.today() - timedelta(days=1)
 
     def test_availability_check_request_self_contained(self):
         """Test AvailabilityCheckRequest uses instructor/date/time."""

@@ -185,6 +185,14 @@ class TestConflictCheckerValidationRules:
         service.repository = mock_repository
         return service
 
+    def _setup_user_mock(self, service, user_id=1, timezone="America/New_York"):
+        """Helper to set up user mock with timezone."""
+        mock_user = Mock()
+        mock_user.id = user_id
+        mock_user.timezone = timezone
+        service.db.query.return_value.filter.return_value.first.return_value = mock_user
+        return mock_user
+
     def test_past_date_validation_rules(self, service):
         """Test business rules for past date validation."""
         # Mock repository methods to return valid data
@@ -195,6 +203,9 @@ class TestConflictCheckerValidationRules:
         mock_profile = Mock(spec=InstructorProfile)
         mock_profile.min_advance_booking_hours = 2
         service.repository.get_instructor_profile.return_value = mock_profile
+
+        # Set up user mock with timezone
+        self._setup_user_mock(service)
 
         # Test past date
         result = service.validate_booking_constraints(
@@ -215,6 +226,9 @@ class TestConflictCheckerValidationRules:
         # Mock other validations to pass
         service.repository.get_bookings_for_conflict_check.return_value = []
         service.repository.get_blackout_date.return_value = None
+
+        # Set up user mock with timezone
+        self._setup_user_mock(service)
 
         mock_profile = Mock(spec=InstructorProfile)
         mock_profile.min_advance_booking_hours = 2
@@ -243,6 +257,9 @@ class TestConflictCheckerValidationRules:
         mock_profile = Mock(spec=InstructorProfile)
         mock_profile.min_advance_booking_hours = 2
         service.repository.get_instructor_profile.return_value = mock_profile
+
+        # Set up user mock with timezone
+        self._setup_user_mock(service)
 
         result = service.validate_booking_constraints(
             instructor_id=1, booking_date=date.today() + timedelta(days=1), start_time=time(14, 0), end_time=time(15, 0)
@@ -363,6 +380,9 @@ class TestConflictCheckerValidationRules:
         mock_profile.min_advance_booking_hours = 24
         service.repository.get_instructor_profile.return_value = mock_profile
 
+        # Set up user mock with timezone
+        self._setup_user_mock(service)
+
         # Test booking exactly 24 hours in advance
         booking_datetime = datetime.now() + timedelta(hours=24, minutes=1)
         result = service.check_minimum_advance_booking(
@@ -449,6 +469,14 @@ class TestConflictCheckerEdgeCases:
         service.repository = mock_repository
         return service
 
+    def _setup_user_mock(self, service, user_id=1, timezone="America/New_York"):
+        """Helper to set up user mock with timezone."""
+        mock_user = Mock()
+        mock_user.id = user_id
+        mock_user.timezone = timezone
+        service.db.query.return_value.filter.return_value.first.return_value = mock_user
+        return mock_user
+
     def test_midnight_boundary_handling(self, service):
         """Test handling of times near midnight."""
         # Test late night booking
@@ -502,6 +530,9 @@ class TestConflictCheckerEdgeCases:
         mock_profile = Mock(spec=InstructorProfile)
         mock_profile.min_advance_booking_hours = 2
         service.repository.get_instructor_profile.return_value = mock_profile
+
+        # Set up user mock with timezone
+        self._setup_user_mock(service)
 
         result = service.validate_booking_constraints(
             instructor_id=1,

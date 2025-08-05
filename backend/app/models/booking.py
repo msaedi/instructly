@@ -12,7 +12,7 @@ availability changes ("Rug and Person" principle).
 """
 
 import logging
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from typing import Optional
 
@@ -153,19 +153,23 @@ class Booking(Base):
         """Check if booking can be cancelled."""
         return self.status in [BookingStatus.CONFIRMED, BookingStatus.PENDING]
 
-    @property
-    def is_upcoming(self) -> bool:
-        """Check if booking is in the future."""
-        from datetime import date
+    def is_upcoming(self, user_today: date) -> bool:
+        """
+        Check if booking is in the future.
 
-        return self.booking_date > date.today() and self.status == BookingStatus.CONFIRMED
+        Args:
+            user_today: Today's date in user's timezone (required)
+        """
+        return self.booking_date > user_today and self.status == BookingStatus.CONFIRMED
 
-    @property
-    def is_past(self) -> bool:
-        """Check if booking date has passed."""
-        from datetime import date
+    def is_past(self, user_today: date) -> bool:
+        """
+        Check if booking date has passed.
 
-        return self.booking_date < date.today()
+        Args:
+            user_today: Today's date in user's timezone (required)
+        """
+        return self.booking_date < user_today
 
     @property
     def location_type_display(self) -> str:

@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
+from ..core.timezone_utils import get_user_today_by_id
 from ..models.booking import BookingStatus
 from ..repositories import RepositoryFactory
 from ..repositories.conflict_checker_repository import ConflictCheckerRepository
@@ -261,15 +262,34 @@ class ConflictChecker(BaseService):
         if not profile:
             return {"valid": False, "reason": "Instructor profile not found"}
 
-        # Calculate booking datetime
-        booking_datetime = datetime.combine(booking_date, booking_time)
-        min_booking_time = datetime.now() + timedelta(hours=profile.min_advance_booking_hours)
+        # Get instructor for timezone calculations
+        from ..models.user import User
 
-        if booking_datetime < min_booking_time:
-            hours_until_booking = (booking_datetime - datetime.now()).total_seconds() / 3600
+        instructor = self.db.query(User).filter(User.id == instructor_id).first()
+        if not instructor:
+            return {"valid": False, "reason": "Instructor not found"}
+
+        # Calculate booking datetime in instructor's timezone
+        booking_datetime = datetime.combine(booking_date, booking_time)
+
+        # Get instructor's current time
+        from ..core.timezone_utils import get_user_now
+
+        instructor_now = get_user_now(instructor)
+
+        # Calculate minimum booking time
+        min_booking_time = instructor_now + timedelta(hours=profile.min_advance_booking_hours)
+
+        # For comparison, we need to ensure both times are timezone-aware
+        # Convert booking_datetime to instructor's timezone for fair comparison
+        instructor_tz = instructor_now.tzinfo
+        booking_datetime_tz = instructor_tz.localize(booking_datetime)
+
+        if booking_datetime_tz < min_booking_time:
+            hours_until_booking = (booking_datetime_tz - instructor_now).total_seconds() / 3600
             return {
                 "valid": False,
-                "reason": f"Bookings must be made at least {profile.min_advance_booking_hours} hours in advance",
+                "reason": f"Bookings must be made at least {profile.min_advance_booking_hours} hours in advance (instructor timezone)",
                 "min_advance_hours": profile.min_advance_booking_hours,
                 "hours_until_booking": max(0, hours_until_booking),
             }
@@ -327,11 +347,21 @@ class ConflictChecker(BaseService):
         if not time_validation["valid"]:
             errors.append(time_validation["reason"])
 
-        # Check if date is in the past
-        if booking_date < date.today():
-            errors.append("Cannot book for past dates")
-        elif booking_date == date.today() and start_time < datetime.now().time():
-            errors.append("Cannot book for past time slots")
+        # Check if date is in the past using instructor's timezone
+        instructor_today = get_user_today_by_id(instructor_id, self.db)
+        if booking_date < instructor_today:
+            errors.append(f"Cannot book for past dates (instructor timezone)")
+        elif booking_date == instructor_today:
+            # Get instructor's current time for same-day validation
+            from ..models.user import User
+
+            instructor = self.db.query(User).filter(User.id == instructor_id).first()
+            if instructor:
+                from ..core.timezone_utils import get_user_now
+
+                instructor_now = get_user_now(instructor)
+                if start_time < instructor_now.time():
+                    errors.append(f"Cannot book for past time slots (instructor timezone)")
 
         # Check minimum advance booking
         advance_check = self.check_minimum_advance_booking(instructor_id, booking_date, start_time)

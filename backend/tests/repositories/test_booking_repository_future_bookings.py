@@ -29,6 +29,12 @@ class TestBookingRepositoryFutureBookings:
         """Create a BookingRepository instance."""
         return BookingRepository(db)
 
+    def get_user_today(self, user_id: int, db: Session) -> date:
+        """Get today's date using the same timezone logic as the repository."""
+        from app.core.timezone_utils import get_user_today_by_id
+
+        return get_user_today_by_id(user_id, db)
+
     @pytest.fixture
     def instructor_service(self, db: Session, test_instructor: User):
         """Get or create a service for the test instructor."""
@@ -86,7 +92,8 @@ class TestBookingRepositoryFutureBookings:
         instructor_service: Service,
     ):
         """Test with a single future booking."""
-        tomorrow = date.today() + timedelta(days=1)
+        today = self.get_user_today(test_instructor.id, db)
+        tomorrow = today + timedelta(days=1)
         booking = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, tomorrow)
         db.commit()
 
@@ -105,10 +112,11 @@ class TestBookingRepositoryFutureBookings:
         instructor_service: Service,
     ):
         """Test with multiple future bookings."""
+        today = self.get_user_today(test_instructor.id, db)
         # Create bookings for next 3 days
         bookings = []
         for i in range(1, 4):
-            future_date = date.today() + timedelta(days=i)
+            future_date = today + timedelta(days=i)
             booking = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, future_date)
             bookings.append(booking)
         db.commit()
@@ -129,16 +137,19 @@ class TestBookingRepositoryFutureBookings:
         instructor_service: Service,
     ):
         """Test that only future bookings are returned when past bookings exist."""
+        # Use the same date calculation as the repository to avoid timezone issues
+        today = self.get_user_today(test_instructor.id, db)
+
         # Create past bookings
-        yesterday = date.today() - timedelta(days=1)
-        last_week = date.today() - timedelta(days=7)
+        yesterday = today - timedelta(days=1)
+        last_week = today - timedelta(days=7)
 
         past_booking1 = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, yesterday)
         past_booking2 = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, last_week)
 
         # Create future bookings
-        tomorrow = date.today() + timedelta(days=1)
-        next_week = date.today() + timedelta(days=7)
+        tomorrow = today + timedelta(days=1)
+        next_week = today + timedelta(days=7)
 
         future_booking1 = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, tomorrow)
         future_booking2 = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, next_week)
@@ -168,7 +179,8 @@ class TestBookingRepositoryFutureBookings:
         instructor_service: Service,
     ):
         """Test that cancelled bookings are excluded by default."""
-        tomorrow = date.today() + timedelta(days=1)
+        today = self.get_user_today(test_instructor.id, db)
+        tomorrow = today + timedelta(days=1)
 
         # Create confirmed and cancelled bookings
         confirmed_booking = self.create_booking(
@@ -196,7 +208,8 @@ class TestBookingRepositoryFutureBookings:
         instructor_service: Service,
     ):
         """Test that cancelled bookings can be included when requested."""
-        tomorrow = date.today() + timedelta(days=1)
+        today = self.get_user_today(test_instructor.id, db)
+        tomorrow = today + timedelta(days=1)
 
         # Create confirmed and cancelled bookings
         confirmed_booking = self.create_booking(
@@ -227,10 +240,11 @@ class TestBookingRepositoryFutureBookings:
         instructor_service: Service,
     ):
         """Test using a custom from_date parameter."""
+        today = self.get_user_today(test_instructor.id, db)
         # Create bookings at different points in the future
-        tomorrow = date.today() + timedelta(days=1)
-        in_3_days = date.today() + timedelta(days=3)
-        in_5_days = date.today() + timedelta(days=5)
+        tomorrow = today + timedelta(days=1)
+        in_3_days = today + timedelta(days=3)
+        in_5_days = today + timedelta(days=5)
 
         booking1 = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, tomorrow)
         booking2 = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, in_3_days)
@@ -258,7 +272,7 @@ class TestBookingRepositoryFutureBookings:
         instructor_service: Service,
     ):
         """Test that bookings on today's date are considered future bookings."""
-        today = date.today()
+        today = self.get_user_today(test_instructor.id, db)
 
         booking = self.create_booking(db, test_instructor.id, test_student.id, instructor_service.id, today)
 
@@ -279,7 +293,8 @@ class TestBookingRepositoryFutureBookings:
         instructor_service: Service,
     ):
         """Test handling of different booking statuses."""
-        tomorrow = date.today() + timedelta(days=1)
+        today = self.get_user_today(test_instructor.id, db)
+        tomorrow = today + timedelta(days=1)
 
         # Create bookings with different statuses
         statuses = [
@@ -316,7 +331,8 @@ class TestBookingRepositoryFutureBookings:
         instructor_service: Service,
     ):
         """Test that method only returns bookings for specified instructor."""
-        tomorrow = date.today() + timedelta(days=1)
+        today = self.get_user_today(test_instructor.id, db)
+        tomorrow = today + timedelta(days=1)
 
         # Create a second instructor
         from app.auth import get_password_hash
@@ -362,7 +378,8 @@ class TestBookingRepositoryFutureBookings:
         instructor_service: Service,
     ):
         """Test that bookings are ordered by date and start time."""
-        tomorrow = date.today() + timedelta(days=1)
+        today = self.get_user_today(test_instructor.id, db)
+        tomorrow = today + timedelta(days=1)
 
         # Create bookings at different times on same day
         booking_afternoon = Booking(

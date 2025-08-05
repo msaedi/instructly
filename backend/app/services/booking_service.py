@@ -305,9 +305,14 @@ class BookingService(BaseService):
         # Calculate stats if not cached
         bookings = self.repository.get_instructor_bookings_for_stats(instructor_id)
 
+        # Get instructor's today date for timezone-aware calculations
+        from ..core.timezone_utils import get_user_today_by_id
+
+        instructor_today = get_user_today_by_id(instructor_id, self.db)
+
         # Calculate stats
         total_bookings = len(bookings)
-        upcoming_bookings = sum(1 for b in bookings if b.is_upcoming)
+        upcoming_bookings = sum(1 for b in bookings if b.is_upcoming(instructor_today))
         completed_bookings = sum(1 for b in bookings if b.status == BookingStatus.COMPLETED)
         cancelled_bookings = sum(1 for b in bookings if b.status == BookingStatus.CANCELLED)
 

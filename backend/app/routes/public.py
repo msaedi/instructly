@@ -23,6 +23,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
+from ..core.timezone_utils import get_user_today
 from ..database import get_db
 from ..models.instructor import InstructorProfile
 from ..models.user import User
@@ -118,9 +119,12 @@ async def get_instructor_public_availability(
     if not instructor_profile:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
 
-    # Validate dates FIRST before setting defaults
-    if start_date < date.today():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Start date cannot be in the past")
+    # Validate dates using instructor's timezone
+    instructor_today = get_user_today(instructor_user)
+    if start_date < instructor_today:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Start date cannot be in the past (instructor timezone)"
+        )
 
     # If end_date is provided, validate it
     if end_date:
@@ -374,9 +378,9 @@ async def get_next_available_slot(
     if not instructor_profile:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor not found")
 
-    # Search for next configured days
+    # Search for next configured days using instructor's timezone
     search_days = settings.public_availability_days
-    current_date = date.today()
+    current_date = get_user_today(instructor_user)
 
     for _ in range(search_days):
         # Skip if blackout date

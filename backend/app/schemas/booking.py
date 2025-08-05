@@ -66,13 +66,14 @@ class BookingCreate(BaseModel):
             raise ValueError("Duration cannot exceed 12 hours")
         return v
 
-    @field_validator("booking_date")
-    @classmethod
-    def validate_future_date(cls, v):
-        """Ensure booking is for future date."""
-        if v < date.today():
-            raise ValueError("Cannot book for past dates")
-        return v
+    # NOTE: Date validation moved to services to support user timezones
+    # @field_validator("booking_date")
+    # @classmethod
+    # def validate_future_date(cls, v):
+    #     """Ensure booking is for future date."""
+    #     if v < date.today():
+    #         raise ValueError("Cannot book for past dates")
+    #     return v
 
     @field_validator("student_note")
     @classmethod
@@ -224,12 +225,14 @@ class BookingResponse(BookingBase):
         """Check if booking can be cancelled."""
         return self.status in [BookingStatus.CONFIRMED, BookingStatus.PENDING]
 
-    @property
-    def is_upcoming(self) -> bool:
-        """Check if booking is in the future."""
-        from datetime import date as dt_date
+    def is_upcoming(self, user_today: date) -> bool:
+        """
+        Check if booking is in the future.
 
-        return self.booking_date > dt_date.today() and self.status == BookingStatus.CONFIRMED
+        Args:
+            user_today: Today's date in user's timezone (required)
+        """
+        return self.booking_date > user_today and self.status == BookingStatus.CONFIRMED
 
 
 class BookingListResponse(StandardizedModel):
@@ -281,12 +284,13 @@ class AvailabilityCheckRequest(BaseModel):
             raise ValueError("End time must be after start time")
         return v
 
-    @field_validator("booking_date")
-    def validate_future_date(cls, v):
-        """Ensure checking future dates only."""
-        if v < date.today():
-            raise ValueError("Cannot check availability for past dates")
-        return v
+    # NOTE: Date validation moved to services to support user timezones
+    # @field_validator("booking_date")
+    # def validate_future_date(cls, v):
+    #     """Ensure checking future dates only."""
+    #     if v < date.today():
+    #         raise ValueError("Cannot check availability for past dates")
+    #     return v
 
 
 class AvailabilityCheckResponse(BaseModel):
