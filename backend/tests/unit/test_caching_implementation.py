@@ -145,10 +145,14 @@ class TestServiceCaching:
 
         # Create mock repository
         mock_repo = Mock()
-        mock_bookings = [
-            Mock(is_upcoming=False, status=BookingStatus.COMPLETED, total_price=100.0, booking_date=date.today())
-            for _ in range(5)
-        ]
+        mock_bookings = []
+        for _ in range(5):
+            mock_booking = Mock()
+            mock_booking.is_upcoming = Mock(return_value=False)
+            mock_booking.status = BookingStatus.COMPLETED
+            mock_booking.total_price = 100.0
+            mock_booking.booking_date = date.today()
+            mock_bookings.append(mock_booking)
         mock_repo.get_instructor_bookings_for_stats.return_value = mock_bookings
 
         # Mock user timezone lookup
@@ -274,10 +278,15 @@ class TestCachePerformance:
 
         mock_repo = Mock()
         # Expensive operation (lots of bookings)
-        mock_repo.get_instructor_bookings_for_stats.return_value = [
-            Mock(is_upcoming=False, status=BookingStatus.COMPLETED, total_price=100.0, booking_date=date.today())
-            for _ in range(1000)
-        ]
+        mock_bookings = []
+        for _ in range(1000):
+            mock_booking = Mock()
+            mock_booking.is_upcoming = Mock(return_value=False)
+            mock_booking.status = BookingStatus.COMPLETED
+            mock_booking.total_price = 100.0
+            mock_booking.booking_date = date.today()
+            mock_bookings.append(mock_booking)
+        mock_repo.get_instructor_bookings_for_stats.return_value = mock_bookings
 
         # Mock user timezone lookup
         mock_user = Mock()

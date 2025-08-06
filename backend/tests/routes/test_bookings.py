@@ -1311,7 +1311,9 @@ class TestBookingIntegration:
         assert stats["completed_bookings"] == 3
         assert stats["upcoming_bookings"] == 1
         assert stats["cancelled_bookings"] == 1
-        assert stats["total_earnings"] == 150.0  # 3 completed * 50
+        # Use the actual service hourly_rate (could be 45.0 or 50.0 depending on which service is selected)
+        expected_earnings = float(service.hourly_rate * 3)  # 3 completed bookings
+        assert stats["total_earnings"] == expected_earnings
         # Check for optional fields that might be present
         if "completion_rate" in stats:
             assert stats["completion_rate"] == 0.6  # 3/5
