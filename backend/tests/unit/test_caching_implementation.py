@@ -151,25 +151,33 @@ class TestServiceCaching:
         ]
         mock_repo.get_instructor_bookings_for_stats.return_value = mock_bookings
 
-        # Create service
-        service = BookingService(db=db, cache_service=mock_cache, notification_service=Mock(), repository=mock_repo)
+        # Mock user timezone lookup
+        mock_user = Mock()
+        mock_user.timezone = "America/New_York"
+        mock_user.id = 123
+        db.query = Mock(return_value=Mock(filter=Mock(return_value=Mock(first=Mock(return_value=mock_user)))))
 
-        # Get stats
-        stats = service.get_booking_stats_for_instructor(instructor_id=123)
+        # Mock get_user_today_by_id to avoid ValueError in CI
+        with patch("app.core.timezone_utils.get_user_today_by_id", return_value=date.today()):
+            # Create service
+            service = BookingService(db=db, cache_service=mock_cache, notification_service=Mock(), repository=mock_repo)
 
-        # Verify cache miss flow
-        mock_cache.get.assert_called_once_with("booking_stats:instructor:123")
-        mock_repo.get_instructor_bookings_for_stats.assert_called_once_with(123)
-        # Verify result was cached
-        mock_cache.set.assert_called_once()
-        cache_call_args = mock_cache.set.call_args
-        assert cache_call_args[0][0] == "booking_stats:instructor:123"
-        assert cache_call_args[1]["tier"] == "hot"
+            # Get stats
+            stats = service.get_booking_stats_for_instructor(instructor_id=123)
 
-        # Verify stats calculation
-        assert stats["total_bookings"] == 5
-        assert stats["completed_bookings"] == 5
-        assert stats["total_earnings"] == 500.0
+            # Verify cache miss flow
+            mock_cache.get.assert_called_once_with("booking_stats:instructor:123")
+            mock_repo.get_instructor_bookings_for_stats.assert_called_once_with(123)
+            # Verify result was cached
+            mock_cache.set.assert_called_once()
+            cache_call_args = mock_cache.set.call_args
+            assert cache_call_args[0][0] == "booking_stats:instructor:123"
+            assert cache_call_args[1]["tier"] == "hot"
+
+            # Verify stats calculation
+            assert stats["total_bookings"] == 5
+            assert stats["completed_bookings"] == 5
+            assert stats["total_earnings"] == 500.0
 
     def test_cache_invalidation_on_booking_change(self, db):
         """Test that stats cache is invalidated when booking changes."""
@@ -271,13 +279,21 @@ class TestCachePerformance:
             for _ in range(1000)
         ]
 
-        service = BookingService(db=db, cache_service=mock_cache, notification_service=Mock(), repository=mock_repo)
+        # Mock user timezone lookup
+        mock_user = Mock()
+        mock_user.timezone = "America/New_York"
+        mock_user.id = 123
+        db.query = Mock(return_value=Mock(filter=Mock(return_value=Mock(first=Mock(return_value=mock_user)))))
 
-        # First call - expensive computation
-        stats1 = service.get_booking_stats_for_instructor(instructor_id=123)
-        assert mock_repo.get_instructor_bookings_for_stats.call_count == 1
+        # Mock get_user_today_by_id to avoid ValueError in CI
+        with patch("app.core.timezone_utils.get_user_today_by_id", return_value=date.today()):
+            service = BookingService(db=db, cache_service=mock_cache, notification_service=Mock(), repository=mock_repo)
 
-        # Second call - should use cache
-        stats2 = service.get_booking_stats_for_instructor(instructor_id=123)
-        # Repository should not be called again
-        assert mock_repo.get_instructor_bookings_for_stats.call_count == 1
+            # First call - expensive computation
+            stats1 = service.get_booking_stats_for_instructor(instructor_id=123)
+            assert mock_repo.get_instructor_bookings_for_stats.call_count == 1
+
+            # Second call - should use cache
+            stats2 = service.get_booking_stats_for_instructor(instructor_id=123)
+            # Repository should not be called again
+            assert mock_repo.get_instructor_bookings_for_stats.call_count == 1

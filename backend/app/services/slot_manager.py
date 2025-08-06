@@ -358,9 +358,9 @@ class SlotManager(BaseService):
             gap_start = current_slot.end_time
             gap_end = next_slot.start_time
 
-            # Calculate gap duration
-            start_dt = datetime.combine(date.today(), gap_start)
-            end_dt = datetime.combine(date.today(), gap_end)
+            # Calculate gap duration using reference date (timezone-agnostic)
+            start_dt = datetime.combine(date.today(), gap_start)  # reference calculation only
+            end_dt = datetime.combine(date.today(), gap_end)  # reference calculation only
             gap_minutes = int((end_dt - start_dt).total_seconds() / 60)
 
             if gap_minutes >= min_gap_minutes:
@@ -406,9 +406,9 @@ class SlotManager(BaseService):
         if gap_end <= gap_start:
             return True
 
-        # Calculate gap duration
-        start_dt = datetime.combine(date.today(), gap_start)
-        end_dt = datetime.combine(date.today(), gap_end)
+        # Calculate gap duration using reference date (timezone-agnostic)
+        start_dt = datetime.combine(date.today(), gap_start)  # reference calculation only
+        end_dt = datetime.combine(date.today(), gap_end)  # reference calculation only
         gap_minutes = int((end_dt - start_dt).total_seconds() / 60)
 
         # Slots can merge if gap is small enough

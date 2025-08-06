@@ -217,9 +217,9 @@ class ConflictChecker(BaseService):
         if end_time <= start_time:
             return {"valid": False, "reason": "End time must be after start time"}
 
-        # Calculate duration
-        start = datetime.combine(date.today(), start_time)
-        end = datetime.combine(date.today(), end_time)
+        # Calculate duration using reference date (timezone-agnostic)
+        start = datetime.combine(date.today(), start_time)  # reference calculation only
+        end = datetime.combine(date.today(), end_time)  # reference calculation only
         duration = end - start
         duration_minutes = int(duration.total_seconds() / 60)
 
@@ -446,8 +446,8 @@ class ConflictChecker(BaseService):
         current_time = earliest_time
 
         for booking in active_bookings:
-            # Calculate potential end time
-            start_dt = datetime.combine(date.today(), current_time)
+            # Calculate potential end time using reference date (timezone-agnostic)
+            start_dt = datetime.combine(date.today(), current_time)  # reference calculation only
             end_dt = start_dt + timedelta(minutes=duration_minutes)
             potential_end = end_dt.time()
 
@@ -463,8 +463,8 @@ class ConflictChecker(BaseService):
             # Move current time to after this booking
             current_time = booking.end_time
 
-        # Check if there's room after all bookings
-        start_dt = datetime.combine(date.today(), current_time)
+        # Check if there's room after all bookings using reference date (timezone-agnostic)
+        start_dt = datetime.combine(date.today(), current_time)  # reference calculation only
         end_dt = start_dt + timedelta(minutes=duration_minutes)
         potential_end = end_dt.time()
 

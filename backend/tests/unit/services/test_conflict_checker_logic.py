@@ -7,7 +7,7 @@ implementation which works directly with bookings without slot references.
 """
 
 from datetime import date, datetime, time, timedelta
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from sqlalchemy.orm import Session
@@ -383,20 +383,32 @@ class TestConflictCheckerValidationRules:
         # Set up user mock with timezone
         self._setup_user_mock(service)
 
-        # Test booking exactly 24 hours in advance
-        booking_datetime = datetime.now() + timedelta(hours=24, minutes=1)
-        result = service.check_minimum_advance_booking(
-            instructor_id=1, booking_date=booking_datetime.date(), booking_time=booking_datetime.time()
-        )
+        # Use a fixed datetime for consistent testing across timezones
+        # This ensures CI and local tests behave the same
+        from datetime import datetime
+        from datetime import timezone as tz
 
-        assert result["valid"] == True
-        assert result["min_advance_hours"] == 24
+        fixed_now = datetime(2024, 1, 15, 10, 0, 0, tzinfo=tz.utc)
 
-        # Test booking too soon (23 hours)
-        booking_datetime = datetime.now() + timedelta(hours=23)
-        result = service.check_minimum_advance_booking(
-            instructor_id=1, booking_date=booking_datetime.date(), booking_time=booking_datetime.time()
-        )
+        # Mock datetime.now() to return our fixed time
+        with patch("app.services.conflict_checker_service.datetime") as mock_datetime:
+            mock_datetime.now.return_value = fixed_now
+            mock_datetime.combine = datetime.combine
+
+            # Test booking exactly 24 hours in advance
+            booking_datetime = fixed_now + timedelta(hours=24, minutes=1)
+            result = service.check_minimum_advance_booking(
+                instructor_id=1, booking_date=booking_datetime.date(), booking_time=booking_datetime.time()
+            )
+
+            assert result["valid"] == True
+            assert result["min_advance_hours"] == 24
+
+            # Test booking too soon (23 hours)
+            booking_datetime = fixed_now + timedelta(hours=23)
+            result = service.check_minimum_advance_booking(
+                instructor_id=1, booking_date=booking_datetime.date(), booking_time=booking_datetime.time()
+            )
 
         assert result["valid"] == False
         assert "at least 24 hours in advance" in result["reason"]
