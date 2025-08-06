@@ -89,6 +89,7 @@ class AuthService(BaseService):
                 permission_service.assign_role(user.id, role_name)
 
                 # Refresh user to get roles
+                # repo-pattern-migrate: TODO: Migrate to repository pattern
                 self.db.refresh(user)
 
                 # If registering as instructor, create empty profile

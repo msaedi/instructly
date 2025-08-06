@@ -265,6 +265,7 @@ class ConflictChecker(BaseService):
         # Get instructor for timezone calculations
         from ..models.user import User
 
+        # repo-pattern-migrate: TODO: Use UserRepository when created
         instructor = self.db.query(User).filter(User.id == instructor_id).first()
         if not instructor:
             return {"valid": False, "reason": "Instructor not found"}
@@ -355,6 +356,7 @@ class ConflictChecker(BaseService):
             # Get instructor's current time for same-day validation
             from ..models.user import User
 
+            # repo-pattern-migrate: TODO: Use UserRepository when created
             instructor = self.db.query(User).filter(User.id == instructor_id).first()
             if instructor:
                 from ..core.timezone_utils import get_user_now

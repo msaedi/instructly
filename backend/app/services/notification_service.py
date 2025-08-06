@@ -315,6 +315,7 @@ class NotificationService(BaseService):
         """
         tomorrow = datetime.now().date() + timedelta(days=1)
 
+        # repo-pattern-migrate: TODO: Migrate to repository pattern
         bookings = self.db.query(Booking).filter(Booking.booking_date == tomorrow, Booking.status == "CONFIRMED").all()
 
         self.logger.info(f"Found {len(bookings)} bookings for tomorrow")

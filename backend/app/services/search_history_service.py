@@ -152,33 +152,37 @@ class SearchHistoryService(BaseService):
                 )
 
             # Execute the UPSERT
+            # repo-pattern-migrate: TODO: Migrate to repository pattern
             self.db.execute(stmt)
+            # repo-pattern-migrate: TODO: Migrate to repository pattern
             self.db.commit()
 
             # Fetch and return the result
             if context.user_id:
                 result = (
+                    # repo-pattern-migrate: TODO: Migrate to repository pattern
                     self.db.query(SearchHistory)
+                    # repo-pattern-migrate: TODO: Migrate to repository pattern
                     .filter(
                         and_(
                             SearchHistory.user_id == context.user_id,
                             SearchHistory.normalized_query == normalized_query,
                             SearchHistory.deleted_at.is_(None),
                         )
-                    )
-                    .first()
+                    ).first()
                 )
             else:
                 result = (
+                    # repo-pattern-migrate: TODO: Migrate to repository pattern
                     self.db.query(SearchHistory)
+                    # repo-pattern-migrate: TODO: Migrate to repository pattern
                     .filter(
                         and_(
                             SearchHistory.guest_session_id == context.guest_session_id,
                             SearchHistory.normalized_query == normalized_query,
                             SearchHistory.deleted_at.is_(None),
                         )
-                    )
-                    .first()
+                    ).first()
                 )
 
             # Log what happened
@@ -232,22 +236,26 @@ class SearchHistoryService(BaseService):
             if context.user_id:
                 # Check if user has searched before
                 previous_search = (
+                    # repo-pattern-migrate: TODO: Migrate to repository pattern
                     self.db.query(SearchEvent)
+                    # repo-pattern-migrate: TODO: Migrate to repository pattern
                     .filter(
                         SearchEvent.user_id == context.user_id, SearchEvent.searched_at < datetime.now(timezone.utc)
                     )
+                    # repo-pattern-migrate: TODO: Migrate to repository pattern
                     .first()
                 )
                 is_returning = previous_search is not None
             elif context.guest_session_id:
                 # Check guest session history
                 previous_search = (
+                    # repo-pattern-migrate: TODO: Migrate to repository pattern
                     self.db.query(SearchEvent)
+                    # repo-pattern-migrate: TODO: Migrate to repository pattern
                     .filter(
                         SearchEvent.guest_session_id == context.guest_session_id,
                         SearchEvent.searched_at < datetime.now(timezone.utc) - timedelta(minutes=30),
-                    )
-                    .first()
+                    ).first()
                 )
                 is_returning = previous_search is not None
 
@@ -285,6 +293,7 @@ class SearchHistoryService(BaseService):
                 pass  # Transaction commits automatically
 
             # Refresh through repository
+            # repo-pattern-migrate: TODO: Migrate to repository pattern
             self.db.refresh(result)
 
             # Store the event ID on the result for frontend use
@@ -512,6 +521,7 @@ class SearchHistoryService(BaseService):
             logger.info(f"Looking for search event {search_event_id}")
 
             # Validate search event exists
+            # repo-pattern-migrate: TODO: Migrate to repository pattern
             search_event = self.db.query(SearchEvent).filter(SearchEvent.id == search_event_id).first()
             if not search_event:
                 raise ValueError(f"Search event {search_event_id} not found")

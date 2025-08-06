@@ -117,6 +117,7 @@ class SlotManager(BaseService):
                         break
 
             if final_slot:
+                # repo-pattern-migrate: TODO: Migrate to repository pattern
                 self.db.refresh(final_slot)
                 self.logger.info(
                     f"Created slot {new_slot.id} for instructor {instructor_id} on {target_date}: "

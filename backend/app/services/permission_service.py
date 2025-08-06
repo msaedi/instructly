@@ -54,10 +54,13 @@ class PermissionService(BaseService):
             return self._cache[cache_key]
 
         # Get user with roles and permissions
+        # repo-pattern-migrate: TODO: Use UserRepository when created
         user = (
-            self.db.query(User)
-            .options(joinedload(User.roles).joinedload(Role.permissions))
+            # repo-pattern-migrate: TODO: Migrate to repository pattern
+            self.db.query(User).options(joinedload(User.roles).joinedload(Role.permissions))
+            # repo-pattern-migrate: TODO: Migrate to repository pattern
             .filter(User.id == user_id)
+            # repo-pattern-migrate: TODO: Migrate to repository pattern
             .first()
         )
 
@@ -73,9 +76,11 @@ class PermissionService(BaseService):
 
         # Check individual permission overrides
         user_perm = (
-            self.db.query(UserPermission)
-            .join(Permission)
+            # repo-pattern-migrate: TODO: Migrate to repository pattern
+            self.db.query(UserPermission).join(Permission)
+            # repo-pattern-migrate: TODO: Migrate to repository pattern
             .filter(UserPermission.user_id == user_id, Permission.name == permission_str)
+            # repo-pattern-migrate: TODO: Migrate to repository pattern
             .first()
         )
 
@@ -101,9 +106,11 @@ class PermissionService(BaseService):
             Set of permission names
         """
         user = (
-            self.db.query(User)
-            .options(joinedload(User.roles).joinedload(Role.permissions))
+            # repo-pattern-migrate: TODO: Migrate to repository pattern
+            self.db.query(User).options(joinedload(User.roles).joinedload(Role.permissions))
+            # repo-pattern-migrate: TODO: Migrate to repository pattern
             .filter(User.id == user_id)
+            # repo-pattern-migrate: TODO: Migrate to repository pattern
             .first()
         )
 
@@ -118,6 +125,7 @@ class PermissionService(BaseService):
                 permissions.add(permission.name)
 
         # Apply individual permission overrides
+        # repo-pattern-migrate: TODO: Migrate to repository pattern
         user_perms = self.db.query(UserPermission).join(Permission).filter(UserPermission.user_id == user_id).all()
 
         for up in user_perms:
@@ -139,6 +147,7 @@ class PermissionService(BaseService):
         Returns:
             List of role names
         """
+        # repo-pattern-migrate: TODO: Migrate to repository pattern
         user = self.db.query(User).options(joinedload(User.roles)).filter(User.id == user_id).first()
 
         if not user:
@@ -162,19 +171,23 @@ class PermissionService(BaseService):
             True if successful, False if permission doesn't exist
         """
         # Check if permission exists
+        # repo-pattern-migrate: TODO: Migrate to repository pattern
         permission = self.db.query(Permission).filter_by(name=permission_name).first()
         if not permission:
             return False
 
         # Check if override already exists
+        # repo-pattern-migrate: TODO: Migrate to repository pattern
         user_perm = self.db.query(UserPermission).filter_by(user_id=user_id, permission_id=permission.id).first()
 
         if user_perm:
             user_perm.granted = True
         else:
             user_perm = UserPermission(user_id=user_id, permission_id=permission.id, granted=True)
+            # repo-pattern-migrate: TODO: Migrate to repository pattern
             self.db.add(user_perm)
 
+        # repo-pattern-migrate: TODO: Migrate to repository pattern
         self.db.commit()
 
         # Clear cache for this user
@@ -198,19 +211,23 @@ class PermissionService(BaseService):
             True if successful, False if permission doesn't exist
         """
         # Check if permission exists
+        # repo-pattern-migrate: TODO: Migrate to repository pattern
         permission = self.db.query(Permission).filter_by(name=permission_name).first()
         if not permission:
             return False
 
         # Check if override already exists
+        # repo-pattern-migrate: TODO: Migrate to repository pattern
         user_perm = self.db.query(UserPermission).filter_by(user_id=user_id, permission_id=permission.id).first()
 
         if user_perm:
             user_perm.granted = False
         else:
             user_perm = UserPermission(user_id=user_id, permission_id=permission.id, granted=False)
+            # repo-pattern-migrate: TODO: Migrate to repository pattern
             self.db.add(user_perm)
 
+        # repo-pattern-migrate: TODO: Migrate to repository pattern
         self.db.commit()
 
         # Clear cache for this user
@@ -231,7 +248,9 @@ class PermissionService(BaseService):
             True if successful, False if role doesn't exist or user already has it
         """
         # Get user and role
+        # repo-pattern-migrate: TODO: Migrate to repository pattern
         user = self.db.query(User).filter_by(id=user_id).first()
+        # repo-pattern-migrate: TODO: Migrate to repository pattern
         role = self.db.query(Role).filter_by(name=role_name).first()
 
         if not user or not role:
@@ -243,6 +262,7 @@ class PermissionService(BaseService):
 
         # Assign role
         user.roles.append(role)
+        # repo-pattern-migrate: TODO: Migrate to repository pattern
         self.db.commit()
 
         # Clear cache for this user
@@ -263,7 +283,9 @@ class PermissionService(BaseService):
             True if successful, False if role doesn't exist or user doesn't have it
         """
         # Get user and role
+        # repo-pattern-migrate: TODO: Migrate to repository pattern
         user = self.db.query(User).filter_by(id=user_id).first()
+        # repo-pattern-migrate: TODO: Migrate to repository pattern
         role = self.db.query(Role).filter_by(name=role_name).first()
 
         if not user or not role:
@@ -275,6 +297,7 @@ class PermissionService(BaseService):
 
         # Remove role
         user.roles.remove(role)
+        # repo-pattern-migrate: TODO: Migrate to repository pattern
         self.db.commit()
 
         # Clear cache for this user

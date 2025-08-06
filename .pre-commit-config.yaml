@@ -40,3 +40,11 @@ repos:
         files: ^backend/app/(routes|services|api)/.*\.py$
         exclude: ^backend/app/services/(cache_service|logging_service|metrics_service)\.py$
         description: Prevent timezone bugs by checking for date.today() in user-facing code
+
+      - id: check-repository-pattern
+        name: Check Repository Pattern Compliance
+        entry: python backend/scripts/check_repository_pattern.py
+        language: system
+        files: ^backend/app/(services|core)/.*\.py$
+        pass_filenames: false
+        description: Ensures services only use repositories for database access

@@ -115,6 +115,7 @@ def get_user_today_by_id(user_id: int, db: Session) -> date:
     """
     from app.models.user import User
 
+    # repo-pattern-migrate: TODO: Pass User object instead of querying
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise ValueError(f"User with id {user_id} not found")
