@@ -13,11 +13,11 @@ class EmailConfigService(BaseService):
     """Manages email sender configurations by type"""
 
     EMAIL_SENDERS = {
-        "monitoring": "InstaInstru Alerts <alerts@mail.instainstru.com>",
-        "transactional": "InstaInstru <hello@mail.instainstru.com>",
-        "booking": "InstaInstru Bookings <bookings@mail.instainstru.com>",
-        "password_reset": "InstaInstru Security <security@mail.instainstru.com>",
-        "default": "InstaInstru <hello@mail.instainstru.com>",
+        "monitoring": "InstaInstru Alerts <alerts@instainstru.com>",
+        "transactional": "InstaInstru <hello@instainstru.com>",
+        "booking": "InstaInstru Bookings <bookings@instainstru.com>",
+        "password_reset": "InstaInstru Security <security@instainstru.com>",
+        "default": "InstaInstru <hello@instainstru.com>",
     }
 
     def __init__(self, db: Session):

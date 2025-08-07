@@ -74,8 +74,8 @@ BRAND_NAME = "iNSTAiNSTRU"
 BRAND_TAGLINE = "Book Expert Instructors Instantly"
 BRAND_DOMAIN = "instainstru.com"
 SUPPORT_EMAIL = "support@instainstru.com"
-MONITORING_EMAIL = "InstaInstru Alerts <alerts@mail.instainstru.com>"
-NOREPLY_EMAIL = "InstaInstru <hello@mail.instainstru.com>"  # Keep for backward compatibility
+MONITORING_EMAIL = "InstaInstru Alerts <alerts@instainstru.com>"
+NOREPLY_EMAIL = "InstaInstru <hello@instainstru.com>"  # Keep for backward compatibility
 
 # API Documentation
 API_TITLE = f"{BRAND_NAME} API"

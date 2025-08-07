@@ -44,7 +44,7 @@ class Settings(BaseSettings):
 
     # Email settings
     resend_api_key: str = ""
-    from_email: str = "InstaInstru <hello@mail.instainstru.com>"
+    from_email: str = "InstaInstru <hello@instainstru.com>"
     admin_email: str = "admin@instainstru.com"  # Email for critical alerts
 
     # Frontend URL - will use production URL if not set

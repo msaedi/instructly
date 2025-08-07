@@ -28,7 +28,7 @@ def test_email_config():
     print(f"Monitoring: {monitoring}")
     assert "auth.instainstru.com" not in monitoring
     assert "noreply" not in monitoring.lower()
-    assert "@mail.instainstru.com" in monitoring
+    assert "@instainstru.com" in monitoring
 
     # Test other senders
     transactional = service.get_transactional_sender()
@@ -58,7 +58,7 @@ def test_monitoring_alert():
             details={
                 "purpose": "Verify SPF/DKIM/DMARC authentication",
                 "expected": "Email should be delivered to admin@instainstru.com",
-                "sender": "alerts@mail.instainstru.com",
+                "sender": "alerts@instainstru.com",
             },
             created_at=datetime.now(timezone.utc),
         )
@@ -98,7 +98,7 @@ def verify_no_subdomain_usage():
     if env_from_email and "auth.instainstru.com" in env_from_email:
         print("⚠️  Warning: Environment variable 'from_email' contains auth subdomain")
         print(f"   Current value: {env_from_email}")
-        print("   Update your .env file to use: InstaInstru <hello@mail.instainstru.com>")
+        print("   Update your .env file to use: InstaInstru <hello@instainstru.com>")
     elif env_from_email:
         print(f"✅ Environment from_email: {env_from_email}")
     else:

@@ -57,8 +57,8 @@ class EmailService(BaseService):
         resend.api_key = api_key
         self.from_email = settings.from_email
         if not self.from_email or "noreply" in self.from_email.lower():
-            # Use better default with mail subdomain
-            self.from_email = "InstaInstru <hello@mail.instainstru.com>"
+            # Use better default with root domain
+            self.from_email = "InstaInstru <hello@instainstru.com>"
 
         self.logger.info("EmailService initialized successfully")
 
