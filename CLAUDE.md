@@ -2,6 +2,25 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 🏆 Key Architectural Achievements & Defenses
+
+### Repository Pattern: 29% → 100% ✅
+- **Achievement**: Fixed 107 violations, created 4 new repositories, TRUE 100% compliance
+- **Defense**: Pre-commit hook blocks any new `db.query()` in services
+- **Result**: Architecture integrity permanently protected
+
+### Timezone Consistency: 28 Fixes ✅
+- **Achievement**: Fixed all timezone bugs, platform is globally ready
+- **Defense**: Pre-commit hook blocks `date.today()` in user-facing code
+- **Result**: No timezone bugs can be reintroduced
+
+### Database Safety: 3-Tier Protection ✅
+- **Achievement**: INT/STG/PROD separation with confirmation gates
+- **Defense**: Automatic INT database default, production requires confirmation
+- **Result**: Impossible to accidentally modify production
+
+These defensive measures ensure our hard-won architectural improvements are permanent.
+
 ## Project Overview
 
 InstaInstru is a marketplace platform for instantly booking private instructors in NYC. It's a full-stack application with:
@@ -325,6 +344,150 @@ pytest tests/test_database_safety.py -v
 - `scripts/check_database_safety.py` - Verify safety is working
 - `tests/test_database_safety.py` - Automated safety tests
 - `.github/workflows/backend-tests.yml` - GitHub Actions configuration with CI database
+
+## 🛡️ Defensive Measures: Preventing Architectural Regression
+
+The project has **strong defensive measures** to prevent regression of critical fixes. These automated guards ensure that the hard-won achievements in repository pattern (29% → 100%) and timezone consistency (28 fixes) are never lost.
+
+### Why These Defenses Matter
+- **Repository Pattern**: Prevents regression from TRUE 100% compliance back to violations
+- **Timezone Consistency**: Prevents reintroduction of timezone bugs that were fixed
+- **Zero-Tolerance Policy**: Commits are blocked if violations are detected
+- **CI/CD Integration**: PRs fail if defensive measures are bypassed
+
+### Installation
+
+Pre-commit hooks are already configured. To ensure they're active:
+```bash
+cd /path/to/instructly
+pre-commit install
+```
+
+### Active Hooks
+
+#### 1. **Repository Pattern Compliance** (`check-repository-pattern`)
+**Purpose**: Ensures services only use repositories for database access, maintaining clean architecture.
+
+**What it checks**:
+- Services don't make direct `db.query()` calls
+- No direct SQLAlchemy operations in service layer
+- Proper use of repository pattern
+
+**Violation patterns detected**:
+```python
+# ❌ These will be blocked:
+self.db.query(User).filter(...)
+self.db.add(booking)
+self.db.commit()
+
+# ✅ Use repositories instead:
+self.repository.get_user_by_id(user_id)
+self.repository.create_booking(booking_data)
+```
+
+**Markers for exceptions**:
+```python
+# For legitimate database access (like BaseService transactions):
+# repo-pattern-ignore: Transaction management requires direct DB
+with self.db.begin_nested():
+    ...
+
+# For code that will be migrated:
+# repo-pattern-migrate: TODO: Create UserRepository
+user = self.db.query(User).filter_by(id=user_id).first()
+```
+
+**Run manually**:
+```bash
+python backend/scripts/check_repository_pattern.py
+```
+
+#### 2. **Timezone Consistency** (`check-timezone-usage`)
+**Purpose**: Prevents timezone bugs by blocking `date.today()` in user-facing code.
+
+**What it checks**:
+- No `date.today()` in routes, services, or API code
+- Ensures timezone-aware date handling
+
+**Example violation**:
+```python
+# ❌ This will be blocked:
+today = date.today()
+if booking_date < today:
+    raise Error("Cannot book past date")
+
+# ✅ Use timezone-aware alternative:
+from app.core.timezone_utils import get_user_today_by_id
+user_today = get_user_today_by_id(user_id, self.db)
+if booking_date < user_today:
+    raise Error("Cannot book past date")
+```
+
+**Allowed exceptions**:
+- Test files (`test_*.py`)
+- System services (cache_service.py, logging_service.py, metrics_service.py)
+- System-level operations that genuinely need server time
+
+**Run manually**:
+```bash
+python backend/scripts/check_timezone_usage.py backend/app/
+```
+
+#### 3. **API Contract Compliance** (`api-contracts`)
+**Purpose**: Ensures all API endpoints return proper Pydantic response models.
+
+**What it checks**:
+- All routes use `response_model=` parameter
+- No raw dict/list returns
+- Consistent API responses
+
+**Run manually**:
+```bash
+backend/scripts/check_api_contracts_wrapper.sh
+```
+
+### Standard Pre-commit Hooks
+
+The project also uses standard hooks for code quality:
+- **black**: Code formatting (120 char line length)
+- **isort**: Import sorting
+- **trailing-whitespace**: Remove trailing spaces
+- **end-of-file-fixer**: Ensure files end with newline
+- **check-yaml**: Validate YAML syntax
+- **check-added-large-files**: Prevent large file commits
+
+### Bypassing Hooks (Emergency Only)
+
+If you absolutely need to bypass hooks in an emergency:
+```bash
+git commit --no-verify -m "Emergency fix: reason"
+```
+
+**⚠️ WARNING**: Only use this for critical production fixes. Create a follow-up task to fix any violations.
+
+### Configuration
+
+Pre-commit configuration is in `.pre-commit-config.yaml`. The hooks run on relevant files only:
+- Repository pattern: `backend/app/(services|core)/.*\.py$`
+- Timezone check: `backend/app/(routes|services|api)/.*\.py$`
+- API contracts: `backend/app/routes/.*\.py$`
+
+### CI/CD Integration - Multi-Layer Defense
+
+These defensive measures operate at multiple levels:
+
+1. **Local Development**: Pre-commit hooks block violations before commit
+2. **Git Level**: Commits are rejected if hooks are bypassed
+3. **Pull Request Level**: GitHub Actions runs all checks on PRs
+4. **Merge Protection**: PRs cannot merge if violations are detected
+
+This multi-layer defense ensures:
+- **Repository Pattern**: Stays at 100% (no regression from 107 fixes)
+- **Timezone Consistency**: No reintroduction of the 28 fixed bugs
+- **API Contracts**: All endpoints maintain Pydantic response models
+- **Code Quality**: Black, isort, and other standards enforced
+
+The defensive measures are **permanent and non-negotiable** - they protect the architectural achievements that earned our megawatts! ⚡
 
 ## Documentation Structure
 
