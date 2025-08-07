@@ -17,6 +17,7 @@ from app.database import SessionLocal
 from app.models import User
 from app.models.monitoring import AlertHistory
 from app.services.email import EmailService
+from app.services.email_config import EmailConfigService
 from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
@@ -53,6 +54,12 @@ class MonitoringTask(Task):
         if self._email_service is None:
             self._email_service = EmailService(self.db)
         return self._email_service
+
+    @property
+    def email_config_service(self):
+        if not hasattr(self, "_email_config_service") or self._email_config_service is None:
+            self._email_config_service = EmailConfigService(self.db)
+        return self._email_config_service
 
     def after_return(self, status, retval, task_id, args, kwargs, einfo):
         """Clean up the database session after task execution."""
@@ -120,6 +127,9 @@ def send_alert_email(self, alert_id: int):
             logger.warning("No admin emails configured for alerts")
             return
 
+        # Get monitoring-specific sender
+        from_email = self.email_config_service.get_monitoring_sender()
+
         # Prepare email content
         subject = f"[{alert.severity.upper()}] InstaInstru Alert: {alert.title}"
 
@@ -142,10 +152,33 @@ def send_alert_email(self, alert_id: int):
         <p><small>This is an automated alert from InstaInstru monitoring system.</small></p>
         """
 
+        # Create plain text version for better deliverability
+        text_content = f"""
+        MONITORING ALERT - {alert.severity.upper()}
+
+        Type: {alert.alert_type}
+        Severity: {alert.severity}
+        Time: {alert.created_at.strftime('%Y-%m-%d %H:%M:%S UTC')}
+
+        Message:
+        {alert.message}
+
+        {'Details: ' + json.dumps(alert.details, indent=2) if alert.details else ''}
+
+        --
+        This is an automated alert from InstaInstru monitoring system.
+        """
+
         # Send email to all admins
         for email in admin_emails:
             try:
-                self.email_service.send_email(to_email=email, subject=subject, html_content=html_content)
+                self.email_service.send_email(
+                    to_email=email,
+                    subject=subject,
+                    html_content=html_content,
+                    text_content=text_content,
+                    from_email=from_email,
+                )
             except Exception as e:
                 logger.error(f"Failed to send alert email to {email}: {str(e)}")
 

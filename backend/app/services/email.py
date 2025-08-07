@@ -55,9 +55,24 @@ class EmailService(BaseService):
             raise ServiceException("Resend API key not configured")
 
         resend.api_key = api_key
-        self.from_email = settings.from_email or NOREPLY_EMAIL
+        self.from_email = settings.from_email
+        if not self.from_email or "noreply" in self.from_email.lower():
+            # Use better default with mail subdomain
+            self.from_email = "InstaInstru <hello@mail.instainstru.com>"
 
         self.logger.info("EmailService initialized successfully")
+
+    def _html_to_text(self, html_content: str) -> str:
+        """Convert HTML content to plain text for better deliverability"""
+        import re
+
+        # Remove HTML tags
+        text = re.sub(r"<[^>]+>", "", html_content)
+        # Replace multiple whitespace/newlines with single
+        text = re.sub(r"\s+", " ", text)
+        # Clean up spacing around lines
+        text = text.strip()
+        return text
 
     @BaseService.measure_operation("send_email")
     def send_email(
@@ -87,11 +102,12 @@ class EmailService(BaseService):
             ServiceException: If email sending fails
         """
         try:
-            # Build the from field
-            if from_email:
-                sender = f"{from_name} <{from_email}>" if from_name else from_email
-            else:
-                sender = f"{BRAND_NAME} <{self.from_email}>"
+            # Configure sender
+            sender = from_email or self.from_email
+
+            # IMPORTANT: Always include text version for better deliverability
+            if not text_content:
+                text_content = self._html_to_text(html_content)
 
             # Build email data
             email_data = {
@@ -99,11 +115,8 @@ class EmailService(BaseService):
                 "to": to_email,
                 "subject": subject,
                 "html": html_content,
+                "text": text_content,  # Critical for authentication
             }
-
-            # Add text content if provided
-            if text_content:
-                email_data["text"] = text_content
 
             # Send email
             response = resend.Emails.send(email_data)
