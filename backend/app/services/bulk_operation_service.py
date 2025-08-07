@@ -118,7 +118,7 @@ class BulkOperationService(BaseService):
             )
 
             # Always rollback for validation
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
+            # repo-pattern-ignore: Rollback on error belongs in service layer for transaction control
             self.db.rollback()
             self.logger.info("Validation mode - rolling back all changes")
 

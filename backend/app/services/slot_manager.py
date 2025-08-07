@@ -117,7 +117,7 @@ class SlotManager(BaseService):
                         break
 
             if final_slot:
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
+                # repo-pattern-ignore: Refresh after create to get DB-generated values belongs in service layer
                 self.db.refresh(final_slot)
                 self.logger.info(
                     f"Created slot {new_slot.id} for instructor {instructor_id} on {target_date}: "

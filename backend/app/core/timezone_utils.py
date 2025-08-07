@@ -113,10 +113,10 @@ def get_user_today_by_id(user_id: int, db: Session) -> date:
     Raises:
         ValueError: If user not found
     """
-    from app.models.user import User
+    from app.repositories.factory import RepositoryFactory
 
-    # repo-pattern-migrate: TODO: Pass User object instead of querying
-    user = db.query(User).filter(User.id == user_id).first()
+    user_repository = RepositoryFactory.create_user_repository(db)
+    user = user_repository.get_by_id(user_id)
     if not user:
         raise ValueError(f"User with id {user_id} not found")
     return get_user_today(user)

@@ -21,8 +21,12 @@ if TYPE_CHECKING:
     from .bulk_operation_repository import BulkOperationRepository
     from .conflict_checker_repository import ConflictCheckerRepository
     from .instructor_profile_repository import InstructorProfileRepository
+    from .rbac_repository import RBACRepository
+    from .search_event_repository import SearchEventRepository
+    from .search_history_repository import SearchHistoryRepository
     from .service_catalog_repository import ServiceAnalyticsRepository, ServiceCatalogRepository
     from .slot_manager_repository import SlotManagerRepository
+    from .user_repository import UserRepository
     from .week_operation_repository import WeekOperationRepository
 
 
@@ -110,3 +114,55 @@ class RepositoryFactory:
         from .service_catalog_repository import ServiceAnalyticsRepository
 
         return ServiceAnalyticsRepository(db)
+
+    @staticmethod
+    def create_user_repository(db: Session) -> "UserRepository":
+        """
+        Create repository for user operations.
+
+        Fixes 30+ repository pattern violations across:
+        - PermissionService
+        - PrivacyService
+        - ConflictChecker
+        - timezone_utils
+        """
+        from .user_repository import UserRepository
+
+        return UserRepository(db)
+
+    @staticmethod
+    def create_rbac_repository(db: Session) -> "RBACRepository":
+        """
+        Create repository for RBAC (Role-Based Access Control) operations.
+
+        Fixes 20+ repository pattern violations in PermissionService
+        for Permission, Role, and UserPermission management.
+        """
+        from .rbac_repository import RBACRepository
+
+        return RBACRepository(db)
+
+    @staticmethod
+    def create_search_history_repository(db: Session) -> "SearchHistoryRepository":
+        """
+        Create repository for search history operations.
+
+        Fixes 34+ repository pattern violations in:
+        - SearchHistoryService
+        - SearchHistoryCleanupService
+        - PrivacyService
+        """
+        from .search_history_repository import SearchHistoryRepository
+
+        return SearchHistoryRepository(db)
+
+    @staticmethod
+    def create_search_event_repository(db: Session) -> "SearchEventRepository":
+        """
+        Create repository for search event operations.
+
+        Used by PrivacyService for data export and retention policies.
+        """
+        from .search_event_repository import SearchEventRepository
+
+        return SearchEventRepository(db)

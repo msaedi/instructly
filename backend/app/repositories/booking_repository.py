@@ -819,6 +819,41 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             joinedload(Booking.instructor_service),
         )
 
+    def count_old_bookings(self, cutoff_date: datetime) -> int:
+        """
+        Count bookings created before a cutoff date.
+
+        Used by: PrivacyService for retention statistics
+
+        Args:
+            cutoff_date: Count bookings created before this date
+
+        Returns:
+            Count of old bookings
+        """
+        from sqlalchemy import func
+
+        return self.db.query(func.count(Booking.id)).filter(Booking.created_at < cutoff_date).scalar() or 0
+
+    def get_bookings_by_date_and_status(self, booking_date: date, status: str) -> List[Booking]:
+        """
+        Get all bookings for a specific date and status.
+
+        Used by: NotificationService for sending reminders
+
+        Args:
+            booking_date: The date to check
+            status: The booking status (e.g., "CONFIRMED")
+
+        Returns:
+            List of bookings matching the criteria
+        """
+        try:
+            return self.db.query(Booking).filter(Booking.booking_date == booking_date, Booking.status == status).all()
+        except Exception as e:
+            self.logger.error(f"Error getting bookings by date and status: {str(e)}")
+            return []
+
     # Additional Repository Methods (from BaseRepository)
     # The following are inherited from BaseRepository:
     # - create(**kwargs) -> Booking

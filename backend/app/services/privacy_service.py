@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..core.config import settings
 from ..models import Booking, InstructorProfile, SearchEvent, SearchHistory, User
+from ..repositories.factory import RepositoryFactory
 from .base import BaseService
 
 logger = logging.getLogger(__name__)
@@ -32,8 +33,13 @@ class PrivacyService(BaseService):
     """
 
     def __init__(self, db: Session):
-        """Initialize the privacy service."""
+        """Initialize the privacy service with repositories."""
         super().__init__(db)
+        self.user_repository = RepositoryFactory.create_user_repository(db)
+        self.booking_repository = RepositoryFactory.create_booking_repository(db)
+        self.instructor_repository = RepositoryFactory.create_instructor_profile_repository(db)
+        self.search_history_repository = RepositoryFactory.create_search_history_repository(db)
+        self.search_event_repository = RepositoryFactory.create_search_event_repository(db)
 
     @BaseService.measure_operation("export_user_data")
     def export_user_data(self, user_id: int) -> Dict:
@@ -46,8 +52,7 @@ class PrivacyService(BaseService):
         Returns:
             Dictionary containing all user data
         """
-        # repo-pattern-migrate: TODO: Migrate to repository pattern
-        user = self.db.query(User).filter_by(id=user_id).first()
+        user = self.user_repository.get_by_id(user_id)
         if not user:
             raise ValueError(f"User {user_id} not found")
 
@@ -69,14 +74,7 @@ class PrivacyService(BaseService):
         }
 
         # Export search history
-        searches = (
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            self.db.query(SearchHistory)
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            .filter_by(user_id=user_id, deleted_at=None).order_by(SearchHistory.first_searched_at.desc())
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            .all()
-        )
+        searches = self.search_history_repository.get_user_searches(user_id, exclude_deleted=True)
 
         for search in searches:
             export_data["search_history"].append(
@@ -91,14 +89,9 @@ class PrivacyService(BaseService):
             )
 
         # Export bookings
-        bookings = (
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            self.db.query(Booking)
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            .filter(or_(Booking.student_id == user_id, Booking.instructor_id == user_id))
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            .all()
-        )
+        student_bookings = self.booking_repository.get_student_bookings(user_id)
+        instructor_bookings = self.booking_repository.get_instructor_bookings(user_id)
+        bookings = student_bookings + instructor_bookings
 
         for booking in bookings:
             export_data["bookings"].append(
@@ -116,8 +109,7 @@ class PrivacyService(BaseService):
             )
 
         # Export instructor profile if exists
-        # repo-pattern-migrate: TODO: Migrate to repository pattern
-        instructor = self.db.query(InstructorProfile).filter_by(user_id=user_id).first()
+        instructor = self.instructor_repository.get_by_user_id(user_id)
         if instructor:
             export_data["instructor_profile"] = {
                 "bio": instructor.bio,
@@ -145,8 +137,7 @@ class PrivacyService(BaseService):
         Returns:
             Dictionary with counts of deleted records
         """
-        # repo-pattern-migrate: TODO: Migrate to repository pattern
-        user = self.db.query(User).filter_by(id=user_id).first()
+        user = self.user_repository.get_by_id(user_id)
         if not user:
             raise ValueError(f"User {user_id} not found")
 
@@ -158,32 +149,17 @@ class PrivacyService(BaseService):
 
         try:
             # Delete search history
-            deletion_stats["search_history"] = (
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
-                self.db.query(SearchHistory)
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
-                .filter_by(user_id=user_id).delete(synchronize_session=False)
-            )
+            deletion_stats["search_history"] = self.search_history_repository.delete_user_searches(user_id)
 
             # Delete search events
-            deletion_stats["search_events"] = (
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
-                self.db.query(SearchEvent)
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
-                .filter_by(user_id=user_id).delete(synchronize_session=False)
-            )
+            deletion_stats["search_events"] = self.search_event_repository.delete_user_events(user_id)
 
             # Anonymize bookings (keep for business records but remove PII)
             # Note: We can't set student_id/instructor_id to NULL due to NOT NULL constraints
             # Instead, we create a special "deleted user" marker or just count the bookings
-            bookings = (
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
-                self.db.query(Booking)
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
-                .filter(or_(Booking.student_id == user_id, Booking.instructor_id == user_id))
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
-                .all()
-            )
+            student_bookings = self.booking_repository.get_student_bookings(user_id)
+            instructor_bookings = self.booking_repository.get_instructor_bookings(user_id)
+            bookings = student_bookings + instructor_bookings
 
             # For now, just count affected bookings without modifying them
             # In a real implementation, you might:
@@ -201,16 +177,17 @@ class PrivacyService(BaseService):
                 user.full_name = "Deleted User"
 
                 # Delete instructor profile if exists
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
-                self.db.query(InstructorProfile).filter_by(user_id=user_id).delete()
+                instructor = self.instructor_repository.get_by_user_id(user_id)
+                if instructor:
+                    self.instructor_repository.delete(instructor.id)
 
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
+            # repo-pattern-ignore: Transaction commit belongs in service layer
             self.db.commit()
             logger.info(f"Deleted data for user {user_id}: {deletion_stats}")
             return deletion_stats
 
         except Exception as e:
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
+            # repo-pattern-ignore: Rollback on error belongs in service layer
             self.db.rollback()
             logger.error(f"Error deleting user data: {str(e)}")
             raise
@@ -232,20 +209,14 @@ class PrivacyService(BaseService):
             # Delete old search events (keep aggregated data only)
             if hasattr(settings, "search_event_retention_days"):
                 cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.search_event_retention_days)
-                retention_stats["search_events_deleted"] = (
-                    # repo-pattern-migrate: TODO: Migrate to repository pattern
-                    self.db.query(SearchEvent)
-                    # repo-pattern-migrate: TODO: Migrate to repository pattern
-                    .filter(SearchEvent.searched_at < cutoff_date).delete(synchronize_session=False)
-                )
+                retention_stats["search_events_deleted"] = self.search_event_repository.delete_old_events(cutoff_date)
 
             # Anonymize old bookings (keep for business records)
             if hasattr(settings, "booking_pii_retention_days"):
                 cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.booking_pii_retention_days)
                 # Count old bookings that would be anonymized
                 # Note: Can't actually set student_id/instructor_id to NULL due to NOT NULL constraints
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
-                old_bookings_count = self.db.query(Booking).filter(Booking.created_at < cutoff_date).count()
+                old_bookings_count = self.booking_repository.count_old_bookings(cutoff_date)
 
                 # In a real implementation, you might:
                 # 1. Add an anonymization flag to bookings
@@ -255,13 +226,13 @@ class PrivacyService(BaseService):
 
             # Note: AlertHistory is for system alerts, not user-specific data retention
 
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
+            # repo-pattern-ignore: Transaction commit belongs in service layer
             self.db.commit()
             logger.info(f"Applied retention policies: {retention_stats}")
             return retention_stats
 
         except Exception as e:
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
+            # repo-pattern-ignore: Rollback on error belongs in service layer
             self.db.rollback()
             logger.error(f"Error applying retention policies: {str(e)}")
             raise
@@ -275,16 +246,11 @@ class PrivacyService(BaseService):
             Dictionary with privacy-related statistics
         """
         stats = {
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            "total_users": self.db.query(User).count(),
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            "active_users": self.db.query(User).filter_by(is_active=True).count(),
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            "search_history_records": self.db.query(SearchHistory).count(),
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            "search_event_records": self.db.query(SearchEvent).count(),
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            "total_bookings": self.db.query(Booking).count(),
+            "total_users": self.user_repository.count_all(),
+            "active_users": self.user_repository.count_active(),
+            "search_history_records": self.search_history_repository.count_all_searches(),
+            "search_event_records": self.search_event_repository.count_all_events(),
+            "total_bookings": self.booking_repository.count(),
             # Note: All bookings have PII due to NOT NULL constraints on user IDs
             # In a real implementation, you'd have an anonymization flag or similar
         }
@@ -292,14 +258,7 @@ class PrivacyService(BaseService):
         # Add retention policy information
         if hasattr(settings, "search_event_retention_days"):
             cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.search_event_retention_days)
-            stats["search_events_eligible_for_deletion"] = (
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
-                self.db.query(SearchEvent)
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
-                .filter(SearchEvent.searched_at < cutoff_date)
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
-                .count()
-            )
+            stats["search_events_eligible_for_deletion"] = self.search_event_repository.count_old_events(cutoff_date)
 
         return stats
 
@@ -315,8 +274,7 @@ class PrivacyService(BaseService):
             True if successful
         """
         try:
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            user = self.db.query(User).filter_by(id=user_id).first()
+            user = self.user_repository.get_by_id(user_id)
             if not user:
                 raise ValueError(f"User {user_id} not found")
 
@@ -325,24 +283,21 @@ class PrivacyService(BaseService):
             user.full_name = f"Anonymous User {user.id}"
 
             # Anonymize related profiles
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            instructor = self.db.query(InstructorProfile).filter_by(user_id=user_id).first()
+            instructor = self.instructor_repository.get_by_user_id(user_id)
             if instructor:
                 instructor.bio = "This profile has been anonymized"
 
             # Clear search history
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            self.db.query(SearchHistory).filter_by(user_id=user_id).delete()
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            self.db.query(SearchEvent).filter_by(user_id=user_id).delete()
+            self.search_history_repository.delete_user_searches(user_id)
+            self.search_event_repository.delete_user_events(user_id)
 
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
+            # repo-pattern-ignore: Transaction commit belongs in service layer
             self.db.commit()
             logger.info(f"Anonymized user {user_id}")
             return True
 
         except Exception as e:
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
+            # repo-pattern-ignore: Rollback on error belongs in service layer
             self.db.rollback()
             logger.error(f"Error anonymizing user: {str(e)}")
             raise

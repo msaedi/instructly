@@ -293,7 +293,7 @@ class SearchHistoryService(BaseService):
                 pass  # Transaction commits automatically
 
             # Refresh through repository
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
+            # repo-pattern-ignore: Refresh after upsert to get updated values belongs in service layer
             self.db.refresh(result)
 
             # Store the event ID on the result for frontend use

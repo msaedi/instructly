@@ -237,5 +237,5 @@ class PasswordResetService(BaseService):
         for token in unused_tokens:
             self.token_repository.update(token.id, used=True)
 
-        # repo-pattern-migrate: TODO: Migrate to repository pattern
+        # repo-pattern-ignore: Flush for ID generation belongs in service layer
         self.db.flush()

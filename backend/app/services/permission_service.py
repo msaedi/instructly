@@ -8,11 +8,12 @@ role-based permissions and individual permission overrides.
 
 from typing import List, Set, Union
 
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from ..core.enums import PermissionName
 from ..models.rbac import Permission, Role, UserPermission
 from ..models.user import User
+from ..repositories.factory import RepositoryFactory
 from .base import BaseService
 
 
@@ -26,9 +27,11 @@ class PermissionService(BaseService):
     """
 
     def __init__(self, db: Session):
-        """Initialize the service with database session."""
+        """Initialize the service with database session and repositories."""
         super().__init__(db)
         self._cache = {}  # Simple in-memory cache for permission checks
+        self.user_repository = RepositoryFactory.create_user_repository(db)
+        self.rbac_repository = RepositoryFactory.create_rbac_repository(db)
 
     @BaseService.measure_operation("user_has_permission")
     def user_has_permission(self, user_id: int, permission_name: Union[str, PermissionName]) -> bool:
@@ -54,15 +57,7 @@ class PermissionService(BaseService):
             return self._cache[cache_key]
 
         # Get user with roles and permissions
-        # repo-pattern-migrate: TODO: Use UserRepository when created
-        user = (
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            self.db.query(User).options(joinedload(User.roles).joinedload(Role.permissions))
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            .filter(User.id == user_id)
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            .first()
-        )
+        user = self.user_repository.get_with_roles_and_permissions(user_id)
 
         if not user:
             self._cache[cache_key] = False
@@ -75,14 +70,7 @@ class PermissionService(BaseService):
                 return True
 
         # Check individual permission overrides
-        user_perm = (
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            self.db.query(UserPermission).join(Permission)
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            .filter(UserPermission.user_id == user_id, Permission.name == permission_str)
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            .first()
-        )
+        user_perm = self.rbac_repository.check_user_permission(user_id, permission_str)
 
         if user_perm:
             self._cache[cache_key] = user_perm.granted
@@ -105,14 +93,7 @@ class PermissionService(BaseService):
         Returns:
             Set of permission names
         """
-        user = (
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            self.db.query(User).options(joinedload(User.roles).joinedload(Role.permissions))
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            .filter(User.id == user_id)
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            .first()
-        )
+        user = self.user_repository.get_with_roles_and_permissions(user_id)
 
         if not user:
             return set()
@@ -125,8 +106,7 @@ class PermissionService(BaseService):
                 permissions.add(permission.name)
 
         # Apply individual permission overrides
-        # repo-pattern-migrate: TODO: Migrate to repository pattern
-        user_perms = self.db.query(UserPermission).join(Permission).filter(UserPermission.user_id == user_id).all()
+        user_perms = self.rbac_repository.get_user_permissions(user_id)
 
         for up in user_perms:
             if up.granted:
@@ -147,8 +127,7 @@ class PermissionService(BaseService):
         Returns:
             List of role names
         """
-        # repo-pattern-migrate: TODO: Migrate to repository pattern
-        user = self.db.query(User).options(joinedload(User.roles)).filter(User.id == user_id).first()
+        user = self.user_repository.get_with_roles(user_id)
 
         if not user:
             return []
@@ -171,23 +150,19 @@ class PermissionService(BaseService):
             True if successful, False if permission doesn't exist
         """
         # Check if permission exists
-        # repo-pattern-migrate: TODO: Migrate to repository pattern
-        permission = self.db.query(Permission).filter_by(name=permission_name).first()
+        permission = self.rbac_repository.get_permission_by_name(permission_name)
         if not permission:
             return False
 
         # Check if override already exists
-        # repo-pattern-migrate: TODO: Migrate to repository pattern
-        user_perm = self.db.query(UserPermission).filter_by(user_id=user_id, permission_id=permission.id).first()
+        user_perm = self.rbac_repository.get_user_permission(user_id, permission.id)
 
         if user_perm:
             user_perm.granted = True
         else:
-            user_perm = UserPermission(user_id=user_id, permission_id=permission.id, granted=True)
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            self.db.add(user_perm)
+            user_perm = self.rbac_repository.add_user_permission(user_id, permission.id, granted=True)
 
-        # repo-pattern-migrate: TODO: Migrate to repository pattern
+        # repo-pattern-ignore: Transaction commit belongs in service layer
         self.db.commit()
 
         # Clear cache for this user
@@ -211,23 +186,19 @@ class PermissionService(BaseService):
             True if successful, False if permission doesn't exist
         """
         # Check if permission exists
-        # repo-pattern-migrate: TODO: Migrate to repository pattern
-        permission = self.db.query(Permission).filter_by(name=permission_name).first()
+        permission = self.rbac_repository.get_permission_by_name(permission_name)
         if not permission:
             return False
 
         # Check if override already exists
-        # repo-pattern-migrate: TODO: Migrate to repository pattern
-        user_perm = self.db.query(UserPermission).filter_by(user_id=user_id, permission_id=permission.id).first()
+        user_perm = self.rbac_repository.get_user_permission(user_id, permission.id)
 
         if user_perm:
             user_perm.granted = False
         else:
-            user_perm = UserPermission(user_id=user_id, permission_id=permission.id, granted=False)
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            self.db.add(user_perm)
+            user_perm = self.rbac_repository.add_user_permission(user_id, permission.id, granted=False)
 
-        # repo-pattern-migrate: TODO: Migrate to repository pattern
+        # repo-pattern-ignore: Transaction commit belongs in service layer
         self.db.commit()
 
         # Clear cache for this user
@@ -248,10 +219,8 @@ class PermissionService(BaseService):
             True if successful, False if role doesn't exist or user already has it
         """
         # Get user and role
-        # repo-pattern-migrate: TODO: Migrate to repository pattern
-        user = self.db.query(User).filter_by(id=user_id).first()
-        # repo-pattern-migrate: TODO: Migrate to repository pattern
-        role = self.db.query(Role).filter_by(name=role_name).first()
+        user = self.rbac_repository.get_user_by_id(user_id)
+        role = self.rbac_repository.get_role_by_name(role_name)
 
         if not user or not role:
             return False
@@ -262,7 +231,7 @@ class PermissionService(BaseService):
 
         # Assign role
         user.roles.append(role)
-        # repo-pattern-migrate: TODO: Migrate to repository pattern
+        # repo-pattern-ignore: Transaction commit belongs in service layer
         self.db.commit()
 
         # Clear cache for this user
@@ -283,10 +252,8 @@ class PermissionService(BaseService):
             True if successful, False if role doesn't exist or user doesn't have it
         """
         # Get user and role
-        # repo-pattern-migrate: TODO: Migrate to repository pattern
-        user = self.db.query(User).filter_by(id=user_id).first()
-        # repo-pattern-migrate: TODO: Migrate to repository pattern
-        role = self.db.query(Role).filter_by(name=role_name).first()
+        user = self.rbac_repository.get_user_by_id(user_id)
+        role = self.rbac_repository.get_role_by_name(role_name)
 
         if not user or not role:
             return False
@@ -297,7 +264,7 @@ class PermissionService(BaseService):
 
         # Remove role
         user.roles.remove(role)
-        # repo-pattern-migrate: TODO: Migrate to repository pattern
+        # repo-pattern-ignore: Transaction commit belongs in service layer
         self.db.commit()
 
         # Clear cache for this user

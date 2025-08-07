@@ -328,6 +328,53 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
             )
         )
 
+    # Privacy and data management methods
+
+    def get_user_searches(self, user_id: int, exclude_deleted: bool = True) -> List[SearchHistory]:
+        """
+        Get all searches for a user.
+
+        Used by: PrivacyService for data export
+
+        Args:
+            user_id: The user ID
+            exclude_deleted: Whether to exclude soft-deleted searches
+
+        Returns:
+            List of SearchHistory records
+        """
+        query = self.db.query(SearchHistory).filter(SearchHistory.user_id == user_id)
+
+        if exclude_deleted:
+            query = query.filter(SearchHistory.deleted_at.is_(None))
+
+        return query.order_by(desc(SearchHistory.first_searched_at)).all()
+
+    def delete_user_searches(self, user_id: int) -> int:
+        """
+        Delete all searches for a user (hard delete).
+
+        Used by: PrivacyService for right to be forgotten
+
+        Args:
+            user_id: The user ID
+
+        Returns:
+            Number of deleted records
+        """
+        return self.db.query(SearchHistory).filter(SearchHistory.user_id == user_id).delete(synchronize_session=False)
+
+    def count_all_searches(self) -> int:
+        """
+        Count all search history records.
+
+        Used by: PrivacyService for statistics
+
+        Returns:
+            Total count of search history records
+        """
+        return self.db.query(func.count(SearchHistory.id)).scalar() or 0
+
     # Analytics methods
 
     def find_analytics_eligible_searches(

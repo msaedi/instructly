@@ -38,6 +38,20 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         super().__init__(db, InstructorProfile)
         self.logger = logging.getLogger(__name__)
 
+    def get_by_user_id(self, user_id: int) -> Optional[InstructorProfile]:
+        """
+        Get instructor profile by user ID.
+
+        Used by PrivacyService for data export and deletion.
+
+        Args:
+            user_id: The user ID to look up
+
+        Returns:
+            InstructorProfile if found, None otherwise
+        """
+        return self.db.query(InstructorProfile).filter(InstructorProfile.user_id == user_id).first()
+
     def get_all_with_details(
         self, skip: int = 0, limit: int = 100, include_inactive_services: bool = False
     ) -> List[InstructorProfile]:

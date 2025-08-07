@@ -91,31 +91,34 @@ class TestProcessSearchEvent:
 class TestCalculateSearchMetrics:
     """Test calculate_search_metrics task."""
 
+    @patch("app.tasks.search_analytics.SearchEventRepository")
     @patch("app.tasks.search_analytics.get_db")
-    def test_calculate_metrics_success(self, mock_get_db):
+    def test_calculate_metrics_success(self, mock_get_db, mock_search_repo_class):
         """Test successful metrics calculation."""
         # Mock database session
         mock_db = MagicMock()
         mock_get_db.return_value = iter([mock_db])
 
-        # Mock query results
-        popular_searches = [
-            ("piano lessons", 50, 12.5),
-            ("guitar teacher", 30, 8.0),
-        ]
-        type_distribution = [
-            ("natural_language", 60),
-            ("category", 20),
-            ("service_pill", 15),
-        ]
+        # Mock repository instance
+        mock_repo = MagicMock()
+        mock_search_repo_class.return_value = mock_repo
 
-        # Set up mock query chains
-        mock_db.query.return_value.filter.return_value.group_by.return_value.order_by.return_value.limit.return_value.all.return_value = (
-            popular_searches
-        )
-        mock_db.query.return_value.filter.return_value.group_by.return_value.all.return_value = type_distribution
-        mock_db.query.return_value.filter.return_value.count.side_effect = [100, 40]  # total, with interactions
-        mock_db.query.return_value.join.return_value.filter.return_value.distinct.return_value.count.return_value = 40
+        # Mock repository method results
+        popular_searches = [
+            {"query": "piano lessons", "search_count": 50, "avg_results": 12.5},
+            {"query": "guitar teacher", "search_count": 30, "avg_results": 8.0},
+        ]
+        type_distribution = {
+            "natural_language": 60,
+            "category": 20,
+            "service_pill": 15,
+        }
+
+        # Set up repository method returns
+        mock_repo.get_popular_searches_with_avg_results.return_value = popular_searches
+        mock_repo.get_search_type_distribution.return_value = type_distribution
+        mock_repo.count_searches_since.return_value = 100
+        mock_repo.count_searches_with_interactions.return_value = 40
 
         # Execute task
         result = calculate_search_metrics.run(24)
@@ -130,20 +133,23 @@ class TestCalculateSearchMetrics:
 
         mock_db.close.assert_called_once()
 
+    @patch("app.tasks.search_analytics.SearchEventRepository")
     @patch("app.tasks.search_analytics.get_db")
-    def test_calculate_metrics_no_data(self, mock_get_db):
+    def test_calculate_metrics_no_data(self, mock_get_db, mock_search_repo_class):
         """Test metrics calculation with no data."""
         # Mock database session
         mock_db = MagicMock()
         mock_get_db.return_value = iter([mock_db])
 
+        # Mock repository instance
+        mock_repo = MagicMock()
+        mock_search_repo_class.return_value = mock_repo
+
         # Mock empty results
-        mock_db.query.return_value.filter.return_value.group_by.return_value.order_by.return_value.limit.return_value.all.return_value = (
-            []
-        )
-        mock_db.query.return_value.filter.return_value.group_by.return_value.all.return_value = []
-        mock_db.query.return_value.filter.return_value.count.return_value = 0
-        mock_db.query.return_value.join.return_value.filter.return_value.distinct.return_value.count.return_value = 0
+        mock_repo.get_popular_searches_with_avg_results.return_value = []
+        mock_repo.get_search_type_distribution.return_value = {}
+        mock_repo.count_searches_since.return_value = 0
+        mock_repo.count_searches_with_interactions.return_value = 0
 
         # Execute task
         result = calculate_search_metrics.run(24)

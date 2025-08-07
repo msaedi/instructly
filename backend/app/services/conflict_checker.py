@@ -47,6 +47,7 @@ class ConflictChecker(BaseService):
         super().__init__(db)
         self.logger = logging.getLogger(__name__)
         self.repository = repository or RepositoryFactory.create_conflict_checker_repository(db)
+        self.user_repository = RepositoryFactory.create_user_repository(db)
 
     @BaseService.measure_operation("check_booking_conflicts")
     def check_booking_conflicts(
@@ -263,10 +264,7 @@ class ConflictChecker(BaseService):
             return {"valid": False, "reason": "Instructor profile not found"}
 
         # Get instructor for timezone calculations
-        from ..models.user import User
-
-        # repo-pattern-migrate: TODO: Use UserRepository when created
-        instructor = self.db.query(User).filter(User.id == instructor_id).first()
+        instructor = self.user_repository.get_by_id(instructor_id)
         if not instructor:
             return {"valid": False, "reason": "Instructor not found"}
 
@@ -354,10 +352,7 @@ class ConflictChecker(BaseService):
             errors.append(f"Cannot book for past dates (instructor timezone)")
         elif booking_date == instructor_today:
             # Get instructor's current time for same-day validation
-            from ..models.user import User
-
-            # repo-pattern-migrate: TODO: Use UserRepository when created
-            instructor = self.db.query(User).filter(User.id == instructor_id).first()
+            instructor = self.user_repository.get_by_id(instructor_id)
             if instructor:
                 from ..core.timezone_utils import get_user_now
 
