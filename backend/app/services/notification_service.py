@@ -324,14 +324,14 @@ class NotificationService(BaseService):
             utc_now + timedelta(days=2),  # Day after (could be tomorrow in other timezones)
         ]
 
-        # Use BookingRepository method
+        # Use BookingRepository method with date range for efficiency
         from ..repositories.factory import RepositoryFactory
 
         booking_repository = RepositoryFactory.create_booking_repository(self.db)
-        all_bookings = []
-        for check_date in date_range:
-            bookings = booking_repository.get_bookings_by_date_and_status(check_date, "CONFIRMED")
-            all_bookings.extend(bookings)
+        # Get all bookings in the date range with a single query
+        start_date = date_range[0]
+        end_date = date_range[-1]
+        all_bookings = booking_repository.get_bookings_by_date_range_and_status(start_date, end_date, "CONFIRMED")
 
         self.logger.info(f"Found {len(all_bookings)} bookings for tomorrow")
         return all_bookings

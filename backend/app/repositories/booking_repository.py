@@ -854,6 +854,30 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.logger.error(f"Error getting bookings by date and status: {str(e)}")
             return []
 
+    def get_bookings_by_date_range_and_status(self, start_date: date, end_date: date, status: str) -> List[Booking]:
+        """
+        Get all bookings within a date range for a specific status.
+
+        Used by: NotificationService for efficient reminder queries
+
+        Args:
+            start_date: The start date (inclusive)
+            end_date: The end date (inclusive)
+            status: The booking status (e.g., "CONFIRMED")
+
+        Returns:
+            List of bookings matching the criteria
+        """
+        try:
+            return (
+                self.db.query(Booking)
+                .filter(Booking.booking_date >= start_date, Booking.booking_date <= end_date, Booking.status == status)
+                .all()
+            )
+        except Exception as e:
+            self.logger.error(f"Error getting bookings by date range and status: {str(e)}")
+            return []
+
     # Additional Repository Methods (from BaseRepository)
     # The following are inherited from BaseRepository:
     # - create(**kwargs) -> Booking

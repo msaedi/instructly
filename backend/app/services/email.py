@@ -103,7 +103,11 @@ class EmailService(BaseService):
         """
         try:
             # Configure sender
-            sender = from_email or self.from_email
+            sender_email = from_email or self.from_email
+            if from_name:
+                sender = f"{from_name} <{sender_email}>"
+            else:
+                sender = sender_email
 
             # IMPORTANT: Always include text version for better deliverability
             if not text_content:

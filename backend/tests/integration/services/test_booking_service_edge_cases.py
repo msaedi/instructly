@@ -402,12 +402,12 @@ class TestBookingServiceReminders:
         booking_service = BookingService(db, mock_notification_service)
 
         # Mock the notification service to succeed
-        mock_notification_service.send_reminder_emails = AsyncMock(return_value=None)
+        mock_notification_service._send_booking_reminders = AsyncMock(return_value=1)
 
         count = await booking_service.send_booking_reminders()
 
         assert count >= 1
-        mock_notification_service.send_reminder_emails.assert_called()
+        mock_notification_service._send_booking_reminders.assert_called()
 
     @pytest.mark.asyncio
     async def test_send_booking_reminders_with_failures(
@@ -457,7 +457,7 @@ class TestBookingServiceReminders:
         db.commit()
 
         # Make reminder sending fail for all
-        mock_notification_service.send_reminder_emails = AsyncMock(side_effect=Exception("Email service error"))
+        mock_notification_service._send_booking_reminders = AsyncMock(side_effect=Exception("Email service error"))
 
         booking_service = BookingService(db, mock_notification_service)
 
