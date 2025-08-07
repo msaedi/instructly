@@ -391,8 +391,11 @@ class TestBookingServiceReminders:
         self, db: Session, test_booking: Booking, mock_notification_service: Mock
     ):
         """Test sending reminders for tomorrow's bookings."""
-        # Ensure booking is for tomorrow
-        test_booking.booking_date = date.today() + timedelta(days=1)
+        # Ensure booking is for tomorrow based on student's timezone
+        from app.core.timezone_utils import get_user_today_by_id
+
+        student_today = get_user_today_by_id(test_booking.student_id, db)
+        test_booking.booking_date = student_today + timedelta(days=1)
         test_booking.status = BookingStatus.CONFIRMED
         db.commit()
 
@@ -427,8 +430,11 @@ class TestBookingServiceReminders:
             db.query(Service).filter(Service.instructor_profile_id == profile.id, Service.is_active == True).first()
         )
 
-        # Create multiple bookings for tomorrow
-        tomorrow = date.today() + timedelta(days=1)
+        # Create multiple bookings for tomorrow based on student's timezone
+        from app.core.timezone_utils import get_user_today_by_id
+
+        student_today = get_user_today_by_id(test_booking.student_id, db)
+        tomorrow = student_today + timedelta(days=1)
         test_booking.booking_date = tomorrow
         test_booking.status = BookingStatus.CONFIRMED
 

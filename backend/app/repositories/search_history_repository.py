@@ -6,7 +6,7 @@ Unified implementation that handles both authenticated and guest users
 without code duplication.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 from sqlalchemy import desc, func, or_
@@ -402,3 +402,278 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
         query = query.filter(or_(SearchHistory.converted_to_user_id.is_(None), SearchHistory.user_id.isnot(None)))
 
         return query
+
+    # New methods for SearchHistoryService violations
+
+    def upsert_search(
+        self,
+        user_id: Optional[int] = None,
+        guest_session_id: Optional[str] = None,
+        search_query: str = None,
+        normalized_query: str = None,
+        search_type: str = "natural_language",
+        results_count: Optional[int] = None,
+    ) -> SearchHistory:
+        """
+        Atomic UPSERT operation for search history.
+
+        Implements PostgreSQL INSERT...ON CONFLICT UPDATE pattern.
+        This eliminates race conditions completely.
+
+        Args:
+            user_id: User ID for authenticated users
+            guest_session_id: Session ID for guest users
+            search_query: Original search query
+            normalized_query: Normalized query for deduplication
+            search_type: Type of search
+            results_count: Number of results returned
+
+        Returns:
+            SearchHistory record (new or updated)
+        """
+        from sqlalchemy import and_
+        from sqlalchemy.dialects.postgresql import insert
+
+        now = datetime.now(timezone.utc)
+
+        # Prepare values for UPSERT
+        values = {
+            "user_id": user_id,
+            "guest_session_id": guest_session_id,
+            "search_query": search_query,
+            "normalized_query": normalized_query,
+            "search_type": search_type,
+            "results_count": results_count,
+            "search_count": 1,
+            "first_searched_at": now,
+            "last_searched_at": now,
+        }
+
+        # Create INSERT statement
+        stmt = insert(SearchHistory).values(**values)
+
+        # Define conflict resolution based on user type
+        if user_id:
+            # For authenticated users
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["user_id", "normalized_query"],
+                set_={
+                    "search_count": SearchHistory.search_count + 1,
+                    "last_searched_at": now,
+                    "results_count": stmt.excluded.results_count,
+                    "search_query": stmt.excluded.search_query,  # Update case sensitivity
+                },
+            )
+        else:
+            # For guest users
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["guest_session_id", "normalized_query"],
+                set_={
+                    "search_count": SearchHistory.search_count + 1,
+                    "last_searched_at": now,
+                    "results_count": stmt.excluded.results_count,
+                    "search_query": stmt.excluded.search_query,  # Update case sensitivity
+                },
+            )
+
+        # Execute UPSERT
+        self.db.execute(stmt)
+        self.db.commit()
+
+        # Fetch and return the result
+        return self.get_search_by_user_and_query(
+            user_id=user_id, guest_session_id=guest_session_id, normalized_query=normalized_query
+        )
+
+    def get_search_by_user_and_query(
+        self, user_id: Optional[int] = None, guest_session_id: Optional[str] = None, normalized_query: str = None
+    ) -> Optional[SearchHistory]:
+        """
+        Get search history by user/guest and normalized query.
+
+        Used after UPSERT to fetch the updated record.
+
+        Args:
+            user_id: User ID for authenticated users
+            guest_session_id: Session ID for guest users
+            normalized_query: Normalized search query
+
+        Returns:
+            SearchHistory record or None
+        """
+        from sqlalchemy import and_
+
+        if user_id:
+            return (
+                self.db.query(SearchHistory)
+                .filter(
+                    and_(
+                        SearchHistory.user_id == user_id,
+                        SearchHistory.normalized_query == normalized_query,
+                        SearchHistory.deleted_at.is_(None),
+                    )
+                )
+                .first()
+            )
+        elif guest_session_id:
+            return (
+                self.db.query(SearchHistory)
+                .filter(
+                    and_(
+                        SearchHistory.guest_session_id == guest_session_id,
+                        SearchHistory.normalized_query == normalized_query,
+                        SearchHistory.deleted_at.is_(None),
+                    )
+                )
+                .first()
+            )
+        return None
+
+    def enforce_search_limit(
+        self, user_id: Optional[int] = None, guest_session_id: Optional[str] = None, max_searches: int = 10
+    ) -> int:
+        """
+        Enforce maximum search limit by soft-deleting oldest searches.
+
+        Args:
+            user_id: User ID for authenticated users
+            guest_session_id: Session ID for guest users
+            max_searches: Maximum number of searches to keep
+
+        Returns:
+            Number of searches soft-deleted
+        """
+        # Get IDs to keep (most recent)
+        keep_ids_subquery = self.get_searches_to_delete(
+            user_id=user_id, guest_session_id=guest_session_id, keep_count=max_searches
+        )
+
+        # Soft delete searches not in keep list
+        return self.soft_delete_old_searches(
+            user_id=user_id, guest_session_id=guest_session_id, keep_ids_subquery=keep_ids_subquery
+        )
+
+    def get_previous_search_event(
+        self,
+        user_id: Optional[int] = None,
+        guest_session_id: Optional[str] = None,
+        before_time: Optional[datetime] = None,
+    ):
+        """
+        Get previous search event for duplicate detection.
+
+        NOTE: This actually needs to query SearchEvent model, not SearchHistory.
+        This is a cross-model query that should be handled by SearchEventRepository.
+        We'll return None here and let the service handle it with SearchEventRepository.
+
+        Args:
+            user_id: User ID for authenticated users
+            guest_session_id: Session ID for guest users
+            before_time: Get events before this time
+
+        Returns:
+            None (should be handled by SearchEventRepository)
+        """
+        # This needs to be handled by SearchEventRepository
+        # The service should use self.event_repository.get_previous_search_event()
+        return None
+
+    def get_search_event_by_id(self, event_id: int):
+        """
+        Get search event by ID for validation.
+
+        NOTE: This actually needs to query SearchEvent model, not SearchHistory.
+        This is a cross-model query that should be handled by SearchEventRepository.
+        We'll return None here and let the service handle it with SearchEventRepository.
+
+        Args:
+            event_id: Search event ID
+
+        Returns:
+            None (should be handled by SearchEventRepository)
+        """
+        # This needs to be handled by SearchEventRepository
+        # The service should use self.event_repository.get_by_id()
+        return None
+
+    # Cleanup methods for SearchHistoryCleanupService
+
+    def hard_delete_old_soft_deleted(self, days_old: int) -> int:
+        """
+        Permanently delete soft-deleted searches older than specified days.
+
+        Args:
+            days_old: Number of days since soft deletion
+
+        Returns:
+            Number of records permanently deleted
+        """
+        from sqlalchemy import and_
+
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
+
+        deleted_count = (
+            self.db.query(SearchHistory)
+            .filter(and_(SearchHistory.deleted_at.isnot(None), SearchHistory.deleted_at < cutoff_date))
+            .delete(synchronize_session=False)
+        )
+
+        return deleted_count
+
+    def delete_converted_guest_searches(self, days_old: int) -> int:
+        """
+        Delete guest searches that were converted to user more than X days ago.
+
+        Args:
+            days_old: Number of days since conversion
+
+        Returns:
+            Number of records deleted
+        """
+        from sqlalchemy import and_
+
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
+
+        deleted_count = (
+            self.db.query(SearchHistory)
+            .filter(
+                and_(
+                    SearchHistory.guest_session_id.isnot(None),
+                    SearchHistory.converted_to_user_id.isnot(None),
+                    SearchHistory.converted_at < cutoff_date,
+                )
+            )
+            .delete(synchronize_session=False)
+        )
+
+        return deleted_count
+
+    def delete_old_unconverted_guest_searches(self, days_old: int) -> int:
+        """
+        Hard delete old guest searches that were never converted.
+
+        CRITICAL: This does HARD DELETE (permanent removal) for GDPR compliance.
+
+        Args:
+            days_old: Number of days since first search
+
+        Returns:
+            Number of records permanently deleted
+        """
+        from sqlalchemy import and_
+
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
+
+        deleted_count = (
+            self.db.query(SearchHistory)
+            .filter(
+                and_(
+                    SearchHistory.guest_session_id.isnot(None),
+                    SearchHistory.converted_to_user_id.is_(None),
+                    SearchHistory.first_searched_at < cutoff_date,
+                )
+            )
+            .delete(synchronize_session=False)
+        )
+
+        return deleted_count

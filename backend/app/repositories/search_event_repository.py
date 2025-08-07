@@ -5,7 +5,7 @@ Search Event Repository for InstaInstru Platform.
 Handles data access for individual search events used in analytics.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
 from sqlalchemy import func
@@ -345,3 +345,50 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
             "daily_counts": daily_counts,
             "type_distribution": type_distribution,
         }
+
+    def get_previous_search_event(
+        self,
+        user_id: Optional[int] = None,
+        guest_session_id: Optional[str] = None,
+        before_time: Optional[datetime] = None,
+    ) -> Optional[SearchEvent]:
+        """
+        Get previous search event for duplicate detection.
+
+        Used to check if a user has searched before (returning user detection).
+
+        Args:
+            user_id: User ID for authenticated users
+            guest_session_id: Session ID for guest users
+            before_time: Get events before this time (defaults to now)
+
+        Returns:
+            Previous SearchEvent or None if this is the first search
+        """
+        if before_time is None:
+            before_time = datetime.now(timezone.utc)
+
+        query = self.db.query(SearchEvent).filter(SearchEvent.searched_at < before_time)
+
+        if user_id:
+            query = query.filter(SearchEvent.user_id == user_id)
+        elif guest_session_id:
+            query = query.filter(SearchEvent.guest_session_id == guest_session_id)
+        else:
+            return None
+
+        return query.order_by(SearchEvent.searched_at.desc()).first()
+
+    def get_search_event_by_id(self, event_id: int) -> Optional[SearchEvent]:
+        """
+        Get search event by ID for validation.
+
+        Simple wrapper around get_by_id for clarity.
+
+        Args:
+            event_id: Search event ID
+
+        Returns:
+            SearchEvent or None if not found
+        """
+        return self.get_by_id(event_id)

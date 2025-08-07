@@ -278,11 +278,13 @@ class TestReminderIntegration:
     @pytest.mark.asyncio
     async def test_full_reminder_flow_uses_clean_architecture(self, db, test_student, test_instructor):
         """Test complete reminder flow from endpoint to email."""
+        # Create tomorrow booking based on student's timezone
+        from app.core.timezone_utils import get_user_today
         from app.services.booking_service import BookingService
         from app.services.notification_service import NotificationService
 
-        # Create tomorrow booking
-        tomorrow = date.today() + timedelta(days=1)
+        student_today = get_user_today(test_student)
+        tomorrow = student_today + timedelta(days=1)
 
         # Get the instructor's profile and service
         profile = db.query(InstructorProfile).filter(InstructorProfile.user_id == test_instructor.id).first()

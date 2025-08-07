@@ -295,7 +295,10 @@ class TestBulkOperationServiceIntegration:
     @pytest.mark.asyncio
     async def test_past_date_validation(self, bulk_service: BulkOperationService, test_instructor):
         """Test that past dates cannot be modified."""
-        yesterday = date.today() - timedelta(days=1)
+        from app.core.timezone_utils import get_user_today
+
+        instructor_today = get_user_today(test_instructor)
+        yesterday = instructor_today - timedelta(days=1)
 
         operations = [SlotOperation(action="add", date=yesterday, start_time=time(9, 0), end_time=time(10, 0))]
 
@@ -309,7 +312,10 @@ class TestBulkOperationServiceIntegration:
     @pytest.mark.asyncio
     async def test_auto_merge_behavior(self, bulk_service: BulkOperationService, test_instructor):
         """Test that adjacent slots are merged when no bookings exist."""
-        tomorrow = date.today() + timedelta(days=1)
+        from app.core.timezone_utils import get_user_today
+
+        instructor_today = get_user_today(test_instructor)
+        tomorrow = instructor_today + timedelta(days=1)
 
         # Add adjacent slots
         operations = [

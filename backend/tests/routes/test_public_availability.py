@@ -197,10 +197,15 @@ class TestPublicAvailability:
 
     def test_get_public_availability_invalid_date_range(self, public_client, test_instructor, full_detail_settings):
         """Test validation of date parameters."""
-        # Past start date
+        # Use instructor's timezone for date comparison
+        from app.core.timezone_utils import get_user_today
+
+        instructor_today = get_user_today(test_instructor)
+
+        # Past start date based on instructor's timezone
         response = public_client.get(
             f"/api/public/instructors/{test_instructor.id}/availability",
-            params={"start_date": (date.today() - timedelta(days=1)).isoformat()},
+            params={"start_date": (instructor_today - timedelta(days=1)).isoformat()},
         )
 
         if response.status_code == 404:
@@ -212,7 +217,10 @@ class TestPublicAvailability:
         # End before start
         response = public_client.get(
             f"/api/public/instructors/{test_instructor.id}/availability",
-            params={"start_date": date.today().isoformat(), "end_date": (date.today() - timedelta(days=1)).isoformat()},
+            params={
+                "start_date": instructor_today.isoformat(),
+                "end_date": (instructor_today - timedelta(days=1)).isoformat(),
+            },
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "after start date" in response.json()["detail"]
@@ -221,8 +229,8 @@ class TestPublicAvailability:
         response = public_client.get(
             f"/api/public/instructors/{test_instructor.id}/availability",
             params={
-                "start_date": date.today().isoformat(),
-                "end_date": (date.today() + timedelta(days=100)).isoformat(),
+                "start_date": instructor_today.isoformat(),
+                "end_date": (instructor_today + timedelta(days=100)).isoformat(),
             },
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST

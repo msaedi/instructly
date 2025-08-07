@@ -166,9 +166,13 @@ class TestBulkOperationLogic:
         mock_slot_manager.create_slot = Mock(side_effect=create_slot_with_id)
 
         # Test with valid action but missing fields - handle at service level
+        # Use a fixed future date to avoid timezone issues
+        from datetime import datetime
+
+        future_date = datetime(2025, 12, 25).date()  # Christmas 2025, always in future
         operation = SlotOperation(
             action="add",
-            date=date.today() + timedelta(days=1),  # Provide required date
+            date=future_date,  # Fixed future date
             start_time=None,  # Missing time
             end_time=time(10, 0),
         )

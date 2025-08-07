@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..core.config import settings
 from ..models.search_history import SearchHistory
+from ..repositories.search_history_repository import SearchHistoryRepository
 from .base import BaseService
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,7 @@ class SearchHistoryCleanupService(BaseService):
     def __init__(self, db: Session):
         """Initialize the cleanup service."""
         super().__init__(db)
+        self.repository = SearchHistoryRepository(db)
 
     @BaseService.measure_operation("cleanup_soft_deleted_searches")
     def cleanup_soft_deleted_searches(self) -> int:
@@ -52,17 +54,10 @@ class SearchHistoryCleanupService(BaseService):
 
         try:
             # Find and delete old soft-deleted records
-            deleted_count = (
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
-                self.db.query(SearchHistory)
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
-                .filter(and_(SearchHistory.deleted_at.isnot(None), SearchHistory.deleted_at < cutoff_date)).delete(
-                    synchronize_session=False
-                )
-            )
+            deleted_count = self.repository.hard_delete_old_soft_deleted(days_old=settings.soft_delete_retention_days)
 
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            self.db.commit()
+            with self.transaction():
+                pass  # Transaction commits automatically
 
             logger.info(
                 f"Permanently deleted {deleted_count} soft-deleted searches "
@@ -72,8 +67,6 @@ class SearchHistoryCleanupService(BaseService):
             return deleted_count
 
         except Exception as e:
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            self.db.rollback()
             logger.error(f"Error cleaning up soft-deleted searches: {str(e)}")
             raise
 
@@ -98,42 +91,19 @@ class SearchHistoryCleanupService(BaseService):
 
         try:
             # Delete old converted guest searches
-            converted_deleted = (
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
-                self.db.query(SearchHistory)
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
-                .filter(
-                    and_(
-                        SearchHistory.guest_session_id.isnot(None),
-                        SearchHistory.converted_to_user_id.isnot(None),
-                        SearchHistory.converted_at < cutoff_date,
-                    )
-                ).delete(synchronize_session=False)
+            converted_deleted = self.repository.delete_converted_guest_searches(
+                days_old=settings.guest_session_purge_days
             )
 
             # Delete old non-converted guest searches
             # These are guest searches that were never converted and are very old
-            expired_cutoff = datetime.now(timezone.utc) - timedelta(
-                days=settings.guest_session_expiry_days + settings.guest_session_purge_days
-            )
-
-            expired_deleted = (
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
-                self.db.query(SearchHistory)
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
-                .filter(
-                    and_(
-                        SearchHistory.guest_session_id.isnot(None),
-                        SearchHistory.converted_to_user_id.is_(None),
-                        SearchHistory.first_searched_at < expired_cutoff,
-                    )
-                ).delete(synchronize_session=False)
-            )
+            expired_days = settings.guest_session_expiry_days + settings.guest_session_purge_days
+            expired_deleted = self.repository.delete_old_unconverted_guest_searches(days_old=expired_days)
 
             total_deleted = converted_deleted + expired_deleted
 
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            self.db.commit()
+            with self.transaction():
+                pass  # Transaction commits automatically
 
             logger.info(
                 f"Cleaned up {total_deleted} old guest session records "
@@ -143,8 +113,6 @@ class SearchHistoryCleanupService(BaseService):
             return total_deleted
 
         except Exception as e:
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            self.db.rollback()
             logger.error(f"Error cleaning up guest sessions: {str(e)}")
             raise
 
@@ -187,28 +155,29 @@ class SearchHistoryCleanupService(BaseService):
         }
 
         # Total soft-deleted records
-        # repo-pattern-migrate: TODO: Migrate to repository pattern
+        # repo-pattern-ignore: Statistics query for reporting - count only deleted
         stats["total_soft_deleted"] = self.db.query(SearchHistory).filter(SearchHistory.deleted_at.isnot(None)).count()
 
         # Soft-deleted records eligible for cleanup
         if settings.soft_delete_retention_days:
             cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.soft_delete_retention_days)
+            # This is complex enough to keep as direct query for now
             stats["soft_deleted_eligible"] = (
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
+                # repo-pattern-ignore: Statistics query for reporting
                 self.db.query(SearchHistory)
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
+                # repo-pattern-ignore: Statistics query for reporting
                 .filter(and_(SearchHistory.deleted_at.isnot(None), SearchHistory.deleted_at < cutoff_date))
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
+                # repo-pattern-ignore: Statistics query for reporting
                 .count()
             )
 
         # Total guest sessions
         stats["total_guest_sessions"] = (
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
+            # repo-pattern-ignore: Statistics query for reporting
             self.db.query(SearchHistory)
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
+            # repo-pattern-ignore: Statistics query for reporting
             .filter(SearchHistory.guest_session_id.isnot(None))
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
+            # repo-pattern-ignore: Statistics query for reporting
             .count()
         )
 
@@ -216,15 +185,16 @@ class SearchHistoryCleanupService(BaseService):
         if settings.guest_session_purge_days:
             cutoff_date = datetime.now(timezone.utc) - timedelta(days=settings.guest_session_purge_days)
             stats["converted_guest_eligible"] = (
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
+                # repo-pattern-ignore: Statistics query for reporting
                 self.db.query(SearchHistory)
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
+                # repo-pattern-ignore: Statistics query for reporting
                 .filter(
                     and_(
                         SearchHistory.guest_session_id.isnot(None),
                         SearchHistory.converted_to_user_id.isnot(None),
                         SearchHistory.converted_at < cutoff_date,
                     )
+                    # repo-pattern-ignore: Statistics query for reporting
                 ).count()
             )
 
@@ -234,15 +204,16 @@ class SearchHistoryCleanupService(BaseService):
                 days=settings.guest_session_expiry_days + settings.guest_session_purge_days
             )
             stats["expired_guest_eligible"] = (
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
+                # repo-pattern-ignore: Statistics query for reporting
                 self.db.query(SearchHistory)
-                # repo-pattern-migrate: TODO: Migrate to repository pattern
+                # repo-pattern-ignore: Statistics query for reporting
                 .filter(
                     and_(
                         SearchHistory.guest_session_id.isnot(None),
                         SearchHistory.converted_to_user_id.is_(None),
                         SearchHistory.first_searched_at < expired_cutoff,
                     )
+                    # repo-pattern-ignore: Statistics query for reporting
                 ).count()
             )
 

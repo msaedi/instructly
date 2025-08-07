@@ -12,7 +12,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
 from sqlalchemy import and_
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
@@ -110,80 +109,15 @@ class SearchHistoryService(BaseService):
             normalized_query = self.normalize_search_query(query)
             now = datetime.now(timezone.utc)
 
-            # PostgreSQL UPSERT - atomic operation, no race condition possible
-            stmt = insert(SearchHistory).values(
+            # Use repository for atomic UPSERT operation
+            result = self.repository.upsert_search(
                 user_id=context.user_id,
                 guest_session_id=context.guest_session_id,
-                search_query=query,  # Keep original query
+                search_query=query,
                 normalized_query=normalized_query,
                 search_type=search_data.get("search_type", "natural_language"),
                 results_count=search_data.get("results_count"),
-                search_count=1,
-                first_searched_at=now,
-                last_searched_at=now,
             )
-
-            # On conflict, increment the count and update timestamp
-            if context.user_id:
-                # For authenticated users
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=["user_id", "normalized_query"],
-                    set_={
-                        "search_count": SearchHistory.search_count + 1,
-                        "last_searched_at": now,
-                        "results_count": stmt.excluded.results_count,
-                        # Keep the original query if it differs in case
-                        "search_query": stmt.excluded.search_query
-                        # NOTE: We do NOT update search_type - it preserves the original discovery method
-                    },
-                )
-            else:
-                # For guest users
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=["guest_session_id", "normalized_query"],
-                    set_={
-                        "search_count": SearchHistory.search_count + 1,
-                        "last_searched_at": now,
-                        "results_count": stmt.excluded.results_count,
-                        # Keep the original query if it differs in case
-                        "search_query": stmt.excluded.search_query
-                        # NOTE: We do NOT update search_type - it preserves the original discovery method
-                    },
-                )
-
-            # Execute the UPSERT
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            self.db.execute(stmt)
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            self.db.commit()
-
-            # Fetch and return the result
-            if context.user_id:
-                result = (
-                    # repo-pattern-migrate: TODO: Migrate to repository pattern
-                    self.db.query(SearchHistory)
-                    # repo-pattern-migrate: TODO: Migrate to repository pattern
-                    .filter(
-                        and_(
-                            SearchHistory.user_id == context.user_id,
-                            SearchHistory.normalized_query == normalized_query,
-                            SearchHistory.deleted_at.is_(None),
-                        )
-                    ).first()
-                )
-            else:
-                result = (
-                    # repo-pattern-migrate: TODO: Migrate to repository pattern
-                    self.db.query(SearchHistory)
-                    # repo-pattern-migrate: TODO: Migrate to repository pattern
-                    .filter(
-                        and_(
-                            SearchHistory.guest_session_id == context.guest_session_id,
-                            SearchHistory.normalized_query == normalized_query,
-                            SearchHistory.deleted_at.is_(None),
-                        )
-                    ).first()
-                )
 
             # Log what happened
             if result.search_count == 1:
@@ -235,27 +169,15 @@ class SearchHistoryService(BaseService):
             is_returning = False
             if context.user_id:
                 # Check if user has searched before
-                previous_search = (
-                    # repo-pattern-migrate: TODO: Migrate to repository pattern
-                    self.db.query(SearchEvent)
-                    # repo-pattern-migrate: TODO: Migrate to repository pattern
-                    .filter(
-                        SearchEvent.user_id == context.user_id, SearchEvent.searched_at < datetime.now(timezone.utc)
-                    )
-                    # repo-pattern-migrate: TODO: Migrate to repository pattern
-                    .first()
+                previous_search = self.event_repository.get_previous_search_event(
+                    user_id=context.user_id, before_time=datetime.now(timezone.utc)
                 )
                 is_returning = previous_search is not None
             elif context.guest_session_id:
-                # Check guest session history
-                previous_search = (
-                    # repo-pattern-migrate: TODO: Migrate to repository pattern
-                    self.db.query(SearchEvent)
-                    # repo-pattern-migrate: TODO: Migrate to repository pattern
-                    .filter(
-                        SearchEvent.guest_session_id == context.guest_session_id,
-                        SearchEvent.searched_at < datetime.now(timezone.utc) - timedelta(minutes=30),
-                    ).first()
+                # Check guest session history (with 30 minute offset)
+                previous_search = self.event_repository.get_previous_search_event(
+                    guest_session_id=context.guest_session_id,
+                    before_time=datetime.now(timezone.utc) - timedelta(minutes=30),
                 )
                 is_returning = previous_search is not None
 
@@ -406,29 +328,17 @@ class SearchHistoryService(BaseService):
         if settings.search_history_max_per_user == 0:
             return
 
-        # Count current searches (excluding soft-deleted)
-        search_count = self.repository.count_searches(
-            user_id=context.user_id, guest_session_id=context.guest_session_id
+        # Use repository method for enforcing search limit
+        deleted = self.repository.enforce_search_limit(
+            user_id=context.user_id,
+            guest_session_id=context.guest_session_id,
+            max_searches=settings.search_history_max_per_user,
         )
 
-        if search_count > settings.search_history_max_per_user:
-            # Get IDs of searches to keep (most recent, excluding soft-deleted)
-            keep_searches = self.repository.get_searches_to_delete(
-                user_id=context.user_id,
-                guest_session_id=context.guest_session_id,
-                keep_count=settings.search_history_max_per_user,
-            )
-
-            # Soft delete searches not in the keep list
-            deleted = self.repository.soft_delete_old_searches(
-                user_id=context.user_id, guest_session_id=context.guest_session_id, keep_ids_subquery=keep_searches
-            )
-
+        if deleted > 0:
             with self.transaction():
                 pass  # Transaction commits automatically
-
-            if deleted > 0:
-                logger.info(f"Deleted {deleted} old searches for {context.identifier} to maintain limit")
+            logger.info(f"Deleted {deleted} old searches for {context.identifier} to maintain limit")
 
     # Guest-to-user conversion (remains as specific operation)
     @BaseService.measure_operation("convert_guest_searches_to_user")
@@ -521,8 +431,7 @@ class SearchHistoryService(BaseService):
             logger.info(f"Looking for search event {search_event_id}")
 
             # Validate search event exists
-            # repo-pattern-migrate: TODO: Migrate to repository pattern
-            search_event = self.db.query(SearchEvent).filter(SearchEvent.id == search_event_id).first()
+            search_event = self.event_repository.get_search_event_by_id(search_event_id)
             if not search_event:
                 raise ValueError(f"Search event {search_event_id} not found")
 
