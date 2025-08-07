@@ -519,25 +519,48 @@ class BookingService(BaseService):
         Returns:
             Number of reminders sent
         """
-        # For reminders, we need to check each booking's instructor timezone
-        # We'll handle this per booking in the loop
-        # For now, get system date as a reference
-        system_tomorrow = date.today() + timedelta(days=1)
+        # Get bookings for a range of dates to handle timezone differences
+        # In worst case, tomorrow in one timezone could be 2 days away in UTC
+        from datetime import datetime
+        from datetime import timezone as tz
 
-        bookings = self.repository.get_bookings_for_date(
-            booking_date=system_tomorrow, status=BookingStatus.CONFIRMED, with_relationships=True
-        )
+        # Use UTC as reference and get a 3-day window to cover all timezones
+        utc_now = datetime.now(tz.utc).date()
+        date_range = [
+            utc_now,  # Today in UTC (could be tomorrow in some timezones)
+            utc_now + timedelta(days=1),  # Tomorrow in UTC
+            utc_now + timedelta(days=2),  # Day after (could be tomorrow in other timezones)
+        ]
+
+        # Get all confirmed bookings in this date range
+        all_bookings = []
+        for check_date in date_range:
+            bookings = self.repository.get_bookings_for_date(
+                booking_date=check_date, status=BookingStatus.CONFIRMED, with_relationships=True
+            )
+            all_bookings.extend(bookings)
 
         sent_count = 0
-        for booking in bookings:
+        processed_bookings = set()  # Track processed bookings to avoid duplicates
+
+        for booking in all_bookings:
+            # Skip if already processed (in case of duplicates from date range)
+            if booking.id in processed_bookings:
+                continue
+            processed_bookings.add(booking.id)
+
             # Verify this booking is actually tomorrow in the instructor's timezone
             from ..core.timezone_utils import get_user_today_by_id
 
             instructor_today = get_user_today_by_id(booking.instructor_id, self.db)
             instructor_tomorrow = instructor_today + timedelta(days=1)
 
-            # Skip if not actually tomorrow for this instructor
-            if booking.booking_date != instructor_tomorrow:
+            # Also check student's timezone for accuracy
+            student_today = get_user_today_by_id(booking.student_id, self.db)
+            student_tomorrow = student_today + timedelta(days=1)
+
+            # The booking should be tomorrow for both instructor and student
+            if booking.booking_date != instructor_tomorrow and booking.booking_date != student_tomorrow:
                 continue
             try:
                 await self.notification_service.send_reminder_emails()
