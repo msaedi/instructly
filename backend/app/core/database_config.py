@@ -23,7 +23,7 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Literal, Optional
 
@@ -317,7 +317,7 @@ class DatabaseConfig:
             "implemented_features": implemented,
             "total_features": total,
             "metrics": metrics,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     def _mask_url(self, url: str) -> str:
@@ -340,7 +340,7 @@ class DatabaseConfig:
         """
         try:
             log_entry = {
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "operation": operation,
                 "user": os.getenv("USER", "unknown"),
                 "pid": os.getpid(),

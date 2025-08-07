@@ -55,12 +55,12 @@ if user:
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
 
     # The login endpoint creates token differently
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     from jose import jwt
 
     to_encode = {"sub": user.email}
-    expire = datetime.utcnow() + access_token_expires
+    expire = datetime.now(timezone.utc) + access_token_expires
     to_encode.update({"exp": expire})
 
     encoded_jwt = jwt.encode(to_encode, settings.secret_key.get_secret_value(), algorithm=settings.algorithm)

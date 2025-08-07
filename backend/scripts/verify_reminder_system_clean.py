@@ -162,9 +162,10 @@ def verify_clean_architecture():
 
     try:
         from datetime import datetime, timedelta
+        from datetime import timezone as tz
 
         # Simulate the query logic
-        tomorrow = datetime.now().date() + timedelta(days=1)
+        tomorrow = datetime.now(tz.utc).date() + timedelta(days=1)
         print(f"✅ Query would look for bookings on: {tomorrow}")
         print("✅ Query filters: booking_date == tomorrow AND status == 'CONFIRMED'")
         print("✅ No joins with removed tables")

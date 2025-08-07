@@ -4,7 +4,7 @@ Debug why production alerts aren't being created.
 """
 
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -57,7 +57,7 @@ def check_alert_details():
 
             # Check for alerts in last 5 minutes
             print("\n=== Alerts in Last 5 Minutes ===")
-            five_min_ago = datetime.utcnow() - timedelta(minutes=5)
+            five_min_ago = datetime.now(timezone.utc) - timedelta(minutes=5)
             result = conn.execute(
                 text(
                     """

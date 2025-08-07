@@ -563,8 +563,9 @@ class BookingService(BaseService):
             if booking.booking_date != instructor_tomorrow and booking.booking_date != student_tomorrow:
                 continue
             try:
-                await self.notification_service.send_reminder_emails()
-                sent_count += 1
+                # Send reminder for this specific booking
+                reminder_count = await self.notification_service._send_booking_reminders([booking])
+                sent_count += reminder_count
             except Exception as e:
                 logger.error(f"Error sending reminder for booking {booking.id}: {str(e)}")
 
@@ -918,11 +919,20 @@ class BookingService(BaseService):
 
     async def _apply_cancellation_rules(self, booking: Booking, user: User) -> None:
         """Apply business rules for cancellation."""
-        # Check cancellation deadline
-        booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
-        cancellation_deadline = booking_datetime - timedelta(hours=2)
+        # Check cancellation deadline using user's timezone
+        from app.core.timezone_utils import get_user_timezone, get_user_today_by_id
 
-        if datetime.now() > cancellation_deadline:
+        # Get user's timezone for proper comparison
+        user_tz = get_user_timezone(user.id, self.db)
+        booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+        # Make the booking datetime timezone-aware in user's timezone
+        booking_datetime_aware = user_tz.localize(booking_datetime)
+        cancellation_deadline = booking_datetime_aware - timedelta(hours=2)
+
+        # Compare with current time in user's timezone
+        now_in_user_tz = datetime.now(user_tz)
+
+        if now_in_user_tz > cancellation_deadline:
             # Log late cancellation but allow it
             logger.warning(f"Late cancellation for booking {booking.id} by user {user.id}")
 

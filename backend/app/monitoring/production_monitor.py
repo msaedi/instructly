@@ -19,7 +19,7 @@ import time
 import uuid
 from collections import deque
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Set
 
 import psutil
@@ -100,7 +100,7 @@ class PerformanceMonitor:
                     query_preview += "..."
 
                 slow_query_info = {
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "duration_ms": round(duration_ms, 2),
                     "query": query_preview,
                     "full_query": statement
@@ -145,7 +145,7 @@ class PerformanceMonitor:
         # Log slow requests
         if duration_ms > self.slow_request_threshold_ms:
             slow_request_info = {
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "duration_ms": round(duration_ms, 2),
                 "method": request_info["method"],
                 "path": request_info["path"],
@@ -186,7 +186,7 @@ class PerformanceMonitor:
         pool_health = {
             **pool_status,
             "usage_percent": round(usage_percent, 2),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "healthy": usage_percent < 80,
         }
 
@@ -216,7 +216,7 @@ class PerformanceMonitor:
             "vms_mb": round(memory_info.vms / 1024 / 1024, 2),
             "percent": round(process.memory_percent(), 2),
             "system_available_mb": round(system_memory.available / 1024 / 1024, 2),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         # Alert if memory usage is high
@@ -235,7 +235,7 @@ class PerformanceMonitor:
 
         cache_health = {
             **cache_stats,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "healthy": hit_rate > 70,
             "recommendations": [],
         }
@@ -255,7 +255,7 @@ class PerformanceMonitor:
 
     def _send_alert(self, alert_type: str, message: str, details: Optional[Dict[str, Any]] = None) -> None:
         """Send alert if not in cooldown period."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # Check cooldown
         if alert_type in self._last_alert_time:
@@ -303,7 +303,7 @@ class PerformanceMonitor:
             avg_pool_usage = sum(h["usage_percent"] for h in self.db_pool_history) / len(self.db_pool_history)
 
         summary = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "database": {
                 "current_pool_usage_percent": db_pool["usage_percent"],
                 "average_pool_usage_percent": round(avg_pool_usage, 2),

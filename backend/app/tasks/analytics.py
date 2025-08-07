@@ -49,7 +49,7 @@ def calculate_analytics(self, days_back: int = 90) -> Dict[str, Any]:
         extra={
             "task_id": task_id,
             "days_back": days_back,
-            "start_time": datetime.utcnow().isoformat(),
+            "start_time": datetime.now(timezone.utc).isoformat(),
         },
     )
 
@@ -93,7 +93,7 @@ def calculate_analytics(self, days_back: int = 90) -> Dict[str, Any]:
             "execution_time": execution_time,
             "services_updated": services_updated,
             "report": report,
-            "completed_at": datetime.utcnow().isoformat(),
+            "completed_at": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as exc:
@@ -156,7 +156,7 @@ def generate_daily_report(self) -> Dict[str, Any]:
             extra={
                 "task_id": task_id,
                 "execution_time": execution_time,
-                "report_date": datetime.utcnow().date().isoformat(),
+                "report_date": datetime.now(timezone.utc).date().isoformat(),
             },
         )
 
@@ -165,7 +165,7 @@ def generate_daily_report(self) -> Dict[str, Any]:
             "task_id": task_id,
             "execution_time": execution_time,
             "report": report,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as exc:
@@ -295,7 +295,7 @@ def record_task_execution(
                 "execution_time": execution_time,
                 "result": result,
                 "error": error,
-                "recorded_at": datetime.utcnow().isoformat(),
+                "recorded_at": datetime.now(timezone.utc).isoformat(),
             },
         )
 

@@ -8,7 +8,7 @@ are being created in the production database.
 
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Add the backend directory to the Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -64,7 +64,7 @@ def check_production_alerts():
                 LIMIT 10
             """
                 ),
-                {"since": datetime.utcnow() - timedelta(hours=24)},
+                {"since": datetime.now(timezone.utc) - timedelta(hours=24)},
             )
 
             recent_alerts = result.fetchall()
@@ -110,7 +110,7 @@ def check_production_alerts():
 
             if last_alert:
                 print(f"\nLast alert created: {last_alert}")
-                time_since = datetime.utcnow() - last_alert
+                time_since = datetime.now(timezone.utc) - last_alert
                 print(f"Time since last alert: {time_since}")
 
     except Exception as e:
@@ -162,7 +162,7 @@ def main():
     """Run all checks."""
     print("=== InstaInstru Production Monitoring Check ===")
     print(f"Environment: {settings.environment}")
-    print(f"Timestamp: {datetime.utcnow().isoformat()}")
+    print(f"Timestamp: {datetime.now(timezone.utc).isoformat()}")
     print()
 
     # Check production alerts

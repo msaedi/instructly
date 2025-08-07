@@ -122,7 +122,7 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
 
         Returns list of dicts with query and count.
         """
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
 
         results = (
             self.db.query(SearchEvent.search_query, func.count(SearchEvent.id).label("count"))
@@ -195,7 +195,7 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
 
         # Apply time filter if hours specified
         if hours:
-            cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
             query = query.filter(SearchEvent.searched_at >= cutoff_time)
 
         results = (
@@ -282,7 +282,7 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         query = self.db.query(SearchEvent.search_type, func.count(SearchEvent.id).label("count"))
 
         if hours:
-            cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
             query = query.filter(SearchEvent.searched_at >= cutoff_time)
 
         results = query.group_by(SearchEvent.search_type).all()
@@ -297,7 +297,7 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         """
         from sqlalchemy import Date, cast
 
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
 
         # Get count of this search
         count = (

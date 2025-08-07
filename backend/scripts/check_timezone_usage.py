@@ -19,8 +19,11 @@ ALLOWED_PATTERNS = [
     "__pycache__",  # Compiled files
 ]
 
-# Pattern to detect date.today() usage
+# Patterns to detect timezone-unaware date usage
 DATE_TODAY_PATTERN = re.compile(r"date\.today\(\)")
+DATETIME_NOW_DATE_PATTERN = re.compile(r"datetime\.now\(\)\.date\(\)")
+DATETIME_UTCNOW_PATTERN = re.compile(r"datetime\.utcnow\(\)")
+DATETIME_NOW_NAIVE_PATTERN = re.compile(r"datetime\.now\(\)\s*[<>]|[<>]\s*datetime\.now\(\)")
 
 # Pattern to check if timezone utilities are imported
 TIMEZONE_IMPORT_PATTERN = re.compile(r"from\s+.*timezone_utils\s+import|import\s+.*timezone_utils")
@@ -52,11 +55,30 @@ def check_file(filepath: Path) -> list:
         # Check if file imports timezone utilities
         has_timezone_import = bool(TIMEZONE_IMPORT_PATTERN.search(content))
 
-        # Find all date.today() occurrences
+        # Find all timezone-unaware date/time usage
         for line_num, line in enumerate(content.splitlines(), 1):
+            has_violation = False
+            violation_text = ""
+            suggestion = "get_user_today_by_id(user_id, db)"
+
             if DATE_TODAY_PATTERN.search(line):
+                has_violation = True
+                violation_text = "date.today()"
+            elif DATETIME_NOW_DATE_PATTERN.search(line):
+                has_violation = True
+                violation_text = "datetime.now().date()"
+            elif DATETIME_UTCNOW_PATTERN.search(line):
+                has_violation = True
+                violation_text = "datetime.utcnow()"
+                suggestion = "datetime.now(timezone.utc)"
+            elif DATETIME_NOW_NAIVE_PATTERN.search(line):
+                has_violation = True
+                violation_text = "datetime.now() comparison"
+                suggestion = "datetime.now(timezone.utc) for comparisons"
+
+            if has_violation:
                 # Check if it's in a comment
-                if "#" in line and line.index("#") < line.index("date.today()"):
+                if "#" in line and violation_text in line and line.index("#") < line.index(violation_text):
                     continue
 
                 # Check for known acceptable patterns
@@ -73,7 +95,7 @@ def check_file(filepath: Path) -> list:
                         if char in ['"', "'"]:
                             quote_positions.append(i)
 
-                    date_pos = line.index("date.today()")
+                    date_pos = line.index(violation_text)
                     for i in range(0, len(quote_positions), 2):
                         if i + 1 < len(quote_positions):
                             if quote_positions[i] < date_pos < quote_positions[i + 1]:
@@ -83,7 +105,14 @@ def check_file(filepath: Path) -> list:
                     if in_string:
                         continue
 
-                violations.append({"line": line_num, "code": line.strip(), "has_timezone_import": has_timezone_import})
+                violations.append(
+                    {
+                        "line": line_num,
+                        "code": line.strip(),
+                        "has_timezone_import": has_timezone_import,
+                        "suggestion": suggestion,
+                    }
+                )
 
     except Exception as e:
         print(f"Error reading {filepath}: {e}")
@@ -108,16 +137,18 @@ def main():
                 all_violations.append((filepath, violations))
 
     if all_violations:
-        print("\n❌ Found date.today() usage in user-facing code!\n")
+        print("\n❌ Found timezone-unaware date usage in user-facing code!\n")
         print("User operations must use timezone-aware functions.\n")
 
         for filepath, violations in all_violations:
             print(f"File: {filepath}")
             for v in violations:
                 print(f"  Line {v['line']}: {v['code']}")
-                if not v["has_timezone_import"]:
+                if v["suggestion"] == "get_user_today_by_id(user_id, db)" and not v["has_timezone_import"]:
                     print("    💡 Add: from app.core.timezone_utils import get_user_today_by_id")
-                print("    💡 Use: get_user_today_by_id(user_id, db) instead of date.today()")
+                elif v["suggestion"] == "datetime.now(timezone.utc)":
+                    print("    💡 Add: from datetime import timezone")
+                print(f"    💡 Use: {v['suggestion']} instead")
             print()
 
         print("Please update your code to use timezone-aware date functions.")

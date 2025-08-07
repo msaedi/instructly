@@ -313,16 +313,28 @@ class NotificationService(BaseService):
         Returns:
             List of bookings scheduled for tomorrow
         """
-        tomorrow = datetime.now().date() + timedelta(days=1)
+        # Get bookings for a range of dates to handle timezone differences
+        from datetime import timezone as tz
+
+        # Use UTC as reference and get a 3-day window to cover all timezones
+        utc_now = datetime.now(tz.utc).date()
+        date_range = [
+            utc_now,  # Today in UTC (could be tomorrow in some timezones)
+            utc_now + timedelta(days=1),  # Tomorrow in UTC
+            utc_now + timedelta(days=2),  # Day after (could be tomorrow in other timezones)
+        ]
 
         # Use BookingRepository method
         from ..repositories.factory import RepositoryFactory
 
         booking_repository = RepositoryFactory.create_booking_repository(self.db)
-        bookings = booking_repository.get_bookings_by_date_and_status(tomorrow, "CONFIRMED")
+        all_bookings = []
+        for check_date in date_range:
+            bookings = booking_repository.get_bookings_by_date_and_status(check_date, "CONFIRMED")
+            all_bookings.extend(bookings)
 
-        self.logger.info(f"Found {len(bookings)} bookings for tomorrow")
-        return bookings
+        self.logger.info(f"Found {len(all_bookings)} bookings for tomorrow")
+        return all_bookings
 
     async def _send_booking_reminders(self, bookings: List[Booking]) -> int:
         """

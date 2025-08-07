@@ -6,7 +6,7 @@ Provides periodic tasks to clean up old search history data.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from celery import shared_task
 from sqlalchemy.orm import Session
@@ -40,7 +40,7 @@ def cleanup_search_history(self):
     }
     ```
     """
-    logger.info(f"Starting search history cleanup task at {datetime.utcnow()}")
+    logger.info(f"Starting search history cleanup task at {datetime.now(timezone.utc)}")
 
     db: Session = SessionLocal()
     try:
@@ -70,7 +70,7 @@ def cleanup_search_history(self):
             "guest_sessions_removed": guest_sessions,
             "stats_before": stats_before,
             "stats_after": stats_after,
-            "completed_at": datetime.utcnow().isoformat(),
+            "completed_at": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:
@@ -106,7 +106,7 @@ def search_history_cleanup_dry_run(self):
                 "soft_deleted": stats["soft_deleted_eligible"],
                 "guest_sessions": stats["converted_guest_eligible"] + stats["expired_guest_eligible"],
             },
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:

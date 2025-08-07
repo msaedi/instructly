@@ -6,7 +6,7 @@ Test the complete alert system including email sending.
 import asyncio
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Add the backend directory to the Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -52,7 +52,7 @@ def test_direct_email():
             <hr>
             <p><small>Sent at: {}</small></p>
             """.format(
-                datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+                datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
             ),
         )
 
@@ -85,7 +85,7 @@ async def test_celery_alerts():
             severity="critical",
             title="[TEST] Critical Alert Test",
             message="This is a test critical alert that should trigger an email",
-            details={"test": True, "timestamp": datetime.utcnow().isoformat()},
+            details={"test": True, "timestamp": datetime.now(timezone.utc).isoformat()},
         )
         print(f"   Task ID: {result.id}")
 

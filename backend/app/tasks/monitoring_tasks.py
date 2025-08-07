@@ -5,7 +5,7 @@ Celery tasks for monitoring alerts and notifications.
 import json
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 
 import httpx
@@ -151,7 +151,7 @@ def send_alert_email(self, alert_id: int):
 
         # Update alert record
         alert.email_sent = True
-        alert.notified_at = datetime.utcnow()
+        alert.notified_at = datetime.now(timezone.utc)
         self.db.commit()
 
         logger.info(f"Alert email sent for alert {alert_id}")
@@ -242,7 +242,7 @@ def should_create_github_issue(db, alert_type: str, severity: str) -> bool:
 
     if severity == "warning":
         # Check for repeated warnings
-        one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+        one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
         recent_count = (
             db.query(func.count(AlertHistory.id))
             .filter(
@@ -263,7 +263,7 @@ def cleanup_old_alerts():
     """Clean up old alert history records (keep last 30 days)."""
     try:
         db = SessionLocal()
-        cutoff_date = datetime.utcnow() - timedelta(days=30)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=30)
 
         deleted_count = db.query(AlertHistory).filter(AlertHistory.created_at < cutoff_date).delete()
 

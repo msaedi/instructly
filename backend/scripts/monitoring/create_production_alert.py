@@ -7,7 +7,7 @@ processed by Celery and saved to the production database.
 """
 
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Add parent directory to path
@@ -22,17 +22,17 @@ from app.monitoring.production_monitor import monitor
 def create_test_alerts():
     """Create various test alerts in production."""
     print("=== Creating Production Alerts ===")
-    print(f"Timestamp: {datetime.utcnow().isoformat()}")
+    print(f"Timestamp: {datetime.now(timezone.utc).isoformat()}")
     print()
 
     # 1. Create a test alert
     print("1. Creating test alert...")
     monitor._send_alert(
         alert_type="manual_test_alert",
-        message=f"Manual test alert created at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}",
+        message=f"Manual test alert created at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}",
         details={
             "source": "create_production_alert.py",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "purpose": "Testing alert system",
             "environment": "production",
         },
@@ -48,7 +48,7 @@ def create_test_alerts():
             "cpu_usage": "45%",
             "memory_usage": "62%",
             "active_connections": 12,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         },
     )
     print("   ✅ Performance alert sent")
@@ -56,9 +56,9 @@ def create_test_alerts():
     # 3. Simulate a slow request alert
     print("\n3. Simulating slow request alert...")
     # First register a fake slow request
-    request_id = f"test-{datetime.utcnow().timestamp()}"
+    request_id = f"test-{datetime.now(timezone.utc).timestamp()}"
     monitor._active_requests[request_id] = {
-        "start_time": datetime.utcnow().timestamp() - 6.5,  # 6.5 seconds ago
+        "start_time": datetime.now(timezone.utc).timestamp() - 6.5,  # 6.5 seconds ago
         "method": "GET",
         "path": "/api/test/manual-slow-endpoint",
         "client": "create_production_alert.py",
@@ -77,11 +77,11 @@ def create_test_alerts():
             alert_type="manual_critical_test",
             severity="critical",
             title="[MANUAL TEST] Critical Alert Test",
-            message=f"This is a manual critical alert test created at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}",
+            message=f"This is a manual critical alert test created at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}",
             details={
                 "source": "create_production_alert.py",
                 "should_send_email": True,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         )
         print(f"   ✅ Critical alert task queued with ID: {result.id}")

@@ -16,7 +16,7 @@ import argparse
 import json
 import logging
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
 
@@ -69,7 +69,7 @@ class AnalyticsCommand:
             self._store_last_run_info(
                 {
                     "task_id": result.id,
-                    "started_at": datetime.utcnow().isoformat(),
+                    "started_at": datetime.now(timezone.utc).isoformat(),
                     "days_back": days_back,
                     "mode": "async",
                 }
@@ -83,7 +83,7 @@ class AnalyticsCommand:
         else:
             # Run directly (sync)
             logger.info("Running analytics calculation directly...")
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
 
             try:
                 # Get database session
@@ -95,7 +95,7 @@ class AnalyticsCommand:
                 calculator.update_search_counts()
                 report = calculator.generate_report()
 
-                end_time = datetime.utcnow()
+                end_time = datetime.now(timezone.utc)
                 execution_time = (end_time - start_time).total_seconds()
 
                 # Store execution info
@@ -125,7 +125,7 @@ class AnalyticsCommand:
                 self._store_last_run_info(
                     {
                         "started_at": start_time.isoformat(),
-                        "failed_at": datetime.utcnow().isoformat(),
+                        "failed_at": datetime.now(timezone.utc).isoformat(),
                         "error": str(e),
                         "days_back": days_back,
                         "mode": "sync",

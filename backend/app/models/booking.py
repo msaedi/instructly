@@ -12,7 +12,7 @@ availability changes ("Rug and Person" principle).
 """
 
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from enum import Enum
 from typing import Optional
 
@@ -132,7 +132,7 @@ class Booking(Base):
     def cancel(self, cancelled_by_user_id: int, reason: Optional[str] = None) -> None:
         """Cancel this booking."""
         self.status = BookingStatus.CANCELLED
-        self.cancelled_at = datetime.utcnow()
+        self.cancelled_at = datetime.now(timezone.utc)
         self.cancelled_by_id = cancelled_by_user_id
         self.cancellation_reason = reason
         logger.info(f"Booking {self.id} cancelled by user {cancelled_by_user_id}")
@@ -140,7 +140,7 @@ class Booking(Base):
     def complete(self) -> None:
         """Mark booking as completed."""
         self.status = BookingStatus.COMPLETED
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(timezone.utc)
         logger.info(f"Booking {self.id} marked as completed")
 
     def mark_no_show(self) -> None:

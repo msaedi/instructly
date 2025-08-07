@@ -5,7 +5,7 @@ Simple metrics endpoint for performance monitoring.
 This gives us immediate visibility without Prometheus complexity.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 import psutil
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -44,7 +44,7 @@ async def health_check() -> HealthCheckResponse:
         status="healthy",
         service="InstaInstru API",
         version="1.0.0",
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         checks={"api": True},
     )
 
@@ -293,7 +293,7 @@ async def get_slow_queries(
                 {
                     "query": row[0][:200],  # First 200 chars
                     "duration_ms": float(row[1]),
-                    "timestamp": datetime.utcnow(),  # Approximate timestamp
+                    "timestamp": datetime.now(timezone.utc),  # Approximate timestamp
                     "endpoint": None,  # Not available from pg_stat_statements
                 }
             )

@@ -7,7 +7,7 @@ the monitoring system to create alerts.
 """
 
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 import httpx
 
@@ -18,7 +18,7 @@ def trigger_slow_requests():
     """Make requests designed to be slow and trigger monitoring alerts."""
     print("=== Triggering Slow Request Monitoring ===")
     print(f"Target: {PRODUCTION_URL}")
-    print(f"Time: {datetime.utcnow().isoformat()}")
+    print(f"Time: {datetime.now(timezone.utc).isoformat()}")
     print("\nNote: Production monitoring triggers alerts for:")
     print("- Slow queries (>100ms)")
     print("- Slow requests (>500ms)")

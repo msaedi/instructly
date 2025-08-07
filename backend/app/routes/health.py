@@ -8,7 +8,7 @@ database connectivity, and service availability.
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
@@ -45,7 +45,7 @@ def health_check(db: Session = Depends(get_db)) -> HealthCheckResponse:
         status=status,
         service="InstaInstru API",
         version="1.0.0",
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         checks={"database": db_status},
     )
 

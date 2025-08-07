@@ -19,7 +19,7 @@ This repository handles:
 """
 
 import logging
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone
 from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session, joinedload
@@ -713,7 +713,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 raise NotFoundException(f"Booking with id {booking_id} not found")
 
             booking.status = BookingStatus.COMPLETED
-            booking.completed_at = datetime.utcnow()
+            booking.completed_at = datetime.now(timezone.utc)
 
             self.db.flush()
             self.logger.info(f"Marked booking {booking_id} as completed")
@@ -753,7 +753,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 raise NotFoundException(f"Booking with id {booking_id} not found")
 
             booking.status = BookingStatus.CANCELLED
-            booking.cancelled_at = datetime.utcnow()
+            booking.cancelled_at = datetime.now(timezone.utc)
             booking.cancelled_by_id = cancelled_by_id
             booking.cancellation_reason = reason
 

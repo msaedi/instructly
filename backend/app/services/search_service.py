@@ -13,7 +13,7 @@ with repositories to find the best matches.
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List
 
 from sentence_transformers import SentenceTransformer
@@ -320,7 +320,7 @@ class SearchService(BaseService):
             "search_metadata": {
                 "used_semantic_search": bool(parsed["cleaned_query"]),
                 "applied_filters": self._get_applied_filters(parsed),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
         }
 

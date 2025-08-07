@@ -2,7 +2,7 @@
 """View production alerts from the database."""
 
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # Add parent directory to path
@@ -19,7 +19,7 @@ def view_recent_alerts(hours=24):
     db = SessionLocal()
     try:
         # Get alerts from the last N hours
-        since = datetime.utcnow() - timedelta(hours=hours)
+        since = datetime.now(timezone.utc) - timedelta(hours=hours)
 
         alerts = (
             db.query(AlertHistory)
@@ -86,7 +86,7 @@ def view_alert_summary():
         # Get alert counts by day
         print("\n=== Alerts by Day (Last 7 days) ===")
         for i in range(7):
-            day_start = datetime.utcnow().replace(hour=0, minute=0, second=0) - timedelta(days=i)
+            day_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0) - timedelta(days=i)
             day_end = day_start + timedelta(days=1)
 
             count = (
