@@ -5,7 +5,7 @@ Request schemas for the message/chat system.
 
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class SendMessageRequest(BaseModel):
@@ -29,13 +29,11 @@ class MarkMessagesReadRequest(BaseModel):
     booking_id: Optional[int] = Field(None, description="Mark all messages in this booking as read")
     message_ids: Optional[List[int]] = Field(None, description="Specific message IDs to mark as read")
 
-    @field_validator("message_ids")
-    @classmethod
-    def validate_message_ids(cls, v: Optional[List[int]], values) -> Optional[List[int]]:
-        """Ensure either booking_id or message_ids is provided."""
-        booking_id = values.data.get("booking_id")
-        if not booking_id and not v:
+    @model_validator(mode="after")
+    def check_either_booking_or_ids(self) -> "MarkMessagesReadRequest":
+        """Ensure either booking_id or message_ids is provided, but not both."""
+        if not self.booking_id and not self.message_ids:
             raise ValueError("Either booking_id or message_ids must be provided")
-        if booking_id and v:
+        if self.booking_id and self.message_ids:
             raise ValueError("Provide either booking_id or message_ids, not both")
-        return v
+        return self

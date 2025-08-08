@@ -652,7 +652,7 @@ class NotificationService(BaseService):
             sender_role = "instructor" if sender_id == booking.instructor_id else "student"
 
             # Create subject line
-            subject = f"New message from your {sender_role} - {booking.service.name}"
+            subject = f"New message from your {sender_role} - {booking.service_name}"
 
             # Prepare template context
             context = {
@@ -661,7 +661,7 @@ class NotificationService(BaseService):
                 "sender_role": sender_role,
                 "booking_date": booking.booking_date.strftime("%B %d, %Y"),
                 "booking_time": booking.start_time.strftime("%-I:%M %p"),
-                "service_name": booking.service.name,
+                "service_name": booking.service_name,
                 "message_preview": message_content[:200] + "..." if len(message_content) > 200 else message_content,
                 "booking_id": booking.id,
                 "settings": settings,  # Include settings for frontend URL

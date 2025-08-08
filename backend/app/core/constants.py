@@ -53,9 +53,11 @@ ALLOWED_ORIGINS = [
     # Future production URLs (keep for later migration)
     "https://instainstru.com",  # Future production URL
     "https://www.instainstru.com",  # Future production URL with www
-    # Vercel preview deployments
-    "https://*.vercel.app",  # All Vercel preview deployments
+    # Note: Vercel preview deployments handled by allow_origin_regex in main.py
 ]
+
+# CORS regex pattern for Vercel preview deployments
+CORS_ORIGIN_REGEX = r"^https://[a-zA-Z0-9-]+\.vercel\.app$"
 
 # Error messages
 ERROR_INSTRUCTOR_ONLY = "Only instructors can perform this action"

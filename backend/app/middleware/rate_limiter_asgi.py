@@ -14,6 +14,7 @@ from starlette.datastructures import MutableHeaders
 from starlette.responses import JSONResponse
 
 from ..core.config import settings
+from ..core.constants import SSE_PATH_PREFIX
 from .rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
@@ -45,7 +46,7 @@ class RateLimitMiddlewareASGI:
 
         # Skip rate limiting for health checks, metrics, and SSE endpoints
         # SSE connections are long-lived and should never be rate-limited
-        if path in ["/health", "/metrics/health", "/metrics/performance"] or path.startswith("/api/messages/stream"):
+        if path in ["/health", "/metrics/health", "/metrics/performance"] or path.startswith(SSE_PATH_PREFIX):
             await self.app(scope, receive, send)
             return
 

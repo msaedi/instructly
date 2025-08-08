@@ -8,6 +8,8 @@ import time
 from collections import defaultdict, deque
 from datetime import datetime
 
+from ..core.constants import SSE_PATH_PREFIX
+
 logger = logging.getLogger(__name__)
 
 
@@ -86,7 +88,7 @@ class MonitoringMiddleware:
 
         # Skip monitoring for SSE endpoints to avoid interference
         path = scope.get("path", "")
-        if path.startswith("/api/messages/stream"):
+        if path.startswith(SSE_PATH_PREFIX):
             await self.app(scope, receive, send)
             return
 

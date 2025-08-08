@@ -147,8 +147,29 @@ class MessageNotificationService:
         while self.is_listening:
             try:
                 if not self.connection or self.connection.is_closed():
-                    # Reconnect if connection was lost
-                    await self.start()
+                    # Reconnect if connection was lost (without spawning new task)
+                    self.logger.info("Connection lost, attempting to reconnect...")
+                    try:
+                        # Use the active database URL from settings
+                        db_url = str(settings.database_url)
+                        # Convert SQLAlchemy URL to asyncpg format
+                        if db_url.startswith("postgresql://"):
+                            db_url = db_url.replace("postgresql://", "postgres://")
+                        elif db_url.startswith("postgresql+psycopg2://"):
+                            db_url = db_url.replace("postgresql+psycopg2://", "postgres://")
+
+                        self.connection = await asyncpg.connect(db_url)
+
+                        # Re-subscribe to all channels we were listening to
+                        for booking_id in self.subscribers.keys():
+                            channel_name = f"booking_chat_{booking_id}"
+                            await self.connection.add_listener(channel_name, self._handle_notification)
+
+                        self.logger.info("Successfully reconnected to database")
+                    except Exception as e:
+                        self.logger.error(f"Failed to reconnect: {str(e)}")
+                        await asyncio.sleep(5)
+                        continue
 
                 # Wait for notifications (this blocks but is async)
                 await asyncio.sleep(1)  # Check connection periodically

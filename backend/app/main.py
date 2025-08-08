@@ -7,7 +7,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
 from .core.config import settings
-from .core.constants import ALLOWED_ORIGINS, API_DESCRIPTION, API_TITLE, API_VERSION, BRAND_NAME, SSE_PATH_PREFIX
+from .core.constants import (
+    ALLOWED_ORIGINS,
+    API_DESCRIPTION,
+    API_TITLE,
+    API_VERSION,
+    BRAND_NAME,
+    CORS_ORIGIN_REGEX,
+    SSE_PATH_PREFIX,
+)
 from .middleware.https_redirect import create_https_redirect_middleware
 from .middleware.monitoring import MonitoringMiddleware
 from .middleware.performance import PerformanceMiddleware
@@ -129,6 +137,7 @@ if settings.environment == "production":
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=CORS_ORIGIN_REGEX,  # Support Vercel preview deployments
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

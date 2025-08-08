@@ -149,20 +149,11 @@ async def stream_messages(
     can't use regular FastAPI dependencies with EventSource.
     """
 
-    # Check if user has VIEW_MESSAGES permission
-    from ..models.permission import Permission
-    from ..models.role_permission import RolePermission
+    # Check if user has VIEW_MESSAGES permission using PermissionService
+    from ..services.permission_service import PermissionService
 
-    # Get user's permissions through their role
-    user_permissions = (
-        service.db.query(Permission.name)
-        .join(RolePermission)
-        .filter(RolePermission.role_id == current_user.role_id)
-        .all()
-    )
-    permission_names = [p[0] for p in user_permissions]
-
-    if PermissionName.VIEW_MESSAGES.value not in permission_names:
+    permission_service = PermissionService(service.db)
+    if not permission_service.user_has_permission(current_user.id, PermissionName.VIEW_MESSAGES):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to view messages",
