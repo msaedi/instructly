@@ -12,6 +12,7 @@ from typing import Callable
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from ..core.constants import SSE_PATH_PREFIX
 from ..monitoring.prometheus_metrics import prometheus_metrics
 
 
@@ -31,7 +32,7 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
         """
         # Skip metrics collection for the metrics endpoint itself and SSE endpoints
         # SSE endpoints need direct passthrough to avoid interference with streaming
-        if request.url.path == "/metrics/prometheus" or request.url.path.startswith("/api/messages/stream"):
+        if request.url.path == "/metrics/prometheus" or request.url.path.startswith(SSE_PATH_PREFIX):
             return await call_next(request)
 
         method = request.method

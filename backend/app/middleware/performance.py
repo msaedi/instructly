@@ -17,6 +17,7 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
+from ..core.constants import SSE_PATH_PREFIX
 from ..monitoring.production_monitor import monitor
 
 
@@ -39,7 +40,7 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
         """Process request with performance monitoring."""
         # Skip monitoring for SSE endpoints to avoid interfering with streaming
         # EventSourceResponse needs direct passthrough to work properly
-        if request.url.path.startswith("/api/messages/stream"):
+        if request.url.path.startswith(SSE_PATH_PREFIX):
             return await call_next(request)
 
         # Generate or extract request ID

@@ -145,7 +145,28 @@ async def stream_messages(
     real-time messages for a specific booking.
 
     Requires VIEW_MESSAGES permission.
+    Note: Permission check is done manually since SSE endpoints
+    can't use regular FastAPI dependencies with EventSource.
     """
+
+    # Check if user has VIEW_MESSAGES permission
+    from ..models.permission import Permission
+    from ..models.role_permission import RolePermission
+
+    # Get user's permissions through their role
+    user_permissions = (
+        service.db.query(Permission.name)
+        .join(RolePermission)
+        .filter(RolePermission.role_id == current_user.role_id)
+        .all()
+    )
+    permission_names = [p[0] for p in user_permissions]
+
+    if PermissionName.VIEW_MESSAGES.value not in permission_names:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to view messages",
+        )
 
     # Verify user has access to this booking
     try:

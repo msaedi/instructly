@@ -9,6 +9,9 @@ organized by category for easy maintenance and updates.
 MIN_SESSION_DURATION = 30  # minutes
 MAX_SESSION_DURATION = 240  # minutes (4 hours)
 
+# SSE (Server-Sent Events) configuration
+SSE_PATH_PREFIX = "/api/messages/stream"  # Centralized SSE path for middleware
+
 # The following constants are DEPRECATED and will be removed
 # They were part of the old booking system
 # DEFAULT_SESSION_DURATION = 60  # DEPRECATED - moved to service level
@@ -43,8 +46,6 @@ ALLOWED_ORIGINS = [
     "https://localhost:3001",  # HTTPS on alternate port
     "http://localhost:8000",  # Backend HTTP
     "https://localhost:8001",  # Backend HTTPS
-    "http://localhost:8080",  # Test server for SSE debugging
-    "null",  # Allow file:// origin for local HTML tests
     # Current production URLs
     "https://instructly-ten.vercel.app",  # Current frontend (Vercel)
     "https://instructly-0949.onrender.com",  # Current backend (Render)

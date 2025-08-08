@@ -618,3 +618,72 @@ class NotificationService(BaseService):
         )
 
         return True
+
+    @BaseService.measure_operation("send_message_notification")
+    def send_message_notification(
+        self, recipient_id: int, booking: Booking, sender_id: int, message_content: str
+    ) -> bool:
+        """
+        Send email notification for a new chat message.
+
+        Args:
+            recipient_id: ID of the user to notify
+            booking: The booking object for context
+            sender_id: ID of the message sender
+            message_content: Content of the message
+
+        Returns:
+            bool: True if email sent successfully, False otherwise
+        """
+        try:
+            # Get recipient and sender users using repository pattern
+            from ..repositories.user_repository import UserRepository
+
+            user_repo = UserRepository(self.db)
+
+            recipient = user_repo.get_by_id(recipient_id)
+            sender = user_repo.get_by_id(sender_id)
+
+            if not recipient or not sender:
+                self.logger.error(f"Cannot send message notification: users not found")
+                return False
+
+            # Determine if sender is instructor or student
+            sender_role = "instructor" if sender_id == booking.instructor_id else "student"
+
+            # Create subject line
+            subject = f"New message from your {sender_role} - {booking.service.name}"
+
+            # Prepare template context
+            context = {
+                "recipient_name": recipient.full_name,
+                "sender_name": sender.full_name,
+                "sender_role": sender_role,
+                "booking_date": booking.booking_date.strftime("%B %d, %Y"),
+                "booking_time": booking.start_time.strftime("%-I:%M %p"),
+                "service_name": booking.service.name,
+                "message_preview": message_content[:200] + "..." if len(message_content) > 200 else message_content,
+                "booking_id": booking.id,
+                "settings": settings,  # Include settings for frontend URL
+            }
+
+            # Render template using the template service
+            html_content = self.template_service.render_template("email/booking/new_message.html", context)
+
+            # Send email
+            response = self.email_service.send_email(
+                to_email=recipient.email,
+                subject=subject,
+                html_content=html_content,
+            )
+
+            if response:
+                self.logger.info(f"Message notification sent to {recipient.email}")
+                return True
+            else:
+                self.logger.warning(f"Failed to send message notification to {recipient.email}")
+                return False
+
+        except Exception as e:
+            self.logger.error(f"Error sending message notification: {str(e)}")
+            return False

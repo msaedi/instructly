@@ -10,6 +10,8 @@ import time
 
 from starlette.datastructures import MutableHeaders
 
+from ..core.constants import SSE_PATH_PREFIX
+
 logger = logging.getLogger(__name__)
 
 
@@ -39,7 +41,7 @@ class TimingMiddlewareASGI:
             return
 
         # Skip timing for SSE endpoints to avoid interference with streaming
-        if path.startswith("/api/messages/stream"):
+        if path.startswith(SSE_PATH_PREFIX):
             await self.app(scope, receive, send)
             return
 

@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
 from .core.config import settings
-from .core.constants import ALLOWED_ORIGINS, API_DESCRIPTION, API_TITLE, API_VERSION, BRAND_NAME
+from .core.constants import ALLOWED_ORIGINS, API_DESCRIPTION, API_TITLE, API_VERSION, BRAND_NAME, SSE_PATH_PREFIX
 from .middleware.https_redirect import create_https_redirect_middleware
 from .middleware.monitoring import MonitoringMiddleware
 from .middleware.performance import PerformanceMiddleware
@@ -152,7 +152,7 @@ class SSEAwareGZipMiddleware(GZipMiddleware):
 
     async def __call__(self, scope, receive, send):
         # Skip compression for SSE endpoints
-        if scope["type"] == "http" and scope.get("path", "").startswith("/api/messages/stream"):
+        if scope["type"] == "http" and scope.get("path", "").startswith(SSE_PATH_PREFIX):
             await self.app(scope, receive, send)
         else:
             await super().__call__(scope, receive, send)

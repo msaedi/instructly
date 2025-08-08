@@ -47,8 +47,8 @@ class MessageNotificationService:
         """
         try:
             # Create dedicated connection for LISTEN
-            # Use the test database URL directly since we're in INT environment
-            db_url = settings.test_database_url
+            # Use the active database URL from settings (respects INT/STG/PROD)
+            db_url = str(settings.database_url)
             # Convert SQLAlchemy URL to asyncpg format
             if db_url.startswith("postgresql://"):
                 db_url = db_url.replace("postgresql://", "postgres://")

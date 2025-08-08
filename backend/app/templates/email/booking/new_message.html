@@ -1,0 +1,56 @@
+<!-- backend/app/templates/email/booking/new_message.html -->
+{% extends "email/base.html" %}
+
+{% block title %}New Message from {{ sender_name }}{% endblock %}
+
+{% block header_subtitle %}You have a new message!{% endblock %}
+
+{% block content %}
+<h2 style="color: #1F2937; margin-bottom: 20px;">New Message from {{ sender_name }}</h2>
+
+<p style="color: #4B5563; font-size: 16px;">Hi {{ recipient_name }},</p>
+
+<p style="color: #4B5563;">You have a new message from your {{ sender_role }} regarding your upcoming lesson.</p>
+
+<div style="background-color: white; padding: 25px; border-radius: 8px; margin: 25px 0; border: 1px solid #E5E7EB;">
+    <h3 style="color: #1F2937; margin-top: 0; margin-bottom: 15px;">Lesson Details</h3>
+
+    <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 8px 0; color: #6B7280;">Service:</td>
+            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{{ service_name }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #6B7280;">Date:</td>
+            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{{ booking_date }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #6B7280;">Time:</td>
+            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{{ booking_time }}</td>
+        </tr>
+    </table>
+</div>
+
+<div style="background-color: #F3F4F6; padding: 20px; border-radius: 8px; margin: 25px 0;">
+    <h4 style="color: #1F2937; margin-top: 0; margin-bottom: 10px;">Message:</h4>
+    <p style="color: #374151; line-height: 1.6; margin: 0;">{{ message_preview }}</p>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ settings.frontend_url }}/student/lessons?tab=upcoming"
+       style="background-color: #3B82F6; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: 600;">
+        View Full Message & Reply
+    </a>
+</div>
+
+<p style="color: #6B7280; font-size: 14px; margin-top: 30px;">
+    <strong>Note:</strong> Please log in to your account to view the full conversation and send replies.
+</p>
+{% endblock %}
+
+{% block footer_content %}
+<p style="margin: 0;">
+    This message was sent from the InstaInstru chat system.<br>
+    To manage your notification preferences, visit your account settings.
+</p>
+{% endblock %}
