@@ -226,6 +226,13 @@ async def stream_messages(
                                     "data": json.dumps({"timestamp": message_data.get("timestamp")}),
                                 }
                             else:
+                                # CRITICAL: Skip notifications for our own messages
+                                # This prevents the sender from receiving their own messages via SSE
+                                if message_data.get("sender_id") == current_user.id:
+                                    continue  # Don't send our own messages back to us
+
+                                # Add sender information and mark as not mine
+                                message_data["is_mine"] = False
                                 yield {
                                     "event": "message",
                                     "data": json.dumps(message_data),

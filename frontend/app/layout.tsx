@@ -140,6 +140,7 @@ export default function RootLayout({
       <head>{/* Additional meta tags can be added here if needed */}</head>
       <body
         className="h-full antialiased bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+        style={{ isolation: 'isolate' }}
       >
         {/* Future enhancements could include:
             - Global error boundary

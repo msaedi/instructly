@@ -53,6 +53,16 @@ export function Chat({
     error: historyError,
   } = useMessageHistory(bookingId);
 
+  // Clear optimistic messages when history is refreshed
+  // Since optimistic messages have negative IDs, we only keep those that are truly optimistic
+  useEffect(() => {
+    if (historyData?.messages) {
+      // Remove any optimistic messages that have negative IDs only
+      // Real messages from the server will have positive IDs
+      setOptimisticMessages(prev => prev.filter(msg => msg.id < 0));
+    }
+  }, [historyData]);
+
   // Real-time messages via SSE
   const {
     messages: realtimeMessages,
@@ -73,13 +83,35 @@ export function Chat({
   const sendMessage = useSendMessage();
   const markAsRead = useMarkAsRead();
 
-  // Combine history and real-time messages
-  const allMessages = [
-    ...(historyData?.messages || []),
-    ...realtimeMessages.filter(
-      (rtMsg) => !historyData?.messages.some((hMsg) => hMsg.id === rtMsg.id)
-    ),
-  ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  // State for optimistically added messages (sent by current user)
+  const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
+
+  // Combine history, optimistic, and real-time messages with deduplication
+  const allMessages = React.useMemo(() => {
+    const messageMap = new Map<number, Message>();
+
+    // Add history messages
+    (historyData?.messages || []).forEach(msg => {
+      messageMap.set(msg.id, msg);
+    });
+
+    // Add real-time messages (only if not already in history)
+    realtimeMessages.forEach(msg => {
+      if (!messageMap.has(msg.id)) {
+        messageMap.set(msg.id, msg);
+      }
+    });
+
+    // Add optimistic messages (they have negative IDs so won't conflict)
+    optimisticMessages.forEach(msg => {
+      messageMap.set(msg.id, msg);
+    });
+
+    // Convert to array and sort by time
+    return Array.from(messageMap.values()).sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+  }, [historyData?.messages, realtimeMessages, optimisticMessages]);
 
   // Auto-scroll to bottom
   const scrollToBottom = useCallback((smooth = true) => {
@@ -111,22 +143,49 @@ export function Chat({
     }
   }, [bookingId]);
 
-  // Handle send message
+  // Handle send message with optimistic update
   const handleSendMessage = async () => {
     const content = inputMessage.trim();
     if (!content) return;
 
     setInputMessage('');
 
+    // Create optimistic message with temporary ID
+    const tempId = -Date.now(); // Negative ID to distinguish from real IDs
+    const optimisticMessage: Message = {
+      id: tempId,
+      booking_id: bookingId,
+      sender_id: currentUserId,
+      content,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      is_deleted: false,
+      sender: {
+        id: currentUserId,
+        full_name: currentUserName,
+        email: '', // Not needed for display
+      },
+    };
+
+    // Add optimistic message immediately
+    setOptimisticMessages(prev => [...prev, optimisticMessage]);
+    scrollToBottom();
+
     try {
       await sendMessage.mutateAsync({
         booking_id: bookingId,
         content,
       });
-      scrollToBottom();
+
+      // Remove the optimistic message after successful send
+      // The real message will appear in historyData after React Query invalidation
+      setOptimisticMessages(prev => prev.filter(msg => msg.id !== tempId));
+
     } catch (error) {
       logger.error('Failed to send message', error);
-      // Restore message on error
+      // Remove optimistic message on error
+      setOptimisticMessages(prev => prev.filter(msg => msg.id !== tempId));
+      // Restore input message on error
       setInputMessage(content);
     }
   };

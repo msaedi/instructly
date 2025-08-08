@@ -98,14 +98,20 @@ def upgrade() -> None:
         RETURNS TRIGGER AS $$
         DECLARE
             payload json;
+            sender_name TEXT;
         BEGIN
-            -- Build JSON payload with message details
+            -- Get sender's full name for inclusion in notification
+            SELECT full_name INTO sender_name FROM users WHERE id = NEW.sender_id;
+
+            -- Build JSON payload with message details - using 'id' not 'message_id' for consistency
             payload = json_build_object(
-                'message_id', NEW.id,
+                'id', NEW.id,
                 'booking_id', NEW.booking_id,
                 'sender_id', NEW.sender_id,
+                'sender_name', sender_name,
                 'content', NEW.content,
-                'created_at', NEW.created_at
+                'created_at', NEW.created_at,
+                'is_deleted', NEW.is_deleted
             );
 
             -- Send notification to channel named after booking_id
