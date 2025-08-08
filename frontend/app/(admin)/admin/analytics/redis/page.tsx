@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useRedisData } from '@/hooks/useRedisData';
@@ -11,10 +12,12 @@ import CeleryQueuesChart from './components/CeleryQueuesChart';
 import OperationsMetrics from './components/OperationsMetrics';
 import ConnectionAudit from './components/ConnectionAudit';
 import { AnalyticsNav } from '../AnalyticsNav';
+import { useAuth } from '@/features/shared/hooks/useAuth';
 
 export default function RedisAnalyticsPage() {
   const router = useRouter();
   const { isLoading: authLoading, isAdmin } = useAdminAuth();
+  const { logout } = useAuth();
 
   // Get token from localStorage
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
@@ -38,38 +41,50 @@ export default function RedisAnalyticsPage() {
   const loading = authLoading || dataLoading;
 
   return (
-    <div className="container mx-auto py-8 px-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold mb-2">Redis Analytics</h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Monitor Redis performance and Celery queue status
-          </p>
+      <header className="border-b border-gray-200/70 dark:border-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center">
+              <Link href="/" className="text-2xl font-semibold text-indigo-600 dark:text-indigo-400 mr-8">
+                iNSTAiNSTRU
+              </Link>
+              <h1 className="text-xl font-semibold">Redis Analytics</h1>
+            </div>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={refetch}
+                disabled={loading}
+                className="inline-flex items-center justify-center h-9 w-9 rounded-full text-indigo-600 hover:text-white hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/70 disabled:opacity-50"
+                title="Refresh data"
+              >
+                <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                onClick={logout}
+                className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-800/60"
+              >
+                Log out
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="flex gap-4">
-          <button
-            onClick={refetch}
-            disabled={loading}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-        </div>
-      </div>
+      </header>
 
-      {/* Navigation */}
-      <div className="mb-6">
-        <AnalyticsNav />
-      </div>
-
-      {/* Error Display */}
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-          <p className="text-red-700 dark:text-red-300">{error}</p>
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Navigation */}
+        <div className="mb-6">
+          <AnalyticsNav />
         </div>
-      )}
+
+        {/* Error Display */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-red-700 dark:text-red-300">{error}</p>
+          </div>
+        )}
 
       {/* Connection Status Cards */}
       {loading ? (
@@ -77,7 +92,7 @@ export default function RedisAnalyticsPage() {
           {[...Array(4)].map((_, i) => (
             <div
               key={i}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6"
+              className="bg-white/60 dark:bg-gray-900/40 backdrop-blur rounded-2xl shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 p-6"
             >
               <div className="animate-pulse">
                 <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-24 mb-2"></div>
@@ -93,9 +108,9 @@ export default function RedisAnalyticsPage() {
       {/* Main Dashboard Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         {/* Memory Usage */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-            <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900 dark:text-gray-100">
+        <div className="rounded-2xl shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
+          <div className="p-6 border-b border-gray-200/70 dark:border-gray-700/60">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
               <Database className="h-5 w-5" />
               Memory Usage
             </h3>
@@ -110,9 +125,9 @@ export default function RedisAnalyticsPage() {
         </div>
 
         {/* Operations Metrics */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-            <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900 dark:text-gray-100">
+        <div className="rounded-2xl shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
+          <div className="p-6 border-b border-gray-200/70 dark:border-gray-700/60">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
               <Activity className="h-5 w-5" />
               Operations Metrics
             </h3>
@@ -128,9 +143,9 @@ export default function RedisAnalyticsPage() {
       </div>
 
       {/* Celery Queues */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900 dark:text-gray-100">
+      <div className="rounded-2xl shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
+        <div className="p-6 border-b border-gray-200/70 dark:border-gray-700/60">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
             <Server className="h-5 w-5" />
             Celery Queue Status
           </h3>
@@ -145,9 +160,9 @@ export default function RedisAnalyticsPage() {
       </div>
 
       {/* Connection Audit */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900 dark:text-gray-100">
+      <div className="rounded-2xl shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur mb-6">
+        <div className="p-6 border-b border-gray-200/70 dark:border-gray-700/60">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
             <Server className="h-5 w-5" />
             Connection Audit
           </h3>
@@ -163,9 +178,9 @@ export default function RedisAnalyticsPage() {
 
       {/* Migration Progress */}
       {data.stats && data.stats.operations && (
-        <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+        <div className="mt-6 rounded-2xl shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
+          <div className="p-6 border-b border-gray-200/70 dark:border-gray-700/60">
+            <h3 className="text-lg font-semibold">
               Migration Progress
             </h3>
           </div>
@@ -173,7 +188,7 @@ export default function RedisAnalyticsPage() {
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <span className="text-sm font-medium">
                     Daily Operations Target
                   </span>
                   <span className="text-sm text-gray-600 dark:text-gray-400">
@@ -219,11 +234,12 @@ export default function RedisAnalyticsPage() {
         </div>
       )}
 
-      {/* Auto-refresh indicator */}
-      <div className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
-        <Users className="inline-block h-4 w-4 mr-1" />
-        Auto-refreshing every 30 seconds
-      </div>
+        {/* Auto-refresh indicator */}
+        <div className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
+          <Users className="inline-block h-4 w-4 mr-1" />
+          Auto-refreshing every 30 seconds
+        </div>
+      </main>
     </div>
   );
 }

@@ -11,9 +11,11 @@ import { SearchTypesChart } from './components/SearchTypesChart';
 import { RefreshCw, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { AnalyticsNav } from '../AnalyticsNav';
+import { useAuth } from '@/features/shared/hooks/useAuth';
 
 export default function SearchAnalyticsDashboard() {
   const { isAdmin, isLoading: authLoading } = useAdminAuth();
+  const { logout } = useAuth();
 
   // Get token from localStorage
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
@@ -37,26 +39,32 @@ export default function SearchAnalyticsDashboard() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+      <header className="border-b border-gray-200/70 dark:border-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              <Link href="/" className="text-2xl font-bold text-blue-600 dark:text-blue-400 mr-8">
+              <Link href="/" className="text-2xl font-semibold text-indigo-600 dark:text-indigo-400 mr-8">
                 iNSTAiNSTRU
               </Link>
-              <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+              <h1 className="text-xl font-semibold">
                 Search Analytics Dashboard
               </h1>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
               <DateRangeSelector value={dateRange} onChange={setDateRange} />
               <button
                 onClick={refetch}
                 disabled={loading}
-                className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 disabled:opacity-50"
+                className="inline-flex items-center justify-center h-9 w-9 rounded-full text-indigo-600 hover:text-white hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/70 disabled:opacity-50"
                 title="Refresh data"
               >
                 <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                onClick={logout}
+                className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-800/60"
+              >
+                Log out
               </button>
             </div>
           </div>
@@ -86,7 +94,7 @@ export default function SearchAnalyticsDashboard() {
 
         {/* Key Insights */}
         {data.summary && !loading && (
-          <div className="mb-8 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
+          <div className="mb-8 rounded-2xl p-6 bg-gradient-to-b from-indigo-50 to-white dark:from-indigo-900/10 dark:to-transparent ring-1 ring-indigo-200/70 dark:ring-indigo-800/60">
             <h2 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-3">
               Key Insights
             </h2>
@@ -155,7 +163,7 @@ export default function SearchAnalyticsDashboard() {
 function ZeroResultsTable({ data, loading }: { data: any[] | null; loading: boolean }) {
   if (loading) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+      <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
         <div className="animate-pulse">
           <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-40 mb-4"></div>
           <div className="space-y-2">
@@ -169,7 +177,7 @@ function ZeroResultsTable({ data, loading }: { data: any[] | null; loading: bool
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+    <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
       <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
         Zero Result Searches
       </h3>
@@ -205,7 +213,7 @@ function ZeroResultsTable({ data, loading }: { data: any[] | null; loading: bool
 function ReferrerAnalysis({ data, loading }: { data: any[] | null; loading: boolean }) {
   if (loading) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+      <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
         <div className="animate-pulse">
           <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-40 mb-4"></div>
           <div className="h-32 bg-gray-100 dark:bg-gray-700 rounded"></div>
@@ -215,7 +223,7 @@ function ReferrerAnalysis({ data, loading }: { data: any[] | null; loading: bool
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+    <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
       <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
         Search Referrers
       </h3>
@@ -248,7 +256,7 @@ function ReferrerAnalysis({ data, loading }: { data: any[] | null; loading: bool
 function ServicePillPerformance({ data, loading }: { data: any[] | null; loading: boolean }) {
   if (loading) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+      <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
         <div className="animate-pulse">
           <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-40 mb-4"></div>
           <div className="h-32 bg-gray-100 dark:bg-gray-700 rounded"></div>
@@ -258,7 +266,7 @@ function ServicePillPerformance({ data, loading }: { data: any[] | null; loading
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+    <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
       <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
         Service Pill Performance
       </h3>

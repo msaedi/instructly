@@ -23,8 +23,10 @@ export default function DatabasePoolStatus({ pool }: DatabasePoolStatusProps) {
     <div className="space-y-4">
       {/* Status Alert */}
       <div
-        className={`p-4 rounded-lg ${
-          isHealthy ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+        className={`p-4 rounded-xl ring-1 ${
+          isHealthy
+            ? 'bg-green-50/70 ring-green-200/70 dark:bg-green-900/10 dark:ring-green-800/60'
+            : 'bg-red-50/70 ring-red-200/70 dark:bg-red-900/10 dark:ring-red-800/60'
         }`}
       >
         <div className="flex items-center gap-3">
@@ -46,12 +48,12 @@ export default function DatabasePoolStatus({ pool }: DatabasePoolStatusProps) {
 
       {/* Connection Breakdown */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+        <div className="bg-gray-50 dark:bg-gray-800/60 p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60">
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Active Connections</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{pool.checked_out}</p>
           <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">Currently in use</p>
         </div>
-        <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+        <div className="bg-gray-50 dark:bg-gray-800/60 p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60">
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Available Connections</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{pool.checked_in}</p>
           <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">Ready to use</p>
@@ -107,7 +109,7 @@ export default function DatabasePoolStatus({ pool }: DatabasePoolStatusProps) {
 
       {/* Recommendations */}
       {!isHealthy && (
-        <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+        <div className="mt-4 p-3 bg-yellow-50/80 dark:bg-yellow-900/20 ring-1 ring-yellow-200/70 dark:ring-yellow-800/60 rounded-xl">
           <p className="text-sm text-yellow-800 dark:text-yellow-300 font-medium">
             ⚠️ High Connection Usage
           </p>

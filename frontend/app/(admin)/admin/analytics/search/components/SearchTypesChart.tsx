@@ -28,7 +28,7 @@ const TYPE_LABELS = {
 export function SearchTypesChart({ summary, loading }: SearchTypesChartProps) {
   if (loading) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+      <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
         <div className="animate-pulse">
           <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32 mb-4"></div>
           <div className="h-64 bg-gray-100 dark:bg-gray-700 rounded"></div>
@@ -39,7 +39,7 @@ export function SearchTypesChart({ summary, loading }: SearchTypesChartProps) {
 
   if (!summary?.search_types) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+      <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
           Search Types
         </h3>
@@ -75,7 +75,7 @@ export function SearchTypesChart({ summary, loading }: SearchTypesChartProps) {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+    <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
       <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
         Search Types Distribution
       </h3>

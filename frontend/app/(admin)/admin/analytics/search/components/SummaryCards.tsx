@@ -21,7 +21,7 @@ interface StatCardProps {
 function StatCard({ title, value, subtitle, icon, trend, loading }: StatCardProps) {
   if (loading) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+      <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
         <div className="animate-pulse">
           <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-24 mb-2"></div>
           <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-32 mb-1"></div>
@@ -32,10 +32,10 @@ function StatCard({ title, value, subtitle, icon, trend, loading }: StatCardProp
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+    <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">{title}</h3>
-        <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-600 dark:text-blue-400">
+        <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg text-indigo-600 dark:text-indigo-400">
           {icon}
         </div>
       </div>

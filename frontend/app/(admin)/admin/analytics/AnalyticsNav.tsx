@@ -29,17 +29,18 @@ export function AnalyticsNav() {
   ];
 
   return (
-    <nav className="flex space-x-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg">
+    <nav className="inline-flex items-center gap-1 p-1.5 rounded-full bg-white/40 dark:bg-gray-900/40 backdrop-blur ring-1 ring-gray-200/70 dark:ring-gray-700/60 shadow-sm">
       {navItems.map((item) => {
         const Icon = item.icon;
         return (
           <Link
             key={item.href}
             href={item.href}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            aria-current={item.active ? 'page' : undefined}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
               item.active
-                ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm'
-                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                ? 'bg-gradient-to-b from-indigo-600 to-indigo-500 text-white shadow-sm'
+                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50/60 dark:hover:bg-gray-800/60'
             }`}
           >
             <Icon className="h-4 w-4" />

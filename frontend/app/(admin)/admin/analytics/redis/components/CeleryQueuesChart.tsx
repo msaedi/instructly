@@ -19,7 +19,7 @@ export default function CeleryQueuesChart({ queues }: CeleryQueuesChartProps) {
   if (!queues || !queues.queues) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-        <BarChart3 className="h-12 w-12 mb-2 opacity-50" />
+        <BarChart3 className="h-12 w-12 mb-2 opacity-60" />
         <p>No queue data available</p>
       </div>
     );
@@ -31,7 +31,7 @@ export default function CeleryQueuesChart({ queues }: CeleryQueuesChartProps) {
   if (queueEntries.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-        <BarChart3 className="h-12 w-12 mb-2 opacity-50" />
+        <BarChart3 className="h-12 w-12 mb-2 opacity-60" />
         <p>All queues are empty</p>
         <p className="text-sm mt-1">No pending tasks</p>
       </div>
@@ -78,13 +78,13 @@ export default function CeleryQueuesChart({ queues }: CeleryQueuesChartProps) {
 
       {/* Queue Health Indicators */}
       <div className="grid grid-cols-2 gap-4 pt-4">
-        <div className="text-center p-4 bg-gray-50 rounded-lg">
+        <div className="text-center p-4 bg-gray-50 dark:bg-gray-800/60 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60">
           <p className="text-sm text-gray-600">Active Queues</p>
           <p className="text-xl font-bold">
             {queueEntries.filter(([_, length]) => length > 0).length}
           </p>
         </div>
-        <div className="text-center p-4 bg-gray-50 rounded-lg">
+        <div className="text-center p-4 bg-gray-50 dark:bg-gray-800/60 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60">
           <p className="text-sm text-gray-600">Empty Queues</p>
           <p className="text-xl font-bold">
             {queueEntries.filter(([_, length]) => length === 0).length}

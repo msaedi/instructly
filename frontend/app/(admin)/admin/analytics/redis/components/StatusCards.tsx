@@ -18,7 +18,7 @@ export default function StatusCards({ data }: StatusCardsProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
       {/* Connection Status */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+      <div className="rounded-2xl shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur p-6">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Connection</p>
@@ -35,7 +35,7 @@ export default function StatusCards({ data }: StatusCardsProps) {
       </div>
 
       {/* Redis Version */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+      <div className="rounded-2xl shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur p-6">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Redis Version</p>
@@ -48,7 +48,7 @@ export default function StatusCards({ data }: StatusCardsProps) {
       </div>
 
       {/* Operations/sec */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+      <div className="rounded-2xl shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur p-6">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Ops/sec</p>
@@ -61,7 +61,7 @@ export default function StatusCards({ data }: StatusCardsProps) {
       </div>
 
       {/* Connected Clients */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+      <div className="rounded-2xl shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur p-6">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Clients</p>

@@ -22,8 +22,8 @@ export default function OperationsMetrics({ stats }: OperationsMetricsProps) {
   return (
     <div className="space-y-6">
       {/* Current Operations */}
-      <div className="text-center p-6 bg-gray-50 rounded-lg">
-        <Activity className="h-8 w-8 mx-auto mb-2 text-blue-600" />
+      <div className="text-center p-6 rounded-xl bg-gradient-to-b from-indigo-50 to-white dark:from-indigo-900/10 dark:to-transparent ring-1 ring-gray-200/70 dark:ring-gray-700/60">
+        <Activity className="h-8 w-8 mx-auto mb-2 text-indigo-600" />
         <p className="text-sm text-gray-600 mb-1">Current Operations/sec</p>
         <p className="text-4xl font-bold">{opsPerSec.toLocaleString()}</p>
       </div>
@@ -69,7 +69,11 @@ export default function OperationsMetrics({ stats }: OperationsMetricsProps) {
       </div>
 
       {/* Performance Status */}
-      <div className={`p-4 rounded-lg ${isWithinTarget ? 'bg-green-50' : 'bg-red-50'}`}>
+      <div className={`p-4 rounded-xl ring-1 ${
+        isWithinTarget
+          ? 'bg-green-50/70 ring-green-200/70 dark:bg-green-900/10 dark:ring-green-800/60'
+          : 'bg-red-50/70 ring-red-200/70 dark:bg-red-900/10 dark:ring-red-800/60'
+      }`}>
         <div className="flex items-center gap-2">
           {isWithinTarget ? (
             <>

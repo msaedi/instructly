@@ -18,7 +18,7 @@ export function PopularSearchesTable({ data, loading }: PopularSearchesTableProp
 
   if (loading) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+      <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
         <div className="animate-pulse">
           <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-40 mb-4"></div>
           <div className="space-y-2">
@@ -33,7 +33,7 @@ export function PopularSearchesTable({ data, loading }: PopularSearchesTableProp
 
   if (!data || data.length === 0) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+      <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
           Popular Searches
         </h3>
@@ -74,12 +74,12 @@ export function PopularSearchesTable({ data, loading }: PopularSearchesTableProp
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+    <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Popular Searches</h3>
         <button
           onClick={handleExport}
-          className="flex items-center space-x-2 px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+          className="flex items-center space-x-2 px-3 py-1.5 text-sm rounded-full bg-gray-100/80 dark:bg-gray-800/60 text-gray-700 dark:text-gray-300 ring-1 ring-gray-200/70 dark:ring-gray-700/60 hover:bg-gray-200/80 transition-colors"
         >
           <Download className="h-4 w-4" />
           <span>Export CSV</span>
@@ -94,7 +94,7 @@ export function PopularSearchesTable({ data, loading }: PopularSearchesTableProp
             placeholder="Search queries..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-10 pr-4 py-2 rounded-full bg-white/70 dark:bg-gray-900/50 backdrop-blur ring-1 ring-gray-300/70 dark:ring-gray-700/60 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/70"
           />
         </div>
       </div>
