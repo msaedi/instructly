@@ -327,3 +327,7 @@ export default function InstructorProfilePage() {
     </Suspense>
   );
 }
+
+// Configure dynamic route for Vercel
+export const dynamic = 'force-dynamic';
+export const dynamicParams = true;

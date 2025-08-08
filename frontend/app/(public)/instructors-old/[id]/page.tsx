@@ -1,5 +1,5 @@
 'use client';
-// frontend/app/(public)/instructorz/[id]/page.tsx
+// frontend/app/(public)/instructors-old/[id]/page.tsx
 
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
