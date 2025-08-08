@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from .bulk_operation_repository import BulkOperationRepository
     from .conflict_checker_repository import ConflictCheckerRepository
     from .instructor_profile_repository import InstructorProfileRepository
+    from .message_repository import MessageRepository
     from .rbac_repository import RBACRepository
     from .search_event_repository import SearchEventRepository
     from .search_history_repository import SearchHistoryRepository
@@ -166,3 +167,14 @@ class RepositoryFactory:
         from .search_event_repository import SearchEventRepository
 
         return SearchEventRepository(db)
+
+    @staticmethod
+    def create_message_repository(db: Session) -> "MessageRepository":
+        """
+        Create repository for message operations.
+
+        Handles chat messages and notifications for bookings.
+        """
+        from .message_repository import MessageRepository
+
+        return MessageRepository(db)

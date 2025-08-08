@@ -38,6 +38,11 @@ class TimingMiddlewareASGI:
             await self.app(scope, receive, send)
             return
 
+        # Skip timing for SSE endpoints to avoid interference with streaming
+        if path.startswith("/api/messages/stream"):
+            await self.app(scope, receive, send)
+            return
+
         # Log request start
         logger.info(f"[TIMING] Starting request: {method} {path}")
         start_time = time.time()

@@ -11,7 +11,7 @@ UPDATED: Added rate limiting to protect against brute force attacks.
 import logging
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -110,6 +110,7 @@ async def register(
 )
 async def login(
     request: Request,  # Add this for rate limiting
+    response: Response,  # Add this to set cookies
     form_data: OAuth2PasswordRequestForm = Depends(),
     auth_service: AuthService = Depends(get_auth_service),
 ):
@@ -147,6 +148,16 @@ async def login(
         expires_delta=access_token_expires,
     )
 
+    # Set cookie for SSE authentication
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,  # Prevent JavaScript access for security
+        secure=settings.environment == "production",  # HTTPS only in production
+        samesite="lax",  # CSRF protection
+        max_age=settings.access_token_expire_minutes * 60,  # Convert to seconds
+    )
+
     return Token(access_token=access_token, token_type="bearer")
 
 
@@ -158,6 +169,7 @@ async def login(
 )
 async def login_with_session(
     request: Request,
+    response: Response,
     login_data: UserLogin,
     auth_service: AuthService = Depends(get_auth_service),
     db: Session = Depends(get_db),
@@ -207,6 +219,16 @@ async def login_with_session(
     access_token = create_access_token(
         data={"sub": user.email},
         expires_delta=access_token_expires,
+    )
+
+    # Set cookie for SSE authentication
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,  # Prevent JavaScript access for security
+        secure=settings.environment == "production",  # HTTPS only in production
+        samesite="lax",  # CSRF protection
+        max_age=settings.access_token_expire_minutes * 60,  # Convert to seconds
     )
 
     return Token(access_token=access_token, token_type="bearer")

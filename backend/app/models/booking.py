@@ -97,6 +97,7 @@ class Booking(Base):
     instructor = relationship("User", foreign_keys=[instructor_id], backref="instructor_bookings")
     instructor_service = relationship("InstructorService", backref="bookings")
     cancelled_by = relationship("User", foreign_keys=[cancelled_by_id])
+    messages = relationship("Message", back_populates="booking", cascade="all, delete-orphan")
 
     # Data integrity constraints
     __table_args__ = (

@@ -18,6 +18,7 @@ Note: The Service model has been replaced with a three-table catalog system:
 from .availability import AvailabilitySlot, BlackoutDate
 from .booking import Booking, BookingStatus
 from .instructor import InstructorProfile
+from .message import Message, MessageNotification
 from .monitoring import AlertHistory
 from .password_reset import PasswordResetToken
 from .rbac import Permission, Role, RolePermission, UserPermission, UserRole
@@ -51,6 +52,9 @@ __all__ = [
     # Booking models
     "Booking",
     "BookingStatus",
+    # Messaging models
+    "Message",
+    "MessageNotification",
     # Monitoring models
     "AlertHistory",
     # Search history

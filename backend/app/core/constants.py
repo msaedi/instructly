@@ -43,6 +43,8 @@ ALLOWED_ORIGINS = [
     "https://localhost:3001",  # HTTPS on alternate port
     "http://localhost:8000",  # Backend HTTP
     "https://localhost:8001",  # Backend HTTPS
+    "http://localhost:8080",  # Test server for SSE debugging
+    "null",  # Allow file:// origin for local HTML tests
     # Current production URLs
     "https://instructly-ten.vercel.app",  # Current frontend (Vercel)
     "https://instructly-0949.onrender.com",  # Current backend (Render)

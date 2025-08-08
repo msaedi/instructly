@@ -243,6 +243,8 @@ def upgrade() -> None:
         ('create_bookings', 'Create new bookings', 'bookings', 'create'),
         ('cancel_own_bookings', 'Cancel own bookings', 'bookings', 'cancel'),
         ('view_booking_details', 'View booking details', 'bookings', 'view'),
+        ('send_messages', 'Send messages in booking chats', 'messages', 'send'),
+        ('view_messages', 'View messages in booking chats', 'messages', 'view'),
 
         -- Instructor-specific permissions
         ('manage_instructor_profile', 'Manage instructor profile', 'instructor_profile', 'manage'),
@@ -263,6 +265,7 @@ def upgrade() -> None:
         ('manage_all_bookings', 'Manage all bookings', 'bookings', 'manage'),
         ('access_monitoring', 'Access monitoring endpoints', 'monitoring', 'access'),
         ('moderate_content', 'Moderate user content', 'content', 'moderate'),
+        ('moderate_messages', 'Moderate chat messages', 'messages', 'moderate'),
         ('view_financials', 'View financial data', 'financials', 'view'),
         ('manage_financials', 'Manage financial data', 'financials', 'manage'),
         ('manage_roles', 'Manage user roles', 'roles', 'manage'),
@@ -295,7 +298,8 @@ def upgrade() -> None:
             -- Instructor-specific permissions
             'manage_instructor_profile', 'manage_services', 'manage_availability',
             'view_incoming_bookings', 'complete_bookings', 'cancel_student_bookings',
-            'view_own_instructor_analytics', 'suspend_own_instructor_account'
+            'view_own_instructor_analytics', 'suspend_own_instructor_account',
+            'send_messages', 'view_messages'
         )
     """
     )
@@ -313,7 +317,8 @@ def upgrade() -> None:
             'change_own_password', 'delete_own_account',
             -- Student-specific permissions
             'view_instructors', 'view_instructor_availability', 'create_bookings',
-            'cancel_own_bookings', 'view_booking_details'
+            'cancel_own_bookings', 'view_booking_details',
+            'send_messages', 'view_messages'
         )
     """
     )

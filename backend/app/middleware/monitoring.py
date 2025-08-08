@@ -84,6 +84,12 @@ class MonitoringMiddleware:
             await self.app(scope, receive, send)
             return
 
+        # Skip monitoring for SSE endpoints to avoid interference
+        path = scope.get("path", "")
+        if path.startswith("/api/messages/stream"):
+            await self.app(scope, receive, send)
+            return
+
         start_time = time.time()
 
         async def send_wrapper(message):

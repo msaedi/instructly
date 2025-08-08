@@ -8,15 +8,21 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertCircle } from 'lucide-react';
+import { format } from 'date-fns';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { isApiError } from '@/lib/react-query/api';
 import { Breadcrumb } from '@/components/ui/breadcrumb';
-import type { BookingListResponse } from '@/types/booking';
+import { ChatModal } from '@/components/chat/ChatModal';
+import type { BookingListResponse, Booking } from '@/types/booking';
 
 function MyLessonsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isAuthenticated, isLoading: isAuthLoading, redirectToLogin } = useAuth();
+  const { isAuthenticated, isLoading: isAuthLoading, redirectToLogin, user } = useAuth();
+
+  // Chat modal state
+  const [chatModalOpen, setChatModalOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
   // Initialize tab from URL or default to 'upcoming'
   const tabFromUrl = searchParams.get('tab');
@@ -81,6 +87,12 @@ function MyLessonsContent() {
   if (!isAuthenticated) {
     return null;
   }
+
+  // Handle opening chat
+  const handleOpenChat = (lesson: Booking) => {
+    setSelectedBooking(lesson);
+    setChatModalOpen(true);
+  };
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
@@ -151,6 +163,7 @@ function MyLessonsContent() {
               lesson={lesson}
               isCompleted={activeTab === 'history'}
               onViewDetails={() => router.push(`/student/lessons/${lesson.id}`)}
+              onChat={() => handleOpenChat(lesson)}
             />
           ))
         ) : (
@@ -176,6 +189,23 @@ function MyLessonsContent() {
           </div>
         )}
       </div>
+
+      {/* Chat Modal */}
+      {selectedBooking && user && selectedBooking.instructor && (
+        <ChatModal
+          isOpen={chatModalOpen}
+          onClose={() => {
+            setChatModalOpen(false);
+            setSelectedBooking(null);
+          }}
+          bookingId={selectedBooking.id}
+          currentUserId={user.id}
+          currentUserName={user.full_name}
+          otherUserName={selectedBooking.instructor.full_name || 'Instructor'}
+          lessonTitle={selectedBooking.service_name}
+          lessonDate={format(new Date(`${selectedBooking.booking_date}T${selectedBooking.start_time}`), 'MMM d, yyyy')}
+        />
+      )}
     </div>
   );
 }

@@ -44,6 +44,8 @@ class PermissionName(str, Enum):
     CREATE_BOOKINGS = "create_bookings"
     CANCEL_OWN_BOOKINGS = "cancel_own_bookings"
     VIEW_BOOKING_DETAILS = "view_booking_details"
+    SEND_MESSAGES = "send_messages"
+    VIEW_MESSAGES = "view_messages"
 
     # Instructor-specific permissions
     MANAGE_INSTRUCTOR_PROFILE = "manage_instructor_profile"
@@ -64,6 +66,7 @@ class PermissionName(str, Enum):
     MANAGE_ALL_BOOKINGS = "manage_all_bookings"
     ACCESS_MONITORING = "access_monitoring"
     MODERATE_CONTENT = "moderate_content"
+    MODERATE_MESSAGES = "moderate_messages"
     VIEW_FINANCIALS = "view_financials"
     MANAGE_FINANCIALS = "manage_financials"
     MANAGE_ROLES = "manage_roles"

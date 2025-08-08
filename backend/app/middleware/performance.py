@@ -37,6 +37,11 @@ class PerformanceMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request with performance monitoring."""
+        # Skip monitoring for SSE endpoints to avoid interfering with streaming
+        # EventSourceResponse needs direct passthrough to work properly
+        if request.url.path.startswith("/api/messages/stream"):
+            return await call_next(request)
+
         # Generate or extract request ID
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
         correlation_id = request.headers.get("X-Correlation-ID", request_id)

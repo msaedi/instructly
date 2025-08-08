@@ -64,6 +64,10 @@ class APIContractAnalyzer:
         except Exception:
             return
 
+        # Skip SSE (Server-Sent Events) endpoints
+        if "EventSourceResponse" in source:
+            return  # SSE endpoints don't use regular response models
+
         # Check for response_model
         if method in ["GET", "POST", "PUT", "PATCH"]:
             route_decorator = self._find_route_decorator(source, method.lower())
@@ -367,6 +371,10 @@ class TestResponseModelCoverage:
             "RootResponse",
             # Privacy models (used in privacy endpoints)
             "PrivacyRetentionResponse",
+            # Message models (used in composition and SSE)
+            "MessageNotificationResponse",  # Used in notification system
+            "MessageSenderResponse",  # Used in MessageResponse
+            "MessageResponse",  # Used in SendMessageResponse and MessagesHistoryResponse
         }
         unused_models = unused_models - allowed_unused
 

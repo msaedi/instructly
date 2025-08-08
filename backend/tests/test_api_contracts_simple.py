@@ -72,6 +72,17 @@ def analyze_route_file(file_path: Path) -> List[ContractViolation]:
 
         endpoint = path_match.group(1)
 
+        # Skip SSE endpoints (they use EventSourceResponse)
+        # Look ahead in the content to see if this endpoint returns EventSourceResponse
+        func_start = match.end()
+        func_end = content.find("\n@router", func_start)
+        if func_end == -1:
+            func_end = min(func_start + 2000, len(content))  # Look ahead 2000 chars max
+        func_preview = content[func_start:func_end]
+
+        if "EventSourceResponse" in func_preview:
+            continue  # Skip SSE endpoint
+
         # Check for response_model
         if method in ["GET", "POST", "PUT", "PATCH"]:
             if "response_model=" not in route_args:

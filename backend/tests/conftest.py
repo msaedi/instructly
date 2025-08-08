@@ -173,14 +173,23 @@ try:
         result = conn.execute(text("SELECT COUNT(*) FROM information_schema.tables " "WHERE table_schema = 'public'"))
         table_count = result.scalar()
 
-        if table_count > 20:  # Rough heuristic - test DB shouldn't have many tables initially
-            response = input(
-                f"\n⚠️  WARNING: Database '{db_name}' has {table_count} tables.\n"
-                f"   This seems like a lot for a test database.\n"
-                f"   Are you SURE this is a test database? (yes/no): "
+        # Extract expected database name from TEST_DATABASE_URL
+        from urllib.parse import urlparse
+
+        parsed_url = urlparse(TEST_DATABASE_URL)
+        expected_db_name = parsed_url.path.lstrip("/")
+
+        # Verify we're using the expected test database
+        if db_name != expected_db_name:
+            raise RuntimeError(
+                f"SAFETY CHECK FAILED: Expected test database '{expected_db_name}' "
+                f"(from TEST_DATABASE_URL), but connected to '{db_name}'. "
+                f"Aborting to prevent data loss."
             )
-            if response.lower() != "yes":
-                raise RuntimeError("Test run aborted for safety.")
+
+        # Log table count for information (no prompt needed in pytest)
+        if table_count > 20:
+            print(f"   Note: Test database has {table_count} tables (migrations already applied)")
 except Exception as e:
     raise RuntimeError(f"Failed to connect to test database: {e}")
 

@@ -24,6 +24,7 @@ from .routes import (
     bookings,
     database_monitor,
     instructors,
+    messages,
     metrics,
     monitoring,
     password_reset,
@@ -77,10 +78,31 @@ async def lifespan(app: FastAPI):
 
         await ProductionStartup.initialize()
 
+    # Initialize message notification service
+    from .routes.messages import set_notification_service
+    from .services.message_notification_service import MessageNotificationService
+
+    notification_service = MessageNotificationService()
+    try:
+        await notification_service.start()
+        set_notification_service(notification_service)
+        logger.info("Message notification service started successfully")
+    except Exception as e:
+        logger.error(f"Failed to start message notification service: {str(e)}")
+        # Continue without real-time messaging if it fails
+
     yield
 
     # Shutdown
     logger.info(f"{BRAND_NAME} API shutting down...")
+
+    # Stop message notification service
+    try:
+        await notification_service.stop()
+        logger.info("Message notification service stopped")
+    except Exception as e:
+        logger.error(f"Error stopping message notification service: {str(e)}")
+
     # Here you can add cleanup logic like:
     # - Closing database connections
     # - Saving cache state
@@ -103,10 +125,7 @@ if settings.environment == "production":
     HTTPSRedirectMiddleware = create_https_redirect_middleware(force_https=True)
     app.add_middleware(HTTPSRedirectMiddleware)
 
-# Keep the BaseHTTPMiddleware-based ones for now (will convert later)
-app.add_middleware(MonitoringMiddleware)
-app.add_middleware(PerformanceMiddleware)  # Production performance monitoring
-app.add_middleware(PrometheusMiddleware)  # Prometheus metrics collection
+# Place CORS as high as possible in the stack so it can process preflight/headers early
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -115,8 +134,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add GZip compression middleware
-app.add_middleware(GZipMiddleware, minimum_size=500)  # Compress responses larger than 500 bytes
+# Keep MonitoringMiddleware (pure ASGI-style) below CORS
+app.add_middleware(MonitoringMiddleware)
+
+# Performance and metrics middleware with SSE support
+# These middlewares now properly detect and bypass SSE endpoints
+app.add_middleware(PerformanceMiddleware)  # Performance monitoring with SSE bypass
+app.add_middleware(PrometheusMiddleware)  # Prometheus metrics with SSE bypass
+
+# Add GZip compression middleware with SSE exclusion
+# SSE responses must NOT be compressed to work properly
+from starlette.middleware.gzip import GZipMiddleware
+
+
+class SSEAwareGZipMiddleware(GZipMiddleware):
+    """GZip middleware that skips SSE endpoints."""
+
+    async def __call__(self, scope, receive, send):
+        # Skip compression for SSE endpoints
+        if scope["type"] == "http" and scope.get("path", "").startswith("/api/messages/stream"):
+            await self.app(scope, receive, send)
+        else:
+            await super().__call__(scope, receive, send)
+
+
+app.add_middleware(SSEAwareGZipMiddleware, minimum_size=500)
 
 # Include routers
 app.include_router(auth.router)
@@ -125,6 +167,7 @@ app.include_router(services.router)
 app.include_router(availability_windows.router)
 app.include_router(password_reset.router)
 app.include_router(bookings.router)
+app.include_router(messages.router)
 app.include_router(metrics.router)
 app.include_router(monitoring.router)
 app.include_router(alerts.router)

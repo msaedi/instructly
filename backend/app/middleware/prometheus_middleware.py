@@ -29,8 +29,9 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
         Returns:
             The response from the handler
         """
-        # Skip metrics collection for the metrics endpoint itself
-        if request.url.path == "/metrics/prometheus":
+        # Skip metrics collection for the metrics endpoint itself and SSE endpoints
+        # SSE endpoints need direct passthrough to avoid interference with streaming
+        if request.url.path == "/metrics/prometheus" or request.url.path.startswith("/api/messages/stream"):
             return await call_next(request)
 
         method = request.method

@@ -5,6 +5,12 @@ Reset database schema - DROPS ALL TABLES!
 Database safety: This script now uses safe database selection
 Default: INT database
 Use USE_STG_DATABASE=true or USE_PROD_DATABASE=true for other databases
+
+Usage:
+    python scripts/reset_schema.py       # Default: INT database
+    python scripts/reset_schema.py int   # Explicit INT
+    python scripts/reset_schema.py stg   # Staging database
+    python scripts/reset_schema.py prod  # Production (requires confirmation)
 """
 import os
 import sys
@@ -12,6 +18,21 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import create_engine, text
+
+# Handle command-line arguments
+if len(sys.argv) > 1:
+    target = sys.argv[1].lower()
+    if target == "int":
+        # Default behavior, no env var needed
+        pass
+    elif target == "stg":
+        os.environ["USE_STG_DATABASE"] = "true"
+    elif target == "prod":
+        os.environ["USE_PROD_DATABASE"] = "true"
+    else:
+        print(f"❌ Unknown target: {target}")
+        print("Usage: python scripts/reset_schema.py [int|stg|prod]")
+        sys.exit(1)
 
 from app.core.config import settings
 
