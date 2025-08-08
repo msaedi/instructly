@@ -16,7 +16,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
-import { Send, Loader2, AlertCircle, WifiOff, Check, CheckCheck } from 'lucide-react';
+import { Send, Loader2, AlertCircle, WifiOff, Check, CheckCheck, ChevronDown } from 'lucide-react';
 import { useSSEMessages, ConnectionStatus } from '@/hooks/useSSEMessages';
 import { useMessageHistory, useSendMessage, useMarkAsRead } from '@/hooks/useMessageQueries';
 import { Message } from '@/services/messageService';
@@ -291,7 +291,7 @@ export function Chat({
   // Loading state
   if (isLoadingHistory) {
     return (
-      <div className={cn('flex items-center justify-center h-full', className)}>
+      <div className={cn('flex items-center justify-center h-full bg-gradient-to-b from-gray-50 to-white', className)}>
         <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
       </div>
     );
@@ -314,18 +314,20 @@ export function Chat({
   }
 
   return (
-    <div className={cn('flex flex-col h-full bg-white', className)}>
+    <div className={cn('relative flex flex-col h-full min-h-0 bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-900', className)}>
       {/* Connection status */}
-      <ConnectionIndicator />
+      <div className="sticky top-0 z-10">
+        <ConnectionIndicator />
+      </div>
 
       {/* Messages container */}
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 py-4 space-y-4"
+        className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-4"
       >
         {allMessages.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-gray-500">
+          <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
             <p>No messages yet. Start the conversation!</p>
           </div>
         ) : (
@@ -333,9 +335,14 @@ export function Chat({
             {Object.entries(messagesByDate).map(([date, messages]) => (
               <div key={date}>
                 {/* Date separator */}
-                <div className="flex items-center justify-center my-4">
-                  <div className="bg-gray-100 rounded-full px-3 py-1 text-xs text-gray-600">
-                    {getDateSeparator(messages[0].created_at)}
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-200 dark:border-gray-800" />
+                  </div>
+                  <div className="relative flex justify-center">
+                    <span className="bg-white px-3 py-1 text-xs text-gray-600 rounded-full shadow-sm ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-800">
+                      {getDateSeparator(messages[0].created_at)}
+                    </span>
                   </div>
                 </div>
 
@@ -344,6 +351,7 @@ export function Chat({
                   const isOwn = message.sender_id === currentUserId;
                   const showSender = index === 0 ||
                     messages[index - 1].sender_id !== message.sender_id;
+                  const nextSameSender = index < messages.length - 1 && messages[index + 1].sender_id === message.sender_id;
 
                   return (
                     <div
@@ -351,7 +359,7 @@ export function Chat({
                       className={cn(
                         'flex',
                         isOwn ? 'justify-end' : 'justify-start',
-                        !showSender && 'mt-1'
+                        !showSender && 'mt-1.5'
                       )}
                     >
                       <div
@@ -363,7 +371,7 @@ export function Chat({
                         {/* Sender name */}
                         {showSender && (
                           <div className={cn(
-                            'text-xs text-gray-500 mb-1',
+                            'text-xs text-gray-500 dark:text-gray-400 mb-1',
                             isOwn ? 'text-right mr-2' : 'ml-2'
                           )}>
                             {isOwn ? currentUserName : otherUserName}
@@ -373,16 +381,16 @@ export function Chat({
                         {/* Message bubble */}
                         <div
                           className={cn(
-                            'rounded-2xl px-4 py-2 break-words',
+                            'rounded-2xl px-4 py-2 break-words shadow-sm select-text',
                             isOwn
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-gray-100 text-gray-900'
+                              ? 'bg-gradient-to-tr from-blue-600 to-blue-500 text-white ring-1 ring-blue-500/10'
+                              : 'bg-white text-gray-900 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:ring-gray-700'
                           )}
                         >
                           <p className="whitespace-pre-wrap">{message.content}</p>
                           <div className={cn(
                             'flex items-center justify-end mt-1 space-x-1',
-                            isOwn ? 'text-blue-100' : 'text-gray-500'
+                            isOwn ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'
                           )}>
                             <span className="text-xs">
                               {formatMessageDate(message.created_at)}
@@ -407,26 +415,14 @@ export function Chat({
       {!isAtBottom && (
         <button
           onClick={() => scrollToBottom()}
-          className="absolute bottom-20 right-4 bg-white border border-gray-300 rounded-full p-2 shadow-lg"
+          className="absolute bottom-24 right-4 bg-blue-600 text-white rounded-full p-2 shadow-lg ring-1 ring-black/5 hover:bg-blue-700 transition dark:bg-blue-500 dark:hover:bg-blue-600"
         >
-          <svg
-            className="w-5 h-5 text-gray-600"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 14l-7 7m0 0l-7-7m7 7V3"
-            />
-          </svg>
+          <ChevronDown className="w-5 h-5" />
         </button>
       )}
 
       {/* Input area */}
-      <div className="border-t bg-white px-4 py-3">
+      <div className="border-t border-gray-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 px-4 py-3 dark:border-gray-800 dark:bg-gray-900/80 dark:supports-[backdrop-filter]:bg-gray-900/60">
         <div className="flex items-end space-x-2">
           <textarea
             ref={inputRef}
@@ -435,17 +431,17 @@ export function Chat({
             onKeyDown={handleKeyDown}
             placeholder="Type a message..."
             rows={1}
-            className="flex-1 resize-none rounded-2xl border border-gray-300 px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            style={{ minHeight: '40px', maxHeight: '120px' }}
+            className="flex-1 resize-none rounded-full md:rounded-2xl border border-gray-200 bg-gray-50 px-4 py-2 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 shadow-inner dark:border-gray-700 dark:bg-gray-800 dark:placeholder:text-gray-500"
+            style={{ minHeight: '44px', maxHeight: '120px' }}
           />
           <button
             onClick={handleSendMessage}
             disabled={!inputMessage.trim() || sendMessage.isPending}
             className={cn(
-              'rounded-full p-2 transition-colors',
+              'rounded-full p-2 md:p-2.5 transition-colors shadow-sm',
               inputMessage.trim() && !sendMessage.isPending
-                ? 'bg-blue-600 text-white hover:bg-blue-700'
-                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                ? 'bg-blue-600 text-white hover:bg-blue-700 ring-1 ring-blue-500/20 dark:bg-blue-500 dark:hover:bg-blue-600'
+                : 'bg-gray-100 text-gray-400 ring-1 ring-gray-200 cursor-not-allowed dark:bg-gray-800 dark:text-gray-500 dark:ring-gray-700'
             )}
           >
             {sendMessage.isPending ? (

@@ -75,7 +75,7 @@ export function ChatModal({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-50 bg-black/50 transition-opacity"
+        className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity dark:bg-black/60"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -83,25 +83,26 @@ export function ChatModal({
       {/* Modal/Drawer */}
       <div
         className={cn(
-          'fixed z-50 bg-white shadow-xl transition-all',
+          'fixed z-50 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-2xl transition-all ring-1 ring-black/5 overflow-hidden flex h-full flex-col',
+          'dark:bg-gray-900/90 dark:supports-[backdrop-filter]:bg-gray-900/75 dark:ring-white/10 dark:shadow-xl',
           // Mobile: Full-screen drawer from bottom
-          'inset-x-0 bottom-0 h-[90vh] rounded-t-2xl',
+          'inset-x-0 bottom-0 h-[90vh] rounded-3xl',
           // Desktop: Centered modal
           'sm:inset-auto sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2',
-          'sm:h-[80vh] sm:w-[90vw] sm:max-w-2xl sm:rounded-2xl'
+          'sm:h-[80vh] sm:w-[90vw] sm:max-w-2xl sm:rounded-3xl'
         )}
         role="dialog"
         aria-modal="true"
         aria-label="Chat"
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b px-4 py-3 sm:px-6">
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 pt-5 pb-3 sm:px-6 sm:pt-6 sm:pb-4 dark:border-gray-800">
           <div className="flex-1">
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-gray-900 tracking-tight dark:text-gray-100">
               Chat with {otherUserName}
             </h2>
             {lessonTitle && (
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 {lessonTitle}
                 {lessonDate && ` • ${lessonDate}`}
               </p>
@@ -109,10 +110,10 @@ export function ChatModal({
           </div>
           <button
             onClick={onClose}
-            className="rounded-full p-2 hover:bg-gray-100 transition-colors"
+            className="rounded-full p-2 hover:bg-gray-100 transition-colors ring-1 ring-transparent hover:ring-gray-200 dark:hover:bg-gray-800 dark:hover:ring-gray-700"
             aria-label="Close chat"
           >
-            <X className="h-5 w-5 text-gray-500" />
+            <X className="h-5 w-5 text-gray-500 dark:text-gray-400" />
           </button>
         </div>
 
@@ -123,7 +124,7 @@ export function ChatModal({
             currentUserId={currentUserId}
             currentUserName={currentUserName}
             otherUserName={otherUserName}
-            className="h-[calc(100%-60px)]"
+            className="flex-1 min-h-0"
             onClose={onClose}
           />
         )}
