@@ -1,0 +1,27 @@
+{
+  "name": "instructly",
+  "version": "1.0.0",
+  "description": "The \"Uber of instruction\" - A marketplace platform for instantly booking private instructors in NYC.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "devDependencies": {
+    "dotenv": "^17.2.1"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/msaedi/instructly.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/msaedi/instructly/issues"
+  },
+  "homepage": "https://github.com/msaedi/instructly#readme"
+}

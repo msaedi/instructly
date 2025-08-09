@@ -20,6 +20,7 @@ import { API_URL, API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
 import { BRAND } from '@/app/config/brand';
 import { logger } from '@/lib/logger';
 import { getGuestSessionId } from '@/lib/searchTracking';
+// Background handled globally via GlobalBackground
 
 // Import centralized types
 import type { RegisterRequest, AuthResponse } from '@/types/user';
@@ -72,9 +73,10 @@ function SignUpForm() {
    */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
+    const nextValue = name === 'email' ? value.toLowerCase() : value;
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: nextValue,
     }));
 
     // Clear error for this field when user types
@@ -296,14 +298,11 @@ function SignUpForm() {
         });
 
         // Redirect based on role
-        if (hasRole(userData, RoleName.INSTRUCTOR)) {
-          router.push('/dashboard/instructor');
-        } else {
-          router.push(redirect);
-        }
+        const target = hasRole(userData, RoleName.INSTRUCTOR) ? '/dashboard/instructor' : (redirect || '/');
+        router.push(target);
       } else {
         logger.warn('Failed to fetch user data after login, using default redirect');
-        router.push(redirect);
+        router.push(redirect || '/');
       }
 
       setRequestStatus(RequestStatus.SUCCESS);
@@ -335,6 +334,11 @@ function SignUpForm() {
   return (
     <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
       <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
+        <div className="text-center mb-6">
+          <Link href="/" onClick={() => logger.info('Navigating to home from signup inside box')}>
+            <h1 className="text-3xl font-bold text-indigo-400">{BRAND.name}</h1>
+          </Link>
+        </div>
         <form className="space-y-6" onSubmit={handleSubmit} noValidate>
           {/* General error message */}
           {errors.general && (
@@ -361,7 +365,7 @@ function SignUpForm() {
                 value={formData.fullName}
                 onChange={handleChange}
                 disabled={isLoading}
-                className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 aria-invalid={!!errors.fullName}
                 aria-describedby={errors.fullName ? 'fullName-error' : undefined}
               />
@@ -391,7 +395,7 @@ function SignUpForm() {
                 value={formData.email}
                 onChange={handleChange}
                 disabled={isLoading}
-                className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix"
+                className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix"
                 aria-invalid={!!errors.email}
                 aria-describedby={errors.email ? 'email-error' : undefined}
               />
@@ -421,14 +425,14 @@ function SignUpForm() {
                 value={formData.password}
                 onChange={handleChange}
                 disabled={isLoading}
-                className="appearance-none block w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix"
+                className="appearance-none block w-full px-3 py-2 h-10 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix"
                 aria-invalid={!!errors.password}
                 aria-describedby={errors.password ? 'password-error' : 'password-hint'}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute top-0 right-0 h-10 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                className="absolute right-0 top-1/2 -translate-y-1/2 -mt-2.5 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
                 disabled={isLoading}
               >
                 {showPassword ? (
@@ -439,12 +443,14 @@ function SignUpForm() {
               </button>
               {errors.password && (
                 <p id="password-error" className="mt-1 text-sm text-red-600 dark:text-red-400">
-                  {errors.password}
+                  Password must be at least 8 characters
                 </p>
               )}
-              <p id="password-hint" className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Password must be at least 8 characters long
-              </p>
+              {!errors.password && (
+                <p id="password-hint" className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  Password must be at least 8 characters
+                </p>
+              )}
             </div>
           </div>
 
@@ -466,7 +472,7 @@ function SignUpForm() {
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 disabled={isLoading}
-                className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix"
+                className="appearance-none block w-full px-3 py-2 h-10 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix"
                 aria-invalid={!!errors.confirmPassword}
                 aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined}
               />
@@ -546,21 +552,11 @@ function SignUpForm() {
  */
 export default function SignUp() {
   logger.debug('SignUp page rendered');
+  // Background handled globally
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <Link
-          href="/"
-          className="flex justify-center"
-          onClick={() => logger.info('Navigating to home from signup')}
-        >
-          <h1 className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">{BRAND.name}</h1>
-        </Link>
-        <h2 className="mt-6 text-center text-2xl font-bold text-gray-900 dark:text-white">
-          Create your account
-        </h2>
-      </div>
+    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative">
+      <div className="relative z-10">
 
       <Suspense
         fallback={
@@ -578,6 +574,7 @@ export default function SignUp() {
       >
         <SignUpForm />
       </Suspense>
+      </div>
     </div>
   );
 }

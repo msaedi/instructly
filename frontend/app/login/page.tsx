@@ -2,8 +2,9 @@
 'use client';
 
 import { BRAND } from '@/app/config/brand';
-import { useState, Suspense } from 'react';
+import { useState, Suspense, type ChangeEvent, type FormEvent } from 'react';
 import Link from 'next/link';
+// Background handled globally via GlobalBackground
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 import { API_URL, API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
@@ -47,11 +48,12 @@ function LoginForm() {
   /**
    * Handle form input changes
    */
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
+    const nextValue = name === 'email' ? value.toLowerCase() : value;
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: nextValue,
     }));
     // Clear error for this field when user starts typing
     if (errors[name]) {
@@ -92,7 +94,7 @@ function LoginForm() {
    * Handle form submission
    * Authenticates user and redirects based on role
    */
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     if (!validateForm()) {
@@ -137,6 +139,13 @@ function LoginForm() {
   return (
     <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
       <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
+        <div className="text-center mb-6">
+          <Link href="/" onClick={() => logger.debug('Navigating to home from login inside box')}>
+            <h1 className="text-3xl font-bold text-indigo-400">
+              {BRAND.name}
+            </h1>
+          </Link>
+        </div>
         <form className="space-y-6" onSubmit={handleSubmit} noValidate>
           {/* Email Field */}
           <div>
@@ -156,7 +165,7 @@ function LoginForm() {
                 value={formData.email}
                 onChange={handleChange}
                 disabled={isSubmitting}
-                className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 autofill-fix"
+                className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 autofill-fix"
                 placeholder="you@example.com"
               />
               {errors.email && (
@@ -186,7 +195,7 @@ function LoginForm() {
                   value={formData.password}
                   onChange={handleChange}
                   disabled={isSubmitting}
-                  className="appearance-none block w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 autofill-fix"
+                  className="appearance-none block w-full px-3 py-2 h-10 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 autofill-fix"
                   placeholder="••••••••"
                 />
                 <button
@@ -294,24 +303,11 @@ function LoginForm() {
  */
 export default function Login() {
   logger.info('Login page loaded');
+  // Background handled globally
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <Link
-          href="/"
-          className="flex justify-center"
-          onClick={() => logger.debug('Navigating to home from login')}
-        >
-          <h1 className="text-3xl font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
-            {BRAND.name}
-          </h1>
-        </Link>
-        <h2 className="mt-6 text-center text-2xl font-bold text-gray-900">
-          Sign in to your account
-        </h2>
-      </div>
-
+    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative">
+      <div className="relative z-10">
       <Suspense
         fallback={
           <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
@@ -327,6 +323,7 @@ export default function Login() {
       >
         <LoginForm />
       </Suspense>
+      </div>
     </div>
   );
 }

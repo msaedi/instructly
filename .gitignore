@@ -65,7 +65,16 @@ backend/dead_code_backup_*/
 .env.monitoring
 monitoring/grafana-data/
 monitoring/prometheus-data/
-docs/a-team-deliverables/graphics/
+assets/
+
+# Cloudflare Wrangler local state (do not commit)
+.wrangler/
+
+# Local env for scripts (R2 credentials)
+scripts/.env
+
+# Generated asset manifest
+assets-manifest.json
 
 # Local scripts
 backend/scripts/prep_local_db.py

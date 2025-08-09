@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+// import removed; background handled globally
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { publicApi, type TopServiceSummary } from '@/features/shared/api/client';
@@ -174,6 +175,8 @@ export default function HomePage() {
     setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
   }, []);
 
+  // Background handled globally via GlobalBackground
+
   // Handle clicking outside of user menu
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -237,7 +240,7 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900">
+    <div className="min-h-screen relative">
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -369,7 +372,8 @@ export default function HomePage() {
       <UpcomingLessons />
 
       {/* Hero Section */}
-      <section className="py-16 bg-[#FFFEF5] dark:bg-gray-800/50" style={{ paddingTop: '60px' }}>
+      <section className="py-16 relative" style={{ paddingTop: '60px' }}>
+        <div className="relative z-10">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h1 className="text-5xl font-bold text-gray-900 dark:text-gray-100 mb-8">
             <div className="leading-tight">
@@ -419,6 +423,7 @@ export default function HomePage() {
               </button>
             </div>
           </form>
+        </div>
         </div>
       </section>
 
@@ -491,7 +496,7 @@ export default function HomePage() {
       </section>
 
       {/* Service Capsules */}
-      <section className="py-6 bg-[#FFFEF5] dark:bg-gray-800/50">
+      <section className="py-6 bg-transparent dark:bg-transparent">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex flex-wrap justify-center gap-2 min-h-[48px] items-center">
             {(() => {
@@ -584,7 +589,7 @@ export default function HomePage() {
         <BookAgain onLoadComplete={(hasHistory) => setUserHasBookingHistory(hasHistory)} />
       ) : (
         // User has no booking history OR not authenticated - show How It Works
-        <section className="py-16 bg-gray-50 dark:bg-gray-800">
+        <section className="py-16 bg-transparent dark:bg-transparent">
           <div className="max-w-7xl mx-auto px-4">
             <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-gray-100 mb-12">
               How it works
@@ -620,7 +625,7 @@ export default function HomePage() {
       <RecentSearches />
 
       {/* Available Now & Trending */}
-      <section className="py-16 bg-[#FFFEF5] dark:bg-gray-800/50">
+      <section className="py-16 bg-transparent dark:bg-transparent">
         <div className="max-w-7xl mx-auto px-4">
           <div className="grid grid-cols-2 gap-8">
             {/* Available Now */}
@@ -706,7 +711,7 @@ export default function HomePage() {
       </section>
 
       {/* Testimonials */}
-      <section className="py-16 bg-gray-50 dark:bg-gray-800">
+      <section className="py-16 bg-transparent dark:bg-transparent">
         <div className="max-w-7xl mx-auto px-4">
           <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-gray-100 mb-12">
             What students are saying

@@ -5,6 +5,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { logger } from '@/lib/logger';
 import { Providers } from './providers';
+import GlobalBackground from '../components/ui/GlobalBackground';
 
 /**
  * Geist Sans Font Configuration
@@ -142,6 +143,8 @@ export default function RootLayout({
         className="h-full antialiased bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
         style={{ isolation: 'isolate' }}
       >
+        {/* Global fixed background with blur-up and readability overlay */}
+        <GlobalBackground />
         {/* Future enhancements could include:
             - Global error boundary
             - Analytics provider
