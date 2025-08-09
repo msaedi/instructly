@@ -86,7 +86,9 @@ export function ChatModal({
           'fixed z-50 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-2xl transition-all ring-1 ring-black/5 overflow-hidden flex h-full flex-col',
           'dark:bg-gray-900/90 dark:supports-[backdrop-filter]:bg-gray-900/75 dark:ring-white/10 dark:shadow-xl',
           // Mobile: Full-screen drawer from bottom
-          'inset-x-0 bottom-0 h-[90vh] rounded-3xl',
+          'inset-x-0 bottom-0 h-[92dvh] rounded-3xl',
+          // Portrait phones: center the modal
+          'portrait:inset-auto portrait:left-1/2 portrait:top-1/2 portrait:-translate-x-1/2 portrait:-translate-y-1/2 portrait:h-[85dvh] portrait:w-[92vw] portrait:max-w-md',
           // Desktop: Centered modal
           'sm:inset-auto sm:left-1/2 sm:top-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2',
           'sm:h-[80vh] sm:w-[90vw] sm:max-w-2xl sm:rounded-3xl'
@@ -96,9 +98,9 @@ export function ChatModal({
         aria-label="Chat"
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-4 pt-5 pb-3 sm:px-6 sm:pt-6 sm:pb-4 dark:border-gray-800">
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 pt-5 pb-3 sm:px-6 sm:pt-6 sm:pb-4 dark:border-gray-800 pt-[max(env(safe-area-inset-top),theme(spacing.5))]">
           <div className="flex-1">
-            <h2 className="text-lg font-semibold text-gray-900 tracking-tight dark:text-gray-100">
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900 tracking-tight dark:text-gray-100">
               Chat with {otherUserName}
             </h2>
             {lessonTitle && (

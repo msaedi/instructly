@@ -324,7 +324,7 @@ export function Chat({
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-4"
+        className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 py-3 sm:py-4 space-y-3 sm:space-y-4"
       >
         {allMessages.length === 0 ? (
           <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
@@ -364,7 +364,7 @@ export function Chat({
                     >
                       <div
                         className={cn(
-                          'max-w-[75%] sm:max-w-[60%]',
+                          'max-w-[82%] xs:max-w-[78%] sm:max-w-[60%]',
                           isOwn ? 'items-end' : 'items-start'
                         )}
                       >
@@ -379,9 +379,9 @@ export function Chat({
                         )}
 
                         {/* Message bubble */}
-                        <div
+                         <div
                           className={cn(
-                            'rounded-2xl px-4 py-2 break-words shadow-sm select-text',
+                            'rounded-2xl px-3.5 py-2 break-words shadow-sm select-text text-[15px] leading-5 sm:text-sm',
                             isOwn
                               ? 'bg-gradient-to-tr from-blue-600 to-blue-500 text-white ring-1 ring-blue-500/10'
                               : 'bg-white text-gray-900 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:ring-gray-700'
@@ -422,8 +422,8 @@ export function Chat({
       )}
 
       {/* Input area */}
-      <div className="border-t border-gray-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 px-4 py-3 dark:border-gray-800 dark:bg-gray-900/80 dark:supports-[backdrop-filter]:bg-gray-900/60">
-        <div className="flex items-end space-x-2">
+      <div className="border-t border-gray-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 px-3 sm:px-4 py-2 sm:py-3 dark:border-gray-800 dark:bg-gray-900/80 dark:supports-[backdrop-filter]:bg-gray-900/60">
+        <div className="flex items-end gap-2">
           <textarea
             ref={inputRef}
             value={inputMessage}
@@ -432,7 +432,7 @@ export function Chat({
             placeholder="Type a message..."
             rows={1}
             className="flex-1 resize-none rounded-full md:rounded-2xl border border-gray-200 bg-gray-50 px-4 py-2 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 shadow-inner dark:border-gray-700 dark:bg-gray-800 dark:placeholder:text-gray-500"
-            style={{ minHeight: '44px', maxHeight: '120px' }}
+            style={{ minHeight: '40px', maxHeight: '160px' }}
           />
           <button
             onClick={handleSendMessage}
