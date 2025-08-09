@@ -9,8 +9,9 @@ for a specific booking.
 from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
+from sqlalchemy.types import JSON as SAJSON
+from sqlalchemy.types import TypeDecorator
 
 from ..database import Base
 
@@ -40,7 +41,7 @@ class Message(Base):
     delivered_at = Column(DateTime(timezone=True), nullable=True)
     edited_at = Column(DateTime(timezone=True), nullable=True)
     # Array of { user_id, read_at }
-    read_by = Column(JSONB, nullable=False, default=list)
+    read_by = Column(SAJSON, nullable=False, default=list)
 
     # Relationships
     booking = relationship("Booking", back_populates="messages")

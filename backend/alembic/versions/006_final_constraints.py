@@ -25,6 +25,9 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Add final constraints and schema adjustments."""
     print("Adding final constraints and adjustments...")
+    bind = op.get_bind()
+    dialect_name = bind.dialect.name if bind is not None else "postgresql"
+    is_postgres = dialect_name == "postgresql"
 
     # Add alert history table for monitoring
     print("Creating alert_history table...")
@@ -65,8 +68,8 @@ def upgrade() -> None:
         sa.Column("edited_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "read_by",
-            sa.dialects.postgresql.JSONB(astext_type=sa.Text()),
-            server_default=sa.text("'[]'::jsonb"),
+            (sa.dialects.postgresql.JSONB(astext_type=sa.Text()) if is_postgres else sa.JSON()),
+            server_default=(sa.text("'[]'::jsonb") if is_postgres else sa.text("'[]'")),
             nullable=False,
         ),
         sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
@@ -99,99 +102,85 @@ def upgrade() -> None:
     op.create_index("ix_message_notifications_user_unread", "message_notifications", ["user_id", "is_read"])
     op.create_index("ix_message_notifications_message_id", "message_notifications", ["message_id"])
 
-    # Create PostgreSQL NOTIFY function for real-time messaging
-    print("Creating PostgreSQL NOTIFY function for real-time messaging...")
-    op.execute(
-        """
-        CREATE OR REPLACE FUNCTION notify_new_message()
-        RETURNS TRIGGER AS $$
-        DECLARE
-            payload json;
-            sender_name TEXT;
-        BEGIN
-            -- Get sender's full name for inclusion in notification
-            SELECT full_name INTO sender_name FROM users WHERE id = NEW.sender_id;
-
-            -- Build JSON payload with message details - using 'id' not 'message_id' for consistency
-            payload = json_build_object(
-                'id', NEW.id,
-                'booking_id', NEW.booking_id,
-                'sender_id', NEW.sender_id,
-                'sender_name', sender_name,
-                'content', NEW.content,
-                'created_at', NEW.created_at,
-                'is_deleted', NEW.is_deleted,
-                'type', 'message'
-            );
-
-            -- Send notification to channel named after booking_id
-            PERFORM pg_notify('booking_chat_' || NEW.booking_id::text, payload::text);
-
-            RETURN NEW;
-        END;
-        $$ LANGUAGE plpgsql;
-    """
-    )
-
-    # Create trigger to fire on message insert
-    op.execute(
-        """
-        CREATE TRIGGER message_insert_notify
-        AFTER INSERT ON messages
-        FOR EACH ROW
-        EXECUTE FUNCTION notify_new_message();
-    """
-    )
-
-    # Read receipt trigger: when a notification is marked read, update messages.read_by and notify
-    op.execute(
-        """
-        CREATE OR REPLACE FUNCTION handle_message_read_receipt()
-        RETURNS TRIGGER AS $$
-        DECLARE
-            payload json;
-            booking_id INT;
-            reader_name TEXT;
-        BEGIN
-            IF TG_OP = 'UPDATE' AND NEW.is_read = TRUE AND (OLD.is_read IS DISTINCT FROM NEW.is_read) THEN
-                -- Update messages.read_by JSONB array with reader info
-                UPDATE messages SET read_by = COALESCE(read_by, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('user_id', NEW.user_id, 'read_at', NEW.read_at))
-                WHERE id = NEW.message_id;
-
-                -- Determine booking id for the message
-                SELECT m.booking_id INTO booking_id FROM messages m WHERE m.id = NEW.message_id;
-
-                -- Get reader name
-                SELECT full_name INTO reader_name FROM users WHERE id = NEW.user_id;
-
-                -- Build payload for SSE
+    if is_postgres:
+        # Create PostgreSQL NOTIFY function for real-time messaging
+        print("Creating PostgreSQL NOTIFY function for real-time messaging (PostgreSQL only)...")
+        op.execute(
+            """
+            CREATE OR REPLACE FUNCTION notify_new_message()
+            RETURNS TRIGGER AS $$
+            DECLARE
+                payload json;
+                sender_name TEXT;
+            BEGIN
+                SELECT full_name INTO sender_name FROM users WHERE id = NEW.sender_id;
                 payload = json_build_object(
-                    'type', 'read_receipt',
-                    'message_id', NEW.message_id,
-                    'user_id', NEW.user_id,
-                    'reader_name', reader_name,
-                    'read_at', NEW.read_at
+                    'id', NEW.id,
+                    'booking_id', NEW.booking_id,
+                    'sender_id', NEW.sender_id,
+                    'sender_name', sender_name,
+                    'content', NEW.content,
+                    'created_at', NEW.created_at,
+                    'is_deleted', NEW.is_deleted,
+                    'type', 'message'
                 );
+                PERFORM pg_notify('booking_chat_' || NEW.booking_id::text, payload::text);
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+        """
+        )
 
-                -- Notify booking channel
-                IF booking_id IS NOT NULL THEN
-                    PERFORM pg_notify('booking_chat_' || booking_id::text, payload::text);
+        # Create trigger to fire on message insert
+        op.execute(
+            """
+            CREATE TRIGGER message_insert_notify
+            AFTER INSERT ON messages
+            FOR EACH ROW
+            EXECUTE FUNCTION notify_new_message();
+        """
+        )
+
+        # Read receipt trigger: when a notification is marked read, update messages.read_by and notify
+        op.execute(
+            """
+            CREATE OR REPLACE FUNCTION handle_message_read_receipt()
+            RETURNS TRIGGER AS $$
+            DECLARE
+                payload json;
+                booking_id INT;
+                reader_name TEXT;
+            BEGIN
+                IF TG_OP = 'UPDATE' AND NEW.is_read = TRUE AND (OLD.is_read IS DISTINCT FROM NEW.is_read) THEN
+                    UPDATE messages SET read_by = COALESCE(read_by, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('user_id', NEW.user_id, 'read_at', NEW.read_at))
+                    WHERE id = NEW.message_id;
+                    SELECT m.booking_id INTO booking_id FROM messages m WHERE m.id = NEW.message_id;
+                    SELECT full_name INTO reader_name FROM users WHERE id = NEW.user_id;
+                    payload = json_build_object(
+                        'type', 'read_receipt',
+                        'message_id', NEW.message_id,
+                        'user_id', NEW.user_id,
+                        'reader_name', reader_name,
+                        'read_at', NEW.read_at
+                    );
+                    IF booking_id IS NOT NULL THEN
+                        PERFORM pg_notify('booking_chat_' || booking_id::text, payload::text);
+                    END IF;
                 END IF;
-            END IF;
-            RETURN NEW;
-        END;
-        $$ LANGUAGE plpgsql;
-        """
-    )
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql;
+            """
+        )
 
-    op.execute(
-        """
-        CREATE TRIGGER message_read_receipt_notify
-        AFTER UPDATE ON message_notifications
-        FOR EACH ROW
-        EXECUTE FUNCTION handle_message_read_receipt();
-        """
-    )
+        op.execute(
+            """
+            CREATE TRIGGER message_read_receipt_notify
+            AFTER UPDATE ON message_notifications
+            FOR EACH ROW
+            EXECUTE FUNCTION handle_message_read_receipt();
+            """
+        )
 
     # Reactions table for message reactions
     op.create_table(
@@ -293,6 +282,9 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Drop final constraints and monitoring tables."""
     print("Dropping final constraints...")
+    bind = op.get_bind()
+    dialect_name = bind.dialect.name if bind is not None else "postgresql"
+    is_postgres = dialect_name == "postgresql"
 
     op.drop_constraint("check_message_content_length", "messages", type_="check")
     op.drop_constraint("check_time_order", "bookings", type_="check")
@@ -301,14 +293,16 @@ def downgrade() -> None:
     op.drop_constraint("check_duration_positive", "bookings", type_="check")
 
     # Drop message notification trigger and function
-    print("Dropping message notification trigger and function...")
-    op.execute("DROP TRIGGER IF EXISTS message_insert_notify ON messages;")
-    op.execute("DROP FUNCTION IF EXISTS notify_new_message();")
+    if is_postgres:
+        print("Dropping message notification trigger and function (PostgreSQL only)...")
+        op.execute("DROP TRIGGER IF EXISTS message_insert_notify ON messages;")
+        op.execute("DROP FUNCTION IF EXISTS notify_new_message();")
 
     # Drop read receipt trigger and function (Phase 2 additions)
-    print("Dropping read receipt trigger and function...")
-    op.execute("DROP TRIGGER IF EXISTS message_read_receipt_notify ON message_notifications;")
-    op.execute("DROP FUNCTION IF EXISTS handle_message_read_receipt();")
+    if is_postgres:
+        print("Dropping read receipt trigger and function (PostgreSQL only)...")
+        op.execute("DROP TRIGGER IF EXISTS message_read_receipt_notify ON message_notifications;")
+        op.execute("DROP FUNCTION IF EXISTS handle_message_read_receipt();")
 
     # Drop Phase 2 tables that depend on messages first
     print("Dropping message_reactions and message_edits tables...")
