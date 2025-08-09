@@ -309,6 +309,11 @@ class MessageRepository(BaseRepository[Message]):
                 text("SELECT pg_notify(:channel, :payload)"),
                 {"channel": f"booking_chat_{booking_id}", "payload": _json.dumps(payload)},
             )
+            # Ensure NOTIFY is flushed on platforms where autocommit is disabled
+            try:
+                self.db.commit()
+            except Exception:
+                pass
         except Exception as e:
             # Non-fatal
             logger.warning(f"notify_booking_channel failed: {e}")

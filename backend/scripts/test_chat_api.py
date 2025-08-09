@@ -33,7 +33,7 @@ import sseclient  # You may need to: pip install sseclient-py
 ENV = sys.argv[1].lower() if len(sys.argv) > 1 else "stg"
 STG_URL = os.getenv("STG_API_URL", "http://localhost:8000")
 INT_URL = os.getenv("INT_API_URL", "http://localhost:8000")
-PROD_URL = os.getenv("PROD_API_URL", "http://localhost:8000")
+PROD_URL = os.getenv("PROD_API_URL", "https://api.instainstru.com")
 
 if ENV == "prod":
     API_URL = PROD_URL

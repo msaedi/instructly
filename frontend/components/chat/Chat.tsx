@@ -726,30 +726,7 @@ export function Chat({
             className="flex-1 resize-none rounded-full md:rounded-2xl border border-gray-200 bg-gray-50 px-4 py-2 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 shadow-inner dark:border-gray-700 dark:bg-gray-800 dark:placeholder:text-gray-500"
             style={{ minHeight: '40px', maxHeight: '160px' }}
           />
-          {/* Reactions quick picker for last received message (mobile-friendly) */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setOpenReactionsForMessageId(openReactionsForMessageId ? null : (allMessages.findLast?.((m)=>true)?.id ?? null))}
-              className="rounded-full p-2 md:p-2.5 transition-colors shadow-sm bg-gray-100 text-gray-600 ring-1 ring-gray-200 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700"
-              aria-label="Add quick reaction"
-            >
-              <SmilePlus className="w-5 h-5" />
-            </button>
-            {openReactionsForMessageId && (
-              <div className="absolute bottom-12 right-0 z-10 flex gap-1 rounded-full bg-white ring-1 ring-gray-200 shadow-lg px-2 py-1 dark:bg-gray-900 dark:ring-gray-700">
-                {quickEmojis.map((e) => (
-                  <button
-                    key={e}
-                    onClick={() => handleAddReaction(openReactionsForMessageId!, e)}
-                    className="text-xl leading-none hover:scale-110 transition"
-                  >
-                    {e}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Removed quick reaction picker next to Send to prevent accidental self-reactions */}
           <button
             onClick={handleSendMessage}
             disabled={!inputMessage.trim() || sendMessage.isPending}
