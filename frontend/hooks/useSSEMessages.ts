@@ -44,6 +44,9 @@ interface UseSSEMessagesReturn {
   reconnect: () => void;
   disconnect: () => void;
   clearMessages: () => void;
+  readReceipts: Record<number, Array<{ user_id: number; read_at: string }>>;
+  typingStatus: { userId: number; userName: string; until: number } | null;
+  reactionDeltas: Record<number, Record<string, number>>;
 }
 
 /**
@@ -60,6 +63,9 @@ export function useSSEMessages({
   reconnectDelay = 1000,
 }: UseSSEMessagesOptions): UseSSEMessagesReturn {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [readReceipts, setReadReceipts] = useState<Record<number, Array<{ user_id: number; read_at: string }>>>({});
+  const [typingStatus, setTypingStatus] = useState<{ userId: number; userName: string; until: number } | null>(null);
+  const [reactionDeltas, setReactionDeltas] = useState<Record<number, Record<string, number>>>({});
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(
     ConnectionStatus.DISCONNECTED
   );
@@ -137,6 +143,38 @@ export function useSSEMessages({
   // Process incoming message
   const processMessage = useCallback((messageData: any) => {
     try {
+      const eventType = messageData.type || 'message';
+
+      if (eventType === 'read_receipt') {
+        const { message_id, user_id, read_at } = messageData;
+        setReadReceipts(prev => ({
+          ...prev,
+          [message_id]: [...(prev[message_id] || []), { user_id, read_at }],
+        }));
+        return;
+      }
+
+      if (eventType === 'typing_status') {
+        const { user_id, user_name } = messageData;
+        // Clear after 3 seconds
+        setTypingStatus({ userId: user_id, userName: user_name, until: Date.now() + 3000 });
+        return;
+      }
+
+      if (eventType === 'reaction_update') {
+        const { message_id, emoji, action } = messageData as { message_id: number; emoji: string; action: 'added' | 'removed' };
+        setReactionDeltas(prev => {
+          const current = prev[message_id] || {};
+          const delta = action === 'added' ? 1 : -1;
+          const nextCount = (current[emoji] || 0) + delta;
+          return {
+            ...prev,
+            [message_id]: { ...current, [emoji]: nextCount },
+          };
+        });
+        return;
+      }
+
       const message: Message = {
         ...messageData,
         created_at: messageData.created_at || new Date().toISOString(),
@@ -207,6 +245,36 @@ export function useSSEMessages({
           processMessage(data);
         } catch (error) {
           logger.error('Error parsing SSE message');
+        }
+      });
+
+      // Read receipt events
+      eventSource.addEventListener('read_receipt', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          processMessage(data);
+        } catch (error) {
+          logger.error('Error parsing read_receipt');
+        }
+      });
+
+      // Typing indicator events
+      eventSource.addEventListener('typing_status', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          processMessage(data);
+        } catch (error) {
+          logger.error('Error parsing typing_status');
+        }
+      });
+
+      // Reaction updates
+      eventSource.addEventListener('reaction_update', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          processMessage(data);
+        } catch (error) {
+          logger.error('Error parsing reaction_update');
         }
       });
 
@@ -361,6 +429,33 @@ export function useSSEMessages({
         }
       });
 
+      localEventSource.addEventListener('read_receipt', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          processMessage(data);
+        } catch (error) {
+          logger.error('Error parsing read_receipt');
+        }
+      });
+
+      localEventSource.addEventListener('typing_status', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          processMessage(data);
+        } catch (error) {
+          logger.error('Error parsing typing_status');
+        }
+      });
+
+      localEventSource.addEventListener('reaction_update', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          processMessage(data);
+        } catch (error) {
+          logger.error('Error parsing reaction_update');
+        }
+      });
+
       localEventSource.addEventListener('heartbeat', () => {
       });
 
@@ -417,11 +512,23 @@ export function useSSEMessages({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, bookingId]); // Only re-run when enabled or bookingId changes
 
+  // Auto-clear typing status when expired
+  useEffect(() => {
+    if (!typingStatus) return;
+    const now = Date.now();
+    const ms = Math.max(0, typingStatus.until - now);
+    const t = setTimeout(() => setTypingStatus(null), ms || 3000);
+    return () => clearTimeout(t);
+  }, [typingStatus]);
+
   return {
     messages,
     connectionStatus,
     reconnect,
     disconnect,
     clearMessages,
+    readReceipts,
+    typingStatus,
+    reactionDeltas,
   };
 }

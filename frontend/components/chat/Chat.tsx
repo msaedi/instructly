@@ -16,7 +16,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
-import { Send, Loader2, AlertCircle, WifiOff, Check, CheckCheck, ChevronDown } from 'lucide-react';
+import { Send, Loader2, AlertCircle, WifiOff, Check, CheckCheck, ChevronDown, SmilePlus, Pencil } from 'lucide-react';
 import { useSSEMessages, ConnectionStatus } from '@/hooks/useSSEMessages';
 import { useMessageHistory, useSendMessage, useMarkAsRead } from '@/hooks/useMessageQueries';
 import { Message } from '@/services/messageService';
@@ -40,6 +40,31 @@ export function Chat({
   className,
   onClose,
 }: ChatProps) {
+  // Config: fetched from backend to avoid drift
+  const [editWindowMinutes, setEditWindowMinutes] = useState<number>(5);
+  const editingTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const MAX_EDIT_ROWS = 5;
+  const EDIT_LINE_HEIGHT_PX = 20; // approx for text-[15px] leading-5
+  const autosizeEditingTextarea = useCallback(() => {
+    const el = editingTextareaRef.current;
+    if (!el) return;
+    el.style.height = '0px';
+    const cap = MAX_EDIT_ROWS * EDIT_LINE_HEIGHT_PX;
+    const newHeight = Math.min(el.scrollHeight, cap);
+    el.style.height = `${newHeight}px`;
+    el.style.overflowY = el.scrollHeight > cap ? 'auto' : 'hidden';
+  }, []);
+  useEffect(() => {
+    (async () => {
+      try {
+        const { messageService } = await import('@/services/messageService');
+        const cfg = await messageService.getMessageConfig();
+        if (cfg?.edit_window_minutes) setEditWindowMinutes(cfg.edit_window_minutes);
+      } catch {}
+    })();
+  }, []);
+
+  // (moved autosize effect below where edit state is declared)
   const [inputMessage, setInputMessage] = useState('');
   const [isAtBottom, setIsAtBottom] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -68,6 +93,9 @@ export function Chat({
     messages: realtimeMessages,
     connectionStatus,
     reconnect,
+    readReceipts,
+    typingStatus,
+    reactionDeltas,
   } = useSSEMessages({
     bookingId,
     enabled: true,
@@ -112,6 +140,37 @@ export function Chat({
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     );
   }, [historyData?.messages, realtimeMessages, optimisticMessages]);
+
+  // Build a stable read map derived from server-provided read_by and live receipts
+  const mergedReadReceipts = React.useMemo(() => {
+    const map: Record<number, Array<{ user_id: number; read_at: string }>> = { ...readReceipts };
+    for (const m of allMessages) {
+      if ((m as any).read_by && Array.isArray((m as any).read_by)) {
+        const existing = map[m.id] || [];
+        const combined = [...existing];
+        for (const r of (m as any).read_by as any[]) {
+          if (!combined.find(x => x.user_id === r.user_id && x.read_at === r.read_at)) {
+            if (r.user_id && r.read_at) combined.push({ user_id: r.user_id, read_at: r.read_at });
+          }
+        }
+        map[m.id] = combined;
+      }
+    }
+    return map;
+  }, [allMessages, readReceipts]);
+
+  // Determine the latest own message that has a read receipt (global, not per-day group)
+  const lastOwnReadMessageId = React.useMemo(() => {
+    let latest: { id: number; ts: number } | null = null;
+    for (const m of allMessages) {
+      if (m.sender_id !== currentUserId) continue;
+      const reads = mergedReadReceipts[m.id] || [];
+      if (reads.length === 0) continue;
+      const t = new Date(m.created_at).getTime();
+      if (!latest || t > latest.ts) latest = { id: m.id, ts: t };
+    }
+    return latest?.id ?? null;
+  }, [allMessages, mergedReadReceipts, currentUserId]);
 
   // Auto-scroll to bottom
   const scrollToBottom = useCallback((smooth = true) => {
@@ -196,6 +255,103 @@ export function Chat({
       e.preventDefault();
       handleSendMessage();
     }
+  };
+
+  // Typing indicator: send best-effort signal with debounce (1s)
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const handleTyping = async () => {
+    try {
+      // @ts-ignore lazy import to avoid circular
+      const { messageService } = await import('@/services/messageService');
+      await messageService.sendTyping(bookingId);
+    } catch {}
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputMessage(e.target.value);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      handleTyping();
+    }, 1000);
+  };
+
+  // Quick reactions toggle per-message
+  const [openReactionsForMessageId, setOpenReactionsForMessageId] = useState<number | null>(null);
+  const quickEmojis = ['👍', '❤️', '😊', '😮', '🎉'];
+  const handleAddReaction = async (messageId: number, emoji: string) => {
+    if (messageId < 0) {
+      // Optimistic/temporary message; ignore until real id arrives
+      return;
+    }
+    try {
+      const { messageService } = await import('@/services/messageService');
+      // Optimistic UX: close popover immediately
+      setOpenReactionsForMessageId(null);
+      await messageService.addReaction(messageId, emoji);
+    } catch {}
+  };
+
+  // Edit mode state
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [editingContent, setEditingContent] = useState<string>("");
+  const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
+  useEffect(() => {
+    if (editingMessageId) {
+      requestAnimationFrame(() => autosizeEditingTextarea());
+    }
+  }, [editingMessageId, editingContent, autosizeEditingTextarea]);
+  const startEdit = (message: Message) => {
+    if (!canEditMessage(message)) return;
+    setEditingMessageId(message.id);
+    setEditingContent(message.content);
+  };
+  const cancelEdit = () => {
+    setEditingMessageId(null);
+    setEditingContent("");
+  };
+  const saveEdit = async () => {
+    if (!editingMessageId || !editingContent.trim()) return;
+    const target = allMessages.find(m => m.id === editingMessageId);
+    if (!target || !canEditMessage(target)) return;
+    setIsSavingEdit(true);
+    try {
+      const { messageService } = await import('@/services/messageService');
+      const ok = await messageService.editMessage(editingMessageId, editingContent.trim());
+      if (ok) {
+        setEditingMessageId(null);
+        setEditingContent("");
+      }
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const canEditMessage = (message: Message): boolean => {
+    if (message.sender_id !== currentUserId) return false;
+    const created = new Date(message.created_at).getTime();
+    const now = Date.now();
+    const diffMinutes = (now - created) / 60000;
+    return diffMinutes <= editWindowMinutes;
+  };
+
+  // Track local my-reaction toggles for highlight state (messageId -> emoji -> delta {-1, 0, 1})
+  const [reactionMyDeltas, setReactionMyDeltas] = useState<Record<number, Record<string, number>>>({});
+  const toggleReactionLocal = (message: Message, emoji: string) => {
+    const baseMy = Array.isArray((message as any).my_reactions) && (message as any).my_reactions.includes(emoji);
+    const currentDelta = (reactionMyDeltas[message.id] || {})[emoji] || 0;
+    const current = (baseMy ? 1 : 0) + currentDelta > 0;
+    const newCurrent = current ? 0 : 1; // flip
+    const newDelta = newCurrent - (baseMy ? 1 : 0);
+    setReactionMyDeltas(prev => ({
+      ...prev,
+      [message.id]: { ...(prev[message.id] || {}), [emoji]: newDelta },
+    }));
+  };
+
+  const isEmojiMyReacted = (message: Message, emoji: string): boolean => {
+    const baseMy = Array.isArray((message as any).my_reactions) && (message as any).my_reactions.includes(emoji);
+    const currentDelta = (reactionMyDeltas[message.id] || {})[emoji] || 0;
+    return ((baseMy ? 1 : 0) + currentDelta) > 0;
   };
 
   // Format message date
@@ -287,6 +443,9 @@ export function Chat({
       </div>
     );
   };
+
+  // Optional typing indicator bar (ephemeral)
+  // We will show this via SSE hook in phase 2 UI update (placeholder)
 
   // Loading state
   if (isLoadingHistory) {
@@ -387,7 +546,38 @@ export function Chat({
                               : 'bg-white text-gray-900 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:ring-gray-700'
                           )}
                         >
-                          <p className="whitespace-pre-wrap">{message.content}</p>
+                          {editingMessageId === message.id ? (
+                            <div className={cn('flex items-end gap-2', isOwn ? 'text-white' : 'text-gray-900')}>
+                              <div className={cn('flex-1 rounded-md', isOwn ? 'bg-blue-500/15' : 'bg-gray-100')}>
+                                <textarea
+                                  ref={editingTextareaRef}
+                                  value={editingContent}
+                                  onChange={(e) => setEditingContent(e.target.value)}
+                                  onInput={autosizeEditingTextarea}
+                                  rows={1}
+                                  className={cn('w-full resize-none rounded-md px-2 py-1 text-[15px] leading-5 outline-none', isOwn ? 'bg-transparent text-white placeholder:text-blue-100' : 'bg-transparent text-gray-900 placeholder:text-gray-400')}
+                                  style={{ overflowY: 'hidden', height: 'auto' }}
+                                />
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={saveEdit}
+                                  disabled={isSavingEdit || !editingContent.trim()}
+                                  className={cn('text-xs rounded-md px-2 py-1 ring-1', isOwn ? 'bg-white/10 ring-white/20' : 'bg-gray-200 ring-gray-300')}
+                                >
+                                  {isSavingEdit ? 'Saving…' : 'Save'}
+                                </button>
+                                <button
+                                  onClick={cancelEdit}
+                                  className={cn('text-xs rounded-md px-2 py-1 ring-1', isOwn ? 'bg-white/10 ring-white/20' : 'bg-gray-200 ring-gray-300')}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="whitespace-pre-wrap">{message.content}</p>
+                          )}
                           <div className={cn(
                             'flex items-center justify-end mt-1 space-x-1',
                             isOwn ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'
@@ -396,10 +586,109 @@ export function Chat({
                               {formatMessageDate(message.created_at)}
                             </span>
                             {isOwn && (
-                              <CheckCheck className="w-3 h-3" />
+                              // Show double check if any read receipt exists for this message
+                              (mergedReadReceipts[message.id]?.length ?? 0) > 0 ? (
+                                <CheckCheck className="w-3 h-3" />
+                              ) : (
+                                <Check className="w-3 h-3" />
+                              )
+                            )}
+                            {message.edited_at && (
+                              <span className={cn('text-[10px] ml-1', isOwn ? 'text-blue-100/80' : 'text-gray-400')}>edited</span>
+                            )}
+                            {isOwn && editingMessageId !== message.id && canEditMessage(message) && (
+                              <button
+                                onClick={() => startEdit(message)}
+                                className={cn('ml-2 rounded-full p-1', isOwn ? 'hover:bg-white/10' : 'hover:bg-gray-100')}
+                                aria-label="Edit message"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
                             )}
                           </div>
                         </div>
+
+                        {/* Reaction bar (counts) */}
+                        {(() => {
+                          const base = ((message as any).reactions as Record<string, number>) || {};
+                          const deltas = reactionDeltas[message.id] || {};
+                          const merged: Record<string, number> = { ...base };
+                          Object.entries(deltas).forEach(([emoji, delta]) => {
+                            merged[emoji] = Math.max(0, (merged[emoji] || 0) + (delta as number));
+                          });
+                          const entries = Object.entries(merged).filter(([, c]) => c > 0);
+                          if (entries.length === 0) return null;
+                          return (
+                          <div className={cn('mt-1 flex justify-end gap-1', isOwn ? 'pr-1' : 'pl-1')}>
+                            {entries.map(([emoji, count]) => {
+                              const mine = isEmojiMyReacted(message, emoji);
+                              const baseMine = Array.isArray((message as any).my_reactions) && (message as any).my_reactions.includes(emoji);
+                              const mineAfterToggle = isEmojiMyReacted(message, emoji);
+                              const isOwnMessage = message.sender_id === currentUserId;
+                              return (
+                                <button
+                                  type="button"
+                                  key={emoji}
+                                  onClick={async () => {
+                                    // Do not allow toggling reactions on your own message chips to increment incorrectly
+                                    if (isOwnMessage && !mineAfterToggle && baseMine === false) return;
+                                    await handleAddReaction(message.id, emoji);
+                                    toggleReactionLocal(message, emoji);
+                                  }}
+                                  className={cn(
+                                    'rounded-full px-2 py-0.5 text-xs ring-1 transition',
+                                    mine ? 'bg-blue-600 text-white ring-blue-600' : (isOwn ? 'bg-blue-50 text-blue-700 ring-blue-200' : 'bg-gray-50 text-gray-700 ring-gray-200'),
+                                  )}
+                                >
+                                  {emoji} {count}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          );
+                        })()}
+
+                        {/* Add reaction control per message (other user's messages only) */}
+                        {!isOwn && (
+                          <div className={cn('mt-1 flex justify-end', isOwn ? 'pr-1' : 'pl-1')}>
+                            <button
+                              type="button"
+                              onClick={() => setOpenReactionsForMessageId(openReactionsForMessageId === message.id ? null : message.id)}
+                              className={cn('rounded-full px-2 py-0.5 text-xs ring-1 transition', 'bg-gray-50 text-gray-700 ring-gray-200 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700')}
+                            >
+                              +
+                            </button>
+                            {openReactionsForMessageId === message.id && (
+                              <div className="ml-2 flex gap-1 rounded-full bg-white ring-1 ring-gray-200 shadow px-2 py-1 dark:bg-gray-900 dark:ring-gray-700">
+                                {quickEmojis.map((e) => (
+                                  <button
+                                    key={e}
+                                    onClick={async () => {
+                                      await handleAddReaction(message.id, e);
+                                      toggleReactionLocal(message, e);
+                                      setOpenReactionsForMessageId(null);
+                                    }}
+                                    className="text-xl leading-none hover:scale-110 transition"
+                                  >
+                                    {e}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Inline read time for latest read own message (iMessage-style) */}
+                        {isOwn && message.id === lastOwnReadMessageId && (mergedReadReceipts[message.id]?.length ?? 0) > 0 && (
+                          <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400 text-right pr-1">
+                            {(() => {
+                              const readAt = new Date(mergedReadReceipts[message.id][0].read_at);
+                              if (isToday(readAt)) return `Read at ${format(readAt, 'h:mm a')}`;
+                              if (isYesterday(readAt)) return `Read yesterday at ${format(readAt, 'h:mm a')}`;
+                              return `Read on ${format(readAt, 'MMM d')} at ${format(readAt, 'h:mm a')}`;
+                            })()}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
@@ -423,17 +712,44 @@ export function Chat({
 
       {/* Input area */}
       <div className="border-t border-gray-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 px-3 sm:px-4 py-2 sm:py-3 dark:border-gray-800 dark:bg-gray-900/80 dark:supports-[backdrop-filter]:bg-gray-900/60">
+        {typingStatus && typingStatus.userId !== currentUserId && (
+          <div className="px-1 pb-1 text-xs text-gray-500 dark:text-gray-400">{otherUserName} is typing…</div>
+        )}
         <div className="flex items-end gap-2">
           <textarea
             ref={inputRef}
             value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
+            onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder="Type a message..."
             rows={1}
             className="flex-1 resize-none rounded-full md:rounded-2xl border border-gray-200 bg-gray-50 px-4 py-2 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 shadow-inner dark:border-gray-700 dark:bg-gray-800 dark:placeholder:text-gray-500"
             style={{ minHeight: '40px', maxHeight: '160px' }}
           />
+          {/* Reactions quick picker for last received message (mobile-friendly) */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setOpenReactionsForMessageId(openReactionsForMessageId ? null : (allMessages.findLast?.((m)=>true)?.id ?? null))}
+              className="rounded-full p-2 md:p-2.5 transition-colors shadow-sm bg-gray-100 text-gray-600 ring-1 ring-gray-200 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700"
+              aria-label="Add quick reaction"
+            >
+              <SmilePlus className="w-5 h-5" />
+            </button>
+            {openReactionsForMessageId && (
+              <div className="absolute bottom-12 right-0 z-10 flex gap-1 rounded-full bg-white ring-1 ring-gray-200 shadow-lg px-2 py-1 dark:bg-gray-900 dark:ring-gray-700">
+                {quickEmojis.map((e) => (
+                  <button
+                    key={e}
+                    onClick={() => handleAddReaction(openReactionsForMessageId!, e)}
+                    className="text-xl leading-none hover:scale-110 transition"
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button
             onClick={handleSendMessage}
             disabled={!inputMessage.trim() || sendMessage.isPending}
@@ -446,6 +762,8 @@ export function Chat({
           >
             {sendMessage.isPending ? (
               <Loader2 className="w-5 h-5 animate-spin" />
+            ) : typingStatus && typingStatus.userId === currentUserId ? (
+              <span className="text-xs px-1">…</span>
             ) : (
               <Send className="w-5 h-5" />
             )}

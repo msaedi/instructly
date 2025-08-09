@@ -140,6 +140,9 @@ class Settings(BaseSettings):
         default=True, description="Enable template service caching (disable for development if needed)"
     )
 
+    # Messaging configuration
+    message_edit_window_minutes: int = Field(default=5, description="How many minutes a user can edit their message")
+
     @field_validator("int_database_url_raw")
     @classmethod
     def validate_test_database(cls, v: str, info) -> str:

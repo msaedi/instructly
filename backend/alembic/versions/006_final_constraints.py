@@ -60,6 +60,15 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default="false"),
+        # Phase 2 additions
+        sa.Column("delivered_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("edited_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column(
+            "read_by",
+            sa.dialects.postgresql.JSONB(astext_type=sa.Text()),
+            server_default=sa.text("'[]'::jsonb"),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["sender_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
@@ -111,7 +120,8 @@ def upgrade() -> None:
                 'sender_name', sender_name,
                 'content', NEW.content,
                 'created_at', NEW.created_at,
-                'is_deleted', NEW.is_deleted
+                'is_deleted', NEW.is_deleted,
+                'type', 'message'
             );
 
             -- Send notification to channel named after booking_id
@@ -131,6 +141,81 @@ def upgrade() -> None:
         FOR EACH ROW
         EXECUTE FUNCTION notify_new_message();
     """
+    )
+
+    # Read receipt trigger: when a notification is marked read, update messages.read_by and notify
+    op.execute(
+        """
+        CREATE OR REPLACE FUNCTION handle_message_read_receipt()
+        RETURNS TRIGGER AS $$
+        DECLARE
+            payload json;
+            booking_id INT;
+            reader_name TEXT;
+        BEGIN
+            IF TG_OP = 'UPDATE' AND NEW.is_read = TRUE AND (OLD.is_read IS DISTINCT FROM NEW.is_read) THEN
+                -- Update messages.read_by JSONB array with reader info
+                UPDATE messages SET read_by = COALESCE(read_by, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('user_id', NEW.user_id, 'read_at', NEW.read_at))
+                WHERE id = NEW.message_id;
+
+                -- Determine booking id for the message
+                SELECT m.booking_id INTO booking_id FROM messages m WHERE m.id = NEW.message_id;
+
+                -- Get reader name
+                SELECT full_name INTO reader_name FROM users WHERE id = NEW.user_id;
+
+                -- Build payload for SSE
+                payload = json_build_object(
+                    'type', 'read_receipt',
+                    'message_id', NEW.message_id,
+                    'user_id', NEW.user_id,
+                    'reader_name', reader_name,
+                    'read_at', NEW.read_at
+                );
+
+                -- Notify booking channel
+                IF booking_id IS NOT NULL THEN
+                    PERFORM pg_notify('booking_chat_' || booking_id::text, payload::text);
+                END IF;
+            END IF;
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+        """
+    )
+
+    op.execute(
+        """
+        CREATE TRIGGER message_read_receipt_notify
+        AFTER UPDATE ON message_notifications
+        FOR EACH ROW
+        EXECUTE FUNCTION handle_message_read_receipt();
+        """
+    )
+
+    # Reactions table for message reactions
+    op.create_table(
+        "message_reactions",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("message_id", sa.Integer(), nullable=False),
+        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("emoji", sa.String(16), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.ForeignKeyConstraint(["message_id"], ["messages.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("message_id", "user_id", "emoji", name="uq_message_reaction"),
+    )
+
+    # Message edits table for edit history
+    op.create_table(
+        "message_edits",
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("message_id", sa.Integer(), nullable=False),
+        sa.Column("original_content", sa.String(1000), nullable=False),
+        sa.Column("edited_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.ForeignKeyConstraint(["message_id"], ["messages.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
     )
 
     # Add any remaining check constraints that weren't in earlier migrations
@@ -219,6 +304,16 @@ def downgrade() -> None:
     print("Dropping message notification trigger and function...")
     op.execute("DROP TRIGGER IF EXISTS message_insert_notify ON messages;")
     op.execute("DROP FUNCTION IF EXISTS notify_new_message();")
+
+    # Drop read receipt trigger and function (Phase 2 additions)
+    print("Dropping read receipt trigger and function...")
+    op.execute("DROP TRIGGER IF EXISTS message_read_receipt_notify ON message_notifications;")
+    op.execute("DROP FUNCTION IF EXISTS handle_message_read_receipt();")
+
+    # Drop Phase 2 tables that depend on messages first
+    print("Dropping message_reactions and message_edits tables...")
+    op.drop_table("message_reactions")
+    op.drop_table("message_edits")
 
     # Drop message_notifications table
     print("Dropping message_notifications table...")

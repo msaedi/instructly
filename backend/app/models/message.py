@@ -9,6 +9,7 @@ for a specific booking.
 from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from ..database import Base
@@ -36,11 +37,42 @@ class Message(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
     is_deleted = Column(Boolean, nullable=False, default=False)
+    delivered_at = Column(DateTime(timezone=True), nullable=True)
+    edited_at = Column(DateTime(timezone=True), nullable=True)
+    # Array of { user_id, read_at }
+    read_by = Column(JSONB, nullable=False, default=list)
 
     # Relationships
     booking = relationship("Booking", back_populates="messages")
     sender = relationship("User", foreign_keys=[sender_id])
     notifications = relationship("MessageNotification", back_populates="message", cascade="all, delete-orphan")
+
+
+class MessageReaction(Base):
+    """
+    Emoji reactions for messages.
+    """
+
+    __tablename__ = "message_reactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    message_id = Column(Integer, ForeignKey("messages.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    emoji = Column(String(16), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
+class MessageEdit(Base):
+    """
+    Edit history for messages.
+    """
+
+    __tablename__ = "message_edits"
+
+    id = Column(Integer, primary_key=True, index=True)
+    message_id = Column(Integer, ForeignKey("messages.id", ondelete="CASCADE"), nullable=False)
+    original_content = Column(String(1000), nullable=False)
+    edited_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
 class MessageNotification(Base):

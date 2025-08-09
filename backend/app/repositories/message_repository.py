@@ -187,6 +187,132 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error counting unread messages: {str(e)}")
             raise RepositoryException(f"Failed to count unread messages: {str(e)}")
 
+    # --- Aggregations & helpers for services ---
+    def get_read_receipts_for_message_ids(self, message_ids: List[int]) -> List[tuple]:
+        """
+        Return tuples of (message_id, user_id, read_at) for read notifications on given messages.
+        """
+        try:
+            rows = (
+                self.db.query(
+                    MessageNotification.message_id,
+                    MessageNotification.user_id,
+                    MessageNotification.read_at,
+                )
+                .filter(
+                    and_(
+                        MessageNotification.message_id.in_(message_ids),
+                        MessageNotification.is_read == True,
+                    )
+                )
+                .all()
+            )
+            return rows
+        except Exception as e:
+            self.logger.error(f"Error fetching read receipts: {str(e)}")
+            raise RepositoryException(f"Failed to fetch read receipts: {str(e)}")
+
+    def get_reaction_counts_for_message_ids(self, message_ids: List[int]) -> List[tuple]:
+        """
+        Return tuples of (message_id, emoji, count) for reactions on given messages.
+        """
+        try:
+            from ..models.message import MessageReaction
+
+            rows = (
+                self.db.query(MessageReaction.message_id, MessageReaction.emoji, func.count(MessageReaction.id))
+                .filter(MessageReaction.message_id.in_(message_ids))
+                .group_by(MessageReaction.message_id, MessageReaction.emoji)
+                .all()
+            )
+            return [(mid, emoji, int(cnt)) for (mid, emoji, cnt) in rows]
+        except Exception as e:
+            self.logger.error(f"Error fetching reaction counts: {str(e)}")
+            raise RepositoryException(f"Failed to fetch reaction counts: {str(e)}")
+
+    def get_user_reactions_for_message_ids(self, message_ids: List[int], user_id: int) -> List[tuple]:
+        """
+        Return tuples of (message_id, emoji) for reactions by the user on given messages.
+        """
+        try:
+            from ..models.message import MessageReaction
+
+            rows = (
+                self.db.query(MessageReaction.message_id, MessageReaction.emoji)
+                .filter(
+                    and_(
+                        MessageReaction.message_id.in_(message_ids),
+                        MessageReaction.user_id == user_id,
+                    )
+                )
+                .all()
+            )
+            return rows
+        except Exception as e:
+            self.logger.error(f"Error fetching user reactions: {str(e)}")
+            raise RepositoryException(f"Failed to fetch user reactions: {str(e)}")
+
+    def has_user_reaction(self, message_id: int, user_id: int, emoji: str) -> bool:
+        """Check if a user has already reacted with emoji to a message."""
+        try:
+            from ..models.message import MessageReaction
+
+            exists = (
+                self.db.query(MessageReaction)
+                .filter(
+                    and_(
+                        MessageReaction.message_id == message_id,
+                        MessageReaction.user_id == user_id,
+                        MessageReaction.emoji == emoji,
+                    )
+                )
+                .first()
+            )
+            return exists is not None
+        except Exception as e:
+            self.logger.error(f"Error checking reaction existence: {str(e)}")
+            raise RepositoryException(f"Failed to check reaction existence: {str(e)}")
+
+    def apply_message_edit(self, message_id: int, new_content: str) -> bool:
+        """
+        Create a MessageEdit history row and update the Message content and edited_at.
+        """
+        try:
+            from datetime import datetime, timezone
+
+            from ..models.message import MessageEdit
+
+            message = self.db.query(Message).filter(Message.id == message_id).first()
+            if not message:
+                return False
+            # Save history
+            self.db.add(MessageEdit(message_id=message_id, original_content=message.content))
+            # Update message
+            message.content = new_content
+            message.edited_at = datetime.now(timezone.utc)
+            return True
+        except Exception as e:
+            self.logger.error(f"Error applying message edit: {str(e)}")
+            raise RepositoryException(f"Failed to apply message edit: {str(e)}")
+
+    def notify_booking_channel(self, booking_id: int, payload: dict) -> None:
+        """Send a JSON payload to the booking chat LISTEN/NOTIFY channel.
+
+        This is allowed at repository level for DB adjacency per repo pattern rules.
+        """
+        try:
+            import json as _json
+
+            from sqlalchemy import text
+
+            self.db.execute(
+                text("SELECT pg_notify(:channel, :payload)"),
+                {"channel": f"booking_chat_{booking_id}", "payload": _json.dumps(payload)},
+            )
+        except Exception as e:
+            # Non-fatal
+            logger.warning(f"notify_booking_channel failed: {e}")
+
     def get_booking_participants(self, booking_id: int) -> Optional[Tuple[int, int]]:
         """
         Get the student and instructor IDs for a booking.
@@ -270,3 +396,49 @@ class MessageRepository(BaseRepository[Message]):
         except Exception as e:
             self.logger.error(f"Error deleting message: {str(e)}")
             raise RepositoryException(f"Failed to delete message: {str(e)}")
+
+    # Phase 2: reactions
+    def add_reaction(self, message_id: int, user_id: int, emoji: str) -> bool:
+        try:
+            from ..models.message import MessageReaction
+
+            # Ensure message exists
+            if not self.db.query(Message).filter(Message.id == message_id).first():
+                raise NotFoundException("Message not found")
+            # Avoid unique constraint violation
+            exists = (
+                self.db.query(MessageReaction)
+                .filter(
+                    MessageReaction.message_id == message_id,
+                    MessageReaction.user_id == user_id,
+                    MessageReaction.emoji == emoji,
+                )
+                .first()
+            )
+            if exists:
+                return True
+            reaction = MessageReaction(message_id=message_id, user_id=user_id, emoji=emoji)
+            self.db.add(reaction)
+            self.logger.info(f"Added reaction {emoji} by {user_id} on message {message_id}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Error adding reaction: {str(e)}")
+            raise RepositoryException(f"Failed to add reaction: {str(e)}")
+
+    def remove_reaction(self, message_id: int, user_id: int, emoji: str) -> bool:
+        try:
+            from ..models.message import MessageReaction
+
+            q = self.db.query(MessageReaction).filter(
+                MessageReaction.message_id == message_id,
+                MessageReaction.user_id == user_id,
+                MessageReaction.emoji == emoji,
+            )
+            if q.first() is None:
+                return False
+            q.delete(synchronize_session=False)
+            self.logger.info(f"Removed reaction {emoji} by {user_id} on message {message_id}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Error removing reaction: {str(e)}")
+            raise RepositoryException(f"Failed to remove reaction: {str(e)}")

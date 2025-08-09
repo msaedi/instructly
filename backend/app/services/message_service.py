@@ -9,9 +9,11 @@ Handles business logic for the messaging system including:
 - Email notifications for offline users
 """
 
+import json
 import logging
 from typing import List, Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..core.enums import PermissionName
@@ -122,7 +124,43 @@ class MessageService(BaseService):
         messages = self.repository.get_messages_for_booking(booking_id=booking_id, limit=limit, offset=offset)
 
         # Reverse to get chronological order (oldest first)
-        return list(reversed(messages))
+        messages = list(reversed(messages))
+
+        # Ensure read_by is hydrated from notifications for current user view consistency
+        try:
+            # Assemble read_by from repository
+            ids = [m.id for m in messages]
+            read_rows = self.repository.get_read_receipts_for_message_ids(ids)
+            message_id_to_reads = {}
+            for mid, uid, read_at in read_rows:
+                message_id_to_reads.setdefault(mid, []).append(
+                    {
+                        "user_id": uid,
+                        "read_at": read_at.isoformat() if read_at else None,
+                    }
+                )
+            for m in messages:
+                if not getattr(m, "read_by", None):
+                    setattr(m, "read_by", message_id_to_reads.get(m.id, []))
+
+            # Reactions summary and my reactions via repository
+            reaction_rows = self.repository.get_reaction_counts_for_message_ids(ids)
+            my_reaction_rows = self.repository.get_user_reactions_for_message_ids(ids, user_id)
+            message_id_to_reactions = {}
+            for mid, emoji, cnt in reaction_rows:
+                d = message_id_to_reactions.setdefault(mid, {})
+                d[emoji] = int(cnt)
+            message_id_to_my = {}
+            for mid, emoji in my_reaction_rows:
+                lst = message_id_to_my.setdefault(mid, [])
+                lst.append(emoji)
+            for m in messages:
+                setattr(m, "reactions", message_id_to_reactions.get(m.id, {}))
+                setattr(m, "my_reactions", message_id_to_my.get(m.id, []))
+        except Exception:
+            pass
+
+        return messages
 
     @measure_operation
     def get_unread_count(self, user_id: int) -> int:
@@ -136,6 +174,23 @@ class MessageService(BaseService):
             Total number of unread messages
         """
         return self.repository.get_unread_count_for_user(user_id)
+
+    @measure_operation
+    def send_typing_indicator(self, booking_id: int, user_id: int, user_name: str) -> None:
+        """Broadcast a typing indicator for a booking (ephemeral)."""
+        # Verify access
+        if not self._user_has_booking_access(booking_id, user_id):
+            raise ForbiddenException("You don't have access to this booking")
+        from datetime import datetime, timezone
+
+        payload = {
+            "type": "typing_status",
+            "booking_id": booking_id,
+            "user_id": user_id,
+            "user_name": user_name,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        self.repository.notify_booking_channel(booking_id, payload)
 
     @measure_operation
     def mark_messages_as_read(self, message_ids: List[int], user_id: int) -> int:
@@ -208,6 +263,90 @@ class MessageService(BaseService):
 
         with self.transaction():
             return self.repository.delete_message(message_id)
+
+    # Phase 2: reactions
+    @measure_operation
+    def add_reaction(self, message_id: int, user_id: int, emoji: str) -> bool:
+        # Access: user must be participant of the booking of this message
+        message = self.repository.get_by_id(message_id)
+        if not message:
+            raise NotFoundException("Message not found")
+        if not self._user_has_booking_access(message.booking_id, user_id):
+            raise ForbiddenException("You don't have access to this booking")
+        with self.transaction():
+            # Toggle behavior: if exists, remove; else add (through repository)
+            exists = self.repository.has_user_reaction(message_id, user_id, emoji)
+            action = "added"
+            if exists:
+                self.repository.remove_reaction(message_id, user_id, emoji)
+                action = "removed"
+                ok = True
+            else:
+                ok = self.repository.add_reaction(message_id, user_id, emoji)
+
+            # Notify via NOTIFY for SSE consumers through repository
+            payload = {
+                "type": "reaction_update",
+                "message_id": message_id,
+                "emoji": emoji,
+                "user_id": user_id,
+                "action": action,
+            }
+            self.repository.notify_booking_channel(message.booking_id, payload)
+            return ok
+
+    @measure_operation
+    def remove_reaction(self, message_id: int, user_id: int, emoji: str) -> bool:
+        message = self.repository.get_by_id(message_id)
+        if not message:
+            return False
+        if not self._user_has_booking_access(message.booking_id, user_id):
+            raise ForbiddenException("You don't have access to this booking")
+        with self.transaction():
+            ok = self.repository.remove_reaction(message_id, user_id, emoji)
+            payload = {
+                "type": "reaction_update",
+                "message_id": message_id,
+                "emoji": emoji,
+                "user_id": user_id,
+                "action": "removed",
+            }
+            self.repository.notify_booking_channel(message.booking_id, payload)
+            return ok
+
+    @measure_operation
+    def edit_message(self, message_id: int, user_id: int, new_content: str) -> bool:
+        # validate
+        if not new_content or not new_content.strip():
+            raise ValidationException("Message content cannot be empty")
+        message = self.repository.get_by_id(message_id)
+        if not message:
+            return False
+        if message.sender_id != user_id:
+            raise ForbiddenException("You can only edit your own messages")
+        # within 5 minutes
+        try:
+            from datetime import datetime, timedelta, timezone
+
+            from ..core.config import settings
+
+            window_minutes = getattr(settings, "message_edit_window_minutes", 5)
+            if (datetime.now(timezone.utc) - message.created_at) > timedelta(minutes=window_minutes):
+                raise ValidationException("Edit window has expired")
+        except Exception:
+            pass
+        with self.transaction():
+            # Save history and apply edit through repository
+            ok = self.repository.apply_message_edit(message_id, new_content.strip())
+            # Notify
+            payload = {
+                "type": "message_edited",
+                "message_id": message_id,
+                "content": new_content.strip(),
+                "edited_at": None,
+            }
+            self.repository.notify_booking_channel(message.booking_id, payload)
+            return ok
 
     def _user_has_booking_access(self, booking_id: int, user_id: int) -> bool:
         """

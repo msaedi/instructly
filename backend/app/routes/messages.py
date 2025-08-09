@@ -24,7 +24,7 @@ Router Endpoints:
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -32,6 +32,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from ..api.dependencies.auth import get_current_active_user
 from ..auth_sse import get_current_user_sse
+from ..core.config import settings
 from ..core.enums import PermissionName
 from ..core.exceptions import ForbiddenException, NotFoundException, ValidationException
 from ..database import get_db
@@ -42,9 +43,11 @@ from ..schemas.message_requests import MarkMessagesReadRequest, SendMessageReque
 from ..schemas.message_responses import (
     DeleteMessageResponse,
     MarkMessagesReadResponse,
+    MessageConfigResponse,
     MessageResponse,
     MessagesHistoryResponse,
     SendMessageResponse,
+    TypingStatusResponse,
     UnreadCountResponse,
 )
 from ..services.message_service import MessageService
@@ -210,7 +213,7 @@ async def stream_messages(
                     heartbeat_task = None
 
             # Main event loop
-            last_heartbeat = datetime.now()
+            last_heartbeat = datetime.now(timezone.utc)
 
             while True:
                 try:
@@ -220,21 +223,24 @@ async def stream_messages(
                             message_data = await asyncio.wait_for(queue.get(), timeout=30.0)  # 30 second timeout
 
                             # Process the message
-                            if message_data.get("type") == "heartbeat":
+                            event_type = message_data.get("type") or "message"
+
+                            if event_type == "heartbeat":
                                 yield {
                                     "event": "heartbeat",
                                     "data": json.dumps({"timestamp": message_data.get("timestamp")}),
                                 }
                             else:
-                                # CRITICAL: Skip notifications for our own messages
-                                # This prevents the sender from receiving their own messages via SSE
-                                if message_data.get("sender_id") == current_user.id:
-                                    continue  # Don't send our own messages back to us
+                                # Skip echo for our own outbound chat messages only
+                                if event_type == "message" and message_data.get("sender_id") == current_user.id:
+                                    continue
 
-                                # Add sender information and mark as not mine
-                                message_data["is_mine"] = False
+                                # Mark as not mine for chat messages
+                                if event_type == "message":
+                                    message_data["is_mine"] = False
+
                                 yield {
-                                    "event": "message",
+                                    "event": event_type,
                                     "data": json.dumps(message_data),
                                 }
                         except asyncio.TimeoutError:
@@ -244,14 +250,14 @@ async def stream_messages(
                                 "data": json.dumps(
                                     {
                                         "status": "alive",
-                                        "timestamp": str(datetime.now()),
+                                        "timestamp": datetime.now(timezone.utc).isoformat(),
                                     }
                                 ),
                             }
                     else:
                         # No queue available, send periodic heartbeats
                         await asyncio.sleep(5)
-                        now = datetime.now()
+                        now = datetime.now(timezone.utc)
                         if (now - last_heartbeat).total_seconds() >= 30:
                             yield {
                                 "event": "heartbeat",
@@ -310,6 +316,125 @@ async def send_heartbeats(notification_service, booking_id: int):
     while True:
         await asyncio.sleep(30)  # Send heartbeat every 30 seconds
         await notification_service.send_heartbeat(booking_id)
+
+
+@router.post(
+    "/typing/{booking_id}",
+    response_model=TypingStatusResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_permission(PermissionName.SEND_MESSAGES))],
+)
+@rate_limit("1/second", key_type=RateLimitKeyType.USER)
+async def send_typing_indicator(
+    booking_id: int,
+    current_user: User = Depends(get_current_active_user),
+    service: MessageService = Depends(get_message_service),
+):
+    """
+    Send a typing indicator for a booking chat (ephemeral, no DB writes).
+    Broadcasts a NOTIFY with type=typing_status.
+    """
+    # Let service handle access and notify
+    try:
+        service.send_typing_indicator(booking_id, current_user.id, current_user.full_name)
+    except ForbiddenException as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to send typing indicator: {str(e)}")
+    return TypingStatusResponse(success=True)
+
+
+# Phase 2: Reactions
+from pydantic import BaseModel
+
+
+class ReactionRequest(BaseModel):
+    emoji: str
+
+
+@router.post(
+    "/{message_id}/reactions",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_permission(PermissionName.SEND_MESSAGES))],
+)
+@rate_limit("10/minute", key_type=RateLimitKeyType.USER)
+async def add_reaction(
+    message_id: int,
+    request: ReactionRequest,
+    current_user: User = Depends(get_current_active_user),
+    service: MessageService = Depends(get_message_service),
+):
+    try:
+        service.add_reaction(message_id, current_user.id, request.emoji)
+        return None
+    except ForbiddenException as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except NotFoundException as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error adding reaction: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to add reaction")
+
+
+@router.delete(
+    "/{message_id}/reactions",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_permission(PermissionName.SEND_MESSAGES))],
+)
+@rate_limit("10/minute", key_type=RateLimitKeyType.USER)
+async def remove_reaction(
+    message_id: int,
+    request: ReactionRequest,
+    current_user: User = Depends(get_current_active_user),
+    service: MessageService = Depends(get_message_service),
+):
+    try:
+        service.remove_reaction(message_id, current_user.id, request.emoji)
+        return None
+    except ForbiddenException as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error removing reaction: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to remove reaction")
+
+
+class EditMessageRequest(BaseModel):
+    content: str
+
+
+@router.patch(
+    "/{message_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_permission(PermissionName.SEND_MESSAGES))],
+)
+@rate_limit("10/minute", key_type=RateLimitKeyType.USER)
+async def edit_message(
+    message_id: int,
+    request: EditMessageRequest,
+    current_user: User = Depends(get_current_active_user),
+    service: MessageService = Depends(get_message_service),
+):
+    try:
+        service.edit_message(message_id, current_user.id, request.content)
+        return None
+    except ValidationException as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ForbiddenException as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except NotFoundException as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error editing message: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to edit message")
+
+
+@router.get(
+    "/config",
+    response_model=MessageConfigResponse,
+)
+async def get_message_config():
+    """Public config values for the messaging UI."""
+    return MessageConfigResponse(edit_window_minutes=getattr(settings, "message_edit_window_minutes", 5))
 
 
 @router.get(

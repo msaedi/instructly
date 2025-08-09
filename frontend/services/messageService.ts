@@ -18,6 +18,9 @@ export interface Message {
   created_at: string;
   updated_at: string;
   is_deleted: boolean;
+  delivered_at?: string | null;
+  edited_at?: string | null;
+  read_by?: Array<{ user_id: number; read_at: string }>;
   sender?: {
     id: number;
     full_name: string;
@@ -169,16 +172,18 @@ class MessageService {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to mark messages as read');
+        // Best-effort: avoid noisy logs in UI if mark-read fails
+        try {
+          await response.json();
+        } catch {}
+        return 0;
       }
 
       const data = await response.json();
-      logger.info('Messages marked as read', { count: data.messages_marked });
       return data.messages_marked;
     } catch (error) {
-      logger.error('Failed to mark messages as read', error);
-      throw error;
+      // Swallow mark-read errors to avoid user-facing noise
+      return 0;
     }
   }
 
@@ -202,6 +207,81 @@ class MessageService {
       logger.error('Failed to delete message', error);
       throw error;
     }
+  }
+
+  /**
+   * Send typing indicator (ephemeral)
+   */
+  async sendTyping(bookingId: number): Promise<void> {
+    try {
+      const response = await fetchWithAuth(`${this.baseUrl}/typing/${bookingId}`, {
+        method: 'POST',
+      });
+      // 204 expected; ignore body
+      if (!response.ok) {
+        // Silently ignore to avoid user-facing noise
+        logger.debug('Typing indicator not accepted', { status: response.status });
+      }
+    } catch (error) {
+      // Silent catch; typing is best-effort
+    }
+  }
+
+  /**
+   * Add a reaction to a message (optimistic-friendly)
+   */
+  async addReaction(messageId: number, emoji: string): Promise<boolean> {
+    try {
+      const response = await fetchWithAuth(`${this.baseUrl}/${messageId}/reactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emoji }),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Remove a reaction from a message (optimistic-friendly)
+   */
+  async removeReaction(messageId: number, emoji: string): Promise<boolean> {
+    try {
+      const response = await fetchWithAuth(`${this.baseUrl}/${messageId}/reactions`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emoji }),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Edit an existing message (own message, 5-minute window)
+   */
+  async editMessage(messageId: number, content: string): Promise<boolean> {
+    try {
+      const response = await fetchWithAuth(`${this.baseUrl}/${messageId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Fetch backend-configured message settings
+   */
+  async getMessageConfig(): Promise<{ edit_window_minutes: number }> {
+    const response = await fetchWithAuth(`${this.baseUrl}/config`);
+    if (!response.ok) return { edit_window_minutes: 5 };
+    return response.json();
   }
 
   /**

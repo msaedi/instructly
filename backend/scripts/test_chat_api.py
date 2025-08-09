@@ -13,6 +13,7 @@ Usage:
 """
 
 import json
+import os
 import sys
 import threading
 import time
@@ -22,8 +23,24 @@ from typing import Optional
 import requests
 import sseclient  # You may need to: pip install sseclient-py
 
-# API Configuration
-API_URL = "http://localhost:8000"
+# API Configuration with environment selection
+# Usage:
+#   python scripts/test_chat_api.py           # STG by default
+#   python scripts/test_chat_api.py stg       # STG
+#   python scripts/test_chat_api.py prod      # PROD
+#   python scripts/test_chat_api.py int       # INT/local
+
+ENV = sys.argv[1].lower() if len(sys.argv) > 1 else "stg"
+STG_URL = os.getenv("STG_API_URL", "http://localhost:8000")
+INT_URL = os.getenv("INT_API_URL", "http://localhost:8000")
+PROD_URL = os.getenv("PROD_API_URL", "http://localhost:8000")
+
+if ENV == "prod":
+    API_URL = PROD_URL
+elif ENV in ("int", "local"):
+    API_URL = INT_URL
+else:
+    API_URL = STG_URL
 HEADERS = {"Content-Type": "application/json"}
 
 # Test credentials
@@ -62,8 +79,8 @@ def get_user_info(token: str) -> dict:
         return {}
 
 
-def send_message(token: str, booking_id: int, content: str) -> bool:
-    """Send a message in a booking chat."""
+def send_message(token: str, booking_id: int, content: str) -> Optional[int]:
+    """Send a message in a booking chat. Returns message id on success."""
     headers = {**HEADERS, "Authorization": f"Bearer {token}"}
     response = requests.post(
         f"{API_URL}/api/messages/send",
@@ -75,10 +92,10 @@ def send_message(token: str, booking_id: int, content: str) -> bool:
         data = response.json()
         message = data["message"]
         print(f"✅ Message sent: [{message['id']}] {content[:50]}...")
-        return True
+        return message["id"]
     else:
-        print(f"❌ Failed to send message: {response.text}")
-        return False
+        print(f"❌ Failed to send message: {response.status_code} {response.text}")
+        return None
 
 
 def get_message_history(token: str, booking_id: int, limit: int = 50) -> list:
@@ -111,7 +128,7 @@ def mark_messages_as_read(token: str, booking_id: int) -> bool:
         print(f"✅ Marked {data['messages_marked']} messages as read")
         return True
     else:
-        print(f"❌ Failed to mark messages as read: {response.text}")
+        print(f"❌ Failed to mark messages as read: {response.status_code} {response.text}")
         return False
 
 
@@ -129,7 +146,7 @@ def get_unread_count(token: str) -> int:
 
 
 def listen_to_sse(token: str, booking_id: int, duration: int = 30):
-    """Listen to SSE stream for real-time messages."""
+    """Listen to SSE stream for real-time messages and Phase 2 events."""
     print(f"\n📡 Listening to real-time messages for {duration} seconds...")
 
     url = f"{API_URL}/api/messages/stream/{booking_id}?token={token}"
@@ -151,6 +168,15 @@ def listen_to_sse(token: str, booking_id: int, duration: int = 30):
                 print(f"   From: User {data.get('sender_id')}")
                 print(f"   Content: {data.get('content')}")
                 print(f"   Time: {data.get('created_at')}")
+            elif event.event == "read_receipt":
+                data = json.loads(event.data)
+                print(f"\n✅ Read receipt:")
+                print(
+                    f"   Message ID: {data.get('message_id')} read by user {data.get('user_id')} at {data.get('read_at')}"
+                )
+            elif event.event == "typing_status":
+                data = json.loads(event.data)
+                print(f"\n💬 Typing: {data.get('user_name')} is typing…")
             elif event.event == "connected":
                 print("✅ Connected to SSE stream")
             elif event.event == "heartbeat":
@@ -200,8 +226,17 @@ def get_user_bookings(token: str) -> list:
 
     if response.status_code == 200:
         data = response.json()
-        # PaginatedResponse shape: { items: [...], total, page, per_page, has_next, has_prev }
-        return data.get("items", [])
+        items = data.get("items", [])
+
+        # Sort by booking_date ascending
+        def _parse_date(b):
+            try:
+                return datetime.fromisoformat(b.get("booking_date", "1970-01-01").replace("Z", "+00:00"))
+            except Exception:
+                return datetime(1970, 1, 1)
+
+        items = sorted(items, key=_parse_date)
+        return items
     else:
         print(f"❌ Failed to get bookings: {response.text}")
         return []
@@ -242,10 +277,43 @@ def list_available_users():
     print("-" * 50)
 
 
+def send_typing(token: str, booking_id: int) -> None:
+    """Send typing indicator (ephemeral)."""
+    headers = {**HEADERS, "Authorization": f"Bearer {token}"}
+    response = requests.post(f"{API_URL}/api/messages/typing/{booking_id}", headers=headers)
+    if response.status_code in (200, 204):
+        print("💬 Sent typing indicator")
+    else:
+        print(f"⚠️ Typing indicator failed: {response.status_code}")
+
+
+def add_reaction(token: str, message_id: int, emoji: str) -> bool:
+    headers = {**HEADERS, "Authorization": f"Bearer {token}"}
+    url = f"{API_URL}/api/messages/{message_id}/reactions"
+    response = requests.post(url, json={"emoji": emoji}, headers=headers)
+    if response.status_code in (200, 201, 204):
+        print(f"👍 Added reaction '{emoji}' to message {message_id}")
+        return True
+    print(f"⚠️ Add reaction failed: {response.status_code} {response.text}")
+    return False
+
+
+def edit_message(token: str, message_id: int, new_content: str) -> bool:
+    headers = {**HEADERS, "Authorization": f"Bearer {token}"}
+    url = f"{API_URL}/api/messages/{message_id}"
+    response = requests.patch(url, json={"content": new_content}, headers=headers)
+    if response.status_code in (200, 204):
+        print(f"✏️ Edited message {message_id}")
+        return True
+    print(f"⚠️ Edit message failed: {response.status_code} {response.text}")
+    return False
+
+
 def interactive_chat_test():
-    """Interactive chat testing interface."""
+    """Interactive chat testing interface (Phase 2 ready)."""
     print("\n🎭 CHAT API TESTER")
     print("=" * 60)
+    print(f"Environment: {ENV.upper()}  •  Base URL: {API_URL}")
 
     # Choose login method
     print("\nLogin options:")
@@ -304,9 +372,15 @@ def interactive_chat_test():
     print(f"\n📅 Found {len(bookings)} booking(s):")
     for i, booking in enumerate(bookings, 1):
         status = booking.get("status", "UNKNOWN")
-        # BookingResponse uses booking_date
         date = booking.get("booking_date", "N/A")
-        print(f"{i}. Booking #{booking['id']} - {date} - Status: {status}")
+        # Show student name if available
+        student_name = (
+            booking.get("student_name")
+            or (booking.get("student") or {}).get("full_name")
+            or booking.get("student_full_name")
+        )
+        student_label = f" • Student: {student_name}" if student_name else ""
+        print(f"{i}. Booking #{booking['id']} - {date} - Status: {status}{student_label}")
 
     # Select booking
     if len(bookings) == 1:
@@ -331,6 +405,9 @@ def interactive_chat_test():
         print("5. Listen to real-time messages (30s)")
         print("6. Send multiple test messages")
         print("7. Switch booking")
+        print("8. Send typing indicator")
+        print("9. React to last message (👍)")
+        print("10. Edit last own message")
         print("0. Exit")
 
         choice = input("\nEnter choice: ").strip()
@@ -347,6 +424,8 @@ def interactive_chat_test():
             content = input("Enter message: ").strip()
             if content:
                 send_message(token, booking_id, content)
+                # Implicitly mark all as read after sending
+                mark_messages_as_read(token, booking_id)
 
         elif choice == "3":
             mark_messages_as_read(token, booking_id)
@@ -366,18 +445,24 @@ def interactive_chat_test():
         elif choice == "6":
             # Send multiple test messages
             test_messages = [
-                f"Test message from {role} at {datetime.now().strftime('%H:%M:%S')}",
+                f"Test message at {datetime.now().strftime('%H:%M:%S')}",
                 "How are you doing today? 😊",
-                "This is a longer message to test how the chat handles multiple lines of text. "
-                "It should wrap properly and display correctly in the chat window.",
+                "This is a longer message to test wrapping and layout.",
                 "Quick test!",
                 "Final message in this batch 🎉",
             ]
 
             print(f"\n📤 Sending {len(test_messages)} test messages...")
+            last_id = None
             for msg in test_messages:
-                if send_message(token, booking_id, msg):
-                    time.sleep(0.5)  # Small delay between messages
+                mid = send_message(token, booking_id, msg)
+                if mid:
+                    last_id = mid
+                time.sleep(0.5)  # Small delay between messages
+            if last_id:
+                print(f"Last message id: {last_id}")
+            # After sending batch, mark all as read
+            mark_messages_as_read(token, booking_id)
 
         elif choice == "7":
             # Switch to different booking
@@ -392,6 +477,31 @@ def interactive_chat_test():
                 print(f"✅ Switched to booking #{booking_id}")
             except (ValueError, IndexError):
                 print("Invalid choice. Keeping current booking.")
+
+        elif choice == "8":
+            send_typing(token, booking_id)
+
+        elif choice == "9":
+            messages = get_message_history(token, booking_id)
+            if not messages:
+                print("No messages to react to.")
+            else:
+                last_msg_id = messages[-1]["id"]
+                add_reaction(token, last_msg_id, "👍")
+
+        elif choice == "10":
+            messages = get_message_history(token, booking_id)
+            # last own message
+            user_info = get_user_info(token)
+            uid = user_info.get("id")
+            own = [m for m in messages if m.get("sender_id") == uid]
+            if not own:
+                print("No own messages to edit.")
+            else:
+                last_own = own[-1]
+                new_content = input("New content: ").strip()
+                if new_content:
+                    edit_message(token, last_own["id"], new_content)
 
 
 if __name__ == "__main__":
