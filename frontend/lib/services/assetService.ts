@@ -1,7 +1,19 @@
 // frontend/lib/services/assetService.ts
-// R2 asset URL builder and activity background resolver
+// R2 asset URL builder and activity background resolver with Cloudflare Image Transformations
 
 type Viewport = 'mobile' | 'tablet' | 'desktop';
+
+// Cloudflare Image Transformation options
+export interface ImageTransformOptions {
+  width?: number;
+  height?: number;
+  quality?: number;
+  format?: 'auto' | 'webp' | 'avif' | 'json';
+  fit?: 'scale-down' | 'contain' | 'cover' | 'crop' | 'pad';
+  sharpen?: number;
+  blur?: number;
+  dpr?: number; // Device Pixel Ratio for retina displays
+}
 
 const R2_BASE = process.env.NEXT_PUBLIC_R2_URL || '';
 
@@ -33,65 +45,213 @@ function buildR2Url(path: string): string | null {
   return `${R2_BASE.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
 }
 
+/**
+ * Builds an optimized image URL using Cloudflare Image Transformations
+ * @param path - The image path (e.g., '/backgrounds/auth/default.png')
+ * @param options - Transformation options
+ * @returns Optimized URL with transformations applied
+ */
+export function getOptimizedUrl(path: string, options: ImageTransformOptions = {}): string | null {
+  if (!R2_BASE) return null;
+
+  const baseUrl = R2_BASE.replace(/\/$/, '');
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+
+  // Build transformation parameters
+  const params: string[] = [];
+
+  if (options.width) params.push(`width=${options.width}`);
+  if (options.height) params.push(`height=${options.height}`);
+  if (options.quality !== undefined) params.push(`quality=${options.quality}`);
+  if (options.format) params.push(`format=${options.format}`);
+  if (options.fit) params.push(`fit=${options.fit}`);
+  if (options.sharpen !== undefined) params.push(`sharpen=${options.sharpen}`);
+  if (options.blur !== undefined) params.push(`blur=${options.blur}`);
+  if (options.dpr !== undefined) params.push(`dpr=${options.dpr}`);
+
+  // Default to auto format if any transformations are specified but format is not
+  if (params.length > 0 && !options.format) {
+    params.push('format=auto');
+  }
+
+  // If no transformations, return original URL
+  if (params.length === 0) {
+    return `${baseUrl}${cleanPath}`;
+  }
+
+  // Build optimized URL with Cloudflare transformations
+  return `${baseUrl}/cdn-cgi/image/${params.join(',')}${cleanPath}`;
+}
+
+/**
+ * Helper to detect appropriate width based on viewport
+ */
+export function getViewportWidth(viewport: Viewport = 'desktop'): number {
+  switch (viewport) {
+    case 'mobile':
+      return 640;
+    case 'tablet':
+      return 1024;
+    case 'desktop':
+    default:
+      return 1920;
+  }
+}
+
+/**
+ * Helper to get device-appropriate quality
+ */
+export function getViewportQuality(viewport: Viewport = 'desktop'): number {
+  switch (viewport) {
+    case 'mobile':
+      return 75;
+    case 'tablet':
+      return 80;
+    case 'desktop':
+    default:
+      return 85;
+  }
+}
+
+/**
+ * Detect current viewport based on window width
+ */
+export function detectViewport(): Viewport {
+  if (typeof window === 'undefined') return 'desktop';
+  const width = window.innerWidth;
+  if (width < 640) return 'mobile';
+  if (width < 1024) return 'tablet';
+  return 'desktop';
+}
+
 export function getAuthBackground(variant: 'default' | 'morning' | 'evening' | 'night' = 'default', viewport: Viewport = 'desktop'): string | null {
-  const key = `auth:${variant}:${viewport}`;
+  const key = `auth:${variant}:${viewport}:optimized`;
   if (urlCache.has(key)) return urlCache.get(key)!;
-  // Prefer known, generic defaults first to avoid selecting non-existent responsive variants.
-  const candidate =
-    // Prefer WebP first (more efficient); fall back to PNG
-    buildR2Url(`backgrounds/auth/default.webp`) ||
-    buildR2Url(`backgrounds/auth/default.png`) ||
-    buildR2Url(`backgrounds/auth/${variant}.webp`) ||
-    buildR2Url(`backgrounds/auth/${variant}.png`) ||
-    buildR2Url(`backgrounds/auth/${variant}-${VIEWPORT_SUFFIX[viewport]}.webp`) ||
-    buildR2Url(`backgrounds/auth/${variant}-${VIEWPORT_SUFFIX[viewport]}.png`);
-  if (candidate) urlCache.set(key, candidate);
-  return candidate;
+
+  // Find the base image path
+  const paths = [
+    `backgrounds/auth/default.webp`,
+    `backgrounds/auth/default.png`,
+    `backgrounds/auth/${variant}.webp`,
+    `backgrounds/auth/${variant}.png`,
+    `backgrounds/auth/${variant}-${VIEWPORT_SUFFIX[viewport]}.webp`,
+    `backgrounds/auth/${variant}-${VIEWPORT_SUFFIX[viewport]}.png`
+  ];
+
+  // Find first valid path
+  const validPath = paths.find(p => buildR2Url(p));
+  if (!validPath) return null;
+
+  // Apply optimizations based on viewport
+  const optimized = getOptimizedUrl(validPath, {
+    width: getViewportWidth(viewport),
+    quality: getViewportQuality(viewport),
+    format: 'auto',
+    fit: 'cover'
+  });
+
+  if (optimized) urlCache.set(key, optimized);
+  return optimized;
 }
 
 export function getActivityBackground(activity?: string, viewport: Viewport = 'desktop'): string | null {
   const normalized = normalizeActivity(activity);
-  const key = `activity:${normalized}:${viewport}`;
+  const key = `activity:${normalized}:${viewport}:optimized`;
   if (urlCache.has(key)) return urlCache.get(key)!;
 
-  // Support both backgrounds/activities/<activity>/ and backgrounds/<activity>/ for special cases like 'home'
-  const candidates: Array<string | null> = [];
+  // Build list of paths to try
+  const paths: string[] = [];
 
   if (normalized === 'home') {
     // Try dedicated home path first
-    candidates.push(
-      buildR2Url(`backgrounds/home/default.webp`),
-      buildR2Url(`backgrounds/home/default.png`),
-      buildR2Url(`backgrounds/home/${VIEWPORT_SUFFIX[viewport]}.webp`),
-      buildR2Url(`backgrounds/home/${VIEWPORT_SUFFIX[viewport]}.png`)
+    paths.push(
+      `backgrounds/home/default.webp`,
+      `backgrounds/home/default.png`,
+      `backgrounds/home/${VIEWPORT_SUFFIX[viewport]}.webp`,
+      `backgrounds/home/${VIEWPORT_SUFFIX[viewport]}.png`
     );
   }
 
   // Then try activities path
-  candidates.push(
-    buildR2Url(`backgrounds/activities/${normalized}/default.webp`),
-    buildR2Url(`backgrounds/activities/${normalized}/default.png`),
-    buildR2Url(`backgrounds/activities/${normalized}/${VIEWPORT_SUFFIX[viewport]}.webp`),
-    buildR2Url(`backgrounds/activities/${normalized}/${VIEWPORT_SUFFIX[viewport]}.png`)
+  paths.push(
+    `backgrounds/activities/${normalized}/default.webp`,
+    `backgrounds/activities/${normalized}/default.png`,
+    `backgrounds/activities/${normalized}/${VIEWPORT_SUFFIX[viewport]}.webp`,
+    `backgrounds/activities/${normalized}/${VIEWPORT_SUFFIX[viewport]}.png`
   );
 
   // Finally fallback to auth default
-  candidates.push(
-    buildR2Url(`backgrounds/auth/default.webp`),
-    buildR2Url(`backgrounds/auth/default.png`)
+  paths.push(
+    `backgrounds/auth/default.webp`,
+    `backgrounds/auth/default.png`
   );
 
-  const resolved = candidates.find(Boolean) || null;
-  if (resolved) urlCache.set(key, resolved);
-  return resolved;
+  // Find first valid path
+  const validPath = paths.find(p => buildR2Url(p));
+  if (!validPath) return null;
+
+  // Apply optimizations based on viewport
+  const optimized = getOptimizedUrl(validPath, {
+    width: getViewportWidth(viewport),
+    quality: getViewportQuality(viewport),
+    format: 'auto',
+    fit: 'cover'
+  });
+
+  if (optimized) urlCache.set(key, optimized);
+  return optimized;
 }
 
 export function getResponsiveSet(urlBasePath: string): { mobile: string | null; tablet: string | null; desktop: string | null } {
   return {
-    mobile: buildR2Url(`${urlBasePath}-mobile.webp`),
-    tablet: buildR2Url(`${urlBasePath}-tablet.webp`),
-    desktop: buildR2Url(`${urlBasePath}-desktop.webp`),
+    mobile: getOptimizedUrl(`${urlBasePath}-mobile.webp`, {
+      width: 640,
+      quality: 75,
+      format: 'auto',
+      fit: 'cover'
+    }),
+    tablet: getOptimizedUrl(`${urlBasePath}-tablet.webp`, {
+      width: 1024,
+      quality: 80,
+      format: 'auto',
+      fit: 'cover'
+    }),
+    desktop: getOptimizedUrl(`${urlBasePath}-desktop.webp`, {
+      width: 1920,
+      quality: 85,
+      format: 'auto',
+      fit: 'cover'
+    }),
   };
+}
+
+/**
+ * Generate a low-quality placeholder URL for blur-up effect
+ * @param path - The image path
+ * @returns Low-quality optimized URL for quick loading
+ */
+export function getLowQualityUrl(path: string): string | null {
+  return getOptimizedUrl(path, {
+    width: 100,  // Small for quick load but visible
+    quality: 40,
+    format: 'auto',
+    fit: 'scale-down'
+  });
+}
+
+/**
+ * Generate optimized URL for current device
+ * @param path - The image path
+ * @returns Optimized URL based on current viewport
+ */
+export function getOptimizedForDevice(path: string): string | null {
+  const viewport = detectViewport();
+  return getOptimizedUrl(path, {
+    width: getViewportWidth(viewport),
+    quality: getViewportQuality(viewport),
+    format: 'auto',
+    fit: 'cover'
+  });
 }
 
 export function clearAssetCache() {
