@@ -50,14 +50,26 @@ class AuthService(BaseService):
         )
 
     @BaseService.measure_operation("register_user")
-    def register_user(self, email: str, password: str, full_name: str, role: Optional[str] = None) -> User:
+    def register_user(
+        self,
+        email: str,
+        password: str,
+        first_name: str,
+        last_name: str,
+        zip_code: str,
+        phone: Optional[str] = None,
+        role: Optional[str] = None,
+    ) -> User:
         """
         Register a new user.
 
         Args:
             email: User's email address
             password: Plain text password (will be hashed)
-            full_name: User's full name
+            first_name: User's first name
+            last_name: User's last name
+            zip_code: User's zip code
+            phone: Optional phone number
             role: Optional role name (defaults to 'student')
 
         Returns:
@@ -81,7 +93,14 @@ class AuthService(BaseService):
         try:
             with self.transaction():
                 # Create user without role (will be assigned via RBAC)
-                user = self.user_repository.create(email=email, hashed_password=hashed_password, full_name=full_name)
+                user = self.user_repository.create(
+                    email=email,
+                    hashed_password=hashed_password,
+                    first_name=first_name,
+                    last_name=last_name,
+                    phone=phone,
+                    zip_code=zip_code,
+                )
 
                 # Assign role using PermissionService
                 permission_service = PermissionService(self.db)

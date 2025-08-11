@@ -1,28 +1,42 @@
 students:
   - email: john.smith@example.com
-    full_name: John Smith
+    first_name: John
+    last_name: Smith
     phone: "+12125551001"
+    zip_code: "10001"
 
   - email: emma.johnson@example.com
-    full_name: Emma Johnson
+    first_name: Emma
+    last_name: Johnson
     phone: "+12125551002"
+    zip_code: "10002"
 
   - email: alex.williams@example.com
-    full_name: Alex Williams
+    first_name: Alex
+    last_name: Williams
     phone: "+12125551003"
+    zip_code: "10003"
 
   - email: sophia.brown@example.com
-    full_name: Sophia Brown
+    first_name: Sophia
+    last_name: Brown
     phone: "+12125551004"
+    zip_code: "10004"
 
   - email: david.miller@example.com
-    full_name: David Miller
+    first_name: David
+    last_name: Miller
     phone: "+12125551005"
+    zip_code: "10005"
 
   - email: emma.fresh@example.com
-    full_name: Emma Fresh
+    first_name: Emma
+    last_name: Fresh
     phone: "+12125551006"
+    zip_code: "10006"
 
   - email: admin@instainstru.com
-    full_name: Admin User
+    first_name: Admin
+    last_name: User
     phone: "+12125559999"
+    zip_code: "10007"

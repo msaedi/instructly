@@ -157,7 +157,10 @@ class DatabaseSeeder:
 
                 user = User(
                     email=student_data["email"],
-                    full_name=student_data["full_name"],
+                    first_name=student_data["first_name"],
+                    last_name=student_data["last_name"],
+                    phone=student_data.get("phone"),
+                    zip_code=student_data["zip_code"],
                     hashed_password=get_password_hash(password),
                     is_active=True,
                     account_status="active",
@@ -172,7 +175,7 @@ class DatabaseSeeder:
 
                 self.created_users[user.email] = user.id
                 role_text = "admin" if is_admin else "student"
-                print(f"  ✅ Created {role_text}: {user.full_name}")
+                print(f"  ✅ Created {role_text}: {user.first_name} {user.last_name}")
 
             session.commit()
         print(f"✅ Created {len(students)} users (students and admins)")
@@ -196,7 +199,10 @@ class DatabaseSeeder:
                 account_status = instructor_data.get("account_status", "active")
                 user = User(
                     email=instructor_data["email"],
-                    full_name=instructor_data["full_name"],
+                    first_name=instructor_data["first_name"],
+                    last_name=instructor_data["last_name"],
+                    phone=instructor_data.get("phone"),
+                    zip_code=instructor_data["zip_code"],
                     hashed_password=get_password_hash(password),
                     is_active=True,
                     account_status=account_status,
@@ -259,7 +265,9 @@ class DatabaseSeeder:
 
                 self.created_users[user.email] = user.id
                 status_info = f" [{account_status.upper()}]" if account_status != "active" else ""
-                print(f"  ✅ Created instructor: {user.full_name} with {service_count} services{status_info}")
+                print(
+                    f"  ✅ Created instructor: {user.first_name} {user.last_name} with {service_count} services{status_info}"
+                )
 
             session.commit()
 
@@ -316,7 +324,9 @@ class DatabaseSeeder:
                             session.add(slot)
 
                 session.commit()
-                print(f"  ✅ Created availability for {instructor_data['full_name']} using pattern '{pattern_name}'")
+                print(
+                    f"  ✅ Created availability for {instructor_data['first_name']} {instructor_data['last_name']} using pattern '{pattern_name}'"
+                )
 
         print(f"✅ Created availability patterns for all instructors")
 

@@ -63,7 +63,10 @@ async def register(
         db_user = auth_service.register_user(
             email=user.email,
             password=user.password,
-            full_name=user.full_name,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            phone=user.phone,
+            zip_code=user.zip_code,
             role=user.role,
         )
 

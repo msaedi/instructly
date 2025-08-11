@@ -96,23 +96,28 @@ def upgrade() -> None:
 
     # Text search index for user names (PostgreSQL GIN with fallback)
     try:
-        # PostgreSQL GIN index for text search
+        # PostgreSQL GIN index for text search on combined name fields
         op.execute(
             """
-            CREATE INDEX idx_users_full_name_gin
+            CREATE INDEX idx_users_name_gin
             ON users
-            USING gin(to_tsvector('english', full_name))
+            USING gin(to_tsvector('english', first_name || ' ' || last_name))
         """
         )
-        print("- Created GIN index for full_name text search (PostgreSQL)")
+        print("- Created GIN index for name text search (PostgreSQL)")
     except Exception:
-        # Fallback to regular index for other databases
+        # Fallback to regular indexes for other databases
         op.create_index(
-            "idx_users_full_name",
+            "idx_users_last_name",
             "users",
-            ["full_name"],
+            ["last_name"],
         )
-        print("- Created regular index for full_name")
+        op.create_index(
+            "idx_users_first_name",
+            "users",
+            ["first_name"],
+        )
+        print("- Created regular indexes for names")
 
     # Text search index for instructor bio (PostgreSQL GIN with fallback)
     try:
@@ -229,13 +234,14 @@ def downgrade() -> None:
         pass
 
     try:
-        op.execute("DROP INDEX IF EXISTS idx_users_full_name_gin")
-        print("- Dropped GIN index for full_name text search")
+        op.execute("DROP INDEX IF EXISTS idx_users_name_gin")
+        print("- Dropped GIN index for name text search")
     except Exception:
         # Try to drop the regular index fallback
         try:
-            op.drop_index("idx_users_full_name", table_name="users")
-            print("- Dropped regular index for full_name")
+            op.drop_index("idx_users_last_name", table_name="users")
+            op.drop_index("idx_users_first_name", table_name="users")
+            print("- Dropped regular indexes for names")
         except Exception:
             pass
 

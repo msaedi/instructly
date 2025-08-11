@@ -1,16 +1,34 @@
+import re
 from typing import List, Optional
 
 import pytz
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from .base import StandardizedModel
 
 
 class UserBase(BaseModel):
     email: EmailStr
-    full_name: Optional[str] = None
+    first_name: str = Field(..., min_length=1, max_length=50)
+    last_name: str = Field(..., min_length=1, max_length=50)
+    phone: Optional[str] = Field(None, max_length=20)
+    zip_code: str = Field(..., pattern=r"^\d{5}$")
     is_active: Optional[bool] = True
     timezone: Optional[str] = "America/New_York"
+
+    @field_validator("phone")
+    def validate_phone(cls, v):
+        if v:
+            # Remove any non-numeric characters
+            cleaned = re.sub(r"\D", "", v)
+            # Check if it's a valid phone number (10-14 digits)
+            if not (10 <= len(cleaned) <= 14):
+                raise ValueError("Phone number must be 10-14 digits")
+            # Format as needed (e.g., store with country code)
+            if len(cleaned) == 10:
+                cleaned = "1" + cleaned  # Add US country code
+            return "+" + cleaned
+        return v
 
     @field_validator("timezone")
     def validate_timezone(cls, v):
@@ -26,8 +44,25 @@ class UserCreate(UserBase):
 
 
 class UserUpdate(BaseModel):
-    full_name: Optional[str] = None
+    first_name: Optional[str] = Field(None, min_length=1, max_length=50)
+    last_name: Optional[str] = Field(None, min_length=1, max_length=50)
+    phone: Optional[str] = Field(None, max_length=20)
+    zip_code: Optional[str] = Field(None, pattern=r"^\d{5}$")
     timezone: Optional[str] = None
+
+    @field_validator("phone")
+    def validate_phone(cls, v):
+        if v:
+            # Remove any non-numeric characters
+            cleaned = re.sub(r"\D", "", v)
+            # Check if it's a valid phone number (10-14 digits)
+            if not (10 <= len(cleaned) <= 14):
+                raise ValueError("Phone number must be 10-14 digits")
+            # Format as needed (e.g., store with country code)
+            if len(cleaned) == 10:
+                cleaned = "1" + cleaned  # Add US country code
+            return "+" + cleaned
+        return v
 
     @field_validator("timezone")
     def validate_timezone(cls, v):
@@ -45,7 +80,11 @@ class UserLogin(BaseModel):
 class UserResponse(StandardizedModel):  # Changed from UserBase
     id: int
     email: EmailStr
-    full_name: Optional[str] = None
+    first_name: str
+    last_name: str
+    phone: Optional[str] = None
+    zip_code: str
+    full_name: Optional[str] = None  # Computed property for backward compatibility
     is_active: Optional[bool] = True
     timezone: str = "America/New_York"
     roles: List[str] = []  # List of role names

@@ -41,7 +41,11 @@ class User(Base):
         id: Primary key
         email: Unique email address used for login
         hashed_password: Bcrypt hashed password
-        full_name: User's display name
+        first_name: User's first name
+        last_name: User's last name
+        phone: User's phone number (optional)
+        zip_code: User's zip code (required)
+        timezone: User's timezone (defaults to America/New_York)
         is_active: Whether the user account is active
         account_status: Lifecycle status (active, suspended, deactivated)
         created_at: Account creation timestamp
@@ -64,7 +68,10 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
-    full_name = Column(String, nullable=False)
+    first_name = Column(String(50), nullable=False)
+    last_name = Column(String(50), nullable=False)
+    phone = Column(String(20), nullable=True)
+    zip_code = Column(String(10), nullable=False)
     is_active = Column(Boolean, default=True)
     # Role removed - now using RBAC system with user_roles table
     # Account lifecycle status - active, suspended, or deactivated
@@ -112,6 +119,11 @@ class User(Base):
     def role(self):
         """Get primary role name for backward compatibility."""
         return self.roles[0].name if self.roles else None
+
+    @property
+    def full_name(self):
+        """Get full name for backward compatibility."""
+        return f"{self.first_name} {self.last_name}"
 
     @property
     def is_instructor(self):

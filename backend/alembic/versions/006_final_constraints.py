@@ -113,7 +113,7 @@ def upgrade() -> None:
                 payload json;
                 sender_name TEXT;
             BEGIN
-                SELECT full_name INTO sender_name FROM users WHERE id = NEW.sender_id;
+                SELECT first_name || ' ' || last_name INTO sender_name FROM users WHERE id = NEW.sender_id;
                 payload = json_build_object(
                     'id', NEW.id,
                     'booking_id', NEW.booking_id,
@@ -155,7 +155,7 @@ def upgrade() -> None:
                     UPDATE messages SET read_by = COALESCE(read_by, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('user_id', NEW.user_id, 'read_at', NEW.read_at))
                     WHERE id = NEW.message_id;
                     SELECT m.booking_id INTO booking_id FROM messages m WHERE m.id = NEW.message_id;
-                    SELECT full_name INTO reader_name FROM users WHERE id = NEW.user_id;
+                    SELECT first_name || ' ' || last_name INTO reader_name FROM users WHERE id = NEW.user_id;
                     payload = json_build_object(
                         'type', 'read_receipt',
                         'message_id', NEW.message_id,
