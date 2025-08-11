@@ -61,7 +61,8 @@ class PrivacyService(BaseService):
             "user_profile": {
                 "id": user.id,
                 "email": user.email,
-                "full_name": user.full_name,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
                 "is_active": user.is_active,
                 "account_status": user.account_status,
                 "created_at": user.created_at.isoformat() if user.created_at else None,
@@ -174,7 +175,8 @@ class PrivacyService(BaseService):
                 # Soft delete the user account
                 user.is_active = False
                 user.email = f"deleted_{user.id}@deleted.com"
-                user.full_name = "Deleted User"
+                user.first_name = "Deleted"
+                user.last_name = "User"
 
                 # Delete instructor profile if exists
                 instructor = self.instructor_repository.get_by_user_id(user_id)
@@ -280,7 +282,8 @@ class PrivacyService(BaseService):
 
             # Anonymize user data
             user.email = f"anon_{user.id}@anonymized.com"
-            user.full_name = f"Anonymous User {user.id}"
+            user.first_name = "Anonymous"
+            user.last_name = f"User{user.id}"
 
             # Anonymize related profiles
             instructor = self.instructor_repository.get_by_user_id(user_id)

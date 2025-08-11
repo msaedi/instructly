@@ -161,7 +161,8 @@ class CachedRepositoryMixin:
                                         # Include all fields needed by StudentInfo/InstructorInfo
                                         result[relationship.key] = {
                                             "id": related.id,
-                                            "full_name": getattr(related, "full_name", ""),
+                                            "first_name": getattr(related, "first_name", ""),
+                                            "last_name": getattr(related, "last_name", ""),
                                             "email": getattr(related, "email", ""),
                                             "__type__": related.__class__.__name__,
                                         }

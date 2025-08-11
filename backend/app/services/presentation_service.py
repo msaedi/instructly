@@ -72,31 +72,29 @@ class PresentationService(BaseService):
         self.booking_repository = RepositoryFactory.create_booking_repository(db)
 
     @BaseService.measure_operation("format_student_name")  # METRICS ADDED
-    def format_student_name_for_privacy(self, full_name: Optional[str]) -> Dict[str, str]:
+    def format_student_name_for_privacy(self, first_name: Optional[str], last_name: Optional[str]) -> Dict[str, str]:
         """
         Format student name for privacy (First name + Last initial).
 
         Args:
-            full_name: The student's full name
+            first_name: The student's first name
+            last_name: The student's last name
 
         Returns:
             Dict with first_name and last_initial
 
         Example:
-            "John Smith" -> {"first_name": "John", "last_initial": "S."}
-            "Jane" -> {"first_name": "Jane", "last_initial": ""}
+            "John", "Smith" -> {"first_name": "John", "last_initial": "S."}
+            "Jane", "" -> {"first_name": "Jane", "last_initial": ""}
         """
-        if not full_name:
+        if not first_name:
             return {"first_name": "Unknown", "last_initial": ""}
 
-        name_parts = full_name.strip().split()
-        first_name = name_parts[0] if name_parts else "Unknown"
+        formatted_first_name = first_name.strip() if first_name else "Unknown"
         last_initial = ""
 
-        if len(name_parts) > 1:
-            last_name = name_parts[-1]
-            if last_name:
-                last_initial = last_name[0].upper() + "."
+        if last_name and last_name.strip():
+            last_initial = last_name.strip()[0].upper() + "."
 
         return {"first_name": first_name, "last_initial": last_initial}
 
@@ -153,7 +151,7 @@ class PresentationService(BaseService):
             Formatted slot dictionary for frontend display
         """
         # Format student name
-        name_info = self.format_student_name_for_privacy(booking.student.full_name)
+        name_info = self.format_student_name_for_privacy(booking.student.first_name, booking.student.last_name)
 
         # Format service area
         service_area_short = self.abbreviate_service_area(booking.service_area)

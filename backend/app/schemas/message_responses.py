@@ -13,7 +13,8 @@ class MessageSenderResponse(BaseModel):
     """Response schema for message sender info."""
 
     id: int
-    full_name: str
+    first_name: str
+    last_name: str
     email: str
 
     model_config = {"from_attributes": True}

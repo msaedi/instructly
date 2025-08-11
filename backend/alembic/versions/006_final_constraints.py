@@ -111,14 +111,16 @@ def upgrade() -> None:
             RETURNS TRIGGER AS $$
             DECLARE
                 payload json;
-                sender_name TEXT;
+                sender_first_name TEXT;
+                sender_last_name TEXT;
             BEGIN
-                SELECT first_name || ' ' || last_name INTO sender_name FROM users WHERE id = NEW.sender_id;
+                SELECT first_name, last_name INTO sender_first_name, sender_last_name FROM users WHERE id = NEW.sender_id;
                 payload = json_build_object(
                     'id', NEW.id,
                     'booking_id', NEW.booking_id,
                     'sender_id', NEW.sender_id,
-                    'sender_name', sender_name,
+                    'sender_first_name', sender_first_name,
+                    'sender_last_name', sender_last_name,
                     'content', NEW.content,
                     'created_at', NEW.created_at,
                     'is_deleted', NEW.is_deleted,
@@ -149,18 +151,20 @@ def upgrade() -> None:
             DECLARE
                 payload json;
                 booking_id INT;
-                reader_name TEXT;
+                reader_first_name TEXT;
+                reader_last_name TEXT;
             BEGIN
                 IF TG_OP = 'UPDATE' AND NEW.is_read = TRUE AND (OLD.is_read IS DISTINCT FROM NEW.is_read) THEN
                     UPDATE messages SET read_by = COALESCE(read_by, '[]'::jsonb) || jsonb_build_array(jsonb_build_object('user_id', NEW.user_id, 'read_at', NEW.read_at))
                     WHERE id = NEW.message_id;
                     SELECT m.booking_id INTO booking_id FROM messages m WHERE m.id = NEW.message_id;
-                    SELECT first_name || ' ' || last_name INTO reader_name FROM users WHERE id = NEW.user_id;
+                    SELECT first_name, last_name INTO reader_first_name, reader_last_name FROM users WHERE id = NEW.user_id;
                     payload = json_build_object(
                         'type', 'read_receipt',
                         'message_id', NEW.message_id,
                         'user_id', NEW.user_id,
-                        'reader_name', reader_name,
+                        'reader_first_name', reader_first_name,
+                        'reader_last_name', reader_last_name,
                         'read_at', NEW.read_at
                     );
                     IF booking_id IS NOT NULL THEN

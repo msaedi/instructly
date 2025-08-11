@@ -168,7 +168,7 @@ async def get_instructor_public_availability(
 
         response_data = PublicAvailabilityMinimal(
             instructor_id=instructor_id,
-            instructor_name=instructor_user.full_name
+            instructor_name=instructor_user.first_name
             if settings.public_availability_show_instructor_name
             else "Instructor",
             has_availability=len(all_slots) > 0,
@@ -209,7 +209,7 @@ async def get_instructor_public_availability(
 
         response_data = PublicAvailabilitySummary(
             instructor_id=instructor_id,
-            instructor_name=instructor_user.full_name
+            instructor_name=instructor_user.first_name
             if settings.public_availability_show_instructor_name
             else "Instructor",
             availability_summary=availability_summary,
@@ -292,7 +292,7 @@ async def get_instructor_public_availability(
         # Build response - use instructor's user full_name, not profile
         response_data = PublicInstructorAvailability(
             instructor_id=instructor_id,
-            instructor_name=instructor_user.full_name
+            instructor_name=instructor_user.first_name
             if settings.public_availability_show_instructor_name
             else "Instructor",
             availability_by_date=availability_by_date,

@@ -84,7 +84,8 @@ class ConflictChecker(BaseService):
                         "booking_id": booking.id,
                         "start_time": str(booking.start_time),
                         "end_time": str(booking.end_time),
-                        "student_name": booking.student.full_name,
+                        "student_first_name": booking.student.first_name,
+                        "student_last_name": booking.student.last_name,
                         "service_name": booking.service_name,
                         "status": booking.status,
                     }

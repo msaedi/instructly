@@ -84,7 +84,6 @@ class UserResponse(StandardizedModel):  # Changed from UserBase
     last_name: str
     phone: Optional[str] = None
     zip_code: str
-    full_name: Optional[str] = None  # Computed property for backward compatibility
     is_active: Optional[bool] = True
     timezone: str = "America/New_York"
     roles: List[str] = []  # List of role names

@@ -479,7 +479,11 @@ class InstructorService(BaseService):
             "buffer_time_minutes": profile.buffer_time_minutes,
             "created_at": profile.created_at,
             "updated_at": profile.updated_at,
-            "user": {"full_name": profile.user.full_name, "email": profile.user.email}
+            "user": {
+                "first_name": profile.user.first_name,
+                "last_name": profile.user.last_name,
+                "email": profile.user.email,
+            }
             if hasattr(profile, "user") and profile.user
             else None,
             "services": [

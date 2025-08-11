@@ -17,5 +17,6 @@ class BookingPreviewResponse(BaseModel):
     """Response for booking preview."""
 
     booking_id: int
-    student_name: str
+    student_first_name: str
+    student_last_name: str
     # Add other fields as needed based on the service response

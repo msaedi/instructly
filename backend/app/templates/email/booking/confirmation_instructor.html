@@ -1,7 +1,7 @@
 <!-- backend/app/templates/email/booking/confirmation_instructor.html -->
 {% extends "email/base.html" %}
 
-{% block title %}New Booking: {{ booking.service_name }} with {{ booking.student.full_name }}{% endblock %}
+{% block title %}New Booking: {{ booking.service_name }} with {{ booking.student.first_name }} {{ booking.student.last_name }}{% endblock %}
 
 {% block header_colors %}
 {%- set header_bg_color = '#10B981' -%}
@@ -13,7 +13,7 @@
 {% block content %}
 <h2 style="color: #1F2937; margin-bottom: 20px;">New Booking Alert</h2>
 
-<p style="color: #4B5563; font-size: 16px;">Hi {{ booking.instructor.full_name }},</p>
+<p style="color: #4B5563; font-size: 16px;">Hi {{ booking.instructor.first_name }},</p>
 
 <p style="color: #4B5563;">You have a new confirmed booking!</p>
 
@@ -23,7 +23,7 @@
     <table style="width: 100%; border-collapse: collapse;">
         <tr>
             <td style="padding: 8px 0; color: #6B7280;">Student:</td>
-            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{{ booking.student.full_name }}</td>
+            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{{ booking.student.first_name }} {{ booking.student.last_name }}</td>
         </tr>
         <tr>
             <td style="padding: 8px 0; color: #6B7280;">Service:</td>

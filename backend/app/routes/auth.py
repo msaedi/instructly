@@ -86,7 +86,10 @@ async def register(
         return UserResponse(
             id=db_user.id,
             email=db_user.email,
-            full_name=db_user.full_name,
+            first_name=db_user.first_name,
+            last_name=db_user.last_name,
+            phone=db_user.phone,
+            zip_code=db_user.zip_code,
             is_active=db_user.is_active,
             timezone=db_user.timezone,
             roles=[role.name for role in db_user.roles],
@@ -271,7 +274,10 @@ async def read_users_me(
         return UserWithPermissionsResponse(
             id=user.id,
             email=user.email,
-            full_name=user.full_name,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            phone=user.phone,
+            zip_code=user.zip_code,
             is_active=user.is_active,
             timezone=user.timezone,
             roles=roles,
@@ -310,8 +316,14 @@ async def update_current_user(
         user = auth_service.get_current_user(email=current_user)
 
         # Update fields if provided
-        if user_update.full_name is not None:
-            user.full_name = user_update.full_name
+        if user_update.first_name is not None:
+            user.first_name = user_update.first_name
+        if user_update.last_name is not None:
+            user.last_name = user_update.last_name
+        if user_update.phone is not None:
+            user.phone = user_update.phone
+        if user_update.zip_code is not None:
+            user.zip_code = user_update.zip_code
         if user_update.timezone is not None:
             user.timezone = user_update.timezone
 
@@ -327,7 +339,10 @@ async def update_current_user(
         return UserWithPermissionsResponse(
             id=user.id,
             email=user.email,
-            full_name=user.full_name,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            phone=user.phone,
+            zip_code=user.zip_code,
             is_active=user.is_active,
             timezone=user.timezone,
             roles=roles,

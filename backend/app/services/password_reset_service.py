@@ -87,7 +87,7 @@ class PasswordResetService(BaseService):
                     await self.email_service.send_password_reset_email(
                         to_email=user.email,
                         reset_url=reset_url,
-                        user_name=user.full_name,
+                        user_name=user.first_name,
                     )
 
                     self.logger.info(f"Password reset token created for user {user.id}")
@@ -191,7 +191,7 @@ class PasswordResetService(BaseService):
                 # Send confirmation email
                 await self.email_service.send_password_reset_confirmation(
                     to_email=user.email,
-                    user_name=user.full_name,
+                    user_name=user.first_name,
                 )
 
                 self.logger.info(f"Password successfully reset for user {user.id}")

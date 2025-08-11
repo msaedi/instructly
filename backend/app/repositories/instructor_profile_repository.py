@@ -222,7 +222,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         All filters are applied with AND logic - profiles must match ALL provided filters.
 
         Args:
-            search: Text search across user.full_name, bio, and service skills (case-insensitive)
+            search: Text search across user name, bio, and service skills (case-insensitive)
             service_catalog_id: Filter by specific service catalog ID
             min_price: Minimum hourly rate filter
             max_price: Maximum hourly rate filter
@@ -259,7 +259,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
 
                 # Build search conditions
                 search_conditions = [
-                    User.full_name.ilike(search_term),
+                    func.concat(User.first_name, " ", User.last_name).ilike(search_term),
                     InstructorProfile.bio.ilike(search_term),
                     ServiceCatalog.name.ilike(search_term),
                     ServiceCatalog.description.ilike(search_term),

@@ -121,11 +121,6 @@ class User(Base):
         return self.roles[0].name if self.roles else None
 
     @property
-    def full_name(self):
-        """Get full name for backward compatibility."""
-        return f"{self.first_name} {self.last_name}"
-
-    @property
     def is_instructor(self):
         """Check if user has instructor role."""
         from app.core.enums import RoleName

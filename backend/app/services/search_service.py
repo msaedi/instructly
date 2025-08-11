@@ -433,7 +433,8 @@ class SearchService(BaseService):
                     "service": service,
                     "instructor": {
                         "id": instructor_profile.user_id,
-                        "name": instructor_profile.user.full_name,
+                        "first_name": instructor_profile.user.first_name,
+                        "last_name": instructor_profile.user.last_name,
                         "bio": instructor_profile.bio,
                         "years_experience": instructor_profile.years_experience,
                         "areas_of_service": instructor_profile.areas_of_service,

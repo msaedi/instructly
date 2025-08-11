@@ -184,7 +184,8 @@ class StudentInfo(StandardizedModel):
     """Basic student information for booking display."""
 
     id: int
-    full_name: str
+    first_name: str
+    last_name: str
     email: str
 
     model_config = ConfigDict(from_attributes=True)
@@ -194,7 +195,8 @@ class InstructorInfo(StandardizedModel):
     """Basic instructor information for booking display."""
 
     id: int
-    full_name: str
+    first_name: str
+    last_name: str
     email: str
 
     model_config = ConfigDict(from_attributes=True)
@@ -324,8 +326,10 @@ class UpcomingBookingResponse(StandardizedModel):
     start_time: time
     end_time: time
     service_name: str
-    student_name: str
-    instructor_name: str
+    student_first_name: str
+    student_last_name: str
+    instructor_first_name: str
+    instructor_last_name: str
     meeting_location: Optional[str]
 
     model_config = ConfigDict(from_attributes=True)

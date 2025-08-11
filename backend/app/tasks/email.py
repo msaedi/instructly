@@ -155,7 +155,8 @@ def send_cancellation_notification(
         return {
             "status": "success",
             "booking_id": booking_id,
-            "cancelled_by": cancelled_by.full_name,
+            "cancelled_by_first_name": cancelled_by.first_name,
+            "cancelled_by_last_name": cancelled_by.last_name,
             "notification_sent": result,
         }
 

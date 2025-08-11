@@ -103,7 +103,8 @@ class ServiceResponse(ServiceBase):
 class UserBasic(StandardizedModel):
     """Basic user information for embedding in responses."""
 
-    full_name: str
+    first_name: str
+    last_name: str
     email: str
 
     model_config = ConfigDict(from_attributes=True)

@@ -229,7 +229,8 @@ class ServiceCatalog(Base):
             data["instructors"] = [
                 {
                     "id": service.instructor_profile.user_id,
-                    "name": service.instructor_profile.user.full_name,
+                    "first_name": service.instructor_profile.user.first_name,
+                    "last_name": service.instructor_profile.user.last_name,
                     "hourly_rate": service.hourly_rate,
                     "custom_description": service.description,
                 }

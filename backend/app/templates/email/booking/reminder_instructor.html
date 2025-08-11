@@ -10,13 +10,13 @@
 {% block content %}
 <h2 style="color: #1F2937;">You have a lesson tomorrow!</h2>
 
-<p>Hi {{ booking.instructor.full_name }},</p>
+<p>Hi {{ booking.instructor.first_name }},</p>
 
 <p>This is a reminder about your upcoming lesson.</p>
 
 <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #E5E7EB;">
     <h3 style="color: #1F2937; margin-top: 0;">Tomorrow's Lesson</h3>
-    <p><strong>Student:</strong> {{ booking.student.full_name }}</p>
+    <p><strong>Student:</strong> {{ booking.student.first_name }} {{ booking.student.last_name }}</p>
     <p><strong>Service:</strong> {{ booking.service_name }}</p>
     <p><strong>Time:</strong> {{ formatted_time }}</p>
     <p><strong>Duration:</strong> {{ booking.duration_minutes }} minutes</p>

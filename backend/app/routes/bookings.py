@@ -104,12 +104,18 @@ async def get_upcoming_bookings(
                         start_time=booking["start_time"],
                         end_time=booking["end_time"],
                         service_name=booking["service_name"],
-                        student_name=booking.get("student", {}).get("full_name", "Unknown")
+                        student_first_name=booking.get("student", {}).get("first_name", "Unknown")
                         if booking.get("student")
                         else "Unknown",
-                        instructor_name=booking.get("instructor", {}).get("full_name", "Unknown")
+                        student_last_name=booking.get("student", {}).get("last_name", "")
+                        if booking.get("student")
+                        else "",
+                        instructor_first_name=booking.get("instructor", {}).get("first_name", "Unknown")
                         if booking.get("instructor")
                         else "Unknown",
+                        instructor_last_name=booking.get("instructor", {}).get("last_name", "")
+                        if booking.get("instructor")
+                        else "",
                         meeting_location=booking["meeting_location"],
                     )
                 )
@@ -122,8 +128,10 @@ async def get_upcoming_bookings(
                         start_time=booking.start_time,
                         end_time=booking.end_time,
                         service_name=booking.service_name,
-                        student_name=booking.student.full_name if booking.student else "Unknown",
-                        instructor_name=booking.instructor.full_name if booking.instructor else "Unknown",
+                        student_first_name=booking.student.first_name if booking.student else "Unknown",
+                        student_last_name=booking.student.last_name if booking.student else "",
+                        instructor_first_name=booking.instructor.first_name if booking.instructor else "Unknown",
+                        instructor_last_name=booking.instructor.last_name if booking.instructor else "",
                         meeting_location=booking.meeting_location,
                     )
                 )
@@ -359,8 +367,10 @@ async def get_booking_preview(
         # Return clean preview data
         preview_data = {
             "booking_id": booking.id,
-            "student_name": booking.student.full_name,
-            "instructor_name": booking.instructor.full_name,
+            "student_first_name": booking.student.first_name,
+            "student_last_name": booking.student.last_name,
+            "instructor_first_name": booking.instructor.first_name,
+            "instructor_last_name": booking.instructor.last_name,
             "service_name": booking.service_name,
             "booking_date": booking.booking_date.isoformat(),
             "start_time": str(booking.start_time),
@@ -375,7 +385,9 @@ async def get_booking_preview(
             "total_price": float(booking.total_price),
         }
         return BookingPreviewResponse(
-            booking_id=booking.id, student_name=f"{booking.student.first_name} {booking.student.last_name}"
+            booking_id=booking.id,
+            student_first_name=booking.student.first_name,
+            student_last_name=booking.student.last_name,
         )
     except DomainException as e:
         handle_domain_exception(e)

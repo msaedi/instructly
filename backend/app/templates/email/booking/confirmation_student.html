@@ -1,14 +1,14 @@
 <!-- backend/app/templates/email/booking/confirmation_student.html -->
 {% extends "email/base.html" %}
 
-{% block title %}Booking Confirmed: {{ booking.service_name }} with {{ booking.instructor.full_name }}{% endblock %}
+{% block title %}Booking Confirmed: {{ booking.service_name }} with {{ booking.instructor.first_name }} {{ booking.instructor.last_name }}{% endblock %}
 
 {% block header_subtitle %}Your lesson is confirmed!{% endblock %}
 
 {% block content %}
 <h2 style="color: #1F2937; margin-bottom: 20px;">Booking Confirmation</h2>
 
-<p style="color: #4B5563; font-size: 16px;">Hi {{ booking.student.full_name }},</p>
+<p style="color: #4B5563; font-size: 16px;">Hi {{ booking.student.first_name }},</p>
 
 <p style="color: #4B5563;">Great news! Your lesson has been confirmed.</p>
 
@@ -22,7 +22,7 @@
         </tr>
         <tr>
             <td style="padding: 8px 0; color: #6B7280;">Instructor:</td>
-            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{{ booking.instructor.full_name }}</td>
+            <td style="padding: 8px 0; color: #1F2937; font-weight: 600;">{{ booking.instructor.first_name }} {{ booking.instructor.last_name }}</td>
         </tr>
         <tr>
             <td style="padding: 8px 0; color: #6B7280;">Date:</td>

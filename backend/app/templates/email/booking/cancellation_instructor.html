@@ -10,13 +10,13 @@
 {% block content %}
 <h2 style="color: #1F2937;">Booking Cancellation</h2>
 
-<p>Hi {{ booking.instructor.full_name }},</p>
+<p>Hi {{ booking.instructor.first_name }},</p>
 
 <p>Your upcoming lesson has been cancelled by the student.</p>
 
 <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #E5E7EB;">
     <h3 style="color: #1F2937; margin-top: 0;">Cancelled Booking Details</h3>
-    <p><strong>Student:</strong> {{ booking.student.full_name }}</p>
+    <p><strong>Student:</strong> {{ booking.student.first_name }} {{ booking.student.last_name }}</p>
     <p><strong>Service:</strong> {{ booking.service_name }}</p>
     <p><strong>Date:</strong> {{ formatted_date }}</p>
     <p><strong>Time:</strong> {{ formatted_time }}</p>

@@ -376,7 +376,7 @@ class NotificationService(BaseService):
     @retry(max_attempts=3, backoff_seconds=1.0)
     async def _send_student_booking_confirmation(self, booking: Booking) -> bool:
         """Send booking confirmation email to student using template."""
-        subject = f"Booking Confirmed: {booking.service_name} with {booking.instructor.full_name}"
+        subject = f"Booking Confirmed: {booking.service_name} with {booking.instructor.first_name}"
 
         # Format booking time
         booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
@@ -407,7 +407,7 @@ class NotificationService(BaseService):
     @retry(max_attempts=3, backoff_seconds=1.0)
     async def _send_instructor_booking_notification(self, booking: Booking) -> bool:
         """Send new booking notification to instructor using template."""
-        subject = f"New Booking: {booking.service_name} with {booking.student.full_name}"
+        subject = f"New Booking: {booking.service_name} with {booking.student.first_name}"
 
         # Format booking time
         booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
@@ -656,8 +656,8 @@ class NotificationService(BaseService):
 
             # Prepare template context
             context = {
-                "recipient_name": recipient.full_name,
-                "sender_name": sender.full_name,
+                "recipient_name": recipient.first_name,
+                "sender_name": sender.first_name,
                 "sender_role": sender_role,
                 "booking_date": booking.booking_date.strftime("%B %d, %Y"),
                 "booking_time": booking.start_time.strftime("%-I:%M %p"),

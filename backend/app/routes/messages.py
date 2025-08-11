@@ -336,7 +336,7 @@ async def send_typing_indicator(
     """
     # Let service handle access and notify
     try:
-        service.send_typing_indicator(booking_id, current_user.id, current_user.full_name)
+        service.send_typing_indicator(booking_id, current_user.id, current_user.first_name)
     except ForbiddenException as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except Exception as e:
