@@ -34,9 +34,13 @@ test.describe('Smoke Tests', () => {
     // Verify we're on the login page
     await expect(page).toHaveURL(/\/login/);
 
-    // Verify login page elements
-    const signInHeading = page.getByRole('heading', { name: /Sign in to your account/i });
-    await expect(signInHeading).toBeVisible();
+    // Verify login page elements - look for the brand name heading or email input
+    const brandHeading = page.getByRole('heading', { name: /iNSTAiNSTRU/i });
+    await expect(brandHeading).toBeVisible();
+
+    // Also verify the email input is present
+    const emailInput = page.getByPlaceholder('you@example.com');
+    await expect(emailInput).toBeVisible();
   });
 
   test('can navigate to signup page from login', async ({ page }) => {

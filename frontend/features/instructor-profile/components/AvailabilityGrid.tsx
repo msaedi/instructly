@@ -387,6 +387,7 @@ export function AvailabilityGrid({
                           }}
                           aria-label={`Select ${dayName} at ${time}`}
                           data-testid={`time-slot-${dayName}-${time}`}
+                          data-available="true"
                         >
                           {isSelected && (
                             <span className="absolute inset-0 flex items-center justify-center">

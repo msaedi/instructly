@@ -5,6 +5,7 @@ import { Suspense, useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { logger } from '@/lib/logger';
 import { InstructorHeader } from '@/features/instructor-profile/components/InstructorHeader';
 import { ServiceCards } from '@/features/instructor-profile/components/ServiceCards';
 import { AvailabilityCalendar } from '@/features/instructor-profile/components/AvailabilityCalendar';
@@ -17,14 +18,69 @@ import { useSaveInstructor } from '@/features/instructor-profile/hooks/useSaveIn
 import { useBookingModal } from '@/features/instructor-profile/hooks/useBookingModal';
 import { useInstructorAvailability } from '@/features/instructor-profile/hooks/useInstructorAvailability';
 import BookingModal from '@/features/student/booking/components/BookingModal';
+import { useRouter as useNextRouter } from 'next/navigation';
+import { calculateEndTime } from '@/features/student/booking/hooks/useCreateBooking';
+import {
+  BookingPayment,
+  BookingType,
+  determineBookingType,
+  calculateServiceFee,
+  calculateTotalAmount,
+} from '@/features/student/payment';
+import { navigationStateManager } from '@/lib/navigation/navigationStateManager';
 import { format } from 'date-fns';
+
+// Booking intent helpers
+function storeBookingIntent(bookingIntent: {
+  instructorId: number;
+  serviceId?: number;
+  date: string;
+  time: string;
+  duration: number;
+  skipModal?: boolean;
+}) {
+  try {
+    sessionStorage.setItem('bookingIntent', JSON.stringify(bookingIntent));
+  } catch (err) {
+    // Silent failure
+  }
+}
+
+function getBookingIntent(): {
+  instructorId: number;
+  serviceId?: number;
+  date: string;
+  time: string;
+  duration: number;
+  skipModal?: boolean;
+} | null {
+  try {
+    const stored = sessionStorage.getItem('bookingIntent');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (err) {
+    // Silent failure
+  }
+  return null;
+}
+
+function clearBookingIntent() {
+  try {
+    sessionStorage.removeItem('bookingIntent');
+  } catch (err) {
+    // Silent failure
+  }
+}
 
 function InstructorProfileContent() {
   const params = useParams();
   const router = useRouter();
+  const nextRouter = useNextRouter();
   const instructorId = params.id as string;
   const [selectedSlot, setSelectedSlot] = useState<{ date: string; time: string; duration: number; availableDuration?: number } | null>(null);
   const [weekStart, setWeekStart] = useState<Date | null>(null);
+  const [hasRestoredIntent, setHasRestoredIntent] = useState(false);
 
   const { data: instructor, isLoading, error } = useInstructorProfile(instructorId);
   const { data: availability } = useInstructorAvailability(
@@ -36,30 +92,175 @@ function InstructorProfileContent() {
   );
   const bookingModal = useBookingModal();
 
+  // Helper function to handle booking - checks auth and redirects if needed
+  const handleBookingClick = (service?: any, serviceDuration?: number) => {
+    const token = localStorage.getItem('access_token');
+    const selectedService = service || instructor?.services[0]; // Use provided service or default to first
+    const duration = serviceDuration || 60; // Use provided duration or default
+
+
+    if (selectedSlot && selectedService && instructor) {
+      const bookingDate = new Date(selectedSlot.date + 'T' + selectedSlot.time);
+      const hourlyRate = selectedService.hourly_rate;
+      const totalPrice = hourlyRate * (duration / 60);
+      const basePrice = totalPrice;
+      const serviceFee = calculateServiceFee(basePrice);
+      const totalAmount = calculateTotalAmount(basePrice);
+      const bookingType = determineBookingType(bookingDate);
+
+      const paymentBookingData: BookingPayment = {
+        bookingId: '',
+        instructorId: String(instructor.user_id),
+        instructorName: instructor.user?.full_name || `Instructor #${instructor.user_id}`,
+        lessonType: selectedService.skill,
+        date: bookingDate,
+        startTime: selectedSlot.time,
+        endTime: calculateEndTime(selectedSlot.time, duration),
+        duration,
+        location: instructor.areas_of_service[0] || 'NYC',
+        basePrice,
+        serviceFee,
+        totalAmount,
+        bookingType,
+        paymentStatus: 'pending' as any,
+        freeCancellationUntil:
+          bookingType === BookingType.STANDARD
+            ? new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
+            : undefined,
+      };
+
+      // Store booking data for payment page
+      sessionStorage.setItem('bookingData', JSON.stringify(paymentBookingData));
+      sessionStorage.setItem('serviceId', String(selectedService.id));
+
+      // Use navigation state manager to track booking flow properly
+      navigationStateManager.saveBookingFlow({
+        date: selectedSlot.date,
+        time: selectedSlot.time,
+        duration,
+        instructorId
+      }, 'profile');
+
+      if (!token) {
+        // User not authenticated - store booking intent and redirect to login
+        storeBookingIntent({
+          instructorId: instructor.user_id,
+          serviceId: selectedService.id,
+          date: selectedSlot.date,
+          time: selectedSlot.time,
+          duration,
+          skipModal: true,
+        });
+
+        // Redirect to login with payment page as return URL
+        // Use replace to avoid polluting browser history
+        const returnUrl = `/student/booking/confirm`;
+        nextRouter.replace(`/login?redirect=${encodeURIComponent(returnUrl)}`);
+      } else {
+        // User is authenticated - go directly to payment page (NO MODAL)
+        nextRouter.push('/student/booking/confirm');
+      }
+    }
+  };
+
   // Initialize weekStart to today for rolling 7-day window
   useEffect(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    setWeekStart(today);
-  }, []);
+    // Check if we're restoring a booking flow
+    const restoredSlot = navigationStateManager.getBookingFlow(instructorId);
+    if (!restoredSlot) {
+      // No booking flow - set to today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      setWeekStart(today);
+    }
+    // If we have a restored slot, weekStart will be set by the restoration logic
+  }, [instructorId]);
+
+  // Check for stored selected slot ONLY when returning from payment/auth pages
+  useEffect(() => {
+    // Use navigation state manager to handle slot restoration intelligently
+    const restoredSlot = navigationStateManager.getBookingFlow(instructorId);
+
+    if (restoredSlot) {
+      setSelectedSlot({
+        date: restoredSlot.date,
+        time: restoredSlot.time,
+        duration: restoredSlot.duration,
+      });
+      setHasRestoredIntent(true);
+
+      // Update the weekStart to show the week containing the selected date
+      const slotDate = new Date(restoredSlot.date);
+      const startOfWeek = new Date(slotDate);
+      startOfWeek.setDate(slotDate.getDate() - slotDate.getDay()); // Go to Sunday
+      startOfWeek.setHours(0, 0, 0, 0);
+      setWeekStart(startOfWeek);
+    }
+
+    // Check for booking intent (from login flow)
+    const bookingIntent = getBookingIntent();
+
+    if (bookingIntent && bookingIntent.instructorId === Number(instructorId)) {
+      // If skipModal flag is set, user already went through login and should go to payment
+      if (bookingIntent.skipModal) {
+        // The login redirect should have gone directly to /student/booking/confirm
+        // But if we're here, clear the intent
+        clearBookingIntent();
+      } else {
+        // Normal flow: restore slot and open modal
+        setSelectedSlot({
+          date: bookingIntent.date,
+          time: bookingIntent.time,
+          duration: bookingIntent.duration,
+        });
+
+        setHasRestoredIntent(true);
+
+        const token = localStorage.getItem('access_token');
+        if (token) {
+          bookingModal.openBookingModal({
+            date: bookingIntent.date,
+            time: bookingIntent.time,
+            duration: bookingIntent.duration,
+          });
+        }
+
+        clearBookingIntent();
+      }
+    }
+  }, [instructorId]);
 
   useEffect(() => {
-    if (availability && !selectedSlot) {
+    // IMPORTANT: Race Condition Fix
+    // This checks for pending slot restoration BEFORE auto-selecting.
+    // Without this check, the auto-selection useEffect would run with stale state
+    // and override the restored slot selection when navigating back from payment.
+    // The restoredSlot check ensures we skip auto-selection if there's a saved slot
+    // waiting to be restored from sessionStorage.
+    const restoredSlot = navigationStateManager.getBookingFlow(instructorId);
+
+    // Only auto-select a slot if:
+    // 1. We have availability data
+    // 2. No slot is currently selected
+    // 3. We haven't restored a booking intent
+    // 4. There's no slot waiting to be restored
+    if (availability && !selectedSlot && !hasRestoredIntent && !restoredSlot) {
       // Pre-select the earliest available slot
       const dates = Object.keys(availability.availability_by_date).sort();
       for (const date of dates) {
         const dayData = availability.availability_by_date[date];
         if (!dayData.is_blackout && dayData.available_slots.length > 0) {
-          setSelectedSlot({
+          const autoSelectedSlot = {
             date,
             time: dayData.available_slots[0].start_time,
             duration: 60 // Default duration
-          });
+          };
+          setSelectedSlot(autoSelectedSlot);
           break;
         }
       }
     }
-  }, [availability, selectedSlot]);
+  }, [availability, selectedSlot, hasRestoredIntent, instructorId]);
 
 
   if (isLoading) {
@@ -145,12 +346,7 @@ function InstructorProfileContent() {
             <ServiceCards
               services={instructor.services}
               selectedSlot={selectedSlot}
-              onBookService={(service, duration) => bookingModal.openBookingModal({
-                service,
-                duration,
-                date: selectedSlot?.date,
-                time: selectedSlot?.time
-              })}
+              onBookService={(service, duration) => handleBookingClick(service, duration)}
             />
           </section>
 
@@ -215,9 +411,9 @@ function InstructorProfileContent() {
                   weekStart={weekStart}
                   onWeekChange={setWeekStart}
                   selectedSlot={selectedSlot}
-                  onSelectSlot={(date: string, time: string, duration?: number, availableDuration?: number) =>
-                    setSelectedSlot({ date, time, duration: duration || 60, availableDuration })
-                  }
+                  onSelectSlot={(date: string, time: string, duration?: number, availableDuration?: number) => {
+                    setSelectedSlot({ date, time, duration: duration || 60, availableDuration });
+                  }}
                 />
               </div>
 
@@ -260,12 +456,7 @@ function InstructorProfileContent() {
             <ServiceCards
               services={instructor.services}
               selectedSlot={selectedSlot}
-              onBookService={(service, duration) => bookingModal.openBookingModal({
-                service,
-                duration,
-                date: selectedSlot?.date,
-                time: selectedSlot?.time
-              })}
+              onBookService={(service, duration) => handleBookingClick(service, duration)}
             />
           </div>
 
@@ -280,7 +471,7 @@ function InstructorProfileContent() {
       <BookingButton
         instructor={instructor}
         className="lg:hidden"
-        onBook={() => bookingModal.openBookingModal()}
+        onBook={() => handleBookingClick()}
       />
 
       {/* Booking Modal */}
@@ -288,9 +479,9 @@ function InstructorProfileContent() {
         <BookingModal
           isOpen={bookingModal.isOpen}
           onClose={bookingModal.closeBookingModal}
-          onContinueToBooking={(bookingData) => {
-            // Handle booking continuation
-            bookingModal.closeBookingModal();
+          onContinueToBooking={() => {
+            // The BookingModal handles the booking flow internally
+            // This callback is not actually used but required by the interface
           }}
           instructor={{
             id: instructor.id,

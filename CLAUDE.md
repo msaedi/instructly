@@ -718,6 +718,44 @@ The frontend uses Next.js 15 App Router with:
 
 When working on any feature, check these docs first for context and current state.
 
+## Frontend Logging Standards
+
+### CRITICAL: Use Proper Logging, NOT console.log
+
+**Frontend code MUST use the centralized logger, NOT console.log**:
+
+```typescript
+// ❌ WRONG - Never use console.log
+console.log('Debug message');
+
+// ✅ CORRECT - Use the logger
+import { logger } from '@/lib/logger';
+logger.debug('Debug message', { context: data });
+logger.info('Info message');
+logger.warn('Warning message');
+logger.error('Error message', error);
+```
+
+**Why this matters**:
+- Production builds strip debug logs automatically
+- Centralized control via localStorage ('log-level')
+- Structured logging with context
+- Performance optimized
+- Consistent formatting
+
+**Logger features**:
+- `logger.debug()` - Development only, stripped in production
+- `logger.info()` - General information
+- `logger.warn()` - Warnings that should be addressed
+- `logger.error()` - Errors that need immediate attention
+- Second parameter accepts context object for additional data
+
+**Setting log level**:
+```javascript
+// In browser console
+localStorage.setItem('log-level', 'debug'); // or 'info', 'warn', 'error'
+```
+
 ## Common Development Tasks
 
 ### Adding New Features

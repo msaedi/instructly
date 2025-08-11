@@ -179,7 +179,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       encodedUrl,
     });
 
-    router.push(`/login?redirect=${encodedUrl}`);
+    // Use replace instead of push to avoid polluting browser history
+    // This way the back button won't land on the auth page
+    router.replace(`/login?redirect=${encodedUrl}`);
   };
 
   // Check authentication on mount

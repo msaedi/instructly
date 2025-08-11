@@ -1,80 +1,6 @@
 import { Page, Route } from '@playwright/test';
 import { testData } from './test-data';
 
-export async function mockSearchResults(page: Page) {
-  // Mock the natural language search endpoint - this is what the frontend actually calls
-  await page.route('**/api/search/instructors*', async (route: Route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        query: 'piano',
-        parsed: {
-          services: ['piano'],
-          location: null,
-        },
-        total_found: 1,
-        results: [
-          {
-            instructor: {
-              id: 8,
-              name: 'Sarah Chen',
-              bio: testData.mockInstructor.bio,
-              profile_image_url: testData.mockInstructor.profileImageUrl,
-              location: testData.mockInstructor.location,
-              areas_of_service: 'Manhattan, Brooklyn',
-              years_experience: 10,
-            },
-            service: {
-              id: 1,
-              name: 'Piano',
-              actual_min_price: 120,
-              description: 'Professional piano lessons',
-            },
-            offering: {
-              hourly_rate: 120,
-              description: 'Professional piano lessons',
-              duration_options: [30, 60, 90],
-            },
-            match_score: 0.95,
-            availability_summary: 'Available this week',
-            rating: 4.9,
-            total_reviews: 25,
-            location: 'Manhattan',
-            distance_miles: null,
-          },
-        ],
-      }),
-    });
-  });
-
-  // Also mock the public instructors endpoint for non-search queries
-  await page.route('**/public/instructors*', async (route: Route) => {
-    const url = route.request().url();
-    if (url.includes('search')) {
-      // For search queries
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          instructors: [
-            {
-              ...testData.mockInstructor,
-              id: 1,
-              full_name: 'John Doe',
-              rating: 4.9,
-              total_reviews: 25,
-              services: testData.mockInstructor.instruments,
-            },
-          ],
-          total: 1,
-        }),
-      });
-    } else {
-      await route.continue();
-    }
-  });
-}
 
 export async function mockInstructorProfile(page: Page) {
   // Mock the instructor profile endpoint - matches /instructors/[id]
@@ -180,41 +106,179 @@ export async function mockBookingCreation(page: Page) {
   });
 }
 
-export async function mockAuthentication(page: Page) {
-  // Mock login endpoint - handle both with and without /api prefix
-  await page.route('**/auth/login', async (route: Route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        access_token: 'mock_access_token',
-        token_type: 'bearer',
-        user: {
+export async function mockAuthentication(routeContext: Page | any) {
+  // Mock login endpoint
+  await routeContext.route('**/auth/login', async (route: Route) => {
+    // For POST requests, check credentials if needed
+    if (route.request().method() === 'POST') {
+      // Parse form data or JSON based on content type
+      const contentType = route.request().headers()['content-type'] || '';
+      let email = '';
+      let password = '';
+
+      if (contentType.includes('application/x-www-form-urlencoded')) {
+        // Parse URLSearchParams format (regular login)
+        const formData = route.request().postData();
+        if (formData) {
+          const params = new URLSearchParams(formData);
+          email = params.get('username') || ''; // Note: field is 'username' not 'email'
+          password = params.get('password') || '';
+          console.log('Login attempt (form data):', { email, password });
+        }
+      } else if (contentType.includes('application/json')) {
+        // Parse JSON format (login with session)
+        try {
+          const postData = await route.request().postDataJSON();
+          email = postData.email || postData.username || '';
+          password = postData.password || '';
+          console.log('Login attempt (JSON):', { email, password });
+        } catch (e) {
+          console.error('Failed to parse JSON login data:', e);
+        }
+      }
+
+      // Check credentials - be lenient for test
+      if ((email === 'john.smith@example.com' || email === 'test@example.com') &&
+          (password === 'Test1234' || password === 'test123')) {
+        // Return successful login response
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            access_token: 'mock_access_token_123456',
+            token_type: 'bearer',
+            user: {
+              id: 1,
+              email: 'john.smith@example.com',
+              full_name: 'John Smith',
+              firstName: 'John',
+              lastName: 'Smith',
+              role: 'student',
+              roles: ['student'],
+              permissions: [],
+              is_active: true,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            },
+          }),
+        });
+      } else {
+        // Return login failure
+        console.log('Login failed - invalid credentials');
+        await route.fulfill({
+          status: 401,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            detail: 'Invalid email or password'
+          }),
+        });
+      }
+    } else {
+      await route.fulfill({
+        status: 405,
+        body: 'Method not allowed'
+      });
+    }
+  });
+
+  // Mock login-with-session endpoint
+  await routeContext.route('**/auth/login-with-session', async (route: Route) => {
+    // For POST requests
+    if (route.request().method() === 'POST') {
+      // Parse JSON data
+      try {
+        const postData = await route.request().postDataJSON();
+        const email = postData.email || '';
+        const password = postData.password || '';
+        const guestSessionId = postData.guest_session_id || '';
+        console.log('Login with session attempt:', { email, guestSessionId });
+
+        // Check credentials - be lenient for test
+        if ((email === 'john.smith@example.com' || email === 'test@example.com') &&
+            (password === 'Test1234' || password === 'test123')) {
+          // Return successful login response
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              access_token: 'mock_access_token_123456',
+              token_type: 'bearer',
+              user: {
+                id: 1,
+                email: 'john.smith@example.com',
+                full_name: 'John Smith',
+                firstName: 'John',
+                lastName: 'Smith',
+                role: 'student',
+                roles: ['student'],
+                permissions: [],
+                is_active: true,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              },
+            }),
+          });
+        } else {
+          // Return login failure
+          console.log('Login with session failed - invalid credentials');
+          await route.fulfill({
+            status: 401,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              detail: 'Invalid email or password'
+            }),
+          });
+        }
+      } catch (e) {
+        console.error('Failed to parse login-with-session data:', e);
+        await route.fulfill({
+          status: 400,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            detail: 'Invalid request data'
+          }),
+        });
+      }
+    } else {
+      await route.fulfill({
+        status: 405,
+        body: 'Method not allowed'
+      });
+    }
+  });
+
+  // Mock current user endpoint
+  await routeContext.route('**/auth/me', async (route: Route) => {
+    // Check if user has auth token
+    const authHeader = route.request().headers()['authorization'];
+    if (authHeader && authHeader.includes('Bearer')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
           id: 1,
           email: 'john.smith@example.com',
           full_name: 'John Smith',
           firstName: 'John',
           lastName: 'Smith',
           role: 'student',
-        },
-      }),
-    });
-  });
-
-  // Mock current user endpoint
-  await page.route('**/auth/me', async (route: Route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        id: 1,
-        email: 'john.smith@example.com',
-        full_name: 'John Smith',
-        firstName: 'John',
-        lastName: 'Smith',
-        role: 'student',
-      }),
-    });
+          roles: ['student'],
+          permissions: [],
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }),
+      });
+    } else {
+      // Not authenticated
+      await route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          detail: 'Not authenticated'
+        }),
+      });
+    }
   });
 }
 
@@ -225,13 +289,150 @@ export async function setupAllMocks(page: Page, context: any = null) {
   // Set up authentication mocks first
   await mockAuthentication(routeContext);
 
+  // Mock the search endpoint FIRST (before the general instructors handler)
+  await routeContext.route('**/api/search/instructors**', async (route: Route) => {
+    console.log('Mock intercepting api:', route.request().url());
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
+      },
+      body: JSON.stringify({
+        query: 'piano',
+        parsed: {
+          services: ['piano'],
+          location: null,
+        },
+        total_found: 1,
+        results: [
+          {
+            instructor: {
+              id: 8,
+              name: 'Sarah Chen',
+              bio: 'Professional piano teacher with 10 years of experience',
+              profile_image_url: null,
+              location: 'Manhattan',
+              areas_of_service: 'Manhattan, Brooklyn',
+              years_experience: 10,
+            },
+            service: {
+              id: 1,
+              name: 'Piano',
+              actual_min_price: 120,
+              description: 'Professional piano lessons',
+            },
+            offering: {
+              hourly_rate: 120,
+              description: 'Professional piano lessons',
+              duration_options: [30, 60, 90],
+            },
+            match_score: 0.95,
+            availability_summary: 'Available this week',
+            rating: 4.9,
+            total_reviews: 25,
+            location: 'Manhattan',
+            distance_miles: null,
+          },
+        ],
+      }),
+    });
+  });
+
+  // Mock services catalog endpoints
+  await routeContext.route('**/services/catalog**', async (route: Route) => {
+    console.log('Mock intercepting services:', route.request().url());
+    const url = route.request().url();
+
+    if (url.includes('top-per-category')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          'Music': [
+            { id: 1, name: 'Piano', category_id: 1 },
+            { id: 2, name: 'Guitar', category_id: 1 }
+          ],
+          'Fitness': [
+            { id: 97, name: 'Personal Training', category_id: 2 }
+          ]
+        })
+      });
+    } else {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          { id: 1, name: 'Piano', category_id: 1 },
+          { id: 2, name: 'Guitar', category_id: 1 },
+          { id: 97, name: 'Personal Training', category_id: 2 }
+        ])
+      });
+    }
+  });
+
   // First set up search-history mock (called on homepage load)
   await routeContext.route('**/search-history**', async (route: Route) => {
-    console.log('Mock intercepting search-history:', route.request().url());
+    console.log('Mock intercepting api:', route.request().url());
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify([])
+    });
+  });
+
+  // Mock availability endpoint (needs to be before general instructors handler)
+  await routeContext.route('**/api/public/instructors/*/availability**', async (route: Route) => {
+    console.log('Mock intercepting api:', route.request().url());
+
+    // Mock availability data with dynamic dates (starting from tomorrow)
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dayAfter = new Date();
+    dayAfter.setDate(dayAfter.getDate() + 2);
+    const nextWeek = new Date();
+    nextWeek.setDate(nextWeek.getDate() + 7);
+
+    const formatDate = (date: Date) => date.toISOString().split('T')[0];
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        instructor_id: 8,
+        instructor_name: 'Sarah Chen',
+        availability_by_date: {
+          [formatDate(tomorrow)]: {
+            date: formatDate(tomorrow),
+            available_slots: [
+              { start_time: '09:00', end_time: '10:00' },
+              { start_time: '10:00', end_time: '11:00' },
+              { start_time: '14:00', end_time: '15:00' },
+            ],
+            is_blackout: false,
+          },
+          [formatDate(dayAfter)]: {
+            date: formatDate(dayAfter),
+            available_slots: [
+              { start_time: '10:00', end_time: '11:00' },
+              { start_time: '11:00', end_time: '12:00' },
+              { start_time: '14:00', end_time: '15:00' },
+            ],
+            is_blackout: false,
+          },
+          [formatDate(nextWeek)]: {
+            date: formatDate(nextWeek),
+            available_slots: [
+              { start_time: '09:00', end_time: '10:00' },
+              { start_time: '10:00', end_time: '11:00' },
+              { start_time: '11:00', end_time: '12:00' },
+            ],
+            is_blackout: false,
+          },
+        },
+      }),
     });
   });
 
@@ -284,50 +485,6 @@ export async function setupAllMocks(page: Page, context: any = null) {
           is_verified: true,
           verified: true,
           availability_windows: [],
-        }),
-      });
-    } else if (url.includes('/search')) {
-      // Handle search endpoint
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          query: 'piano',
-          parsed: {
-            services: ['piano'],
-            location: null,
-          },
-          total_found: 1,
-          results: [
-            {
-              instructor: {
-                id: 8,
-                name: 'Sarah Chen',
-                bio: 'Professional piano teacher with 10 years of experience',
-                profile_image_url: null,
-                location: 'Manhattan',
-                areas_of_service: 'Manhattan, Brooklyn',
-                years_experience: 10,
-              },
-              service: {
-                id: 1,
-                name: 'Piano',
-                actual_min_price: 120,
-                description: 'Professional piano lessons',
-              },
-              offering: {
-                hourly_rate: 120,
-                description: 'Professional piano lessons',
-                duration_options: [30, 60, 90],
-              },
-              match_score: 0.95,
-              availability_summary: 'Available this week',
-              rating: 4.9,
-              total_reviews: 25,
-              location: 'Manhattan',
-              distance_miles: null,
-            },
-          ],
         }),
       });
     } else if (url.includes('/services/catalog')) {

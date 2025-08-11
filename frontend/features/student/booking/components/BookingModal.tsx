@@ -58,11 +58,24 @@ export default function BookingModal({
     }
   }, [user, showBookingForm]);
 
-  // Reset modal state when slot selection changes
+  // Reset modal state when it opens
   useEffect(() => {
     if (isOpen) {
-      // Reset to initial state when date/time changes
-      setShowBookingForm(false);
+      // Set initial service if not set
+      if (!selectedService && instructor.services.length > 0) {
+        setSelectedService(instructor.services[0]);
+        setDuration(instructor.services[0].duration);
+      }
+
+      // For authenticated users, show the booking form directly
+      if (isAuthenticated) {
+        setShowBookingForm(true);
+      } else {
+        // For unauthenticated users, we'll redirect when they try to continue
+        setShowBookingForm(false);
+      }
+
+      // Reset form data
       setBookingFormData({
         name: user?.full_name || '',
         email: user?.email || '',
@@ -70,18 +83,10 @@ export default function BookingModal({
         notes: '',
         agreedToTerms: false,
       });
-
-      // Reset service selection if instructor has multiple services
-      if (instructor.services.length > 1) {
-        setSelectedService(instructor.services[0]);
-        setDuration(instructor.services[0].duration);
-      }
     }
   }, [
-    selectedDate,
-    selectedTime,
     isOpen,
-    instructor.services.length,
+    isAuthenticated,
     user?.full_name,
     user?.email,
   ]);
@@ -137,17 +142,56 @@ export default function BookingModal({
 
     // Check authentication
     if (!isAuthenticated) {
-      // Store booking intent for after login
+      // Prepare booking data for after login
+      const bookingDate = new Date(selectedDate + 'T' + selectedTime);
+      const basePrice = totalPrice;
+      const serviceFee = calculateServiceFee(basePrice);
+      const totalAmount = calculateTotalAmount(basePrice);
+      const bookingType = determineBookingType(bookingDate);
+
+      const paymentBookingData: BookingPayment = {
+        bookingId: '', // Will be set after creation
+        instructorId: String(instructor.user_id),
+        instructorName: instructor.user.full_name,
+        lessonType: selectedService.skill,
+        date: bookingDate,
+        startTime: selectedTime,
+        endTime: calculateEndTime(selectedTime, duration),
+        duration,
+        location: instructor.areas_of_service[0] || 'NYC',
+        basePrice,
+        serviceFee,
+        totalAmount,
+        bookingType,
+        paymentStatus: 'pending' as any,
+        freeCancellationUntil:
+          bookingType === BookingType.STANDARD
+            ? new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
+            : undefined,
+      };
+
+      // Store booking data and slot info for after login
+      sessionStorage.setItem('bookingData', JSON.stringify(paymentBookingData));
+      sessionStorage.setItem('serviceId', String(selectedService.id));
+      sessionStorage.setItem('selectedSlot', JSON.stringify({
+        date: selectedDate,
+        time: selectedTime,
+        duration,
+        instructorId: instructor.user_id
+      }));
+
+      // Store booking intent for after login (to go directly to payment page)
       storeBookingIntent({
         instructorId: instructor.user_id,
         serviceId: selectedService.id,
         date: selectedDate,
         time: selectedTime,
         duration,
+        skipModal: true, // Flag to skip modal and go directly to payment
       });
 
-      // Construct the return URL
-      const returnUrl = `/instructors/${instructor.user_id}`;
+      // Redirect to login with payment page as return URL
+      const returnUrl = `/student/booking/confirm`;
       logger.info('User not authenticated, redirecting to login', {
         returnUrl,
         bookingIntent: {
@@ -214,10 +258,19 @@ export default function BookingModal({
           : undefined,
     };
 
-    // Navigate to confirmation page with booking data
     // Store booking data in session storage for the confirmation page
     sessionStorage.setItem('bookingData', JSON.stringify(paymentBookingData));
     sessionStorage.setItem('serviceId', String(selectedService.id));
+
+    // Store the selected slot info so it can be restored when going back
+    sessionStorage.setItem('selectedSlot', JSON.stringify({
+      date: selectedDate,
+      time: selectedTime,
+      duration,
+      instructorId: instructor.user_id
+    }));
+
+    // Navigate to confirmation page
     router.push('/student/booking/confirm');
   };
 
@@ -368,22 +421,19 @@ export default function BookingModal({
                 </div>
               </div>
 
-              {/* Form Buttons */}
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => setShowBookingForm(false)}
-                  className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  Back
-                </button>
-                <button
-                  onClick={handleBookingSubmit}
-                  disabled={!bookingFormData.agreedToTerms}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-colors"
-                >
-                  Continue to Payment
-                </button>
-              </div>
+              {/* Form Button - Only Continue to Payment */}
+              <button
+                onClick={handleBookingSubmit}
+                disabled={
+                  !bookingFormData.name ||
+                  !bookingFormData.email ||
+                  !bookingFormData.phone ||
+                  !bookingFormData.agreedToTerms
+                }
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-colors"
+              >
+                Continue to Payment
+              </button>
             </>
           ) : (
             <>

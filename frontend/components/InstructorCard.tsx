@@ -7,6 +7,7 @@ import { Star, MapPin, Check } from 'lucide-react';
 import { Instructor, ServiceCatalogItem } from '@/types/api';
 import { useEffect, useState } from 'react';
 import { publicApi } from '@/features/shared/api/client';
+import { navigationStateManager } from '@/lib/navigation/navigationStateManager';
 
 interface InstructorCardProps {
   instructor: Instructor;
@@ -158,7 +159,11 @@ export default function InstructorCard({
           <Link
             href={`/instructors/${instructor.user_id}`}
             className="flex-1 text-center py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white transition-colors"
-            onClick={onViewProfile}
+            onClick={() => {
+              // Clear navigation state when viewing profile from search - this is a fresh navigation
+              navigationStateManager.clearBookingFlow();
+              onViewProfile?.();
+            }}
           >
             View Profile
           </Link>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Calendar, Clock, MapPin, DollarSign, User } from 'lucide-react';
 import { PaymentSection } from '@/features/student/payment';
 import { BookingPayment } from '@/features/student/payment/types';
+import { navigationStateManager } from '@/lib/navigation/navigationStateManager';
 import { logger } from '@/lib/logger';
 
 export default function BookingConfirmationPage() {
@@ -23,11 +24,6 @@ export default function BookingConfirmationPage() {
     const storedData = sessionStorage.getItem('bookingData');
     const storedServiceId = sessionStorage.getItem('serviceId');
 
-    logger.info('Checking for booking data', {
-      hasStoredData: !!storedData,
-      hasServiceId: !!storedServiceId,
-      dataLength: storedData?.length || 0,
-    });
 
     if (storedData) {
       try {
@@ -35,25 +31,15 @@ export default function BookingConfirmationPage() {
         setBookingData(parsedData);
         setServiceId(storedServiceId);
 
-        logger.info('Booking data loaded successfully', {
-          instructorId: parsedData.instructorId,
-          instructorName: parsedData.instructorName,
-          date: parsedData.date,
-          totalAmount: parsedData.totalAmount,
-        });
         setIsLoading(false);
       } catch (error) {
-        logger.error('Failed to parse booking data', {
-          error: error as Error,
-          storedData: storedData?.substring(0, 100), // Log first 100 chars
-        });
+        logger.error('[BOOKING CONFIRM] Failed to parse booking data', error as Error);
         setIsLoading(false);
         // Delay redirect to avoid React strict mode issues
         setTimeout(() => router.push('/search'), 100);
       }
     } else {
       // Redirect back if no booking data
-      logger.warn('No booking data found in sessionStorage');
       setIsLoading(false);
       // Delay redirect to avoid React strict mode issues
       setTimeout(() => router.push('/search'), 100);
@@ -61,26 +47,61 @@ export default function BookingConfirmationPage() {
   }, [bookingData, router]);
 
   const handlePaymentSuccess = (confirmationNumber: string) => {
-    logger.info('Payment successful', { confirmationNumber });
-    // Clear session storage after successful payment
+    // Clear all session storage after successful payment
     sessionStorage.removeItem('bookingData');
     sessionStorage.removeItem('serviceId');
+
+    // Clear navigation state since booking is complete
+    navigationStateManager.clearBookingFlow();
+
     // The PaymentSection already handles redirect to dashboard
-    // But we could add additional logic here if needed
   };
 
   const handlePaymentError = (error: Error) => {
-    logger.error('Payment failed', error);
+    logger.error('[BOOKING CONFIRM] Payment failed', error);
     // The PaymentSection component already shows error UI
     // We could add additional error handling here
   };
 
   const handleBack = () => {
-    // Clear session storage when user goes back
+    // Save the slot data before navigating back
+    if (bookingData) {
+      // Convert Date to string if needed
+      const dateString = bookingData.date instanceof Date
+        ? bookingData.date.toISOString().split('T')[0]
+        : String(bookingData.date).split('T')[0];
+
+      const bookingFlowData = {
+        date: dateString,
+        time: bookingData.startTime,
+        duration: bookingData.duration,
+        instructorId: bookingData.instructorId,
+      };
+
+      navigationStateManager.saveBookingFlow(bookingFlowData, 'payment');
+    }
+
+    // Only clear the booking data
     sessionStorage.removeItem('bookingData');
     sessionStorage.removeItem('serviceId');
-    // Go back to previous page
-    router.back();
+
+    // Get instructor ID from booking data to navigate back
+    if (bookingData?.instructorId) {
+      // Navigate directly to instructor profile - state manager will restore slot
+      const url = `/instructors/${bookingData.instructorId}`;
+      router.push(url);
+      return;
+    }
+
+    // Fallback: go back but skip auth pages
+    const previousUrl = document.referrer;
+
+    // If the referrer is a login page, go to home instead
+    if (previousUrl && (previousUrl.includes('/login') || previousUrl.includes('/signin'))) {
+      router.push('/');
+    } else {
+      router.back();
+    }
   };
 
   const formatDate = (date: Date | string) => {
@@ -259,7 +280,7 @@ export default function BookingConfirmationPage() {
 
           {/* Payment Section - Right Side */}
           <div className="lg:col-span-2">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md">
               <PaymentSection
                 bookingData={{
                   ...bookingData,

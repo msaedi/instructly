@@ -128,6 +128,9 @@ export function getAuthBackground(variant: 'default' | 'morning' | 'evening' | '
   const key = `auth:${variant}:${viewport}:optimized`;
   if (urlCache.has(key)) return urlCache.get(key)!;
 
+  // If R2_BASE is not set, return null (no background in tests)
+  if (!R2_BASE) return null;
+
   // Find the base image path
   const paths = [
     `backgrounds/auth/default.webp`,
@@ -158,6 +161,9 @@ export function getActivityBackground(activity?: string, viewport: Viewport = 'd
   const normalized = normalizeActivity(activity);
   const key = `activity:${normalized}:${viewport}:optimized`;
   if (urlCache.has(key)) return urlCache.get(key)!;
+
+  // If R2_BASE is not set, return null (no background in tests)
+  if (!R2_BASE) return null;
 
   // Build list of paths to try
   const paths: string[] = [];

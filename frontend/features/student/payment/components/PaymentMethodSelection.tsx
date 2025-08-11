@@ -10,6 +10,7 @@ interface PaymentMethodSelectionProps {
   credits: CreditBalance;
   onSelectPayment: (method: PaymentMethod, cardId?: string, creditsToUse?: number) => void;
   onAddCard: () => void;
+  onBack?: () => void;
 }
 
 export default function PaymentMethodSelection({
@@ -18,6 +19,7 @@ export default function PaymentMethodSelection({
   credits,
   onSelectPayment,
   onAddCard,
+  onBack,
 }: PaymentMethodSelectionProps) {
   const [selectedCardId, setSelectedCardId] = useState<string>(cards[0]?.id || '');
   const [useCredits, setUseCredits] = useState(false);
@@ -172,13 +174,23 @@ export default function PaymentMethodSelection({
         Maximum transaction limit: $1,000
       </p>
 
-      {/* Continue Button */}
-      <button
-        onClick={handleContinue}
-        className="w-full py-3 bg-[#FFD700] hover:bg-[#FFC700] text-black rounded-full font-medium transition-colors"
-      >
-        Continue to Confirmation
-      </button>
+      {/* Action Buttons */}
+      <div className="flex gap-3">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="flex-1 py-3 border border-gray-300 dark:border-gray-600 rounded-full font-medium transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
+            Back
+          </button>
+        )}
+        <button
+          onClick={handleContinue}
+          className={`${onBack ? 'flex-1' : 'w-full'} py-3 bg-[#FFD700] hover:bg-[#FFC700] text-black rounded-full font-medium transition-colors`}
+        >
+          Continue to Confirmation
+        </button>
+      </div>
     </div>
   );
 }

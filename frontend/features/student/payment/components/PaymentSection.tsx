@@ -151,6 +151,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack }: Paym
             // TODO: Implement add card flow
             alert('Add card functionality coming soon');
           }}
+          onBack={onBack}
         />
       )}
       {currentStep === PaymentStep.CONFIRMATION && (

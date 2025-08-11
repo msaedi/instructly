@@ -101,7 +101,9 @@ export function useAuth(): UseAuthReturn {
       encodedUrl,
     });
 
-    router.push(`/login?redirect=${encodedUrl}`);
+    // Use replace instead of push to avoid polluting browser history
+    // This way the back button won't land on the auth page
+    router.replace(`/login?redirect=${encodedUrl}`);
   };
 
   // Check authentication on mount
@@ -130,6 +132,7 @@ export function storeBookingIntent(bookingIntent: {
   date: string;
   time: string;
   duration: number;
+  skipModal?: boolean;
 }) {
   try {
     sessionStorage.setItem('bookingIntent', JSON.stringify(bookingIntent));
@@ -150,6 +153,7 @@ export function getBookingIntent(): {
   date: string;
   time: string;
   duration: number;
+  skipModal?: boolean;
 } | null {
   try {
     const stored = sessionStorage.getItem('bookingIntent');
