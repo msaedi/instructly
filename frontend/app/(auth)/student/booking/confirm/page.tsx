@@ -159,6 +159,7 @@ export default function BookingConfirmationPage() {
           <button
             onClick={handleBack}
             className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+            data-testid="payment-back-button"
           >
             <ArrowLeft className="h-5 w-5 mr-2" />
             Back

@@ -24,6 +24,7 @@ export function BookingButton({ instructor, className, onBook }: BookingButtonPr
       <button
         className="w-full py-3 px-6 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
         onClick={onBook}
+        data-testid="mobile-book-now"
       >
         Book Now - From ${lowestPrice}/hr
       </button>

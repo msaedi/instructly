@@ -101,6 +101,7 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
             disabled={!canBook}
             onClick={onBook}
             title={!canBook ? getUnavailableMessage() : ''}
+            data-testid={`book-service-${service.skill.toLowerCase().replace(/\s+/g, '-')}`}
           >
             Book This
           </Button>
