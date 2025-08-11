@@ -32,7 +32,10 @@ class TestInstructorProfileRepositoryAccountStatus:
             user = User(
                 email=email,
                 hashed_password="hashedpassword",
-                full_name=f"{account_status.title()} Instructor",
+                first_name=account_status.title(),
+                last_name="Instructor",
+                phone="+12125550000",
+                zip_code="10001",
                 account_status=account_status,
                 is_active=True,
             )

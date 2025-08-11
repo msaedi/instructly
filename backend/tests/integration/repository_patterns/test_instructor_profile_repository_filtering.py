@@ -44,25 +44,37 @@ class TestInstructorProfileRepositoryFiltering:
         users = [
             User(
                 email="john.doe@example.com",
-                full_name="John Doe",
+                first_name="John",
+                last_name="Doe",
+                phone="+12125550000",
+                zip_code="10001",
                 hashed_password="hashed",
                 is_active=True,
             ),
             User(
                 email="jane.smith@example.com",
-                full_name="Jane Smith",
+                first_name="Jane",
+                last_name="Smith",
+                phone="+12125550000",
+                zip_code="10001",
                 hashed_password="hashed",
                 is_active=True,
             ),
             User(
                 email="bob.wilson@example.com",
-                full_name="Bob Wilson",
+                first_name="Bob",
+                last_name="Wilson",
+                phone="+12125550000",
+                zip_code="10001",
                 hashed_password="hashed",
                 is_active=True,
             ),
             User(
                 email="alice.brown@example.com",
-                full_name="Alice Brown",
+                first_name="Alice",
+                last_name="Brown",
+                phone="+12125550000",
+                zip_code="10001",
                 hashed_password="hashed",
                 is_active=True,
             ),
@@ -230,14 +242,16 @@ class TestInstructorProfileRepositoryFiltering:
         results = repository.find_by_filters(search="John")
 
         assert len(results) == 1
-        assert results[0].user.full_name == "John Doe"
+        assert results[0].user.first_name == "John"
+        assert results[0].user.last_name == "Doe"
 
     def test_search_by_bio(self, repository, sample_data):
         """Test search filter on instructor bio."""
         results = repository.find_by_filters(search="yoga")
 
         assert len(results) == 1
-        assert results[0].user.full_name == "Jane Smith"
+        assert results[0].user.first_name == "Jane"
+        assert results[0].user.last_name == "Smith"
         assert "yoga" in results[0].bio.lower()
 
     def test_search_by_skill(self, repository, sample_data):
@@ -245,7 +259,8 @@ class TestInstructorProfileRepositoryFiltering:
         results = repository.find_by_filters(search="violin")
 
         assert len(results) == 1
-        assert results[0].user.full_name == "Bob Wilson"
+        assert results[0].user.first_name == "Bob"
+        assert results[0].user.last_name == "Wilson"
         assert any(
             (s.catalog_entry.name if s.catalog_entry else "Unknown Service") == "Violin Lessons"
             for s in results[0].instructor_services
@@ -260,7 +275,7 @@ class TestInstructorProfileRepositoryFiltering:
         results = repository.find_by_filters(service_catalog_id=piano_catalog.id)
 
         assert len(results) == 2  # John and Bob teach piano
-        names = [r.user.full_name for r in results]
+        names = [f"{r.user.first_name} {r.user.last_name}" for r in results]
         assert "John Doe" in names
         assert "Bob Wilson" in names
 
@@ -273,7 +288,8 @@ class TestInstructorProfileRepositoryFiltering:
         results = repository.find_by_filters(service_catalog_id=ballet_catalog.id)
 
         assert len(results) == 1
-        assert results[0].user.full_name == "Alice Brown"
+        assert results[0].user.first_name == "Alice"
+        assert results[0].user.last_name == "Brown"
 
     def test_price_range_filter(self, repository, sample_data):
         """Test filtering by price range."""
@@ -292,14 +308,16 @@ class TestInstructorProfileRepositoryFiltering:
         results = repository.find_by_filters(min_price=100)
 
         assert len(results) == 1  # Only Bob has services >= 100
-        assert results[0].user.full_name == "Bob Wilson"
+        assert results[0].user.first_name == "Bob"
+        assert results[0].user.last_name == "Wilson"
 
     def test_max_price_only(self, repository, sample_data):
         """Test filtering with only maximum price."""
         results = repository.find_by_filters(max_price=60)
 
         assert len(results) == 1  # Only Jane has services <= 60
-        assert results[0].user.full_name == "Jane Smith"
+        assert results[0].user.first_name == "Jane"
+        assert results[0].user.last_name == "Smith"
 
     def test_combined_filters(self, repository, sample_data, test_db):
         """Test multiple filters applied together."""
@@ -314,7 +332,8 @@ class TestInstructorProfileRepositoryFiltering:
         # Bob Wilson has "music" in bio and Piano at $100 (within range)
         # John Doe doesn't have "music" explicitly in bio
         assert len(results) == 1
-        assert results[0].user.full_name == "Bob Wilson"
+        assert results[0].user.first_name == "Bob"
+        assert results[0].user.last_name == "Wilson"
 
     def test_pagination(self, repository, sample_data):
         """Test pagination parameters."""
@@ -352,7 +371,8 @@ class TestInstructorProfileRepositoryFiltering:
 
         # These should not trigger additional queries
         for profile in results:
-            assert profile.user.full_name is not None
+            assert profile.user.first_name is not None
+            assert profile.user.last_name is not None
             assert len(profile.instructor_services) >= 0
 
     def test_distinct_prevents_duplicates(self, repository, sample_data):
@@ -382,7 +402,10 @@ class TestInstructorProfileRepositoryFiltering:
         # Add a profile with special characters
         user = User(
             email="special@example.com",
-            full_name="Test O'Brien",
+            first_name="Test",
+            last_name="O'Brien",
+            phone="+12125550000",
+            zip_code="10001",
             hashed_password="hashed",
             is_active=True,
         )

@@ -22,13 +22,19 @@ def test_booking():
     student = User(
         id=1,
         email="student@example.com",
-        full_name="Test Student",
+        first_name="Test",
+        last_name="Student",
+        phone="+12125550000",
+        zip_code="10001",
     )
 
     instructor = User(
         id=2,
         email="instructor@example.com",
-        full_name="Test Instructor",
+        first_name="Test",
+        last_name="Instructor",
+        phone="+12125550000",
+        zip_code="10001",
     )
 
     booking = Booking(
@@ -93,8 +99,8 @@ class TestTemplateRendering:
         html = template_service.render_template("email/booking/confirmation_student.html", context)
 
         # Check key content is present
-        assert test_booking.student.full_name in html
-        assert test_booking.instructor.full_name in html
+        assert test_booking.student.first_name in html
+        assert test_booking.instructor.first_name in html
         assert test_booking.service_name in html
         assert "2:00 PM" in html
         assert "$75.00" in html
@@ -137,7 +143,7 @@ class TestBookingConfirmation:
         student_html = notification_service_with_mocked_email.email_service.send_email.call_args_list[0].kwargs[
             "html_content"
         ]
-        assert test_booking.student.full_name in student_html
+        assert test_booking.student.first_name in student_html
         assert test_booking.service_name in student_html
         assert test_booking.meeting_location in student_html
         assert "75.00" in student_html  # Price

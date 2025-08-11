@@ -121,13 +121,19 @@ class TestNotificationService:
         student = User(
             id=1,
             email="student@test.com",
-            full_name="Test Student",
+            first_name="Test",
+            last_name="Student",
+            phone="+12125550000",
+            zip_code="10001",
         )
 
         instructor = User(
             id=2,
             email="instructor@test.com",
-            full_name="Test Instructor",
+            first_name="Test",
+            last_name="Instructor",
+            phone="+12125550000",
+            zip_code="10001",
         )
 
         booking = Booking(

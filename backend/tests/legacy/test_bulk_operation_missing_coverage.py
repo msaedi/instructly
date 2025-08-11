@@ -163,7 +163,10 @@ class TestBulkOperationMissingCoverage:
         second_instructor = User(
             email="second.instructor@example.com",
             hashed_password=get_password_hash("TestPassword123!"),
-            full_name="Second Instructor",
+            first_name="Second",
+            last_name="Instructor",
+            phone="+12125550000",
+            zip_code="10001",
             is_active=True,
         )
         db.add(second_instructor)

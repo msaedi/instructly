@@ -106,10 +106,14 @@ def test_instructors_with_profiles(db: Session) -> List[User]:
 
     for data in instructor_data:
         # Create user
+        name_parts = data["name"].split(" ", 1)
         user = User(
-            full_name=data["name"],
+            first_name=name_parts[0] if name_parts else "Test",
+            last_name=name_parts[1] if len(name_parts) > 1 else "User",
             email=data["email"],
             hashed_password="test_hash",
+            phone="+12125550000",
+            zip_code="10001",
             is_active=True,
         )
         db.add(user)

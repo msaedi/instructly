@@ -115,8 +115,8 @@ class TestBookingRoutes:
         mock_booking.cancellation_reason = None
 
         # Setup related objects
-        mock_booking.student = Mock(id=1, full_name="Test Student", email="student@test.com")
-        mock_booking.instructor = Mock(id=1, full_name="Test Instructor", email="instructor@test.com")
+        mock_booking.student = Mock(id=1, first_name="Test", last_name="Student", email="student@test.com")
+        mock_booking.instructor = Mock(id=1, first_name="Test", last_name="Instructor", email="instructor@test.com")
         mock_booking.instructor_service = self._create_mock_instructor_service()
 
         mock_booking_service.create_booking.return_value = mock_booking
@@ -228,8 +228,8 @@ class TestBookingRoutes:
             booking.cancelled_at = None
             booking.cancelled_by_id = None
             booking.cancellation_reason = None
-            booking.student = Mock(id=1, full_name="Student", email="student@test.com")
-            booking.instructor = Mock(id=2, full_name="Instructor", email="instructor@test.com")
+            booking.student = Mock(id=1, first_name="Student", last_name="User", email="student@test.com")
+            booking.instructor = Mock(id=2, first_name="Instructor", last_name="User", email="instructor@test.com")
             booking.instructor_service = self._create_mock_instructor_service(
                 name=f"Service {i+1}", description="Description"
             )
@@ -293,8 +293,10 @@ class TestBookingRoutes:
         cancelled_booking.cancelled_at = datetime.now()
         cancelled_booking.cancelled_by_id = 1
         cancelled_booking.cancellation_reason = "Schedule conflict"
-        cancelled_booking.student = Mock(id=1, full_name="Student", email="student@test.com")
-        cancelled_booking.instructor = Mock(id=2, full_name="Instructor", email="instructor@test.com")
+        cancelled_booking.student = Mock(id=1, first_name="Student", last_name="User", email="student@test.com")
+        cancelled_booking.instructor = Mock(
+            id=2, first_name="Instructor", last_name="User", email="instructor@test.com"
+        )
         cancelled_booking.instructor_service = self._create_mock_instructor_service()
 
         mock_booking_service.cancel_booking.return_value = cancelled_booking
@@ -365,8 +367,10 @@ class TestBookingRoutes:
         completed_booking.cancelled_at = None
         completed_booking.cancelled_by_id = None
         completed_booking.cancellation_reason = None
-        completed_booking.student = Mock(id=1, full_name="Student", email="student@test.com")
-        completed_booking.instructor = Mock(id=2, full_name="Instructor", email="instructor@test.com")
+        completed_booking.student = Mock(id=1, first_name="Student", last_name="User", email="student@test.com")
+        completed_booking.instructor = Mock(
+            id=2, first_name="Instructor", last_name="User", email="instructor@test.com"
+        )
         completed_booking.instructor_service = self._create_mock_instructor_service()
 
         mock_booking_service.complete_booking.return_value = completed_booking
@@ -489,12 +493,14 @@ class TestBookingRoutes:
             booking.meeting_location = "Location"
 
             # These are required for UpcomingBookingResponse
-            booking.student = Mock(full_name="Test Student")
-            booking.instructor = Mock(full_name="Test Instructor")
+            booking.student = Mock(first_name="Test", last_name="Student")
+            booking.instructor = Mock(first_name="Test", last_name="Instructor")
 
             # Add the from_orm compatible attributes
-            booking.student_name = booking.student.full_name
-            booking.instructor_name = booking.instructor.full_name
+            booking.student_first_name = booking.student.first_name
+            booking.student_last_name = booking.student.last_name
+            booking.instructor_first_name = booking.instructor.first_name
+            booking.instructor_last_name = booking.instructor.last_name
 
             upcoming.append(booking)
 
@@ -512,7 +518,8 @@ class TestBookingRoutes:
         assert data["per_page"] == 5
         assert len(data["items"]) == 2
         assert data["items"][0]["service_name"] == "Service 1"
-        assert data["items"][0]["student_name"] == "Test Student"
+        assert data["items"][0]["student_first_name"] == "Test"
+        assert data["items"][0]["student_last_name"] == "Student"
 
     def test_get_booking_preview(self, client_with_mock_booking_service, auth_headers_student, mock_booking_service):
         """Test getting booking preview."""
@@ -521,8 +528,8 @@ class TestBookingRoutes:
         # Setup mock
         mock_booking = Mock()
         mock_booking.id = booking_id
-        mock_booking.student = Mock(full_name="Test Student", first_name="Test", last_name="Student")
-        mock_booking.instructor = Mock(full_name="Test Instructor")
+        mock_booking.student = Mock(first_name="Test", last_name="Student")
+        mock_booking.instructor = Mock(first_name="Test", last_name="Instructor")
         mock_booking.service_name = "Piano Lesson"
         mock_booking.booking_date = date.today() + timedelta(days=1)
         mock_booking.start_time = time(9, 0)
@@ -545,7 +552,8 @@ class TestBookingRoutes:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["booking_id"] == booking_id
-        assert data["student_name"] == "Test Student"
+        assert data["student_first_name"] == "Test"
+        assert data["student_last_name"] == "Student"
 
     def test_update_booking(self, client_with_mock_booking_service, auth_headers_instructor, mock_booking_service):
         """Test updating booking details."""
@@ -577,8 +585,8 @@ class TestBookingRoutes:
         updated_booking.cancelled_at = None
         updated_booking.cancelled_by_id = None
         updated_booking.cancellation_reason = None
-        updated_booking.student = Mock(id=1, full_name="Student", email="student@test.com")
-        updated_booking.instructor = Mock(id=2, full_name="Instructor", email="instructor@test.com")
+        updated_booking.student = Mock(id=1, first_name="Student", last_name="User", email="student@test.com")
+        updated_booking.instructor = Mock(id=2, first_name="Instructor", last_name="User", email="instructor@test.com")
         updated_booking.instructor_service = self._create_mock_instructor_service()
 
         mock_booking_service.update_booking.return_value = updated_booking
@@ -624,8 +632,8 @@ class TestBookingRoutes:
         mock_booking.cancelled_at = None
         mock_booking.cancelled_by_id = None
         mock_booking.cancellation_reason = None
-        mock_booking.student = Mock(id=1, full_name="Test Student", email="student@test.com")
-        mock_booking.instructor = Mock(id=2, full_name="Test Instructor", email="instructor@test.com")
+        mock_booking.student = Mock(id=1, first_name="Test", last_name="Student", email="student@test.com")
+        mock_booking.instructor = Mock(id=2, first_name="Test", last_name="Instructor", email="instructor@test.com")
         mock_booking.instructor_service = self._create_mock_instructor_service()
 
         mock_booking_service.get_booking_for_user.return_value = mock_booking
@@ -838,7 +846,12 @@ class TestBookingRoutes:
 
         # Create a real admin user in the database
         admin_user = User(
-            email="test.admin@example.com", hashed_password=get_password_hash("Test1234"), full_name="Test Admin"
+            email="test.admin@example.com",
+            hashed_password=get_password_hash("Test1234"),
+            first_name="Test",
+            last_name="Admin",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(admin_user)
         db.flush()
@@ -945,8 +958,8 @@ class TestBookingRoutes:
             booking.cancelled_at = None
             booking.cancelled_by_id = None
             booking.cancellation_reason = None
-            booking.student = Mock(id=1, full_name="John Doe", email="john@example.com")
-            booking.instructor = Mock(id=2, full_name="Jane Smith", email="jane@example.com")
+            booking.student = Mock(id=1, first_name="John", last_name="Doe", email="john@example.com")
+            booking.instructor = Mock(id=2, first_name="Jane", last_name="Smith", email="jane@example.com")
             booking.instructor_service = self._create_mock_instructor_service(
                 service_id=2, name="Guitar Lessons", description="Guitar lessons"
             )
@@ -1017,8 +1030,10 @@ class TestBookingRoutes:
         cancelled_booking.cancelled_at = datetime.now()
         cancelled_booking.cancelled_by_id = 1
         cancelled_booking.cancellation_reason = "Emergency"
-        cancelled_booking.student = Mock(id=1, full_name="Student", email="student@test.com")
-        cancelled_booking.instructor = Mock(id=2, full_name="Instructor", email="instructor@test.com")
+        cancelled_booking.student = Mock(id=1, first_name="Student", last_name="User", email="student@test.com")
+        cancelled_booking.instructor = Mock(
+            id=2, first_name="Instructor", last_name="User", email="instructor@test.com"
+        )
         cancelled_booking.instructor_service = self._create_mock_instructor_service()
 
         mock_booking_service.cancel_booking.return_value = cancelled_booking
@@ -1119,7 +1134,10 @@ class TestBookingIntegration:
         student2 = User(
             email="student2@example.com",
             hashed_password=get_password_hash("TestPassword123!"),
-            full_name="Second Student",
+            first_name="Second",
+            last_name="Student",
+            phone="+12125550000",
+            zip_code="10001",
             is_active=True,
         )
         db.add(student2)

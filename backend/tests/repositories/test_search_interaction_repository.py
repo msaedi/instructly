@@ -20,7 +20,14 @@ from app.repositories.search_interaction_repository import SearchInteractionRepo
 @pytest.fixture
 def test_user(db: Session):
     """Create a test user."""
-    user = User(email="interaction@example.com", full_name="Interaction Test", hashed_password="hashed")
+    user = User(
+        email="interaction@example.com",
+        first_name="Interaction",
+        last_name="Test",
+        hashed_password="hashed",
+        phone="+12125550000",
+        zip_code="10001",
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -40,7 +47,14 @@ def test_instructors(db: Session):
     instructors = []
     # Create instructors - we need at least 8 for the tests
     for i in range(8):
-        user = User(email=f"instructor{i}@example.com", full_name=f"Test Instructor {i}", hashed_password="hashed")
+        user = User(
+            email=f"instructor{i}@example.com",
+            first_name="Test",
+            last_name=f"Instructor {i}",
+            hashed_password="hashed",
+            phone="+12125550000",
+            zip_code="10001",
+        )
         db.add(user)
         db.flush()  # Get the ID
 

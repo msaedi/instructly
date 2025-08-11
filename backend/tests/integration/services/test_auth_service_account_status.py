@@ -35,7 +35,10 @@ class TestAuthServiceAccountStatus:
         user = User(
             email="active.instructor@example.com",
             hashed_password=get_password_hash(test_password),
-            full_name="Active Instructor",
+            first_name="Active",
+            last_name="Instructor",
+            phone="+12125550000",
+            zip_code="10001",
             account_status="active",
             is_active=True,
         )
@@ -49,7 +52,10 @@ class TestAuthServiceAccountStatus:
         user = User(
             email="suspended.instructor@example.com",
             hashed_password=get_password_hash(test_password),
-            full_name="Suspended Instructor",
+            first_name="Suspended",
+            last_name="Instructor",
+            phone="+12125550000",
+            zip_code="10001",
             account_status="suspended",
             is_active=True,
         )
@@ -63,7 +69,10 @@ class TestAuthServiceAccountStatus:
         user = User(
             email="deactivated.instructor@example.com",
             hashed_password=get_password_hash(test_password),
-            full_name="Deactivated Instructor",
+            first_name="Deactivated",
+            last_name="Instructor",
+            phone="+12125550000",
+            zip_code="10001",
             account_status="deactivated",
             is_active=True,
         )
@@ -77,7 +86,10 @@ class TestAuthServiceAccountStatus:
         user = User(
             email="active.student@example.com",
             hashed_password=get_password_hash(test_password),
-            full_name="Active Student",
+            first_name="Active",
+            last_name="Student",
+            phone="+12125550000",
+            zip_code="10001",
             account_status="active",
             is_active=True,
         )
@@ -161,7 +173,9 @@ class TestAuthServiceAccountStatus:
 
     def test_register_user_with_default_status(self, auth_service: AuthService, db: Session):
         """Test that new users are registered with active status by default."""
-        new_user = auth_service.register_user(email="newuser@example.com", password="password123", full_name="New User")
+        new_user = auth_service.register_user(
+            email="newuser@example.com", password="password123", first_name="New", last_name="User", zip_code="10001"
+        )
 
         assert new_user is not None
         assert new_user.account_status == "active"

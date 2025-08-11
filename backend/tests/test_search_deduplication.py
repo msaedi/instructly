@@ -44,7 +44,14 @@ def event_repository(db: Session):
 @pytest.fixture
 def test_user(db: Session):
     """Create a test user."""
-    user = User(email="test@example.com", full_name="Test User", hashed_password="hashed")
+    user = User(
+        email="test@example.com",
+        first_name="Test",
+        last_name="User",
+        phone="+12125550000",
+        zip_code="10001",
+        hashed_password="hashed",
+    )
     db.add(user)
     db.commit()
     db.refresh(user)

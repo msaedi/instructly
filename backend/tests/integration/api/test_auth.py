@@ -45,7 +45,10 @@ class TestAuth:
             json={
                 "email": "newuser@example.com",
                 "password": "SecurePassword123!",
-                "full_name": "New User",
+                "first_name": "New",
+                "last_name": "User",
+                "phone": "+12125550000",
+                "zip_code": "10001",
                 "role": "student",
             },
         )
@@ -53,7 +56,8 @@ class TestAuth:
         assert response.status_code == 201
         data = response.json()
         assert data["email"] == "newuser@example.com"
-        assert data["full_name"] == "New User"
+        assert data["first_name"] == "New"
+        assert data["last_name"] == "User"
         assert data["roles"] == ["student"]
         assert "id" in data
 
@@ -69,7 +73,10 @@ class TestAuth:
             json={
                 "email": test_student.email,  # Existing email
                 "password": "Password123!",
-                "full_name": "Duplicate User",
+                "first_name": "Duplicate",
+                "last_name": "User",
+                "phone": "+12125550000",
+                "zip_code": "10001",
                 "role": "student",
             },
         )
@@ -107,7 +114,8 @@ class TestAuth:
         assert response.status_code == 200
         data = response.json()
         assert data["email"] == test_student.email
-        assert data["full_name"] == test_student.full_name
+        assert data["first_name"] == test_student.first_name
+        assert data["last_name"] == test_student.last_name
         assert data["roles"] == ["student"]
 
     def test_get_current_user_invalid_token(self, db: Session, client: TestClient):

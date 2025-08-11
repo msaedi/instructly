@@ -33,14 +33,18 @@ class TestBaseServiceTransactions:
             user = User(
                 email="transaction_test@example.com",
                 hashed_password="hashed",
-                full_name="Transaction Test",
+                first_name="Transaction",
+                last_name="Test",
+                phone="+12125550000",
+                zip_code="10001",
             )
             db.add(user)
 
         # Verify user was committed
         saved_user = db.query(User).filter(User.email == "transaction_test@example.com").first()
         assert saved_user is not None
-        assert saved_user.full_name == "Transaction Test"
+        assert saved_user.first_name == "Transaction"
+        assert saved_user.last_name == "Test"
 
     def test_transaction_rollback_on_error(self, db: Session):
         """Test transaction rollback on error."""
@@ -54,7 +58,10 @@ class TestBaseServiceTransactions:
                 user = User(
                     email="rollback_test@example.com",
                     hashed_password="hashed",
-                    full_name="Rollback Test",
+                    first_name="Rollback",
+                    last_name="Test",
+                    phone="+12125550000",
+                    zip_code="10001",
                 )
                 db.add(user)
                 # Force an error
@@ -129,7 +136,10 @@ class TestBaseServiceTransactions:
             user = User(
                 email="decorator_test@example.com",
                 hashed_password="hashed",
-                full_name="Decorator Test",
+                first_name="Decorator",
+                last_name="Test",
+                phone="+12125550000",
+                zip_code="10001",
             )
             self.db.add(user)
             return user
@@ -157,7 +167,10 @@ class TestBaseServiceTransactions:
                 user1 = User(
                     email="outer_transaction@example.com",
                     hashed_password="hashed",
-                    full_name="Outer User",
+                    first_name="Outer",
+                    last_name="User",
+                    phone="+12125550000",
+                    zip_code="10001",
                 )
                 db.add(user1)
 
@@ -166,7 +179,10 @@ class TestBaseServiceTransactions:
                     user2 = User(
                         email="inner_transaction@example.com",
                         hashed_password="hashed",
-                        full_name="Inner User",
+                        first_name="Inner",
+                        last_name="User",
+                        phone="+12125550000",
+                        zip_code="10001",
                     )
                     db.add(user2)
                     raise SQLAlchemyError("Inner transaction error")

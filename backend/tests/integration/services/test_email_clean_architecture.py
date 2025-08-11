@@ -28,12 +28,14 @@ class TestEmailCleanArchitecture:
         student = Mock(spec=User)
         student.id = 1
         student.email = "student@example.com"
-        student.full_name = "Test Student"
+        student.first_name = "Test"
+        student.last_name = "Student"
 
         instructor = Mock(spec=User)
         instructor.id = 2
         instructor.email = "instructor@example.com"
-        instructor.full_name = "Test Instructor"
+        instructor.first_name = "Test"
+        instructor.last_name = "Instructor"
 
         # Mock booking with clean fields
         booking = Mock(spec=Booking)
@@ -100,7 +102,7 @@ class TestEmailCleanArchitecture:
 
         # Verify subject uses booking data
         assert "Piano Lessons" in subject
-        assert "Test Instructor" in subject
+        assert "Test" in subject  # First name only in friendly context per Clean Break
 
         # Verify email content uses booking's time fields
         assert "July 15, 2025" in html_content or "2025-07-15" in html_content

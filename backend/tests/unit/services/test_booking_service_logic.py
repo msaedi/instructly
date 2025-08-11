@@ -109,7 +109,8 @@ class TestBookingServiceUnit:
         student.roles = [mock_student_role]
         student.id = 1
         student.email = "student@example.com"
-        student.full_name = "Test Student"
+        student.first_name = ("Test",)
+        last_name = "Student"
         student.timezone = "America/New_York"
         return student
 
@@ -125,7 +126,8 @@ class TestBookingServiceUnit:
         instructor.roles = [mock_instructor_role]
         instructor.id = 2
         instructor.email = "instructor@example.com"
-        instructor.full_name = "Test Instructor"
+        instructor.first_name = ("Test",)
+        last_name = "Instructor"
         instructor.account_status = "active"
         instructor.timezone = "America/New_York"
         return instructor

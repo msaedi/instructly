@@ -13,7 +13,8 @@ class InstructorInfo(BaseModel):
     """Instructor information in search results."""
 
     id: int = Field(description="Instructor user ID")
-    name: str = Field(description="Instructor full name")
+    first_name: str = Field(description="Instructor first name")
+    last_name: str = Field(description="Instructor last name")
     bio: Optional[str] = Field(default=None, description="Instructor bio")
     years_experience: Optional[int] = Field(default=None, description="Years of experience")
     areas_of_service: Optional[str] = Field(default=None, description="Service areas")

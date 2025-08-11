@@ -154,7 +154,7 @@ class TestPublicAvailability:
 
         # Verify response structure
         assert result["instructor_id"] == instructor.id
-        assert result["instructor_name"] == instructor.full_name
+        assert result["instructor_name"] == instructor.first_name  # Clean Break: first name only in public contexts
         assert "availability_by_date" in result
         assert result["timezone"] == "America/New_York"
 

@@ -127,7 +127,9 @@ class TestAuthWithGuestSession:
         user = auth_service.register_user(
             email=f"convert-{guest_session_id}@example.com",
             password="testpass123",
-            full_name="Convert User",
+            first_name="Convert",
+            last_name="User",
+            zip_code="10001",
         )
         for query in ["piano lessons", "guitar teachers"]:
             search = SearchHistory(
@@ -201,7 +203,10 @@ class TestAuthWithGuestSession:
             json={
                 "email": "newuser@example.com",
                 "password": "newpass123",
-                "full_name": "New User",
+                "first_name": "New",
+                "last_name": "User",
+                "phone": "+12125550000",
+                "zip_code": "10001",
                 "role": "student",
                 "guest_session_id": guest_session_id,
             },
@@ -223,7 +228,9 @@ class TestAuthWithGuestSession:
         auth_service.register_user(
             email="regular@example.com",
             password="regularpass123",
-            full_name="Regular User",
+            first_name="Regular",
+            last_name="User",
+            zip_code="10001",
         )
 
         # Regular login (OAuth2 format)

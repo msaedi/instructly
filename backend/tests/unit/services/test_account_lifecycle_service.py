@@ -88,7 +88,8 @@ class TestAccountLifecycleServiceUnit:
         instructor.roles = [mock_instructor_role]
         instructor.id = 1
         instructor.email = "instructor@example.com"
-        instructor.full_name = "Test Instructor"
+        instructor.first_name = ("Test",)
+        last_name = "Instructor"
         instructor.account_status = "active"
         instructor.is_instructor = True
         instructor.is_student = False
@@ -112,7 +113,8 @@ class TestAccountLifecycleServiceUnit:
         student.roles = [mock_student_role]
         student.id = 2
         student.email = "student@example.com"
-        student.full_name = "Test Student"
+        student.first_name = ("Test",)
+        last_name = "Student"
         student.account_status = "active"
         student.is_instructor = False
         student.is_student = True

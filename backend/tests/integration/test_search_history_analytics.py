@@ -122,7 +122,10 @@ class TestSoftDeleteFunctionality:
         user = User(
             email="test@example.com",
             hashed_password="hash",
-            full_name="Test User",
+            first_name="Test",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.commit()
@@ -160,7 +163,10 @@ class TestSoftDeleteFunctionality:
         user = User(
             email="test2@example.com",
             hashed_password="hash",
-            full_name="Test User",
+            first_name="Test",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.commit()
@@ -207,7 +213,10 @@ class TestGuestToUserConversion:
         user = User(
             email=f"convert-{guest_session_id}@example.com",
             hashed_password="hash",
-            full_name="Convert User",
+            first_name="Convert",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.commit()
@@ -251,7 +260,10 @@ class TestGuestToUserConversion:
         user = User(
             email=f"existing-{guest_session_id}@example.com",
             hashed_password="hash",
-            full_name="Existing User",
+            first_name="Existing",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.commit()
@@ -301,7 +313,10 @@ class TestGuestToUserConversion:
         user = User(
             email=f"timestamp-{unique_id}@example.com",
             hashed_password="hash",
-            full_name="Timestamp User",
+            first_name="Timestamp",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.commit()
@@ -342,7 +357,10 @@ class TestSearchLimitConfiguration:
         user = User(
             email="limit@example.com",
             hashed_password="hash",
-            full_name="Limit User",
+            first_name="Limit",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.commit()
@@ -367,7 +385,10 @@ class TestSearchLimitConfiguration:
         user = User(
             email="nolimit@example.com",
             hashed_password="hash",
-            full_name="No Limit User",
+            first_name="No",
+            last_name="Limit User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.commit()
@@ -443,7 +464,10 @@ class TestAnalyticsEligibility:
         user = User(
             email=f"analytics-{unique_id}@example.com",
             hashed_password="hash",
-            full_name="Analytics User",
+            first_name="Analytics",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.commit()

@@ -91,7 +91,8 @@ class TestInstructorProfileRepositoryEagerLoading:
 
         # Check relationships are loaded (no new queries should be triggered)
         assert profile.user is not None
-        assert profile.user.full_name == test_instructor.full_name
+        assert profile.user.first_name == test_instructor.first_name
+        assert profile.user.last_name == test_instructor.last_name
         assert len(profile.instructor_services) == 2  # Test instructor has 2 services
         assert all(isinstance(s, Service) for s in profile.instructor_services)
 
@@ -103,7 +104,10 @@ class TestInstructorProfileRepositoryEagerLoading:
         user = User(
             email="service.filter.test@example.com",
             hashed_password="test_hash",
-            full_name="Service Filter Test",
+            first_name="Service",
+            last_name="Filter Test",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.flush()
@@ -213,7 +217,10 @@ class TestInstructorProfileRepositoryMethods:
         new_user = User(
             email="new.instructor@test.com",
             hashed_password="hashed",
-            full_name="New Instructor",
+            first_name="New",
+            last_name="Instructor",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(new_user)
         db.flush()
@@ -235,7 +242,10 @@ class TestInstructorProfileRepositoryMethods:
             user = User(
                 email=f"instructor{i}@test.com",
                 hashed_password="hashed",
-                full_name=f"Instructor {i}",
+                first_name="Instructor",
+                last_name=str(i),
+                phone="+12125550000",
+                zip_code="10001",
             )
             db.add(user)
             db.flush()
@@ -299,7 +309,8 @@ class TestInstructorProfileRepositoryIntegration:
         # Should have user data without N+1 queries
         for instructor in instructors:
             assert "user" in instructor
-            assert instructor["user"]["full_name"] is not None
+            assert instructor["user"]["first_name"] is not None
+            assert instructor["user"]["last_name"] is not None
             assert "services" in instructor  # Updated to match new API format
             # The service layer should filter out inactive services
             # when converting to DTOs
@@ -338,7 +349,10 @@ class TestPerformanceImprovement:
             user = User(
                 email=f"perf_test{i}@test.com",
                 hashed_password="hashed",
-                full_name=f"Perf Test {i}",
+                first_name="Perf",
+                last_name=f"Test {i}",
+                phone="+12125550000",
+                zip_code="10001",
             )
             db.add(user)
             db.flush()
@@ -442,7 +456,8 @@ class TestEagerLoadingOverride:
         # Relationships should be loaded
         assert loaded_profile is not None
         assert loaded_profile.user is not None
-        assert loaded_profile.user.full_name == test_instructor.full_name
+        assert loaded_profile.user.first_name == test_instructor.first_name
+        assert loaded_profile.user.last_name == test_instructor.last_name
         assert len(loaded_profile.instructor_services) >= 2
 
         # Test without eager loading
@@ -465,7 +480,14 @@ class TestDiagnosticAndDebugging:
         from app.repositories.instructor_profile_repository import InstructorProfileRepository
 
         # Create a fresh instructor
-        user = User(email="debug.test@example.com", hashed_password="hashed", full_name="Debug Test")
+        user = User(
+            email="debug.test@example.com",
+            hashed_password="hashed",
+            first_name="Debug",
+            last_name="Test",
+            phone="+12125550000",
+            zip_code="10001",
+        )
         db.add(user)
         db.flush()
 
@@ -584,7 +606,14 @@ class TestDiagnosticAndDebugging:
         from app.repositories.instructor_profile_repository import InstructorProfileRepository
 
         # Create test data
-        user = User(email="diagnose@test.com", hashed_password="test", full_name="Diagnose Test")
+        user = User(
+            email="diagnose@test.com",
+            hashed_password="test",
+            first_name="Diagnose",
+            last_name="Test",
+            phone="+12125550000",
+            zip_code="10001",
+        )
         db.add(user)
         db.flush()
 

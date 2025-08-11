@@ -25,7 +25,10 @@ class TestSearchHistoryRepository:
         user = User(
             email="test@example.com",
             hashed_password="hash",
-            full_name="Test",
+            first_name="Test",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.commit()
@@ -86,7 +89,10 @@ class TestSearchHistoryRepository:
         user = User(
             email="deleted@example.com",
             hashed_password="hash",
-            full_name="Test",
+            first_name="Test",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.commit()
@@ -152,7 +158,10 @@ class TestSearchHistoryRepository:
         user = User(
             email="count@example.com",
             hashed_password="hash",
-            full_name="Count",
+            first_name="Count",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.commit()
@@ -251,7 +260,10 @@ class TestSearchHistoryRepository:
             id=user_id,
             email="softdel@example.com",
             hashed_password="hash",
-            full_name="SoftDel",
+            first_name="SoftDel",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.commit()
@@ -298,7 +310,10 @@ class TestSearchHistoryRepository:
         user = User(
             email="delbyid@example.com",
             hashed_password="hash",
-            full_name="Del",
+            first_name="Del",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.commit()
@@ -342,7 +357,10 @@ class TestSearchHistoryRepository:
         other_user = User(
             email="other@example.com",
             hashed_password="hash",
-            full_name="Other",
+            first_name="Other",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(other_user)
         db.commit()
@@ -362,7 +380,10 @@ class TestSearchHistoryRepository:
         user = User(
             email=f"converted-{unique_id}@example.com",
             hashed_password="hash",
-            full_name="Converted",
+            first_name="Converted",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.commit()
@@ -424,7 +445,10 @@ class TestSearchHistoryRepository:
         user = User(
             email=f"mark-{unique_id}@example.com",
             hashed_password="hash",
-            full_name="Mark",
+            first_name="Mark",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.commit()
@@ -470,7 +494,10 @@ class TestSearchHistoryRepository:
         user = User(
             email=f"analytics-{unique_id}@example.com",
             hashed_password="hash",
-            full_name="Analytics",
+            first_name="Analytics",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.commit()

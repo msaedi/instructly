@@ -81,7 +81,8 @@ class TestStudentConflictValidation:
         student.roles = [mock_student_role]
         student.id = 1
         student.email = "student@test.com"
-        student.full_name = "Test Student"
+        student.first_name = ("Test",)
+        last_name = "Student"
         return student
 
     @pytest.fixture
@@ -96,7 +97,8 @@ class TestStudentConflictValidation:
         instructor.roles = [mock_instructor_role]
         instructor.id = 2
         instructor.email = "instructor@test.com"
-        instructor.full_name = "Test Instructor"
+        instructor.first_name = ("Test",)
+        last_name = "Instructor"
         instructor.account_status = "active"
         return instructor
 

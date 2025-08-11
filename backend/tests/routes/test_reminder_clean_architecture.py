@@ -57,7 +57,10 @@ class TestReminderEndpointCleanArchitecture:
         admin = User(
             email="test.admin@example.com",
             hashed_password=get_password_hash("Test1234"),
-            full_name="Test Admin",
+            first_name="Test",
+            last_name="Admin",
+            phone="+12125550000",
+            zip_code="10001",
             is_active=True,
         )
         db.add(admin)
@@ -342,7 +345,7 @@ class TestReminderIntegration:
             assert "2:00 PM" in html_content or "14:00" in html_content
 
             # Should contain actual names
-            assert test_student.full_name in html_content or test_instructor.full_name in html_content
+            assert test_student.first_name in html_content or test_instructor.first_name in html_content
 
             # Should NOT contain slot references
             assert "slot_id" not in html_content.lower()

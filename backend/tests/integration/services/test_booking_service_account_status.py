@@ -290,7 +290,10 @@ class TestBookingServiceAccountStatus:
         active_instructor = User(
             email="active.instructor@example.com",
             hashed_password=get_password_hash("TestPassword123!"),
-            full_name="Active Instructor",
+            first_name="Active",
+            last_name="Instructor",
+            phone="+12125550000",
+            zip_code="10001",
             is_active=True,
             account_status="active",
         )
@@ -350,7 +353,10 @@ class TestBookingServiceAccountStatus:
         active_instructor = User(
             email="active2.instructor@example.com",
             hashed_password=get_password_hash("TestPassword123!"),
-            full_name="Active Instructor 2",
+            first_name="Active",
+            last_name="Instructor 2",
+            phone="+12125550000",
+            zip_code="10001",
             is_active=True,
             account_status="active",
         )

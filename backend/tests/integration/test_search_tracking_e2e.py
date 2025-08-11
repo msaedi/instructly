@@ -50,7 +50,14 @@ def test_user_with_token(db: Session):
     from app.auth import create_access_token
 
     # Create user
-    user = User(email="e2e-test@example.com", full_name="E2E Test User", hashed_password="hashed")
+    user = User(
+        email="e2e-test@example.com",
+        first_name="E2E",
+        last_name="Test User",
+        hashed_password="hashed",
+        phone="+12125550000",
+        zip_code="10001",
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -84,7 +91,10 @@ def test_instructor(db: Session):
     # Create instructor user
     instructor_user = User(
         email="test-instructor@example.com",
-        full_name="Test Instructor",
+        first_name="Test",
+        last_name="Instructor",
+        phone="+12125550000",
+        zip_code="10001",
         hashed_password=get_password_hash("password123"),
     )
     db.add(instructor_user)

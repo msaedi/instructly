@@ -640,7 +640,7 @@ class TestInstructorProfileRepositoryValidation:
         # Access relationships - should NOT trigger new queries
         for profile in profiles:
             # These should already be loaded
-            _ = profile.user.full_name
+            _ = f"{profile.user.first_name} {profile.user.last_name}"
             _ = len(profile.instructor_services)
             for service in profile.instructor_services:
                 _ = service.catalog_entry.name if service.catalog_entry else "Unknown Service"
@@ -689,7 +689,10 @@ class TestInstructorProfileRepositoryValidation:
         user = User(
             email="mixed.instructor_services@test.com",
             hashed_password="hashed",
-            full_name="Mixed Services",
+            first_name="Mixed",
+            last_name="Services",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.flush()

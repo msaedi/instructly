@@ -45,7 +45,8 @@ class TestConflictCheckerDataTransformation:
 
         # Mock student
         mock_student = Mock()
-        mock_student.full_name = "John Doe"
+        mock_student.first_name = "John"
+        mock_student.last_name = "Doe"
         mock_booking.student = mock_student
 
         # Mock repository method
@@ -62,7 +63,8 @@ class TestConflictCheckerDataTransformation:
         assert conflict["booking_id"] == 123
         assert conflict["start_time"] == "10:00:00"
         assert conflict["end_time"] == "11:00:00"
-        assert conflict["student_name"] == "John Doe"
+        assert conflict["student_first_name"] == "John"
+        assert conflict["student_last_name"] == "Doe"
         assert conflict["service_name"] == "Piano Lessons"
 
     def test_booked_times_response_formatting(self, service):
@@ -99,7 +101,7 @@ class TestConflictCheckerDataTransformation:
         mock_booking.status = BookingStatus.CONFIRMED
         mock_booking.start_time = time(10, 0)
         mock_booking.end_time = time(11, 0)
-        mock_booking.student = Mock(full_name="John Doe")
+        mock_booking.student = Mock(first_name="John", last_name="Doe")
 
         service.repository.get_bookings_for_conflict_check.return_value = [mock_booking]
 
@@ -114,7 +116,8 @@ class TestConflictCheckerDataTransformation:
         assert conflict["booking_id"] == 123
         assert conflict["start_time"] == "10:00:00"
         assert conflict["end_time"] == "11:00:00"
-        assert conflict["student_name"] == "John Doe"
+        assert conflict["student_first_name"] == "John"
+        assert conflict["student_last_name"] == "Doe"
         assert conflict["service_name"] == "Piano Lessons"
         assert conflict["status"] == BookingStatus.CONFIRMED
 
@@ -473,7 +476,7 @@ class TestConflictCheckerValidationRules:
         booking.start_time = start
         booking.end_time = end
         booking.booking_date = date.today()
-        booking.student = Mock(full_name="Test Student")
+        booking.student = Mock(first_name="Test", last_name="Student")
         booking.service_name = "Test Service"
         booking.status = BookingStatus.CONFIRMED
 

@@ -32,7 +32,8 @@ class TestPrivacyEndpoints:
                 "user_profile": {
                     "id": sample_user_for_privacy.id,
                     "email": sample_user_for_privacy.email,
-                    "full_name": sample_user_for_privacy.full_name,
+                    "first_name": sample_user_for_privacy.first_name,
+                    "last_name": sample_user_for_privacy.last_name,
                     "role": sample_user_for_privacy.role,
                 },
                 "search_history": [],

@@ -165,7 +165,10 @@ class TestBookingServiceCreation:
         # Create another student
         another_student = User(
             email="another.student@example.com",
-            full_name="Another Student",
+            first_name="Another",
+            last_name="Student",
+            phone="+12125550000",
+            zip_code="10001",
             hashed_password="hashed",
         )
         db.add(another_student)
@@ -307,7 +310,14 @@ class TestBookingServiceCancellation:
     ):
         """Test cancellation by unauthorized user fails."""
         # Create another user
-        other_user = User(email="other@example.com", full_name="Other User", hashed_password="hashed")
+        other_user = User(
+            email="other@example.com",
+            first_name="Other",
+            last_name="User",
+            hashed_password="hashed",
+            phone="+12125550000",
+            zip_code="10001",
+        )
         db.add(other_user)
         db.commit()
 
@@ -392,7 +402,10 @@ class TestBookingServiceRetrieval:
         # Create another user
         other_user = User(
             email="unauthorized@example.com",
-            full_name="Unauthorized User",
+            first_name="Unauthorized",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
             hashed_password="hashed",
         )
         db.add(other_user)

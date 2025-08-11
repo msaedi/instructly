@@ -35,7 +35,10 @@ class TestAnalyticsResponseSchemas:
         admin = User(
             email="test.admin@example.com",
             hashed_password=get_password_hash(test_password),
-            full_name="Test Admin",
+            first_name="Test",
+            last_name="Admin",
+            phone="+12125550000",
+            zip_code="10001",
             is_active=True,
         )
         db.add(admin)

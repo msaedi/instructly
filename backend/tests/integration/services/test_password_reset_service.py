@@ -50,7 +50,7 @@ class TestPasswordResetService:
         # Verify email parameters
         email_call = mock_email_service.send_password_reset_email.call_args
         assert email_call.kwargs["to_email"] == test_student.email
-        assert email_call.kwargs["user_name"] == test_student.full_name
+        assert email_call.kwargs["user_name"] == test_student.first_name
         assert "reset_url" in email_call.kwargs
 
     @pytest.mark.asyncio
@@ -182,7 +182,10 @@ class TestPasswordResetService:
             user = User(
                 email=email,
                 hashed_password="dummy",
-                full_name="Test User",
+                first_name="Test",
+                last_name="User",
+                phone="+12125550000",
+                zip_code="10001",
             )
             db.add(user)
             db.flush()

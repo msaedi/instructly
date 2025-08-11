@@ -404,7 +404,10 @@ def test_student(db: Session, test_password: str) -> User:
     student = User(
         email="test.student@example.com",
         hashed_password=get_password_hash(test_password),
-        full_name="Test Student",
+        first_name="Test",
+        last_name="Student",
+        phone="+12125551234",
+        zip_code="10001",
         is_active=True,
     )
     db.add(student)
@@ -434,7 +437,10 @@ def test_instructor(db: Session, test_password: str) -> User:
     instructor = User(
         email="test.instructor@example.com",
         hashed_password=get_password_hash(test_password),
-        full_name="Test Instructor",
+        first_name="Test",
+        last_name="Instructor",
+        phone="+12125551235",
+        zip_code="10002",
         is_active=True,
     )
     db.add(instructor)
@@ -517,7 +523,10 @@ def test_instructor_2(db: Session, test_password: str) -> User:
     instructor = User(
         email="test.instructor2@example.com",
         hashed_password=get_password_hash(test_password),
-        full_name="Test Instructor 2",
+        first_name="Test",
+        last_name="Instructor 2",
+        phone="+12125551236",
+        zip_code="10003",
         is_active=True,
     )
     db.add(instructor)
@@ -956,7 +965,10 @@ def sample_instructors_with_services(db: Session, test_password: str) -> list[Us
         email=piano_email,
         hashed_password=get_password_hash(test_password),
         is_active=True,
-        full_name=unique_data.unique_name("Piano Teacher"),
+        first_name="Piano",
+        last_name=unique_data.unique_name("Teacher"),
+        phone="+12125550000",
+        zip_code="10001",
     )
     db.add(piano_instructor)
     db.flush()
@@ -1008,7 +1020,10 @@ def sample_instructors_with_services(db: Session, test_password: str) -> list[Us
         email=yoga_email,
         hashed_password=get_password_hash(test_password),
         is_active=True,
-        full_name=unique_data.unique_name("Yoga Teacher"),
+        first_name="Yoga",
+        last_name=unique_data.unique_name("Teacher"),
+        phone="+12125550000",
+        zip_code="10001",
     )
     db.add(yoga_instructor)
     db.flush()
@@ -1075,7 +1090,10 @@ def sample_user_for_privacy(db):
 
     user = User(
         email="privacy_test@example.com",
-        full_name="Privacy Test User",
+        first_name="Privacy",
+        last_name="Test User",
+        phone="+12125550000",
+        zip_code="10001",
         hashed_password="hashed_password",
     )
     db.add(user)
@@ -1114,7 +1132,10 @@ def sample_instructor_for_privacy(db):
     """Create a sample instructor user with profile for privacy testing."""
     user = User(
         email="privacy_instructor@example.com",
-        full_name="Privacy Test Instructor",
+        first_name="Privacy",
+        last_name="Test Instructor",
+        phone="+12125550000",
+        zip_code="10001",
         hashed_password="hashed_password",
     )
     db.add(user)
@@ -1138,7 +1159,10 @@ def sample_admin_for_privacy(db):
     """Create a sample admin user for privacy testing."""
     user = User(
         email="privacy_admin@example.com",
-        full_name="Privacy Admin User",
+        first_name="Privacy",
+        last_name="Admin User",
+        phone="+12125550000",
+        zip_code="10001",
         hashed_password="hashed_password",
     )
     db.add(user)

@@ -180,7 +180,8 @@ class TestConflictCheckerEnhancedPatterns:
         for booking in results:
             assert booking.student is not None
             assert booking.instructor_service is not None
-            assert hasattr(booking.student, "full_name")  # No additional query
+            assert hasattr(booking.student, "first_name")
+            assert hasattr(booking.student, "last_name")  # No additional query
 
     def test_query_pattern_get_instructor_booking_summary(self, db: Session, test_instructor: User, test_student: User):
         """Document aggregation query for instructor booking summary."""

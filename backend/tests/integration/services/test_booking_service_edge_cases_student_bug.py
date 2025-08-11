@@ -32,7 +32,10 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
     student = User(
         email="double.booking.student@test.com",
         hashed_password=get_password_hash("testpass123"),
-        full_name="Double Booking Student",
+        first_name="Double",
+        last_name="Booking Student",
+        phone="+12125550000",
+        zip_code="10001",
         is_active=True,
     )
     db.add(student)
@@ -47,7 +50,10 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
     instructor1 = User(
         email="math.instructor@test.com",
         hashed_password=get_password_hash("testpass123"),
-        full_name="Math Instructor",
+        first_name="Math",
+        last_name="Instructor",
+        phone="+12125550000",
+        zip_code="10001",
         is_active=True,
     )
     db.add(instructor1)
@@ -87,7 +93,10 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
     instructor2 = User(
         email="piano.instructor@test.com",
         hashed_password=get_password_hash("testpass123"),
-        full_name="Piano Instructor",
+        first_name="Piano",
+        last_name="Instructor",
+        phone="+12125550000",
+        zip_code="10001",
         is_active=True,
     )
     db.add(instructor2)
@@ -203,6 +212,6 @@ async def test_student_cannot_double_book_overlapping_sessions(db: Session, cata
 
     print("SUCCESS: Student double-booking prevention is working correctly!")
     print(
-        f"Booking 1: {booking1.service_name} with {booking1.instructor.full_name} at {booking1.start_time}-{booking1.end_time}"
+        f"Booking 1: {booking1.service_name} with {booking1.instructor.first_name} {booking1.instructor.last_name} at {booking1.start_time}-{booking1.end_time}"
     )
     print("Booking 2: BLOCKED - ConflictException raised as expected")

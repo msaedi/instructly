@@ -39,7 +39,14 @@ def test_user_with_token(db: Session):
     from app.auth import create_access_token
 
     # Create user
-    user = User(email="edge-case-test@example.com", full_name="Edge Case User", hashed_password="hashed")
+    user = User(
+        email="edge-case-test@example.com",
+        first_name="Edge",
+        last_name="Case User",
+        hashed_password="hashed",
+        phone="+12125550000",
+        zip_code="10001",
+    )
     db.add(user)
     db.commit()
     db.refresh(user)

@@ -133,7 +133,10 @@ class TestSearchHistoryCleanup:
         user = User(
             email="test@example.com",
             hashed_password="hash",
-            full_name="Test",
+            first_name="Test",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.commit()
@@ -267,7 +270,10 @@ class TestSearchHistoryCleanup:
         user = User(
             email=f"stats-{unique_id}@example.com",
             hashed_password="hash",
-            full_name="Stats User",
+            first_name="Stats",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.commit()

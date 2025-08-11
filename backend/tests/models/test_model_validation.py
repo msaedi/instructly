@@ -133,7 +133,10 @@ class TestModelInstantiation:
         user = User(
             email="test@example.com",
             hashed_password="hashed_password_value",
-            full_name="Test User",
+            first_name="Test",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.flush()
@@ -155,7 +158,10 @@ class TestModelInstantiation:
         instructor_user = User(
             email="new.instructor@example.com",
             hashed_password=get_password_hash("TestPassword123!"),
-            full_name="New Instructor",
+            first_name="New",
+            last_name="Instructor",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(instructor_user)
         db.flush()
@@ -548,7 +554,10 @@ class TestFieldValidation:
         user = User(
             email="test@example.com",
             hashed_password="hash",
-            full_name="Test User",
+            first_name="Test",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.flush()
@@ -584,7 +593,10 @@ class TestFieldValidation:
         user = User(
             email="student@example.com",
             hashed_password="hash",
-            full_name="Student User",
+            first_name="Student",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
         )
         db.add(user)
         db.flush()
@@ -638,7 +650,14 @@ class TestDefaultValues:
 
     def test_user_defaults(self, db):
         """Test User model default values."""
-        user = User(email="defaults@test.com", hashed_password="hash", full_name="Default Test")
+        user = User(
+            email="defaults@test.com",
+            hashed_password="hash",
+            first_name="Default",
+            last_name="Test",
+            phone="+12125550000",
+            zip_code="10001",
+        )
         db.add(user)
         db.flush()
 

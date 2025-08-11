@@ -79,7 +79,8 @@ class TestPrivacyService:
 
         assert result["user_profile"]["id"] == sample_user_for_privacy.id
         assert result["user_profile"]["email"] == sample_user_for_privacy.email
-        assert result["user_profile"]["full_name"] == sample_user_for_privacy.full_name
+        assert result["user_profile"]["first_name"] == sample_user_for_privacy.first_name
+        assert result["user_profile"]["last_name"] == sample_user_for_privacy.last_name
         assert len(result["search_history"]) == 1
         assert result["search_history"][0]["search_query"] == "math tutoring"
         assert result["instructor_profile"] is None
@@ -141,7 +142,8 @@ class TestPrivacyService:
         assert user is not None
         assert user.is_active is False
         assert user.email == f"deleted_{user_id}@deleted.com"
-        assert user.full_name == "Deleted User"
+        assert user.first_name == "Deleted"
+        assert user.last_name == "User"
 
         # Note: No separate student profile to delete in current model
 
@@ -175,7 +177,8 @@ class TestPrivacyService:
         # Verify user was anonymized
         user = db.query(User).filter_by(id=user_id).first()
         assert user.email == f"anon_{user_id}@anonymized.com"
-        assert user.full_name == f"Anonymous User {user_id}"
+        assert user.first_name == "Anonymous"
+        assert user.last_name == f"User{user_id}"
         assert user.email != original_email
 
         # Verify instructor profile was anonymized

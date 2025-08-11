@@ -40,7 +40,7 @@ class TestInstructorServiceFiltering:
         service = InstructorService(db=mock_db, profile_repository=mock_profile_repository)
         return service
 
-    def create_mock_profile(self, user_id, name, bio, services):
+    def create_mock_profile(self, user_id, first_name, last_name, bio, services):
         """Helper to create a mock instructor profile."""
         profile = Mock(spec=InstructorProfile)
         profile.id = user_id
@@ -55,8 +55,9 @@ class TestInstructorServiceFiltering:
 
         # Mock user
         user = Mock(spec=User)
-        user.full_name = name
-        user.email = f"{name.lower().replace(' ', '.')}@example.com"
+        user.first_name = first_name
+        user.last_name = last_name
+        user.email = f"{first_name.lower()}.{last_name.lower()}@example.com"
         profile.user = user
 
         # Mock services
@@ -83,8 +84,8 @@ class TestInstructorServiceFiltering:
         """Test that calling without filters returns all instructors."""
         # Arrange
         mock_profiles = [
-            self.create_mock_profile(1, "John Doe", "Experienced piano teacher", [("Piano", 80.0)]),
-            self.create_mock_profile(2, "Jane Smith", "Yoga instructor", [("Yoga", 60.0)]),
+            self.create_mock_profile(1, "John", "Doe", "Experienced piano teacher", [("Piano", 80.0)]),
+            self.create_mock_profile(2, "Jane", "Smith", "Yoga instructor", [("Yoga", 60.0)]),
         ]
         mock_profile_repository.find_by_filters.return_value = mock_profiles
 
@@ -104,7 +105,7 @@ class TestInstructorServiceFiltering:
         """Test search filter across name, bio, and skills."""
         # Arrange
         mock_profiles = [
-            self.create_mock_profile(1, "John Doe", "Experienced piano teacher", [("Piano", 80.0)]),
+            self.create_mock_profile(1, "John", "Doe", "Experienced piano teacher", [("Piano", 80.0)]),
         ]
         mock_profile_repository.find_by_filters.return_value = mock_profiles
 
@@ -122,7 +123,7 @@ class TestInstructorServiceFiltering:
         """Test filtering by specific skill."""
         # Arrange
         mock_profiles = [
-            self.create_mock_profile(2, "Jane Smith", "Yoga instructor", [("Yoga", 60.0)]),
+            self.create_mock_profile(2, "Jane", "Smith", "Yoga instructor", [("Yoga", 60.0)]),
         ]
         mock_profile_repository.find_by_filters.return_value = mock_profiles
 
@@ -140,7 +141,7 @@ class TestInstructorServiceFiltering:
         """Test filtering by price range."""
         # Arrange
         mock_profiles = [
-            self.create_mock_profile(1, "John Doe", "Experienced teacher", [("Piano", 80.0)]),
+            self.create_mock_profile(1, "John", "Doe", "Experienced teacher", [("Piano", 80.0)]),
         ]
         mock_profile_repository.find_by_filters.return_value = mock_profiles
 
@@ -158,7 +159,7 @@ class TestInstructorServiceFiltering:
         """Test multiple filters applied together."""
         # Arrange
         mock_profiles = [
-            self.create_mock_profile(1, "John Doe", "Experienced piano teacher", [("Piano", 80.0)]),
+            self.create_mock_profile(1, "John", "Doe", "Experienced piano teacher", [("Piano", 80.0)]),
         ]
         mock_profile_repository.find_by_filters.return_value = mock_profiles
 
@@ -183,7 +184,7 @@ class TestInstructorServiceFiltering:
         """Test pagination parameters."""
         # Arrange
         mock_profiles = [
-            self.create_mock_profile(3, "Bob Johnson", "Guitar teacher", [("Guitar", 70.0)]),
+            self.create_mock_profile(3, "Bob", "Johnson", "Guitar teacher", [("Guitar", 70.0)]),
         ]
         mock_profile_repository.find_by_filters.return_value = mock_profiles
 
@@ -213,7 +214,7 @@ class TestInstructorServiceFiltering:
     def test_filters_out_inactive_services(self, instructor_service, mock_profile_repository):
         """Test that instructors with only inactive services are filtered out."""
         # Arrange
-        profile = self.create_mock_profile(1, "John Doe", "Teacher", [("Piano", 80.0)])
+        profile = self.create_mock_profile(1, "John", "Doe", "Teacher", [("Piano", 80.0)])
         # Mark all services as inactive
         for service in profile.instructor_services:
             service.is_active = False
@@ -232,7 +233,7 @@ class TestInstructorServiceFiltering:
         """Test that only active services are included in the response."""
         # Arrange
         profile = self.create_mock_profile(
-            1, "John Doe", "Multi-skill teacher", [("Piano", 80.0), ("Guitar", 70.0), ("Violin", 90.0)]
+            1, "John", "Doe", "Multi-skill teacher", [("Piano", 80.0), ("Guitar", 70.0), ("Violin", 90.0)]
         )
         # Mark some services as inactive
         profile.instructor_services[1].is_active = False  # Guitar inactive
@@ -252,7 +253,7 @@ class TestInstructorServiceFiltering:
         """Test that the service method properly formats the response."""
         # Arrange
         profile = self.create_mock_profile(
-            1, "John Doe", "Experienced teacher", [("Piano", 80.0), ("Music Theory", 60.0)]
+            1, "John", "Doe", "Experienced teacher", [("Piano", 80.0), ("Music Theory", 60.0)]
         )
         mock_profile_repository.find_by_filters.return_value = [profile]
 
@@ -261,7 +262,8 @@ class TestInstructorServiceFiltering:
 
         # Assert
         instructor = result["instructors"][0]
-        assert instructor["user"]["full_name"] == "John Doe"
+        assert instructor["user"]["first_name"] == "John"
+        assert instructor["user"]["last_name"] == "Doe"
         assert instructor["bio"] == "Experienced teacher"
         assert len(instructor["services"]) == 2
         # Services are sorted by service_catalog_id, not alphabetically

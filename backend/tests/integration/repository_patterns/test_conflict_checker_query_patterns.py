@@ -265,7 +265,7 @@ class TestConflictCheckerComplexQueries:
                 Booking.service_name,
                 Booking.status,
                 Booking.duration_minutes,
-                User.full_name.label("student_name"),
+                func.concat(User.first_name, " ", User.last_name).label("student_name"),
                 Booking.service_name.label("service_skill"),  # Use the denormalized field
             )
             .join(User, Booking.student_id == User.id)

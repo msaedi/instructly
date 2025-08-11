@@ -142,19 +142,28 @@ class TestNLSSpecificServiceMatching:
         dummy_hash = "$2b$12$dummy.hash.for.testing.only.not.real.password.hash"
         piano_user = User(
             email="piano@test.com",
-            full_name="Piano Teacher",
+            first_name="Piano",
+            last_name="Teacher",
+            phone="+12125550000",
+            zip_code="10001",
             account_status="active",
             hashed_password=dummy_hash,
         )
         guitar_user = User(
             email="guitar@test.com",
-            full_name="Guitar Teacher",
+            first_name="Guitar",
+            last_name="Teacher",
+            phone="+12125550000",
+            zip_code="10001",
             account_status="active",
             hashed_password=dummy_hash,
         )
         drums_user = User(
             email="drums@test.com",
-            full_name="Drums Teacher",
+            first_name="Drums",
+            last_name="Teacher",
+            phone="+12125550000",
+            zip_code="10001",
             account_status="active",
             hashed_password=dummy_hash,
         )
@@ -202,6 +211,9 @@ class TestNLSSpecificServiceMatching:
         """Test that 'piano under $80' returns ONLY piano instructors."""
         response = client.get("/api/search/instructors", params={"q": "piano under $80"})
 
+        if response.status_code != 200:
+            print(f"ERROR: Status {response.status_code}")
+            print(f"Response: {response.json()}")
         assert response.status_code == 200
         data = response.json()
 

@@ -148,7 +148,10 @@ class TestMessageService:
         other_user = User(
             email=unique_data.unique_email("other"),
             hashed_password="hashed",
-            full_name=unique_data.unique_name("Other User"),
+            first_name="Other",
+            last_name=unique_data.unique_name("User"),
+            phone="+12125550000",
+            zip_code="10001",
             is_active=True,
         )
         db.add(other_user)

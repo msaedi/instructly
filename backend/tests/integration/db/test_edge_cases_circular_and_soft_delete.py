@@ -635,7 +635,10 @@ def instructor_user(db: Session) -> User:
 
     user = User(
         email="instructor@example.com",
-        full_name="Test Instructor",
+        first_name="Test",
+        last_name="Instructor",
+        phone="+12125550000",
+        zip_code="10001",
         hashed_password="hashed",
         is_active=True,
     )
@@ -692,7 +695,10 @@ def student_user(db: Session) -> User:
 
     user = User(
         email="student@example.com",
-        full_name="Test Student",
+        first_name="Test",
+        last_name="Student",
+        phone="+12125550000",
+        zip_code="10001",
         hashed_password="hashed",
         is_active=True,
     )

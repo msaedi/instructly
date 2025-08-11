@@ -31,7 +31,10 @@ class TestInstructorsFilteringAPI:
         # Create a test user
         user = User(
             email="test@example.com",
-            full_name="Test User",
+            first_name="Test",
+            last_name="User",
+            phone="+12125550000",
+            zip_code="10001",
             hashed_password="hashed",
             is_active=True,
         )
@@ -52,7 +55,10 @@ class TestInstructorsFilteringAPI:
         for i in range(5):
             user = User(
                 email=f"instructor{i}@example.com",
-                full_name=f"Instructor {i}",
+                first_name="Instructor",
+                last_name=str(i),
+                phone="+12125550000",
+                zip_code="10001",
                 hashed_password="hashed",
                 is_active=True,
             )
@@ -353,7 +359,10 @@ class TestInstructorsFilteringAPI:
         # Create an instructor with both active and inactive services
         user = User(
             email="mixed@example.com",
-            full_name="Mixed Services Instructor",
+            first_name="Mixed",
+            last_name="Services Instructor",
+            phone="+12125550000",
+            zip_code="10001",
             hashed_password="hashed",
             is_active=True,
         )

@@ -105,7 +105,7 @@ class TestSupportingSystemsIntegration:
             assert any(day in html_content for day in weekdays), "Email should contain a day name"
 
             # Check for the student and instructor names (FIXED: using booking object)
-            assert full_booking.student.full_name in html_content or full_booking.instructor.full_name in html_content
+            assert full_booking.student.first_name in html_content or full_booking.instructor.first_name in html_content
 
             # FIXED: Only check for meeting location in student email (it's not shown in instructor email)
             if to_email == full_booking.student.email:

@@ -31,7 +31,10 @@ class TestStudentConflictValidationIntegration:
         student = User(
             email="conflict.test.student@test.com",
             hashed_password=get_password_hash("testpass123"),
-            full_name="Conflict Test Student",
+            first_name="Conflict",
+            last_name="Test Student",
+            phone="+12125550000",
+            zip_code="10001",
             is_active=True,
         )
         db.add(student)
@@ -53,7 +56,10 @@ class TestStudentConflictValidationIntegration:
         instructor = User(
             email="math.conflict.instructor@test.com",
             hashed_password=get_password_hash("testpass123"),
-            full_name="Math Conflict Instructor",
+            first_name="Math",
+            last_name="Conflict Instructor",
+            phone="+12125550000",
+            zip_code="10001",
             is_active=True,
         )
         db.add(instructor)
@@ -126,7 +132,10 @@ class TestStudentConflictValidationIntegration:
         instructor = User(
             email="piano.conflict.instructor@test.com",
             hashed_password=get_password_hash("testpass123"),
-            full_name="Piano Conflict Instructor",
+            first_name="Piano",
+            last_name="Conflict Instructor",
+            phone="+12125550000",
+            zip_code="10001",
             is_active=True,
         )
         db.add(instructor)
@@ -330,13 +339,19 @@ class TestStudentConflictValidationIntegration:
         student1 = User(
             email="student1.conflict@test.com",
             hashed_password=get_password_hash("testpass123"),
-            full_name="Student One",
+            first_name="Student",
+            last_name="One",
+            phone="+12125550000",
+            zip_code="10001",
             is_active=True,
         )
         student2 = User(
             email="student2.conflict@test.com",
             hashed_password=get_password_hash("testpass123"),
-            full_name="Student Two",
+            first_name="Student",
+            last_name="Two",
+            phone="+12125550000",
+            zip_code="10001",
             is_active=True,
         )
         db.add_all([student1, student2])

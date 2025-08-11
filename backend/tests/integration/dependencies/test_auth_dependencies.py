@@ -35,7 +35,8 @@ class TestAuthDependencies:
         user = Mock(spec=User)
         user.id = 1
         user.email = "student@example.com"
-        user.full_name = "Test Student"
+        user.first_name = ("Test",)
+        last_name = "Student"
         user.is_active = True
         # RBAC: Mock roles
         student_role = Mock()
@@ -52,7 +53,8 @@ class TestAuthDependencies:
         user = Mock(spec=User)
         user.id = 2
         user.email = "instructor@example.com"
-        user.full_name = "Test Instructor"
+        user.first_name = ("Test",)
+        last_name = "Instructor"
         user.is_active = True
         # RBAC: Mock roles
         instructor_role = Mock()
@@ -69,7 +71,8 @@ class TestAuthDependencies:
         user = Mock(spec=User)
         user.id = 3
         user.email = "inactive@example.com"
-        user.full_name = "Inactive User"
+        user.first_name = ("Inactive",)
+        last_name = "User"
         user.is_active = False
         # RBAC: Mock roles
         student_role = Mock()

@@ -53,7 +53,10 @@ class TestInstructorRoutes:
         inactive_instructor = User(
             email="inactive.instructor@example.com",
             hashed_password="hashedpassword",
-            full_name="Inactive Instructor",
+            first_name="Inactive",
+            last_name="Instructor",
+            phone="+12125550000",
+            zip_code="10001",
             is_active=True,
         )
         db.add(inactive_instructor)
@@ -112,7 +115,10 @@ class TestInstructorRoutes:
             user = User(
                 email=f"instructor{i}@example.com",
                 hashed_password="hashedpassword",
-                full_name=f"Instructor {i}",
+                first_name="Instructor",
+                last_name=str(i),
+                phone="+12125550000",
+                zip_code="10001",
                 is_active=True,
             )
             db.add(user)
@@ -515,7 +521,10 @@ class TestInstructorRoutes:
         new_user = User(
             email="newstudent@example.com",
             hashed_password=get_password_hash("Password123!"),
-            full_name="New Student",
+            first_name="New",
+            last_name="Student",
+            phone="+12125550000",
+            zip_code="10001",
             is_active=True,
         )
         db.add(new_user)
