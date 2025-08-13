@@ -228,15 +228,23 @@ class CodebaseAnalyzer:
             unique_contributors = len(set(contributors))
 
             # Get first and last commit dates
-            first_commit = subprocess.run(
-                ["git", "log", "--reverse", "--format=%ai", "--max-count=1"],
-                capture_output=True,
-                text=True,
-                cwd=self.root_path,
-            ).stdout.strip()
+            # Note: --reverse with --max-count has issues, so we use head/tail instead
+            all_commits = (
+                subprocess.run(
+                    ["git", "log", "--all", "--reverse", "--format=%ai"],
+                    capture_output=True,
+                    text=True,
+                    cwd=self.root_path,
+                )
+                .stdout.strip()
+                .split("\n")
+            )
 
+            first_commit = all_commits[0] if all_commits else ""
+
+            # Get the most recent commit
             last_commit = subprocess.run(
-                ["git", "log", "--format=%ai", "--max-count=1"], capture_output=True, text=True, cwd=self.root_path
+                ["git", "log", "-1", "--format=%ai"], capture_output=True, text=True, cwd=self.root_path
             ).stdout.strip()
 
             # Get current branch
