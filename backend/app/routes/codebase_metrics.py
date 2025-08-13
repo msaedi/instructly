@@ -20,6 +20,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from ..core.enums import PermissionName
 from ..dependencies.permissions import require_permission
 from ..models.user import User
+from ..schemas.codebase_metrics_responses import (
+    AppendHistoryResponse,
+    CodebaseHistoryEntry,
+    CodebaseHistoryResponse,
+    CodebaseMetricsResponse,
+)
 
 router = APIRouter(
     prefix="/api/analytics/codebase",
@@ -90,26 +96,27 @@ def _run_codebase_metrics_script(repo_root: Path) -> Dict[str, Any]:
         )
 
 
-@router.get("/metrics")
+@router.get("/metrics", response_model=CodebaseMetricsResponse)
 async def get_codebase_metrics(
     current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
-) -> Dict[str, Any]:
+) -> CodebaseMetricsResponse:
     """Return the current codebase metrics as JSON."""
     repo_root = _get_project_root()
-    return _run_codebase_metrics_script(repo_root)
+    data = _run_codebase_metrics_script(repo_root)
+    return data  # Pydantic will validate/serialize
 
 
-@router.get("/history")
+@router.get("/history", response_model=CodebaseHistoryResponse)
 async def get_codebase_metrics_history(
     current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
-) -> Dict[str, Any]:
+) -> CodebaseHistoryResponse:
     """Return historical metrics from metrics_history.json if present."""
     repo_root = _get_project_root()
     history_file = repo_root / "metrics_history.json"
     if not history_file.exists():
         # If missing, trigger a fresh run to seed current state
         current = _run_codebase_metrics_script(repo_root)
-        return {"items": [], "current": current}
+        return CodebaseHistoryResponse(items=[], current=current)
 
     try:
         with open(history_file, "r") as f:
@@ -120,13 +127,14 @@ async def get_codebase_metrics_history(
             detail=f"Failed to read history: {str(e)}",
         )
 
-    return {"items": history[-200:]}  # cap size
+    # Let Pydantic coerce the list entries
+    return CodebaseHistoryResponse(items=history[-200:])
 
 
-@router.post("/history/append")
+@router.post("/history/append", response_model=AppendHistoryResponse)
 async def append_codebase_metrics_history(
     current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
-) -> Dict[str, Any]:
+) -> AppendHistoryResponse:
     """Append current snapshot to metrics_history.json to persist trends."""
     repo_root = _get_project_root()
     history_file = repo_root / "metrics_history.json"
@@ -168,4 +176,4 @@ async def append_codebase_metrics_history(
             detail=f"Failed to write history: {str(e)}",
         )
 
-    return {"status": "ok", "count": len(history)}
+    return AppendHistoryResponse(status="ok", count=len(history))
