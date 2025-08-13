@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Search, Server, Database } from 'lucide-react';
+import { Search, Server, Database, Code } from 'lucide-react';
 
 export function AnalyticsNav() {
   const pathname = usePathname();
@@ -25,6 +25,12 @@ export function AnalyticsNav() {
       href: '/admin/analytics/database',
       icon: Database,
       active: pathname === '/admin/analytics/database',
+    },
+    {
+      name: 'Codebase Metrics',
+      href: '/admin/analytics/codebase',
+      icon: Code,
+      active: pathname === '/admin/analytics/codebase',
     },
   ];
 

@@ -1,10 +1,57 @@
-// frontend/lib/analyticsApi.ts
-/**
- * Analytics API client for admin dashboard
- */
+'use client';
+
+// Analytics API client for admin dashboard (search analytics + codebase metrics)
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+// Codebase metrics types
+export interface CodebaseCategoryStats {
+  files: number;
+  lines: number;
+}
+
+export interface CodebaseSection {
+  total_files: number;
+  total_lines: number;
+  total_lines_with_blanks: number;
+  categories: Record<string, CodebaseCategoryStats>;
+  largest_files: Array<{
+    path: string;
+    lines: number;
+    lines_with_blanks: number;
+    size_kb: number;
+  }>;
+}
+
+export interface GitStats {
+  total_commits: number;
+  unique_contributors: number;
+  first_commit: string;
+  last_commit: string;
+  current_branch: string;
+}
+
+export interface CodebaseMetricsResponse {
+  timestamp: string;
+  backend: CodebaseSection;
+  frontend: CodebaseSection;
+  git: GitStats;
+  summary: {
+    total_lines: number;
+    total_files: number;
+  };
+}
+
+export interface CodebaseHistoryEntry {
+  timestamp: string;
+  total_lines: number;
+  total_files: number;
+  backend_lines: number;
+  frontend_lines: number;
+  git_commits: number;
+}
+
+// Search analytics types
 export interface SearchTrend {
   date: string;
   total_searches: number;
@@ -150,9 +197,7 @@ export interface SearchPerformance {
   }>;
 }
 
-/**
- * Fetch with authentication
- */
+// Shared fetch helper
 async function fetchWithAuth<T>(endpoint: string, token: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     headers: {
@@ -165,26 +210,20 @@ async function fetchWithAuth<T>(endpoint: string, token: string): Promise<T> {
     if (response.status === 401) {
       throw new Error('Unauthorized');
     }
-    throw new Error(`API error: ${response.status}`);
+    const body = await response.text();
+    throw new Error(body || `API error: ${response.status}`);
   }
 
   return response.json();
 }
 
-/**
- * Analytics API client
- */
+// Client
 export const analyticsApi = {
-  /**
-   * Get search trends over time
-   */
+  // Search analytics
   async getSearchTrends(token: string, days: number = 30): Promise<SearchTrend[]> {
     return fetchWithAuth<SearchTrend[]>(`/api/analytics/search/search-trends?days=${days}`, token);
   },
 
-  /**
-   * Get popular searches
-   */
   async getPopularSearches(
     token: string,
     days: number = 30,
@@ -196,36 +235,26 @@ export const analyticsApi = {
     );
   },
 
-  /**
-   * Get search referrers (which pages drive searches)
-   */
   async getSearchReferrers(token: string, days: number = 30): Promise<SearchReferrer[]> {
     return fetchWithAuth<SearchReferrer[]>(`/api/analytics/search/referrers?days=${days}`, token);
   },
 
-  /**
-   * Get zero-result searches
-   */
   async getZeroResultSearches(
     token: string,
     days: number = 30,
     limit: number = 20
   ): Promise<ZeroResultSearch[]> {
     const popular = await this.getPopularSearches(token, days, limit * 2);
-    // Filter for zero results
     return popular
       .filter((search) => search.average_results === 0)
       .map((search) => ({
         query: search.query,
         count: search.search_count,
-        last_searched: new Date().toISOString(), // API doesn't provide this
+        last_searched: new Date().toISOString(),
       }))
       .slice(0, limit);
   },
 
-  /**
-   * Get analytics summary
-   */
   async getAnalyticsSummary(token: string, days: number = 30): Promise<SearchAnalyticsSummary> {
     return fetchWithAuth<SearchAnalyticsSummary>(
       `/api/analytics/search/search-analytics-summary?days=${days}`,
@@ -233,9 +262,6 @@ export const analyticsApi = {
     );
   },
 
-  /**
-   * Get user search behavior
-   */
   async getUserSearchBehavior(
     token: string,
     days: number = 30,
@@ -247,9 +273,6 @@ export const analyticsApi = {
     return fetchWithAuth<UserSearchBehavior>(url, token);
   },
 
-  /**
-   * Get conversion metrics
-   */
   async getConversionMetrics(token: string, days: number = 30): Promise<ConversionMetrics> {
     return fetchWithAuth<ConversionMetrics>(
       `/api/analytics/search/conversion-metrics?days=${days}`,
@@ -257,9 +280,6 @@ export const analyticsApi = {
     );
   },
 
-  /**
-   * Get search performance metrics
-   */
   async getSearchPerformance(token: string, days: number = 30): Promise<SearchPerformance> {
     return fetchWithAuth<SearchPerformance>(
       `/api/analytics/search/search-performance?days=${days}`,
@@ -267,27 +287,24 @@ export const analyticsApi = {
     );
   },
 
-  /**
-   * Get service pill performance (derived from search types)
-   */
   async getServicePillPerformance(
     token: string,
     days: number = 30
   ): Promise<ServicePillPerformance[]> {
-    // Get popular searches filtered by service_pill type
-    const summary = await this.getAnalyticsSummary(token, days);
-    const servicePillData = summary.search_types['service_pill'];
-
-    // Get popular searches to see which services are clicked
     const popular = await this.getPopularSearches(token, days, 50);
-
-    // For now, return mock data as we don't have service-specific tracking
-    // In production, this would filter by search_type='service_pill'
     return popular.slice(0, 10).map((search) => ({
       service_name: search.query,
-      clicks: Math.floor(search.search_count * 0.3), // Estimate 30% are service pills
+      clicks: Math.floor(search.search_count * 0.3),
       unique_users: Math.floor(search.unique_users * 0.3),
-      conversion_rate: 0.15 + Math.random() * 0.1, // Mock conversion rate
+      conversion_rate: 0.15 + Math.random() * 0.1,
     }));
+  },
+
+  // Codebase metrics
+  async getCodebaseMetrics(token: string): Promise<CodebaseMetricsResponse> {
+    return fetchWithAuth<CodebaseMetricsResponse>('/api/analytics/codebase/metrics', token);
+  },
+  async getCodebaseHistory(token: string): Promise<{ items: CodebaseHistoryEntry[] }> {
+    return fetchWithAuth<{ items: CodebaseHistoryEntry[] }>('/api/analytics/codebase/history', token);
   },
 };

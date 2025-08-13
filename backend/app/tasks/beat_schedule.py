@@ -35,6 +35,16 @@ CELERYBEAT_SCHEDULE = {
             "priority": 3,
         },
     },
+    # Codebase metrics snapshot - runs daily at 2:10 AM
+    "append-codebase-metrics-history": {
+        "task": "app.tasks.codebase_metrics.append_history",
+        "schedule": crontab(hour=2, minute=10),
+        "options": {
+            "queue": "analytics",
+            "priority": 2,
+        },
+        # Note: Persists daily codebase snapshot for trend charts
+    },
     # ==================== FUTURE TASKS (COMMENTED) ====================
     # Booking reminders - 24 hours before appointment
     # "send-booking-reminders-24h": {

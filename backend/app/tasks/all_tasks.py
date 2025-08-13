@@ -9,6 +9,7 @@ with the Celery app when the worker starts.
 # Import all task modules to ensure registration
 # These imports trigger the @celery_app.task decorators to register tasks
 from app.tasks import analytics  # noqa: F401
+from app.tasks import codebase_metrics  # noqa: F401
 from app.tasks import monitoring_tasks  # noqa: F401
 from app.tasks import privacy_audit_task  # noqa: F401
 
@@ -29,6 +30,8 @@ ALL_TASKS = [
     "app.tasks.monitoring_tasks.cleanup_old_alerts",
     # Privacy audit task
     "privacy_audit_production",
+    # Codebase metrics
+    "app.tasks.codebase_metrics.append_history",
     # Health check (defined in celery_app.py)
     "app.tasks.health_check",
 ]

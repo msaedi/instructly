@@ -30,6 +30,7 @@ from .routes import (
     auth,
     availability_windows,
     bookings,
+    codebase_metrics,
     database_monitor,
     instructors,
     messages,
@@ -181,6 +182,7 @@ app.include_router(metrics.router)
 app.include_router(monitoring.router)
 app.include_router(alerts.router)
 app.include_router(analytics.router, prefix="/api", tags=["analytics"])
+app.include_router(codebase_metrics.router)
 app.include_router(public.router)
 app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(search_history.router, prefix="/api/search-history", tags=["search-history"])
