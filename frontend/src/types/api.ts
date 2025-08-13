@@ -253,16 +253,6 @@ export interface BookingStatsResponse {
   average_rating?: number | null;
 }
 
-export interface UpcomingBookingResponse {
-  id: number;
-  booking_date: string;
-  start_time: string;
-  end_time: string;
-  service_name: string;
-  student_name: string;
-  instructor_name: string;
-  meeting_location: string | null;
-}
 
 export interface FindBookingOpportunitiesRequest {
   instructor_id: number;

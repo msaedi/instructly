@@ -213,8 +213,10 @@ export interface BookedSlotsResponse {
 
 export interface BookingPreview {
   booking_id: number;
-  student_name: string;
-  instructor_name: string;
+  student_first_name: string;
+  student_last_name: string;  // Full if viewing own, initial if viewing others
+  instructor_first_name: string;
+  instructor_last_name: string;  // Full if viewing own, initial if viewing others
   service_name: string;
   booking_date: string;
   start_time: string;
@@ -235,8 +237,10 @@ export interface UpcomingBooking {
   start_time: string;
   end_time: string;
   service_name: string;
-  student_name: string;
-  instructor_name: string;
+  student_first_name: string;
+  student_last_name: string;  // Full if viewing own, initial if viewing others
+  instructor_first_name: string;
+  instructor_last_name: string;  // Full if viewing own, initial if viewing others
   meeting_location?: string;
 }
 

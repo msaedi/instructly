@@ -28,7 +28,7 @@ const BookingQuickPreview: React.FC<BookingQuickPreviewProps> = ({
       .then((data) => {
         logger.debug('Booking preview loaded', {
           bookingId,
-          studentName: data.student_name,
+          studentName: `${data.student_first_name} ${data.student_last_name}`,
           serviceName: data.service_name,
         });
         setBooking(data);
@@ -75,7 +75,10 @@ const BookingQuickPreview: React.FC<BookingQuickPreviewProps> = ({
               {/* Student name */}
               <div>
                 <span className="text-sm text-gray-500">Student</span>
-                <p className="font-medium">{booking.student_name}</p>
+                <p className="font-medium">
+                  {booking.student_first_name} {booking.student_last_name}
+                  {booking.student_last_name.length === 1 ? '.' : ''}
+                </p>
               </div>
 
               {/* Service and duration */}

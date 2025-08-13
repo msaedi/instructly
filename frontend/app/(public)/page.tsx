@@ -196,7 +196,7 @@ export default function HomePage() {
 
   const availableNow = [
     {
-      name: 'Sarah Chen',
+      name: 'Sarah C.',
       subject: 'Piano',
       rate: 75,
       rating: 4.9,
@@ -204,7 +204,7 @@ export default function HomePage() {
       nextAvailable: '2:00 PM',
     },
     {
-      name: 'Marcus Rodriguez',
+      name: 'Marcus R.',
       subject: 'Spanish',
       rate: 65,
       rating: 4.8,

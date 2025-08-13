@@ -283,7 +283,7 @@ export const bookingsApi = {
     const preview = await response.json();
     logger.debug('Booking preview fetched successfully', {
       bookingId,
-      hasStudentInfo: !!preview.student_name,
+      hasStudentInfo: !!(preview.student_first_name && preview.student_last_name),
     });
     return preview;
   },

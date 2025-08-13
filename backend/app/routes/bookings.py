@@ -97,8 +97,11 @@ async def get_upcoming_bookings(
         for booking in bookings:
             if isinstance(booking, dict):
                 # Handle cached dictionary
-                # Determine if the current user is the instructor to show full name
+                # Privacy check: show full last name only if viewing your own info
+                is_student = current_user.id == booking.get("student_id")
                 is_instructor = current_user.id == booking.get("instructor_id")
+
+                student_last_name = booking.get("student", {}).get("last_name", "") if booking.get("student") else ""
                 instructor_last_name = (
                     booking.get("instructor", {}).get("last_name", "") if booking.get("instructor") else ""
                 )
@@ -113,8 +116,10 @@ async def get_upcoming_bookings(
                         student_first_name=booking.get("student", {}).get("first_name", "Unknown")
                         if booking.get("student")
                         else "Unknown",
-                        student_last_name=booking.get("student", {}).get("last_name", "")
-                        if booking.get("student")
+                        student_last_name=student_last_name
+                        if is_student
+                        else student_last_name[0]
+                        if student_last_name
                         else "",
                         instructor_first_name=booking.get("instructor", {}).get("first_name", "Unknown")
                         if booking.get("instructor")
@@ -129,7 +134,8 @@ async def get_upcoming_bookings(
                 )
             else:
                 # Handle SQLAlchemy object
-                # Determine if the current user is the instructor to show full name
+                # Privacy check: show full last name only if viewing your own info
+                is_student = current_user.id == booking.student_id
                 is_instructor = current_user.id == booking.instructor_id
 
                 upcoming_bookings.append(
@@ -140,7 +146,11 @@ async def get_upcoming_bookings(
                         end_time=booking.end_time,
                         service_name=booking.service_name,
                         student_first_name=booking.student.first_name if booking.student else "Unknown",
-                        student_last_name=booking.student.last_name if booking.student else "",
+                        student_last_name=booking.student.last_name
+                        if is_student and booking.student
+                        else booking.student.last_name[0]
+                        if booking.student and booking.student.last_name
+                        else "",
                         instructor_first_name=booking.instructor.first_name if booking.instructor else "Unknown",
                         instructor_last_name=booking.instructor.last_name
                         if is_instructor and booking.instructor

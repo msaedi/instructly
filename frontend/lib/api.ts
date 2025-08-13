@@ -305,7 +305,7 @@ export async function fetchBookingPreview(bookingId: number): Promise<BookingPre
     const preview = await response.json();
     logger.debug('Booking preview fetched successfully', {
       bookingId,
-      hasStudentInfo: !!preview.student_name,
+      hasStudentInfo: !!(preview.student_first_name && preview.student_last_name),
     });
 
     return preview;

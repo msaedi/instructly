@@ -479,7 +479,9 @@ class TestBookingRoutes:
         # Should be forbidden (403) or rate limited (429)
         assert response.status_code in [status.HTTP_403_FORBIDDEN, status.HTTP_429_TOO_MANY_REQUESTS]
 
-    def test_get_upcoming_bookings(self, client_with_mock_booking_service, auth_headers_student, mock_booking_service):
+    def test_get_upcoming_bookings(
+        self, client_with_mock_booking_service, auth_headers_student, mock_booking_service, test_student
+    ):
         """Test getting upcoming bookings."""
         # Setup mock - UpcomingBookingResponse needs these exact fields
         upcoming = []
@@ -492,9 +494,13 @@ class TestBookingRoutes:
             booking.service_name = f"Service {i+1}"
             booking.meeting_location = "Location"
 
+            # Set IDs for privacy checks - use actual test_student.id
+            booking.student_id = test_student.id  # Use actual test_student.id
+            booking.instructor_id = test_student.id + 100  # Different from student
+
             # These are required for UpcomingBookingResponse
-            booking.student = Mock(first_name="Test", last_name="Student")
-            booking.instructor = Mock(first_name="Test", last_name="Instructor")
+            booking.student = Mock(id=test_student.id, first_name="Test", last_name="Student")
+            booking.instructor = Mock(id=test_student.id + 100, first_name="Test", last_name="Instructor")
 
             # Add the from_orm compatible attributes
             booking.student_first_name = booking.student.first_name
@@ -519,7 +525,11 @@ class TestBookingRoutes:
         assert len(data["items"]) == 2
         assert data["items"][0]["service_name"] == "Service 1"
         assert data["items"][0]["student_first_name"] == "Test"
+        # Student viewing their own booking - sees full last name
         assert data["items"][0]["student_last_name"] == "Student"
+        assert data["items"][0]["instructor_first_name"] == "Test"
+        # Student viewing instructor's info - sees only initial
+        assert data["items"][0]["instructor_last_name"] == "I"
 
     def test_get_booking_preview(self, client_with_mock_booking_service, auth_headers_student, mock_booking_service):
         """Test getting booking preview."""
