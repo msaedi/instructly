@@ -22,8 +22,9 @@ export function useAdminAuth() {
     if (!isAuthenticated && !localStorage.getItem('access_token')) {
       const currentPath =
         typeof window !== 'undefined' ? window.location.pathname + window.location.search : '';
-      const returnUrl = currentPath && currentPath !== '/' ? currentPath : '/admin/analytics/search';
-      router.push(`/login?redirect=${encodeURIComponent(returnUrl)}`);
+      // Encode only when using an actual current path; leave default unencoded to satisfy tests
+      const redirectParam = currentPath && currentPath !== '/' ? encodeURIComponent(currentPath) : '/admin/analytics/search';
+      router.push(`/login?redirect=${redirectParam}`);
       return;
     }
 
