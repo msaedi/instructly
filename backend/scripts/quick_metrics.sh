@@ -3,6 +3,19 @@
 # Quick Codebase Metrics Script
 # Provides a fast overview of codebase size
 
+# Find project root (where backend and frontend directories exist)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$SCRIPT_DIR/../.."
+
+# Verify we found the right directory
+if [ ! -d "$PROJECT_ROOT/backend" ] || [ ! -d "$PROJECT_ROOT/frontend" ]; then
+    echo "Error: Could not find project root with backend and frontend directories"
+    echo "Looking in: $PROJECT_ROOT"
+    exit 1
+fi
+
+cd "$PROJECT_ROOT"
+
 echo "📊 QUICK CODEBASE METRICS"
 echo "========================="
 echo ""
@@ -49,4 +62,4 @@ echo "  Backend test files: $BACKEND_TESTS"
 echo "  Frontend test files: $FRONTEND_TESTS"
 echo ""
 
-echo "Run 'python scripts/codebase_metrics.py' for detailed analysis"
+echo "Run 'python backend/scripts/codebase_metrics.py' for detailed analysis"

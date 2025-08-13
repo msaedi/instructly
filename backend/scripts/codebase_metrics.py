@@ -48,10 +48,43 @@ class CodebaseAnalyzer:
     CONFIG_EXTENSIONS = {".json", ".yaml", ".yml", ".toml", ".env.example"}
     DOC_EXTENSIONS = {".md", ".rst", ".txt"}
 
-    def __init__(self, root_path: str = "."):
-        self.root_path = Path(root_path).resolve()
+    def __init__(self, root_path: str = None):
+        # Auto-detect project root by looking for backend and frontend directories
+        if root_path:
+            self.root_path = Path(root_path).resolve()
+        else:
+            # Start from script location if called directly, or cwd if imported
+            script_path = Path(__file__).resolve()
+
+            # Always start from the script's location and go up to find project root
+            current = script_path.parent
+            while current != current.parent:
+                if (current / "backend").exists() and (current / "frontend").exists():
+                    self.root_path = current
+                    break
+                current = current.parent
+            else:
+                # If still not found, try from current working directory
+                current = Path.cwd()
+                while current != current.parent:
+                    if (current / "backend").exists() and (current / "frontend").exists():
+                        self.root_path = current
+                        break
+                    current = current.parent
+                else:
+                    # Last resort: assume project structure
+                    self.root_path = Path.cwd()
+
         self.backend_path = self.root_path / "backend"
         self.frontend_path = self.root_path / "frontend"
+
+        # Verify paths exist
+        if not self.backend_path.exists() or not self.frontend_path.exists():
+            print(f"⚠️  Warning: Could not find backend or frontend directories")
+            print(f"   Searching from: {self.root_path}")
+            print(f"   Backend path: {self.backend_path} (exists: {self.backend_path.exists()})")
+            print(f"   Frontend path: {self.frontend_path} (exists: {self.frontend_path.exists()})")
+            print(f"   Try running from project root or use --path option")
 
     def should_exclude(self, path: Path) -> bool:
         """Check if a path should be excluded."""
