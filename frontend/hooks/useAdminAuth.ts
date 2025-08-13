@@ -20,10 +20,9 @@ export function useAdminAuth() {
 
     // Only redirect if we're definitely not authenticated (no token in localStorage)
     if (!isAuthenticated && !localStorage.getItem('access_token')) {
-      const returnUrl =
-        typeof window !== 'undefined'
-          ? window.location.pathname + window.location.search
-          : '/admin/analytics/search';
+      const currentPath =
+        typeof window !== 'undefined' ? window.location.pathname + window.location.search : '';
+      const returnUrl = currentPath && currentPath !== '/' ? currentPath : '/admin/analytics/search';
       router.push(`/login?redirect=${encodeURIComponent(returnUrl)}`);
       return;
     }
