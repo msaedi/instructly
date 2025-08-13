@@ -61,7 +61,7 @@ export function BookAgain({ onLoadComplete }: BookAgainProps) {
       if (booking.instructor && !instructorMap.has(booking.instructor.id)) {
         instructorMap.set(booking.instructor.id, {
           instructorId: booking.instructor.id,
-          instructorName: booking.instructor.full_name,
+          instructorName: `${booking.instructor.first_name} ${booking.instructor.last_initial}.`,
           serviceName: booking.service_name,
           serviceId: booking.instructor_service_id,
           hourlyRate: booking.hourly_rate,

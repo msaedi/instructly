@@ -10,18 +10,26 @@ interface InstructorHeaderProps {
 
 export function InstructorHeader({ instructor }: InstructorHeaderProps) {
   const [isSaved, setIsSaved] = useState(false);
-  const displayName = instructor.user?.full_name || `Instructor #${instructor.user_id}`;
 
-  // Safe initials calculation
-  const getInitials = (name: string): string => {
-    if (!name) return 'IN';
-    const parts = name.trim().split(' ').filter(Boolean);
-    if (parts.length === 0) return 'IN';
-    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  // Get display name with privacy (FirstName L.)
+  const getDisplayName = (): string => {
+    if (!instructor.user) return `Instructor #${instructor.user_id}`;
+    const firstName = instructor.user.first_name || '';
+    const lastInitial = instructor.user.last_initial || '';
+    return lastInitial ? `${firstName} ${lastInitial}.` : firstName || `Instructor #${instructor.user_id}`;
   };
 
-  const initials = getInitials(displayName);
+  const displayName = getDisplayName();
+
+  // Safe initials calculation from actual name fields
+  const getInitials = (): string => {
+    if (!instructor.user) return 'IN';
+    const firstInitial = instructor.user.first_name ? instructor.user.first_name.charAt(0).toUpperCase() : '';
+    const lastInitial = instructor.user.last_initial || '';
+    return (firstInitial + lastInitial) || 'IN';
+  };
+
+  const initials = getInitials();
 
   // Mock data for ratings - replace with real data when available
   const rating = 4.9;

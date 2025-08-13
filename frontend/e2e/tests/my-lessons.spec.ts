@@ -7,7 +7,7 @@ const studentCredentials = {
 };
 
 const upcomingLesson = {
-  instructor: 'John Doe',
+  instructor: 'John D.',
   service: 'Mathematics',
   date: 'Wed Dec 25',
   time: '2:00pm',
@@ -15,7 +15,7 @@ const upcomingLesson = {
 };
 
 const completedLesson = {
-  instructor: 'Jane Smith',
+  instructor: 'Jane S.',
   service: 'Physics',
   date: 'Dec 20, 2024',
   time: '10:00 AM - 11:00 AM',
@@ -114,7 +114,8 @@ async function setupMocksAndAuth(page: Page) {
           id: 1,
           instructor: {
             id: 1,
-            full_name: upcomingLesson.instructor,
+            first_name: 'John',
+            last_initial: 'D',
             email: 'john.doe@example.com',
             rating: 4.8,
             total_reviews: 156,
@@ -148,7 +149,8 @@ async function setupMocksAndAuth(page: Page) {
           id: 2,
           instructor: {
             id: 2,
-            full_name: completedLesson.instructor,
+            first_name: 'Jane',
+            last_initial: 'S',
             email: 'jane.smith@example.com',
             rating: 4.9,
             total_reviews: 89,
@@ -207,7 +209,8 @@ async function setupMocksAndAuth(page: Page) {
                 id: 1,
                 instructor: {
                   id: 1,
-                  full_name: upcomingLesson.instructor,
+                  first_name: 'John',
+                  last_initial: 'D',
                   email: 'john.doe@example.com',
                   rating: 4.8,
                   total_reviews: 156,
@@ -241,7 +244,8 @@ async function setupMocksAndAuth(page: Page) {
                 id: 2,
                 instructor: {
                   id: 2,
-                  full_name: completedLesson.instructor,
+                  first_name: 'Jane',
+                  last_initial: 'S',
                   email: 'jane.smith@example.com',
                   rating: 4.9,
                   total_reviews: 89,
@@ -275,7 +279,8 @@ async function setupMocksAndAuth(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         id: 2,
-        full_name: 'Jane Smith',
+        first_name: 'Jane',
+        last_initial: 'S',
         email: 'jane.smith@example.com',
         bio: 'PhD in Physics',
         rating: 4.9,
@@ -650,7 +655,7 @@ test.describe('My Lessons Page', () => {
             items: [
               {
                 id: 2,
-                instructor: { id: 2, full_name: completedLesson.instructor },
+                instructor: { id: 2, first_name: 'Jane', last_initial: 'S' },
                 service_name: completedLesson.service,
                 booking_date: '2024-12-20',
                 start_time: '10:00:00',
@@ -750,7 +755,7 @@ test.describe('Lesson Details Page', () => {
 
     // Verify modal appears
     await expect(page.locator('text=Need to reschedule?')).toBeVisible();
-    await expect(page.locator('text=Select a new time with John Doe')).toBeVisible();
+    await expect(page.locator('text=Select a new time with John D.')).toBeVisible();
 
     // Close modal - use the X button to avoid ambiguity
     await page.locator('button[aria-label="Close modal"]').click();
@@ -1062,7 +1067,8 @@ test.describe('Error Handling', () => {
               id: 1,
               instructor: {
                 id: 1,
-                full_name: upcomingLesson.instructor,
+                first_name: 'John',
+                last_initial: 'D',
                 email: 'john.doe@example.com',
                 rating: 4.8,
                 total_reviews: 156,

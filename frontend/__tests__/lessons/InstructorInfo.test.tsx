@@ -5,7 +5,8 @@ import { InstructorInfo } from '@/components/lessons/InstructorInfo';
 describe('InstructorInfo', () => {
   const mockInstructor = {
     id: 1,
-    full_name: 'Jane Smith',
+    first_name: 'Jane',
+    last_initial: 'S',
     email: 'jane@example.com',
     role: 'INSTRUCTOR' as const,
     created_at: '2024-01-01T00:00:00Z',
@@ -28,8 +29,8 @@ describe('InstructorInfo', () => {
       />
     );
 
-    // Check name
-    expect(screen.getByText('Jane Smith')).toBeInTheDocument();
+    // Check name (privacy-protected: Jane S.)
+    expect(screen.getByText('Jane S.')).toBeInTheDocument();
 
     // Check rating
     expect(screen.getByText('4.8')).toBeInTheDocument();
@@ -42,7 +43,7 @@ describe('InstructorInfo', () => {
   it('renders avatar with correct initials', () => {
     render(<InstructorInfo instructor={mockInstructor} onChat={mockOnChat} />);
 
-    expect(screen.getByText('JS')).toBeInTheDocument();
+    expect(screen.getByText('JS')).toBeInTheDocument(); // Jane S
   });
 
   it('calls onChat when chat button is clicked', () => {
@@ -76,17 +77,17 @@ describe('InstructorInfo', () => {
   it('shows correct avatar initials for complex names', () => {
     const longNameInstructor = {
       ...mockInstructor,
-      full_name: 'Dr. Alexandra Elizabeth Montgomery-Richardson III',
+      first_name: 'Alexandra',
+      last_initial: 'M',
     };
 
     render(<InstructorInfo instructor={longNameInstructor} onChat={mockOnChat} />);
 
     expect(
-      screen.getByText('Dr. Alexandra Elizabeth Montgomery-Richardson III')
+      screen.getByText('Alexandra M.')
     ).toBeInTheDocument();
-    // The component takes first letter of each word (split by space)
-    // "Dr." -> "D", "Alexandra" -> "A", "Elizabeth" -> "E", "Montgomery-Richardson" -> "M", "III" -> "I"
-    expect(screen.getByText('DAEMI')).toBeInTheDocument();
+    // The component now shows initials from first_name and last_initial
+    expect(screen.getByText('AM')).toBeInTheDocument();
   });
 
   it('shows review and tip button for completed lessons', () => {
@@ -144,8 +145,8 @@ describe('InstructorInfo', () => {
   it('handles missing optional props gracefully', () => {
     render(<InstructorInfo instructor={mockInstructor} />);
 
-    // Should render with defaults and no buttons
-    expect(screen.getByText('Jane Smith')).toBeInTheDocument();
+    // Should render with defaults and no buttons (privacy-protected: Jane S.)
+    expect(screen.getByText('Jane S.')).toBeInTheDocument();
     expect(screen.getByText('4.9')).toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });

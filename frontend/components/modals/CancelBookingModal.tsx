@@ -184,7 +184,9 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
             </div>
             <div className="text-gray-700">
               <span className="font-medium">
-                {booking.instructor?.full_name || 'Unknown Instructor'}
+                {booking.instructor
+                  ? `${booking.instructor.first_name} ${booking.instructor.last_initial}.`
+                  : 'Unknown Instructor'}
               </span>
             </div>
           </div>

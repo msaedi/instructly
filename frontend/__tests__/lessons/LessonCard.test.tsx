@@ -41,7 +41,8 @@ describe('LessonCard', () => {
     instructor: {
       id: 1,
       email: 'john@example.com',
-      full_name: 'John Doe',
+      first_name: 'John',
+      last_initial: 'D',
       role: 'INSTRUCTOR',
       created_at: '2024-01-01T00:00:00Z',
     },
@@ -59,7 +60,7 @@ describe('LessonCard', () => {
     );
 
     // Check instructor name
-    expect(screen.getByText('John Doe')).toBeInTheDocument();
+    expect(screen.getByText('John D.')).toBeInTheDocument();
 
     // Check service name
     expect(screen.getByText('Mathematics')).toBeInTheDocument();

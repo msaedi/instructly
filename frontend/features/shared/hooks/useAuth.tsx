@@ -14,15 +14,14 @@ import {
 export interface User {
   id: number;
   email: string;
-  full_name: string;
+  first_name: string;
+  last_name: string;
   roles: string[]; // Changed from single role to roles array
   permissions: string[]; // Added permissions array
   is_active: boolean;
   created_at: string;
   updated_at: string;
   profile_image_url?: string;
-  first_name?: string;
-  last_name?: string;
   unread_messages_count?: number;
   unread_platform_messages_count?: number;
   credits_balance?: number;
@@ -66,11 +65,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (response.ok) {
         const userData = await response.json();
-
-        // Parse name fields
-        const nameParts = userData.full_name?.split(' ') || [];
-        userData.first_name = nameParts[0] || '';
-        userData.last_name = nameParts.slice(1).join(' ') || '';
 
         logger.info('User authenticated', {
           userId: userData.id,
@@ -216,17 +210,15 @@ export function useAuth() {
 }
 
 // Helper functions for avatar
-export function getUserInitials(user: User | null): string {
+export function getUserInitials(user: any | null): string {
   if (!user) return '';
 
-  if (user.first_name && user.last_name) {
-    return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
-  } else if (user.full_name) {
-    const parts = user.full_name.split(' ');
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-    }
-    return user.full_name[0].toUpperCase();
+  // Handle both last_initial (instructor public view) and last_name (own profile)
+  const lastChar = user.last_initial || (user.last_name ? user.last_name[0] : '');
+  if (user.first_name && lastChar) {
+    return `${user.first_name[0]}${lastChar}`.toUpperCase();
+  } else if (user.first_name) {
+    return user.first_name[0].toUpperCase();
   } else if (user.email) {
     return user.email[0].toUpperCase();
   }

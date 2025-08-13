@@ -72,7 +72,9 @@ export function CancellationConfirmationModal({
           <div className="bg-gray-50 rounded-lg p-4 text-left space-y-2">
             <p className="text-sm">
               <span className="font-medium">Lesson:</span> {lesson.service_name} with{' '}
-              {lesson.instructor?.full_name}
+              {lesson.instructor
+                ? `${lesson.instructor.first_name} ${lesson.instructor.last_initial}.`
+                : 'Instructor'}
             </p>
             <p className="text-sm">
               <span className="font-medium">Date:</span> {format(lessonDateTime, 'EEEE, MMMM d')} at{' '}
@@ -162,7 +164,9 @@ export function CancellationConfirmationModal({
             <span className="font-medium">Lesson:</span> {lesson.service_name}
           </p>
           <p className="text-sm">
-            <span className="font-medium">Instructor:</span> {lesson.instructor?.full_name}
+            <span className="font-medium">Instructor:</span> {lesson.instructor
+              ? `${lesson.instructor.first_name} ${lesson.instructor.last_initial}.`
+              : 'Instructor'}
           </p>
           <p className="text-sm">
             <span className="font-medium">Date:</span> {format(lessonDateTime, 'EEEE, MMMM d')} at{' '}

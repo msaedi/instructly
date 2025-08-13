@@ -428,17 +428,17 @@ class SearchService(BaseService):
                     if not self._matches_level_constraints(instructor_service, parsed["level"]):
                         continue
 
-                # Build result
+                # Build result with privacy protection
+                from ..schemas.search_responses import InstructorInfo
+
                 result = {
                     "service": service,
-                    "instructor": {
-                        "id": instructor_profile.user_id,
-                        "first_name": instructor_profile.user.first_name,
-                        "last_name": instructor_profile.user.last_name,
-                        "bio": instructor_profile.bio,
-                        "years_experience": instructor_profile.years_experience,
-                        "areas_of_service": instructor_profile.areas_of_service,
-                    },
+                    "instructor": InstructorInfo.from_user(
+                        user=instructor_profile.user,
+                        bio=instructor_profile.bio,
+                        years_experience=instructor_profile.years_experience,
+                        areas_of_service=instructor_profile.areas_of_service,
+                    ).model_dump(),
                     "offering": {
                         "id": instructor_service.id,
                         "hourly_rate": instructor_service.hourly_rate,

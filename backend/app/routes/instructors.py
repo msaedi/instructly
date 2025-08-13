@@ -93,9 +93,17 @@ async def get_all_instructors(
     instructors = result.get("instructors", [])
     total = result.get("metadata", {}).get("total_found", len(instructors))
 
-    # Return standardized paginated response
+    # Apply privacy protection to each instructor profile
+    privacy_protected_instructors = [
+        InstructorProfileResponse.from_orm(instructor)
+        if hasattr(instructor, "id")
+        else instructor  # If already dict/processed, pass through
+        for instructor in instructors
+    ]
+
+    # Return standardized paginated response with privacy protection
     return PaginatedResponse(
-        items=instructors,
+        items=privacy_protected_instructors,
         total=total,
         page=page,
         per_page=per_page,
@@ -138,6 +146,9 @@ async def get_my_profile(
 
     try:
         profile_data = instructor_service.get_instructor_profile(current_user.id)
+        # Apply privacy protection (though instructors viewing own profile would see full name anyway)
+        if hasattr(profile_data, "id"):  # It's an ORM object
+            return InstructorProfileResponse.from_orm(profile_data)
         return profile_data
     except Exception as e:
         if "not found" in str(e).lower():
@@ -201,10 +212,13 @@ async def delete_instructor_profile(
 async def get_instructor_profile(
     instructor_id: int, instructor_service: InstructorService = Depends(get_instructor_service)
 ):
-    """Get a specific instructor's profile by user ID."""
+    """Get a specific instructor's profile by user ID with privacy protection."""
     try:
         profile_data = instructor_service.get_instructor_profile(instructor_id)
-        return profile_data
+        # Apply privacy protection using schema-owned construction
+        if hasattr(profile_data, "id"):  # It's an ORM object
+            return InstructorProfileResponse.from_orm(profile_data)
+        return profile_data  # Already processed/dict
     except Exception as e:
         if "not found" in str(e).lower():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found")

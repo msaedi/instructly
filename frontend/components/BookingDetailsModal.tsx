@@ -3,6 +3,7 @@ import React from 'react';
 import { X, Calendar, Clock, MapPin, User, DollarSign, Hash } from 'lucide-react';
 import { Booking } from '@/types/booking';
 import { logger } from '@/lib/logger';
+import { formatInstructorFromUser, formatFullName } from '@/utils/nameDisplay';
 
 /**
  * BookingDetailsModal Component
@@ -202,11 +203,8 @@ export default function BookingDetailsModal({
               <div className="flex-1">
                 <p className="font-medium text-gray-900">Instructor</p>
                 <p className="text-lg text-gray-800">
-                  {booking.instructor?.full_name || `Instructor #${booking.instructor_id}`}
+                  {formatInstructorFromUser(booking.instructor) || `Instructor #${booking.instructor_id}`}
                 </p>
-                {booking.instructor?.email && (
-                  <p className="text-sm text-gray-600">{booking.instructor.email}</p>
-                )}
               </div>
             </div>
           </div>
@@ -234,7 +232,7 @@ export default function BookingDetailsModal({
                 <User className="w-5 h-5 text-gray-400 mt-0.5" />
                 <div>
                   <p className="font-medium text-gray-900">Student</p>
-                  <p className="text-gray-800">{booking.student.full_name}</p>
+                  <p className="text-gray-800">{formatFullName(booking.student)}</p>
                   <p className="text-gray-600 text-sm">{booking.student.email}</p>
                 </div>
               </div>

@@ -34,8 +34,26 @@ export interface User {
   /** User's email address (used for authentication) */
   email: string;
 
-  /** User's full name */
-  full_name: string;
+  /** User's first name (from API: first_name) */
+  first_name: string;
+
+  /** User's last name (from API: last_name) */
+  last_name: string;
+
+  /** Camel case version for frontend convenience */
+  firstName?: string;
+
+  /** Camel case version for frontend convenience */
+  lastName?: string;
+
+  /** User's phone number (required) */
+  phone: string;
+
+  /** User's zip code */
+  zip_code: string;
+
+  /** Camel case version for frontend convenience */
+  zipCode?: string;
 
   /** User role (student or instructor) */
   role: UserRole | string; // string for backward compatibility
@@ -117,8 +135,17 @@ export interface RegisterRequest {
   /** User's email address */
   email: string;
 
-  /** User's full name */
-  full_name: string;
+  /** User's first name */
+  first_name: string;
+
+  /** User's last name */
+  last_name: string;
+
+  /** User's phone number (required) */
+  phone: string;
+
+  /** User's zip code */
+  zip_code: string;
 
   /** User's password */
   password: string;
@@ -165,8 +192,17 @@ export interface PasswordResetConfirm {
  * @interface UserProfileUpdate
  */
 export interface UserProfileUpdate {
-  /** Updated full name */
-  full_name?: string;
+  /** Updated first name */
+  first_name?: string;
+
+  /** Updated last name */
+  last_name?: string;
+
+  /** Updated phone number */
+  phone?: string;
+
+  /** Updated zip code */
+  zip_code?: string;
 
   /** Updated email */
   email?: string;
@@ -237,7 +273,37 @@ export function isStudentUser(user: User | UserData): boolean {
  * @returns Display name or email fallback
  */
 export function getUserDisplayName(user: Partial<User>): string {
-  return user.full_name || user.email || 'User';
+  // For friendly contexts, just use first name
+  if (user.firstName || user.first_name) {
+    return user.firstName || user.first_name || 'User';
+  }
+  return user.email || 'User';
+}
+
+/**
+ * Get user full name for formal contexts
+ *
+ * @param user - User object
+ * @returns Full name
+ */
+export function getUserFullName(user: Partial<User>): string {
+  const firstName = user.firstName || user.first_name || '';
+  const lastName = user.lastName || user.last_name || '';
+  return `${firstName} ${lastName}`.trim() || user.email || 'User';
+}
+
+/**
+ * Get user initials
+ *
+ * @param user - User object
+ * @returns Two-letter initials
+ */
+export function getUserInitials(user: Partial<User>): string {
+  const firstName = user.firstName || user.first_name || '';
+  const lastName = user.lastName || user.last_name || '';
+  const firstInitial = firstName.charAt(0).toUpperCase();
+  const lastInitial = lastName.charAt(0).toUpperCase();
+  return (firstInitial + lastInitial) || '??';
 }
 
 /**

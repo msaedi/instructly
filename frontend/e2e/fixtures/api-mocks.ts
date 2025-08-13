@@ -20,8 +20,9 @@ export async function mockInstructorProfile(page: Page) {
           id: instructorId,
           user_id: instructorId,
           user: {
-            full_name: instructorId === 8 ? 'Sarah Chen' : 'John Doe',
-            email: 'instructor@example.com'
+            first_name: instructorId === 8 ? 'Sarah' : 'John',
+            last_initial: instructorId === 8 ? 'C' : 'D',
+            // No email for privacy
           },
           bio: 'Professional piano teacher with 10 years of experience',
           areas_of_service: ['Upper West Side', 'Midtown'],
@@ -150,9 +151,8 @@ export async function mockAuthentication(routeContext: Page | any) {
             user: {
               id: 1,
               email: 'john.smith@example.com',
-              full_name: 'John Smith',
-              firstName: 'John',
-              lastName: 'Smith',
+              first_name: 'John',
+              last_name: 'Smith',
               role: 'student',
               roles: ['student'],
               permissions: [],
@@ -206,9 +206,8 @@ export async function mockAuthentication(routeContext: Page | any) {
               user: {
                 id: 1,
                 email: 'john.smith@example.com',
-                full_name: 'John Smith',
-                firstName: 'John',
-                lastName: 'Smith',
+                first_name: 'John',
+                last_name: 'Smith',
                 role: 'student',
                 roles: ['student'],
                 permissions: [],
@@ -258,9 +257,8 @@ export async function mockAuthentication(routeContext: Page | any) {
         body: JSON.stringify({
           id: 1,
           email: 'john.smith@example.com',
-          full_name: 'John Smith',
-          firstName: 'John',
-          lastName: 'Smith',
+          first_name: 'John',
+          last_name: 'Smith',
           role: 'student',
           roles: ['student'],
           permissions: [],
@@ -311,7 +309,8 @@ export async function setupAllMocks(page: Page, context: any = null) {
           {
             instructor: {
               id: 8,
-              name: 'Sarah Chen',
+              first_name: 'Sarah',
+              last_initial: 'C',
               bio: 'Professional piano teacher with 10 years of experience',
               profile_image_url: null,
               location: 'Manhattan',
@@ -387,13 +386,11 @@ export async function setupAllMocks(page: Page, context: any = null) {
   await routeContext.route('**/api/public/instructors/*/availability**', async (route: Route) => {
     console.log('Mock intercepting api:', route.request().url());
 
-    // Mock availability data with dynamic dates (starting from tomorrow)
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const dayAfter = new Date();
-    dayAfter.setDate(dayAfter.getDate() + 2);
-    const nextWeek = new Date();
-    nextWeek.setDate(nextWeek.getDate() + 7);
+    // Use FIXED dates for consistent testing
+    // This ensures the same dates are returned regardless of when the test runs
+    const baseDate = new Date('2025-08-13'); // Fixed Wednesday
+    const thursday = new Date('2025-08-14');
+    const friday = new Date('2025-08-15');
 
     const formatDate = (date: Date) => date.toISOString().split('T')[0];
 
@@ -402,10 +399,11 @@ export async function setupAllMocks(page: Page, context: any = null) {
       contentType: 'application/json',
       body: JSON.stringify({
         instructor_id: 8,
-        instructor_name: 'Sarah Chen',
+        instructor_first_name: 'Sarah',
+        instructor_last_initial: 'C',
         availability_by_date: {
-          [formatDate(tomorrow)]: {
-            date: formatDate(tomorrow),
+          [formatDate(baseDate)]: {
+            date: formatDate(baseDate),
             available_slots: [
               { start_time: '09:00', end_time: '10:00' },
               { start_time: '10:00', end_time: '11:00' },
@@ -413,17 +411,18 @@ export async function setupAllMocks(page: Page, context: any = null) {
             ],
             is_blackout: false,
           },
-          [formatDate(dayAfter)]: {
-            date: formatDate(dayAfter),
+          [formatDate(thursday)]: {
+            date: formatDate(thursday),
             available_slots: [
               { start_time: '10:00', end_time: '11:00' },
               { start_time: '11:00', end_time: '12:00' },
               { start_time: '14:00', end_time: '15:00' },
+              { start_time: '19:00', end_time: '20:00' }, // 7pm slot
             ],
             is_blackout: false,
           },
-          [formatDate(nextWeek)]: {
-            date: formatDate(nextWeek),
+          [formatDate(friday)]: {
+            date: formatDate(friday),
             available_slots: [
               { start_time: '09:00', end_time: '10:00' },
               { start_time: '10:00', end_time: '11:00' },
@@ -461,8 +460,9 @@ export async function setupAllMocks(page: Page, context: any = null) {
           id: instructorId,
           user_id: instructorId,
           user: {
-            full_name: instructorId === 8 ? 'Sarah Chen' : 'John Doe',
-            email: 'instructor@example.com'
+            first_name: instructorId === 8 ? 'Sarah' : 'John',
+            last_initial: instructorId === 8 ? 'C' : 'D',
+            // No email for privacy
           },
           bio: 'Professional piano teacher with 10 years of experience',
           areas_of_service: ['Upper West Side', 'Midtown'],
@@ -503,13 +503,10 @@ export async function setupAllMocks(page: Page, context: any = null) {
         ])
       });
     } else if (url.includes('/availability')) {
-      // Mock availability data with dynamic dates (starting from tomorrow)
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const dayAfter = new Date();
-      dayAfter.setDate(dayAfter.getDate() + 2);
-      const nextWeek = new Date();
-      nextWeek.setDate(nextWeek.getDate() + 7);
+      // Use same FIXED dates as the other availability mock for consistency
+      const baseDate = new Date('2025-08-13'); // Fixed Wednesday
+      const thursday = new Date('2025-08-14');
+      const friday = new Date('2025-08-15');
 
       const formatDate = (date: Date) => date.toISOString().split('T')[0];
 
@@ -518,28 +515,30 @@ export async function setupAllMocks(page: Page, context: any = null) {
         contentType: 'application/json',
         body: JSON.stringify({
           instructor_id: 8,
-          instructor_name: 'Sarah Chen',
+          instructor_first_name: 'Sarah',
+        instructor_last_initial: 'C',
           availability_by_date: {
-            [formatDate(tomorrow)]: {
-              date: formatDate(tomorrow),
+            [formatDate(baseDate)]: {
+              date: formatDate(baseDate),
               available_slots: [
+                { start_time: '09:00', end_time: '10:00' },
+                { start_time: '10:00', end_time: '11:00' },
                 { start_time: '14:00', end_time: '15:00' },
-                { start_time: '15:00', end_time: '16:00' },
-                { start_time: '16:00', end_time: '17:00' },
               ],
               is_blackout: false,
             },
-            [formatDate(dayAfter)]: {
-              date: formatDate(dayAfter),
+            [formatDate(thursday)]: {
+              date: formatDate(thursday),
               available_slots: [
                 { start_time: '10:00', end_time: '11:00' },
                 { start_time: '11:00', end_time: '12:00' },
                 { start_time: '14:00', end_time: '15:00' },
+                { start_time: '19:00', end_time: '20:00' }, // 7pm slot
               ],
               is_blackout: false,
             },
-            [formatDate(nextWeek)]: {
-              date: formatDate(nextWeek),
+            [formatDate(friday)]: {
+              date: formatDate(friday),
               available_slots: [
                 { start_time: '09:00', end_time: '10:00' },
                 { start_time: '10:00', end_time: '11:00' },
@@ -549,8 +548,8 @@ export async function setupAllMocks(page: Page, context: any = null) {
             },
           },
           timezone: 'America/New_York',
-          total_available_slots: 9,
-          earliest_available_date: formatDate(tomorrow),
+          total_available_slots: 10,
+          earliest_available_date: formatDate(baseDate),
         }),
       });
     } else if (url.includes('/auth/')) {

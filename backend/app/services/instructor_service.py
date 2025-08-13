@@ -480,9 +480,10 @@ class InstructorService(BaseService):
             "created_at": profile.created_at,
             "updated_at": profile.updated_at,
             "user": {
+                "id": profile.user.id,
                 "first_name": profile.user.first_name,
-                "last_name": profile.user.last_name,
-                "email": profile.user.email,
+                "last_initial": profile.user.last_name[0] if profile.user.last_name else "",
+                # No email or full last_name for privacy protection
             }
             if hasattr(profile, "user") and profile.user
             else None,

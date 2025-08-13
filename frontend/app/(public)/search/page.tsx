@@ -192,8 +192,9 @@ function SearchPageContent() {
                     : [],
                   years_experience: result.instructor?.years_experience || 0,
                   user: {
-                    full_name: result.instructor?.name || 'Unknown Instructor',
-                    email: '',
+                    first_name: result.instructor?.first_name || 'Unknown',
+                    last_initial: result.instructor?.last_initial || '',
+                    // No email for privacy
                   },
                   services: [
                     {

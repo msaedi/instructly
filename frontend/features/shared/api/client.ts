@@ -293,7 +293,8 @@ export interface NaturalLanguageSearchResponse {
     };
     instructor: {
       id: number;
-      name: string;
+      first_name: string;
+      last_initial: string;  // Privacy protected
       bio: string;
       years_experience: number;
       areas_of_service: string;
@@ -531,8 +532,10 @@ export const publicApi = {
         created_at: string;
         updated_at?: string;
         user: {
-          full_name: string;
-          email: string;
+          id: number;
+          first_name: string;
+          last_initial: string;
+          // No email for privacy
         };
         services: Array<{
           id: number;
@@ -567,8 +570,9 @@ export const publicApi = {
       created_at: string;
       updated_at?: string;
       user: {
-        full_name: string;
-        email: string;
+        first_name: string;
+        last_initial: string;
+        // No email for privacy
       };
       services: Array<{
         id: number;
@@ -600,7 +604,8 @@ export const publicApi = {
   ) {
     return cleanFetch<{
       instructor_id: number;
-      instructor_name: string;
+      instructor_first_name: string | null;
+      instructor_last_initial: string | null;
       availability_by_date: Record<
         string,
         {
@@ -712,8 +717,9 @@ export interface Booking {
   instructor: {
     user_id: number;
     user: {
-      full_name: string;
-      email: string;
+      first_name: string;
+      last_initial: string;
+      // No email for privacy
     };
   };
   service: {

@@ -28,8 +28,9 @@ interface Service {
 interface InstructorData {
   user_id: number;
   user: {
-    full_name: string;
-    email: string;
+    first_name: string;
+    last_initial: string;
+    // No email for privacy
   };
   services: Service[];
   areas_of_service: string[];
@@ -170,7 +171,7 @@ export default function QuickBookingPage() {
     const paymentBookingData: BookingPayment = {
       bookingId: '', // Will be set after creation
       instructorId: String(instructor.user_id),
-      instructorName: instructor.user.full_name,
+      instructorName: `${instructor.user.first_name} ${instructor.user.last_initial}.`,
       lessonType: `Service ${selectedService.service_catalog_id}`, // TODO: Get actual service name from catalog
       date: bookingDate,
       startTime: selectedTime,
@@ -274,7 +275,7 @@ export default function QuickBookingPage() {
 
             <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 mb-8 text-left">
               <h2 className="font-semibold text-gray-900 dark:text-white mb-4">
-                Service {selectedService?.service_catalog_id} with {instructor.user.full_name}
+                Service {selectedService?.service_catalog_id} with {instructor.user.first_name} {instructor.user.last_initial}.
               </h2>
 
               <div className="space-y-3 text-sm">
@@ -323,12 +324,12 @@ export default function QuickBookingPage() {
               <div className="flex items-start space-x-4">
                 <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
                   <span className="text-gray-500 dark:text-gray-400 text-xl font-medium">
-                    {instructor.user.full_name.charAt(0)}
+                    {instructor.user.first_name.charAt(0)}
                   </span>
                 </div>
                 <div className="flex-1">
                   <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    {instructor.user.full_name}
+                    {instructor.user.first_name} {instructor.user.last_initial}.
                   </h1>
                   <div className="flex items-center space-x-4 text-sm text-gray-600 dark:text-gray-400 mt-1">
                     {instructor.rating && (

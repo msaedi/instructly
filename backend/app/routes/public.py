@@ -16,7 +16,7 @@ Key Design Decisions:
 import hashlib
 import logging
 from datetime import date, datetime, timedelta
-from typing import Optional, Union
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
@@ -29,8 +29,6 @@ from ..models.instructor import InstructorProfile
 from ..models.user import User
 from ..schemas.public_availability import (
     NextAvailableSlotResponse,
-    PublicAvailabilityMinimal,
-    PublicAvailabilitySummary,
     PublicDayAvailability,
     PublicInstructorAvailability,
     PublicTimeSlot,
@@ -71,9 +69,10 @@ def get_cache_service_dep(db: Session = Depends(get_db)) -> Optional[CacheServic
 
 @router.get(
     "/instructors/{instructor_id}/availability",
-    response_model=Union[PublicInstructorAvailability, PublicAvailabilitySummary, PublicAvailabilityMinimal],
+    response_model=PublicInstructorAvailability,
+    response_model_exclude_none=True,
     summary="Get instructor availability for students",
-    description="Public endpoint to view instructor's available time slots for booking. No authentication required.",
+    description="Public endpoint to view instructor's available time slots for booking. No authentication required. Response detail level depends on configuration.",
 )
 async def get_instructor_public_availability(
     instructor_id: int,
@@ -166,11 +165,17 @@ async def get_instructor_public_availability(
         # Minimal: Just check if any availability exists
         all_slots = availability_service.repository.get_week_availability(instructor_id, start_date, end_date)
 
-        response_data = PublicAvailabilityMinimal(
+        response_data = PublicInstructorAvailability(
             instructor_id=instructor_id,
-            instructor_name=instructor_user.first_name
-            if settings.public_availability_show_instructor_name
-            else "Instructor",
+            instructor_first_name=(
+                instructor_user.first_name if settings.public_availability_show_instructor_name else None
+            ),
+            instructor_last_initial=(
+                instructor_user.last_name[0]
+                if (settings.public_availability_show_instructor_name and instructor_user.last_name)
+                else None
+            ),
+            detail_level="minimal",
             has_availability=len(all_slots) > 0,
             earliest_available_date=all_slots[0].specific_date.isoformat() if all_slots else None,
             timezone="America/New_York",
@@ -207,15 +212,20 @@ async def get_instructor_public_availability(
             ).seconds / 3600
             availability_summary[date_str]["total_hours"] += duration
 
-        response_data = PublicAvailabilitySummary(
+        response_data = PublicInstructorAvailability(
             instructor_id=instructor_id,
-            instructor_name=instructor_user.first_name
-            if settings.public_availability_show_instructor_name
-            else "Instructor",
+            instructor_first_name=(
+                instructor_user.first_name if settings.public_availability_show_instructor_name else None
+            ),
+            instructor_last_initial=(
+                instructor_user.last_name[0]
+                if (settings.public_availability_show_instructor_name and instructor_user.last_name)
+                else None
+            ),
+            detail_level="summary",
             availability_summary=availability_summary,
             timezone="America/New_York",
             total_available_days=len(availability_summary),
-            detail_level="summary",
         )
 
     else:  # "full" detail level
@@ -289,12 +299,18 @@ async def get_instructor_public_availability(
 
             current_date += timedelta(days=1)
 
-        # Build response - use instructor's user full_name, not profile
+        # Build response - use privacy-protected name fields
         response_data = PublicInstructorAvailability(
             instructor_id=instructor_id,
-            instructor_name=instructor_user.first_name
-            if settings.public_availability_show_instructor_name
-            else "Instructor",
+            instructor_first_name=(
+                instructor_user.first_name if settings.public_availability_show_instructor_name else None
+            ),
+            instructor_last_initial=(
+                instructor_user.last_name[0]
+                if (settings.public_availability_show_instructor_name and instructor_user.last_name)
+                else None
+            ),
+            detail_level="full",
             availability_by_date=availability_by_date,
             timezone="America/New_York",  # NYC-based platform
             total_available_slots=total_available_slots,
@@ -303,18 +319,11 @@ async def get_instructor_public_availability(
 
     # Get response data (either from cache or freshly built)
     if cached_result:
-        response_data = cached_result
-        # For cached results, we need to recreate the response model to use model_dump_json
-        # Determine the response model type based on settings
-        if settings.public_availability_detail_level == "minimal":
-            response_data = PublicAvailabilityMinimal(**cached_result)
-        elif settings.public_availability_detail_level == "summary":
-            response_data = PublicAvailabilitySummary(**cached_result)
-        else:
-            response_data = PublicInstructorAvailability(**cached_result)
+        # For cached results, recreate the response model
+        response_data = PublicInstructorAvailability(**cached_result)
 
-    # Use model_dump_json for all cases to avoid json.dumps
-    response_json = response_data.model_dump_json()
+    # Use model_dump_json with exclude_none to keep responses clean
+    response_json = response_data.model_dump_json(exclude_none=True)
 
     # Generate ETag based on response content
     # Include instructor_id, date range, and response data in the hash
@@ -337,7 +346,9 @@ async def get_instructor_public_availability(
     # Cache the response if not already cached
     if not cached_result and cache_service:
         try:
-            cache_service.set(cache_key, response_data.model_dump(), ttl=settings.public_availability_cache_ttl)
+            cache_service.set(
+                cache_key, response_data.model_dump(exclude_none=True), ttl=settings.public_availability_cache_ttl
+            )
         except Exception as e:
             logger.warning(f"Failed to cache public availability: {e}")
 

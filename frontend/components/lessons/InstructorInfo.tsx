@@ -4,13 +4,27 @@ import { Star, MessageCircle } from 'lucide-react';
 import { User } from '@/types/booking';
 
 interface InstructorInfoProps {
-  instructor?: User;
+  instructor?: any; // Can be User or instructor with last_initial
   rating?: number;
   reviewCount?: number;
   lessonsCompleted?: number;
   onChat?: (e?: React.MouseEvent) => void;
   showReviewButton?: boolean;
   onReview?: (e?: React.MouseEvent) => void;
+}
+
+// Helper to get instructor display name with privacy (FirstName L.)
+function getInstructorPrivacyName(instructor: any): string {
+  const firstName = instructor.first_name || '';
+  const lastInitial = instructor.last_initial || '';
+  return lastInitial ? `${firstName} ${lastInitial}.` : firstName;
+}
+
+// Helper to get initials from instructor
+function getInstructorInitials(instructor: any): string {
+  const firstInitial = instructor.first_name ? instructor.first_name.charAt(0).toUpperCase() : '';
+  const lastInitialChar = instructor.last_initial || '';
+  return (firstInitial + lastInitialChar) || '??';
 }
 
 export function InstructorInfo({
@@ -26,11 +40,8 @@ export function InstructorInfo({
     return null;
   }
 
-  const initials = instructor.full_name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase();
+  const initials = getInstructorInitials(instructor);
+  const displayName = getInstructorPrivacyName(instructor);
 
   return (
     <div className="flex flex-col sm:flex-row items-start gap-4">
@@ -42,7 +53,7 @@ export function InstructorInfo({
 
         {/* Instructor Details */}
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-foreground">{instructor.full_name}</p>
+          <p className="font-medium text-foreground">{displayName}</p>
           <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-1">
               <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />

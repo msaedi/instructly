@@ -110,6 +110,42 @@ class UserBasic(StandardizedModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class UserBasicPrivacy(StandardizedModel):
+    """
+    Basic user information with privacy protection.
+
+    Shows only last initial instead of full last name for privacy.
+    Used in student-facing endpoints to protect instructor privacy.
+    Email is omitted for privacy protection.
+    """
+
+    id: int
+    first_name: str
+    last_initial: str  # Only last initial, not full last_name
+    # No email field for privacy protection
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def from_user(cls, user) -> "UserBasicPrivacy":
+        """
+        Create UserBasicPrivacy from User model.
+        Ensures privacy by only exposing last initial and no email.
+
+        Args:
+            user: User model object
+
+        Returns:
+            UserBasicPrivacy instance with protected data
+        """
+        return cls(
+            id=user.id,
+            first_name=user.first_name,
+            last_initial=user.last_name[0] if user.last_name else ""
+            # No email for privacy protection
+        )
+
+
 class InstructorProfileBase(StandardizedModel):
     """
     Base schema for instructor profiles.
@@ -208,19 +244,45 @@ class InstructorProfileUpdate(BaseModel):
 
 class InstructorProfileResponse(InstructorProfileBase):
     """
-    Schema for instructor profile responses.
+    Schema for instructor profile responses with privacy protection.
 
     Includes all profile data plus relationships and metadata.
+    Student-facing endpoints will show only instructor last initial.
     """
 
     id: int
     user_id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
-    user: UserBasic
+    user: UserBasicPrivacy  # Changed from UserBasic to protect privacy
     services: List[ServiceResponse]
 
     model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def from_orm(cls, instructor_profile) -> "InstructorProfileResponse":
+        """
+        Create InstructorProfileResponse from ORM model with privacy protection.
+
+        Args:
+            instructor_profile: InstructorProfile ORM object with user relationship
+
+        Returns:
+            InstructorProfileResponse with privacy-protected user data
+        """
+        return cls(
+            id=instructor_profile.id,
+            user_id=instructor_profile.user_id,
+            created_at=instructor_profile.created_at,
+            updated_at=instructor_profile.updated_at,
+            bio=instructor_profile.bio,
+            areas_of_service=instructor_profile.areas_of_service,
+            years_experience=instructor_profile.years_experience,
+            min_advance_booking_hours=instructor_profile.min_advance_booking_hours,
+            buffer_time_minutes=instructor_profile.buffer_time_minutes,
+            user=UserBasicPrivacy.from_user(instructor_profile.user),
+            services=instructor_profile.services if hasattr(instructor_profile, "services") else [],
+        )
 
     @field_validator("areas_of_service", mode="before")
     def convert_areas_to_list(cls, v):

@@ -24,8 +24,11 @@ export interface InstructorBasic {
   /** Associated user ID */
   user_id: number;
 
-  /** Instructor's full name */
-  full_name: string;
+  /** Instructor's first name */
+  first_name: string;
+
+  /** Instructor's last initial for privacy */
+  last_initial: string;
 
   /** Brief bio/description */
   bio: string;
@@ -73,10 +76,11 @@ export interface InstructorProfile {
 
   /** Associated user information */
   user: {
-    /** User's full name */
-    full_name: string;
-    /** User's email address */
-    email: string;
+    /** User's first name */
+    first_name: string;
+    /** User's last initial for privacy */
+    last_initial: string;
+    // Email removed for privacy
   };
 
   /** Services offered by this instructor */
@@ -262,11 +266,24 @@ export function isInstructor(user: any): user is { instructor_profile: Instructo
  * @param instructor - Instructor data
  * @returns Formatted display name
  */
-export function getInstructorDisplayName(instructor: InstructorBasic | InstructorProfile): string {
-  if ('user' in instructor && instructor.user?.full_name) {
-    return instructor.user.full_name;
+export function getInstructorDisplayName(instructor: any): string {
+  // For InstructorProfile with nested user object
+  if (instructor?.user?.first_name && instructor?.user?.last_initial) {
+    const firstName = instructor.user.first_name || '';
+    const lastInitial = instructor.user.last_initial || '';
+    return lastInitial ? `${firstName} ${lastInitial}.` : firstName;
   }
-  return 'Instructor #' + instructor.user_id; // Better fallback using user_id
+  // For InstructorBasic with direct fields
+  if (instructor?.first_name && instructor?.last_initial) {
+    const firstName = instructor.first_name || '';
+    const lastInitial = instructor.last_initial || '';
+    return lastInitial ? `${firstName} ${lastInitial}.` : firstName;
+  }
+  // Fallback
+  if (instructor?.user_id) {
+    return 'Instructor #' + instructor.user_id;
+  }
+  return 'Instructor';
 }
 
 /**

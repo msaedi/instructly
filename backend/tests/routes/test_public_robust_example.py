@@ -136,7 +136,8 @@ class TestPublicAPIRobustExample:
                 # Common fields that should exist in all levels
                 assert "instructor_id" in data
                 assert data["instructor_id"] == test_instructor.id
-                assert "instructor_name" in data
+                assert "instructor_first_name" in data
+                assert "instructor_last_initial" in data
 
                 # The response structure differs, but all should indicate availability exists
                 if detail_level == "full":

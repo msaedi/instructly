@@ -414,9 +414,10 @@ class TestInstructorsFilteringAPI:
 
         # Should find only instructors offering this specific service
         # Check that we get at least the mixed instructor
+        # Since email is not exposed for privacy, we identify by user_id
         found_mixed = False
         for instructor in data["items"]:  # Use the correct PaginatedResponse field name
-            if instructor["user"]["email"] == "mixed@example.com":
+            if instructor["user_id"] == user.id:
                 found_mixed = True
                 # Verify only active services are returned (by the backend filtering)
                 assert len(instructor["services"]) == 1

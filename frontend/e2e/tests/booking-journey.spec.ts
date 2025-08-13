@@ -18,7 +18,8 @@ test.describe('Student Booking Journey', () => {
         body: JSON.stringify({
           id: 1,
           email: 'student@example.com',
-          full_name: 'Test Student',
+          first_name: 'Test',
+          last_name: 'Student',
           roles: ['student'],
           permissions: [],
           is_active: true,
@@ -199,7 +200,8 @@ test.describe('Student Booking Journey', () => {
           body: JSON.stringify({
             id: parseInt(id),
             user_id: parseInt(id),
-            full_name: `Test Instructor ${id}`,
+            first_name: 'Test',
+            last_initial: 'I',
             hourly_rate: 100,
             bio: 'Experienced instructor',
             services: ['Piano'],
@@ -211,11 +213,10 @@ test.describe('Student Booking Journey', () => {
       }
     });
 
-    // 4. Mock availability
+    // 4. Mock availability - Use FIXED dates for consistency
     await context.route('**/api/public/instructors/*/availability**', async (route) => {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const dateStr = tomorrow.toISOString().split('T')[0];
+      // Use fixed dates to avoid conflicts with parallel tests
+      const fixedDate = '2025-08-14'; // Fixed Thursday
 
       await route.fulfill({
         status: 200,
@@ -224,8 +225,8 @@ test.describe('Student Booking Journey', () => {
           instructor_id: 1,
           instructor_name: 'Test Instructor 1',
           availability_by_date: {
-            [dateStr]: {
-              date: dateStr,
+            [fixedDate]: {
+              date: fixedDate,
               available_slots: [
                 { start_time: '10:00', end_time: '11:00' },
                 { start_time: '11:00', end_time: '12:00' },
@@ -236,7 +237,7 @@ test.describe('Student Booking Journey', () => {
           },
           timezone: 'America/New_York',
           total_available_slots: 3,
-          earliest_available_date: dateStr,
+          earliest_available_date: fixedDate,
         }),
       });
     });
@@ -256,12 +257,14 @@ test.describe('Student Booking Journey', () => {
             confirmation_code: 'ABC123',
             instructor: {
               id: 1,
-              full_name: 'Test Instructor 1',
+              first_name: 'Test',
+              last_initial: 'I',
               email: 'instructor@example.com',
             },
             student: {
               id: 1,
-              full_name: 'Test Student',
+              first_name: 'Test',
+          last_name: 'Student',
               email: 'student@example.com',
             },
             service: {

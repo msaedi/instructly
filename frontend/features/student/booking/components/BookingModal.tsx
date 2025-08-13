@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { X, MapPin, Clock, DollarSign, User, Mail, Phone, MessageSquare } from 'lucide-react';
 import { BookingModalProps, Service } from '../types';
 import { logger } from '@/lib/logger';
+import { formatInstructorFromUser, formatFullName, getUserInitials } from '@/utils/nameDisplay';
 import { useAuth, storeBookingIntent } from '../hooks/useAuth';
 import { calculateEndTime } from '../hooks/useCreateBooking';
 import {
@@ -52,7 +53,7 @@ export default function BookingModal({
     if (user && showBookingForm) {
       setBookingFormData((prev) => ({
         ...prev,
-        name: user.full_name || '',
+        name: formatFullName(user) || '',
         email: user.email || '',
       }));
     }
@@ -152,7 +153,7 @@ export default function BookingModal({
       const paymentBookingData: BookingPayment = {
         bookingId: '', // Will be set after creation
         instructorId: String(instructor.user_id),
-        instructorName: instructor.user.full_name,
+        instructorName: `${instructor.user.first_name} ${instructor.user.last_initial}.`,
         lessonType: selectedService.skill,
         date: bookingDate,
         startTime: selectedTime,
@@ -240,7 +241,7 @@ export default function BookingModal({
     const paymentBookingData: BookingPayment = {
       bookingId: '', // Will be set after creation
       instructorId: String(instructor.user_id),
-      instructorName: instructor.user.full_name,
+      instructorName: `${instructor.user.first_name} ${instructor.user.last_initial}.`,
       lessonType: selectedService.skill,
       date: bookingDate,
       startTime: selectedTime,
@@ -394,7 +395,7 @@ export default function BookingModal({
                 <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2">
                   <h4 className="font-medium text-gray-900 dark:text-white">Booking Summary</h4>
                   <div className="text-sm space-y-1 text-gray-600 dark:text-gray-400">
-                    <div>Instructor: {instructor.user.full_name}</div>
+                    <div>Instructor: {instructor.user.first_name} {instructor.user.last_initial}.</div>
                     <div>Service: {selectedService?.skill}</div>
                     <div>Date: {formatDate(selectedDate)}</div>
                     <div>Time: {formatTime(selectedTime)}</div>
@@ -443,12 +444,12 @@ export default function BookingModal({
                   {/* Instructor Photo Placeholder */}
                   <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
                     <span className="text-gray-500 dark:text-gray-400 font-medium">
-                      {instructor.user.full_name.charAt(0)}
+                      {instructor.user.first_name.charAt(0)}
                     </span>
                   </div>
                   <div>
                     <h3 className="font-medium text-gray-900 dark:text-white">
-                      {selectedService?.skill || 'Lesson'} with {instructor.user.full_name}
+                      {selectedService?.skill || 'Lesson'} with {instructor.user.first_name} {instructor.user.last_initial}.
                     </h3>
                     <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                       <Clock className="h-4 w-4 mr-1" />
@@ -532,7 +533,7 @@ export default function BookingModal({
                 <MapPin className="h-5 w-5 text-gray-500 dark:text-gray-400 mt-0.5" />
                 <div>
                   <div className="font-medium text-gray-900 dark:text-white">
-                    {instructor.user.full_name}'s Studio
+                    {instructor.user.first_name}'s Studio
                   </div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">
                     {instructor.areas_of_service[0]} • Location details will be provided after

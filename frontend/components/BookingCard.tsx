@@ -2,6 +2,7 @@
 import React from 'react';
 import { Booking, BookingStatus } from '@/types/booking';
 import { logger } from '@/lib/logger';
+import { formatInstructorFromUser } from '@/utils/nameDisplay';
 
 /**
  * BookingCard Component
@@ -139,7 +140,7 @@ export const BookingCard: React.FC<BookingCardProps> = ({
         <div>
           <h3 className="font-semibold text-lg text-gray-900">{booking.service_name}</h3>
           <p className="text-sm text-gray-600">
-            with {booking.instructor?.full_name || 'Instructor'}
+            with {formatInstructorFromUser(booking.instructor)}
           </p>
         </div>
         {getStatusBadge(booking.status)}

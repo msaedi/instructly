@@ -5,6 +5,7 @@ import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { protectedApi } from '@/features/shared/api/client';
 import type { Booking } from '@/types/booking';
+import { formatInstructorFromUser } from '@/utils/nameDisplay';
 
 function BookingConfirmationContent() {
   const searchParams = useSearchParams();
@@ -54,10 +55,7 @@ function BookingConfirmationContent() {
         .replace(/\.\d{3}/, '');
     };
 
-    const instructorName =
-      (booking.instructor as any)?.user?.full_name ||
-      (booking.instructor as any)?.full_name ||
-      `Instructor #${booking.instructor_id}`;
+    const instructorName = formatInstructorFromUser(booking.instructor);
     const serviceName =
       (booking.service as any)?.skill || `Service #${booking.instructor_service_id}`;
 
@@ -150,10 +148,7 @@ END:VCALENDAR`;
     );
   }
 
-  const instructorName =
-    (booking.instructor as any)?.user?.full_name ||
-    (booking.instructor as any)?.full_name ||
-    `Instructor #${booking.instructor_id}`;
+  const instructorName = formatInstructorFromUser(booking.instructor);
   const serviceName =
     (booking.service as any)?.skill || `Service #${booking.instructor_service_id}`;
 

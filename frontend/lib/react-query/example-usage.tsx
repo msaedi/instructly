@@ -28,10 +28,10 @@ function UserProfileHeader() {
   return (
     <div className="flex items-center gap-4">
       <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white">
-        {user.full_name[0]}
+        {user.first_name[0]}
       </div>
       <div>
-        <h2>{user.full_name}</h2>
+        <h2>{user.first_name} {user.last_name}</h2>
         <p>{user.email}</p>
       </div>
     </div>
@@ -50,7 +50,7 @@ function ProtectedDashboard() {
     return <div>Please log in to continue</div>;
   }
 
-  return <div>Welcome to your dashboard, {user?.full_name}!</div>;
+  return <div>Welcome to your dashboard, {user?.first_name}!</div>;
 }
 
 /**
@@ -78,7 +78,7 @@ function InstructorSearch() {
       <h3>Found {data?.total_found} instructors</h3>
       {data?.results.map((result) => (
         <div key={result.instructor.id}>
-          {result.instructor.name} - ${result.offering.hourly_rate}/hr
+          {result.instructor.first_name} {result.instructor.last_initial}. - ${result.offering.hourly_rate}/hr
         </div>
       ))}
     </div>

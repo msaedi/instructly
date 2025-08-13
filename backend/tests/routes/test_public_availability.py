@@ -154,7 +154,10 @@ class TestPublicAvailability:
 
         # Verify response structure
         assert result["instructor_id"] == instructor.id
-        assert result["instructor_name"] == instructor.first_name  # Clean Break: first name only in public contexts
+        assert result["instructor_first_name"] == instructor.first_name  # Privacy-protected: first name only
+        assert (
+            result["instructor_last_initial"] == instructor.last_name[0] if instructor.last_name else None
+        )  # Privacy-protected: initial only
         assert "availability_by_date" in result
         assert result["timezone"] == "America/New_York"
 
@@ -480,7 +483,8 @@ class TestPublicAvailability:
 
         # Should have minimal fields only
         assert "instructor_id" in result
-        assert "instructor_name" in result
+        assert "instructor_first_name" in result
+        assert "instructor_last_initial" in result
         assert "has_availability" in result
         assert result["has_availability"] is True
         assert "earliest_available_date" in result

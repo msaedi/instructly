@@ -80,7 +80,8 @@ describe('MyLessonsPage', () => {
         updated_at: '2024-12-01T10:00:00Z',
         instructor: {
           id: 1,
-          full_name: 'John Doe',
+          first_name: 'John',
+          last_initial: 'D',
         },
       },
       {
@@ -100,7 +101,8 @@ describe('MyLessonsPage', () => {
         updated_at: '2024-12-01T10:00:00Z',
         instructor: {
           id: 2,
-          full_name: 'Jane Smith',
+          first_name: 'Jane',
+          last_initial: 'S',
         },
       },
     ],
@@ -130,7 +132,8 @@ describe('MyLessonsPage', () => {
         updated_at: '2024-12-01T10:00:00Z',
         instructor: {
           id: 1,
-          full_name: 'John Doe',
+          first_name: 'John',
+          last_initial: 'D',
         },
       },
       {
@@ -152,7 +155,8 @@ describe('MyLessonsPage', () => {
         cancelled_at: '2024-12-18T10:00:00Z',
         instructor: {
           id: 2,
-          full_name: 'Jane Smith',
+          first_name: 'Jane',
+          last_initial: 'S',
         },
       },
     ],
@@ -222,9 +226,9 @@ describe('MyLessonsPage', () => {
 
     renderWithProviders(<MyLessonsPage />);
 
-    expect(screen.getByText('John Doe')).toBeInTheDocument();
+    expect(screen.getByText('John D.')).toBeInTheDocument();
     expect(screen.getByText('Mathematics')).toBeInTheDocument();
-    expect(screen.getByText('Jane Smith')).toBeInTheDocument();
+    expect(screen.getByText('Jane S.')).toBeInTheDocument();
     expect(screen.getByText('Physics')).toBeInTheDocument();
   });
 

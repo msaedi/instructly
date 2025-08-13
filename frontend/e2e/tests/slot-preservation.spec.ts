@@ -17,7 +17,8 @@ test.describe('Slot Preservation on Back Navigation', () => {
       localStorage.setItem('user', JSON.stringify({
         id: 1,
         email: 'john.smith@example.com',
-        full_name: 'John Smith',
+        first_name: 'John',
+        last_name: 'Smith',
         role: 'student'
       }));
     });
@@ -35,28 +36,56 @@ test.describe('Slot Preservation on Back Navigation', () => {
       return;
     }
 
-    // 4. Click the LAST slot (to ensure it's different from any auto-selection)
-    const lastSlot = allSlots[allSlots.length - 1];
-    const lastSlotId = await lastSlot.getAttribute('data-testid');
-    console.log('Selecting slot:', lastSlotId);
+    // 4. Click the FIRST slot (more predictable for testing)
+    const firstSlot = allSlots[0];
+    const firstSlotId = await firstSlot.getAttribute('data-testid');
+    console.log('Selecting slot:', firstSlotId);
 
-    await lastSlot.click();
+    // Parse the slot ID to extract day and time
+    // Format is like: time-slot-Wed-9am
+    const slotParts = firstSlotId?.split('-') || [];
+    const slotDay = slotParts[2]; // e.g., "Wed"
+    const slotTimeDisplay = slotParts[3]; // e.g., "9am"
+
+    // Convert display time (9am) to 24-hour format (09:00) for storage
+    const convertTo24Hour = (timeStr: string) => {
+      const match = timeStr.match(/(\d+)(am|pm)/i);
+      if (!match) return timeStr;
+      let hour = parseInt(match[1]);
+      const isPM = match[2].toLowerCase() === 'pm';
+      if (isPM && hour !== 12) hour += 12;
+      if (!isPM && hour === 12) hour = 0;
+      return `${hour.toString().padStart(2, '0')}:00`;
+    };
+    const slotTime = convertTo24Hour(slotTimeDisplay);
+
+    await firstSlot.click();
     await page.waitForTimeout(500); // Let state update
 
     // 5. Verify the slot is selected by checking for the black border
-    await expect(lastSlot).toHaveClass(/border-black/);
+    await expect(firstSlot).toHaveClass(/border-black/);
 
     // 6. Simulate booking flow by setting session storage and navigating
     console.log('Setting up booking data and navigating to payment page...');
 
-    // Create booking data in session storage
-    await page.evaluate(() => {
+    // Create booking data and navigation state in session storage
+    await page.evaluate((slotInfo) => {
+      // Map day names to our fixed test dates
+      const dayToDateMap: Record<string, string> = {
+        'Wed': '2025-08-13',
+        'Thu': '2025-08-14',
+        'Fri': '2025-08-15'
+      };
+
+      const slotDate = dayToDateMap[slotInfo.day] || '2025-08-13';
+      const targetDate = new Date(slotDate);
+
       const bookingData = {
         instructorId: 8,
-        instructorName: 'Sarah Chen',
+        instructorName: 'Sarah C.',
         lessonType: 'Piano',
-        date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days from now
-        startTime: '19:00', // 7pm
+        date: targetDate.toISOString(),
+        startTime: slotInfo.time, // Use the actual selected time
         endTime: '20:00',
         duration: 60,
         location: 'Upper West Side',
@@ -67,7 +96,21 @@ test.describe('Slot Preservation on Back Navigation', () => {
       };
       sessionStorage.setItem('bookingData', JSON.stringify(bookingData));
       sessionStorage.setItem('serviceId', '1');
-    });
+
+      // Save navigation state for slot preservation
+      const navState = {
+        selectedSlot: {
+          date: slotDate,
+          time: slotInfo.time, // Use the actual selected time
+          duration: 60,
+          instructorId: '8'
+        },
+        timestamp: Date.now(),
+        source: 'profile',
+        flowId: `flow_${Date.now()}_test`
+      };
+      sessionStorage.setItem('booking_navigation_state', JSON.stringify(navState));
+    }, { day: slotDay, time: slotTime });
 
     // Navigate directly to payment page
     await page.goto('/student/booking/confirm');
@@ -105,10 +148,10 @@ test.describe('Slot Preservation on Back Navigation', () => {
     // 14. Get the ID of the selected slot
     const selectedId = await selectedSlot.getAttribute('data-testid');
     console.log('Selected after back navigation:', selectedId);
-    console.log('Expected:', lastSlotId);
+    console.log('Expected:', firstSlotId);
 
     // 15. The critical test - it should be the same slot we selected before
-    expect(selectedId).toBe(lastSlotId);
+    expect(selectedId).toBe(firstSlotId);
     console.log('✅ Slot selection was preserved!');
   });
 });

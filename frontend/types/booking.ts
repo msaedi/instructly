@@ -4,6 +4,22 @@
 export type BookingStatus = 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
 export type LocationType = 'student_home' | 'instructor_location' | 'neutral';
 
+// Privacy-protected instructor info for student-facing views
+export interface InstructorInfo {
+  id: number;
+  first_name: string;
+  last_initial: string;  // Only last initial, no full last name for privacy
+  // Note: email excluded for privacy
+}
+
+// Student info (students see their own full details)
+export interface StudentInfo {
+  id: number;
+  first_name: string;
+  last_name: string;  // Students see their own full last name
+  email: string;
+}
+
 // Main booking interface matching backend schema
 export interface Booking {
   id: number;
@@ -46,8 +62,8 @@ export interface Booking {
   cancellation_reason?: string;
 
   // Relations (populated in detailed views)
-  student?: User;
-  instructor?: User;
+  student?: StudentInfo;
+  instructor?: InstructorInfo;
   service?: Service;
   // REMOVED: availability_slot relation
 }
@@ -56,7 +72,8 @@ export interface Booking {
 export interface User {
   id: number;
   email: string;
-  full_name: string;
+  first_name: string;
+  last_name: string;
   role: 'STUDENT' | 'INSTRUCTOR';
   created_at: string;
 }

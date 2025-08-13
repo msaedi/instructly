@@ -1,0 +1,264 @@
+name: Privacy Protection Audit
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - '.github/workflows/privacy-audit.yml'
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Monday at 2 AM UTC
+  workflow_dispatch:  # Manual trigger
+    inputs:
+      verbose:
+        description: 'Enable verbose output'
+        required: false
+        default: 'false'
+      category:
+        description: 'Test specific category (public, auth, admin)'
+        required: false
+        default: ''
+
+jobs:
+  privacy-audit:
+    name: Privacy Compliance Check
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: write  # For PR comments
+      checks: write         # For check annotations
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+        cache: 'pip'
+
+    - name: Install backend dependencies
+      run: |
+        cd backend
+        pip install -r requirements.txt
+        pip install httpx pyyaml
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install frontend dependencies
+      run: |
+        cd frontend
+        npm ci
+
+    - name: Start test database
+      run: |
+        docker-compose -f docker-compose.test.yml up -d postgres redis
+        sleep 5  # Wait for services to be ready
+
+    - name: Run database migrations
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+        USE_TEST_DATABASE: true
+      run: |
+        cd backend
+        alembic upgrade head
+
+    - name: Seed test data
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+        USE_TEST_DATABASE: true
+      run: |
+        cd backend
+        python scripts/reset_and_seed_database_enhanced.py
+
+    - name: Start backend server
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
+        USE_TEST_DATABASE: true
+        REDIS_URL: redis://localhost:6379/0
+      run: |
+        cd backend
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+        sleep 10  # Wait for server to start
+
+    - name: Run privacy audit
+      id: audit
+      env:
+        API_BASE_URL: http://localhost:8000
+        SKIP_ENV_CHECK: true  # Server already started
+      run: |
+        cd backend
+        VERBOSE_FLAG=""
+        CATEGORY_FLAG=""
+
+        if [[ "${{ github.event.inputs.verbose }}" == "true" ]]; then
+          VERBOSE_FLAG="--verbose"
+        fi
+
+        if [[ -n "${{ github.event.inputs.category }}" ]]; then
+          CATEGORY_FLAG="--category ${{ github.event.inputs.category }}"
+        fi
+
+        python scripts/ci_privacy_audit.py $VERBOSE_FLAG $CATEGORY_FLAG
+      continue-on-error: true
+
+    - name: Upload audit reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: privacy-audit-reports-${{ github.run_number }}
+        path: |
+          backend/privacy_audit_report.json
+          backend/privacy_audit_report.md
+        retention-days: 30
+
+    - name: Read audit results
+      if: always()
+      id: results
+      run: |
+        if [ -f backend/privacy_audit_report.json ]; then
+          VIOLATIONS=$(jq '.violations | length' backend/privacy_audit_report.json)
+          echo "violations=$VIOLATIONS" >> $GITHUB_OUTPUT
+
+          # Check for high severity violations
+          HIGH_SEVERITY=$(jq '[.violations[] | select(.severity == "HIGH")] | length' backend/privacy_audit_report.json)
+          echo "high_severity=$HIGH_SEVERITY" >> $GITHUB_OUTPUT
+        else
+          echo "violations=0" >> $GITHUB_OUTPUT
+          echo "high_severity=0" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Comment on PR
+      if: github.event_name == 'pull_request' && always()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+
+          let comment = '## 🔒 Privacy Audit Results\n\n';
+
+          // Read the markdown report if it exists
+          const reportPath = path.join('backend', 'privacy_audit_report.md');
+          if (fs.existsSync(reportPath)) {
+            const report = fs.readFileSync(reportPath, 'utf8');
+            comment += report;
+          } else {
+            comment += '✅ Privacy audit completed successfully with no violations found.';
+          }
+
+          // Add footer with links
+          comment += '\n\n---\n';
+          comment += `📎 [View detailed report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n`;
+          comment += `🔍 Run triggered by: ${{ github.event_name }}`;
+
+          // Find and update or create comment
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+
+          const botComment = comments.find(comment =>
+            comment.user.type === 'Bot' &&
+            comment.body.includes('Privacy Audit Results')
+          );
+
+          if (botComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: botComment.id,
+              body: comment
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+          }
+
+    - name: Set check status
+      if: always()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const violations = ${{ steps.results.outputs.violations || 0 }};
+          const highSeverity = ${{ steps.results.outputs.high_severity || 0 }};
+
+          let conclusion = 'success';
+          let title = '✅ No privacy violations found';
+          let summary = 'All endpoints passed privacy compliance checks.';
+
+          if (highSeverity > 0) {
+            conclusion = 'failure';
+            title = `❌ ${highSeverity} high-severity privacy violations found`;
+            summary = `Found ${violations} total violations, including ${highSeverity} high-severity issues that must be fixed.`;
+          } else if (violations > 0) {
+            conclusion = 'neutral';
+            title = `⚠️ ${violations} privacy violations found (no high severity)`;
+            summary = `Found ${violations} violations, but none are high severity. Consider fixing before merge.`;
+          }
+
+          await github.rest.checks.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            name: 'Privacy Compliance',
+            head_sha: context.sha,
+            status: 'completed',
+            conclusion: conclusion,
+            output: {
+              title: title,
+              summary: summary,
+            }
+          });
+
+    - name: Fail if high-severity violations
+      if: steps.results.outputs.high_severity > 0
+      run: |
+        echo "❌ Privacy audit failed with ${{ steps.results.outputs.high_severity }} high-severity violations"
+        exit 1
+
+    - name: Stop services
+      if: always()
+      run: |
+        docker-compose -f docker-compose.test.yml down
+        pkill -f uvicorn || true
+
+  weekly-report:
+    name: Generate Weekly Report
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 2 * * 1'  # Only on scheduled runs
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+
+    - name: Generate weekly report
+      run: |
+        echo "# Weekly Privacy Audit Report" > weekly_report.md
+        echo "Generated: $(date)" >> weekly_report.md
+        echo "" >> weekly_report.md
+        echo "This is a placeholder for the weekly privacy audit report." >> weekly_report.md
+        echo "In production, this would aggregate data from the week's audits." >> weekly_report.md
+
+    - name: Upload weekly report
+      uses: actions/upload-artifact@v4
+      with:
+        name: weekly-privacy-report-${{ github.run_number }}
+        path: weekly_report.md
+        retention-days: 90

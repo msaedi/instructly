@@ -8,7 +8,7 @@ No internal IDs or implementation details are exposed.
 """
 
 from datetime import date
-from typing import Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -57,25 +57,48 @@ class PublicInstructorAvailability(BaseModel):
     This is the main response schema for the public endpoint.
     Provides all necessary information for students to view
     availability and make booking decisions.
+
+    The detail_level field indicates what data is populated:
+    - "minimal": Only has_availability and earliest_available_date
+    - "summary": Includes availability_summary but not specific slots
+    - "full": Complete availability_by_date with all time slots
     """
 
     instructor_id: int
-    instructor_name: str
-    availability_by_date: Dict[str, PublicDayAvailability] = Field(
-        description="Availability indexed by date string (YYYY-MM-DD)"
+    instructor_first_name: Optional[str] = Field(None, description="Instructor's first name if privacy settings allow")
+    instructor_last_initial: Optional[str] = Field(None, description="Instructor's last name initial for privacy")
+
+    # Detail level indicator
+    detail_level: str = Field(description="Level of detail: minimal, summary, or full")
+
+    # Full detail fields (populated when detail_level == "full")
+    availability_by_date: Optional[Dict[str, PublicDayAvailability]] = Field(
+        None, description="Availability indexed by date string (YYYY-MM-DD) - only in full detail"
     )
+
+    # Summary fields (populated when detail_level == "summary")
+    availability_summary: Optional[Dict[str, Dict[str, Any]]] = Field(
+        None, description="Summary of availability by date - only in summary detail"
+    )
+
+    # Minimal fields (always populated)
+    has_availability: Optional[bool] = Field(None, description="Whether any availability exists")
+
     timezone: str = Field(default="America/New_York", description="Instructor's timezone")
 
     # Summary statistics to help frontend
-    total_available_slots: int = Field(description="Total number of bookable slots in the date range")
+    total_available_slots: Optional[int] = Field(None, description="Total number of bookable slots in the date range")
+    total_available_days: Optional[int] = Field(None, description="Number of days with availability")
     earliest_available_date: Optional[str] = Field(None, description="Earliest date with availability")
 
     model_config = ConfigDict(
         from_attributes=True,
+        # Exclude None values from serialization to keep responses clean
         json_schema_extra={
             "example": {
                 "instructor_id": 123,
-                "instructor_name": "Sarah Chen",
+                "instructor_first_name": "Sarah",
+                "instructor_last_initial": "C",
                 "availability_by_date": {
                     "2025-07-15": {
                         "date": "2025-07-15",
@@ -114,7 +137,8 @@ class PublicAvailabilityMinimal(BaseModel):
     """Minimal availability info - just yes/no."""
 
     instructor_id: int
-    instructor_name: str
+    instructor_first_name: Optional[str] = Field(None, description="Instructor's first name if privacy settings allow")
+    instructor_last_initial: Optional[str] = Field(None, description="Instructor's last name initial for privacy")
     has_availability: bool
     earliest_available_date: Optional[str] = None
     timezone: str = Field(default="America/New_York")
@@ -124,7 +148,8 @@ class PublicAvailabilitySummary(BaseModel):
     """Summary availability - time ranges without specific slots."""
 
     instructor_id: int
-    instructor_name: str
+    instructor_first_name: Optional[str] = Field(None, description="Instructor's first name if privacy settings allow")
+    instructor_last_initial: Optional[str] = Field(None, description="Instructor's last name initial for privacy")
     availability_summary: Dict[str, Dict[str, Union[str, bool, float]]]
     timezone: str = Field(default="America/New_York")
     total_available_days: int
@@ -134,7 +159,8 @@ class PublicAvailabilitySummary(BaseModel):
         json_schema_extra={
             "example": {
                 "instructor_id": 123,
-                "instructor_name": "Sarah Chen",
+                "instructor_first_name": "Sarah",
+                "instructor_last_initial": "C",
                 "availability_summary": {
                     "2025-07-15": {
                         "date": "2025-07-15",

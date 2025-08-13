@@ -310,7 +310,9 @@ class TestInstructorProfileRepositoryIntegration:
         for instructor in instructors:
             assert "user" in instructor
             assert instructor["user"]["first_name"] is not None
-            assert instructor["user"]["last_name"] is not None
+            # Privacy protection: only last_initial is exposed
+            assert instructor["user"]["last_initial"] is not None
+            assert "last_name" not in instructor["user"]  # Full last name not exposed
             assert "services" in instructor  # Updated to match new API format
             # The service layer should filter out inactive services
             # when converting to DTOs

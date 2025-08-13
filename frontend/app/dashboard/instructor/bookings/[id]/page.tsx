@@ -237,7 +237,9 @@ export default function BookingDetailsPage() {
             </div>
             <div className="ml-6">
               <p className="text-lg text-gray-800 font-medium">
-                {booking.student?.full_name || `Student #${booking.student_id}`}
+                {booking.student
+                  ? `${booking.student.first_name} ${booking.student.last_name}`
+                  : `Student #${booking.student_id}`}
               </p>
               {booking.student?.email && (
                 <a

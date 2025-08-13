@@ -46,12 +46,14 @@ def test_public_availability_basic(client, db: Session, test_instructor):
     # Verify common fields that exist in all detail levels
     assert "instructor_id" in data
     assert data["instructor_id"] == test_instructor.id
-    assert "instructor_name" in data
+    assert "instructor_first_name" in data
+    assert "instructor_last_initial" in data
 
     # Check based on configured detail level
     if settings.public_availability_detail_level == "full":
         # Full detail level checks
-        assert data["instructor_name"] == test_instructor.first_name  # Clean Break: first name only in public contexts
+        assert data["instructor_first_name"] == test_instructor.first_name
+        assert data["instructor_last_initial"] == test_instructor.last_name[0]
         assert "availability_by_date" in data
 
         # Check today's availability

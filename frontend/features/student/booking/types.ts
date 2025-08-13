@@ -14,8 +14,9 @@ export interface Instructor {
   id?: number; // Optional for compatibility with different data sources
   user_id: number;
   user: {
-    full_name: string;
-    email: string;
+    first_name: string;
+    last_initial: string;  // Privacy protected
+    // Email removed for privacy
   };
   bio: string;
   areas_of_service: string[];

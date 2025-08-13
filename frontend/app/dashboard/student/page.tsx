@@ -164,7 +164,7 @@ export default function StudentDashboard() {
         {/* Welcome Section */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Welcome back, {userData.full_name}!
+            Welcome back, {userData.first_name}!
           </h1>
           <p className="text-gray-600">Find and book sessions with expert instructors</p>
         </div>
@@ -232,7 +232,9 @@ export default function StudentDashboard() {
                         {booking.service_name}
                       </h4>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        with {booking.instructor?.full_name || 'Instructor'}
+                        with {booking.instructor
+                          ? `${booking.instructor.first_name} ${booking.instructor.last_initial}.`
+                          : 'Instructor'}
                       </p>
                       <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                         {new Date(booking.booking_date).toLocaleDateString('en-US', {

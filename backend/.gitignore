@@ -7,3 +7,7 @@ backend/htmlcov/
 # Logs
 logs/database_audit.jsonl
 *.log
+
+# Privacy audit output artifacts
+logs/privacy_audit_report.json
+logs/privacy_audit_report.md

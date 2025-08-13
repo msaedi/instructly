@@ -200,8 +200,8 @@ function MyLessonsContent() {
           }}
           bookingId={selectedBooking.id}
           currentUserId={user.id}
-          currentUserName={user.full_name}
-          otherUserName={selectedBooking.instructor.full_name || 'Instructor'}
+          currentUserName={user.first_name}
+          otherUserName={selectedBooking.instructor.first_name || 'Instructor'}
           lessonTitle={selectedBooking.service_name}
           lessonDate={format(new Date(`${selectedBooking.booking_date}T${selectedBooking.start_time}`), 'MMM d, yyyy')}
         />

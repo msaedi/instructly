@@ -1,0 +1,154 @@
+# Privacy Audit Configuration
+# This file defines privacy rules and settings for the audit system
+
+# Privacy Rules by Context
+rules:
+  # Public endpoints (no authentication required)
+  public_endpoints:
+    forbidden_fields:
+      - last_name        # Should be last_initial only
+      - email           # Never expose emails publicly
+      - phone           # Never expose phone numbers
+      - zip_code        # Never expose zip codes
+      - password        # Obviously never expose
+      - password_hash   # Never expose hashed passwords
+    allowed_fields:
+      - id
+      - first_name
+      - last_initial
+      - bio
+      - experience_years
+      - service_name
+      - hourly_rate
+      - availability
+
+  # Student viewing instructor data
+  student_view_instructor:
+    forbidden_fields:
+      - last_name
+      - email
+      - phone
+      - zip_code
+      - earnings
+      - bank_details
+    name_format: "first_name last_initial"  # e.g., "Sarah C."
+
+  # Student viewing other student data
+  student_view_student:
+    forbidden_fields:
+      - last_name
+      - email
+      - phone
+      - zip_code
+      - payment_methods
+    name_format: "first_name last_initial"
+
+  # Instructor viewing their own data
+  instructor_self_view:
+    allowed_fields: "*"  # Full access to own data
+
+  # Student viewing their own data
+  student_self_view:
+    allowed_fields: "*"  # Full access to own data
+
+# Endpoints to skip during audit
+skip_endpoints:
+  - /health
+  - /metrics
+  - /docs
+  - /openapi.json
+  - /redoc
+  - /favicon.ico
+  - /static
+  - /_next
+
+# Test users for audit (only used in test mode)
+test_users:
+  instructors:
+    - email: sarah.chen@example.com
+      password: Test1234
+    - email: michael.rodriguez@example.com
+      password: Test1234
+  students:
+    - email: john.smith@example.com
+      password: Test1234
+    - email: emma.johnson@example.com
+      password: Test1234
+  admin:
+    - email: admin@example.com
+      password: Admin1234
+
+# Specific endpoints to test
+test_endpoints:
+  public:
+    - path: /api/search/instructors
+      params:
+        q: piano
+        limit: 5
+    - path: /services/search
+      params:
+        q: yoga
+    - path: /api/public/instructors/{instructor_id}/availability
+      params:
+        start_date: "2025-01-20"
+        end_date: "2025-01-27"
+    - path: /instructors/
+      params:
+        service_catalog_id: 1
+        limit: 10
+
+  authenticated:
+    - path: /api/bookings
+      auth_required: true
+      test_as: student
+    - path: /api/bookings/{booking_id}
+      auth_required: true
+      test_as: student
+    - path: /api/instructor/profile
+      auth_required: true
+      test_as: instructor
+
+# Reporting settings
+reporting:
+  # Slack webhook for critical alerts (optional)
+  # slack_webhook: ${SLACK_WEBHOOK_URL}
+
+  # Email recipients for alerts (optional)
+  # alert_emails:
+  #   - security@instainstru.com
+  #   - dev-team@instainstru.com
+
+  # Report format preferences
+  default_format: markdown
+  include_examples: true
+  max_violations_shown: 10
+
+# Performance settings
+performance:
+  timeout: 300  # 5 minutes max for full audit
+  parallel_requests: 5  # Number of concurrent requests
+  retry_attempts: 2  # Retry failed requests
+
+# Severity thresholds
+thresholds:
+  fail_on_high: true     # Fail CI/CD on HIGH severity
+  fail_on_medium: false  # Don't fail on MEDIUM severity
+  fail_on_low: false     # Don't fail on LOW severity
+
+# Environment-specific overrides
+environments:
+  development:
+    base_url: http://localhost:8000
+    test_mode: true
+    verbose: true
+
+  ci:
+    base_url: http://localhost:8000
+    test_mode: true
+    verbose: false
+
+  production:
+    base_url: https://api.instainstru.com
+    test_mode: false  # Don't use test data in production
+    verbose: false
+    skip_destructive_tests: true

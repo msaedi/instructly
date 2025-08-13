@@ -40,7 +40,8 @@ describe('CancelWarningModal', () => {
     service_id: 1,
     instructor: {
       id: 1,
-      full_name: 'John Doe',
+      first_name: 'John',
+      last_initial: 'D',
     },
     service_name: 'Mathematics',
   } as Booking;

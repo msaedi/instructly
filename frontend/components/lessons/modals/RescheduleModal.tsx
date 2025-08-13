@@ -97,7 +97,9 @@ export function RescheduleModal({ isOpen, onClose, lesson }: RescheduleModalProp
       }
     >
       <div className="space-y-6">
-        <p className="text-gray-700">Select a new time with {lesson.instructor?.full_name}</p>
+        <p className="text-gray-700">Select a new time with {lesson.instructor
+          ? `${lesson.instructor.first_name} ${lesson.instructor.last_initial}.`
+          : 'Instructor'}</p>
 
         {/* Calendar Grid */}
         <div className="border rounded-lg p-4">

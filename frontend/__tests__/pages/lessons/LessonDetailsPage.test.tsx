@@ -87,7 +87,8 @@ describe('LessonDetailsPage', () => {
     updated_at: '2024-12-01T10:00:00Z',
     instructor: {
       id: 1,
-      full_name: 'John Doe',
+      first_name: 'John',
+      last_initial: 'D',
       rating: 4.5,
       rating_count: 20,
       completed_lesson_count: 100,
@@ -121,8 +122,8 @@ describe('LessonDetailsPage', () => {
     // Check price
     expect(screen.getByText('$60.00')).toBeInTheDocument();
 
-    // Check instructor
-    expect(screen.getByText('John Doe')).toBeInTheDocument();
+    // Check instructor (privacy-protected: John D.)
+    expect(screen.getByText('John D.')).toBeInTheDocument();
 
     // Check location
     expect(screen.getByText('123 Main St, NYC')).toBeInTheDocument();

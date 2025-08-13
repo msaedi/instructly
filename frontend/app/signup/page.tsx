@@ -33,11 +33,38 @@ import { RoleName } from '@/types/enums';
  * Form validation errors interface
  */
 interface FormErrors {
-  fullName?: string;
+  firstName?: string;
+  lastName?: string;
   email?: string;
+  phone?: string;
+  zipCode?: string;
   password?: string;
   confirmPassword?: string;
   general?: string;
+}
+
+/**
+ * Format phone number for display
+ */
+function formatPhoneNumber(value: string): string {
+  const cleaned = value.replace(/\D/g, '');
+  if (cleaned.length <= 3) return cleaned;
+  if (cleaned.length <= 6) return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3)}`;
+  return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6, 10)}`;
+}
+
+/**
+ * Format phone number for API (E.164 format)
+ */
+function formatPhoneForAPI(phone: string): string {
+  const cleaned = phone.replace(/\D/g, '');
+  if (cleaned.length === 10) {
+    return `+1${cleaned}`;
+  }
+  if (cleaned.length === 11 && cleaned[0] === '1') {
+    return `+${cleaned}`;
+  }
+  return phone; // Return as-is if not a valid US phone
 }
 
 /**
@@ -52,8 +79,11 @@ function SignUpForm() {
   const redirect = searchParams.get('redirect') || '/';
 
   const [formData, setFormData] = useState({
-    fullName: '',
+    firstName: '',
+    lastName: '',
     email: '',
+    phone: '',
+    zipCode: '',
     password: '',
     confirmPassword: '',
   });
@@ -73,7 +103,18 @@ function SignUpForm() {
    */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    const nextValue = name === 'email' ? value.toLowerCase() : value;
+    let nextValue = value;
+
+    // Special handling for different fields
+    if (name === 'email') {
+      nextValue = value.toLowerCase();
+    } else if (name === 'phone') {
+      nextValue = formatPhoneNumber(value);
+    } else if (name === 'zipCode') {
+      // Only allow digits and limit to 5 characters
+      nextValue = value.replace(/\D/g, '').slice(0, 5);
+    }
+
     setFormData((prev) => ({
       ...prev,
       [name]: nextValue,
@@ -97,24 +138,50 @@ function SignUpForm() {
     logger.debug('Validating signup form');
     const newErrors: FormErrors = {};
 
-    if (!formData.fullName.trim()) {
-      newErrors.fullName = 'Full name is required';
-    } else if (formData.fullName.trim().length < 2) {
-      newErrors.fullName = 'Full name must be at least 2 characters';
+    // Validate first name
+    if (!formData.firstName.trim()) {
+      newErrors.firstName = 'First name is required';
+    } else if (formData.firstName.trim().length < 2) {
+      newErrors.firstName = 'First name must be at least 2 characters';
     }
 
+    // Validate last name
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = 'Last name is required';
+    } else if (formData.lastName.trim().length < 2) {
+      newErrors.lastName = 'Last name must be at least 2 characters';
+    }
+
+    // Validate email
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Please enter a valid email';
     }
 
+    // Validate phone
+    const cleanedPhone = formData.phone.replace(/\D/g, '');
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'Phone number is required';
+    } else if (cleanedPhone.length !== 10) {
+      newErrors.phone = 'Please enter a valid 10-digit phone number';
+    }
+
+    // Validate zip code
+    if (!formData.zipCode.trim()) {
+      newErrors.zipCode = 'Zip code is required';
+    } else if (formData.zipCode.length !== 5) {
+      newErrors.zipCode = 'Please enter a valid 5-digit zip code';
+    }
+
+    // Validate password
     if (!formData.password) {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 8) {
       newErrors.password = 'Password must be at least 8 characters';
     }
 
+    // Validate password confirmation
     if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match';
     }
@@ -156,10 +223,13 @@ function SignUpForm() {
       // Get guest session ID if available
       const guestSessionId = getGuestSessionId();
 
-      // Prepare registration data
+      // Prepare registration data with new fields
       const registrationData: RegisterRequest & { guest_session_id?: string } = {
-        full_name: formData.fullName.trim(),
+        first_name: formData.firstName.trim(),
+        last_name: formData.lastName.trim(),
         email: formData.email.trim().toLowerCase(),
+        phone: formatPhoneForAPI(formData.phone),
+        zip_code: formData.zipCode.trim(),
         password: formData.password,
         role: RoleName.STUDENT,
         ...(guestSessionId && { guest_session_id: guestSessionId }),
@@ -298,25 +368,22 @@ function SignUpForm() {
         });
 
         // Redirect based on role
-        const target = hasRole(userData, RoleName.INSTRUCTOR) ? '/dashboard/instructor' : (redirect || '/');
-        router.push(target);
+        if (hasRole(userData, RoleName.INSTRUCTOR)) {
+          router.push('/dashboard/instructor');
+        } else {
+          router.push(redirect);
+        }
       } else {
         logger.warn('Failed to fetch user data after login, using default redirect');
-        router.push(redirect || '/');
+        router.push(redirect);
       }
 
       setRequestStatus(RequestStatus.SUCCESS);
     } catch (error) {
-      // This catch block now only handles network errors since API errors are handled above
-      let errorMessage = 'Registration failed';
+      let errorMessage = 'An unexpected error occurred';
 
-      // Handle network/fetch errors
       if (error instanceof Error) {
         errorMessage = error.message;
-        // Check if it's a network error
-        if (error.message === 'Failed to fetch') {
-          errorMessage = 'Network error. Please check your connection and try again.';
-        }
       }
 
       logger.error('Signup process failed', error, {
@@ -347,33 +414,66 @@ function SignUpForm() {
             </div>
           )}
 
-          {/* Full Name Field */}
-          <div>
-            <label
-              htmlFor="fullName"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-            >
-              Full Name
-            </label>
-            <div className="mt-1">
-              <input
-                id="fullName"
-                name="fullName"
-                type="text"
-                autoComplete="name"
-                required
-                value={formData.fullName}
-                onChange={handleChange}
-                disabled={isLoading}
-                className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                aria-invalid={!!errors.fullName}
-                aria-describedby={errors.fullName ? 'fullName-error' : undefined}
-              />
-              {errors.fullName && (
-                <p id="fullName-error" className="mt-1 text-sm text-red-600 dark:text-red-400">
-                  {errors.fullName}
-                </p>
-              )}
+          {/* Name Fields Row */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* First Name Field */}
+            <div>
+              <label
+                htmlFor="firstName"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
+                First Name
+              </label>
+              <div className="mt-1">
+                <input
+                  id="firstName"
+                  name="firstName"
+                  type="text"
+                  autoComplete="given-name"
+                  required
+                  value={formData.firstName}
+                  onChange={handleChange}
+                  disabled={isLoading}
+                  className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-invalid={!!errors.firstName}
+                  aria-describedby={errors.firstName ? 'firstName-error' : undefined}
+                />
+                {errors.firstName && (
+                  <p id="firstName-error" className="mt-1 text-sm text-red-600 dark:text-red-400">
+                    {errors.firstName}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Last Name Field */}
+            <div>
+              <label
+                htmlFor="lastName"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
+                Last Name
+              </label>
+              <div className="mt-1">
+                <input
+                  id="lastName"
+                  name="lastName"
+                  type="text"
+                  autoComplete="family-name"
+                  required
+                  value={formData.lastName}
+                  onChange={handleChange}
+                  disabled={isLoading}
+                  className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-invalid={!!errors.lastName}
+                  aria-describedby={errors.lastName ? 'lastName-error' : undefined}
+                />
+                {errors.lastName && (
+                  <p id="lastName-error" className="mt-1 text-sm text-red-600 dark:text-red-400">
+                    {errors.lastName}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -404,6 +504,72 @@ function SignUpForm() {
                   {errors.email}
                 </p>
               )}
+            </div>
+          </div>
+
+          {/* Phone and Zip Code Row */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Phone Field */}
+            <div>
+              <label
+                htmlFor="phone"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
+                Phone Number
+              </label>
+              <div className="mt-1">
+                <input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  autoComplete="tel"
+                  required
+                  placeholder="(555) 555-5555"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  disabled={isLoading}
+                  className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-invalid={!!errors.phone}
+                  aria-describedby={errors.phone ? 'phone-error' : undefined}
+                />
+                {errors.phone && (
+                  <p id="phone-error" className="mt-1 text-sm text-red-600 dark:text-red-400">
+                    {errors.phone}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Zip Code Field */}
+            <div>
+              <label
+                htmlFor="zipCode"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
+                Zip Code
+              </label>
+              <div className="mt-1">
+                <input
+                  id="zipCode"
+                  name="zipCode"
+                  type="text"
+                  autoComplete="postal-code"
+                  required
+                  placeholder="10001"
+                  maxLength={5}
+                  value={formData.zipCode}
+                  onChange={handleChange}
+                  disabled={isLoading}
+                  className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-invalid={!!errors.zipCode}
+                  aria-describedby={errors.zipCode ? 'zipCode-error' : undefined}
+                />
+                {errors.zipCode && (
+                  <p id="zipCode-error" className="mt-1 text-sm text-red-600 dark:text-red-400">
+                    {errors.zipCode}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -472,7 +638,7 @@ function SignUpForm() {
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 disabled={isLoading}
-                className="appearance-none block w-full px-3 py-2 h-10 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix"
+                className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix"
                 aria-invalid={!!errors.confirmPassword}
                 aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined}
               />
@@ -492,88 +658,50 @@ function SignUpForm() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed dark:ring-offset-gray-800"
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-indigo-500 dark:hover:bg-indigo-600"
             >
-              {isLoading ? (
-                <>
-                  <svg
-                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Creating account...
-                </>
-              ) : (
-                'Sign up'
-              )}
+              {isLoading ? 'Creating account...' : 'Sign up'}
             </button>
           </div>
-        </form>
 
-        {/* Login Link */}
-        <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Already have an account?{' '}
-            <Link
-              href={`/login${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
-              className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300"
-              onClick={() => logger.info('Navigating to login from signup', { redirect })}
-            >
-              Sign in
-            </Link>
-          </p>
-        </div>
+          {/* Login Link */}
+          <div className="text-center">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Already have an account?{' '}
+              <Link
+                href={`/login${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
+                className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300"
+                onClick={() => logger.info('Navigating to login from signup')}
+              >
+                Sign in
+              </Link>
+            </span>
+          </div>
+        </form>
       </div>
     </div>
   );
 }
 
 /**
- * Main signup page component
+ * Signup page component
  *
- * @component
+ * @page
  * @returns {JSX.Element} The signup page
  */
-export default function SignUp() {
-  logger.debug('SignUp page rendered');
-  // Background handled globally
-
+export default function SignUpPage() {
   return (
-    <div className="min-h-screen flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative">
-      <div className="relative z-10">
-
-      <Suspense
-        fallback={
-          <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-            <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
-              <div className="animate-pulse">
-                <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded mb-4"></div>
-                <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded mb-4"></div>
-                <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded mb-4"></div>
-                <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded"></div>
-              </div>
+    <div className="min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <Suspense
+          fallback={
+            <div className="flex justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 dark:border-indigo-400" />
             </div>
-          </div>
-        }
-      >
-        <SignUpForm />
-      </Suspense>
+          }
+        >
+          <SignUpForm />
+        </Suspense>
       </div>
     </div>
   );

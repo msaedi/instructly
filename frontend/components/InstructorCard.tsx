@@ -89,7 +89,7 @@ export default function InstructorCard({
           </div>
           <div className="flex-1">
             <h3 className="font-semibold text-lg text-gray-900" data-testid="instructor-name">
-              {instructor.user.full_name}
+              {instructor.user.first_name} {instructor.user.last_initial ? `${instructor.user.last_initial}.` : ''}
             </h3>
             <p className="text-gray-600">{getInstructorServiceNames()}</p>
             <div className="flex items-center mt-1">

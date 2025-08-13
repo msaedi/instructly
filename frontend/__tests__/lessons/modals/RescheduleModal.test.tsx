@@ -76,7 +76,8 @@ describe('RescheduleModal', () => {
     updated_at: '2025-12-01T10:00:00Z',
     instructor: {
       id: 1,
-      full_name: 'John Doe',
+      first_name: 'John',
+      last_initial: 'D',
       email: 'john@example.com',
       role: 'INSTRUCTOR',
       created_at: '2024-01-01T00:00:00Z',
@@ -100,7 +101,7 @@ describe('RescheduleModal', () => {
     );
 
     expect(screen.getByText('Need to reschedule?')).toBeInTheDocument();
-    expect(screen.getByText(/Select a new time with John Doe/)).toBeInTheDocument();
+    expect(screen.getByText(/Select a new time with John D\./)).toBeInTheDocument();
   });
 
   it('does not render modal when isOpen is false', () => {

@@ -16,7 +16,10 @@ interface TimeSelectionModalProps {
   onClose: () => void;
   instructor: {
     user_id: number;
-    user: { full_name: string };
+    user: {
+      first_name: string;
+      last_initial: string;
+    };
     services: Array<{
       id?: number;
       duration_options: number[];
@@ -105,11 +108,8 @@ export default function TimeSelectionModal({
 
   // Get instructor first name and last initial
   const getInstructorDisplayName = () => {
-    const fullName = instructor.user.full_name;
-    const parts = fullName.split(' ');
-    const firstName = parts[0];
-    const lastName = parts[parts.length - 1];
-    const lastInitial = lastName ? lastName.charAt(0) : '';
+    const firstName = instructor.user.first_name;
+    const lastInitial = instructor.user.last_initial;
     return `${firstName} ${lastInitial}.`;
   };
 
@@ -365,7 +365,7 @@ export default function TimeSelectionModal({
       // Prepare booking data for payment page
       const bookingData = {
         instructorId: instructor.user_id,
-        instructorName: instructor.user.full_name,
+        instructorName: `${instructor.user.first_name} ${instructor.user.last_initial}.`,
         serviceId: serviceId || selectedService.id || 1,
         skill: selectedService.skill,
         lessonType: selectedService.skill, // Same as skill for display

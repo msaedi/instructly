@@ -21,7 +21,8 @@ interface DayAvailability {
 
 interface PublicAvailability {
   instructor_id: number;
-  instructor_name: string;
+  instructor_first_name: string | null;
+  instructor_last_initial: string | null;
   availability_by_date: Record<string, DayAvailability>;
   timezone: string;
   total_available_slots: number;

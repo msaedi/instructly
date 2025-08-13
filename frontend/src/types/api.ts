@@ -350,7 +350,8 @@ export interface PublicDayAvailability {
 
 export interface PublicInstructorAvailability {
   instructor_id: number;
-  instructor_name: string;
+  instructor_first_name?: string | null;
+  instructor_last_initial?: string | null;
   availability_by_date?: Record<string, PublicDayAvailability>;
   timezone?: string;
   total_available_slots?: number;
@@ -364,7 +365,8 @@ export interface PublicAvailabilityQuery {
 
 export interface PublicAvailabilityMinimal {
   instructor_id: number;
-  instructor_name: string;
+  instructor_first_name?: string | null;
+  instructor_last_initial?: string | null;
   has_availability: boolean;
   earliest_available_date?: string | null;
   timezone?: string;
@@ -372,7 +374,8 @@ export interface PublicAvailabilityMinimal {
 
 export interface PublicAvailabilitySummary {
   instructor_id: number;
-  instructor_name: string;
+  instructor_first_name?: string | null;
+  instructor_last_initial?: string | null;
   availability_summary: Record<string, Record<string, any>>;
   timezone?: string;
   total_available_days: number;

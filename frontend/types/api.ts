@@ -381,8 +381,9 @@ export interface Instructor {
 
   /** Associated user information */
   user: {
-    full_name: string;
-    email: string;
+    first_name: string;
+    last_initial: string;  // Privacy protected - only last initial
+    // email removed for privacy
   };
 
   /** Services offered by the instructor */

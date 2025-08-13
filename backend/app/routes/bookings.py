@@ -97,6 +97,12 @@ async def get_upcoming_bookings(
         for booking in bookings:
             if isinstance(booking, dict):
                 # Handle cached dictionary
+                # Determine if the current user is the instructor to show full name
+                is_instructor = current_user.id == booking.get("instructor_id")
+                instructor_last_name = (
+                    booking.get("instructor", {}).get("last_name", "") if booking.get("instructor") else ""
+                )
+
                 upcoming_bookings.append(
                     UpcomingBookingResponse(
                         id=booking["id"],
@@ -113,14 +119,19 @@ async def get_upcoming_bookings(
                         instructor_first_name=booking.get("instructor", {}).get("first_name", "Unknown")
                         if booking.get("instructor")
                         else "Unknown",
-                        instructor_last_name=booking.get("instructor", {}).get("last_name", "")
-                        if booking.get("instructor")
+                        instructor_last_name=instructor_last_name
+                        if is_instructor
+                        else instructor_last_name[0]
+                        if instructor_last_name
                         else "",
                         meeting_location=booking["meeting_location"],
                     )
                 )
             else:
                 # Handle SQLAlchemy object
+                # Determine if the current user is the instructor to show full name
+                is_instructor = current_user.id == booking.instructor_id
+
                 upcoming_bookings.append(
                     UpcomingBookingResponse(
                         id=booking.id,
@@ -131,7 +142,11 @@ async def get_upcoming_bookings(
                         student_first_name=booking.student.first_name if booking.student else "Unknown",
                         student_last_name=booking.student.last_name if booking.student else "",
                         instructor_first_name=booking.instructor.first_name if booking.instructor else "Unknown",
-                        instructor_last_name=booking.instructor.last_name if booking.instructor else "",
+                        instructor_last_name=booking.instructor.last_name
+                        if is_instructor and booking.instructor
+                        else booking.instructor.last_name[0]
+                        if booking.instructor and booking.instructor.last_name
+                        else "",
                         meeting_location=booking.meeting_location,
                     )
                 )
@@ -278,17 +293,33 @@ async def get_bookings(
         end = start + per_page
         paginated_bookings = bookings[start:end]
 
-        # Convert to BookingResponse objects
-        # Trust cached data as already validated, only validate fresh SQLAlchemy objects
+        # Convert to BookingResponse objects with privacy protection
         booking_responses = []
         for booking in paginated_bookings:
             try:
                 if isinstance(booking, dict) and booking.get("_from_cache", False):
-                    # Cached data is already validated, use as-is
+                    # Cached data might need privacy adjustments
+                    # Check if user is the instructor for this booking
+                    is_instructor = current_user.id == booking.get("instructor_id")
+
+                    # Adjust instructor last_initial based on viewer
+                    if "instructor" in booking and isinstance(booking["instructor"], dict):
+                        instructor_last_name = booking["instructor"].get("last_name", "")
+                        booking["instructor"]["last_initial"] = (
+                            instructor_last_name
+                            if is_instructor
+                            else instructor_last_name[0]
+                            if instructor_last_name
+                            else ""
+                        )
+                        # Remove full last_name from response if it exists
+                        if "last_name" in booking["instructor"]:
+                            del booking["instructor"]["last_name"]
+
                     booking_responses.append(booking)
                 else:
-                    # Fresh SQLAlchemy object needs validation
-                    booking_responses.append(BookingResponse.model_validate(booking))
+                    # Fresh SQLAlchemy object - use from_orm for privacy protection
+                    booking_responses.append(BookingResponse.from_orm(booking))
             except Exception as e:
                 logger.error(f"Failed to process booking {getattr(booking, 'id', 'unknown')}: {e}")
                 logger.error(f"Booking type: {type(booking)}, is_dict: {isinstance(booking, dict)}")
@@ -340,7 +371,7 @@ async def create_booking(
             student=current_user, booking_data=booking_data, selected_duration=selected_duration
         )
 
-        return BookingResponse.model_validate(booking)
+        return BookingResponse.from_orm(booking)
     except DomainException as e:
         handle_domain_exception(e)
 
@@ -364,30 +395,32 @@ async def get_booking_preview(
         if not booking:
             raise NotFoundException("Booking not found")
 
-        # Return clean preview data
-        preview_data = {
-            "booking_id": booking.id,
-            "student_first_name": booking.student.first_name,
-            "student_last_name": booking.student.last_name,
-            "instructor_first_name": booking.instructor.first_name,
-            "instructor_last_name": booking.instructor.last_name,
-            "service_name": booking.service_name,
-            "booking_date": booking.booking_date.isoformat(),
-            "start_time": str(booking.start_time),
-            "end_time": str(booking.end_time),
-            "duration_minutes": booking.duration_minutes,
-            "location_type": booking.location_type or "neutral",
-            "location_type_display": booking.location_type_display if booking.location_type else "Neutral Location",
-            "meeting_location": booking.meeting_location,
-            "service_area": booking.service_area,
-            "status": booking.status,
-            "student_note": booking.student_note,
-            "total_price": float(booking.total_price),
-        }
+        # Determine if the current user is the instructor to show full name
+        is_instructor = current_user.id == booking.instructor_id
+
+        # Return privacy-aware preview data
         return BookingPreviewResponse(
             booking_id=booking.id,
             student_first_name=booking.student.first_name,
             student_last_name=booking.student.last_name,
+            instructor_first_name=booking.instructor.first_name,
+            instructor_last_name=booking.instructor.last_name
+            if is_instructor
+            else booking.instructor.last_name[0]
+            if booking.instructor.last_name
+            else "",
+            service_name=booking.service_name,
+            booking_date=booking.booking_date.isoformat(),
+            start_time=str(booking.start_time),
+            end_time=str(booking.end_time),
+            duration_minutes=booking.duration_minutes,
+            location_type=booking.location_type or "neutral",
+            location_type_display=booking.location_type_display if booking.location_type else "Neutral Location",
+            meeting_location=booking.meeting_location,
+            service_area=booking.service_area,
+            status=booking.status,
+            student_note=booking.student_note,
+            total_price=float(booking.total_price),
         )
     except DomainException as e:
         handle_domain_exception(e)
@@ -399,13 +432,13 @@ async def get_booking_details(
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
 ):
-    """Get full booking details."""
+    """Get full booking details with privacy protection for students."""
     try:
         booking = booking_service.get_booking_for_user(booking_id, current_user)
         if not booking:
             raise NotFoundException("Booking not found")
 
-        return BookingResponse.model_validate(booking)
+        return BookingResponse.from_orm(booking)
     except DomainException as e:
         handle_domain_exception(e)
 
@@ -420,7 +453,7 @@ async def update_booking(
     """Update booking details (instructor only)."""
     try:
         booking = booking_service.update_booking(booking_id=booking_id, user=current_user, update_data=update_data)
-        return BookingResponse.model_validate(booking)
+        return BookingResponse.from_orm(booking)
     except DomainException as e:
         handle_domain_exception(e)
 
@@ -437,7 +470,7 @@ async def cancel_booking(
         booking = await booking_service.cancel_booking(
             booking_id=booking_id, user=current_user, reason=cancel_data.reason
         )
-        return BookingResponse.model_validate(booking)
+        return BookingResponse.from_orm(booking)
     except DomainException as e:
         handle_domain_exception(e)
 
@@ -455,6 +488,6 @@ async def complete_booking(
     """
     try:
         booking = booking_service.complete_booking(booking_id=booking_id, instructor=current_user)
-        return BookingResponse.model_validate(booking)
+        return BookingResponse.from_orm(booking)
     except DomainException as e:
         handle_domain_exception(e)

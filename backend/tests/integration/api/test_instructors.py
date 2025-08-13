@@ -252,7 +252,9 @@ class TestInstructorRoutes:
         assert response.status_code == status.HTTP_200_OK
 
         data = response.json()
-        assert data["user"]["email"] == test_instructor.email
+        # Email removed for privacy - only last_initial exposed
+        assert "email" not in data["user"]
+        assert data["user"]["last_initial"] == test_instructor.last_name[0]
         assert data["bio"] == "Test instructor bio"
         assert "Manhattan" in data["areas_of_service"]
         assert "Brooklyn" in data["areas_of_service"]
@@ -368,7 +370,11 @@ class TestInstructorRoutes:
         assert response.status_code == status.HTTP_200_OK
 
         data = response.json()
-        assert data["user"]["email"] == test_instructor.email
+        # Email should NOT be exposed for privacy protection
+        assert "email" not in data["user"]
+        # Check that we have first_name and last_initial instead
+        assert data["user"]["first_name"] == test_instructor.first_name
+        assert data["user"]["last_initial"] == test_instructor.last_name[0]
         assert data["user_id"] == test_instructor.id
         assert len(data["services"]) == 2
 

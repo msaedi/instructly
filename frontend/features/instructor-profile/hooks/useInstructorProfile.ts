@@ -46,7 +46,7 @@ export function useInstructorProfile(instructorId: string) {
         bio: instructor.bio || '',
         areas_of_service: instructor.areas_of_service || [],
         years_experience: instructor.years_experience || 0,
-        user: instructor.user || { full_name: 'Unknown', email: '' },
+        user: instructor.user || { first_name: 'Unknown', last_initial: '' },
         services: mappedServices,
         is_verified: instructor.verified,
         background_check_completed: false, // Not provided by API

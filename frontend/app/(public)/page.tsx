@@ -292,7 +292,7 @@ export default function HomePage() {
                         {user?.profile_image_url ? (
                           <img
                             src={user.profile_image_url}
-                            alt={user.full_name}
+                            alt={`${user.first_name} ${user.last_name || ''}`}
                             className="w-full h-full rounded-full object-cover"
                           />
                         ) : (

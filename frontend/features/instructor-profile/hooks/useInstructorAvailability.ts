@@ -6,7 +6,8 @@ import { logger } from '@/lib/logger';
 
 interface AvailabilityResponse {
   instructor_id: number;
-  instructor_name: string;
+  instructor_first_name: string | null;  // Null if public_availability_show_instructor_name=false
+  instructor_last_initial: string | null; // Null if public_availability_show_instructor_name=false
   availability_by_date: Record<
     string,
     {

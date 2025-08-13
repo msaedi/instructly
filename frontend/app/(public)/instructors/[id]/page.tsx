@@ -111,7 +111,7 @@ function InstructorProfileContent() {
       const paymentBookingData: BookingPayment = {
         bookingId: '',
         instructorId: String(instructor.user_id),
-        instructorName: instructor.user?.full_name || `Instructor #${instructor.user_id}`,
+        instructorName: instructor.user ? `${instructor.user.first_name} ${instructor.user.last_initial ? instructor.user.last_initial + '.' : ''}`.trim() : `Instructor #${instructor.user_id}`,
         lessonType: selectedService.skill,
         date: bookingDate,
         startTime: selectedSlot.time,
@@ -139,6 +139,7 @@ function InstructorProfileContent() {
         time: selectedSlot.time,
         duration,
         instructorId
+        // availableDuration will be recalculated on restore
       }, 'profile');
 
       if (!token) {
@@ -165,15 +166,10 @@ function InstructorProfileContent() {
 
   // Initialize weekStart to today for rolling 7-day window
   useEffect(() => {
-    // Check if we're restoring a booking flow
-    const restoredSlot = navigationStateManager.getBookingFlow(instructorId);
-    if (!restoredSlot) {
-      // No booking flow - set to today
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      setWeekStart(today);
-    }
-    // If we have a restored slot, weekStart will be set by the restoration logic
+    // Always use today as the start for consistency
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    setWeekStart(today);
   }, [instructorId]);
 
   // Check for stored selected slot ONLY when returning from payment/auth pages
@@ -182,19 +178,18 @@ function InstructorProfileContent() {
     const restoredSlot = navigationStateManager.getBookingFlow(instructorId);
 
     if (restoredSlot) {
+      // Initially restore without availableDuration - it will be recalculated
+      // when availability data loads
       setSelectedSlot({
         date: restoredSlot.date,
         time: restoredSlot.time,
         duration: restoredSlot.duration,
+        // Don't restore availableDuration - will be recalculated below
       });
       setHasRestoredIntent(true);
 
-      // Update the weekStart to show the week containing the selected date
-      const slotDate = new Date(restoredSlot.date);
-      const startOfWeek = new Date(slotDate);
-      startOfWeek.setDate(slotDate.getDate() - slotDate.getDay()); // Go to Sunday
-      startOfWeek.setHours(0, 0, 0, 0);
-      setWeekStart(startOfWeek);
+      // Don't change weekStart here - keep it consistent with initial load (today)
+      // This prevents the calendar from jumping to a different week
     }
 
     // Check for booking intent (from login flow)
@@ -230,6 +225,38 @@ function InstructorProfileContent() {
     }
   }, [instructorId]);
 
+  // Recalculate availableDuration when availability data loads and we have a selected slot
+  useEffect(() => {
+    if (availability && selectedSlot && !selectedSlot.availableDuration) {
+      // We have a selected slot but no availableDuration - recalculate it
+      const dayData = availability.availability_by_date?.[selectedSlot.date];
+      if (dayData?.available_slots) {
+        // Parse the start hour from the time string
+        const startHour = parseInt(selectedSlot.time.split(':')[0]);
+
+        // Find the slot that contains this start time
+        const containingSlot = dayData.available_slots.find((slot: any) => {
+          const slotStart = parseInt(slot.start_time.split(':')[0]);
+          const slotEnd = parseInt(slot.end_time.split(':')[0]);
+          return startHour >= slotStart && startHour < slotEnd;
+        });
+
+        if (containingSlot) {
+          // Calculate how many minutes are available from the start time to the end of the slot
+          const slotEndHour = parseInt(containingSlot.end_time.split(':')[0]);
+          const availableHours = slotEndHour - startHour;
+          const calculatedDuration = availableHours * 60;
+
+          // Update the selected slot with the calculated available duration
+          setSelectedSlot(prev => prev ? {
+            ...prev,
+            availableDuration: calculatedDuration
+          } : null);
+        }
+      }
+    }
+  }, [availability, selectedSlot]);
+
   useEffect(() => {
     // IMPORTANT: Race Condition Fix
     // This checks for pending slot restoration BEFORE auto-selecting.
@@ -244,7 +271,7 @@ function InstructorProfileContent() {
     // 2. No slot is currently selected
     // 3. We haven't restored a booking intent
     // 4. There's no slot waiting to be restored
-    if (availability && !selectedSlot && !hasRestoredIntent && !restoredSlot) {
+    if (availability && availability.availability_by_date && !selectedSlot && !hasRestoredIntent && !restoredSlot) {
       // Pre-select the earliest available slot
       const dates = Object.keys(availability.availability_by_date).sort();
       for (const date of dates) {
@@ -486,9 +513,14 @@ function InstructorProfileContent() {
           instructor={{
             id: instructor.id,
             user_id: instructor.user_id,
-            user: {
-              full_name: instructor.user?.full_name || `Instructor #${instructor.user_id}`,
-              email: instructor.user?.email || ''
+            user: instructor.user ? {
+              first_name: instructor.user.first_name,
+              last_initial: instructor.user.last_initial
+              // No email for privacy
+            } : {
+              first_name: 'Instructor',
+              last_initial: '#',
+              // No email for privacy
             },
             bio: instructor.bio,
             areas_of_service: instructor.areas_of_service,

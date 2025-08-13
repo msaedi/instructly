@@ -86,7 +86,7 @@ test.describe('Student Booking Journey (Mocked)', () => {
     // Verify we're on the instructor profile page by checking the instructor name
     // There are two headers (mobile and desktop), find the visible one
     const visibleHeader = page.locator('[data-testid="instructor-profile-name"]:visible');
-    await expect(visibleHeader).toHaveText('Sarah Chen');
+    await expect(visibleHeader).toHaveText('Sarah C.');
 
     // Check if the "no available times" message is shown
     const noAvailabilityMsg = page.locator('text=/no available times/i');
@@ -114,7 +114,8 @@ test.describe('Student Booking Journey (Mocked)', () => {
       localStorage.setItem('user', JSON.stringify({
         id: 1,
         email: 'john.smith@example.com',
-        full_name: 'John Smith',
+        first_name: 'John',
+        last_name: 'Smith',
         role: 'student'
       }));
     });
@@ -282,7 +283,7 @@ test.describe('Student Booking Journey (Mocked)', () => {
 
     // Get instructor name from search results
     const instructorName = await searchResults.getInstructorName(0);
-    expect(instructorName).toContain('Sarah Chen');
+    expect(instructorName).toContain('Sarah C.');
 
     // Get instructor price
     const instructorPrice = await searchResults.getInstructorPrice(0);
@@ -319,7 +320,8 @@ test.describe('Student Booking Journey (Mocked)', () => {
       localStorage.setItem('user', JSON.stringify({
         id: 1,
         email: 'john.smith@example.com',
-        full_name: 'John Smith',
+        first_name: 'John',
+        last_name: 'Smith',
         role: 'student'
       }));
     });

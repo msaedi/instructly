@@ -14,9 +14,22 @@ class SendRemindersResponse(BaseModel):
 
 
 class BookingPreviewResponse(BaseModel):
-    """Response for booking preview."""
+    """Response for booking preview with privacy protection."""
 
     booking_id: int
     student_first_name: str
     student_last_name: str
-    # Add other fields as needed based on the service response
+    instructor_first_name: str
+    instructor_last_name: str  # Shows last initial for students, full for instructors
+    service_name: str
+    booking_date: str
+    start_time: str
+    end_time: str
+    duration_minutes: int
+    location_type: str
+    location_type_display: str
+    meeting_location: Optional[str]
+    service_area: Optional[str]
+    status: str
+    student_note: Optional[str]
+    total_price: float

@@ -10,14 +10,28 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class InstructorInfo(BaseModel):
-    """Instructor information in search results."""
+    """Instructor information in search results with privacy protection."""
 
     id: int = Field(description="Instructor user ID")
     first_name: str = Field(description="Instructor first name")
-    last_name: str = Field(description="Instructor last name")
+    last_initial: str = Field(description="Instructor last name initial only")
     bio: Optional[str] = Field(default=None, description="Instructor bio")
     years_experience: Optional[int] = Field(default=None, description="Years of experience")
     areas_of_service: Optional[str] = Field(default=None, description="Service areas")
+
+    @classmethod
+    def from_user(
+        cls, user, bio: str = None, years_experience: int = None, areas_of_service: str = None
+    ) -> "InstructorInfo":
+        """Create InstructorInfo from user with privacy protection."""
+        return cls(
+            id=user.id,
+            first_name=user.first_name,
+            last_initial=user.last_name[0] if user.last_name else "",
+            bio=bio,
+            years_experience=years_experience,
+            areas_of_service=areas_of_service,
+        )
 
 
 class ServiceOffering(BaseModel):

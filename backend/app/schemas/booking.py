@@ -11,7 +11,7 @@ availability changes.
 from datetime import date, datetime, time, timedelta
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, validator
 
 from ..models.booking import BookingStatus
 from ..schemas.base import Money, StandardizedModel
@@ -192,14 +192,27 @@ class StudentInfo(StandardizedModel):
 
 
 class InstructorInfo(StandardizedModel):
-    """Basic instructor information for booking display."""
+    """
+    Instructor information for booking display.
+
+    Privacy-aware: Only shows last initial for privacy protection.
+    Full last name never exposed to students.
+    """
 
     id: int
     first_name: str
-    last_name: str
-    email: str
+    last_initial: str  # Only last initial (e.g., "S") - NO PERIOD
+    # Note: email excluded for student privacy
 
     model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def from_user(cls, user) -> "InstructorInfo":
+        """
+        Factory method to create InstructorInfo from User model.
+        Ensures privacy by only exposing last initial.
+        """
+        return cls(id=user.id, first_name=user.first_name, last_initial=user.last_name[0] if user.last_name else "")
 
 
 class ServiceInfo(StandardizedModel):
@@ -214,14 +227,15 @@ class ServiceInfo(StandardizedModel):
 
 class BookingResponse(BookingBase):
     """
-    Complete booking response with related information.
+    Complete booking response with privacy protection.
 
-    Includes student, instructor, and service details.
+    Shows instructor as "FirstName L" (last initial only).
+    Students see their own full information.
     Clean Architecture: No availability slot references.
     """
 
-    student: StudentInfo
-    instructor: InstructorInfo
+    student: StudentInfo  # Students see their own full info
+    instructor: InstructorInfo  # Privacy-aware: only has last_initial
     instructor_service: ServiceInfo
 
     @property
@@ -237,6 +251,58 @@ class BookingResponse(BookingBase):
             user_today: Today's date in user's timezone (required)
         """
         return self.booking_date > user_today and self.status == BookingStatus.CONFIRMED
+
+    @classmethod
+    def from_orm(cls, booking) -> "BookingResponse":
+        """
+        Create BookingResponse from Booking ORM model.
+        Handles privacy transformation automatically.
+        """
+        # Build the response with proper privacy protection
+        return cls(
+            # Base fields from BookingBase
+            id=booking.id,
+            student_id=booking.student_id,
+            instructor_id=booking.instructor_id,
+            instructor_service_id=booking.instructor_service_id,
+            # Booking details
+            booking_date=booking.booking_date,
+            start_time=booking.start_time,
+            end_time=booking.end_time,
+            service_name=booking.service_name,
+            hourly_rate=booking.hourly_rate,
+            total_price=booking.total_price,
+            duration_minutes=booking.duration_minutes,
+            status=booking.status,
+            # Location
+            service_area=booking.service_area,
+            meeting_location=booking.meeting_location,
+            location_type=booking.location_type,
+            # Notes
+            student_note=booking.student_note,
+            instructor_note=booking.instructor_note,
+            # Timestamps
+            created_at=booking.created_at,
+            confirmed_at=booking.confirmed_at,
+            completed_at=booking.completed_at,
+            cancelled_at=booking.cancelled_at,
+            # Cancellation info
+            cancelled_by_id=booking.cancelled_by_id,
+            cancellation_reason=booking.cancellation_reason,
+            # Related objects with privacy protection
+            instructor=InstructorInfo.from_user(booking.instructor),
+            student=StudentInfo(
+                id=booking.student.id,
+                first_name=booking.student.first_name,
+                last_name=booking.student.last_name,
+                email=booking.student.email,
+            ),
+            instructor_service=ServiceInfo(
+                id=booking.instructor_service.id if booking.instructor_service else booking.instructor_service_id,
+                name=booking.service_name,  # Use denormalized name
+                description=booking.instructor_service.description if booking.instructor_service else None,
+            ),
+        )
 
 
 class BookingListResponse(StandardizedModel):
@@ -319,7 +385,12 @@ class BookingStatsResponse(StandardizedModel):
 
 
 class UpcomingBookingResponse(StandardizedModel):
-    """Simplified response for upcoming bookings widget."""
+    """
+    Simplified response for upcoming bookings widget.
+
+    Privacy-aware: instructor_last_name shows last initial for students,
+    full last name for instructors viewing their own bookings.
+    """
 
     id: int
     booking_date: date
@@ -329,7 +400,7 @@ class UpcomingBookingResponse(StandardizedModel):
     student_first_name: str
     student_last_name: str
     instructor_first_name: str
-    instructor_last_name: str
+    instructor_last_name: str  # Last initial for students, full for instructors
     meeting_location: Optional[str]
 
     model_config = ConfigDict(from_attributes=True)

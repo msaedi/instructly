@@ -263,7 +263,7 @@ class TestInstructorServiceFiltering:
         # Assert
         instructor = result["instructors"][0]
         assert instructor["user"]["first_name"] == "John"
-        assert instructor["user"]["last_name"] == "Doe"
+        assert instructor["user"]["last_initial"] == "D"  # Privacy protected
         assert instructor["bio"] == "Experienced teacher"
         assert len(instructor["services"]) == 2
         # Services are sorted by service_catalog_id, not alphabetically

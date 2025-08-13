@@ -32,7 +32,8 @@ const mockInstructor = {
   areas_of_service: ['Upper West Side', 'Manhattan'],
   years_experience: 10,
   user: {
-    full_name: 'Sarah Chen',
+    first_name: 'Sarah',
+    last_initial: 'C',
     email: 'sarah@example.com',
   },
   services: [
@@ -79,7 +80,7 @@ describe('InstructorProfilePage', () => {
       </QueryClientProvider>
     );
 
-    expect(screen.getByText('Sarah Chen')).toBeInTheDocument();
+    expect(screen.getByText('Sarah C.')).toBeInTheDocument();
     expect(screen.getByText('4.9')).toBeInTheDocument(); // Rating
     expect(screen.getByText('(127 reviews)')).toBeInTheDocument(); // Reviews
   });
