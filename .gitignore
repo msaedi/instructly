@@ -78,3 +78,4 @@ assets-manifest.json
 
 # Local scripts
 backend/scripts/prep_local_db.py
+metrics_history.json
