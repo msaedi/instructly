@@ -378,10 +378,14 @@ class TestMessageAPI:
         )
         db.commit()
 
+        # Ensure message was created successfully
+        assert message is not None
+        assert message.id is not None
+
         # Mark as read by instructor
         response = client.post(
             "/api/messages/mark-read",
-            json={"message_ids": [message.id]},
+            json={"message_ids": [str(message.id)]},  # Ensure it's a string
             headers=auth_headers_instructor,
         )
 

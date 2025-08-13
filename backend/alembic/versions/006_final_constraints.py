@@ -33,7 +33,7 @@ def upgrade() -> None:
     print("Creating alert_history table...")
     op.create_table(
         "alert_history",
-        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
         sa.Column("alert_type", sa.String(50), nullable=False),
         sa.Column("severity", sa.String(20), nullable=False),
         sa.Column("title", sa.String(200), nullable=False),
@@ -56,9 +56,9 @@ def upgrade() -> None:
     print("Creating messages table for chat system...")
     op.create_table(
         "messages",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("booking_id", sa.Integer(), nullable=False),
-        sa.Column("sender_id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("booking_id", sa.String(26), nullable=False),
+        sa.Column("sender_id", sa.String(26), nullable=False),
         sa.Column("content", sa.String(1000), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
@@ -86,9 +86,9 @@ def upgrade() -> None:
     print("Creating message_notifications table...")
     op.create_table(
         "message_notifications",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("message_id", sa.Integer(), nullable=False),
-        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("message_id", sa.String(26), nullable=False),
+        sa.Column("user_id", sa.String(26), nullable=False),
         sa.Column("is_read", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("read_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
@@ -150,7 +150,7 @@ def upgrade() -> None:
             RETURNS TRIGGER AS $$
             DECLARE
                 payload json;
-                booking_id INT;
+                booking_id VARCHAR(26);
                 reader_first_name TEXT;
                 reader_last_name TEXT;
             BEGIN
@@ -189,9 +189,9 @@ def upgrade() -> None:
     # Reactions table for message reactions
     op.create_table(
         "message_reactions",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("message_id", sa.Integer(), nullable=False),
-        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("message_id", sa.String(26), nullable=False),
+        sa.Column("user_id", sa.String(26), nullable=False),
         sa.Column("emoji", sa.String(16), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.ForeignKeyConstraint(["message_id"], ["messages.id"], ondelete="CASCADE"),
@@ -203,8 +203,8 @@ def upgrade() -> None:
     # Message edits table for edit history
     op.create_table(
         "message_edits",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("message_id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("message_id", sa.String(26), nullable=False),
         sa.Column("original_content", sa.String(1000), nullable=False),
         sa.Column("edited_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.ForeignKeyConstraint(["message_id"], ["messages.id"], ondelete="CASCADE"),

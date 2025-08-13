@@ -32,7 +32,7 @@ class InstructorFilterParams(BaseModel):
     search: Optional[str] = Field(
         None, description="Text search across instructor name, bio, and services", min_length=1, max_length=100
     )
-    service_catalog_id: Optional[int] = Field(None, description="Filter by specific service catalog ID", gt=0)
+    service_catalog_id: Optional[str] = Field(None, description="Filter by specific service catalog ID")
     min_price: Optional[float] = Field(None, ge=0, le=1000, description="Minimum hourly rate filter")
     max_price: Optional[float] = Field(None, ge=0, le=1000, description="Maximum hourly rate filter")
 
@@ -64,7 +64,7 @@ class ServiceBase(StandardizedModel):
         duration_options: Available duration options for this service in minutes
     """
 
-    service_catalog_id: int = Field(..., gt=0, description="ID of the service from catalog")
+    service_catalog_id: str = Field(..., description="ID of the service from catalog")
     hourly_rate: Money = Field(..., gt=0, le=1000, description="Hourly rate in USD")  # Changed from float
     description: Optional[str] = Field(None, max_length=500)
     duration_options: List[int] = Field(
@@ -95,7 +95,7 @@ class ServiceResponse(ServiceBase):
     Includes the service ID and catalog information.
     """
 
-    id: int
+    id: str
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -119,7 +119,7 @@ class UserBasicPrivacy(StandardizedModel):
     Email is omitted for privacy protection.
     """
 
-    id: int
+    id: str
     first_name: str
     last_initial: str  # Only last initial, not full last_name
     # No email field for privacy protection
@@ -250,8 +250,8 @@ class InstructorProfileResponse(InstructorProfileBase):
     Student-facing endpoints will show only instructor last initial.
     """
 
-    id: int
-    user_id: int
+    id: str
+    user_id: str
     created_at: datetime
     updated_at: Optional[datetime] = None
     user: UserBasicPrivacy  # Changed from UserBasic to protect privacy

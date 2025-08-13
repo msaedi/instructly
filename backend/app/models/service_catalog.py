@@ -11,6 +11,7 @@ This module defines the service catalog system with three models:
 import logging
 from typing import TYPE_CHECKING, List, Optional
 
+import ulid
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -47,7 +48,7 @@ class ServiceCategory(Base):
 
     __tablename__ = "service_categories"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     name = Column(String, nullable=False)
     subtitle = Column(String(100), nullable=True)
     slug = Column(String, nullable=False, unique=True, index=True)
@@ -133,15 +134,15 @@ class ServiceCatalog(Base):
 
     __tablename__ = "service_catalog"
 
-    id = Column(Integer, primary_key=True, index=True)
-    category_id = Column(Integer, ForeignKey("service_categories.id"), nullable=False, index=True)
+    id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
+    category_id = Column(String(26), ForeignKey("service_categories.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
     slug = Column(String, nullable=False, unique=True, index=True)
     description = Column(Text, nullable=True)
     search_terms: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
     display_order = Column(Integer, nullable=False, default=999, index=True)
     embedding = Column(Vector(384), nullable=True)
-    related_services: Mapped[List[int]] = mapped_column(IntegerArrayType, nullable=True)
+    related_services: Mapped[List[str]] = mapped_column(StringArrayType, nullable=True)
     online_capable = Column(Boolean, nullable=False, default=True, index=True)
     requires_certification = Column(Boolean, nullable=False, default=False)
     is_active = Column(Boolean, nullable=False, default=True, index=True)
@@ -273,12 +274,12 @@ class InstructorService(Base):
 
     __tablename__ = "instructor_services"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     instructor_profile_id = Column(
-        Integer, ForeignKey("instructor_profiles.id", ondelete="CASCADE"), nullable=False, index=True
+        String(26), ForeignKey("instructor_profiles.id", ondelete="CASCADE"), nullable=False, index=True
     )
     service_catalog_id = Column(
-        Integer, ForeignKey("service_catalog.id", ondelete="RESTRICT"), nullable=False, index=True
+        String(26), ForeignKey("service_catalog.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     hourly_rate = Column(Float, nullable=False)
     experience_level = Column(String(50), nullable=True)
@@ -423,7 +424,7 @@ class ServiceAnalytics(Base):
     __tablename__ = "service_analytics"
 
     service_catalog_id = Column(
-        Integer, ForeignKey("service_catalog.id", ondelete="CASCADE"), primary_key=True, nullable=False
+        String(26), ForeignKey("service_catalog.id", ondelete="CASCADE"), primary_key=True, nullable=False
     )
     search_count_7d = Column(Integer, nullable=False, default=0, index=True)
     search_count_30d = Column(Integer, nullable=False, default=0)

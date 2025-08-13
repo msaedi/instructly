@@ -137,7 +137,7 @@ class BookingService(BaseService):
     @BaseService.measure_operation("find_booking_opportunities")
     async def find_booking_opportunities(
         self,
-        instructor_id: int,
+        instructor_id: str,
         target_date: date,
         target_duration_minutes: int = 60,
         earliest_time: Optional[time] = None,
@@ -187,7 +187,7 @@ class BookingService(BaseService):
         return opportunities
 
     @BaseService.measure_operation("cancel_booking")
-    async def cancel_booking(self, booking_id: int, user: User, reason: Optional[str] = None) -> Booking:
+    async def cancel_booking(self, booking_id: str, user: User, reason: Optional[str] = None) -> Booking:
         """
         Cancel a booking.
 
@@ -281,7 +281,7 @@ class BookingService(BaseService):
             )
 
     @BaseService.measure_operation("get_booking_stats_for_instructor")
-    def get_booking_stats_for_instructor(self, instructor_id: int) -> Dict[str, Any]:
+    def get_booking_stats_for_instructor(self, instructor_id: str) -> Dict[str, Any]:
         """
         Get booking statistics for an instructor with caching.
 
@@ -346,7 +346,7 @@ class BookingService(BaseService):
         return stats
 
     @BaseService.measure_operation("get_booking_for_user")
-    def get_booking_for_user(self, booking_id: int, user: User) -> Optional[Booking]:
+    def get_booking_for_user(self, booking_id: str, user: User) -> Optional[Booking]:
         """
         Get a booking if the user has access to it.
 
@@ -365,7 +365,7 @@ class BookingService(BaseService):
         return None
 
     @BaseService.measure_operation("update_booking")
-    def update_booking(self, booking_id: int, user: User, update_data: BookingUpdate) -> Booking:
+    def update_booking(self, booking_id: str, user: User, update_data: BookingUpdate) -> Booking:
         """
         Update booking details (instructor only).
 
@@ -410,7 +410,7 @@ class BookingService(BaseService):
         return booking
 
     @BaseService.measure_operation("complete_booking")
-    def complete_booking(self, booking_id: int, instructor: User) -> Booking:
+    def complete_booking(self, booking_id: str, instructor: User) -> Booking:
         """
         Mark a booking as completed (instructor only).
 
@@ -456,7 +456,7 @@ class BookingService(BaseService):
 
     @BaseService.measure_operation("check_availability")
     async def check_availability(
-        self, instructor_id: int, booking_date: date, start_time: time, end_time: time, service_id: int
+        self, instructor_id: str, booking_date: date, start_time: time, end_time: time, service_id: str
     ) -> Dict[str, Any]:
         """
         Check if a time range is available for booking.
@@ -751,7 +751,7 @@ class BookingService(BaseService):
 
     async def _get_instructor_availability_windows(
         self,
-        instructor_id: int,
+        instructor_id: str,
         target_date: date,
         earliest_time: time,
         latest_time: time,
@@ -779,7 +779,7 @@ class BookingService(BaseService):
 
     async def _get_existing_bookings_for_date(
         self,
-        instructor_id: int,
+        instructor_id: str,
         target_date: date,
         earliest_time: time,
         latest_time: time,
@@ -810,7 +810,7 @@ class BookingService(BaseService):
         target_duration_minutes: int,
         earliest_time: time,
         latest_time: time,
-        instructor_id: int,
+        instructor_id: str,
         target_date: date,
     ) -> List[Dict[str, Any]]:
         """
@@ -855,7 +855,7 @@ class BookingService(BaseService):
         slot_end: time,
         existing_bookings: List[Booking],
         target_duration_minutes: int,
-        instructor_id: int,
+        instructor_id: str,
         target_date: date,
     ) -> List[Dict[str, Any]]:
         """

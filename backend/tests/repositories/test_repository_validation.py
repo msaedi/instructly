@@ -26,6 +26,7 @@ from unittest.mock import patch
 import pytest
 
 from app.core.exceptions import RepositoryException
+from app.core.ulid_helper import generate_ulid
 from app.models import AvailabilitySlot, Booking, BookingStatus, InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.service_catalog import ServiceCatalog, ServiceCategory
@@ -232,7 +233,10 @@ class TestBookingRepositoryNoSlotReferences:
         ]
 
         opportunities = repo.find_booking_opportunities(
-            available_slots=available_slots, instructor_id=1, target_date=date.today(), duration_minutes=60
+            available_slots=available_slots,
+            instructor_id=generate_ulid(),
+            target_date=date.today(),
+            duration_minutes=60,
         )
 
         assert isinstance(opportunities, list)
@@ -387,7 +391,7 @@ class TestBulkOperationValidation:
 
         # Trying to call it should raise AttributeError
         with pytest.raises(AttributeError):
-            repo.slot_has_active_booking(1)
+            repo.slot_has_active_booking(generate_ulid())
 
     def test_bulk_create_slots(self, db, test_instructor):
         """Test bulk slot creation works."""
@@ -607,7 +611,7 @@ def test_repository_exception_handling(db):
     with pytest.raises(RepositoryException) as exc_info:
         # Try to create duplicate slot
         repo.create_slot(
-            instructor_id=999999,  # Non-existent instructor
+            instructor_id=generate_ulid(),  # Non-existent instructor
             target_date=date.today(),
             start_time=time(9, 0),
             end_time=time(10, 0),

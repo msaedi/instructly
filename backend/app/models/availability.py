@@ -15,6 +15,7 @@ Classes:
 
 import logging
 
+import ulid
 from sqlalchemy import Column, Date, DateTime, ForeignKey, Index, Integer, String, Time, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -48,9 +49,9 @@ class AvailabilitySlot(Base):
 
     __tablename__ = "availability_slots"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     instructor_id = Column(
-        Integer,
+        String(26),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -82,8 +83,8 @@ class BlackoutDate(Base):
 
     __tablename__ = "blackout_dates"
 
-    id = Column(Integer, primary_key=True, index=True)
-    instructor_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
+    instructor_id = Column(String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     date = Column(Date, nullable=False, index=True)
     reason = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

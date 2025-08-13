@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.core.enums import RoleName
 from app.core.exceptions import BusinessRuleException, ConflictException, NotFoundException, ValidationException
+from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
@@ -206,8 +207,8 @@ class TestBookingServiceCreation:
         """Test that only students can create bookings."""
         booking_service = BookingService(db, mock_notification_service)
         booking_data = BookingCreate(
-            instructor_id=1,
-            instructor_service_id=1,
+            instructor_id=generate_ulid(),
+            instructor_service_id=generate_ulid(),
             booking_date=date.today() + timedelta(days=1),
             start_time=time(9, 0),
             end_time=time(10, 0),

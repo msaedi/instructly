@@ -273,19 +273,23 @@ def prep_database(db_type):
     if not run_command(["alembic", "upgrade", "head"], "Apply database migrations"):
         return False
 
-    # Step 3: Seed data
+    # Step 3: Seed roles and permissions (required for ULID migration)
+    if not run_command([sys.executable, "scripts/seed_roles_permissions.py"], "Seed roles and permissions"):
+        return False
+
+    # Step 4: Seed data
     if not run_command([sys.executable, "scripts/reset_and_seed_yaml.py"], "Seed database with YAML data"):
         return False
 
-    # Step 4: Generate embeddings
+    # Step 5: Generate embeddings
     if not run_command([sys.executable, "scripts/generate_service_embeddings.py"], "Generate service embeddings"):
         return False
 
-    # Step 5: Calculate analytics
+    # Step 6: Calculate analytics
     if not run_command([sys.executable, "scripts/calculate_service_analytics.py"], "Calculate service analytics"):
         return False
 
-    # Step 6: Clear cache to ensure fresh data
+    # Step 7: Clear cache to ensure fresh data
     if not clear_cache(db_type):
         return False
 

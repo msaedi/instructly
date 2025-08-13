@@ -234,7 +234,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
 
         return query.update({"deleted_at": datetime.now(timezone.utc)}, synchronize_session=False)
 
-    def soft_delete_by_id(self, search_id: int, user_id: int) -> bool:
+    def soft_delete_by_id(self, search_id: str, user_id: str) -> bool:
         """
         Soft delete a specific search entry for an authenticated user.
         """
@@ -316,7 +316,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
             .all()
         )
 
-    def mark_searches_as_converted(self, guest_session_id: str, user_id: int) -> int:
+    def mark_searches_as_converted(self, guest_session_id: str, user_id: str) -> int:
         """
         Mark guest searches as converted to user account.
         """
@@ -330,7 +330,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
 
     # Privacy and data management methods
 
-    def get_user_searches(self, user_id: int, exclude_deleted: bool = True) -> List[SearchHistory]:
+    def get_user_searches(self, user_id: str, exclude_deleted: bool = True) -> List[SearchHistory]:
         """
         Get all searches for a user.
 
@@ -350,7 +350,7 @@ class SearchHistoryRepository(BaseRepository[SearchHistory]):
 
         return query.order_by(desc(SearchHistory.first_searched_at)).all()
 
-    def delete_user_searches(self, user_id: int) -> int:
+    def delete_user_searches(self, user_id: str) -> int:
         """
         Delete all searches for a user (hard delete).
 

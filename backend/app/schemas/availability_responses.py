@@ -51,7 +51,7 @@ class DeleteWindowResponse(BaseModel):
     """Response for deleting an availability window."""
 
     message: str = "Availability window deleted successfully"
-    window_id: int
+    window_id: str
 
 
 class BookedSlotsResponse(BaseModel):
@@ -66,4 +66,4 @@ class DeleteBlackoutResponse(BaseModel):
     """Response for deleting a blackout date."""
 
     message: str = "Blackout date removed successfully"
-    blackout_id: int
+    blackout_id: str

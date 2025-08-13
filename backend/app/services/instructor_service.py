@@ -64,7 +64,7 @@ class InstructorService(BaseService):
         self.analytics_repository = RepositoryFactory.create_service_analytics_repository(db)
 
     @BaseService.measure_operation("get_instructor_profile")
-    def get_instructor_profile(self, user_id: int, include_inactive_services: bool = False) -> Dict:
+    def get_instructor_profile(self, user_id: str, include_inactive_services: bool = False) -> Dict:
         """
         Get instructor profile with proper service filtering.
 
@@ -278,7 +278,7 @@ class InstructorService(BaseService):
         return self._profile_to_dict(profile)
 
     @BaseService.measure_operation("update_instructor_profile")
-    def update_instructor_profile(self, user_id: int, update_data: InstructorProfileUpdate) -> Dict:
+    def update_instructor_profile(self, user_id: str, update_data: InstructorProfileUpdate) -> Dict:
         """
         Update instructor profile with proper soft delete handling.
 
@@ -315,7 +315,7 @@ class InstructorService(BaseService):
         return self.get_instructor_profile(user_id)
 
     @BaseService.measure_operation("delete_instructor_profile")
-    def delete_instructor_profile(self, user_id: int) -> None:
+    def delete_instructor_profile(self, user_id: str) -> None:
         """
         Delete instructor profile and revert to student role.
 
@@ -384,7 +384,7 @@ class InstructorService(BaseService):
         if invalid_ids:
             raise BusinessRuleException(f"Invalid service catalog IDs: {', '.join(map(str, invalid_ids))}")
 
-    def _update_services(self, profile_id: int, services_data: List[ServiceCreate]) -> None:
+    def _update_services(self, profile_id: str, services_data: List[ServiceCreate]) -> None:
         """
         Update services with soft/hard delete logic.
 
@@ -501,7 +501,7 @@ class InstructorService(BaseService):
             ],
         }
 
-    def _invalidate_instructor_caches(self, user_id: int) -> None:
+    def _invalidate_instructor_caches(self, user_id: str) -> None:
         """Invalidate all caches related to an instructor."""
         if not self.cache_service:
             return
@@ -579,8 +579,8 @@ class InstructorService(BaseService):
     @BaseService.measure_operation("create_instructor_service_from_catalog")
     def create_instructor_service_from_catalog(
         self,
-        instructor_id: int,
-        catalog_service_id: int,
+        instructor_id: str,
+        catalog_service_id: str,
         hourly_rate: float,
         custom_description: Optional[str] = None,
         duration_options: Optional[List[int]] = None,

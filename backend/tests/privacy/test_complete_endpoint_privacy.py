@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.core.ulid_helper import generate_ulid
 from app.main import fastapi_app as app
 from tests.fixtures.unique_test_data import unique_data
 
@@ -163,7 +164,7 @@ class TestCompleteEndpointPrivacy:
         violations = []
 
         # Test instructor list
-        response = client.get("/api/instructors/?service_catalog_id=1", headers=auth_headers_student)
+        response = client.get("/api/instructors/?service_catalog_id=generate_ulid()", headers=auth_headers_student)
         if response.status_code == 200:
             violation = self._check_response_for_instructor_names(response, "GET /api/instructors/")
             if violation:
@@ -276,7 +277,7 @@ class TestCompleteEndpointPrivacy:
         """Parametrized test for critical endpoints."""
         # Add required parameters
         if "instructors/" in endpoint and endpoint.endswith("/"):
-            endpoint += "?service_catalog_id=1"
+            endpoint += "?service_catalog_id=generate_ulid()"
         elif "search/instructors" in endpoint:
             endpoint += "?q=test"
 

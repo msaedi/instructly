@@ -56,7 +56,7 @@ class MessageService(BaseService):
         self.logger = logging.getLogger(__name__)
 
     @measure_operation
-    def send_message(self, booking_id: int, sender_id: int, content: str) -> Message:
+    def send_message(self, booking_id: str, sender_id: str, content: str) -> Message:
         """
         Send a message in a booking chat.
 
@@ -101,7 +101,7 @@ class MessageService(BaseService):
             return message
 
     @measure_operation
-    def get_message_history(self, booking_id: int, user_id: int, limit: int = 50, offset: int = 0) -> List[Message]:
+    def get_message_history(self, booking_id: str, user_id: str, limit: int = 50, offset: int = 0) -> List[Message]:
         """
         Get message history for a booking.
 
@@ -163,7 +163,7 @@ class MessageService(BaseService):
         return messages
 
     @measure_operation
-    def get_unread_count(self, user_id: int) -> int:
+    def get_unread_count(self, user_id: str) -> int:
         """
         Get total unread message count for a user.
 
@@ -176,7 +176,7 @@ class MessageService(BaseService):
         return self.repository.get_unread_count_for_user(user_id)
 
     @measure_operation
-    def send_typing_indicator(self, booking_id: int, user_id: int, user_name: str) -> None:
+    def send_typing_indicator(self, booking_id: str, user_id: str, user_name: str) -> None:
         """Broadcast a typing indicator for a booking (ephemeral)."""
         # Verify access
         if not self._user_has_booking_access(booking_id, user_id):
@@ -193,7 +193,7 @@ class MessageService(BaseService):
         self.repository.notify_booking_channel(booking_id, payload)
 
     @measure_operation
-    def mark_messages_as_read(self, message_ids: List[int], user_id: int) -> int:
+    def mark_messages_as_read(self, message_ids: List[str], user_id: str) -> int:
         """
         Mark messages as read for a user.
 
@@ -213,7 +213,7 @@ class MessageService(BaseService):
             return count
 
     @measure_operation
-    def mark_booking_messages_as_read(self, booking_id: int, user_id: int) -> int:
+    def mark_booking_messages_as_read(self, booking_id: str, user_id: str) -> int:
         """
         Mark all messages in a booking as read for a user.
 
@@ -240,7 +240,7 @@ class MessageService(BaseService):
         return 0
 
     @measure_operation
-    def delete_message(self, message_id: int, user_id: int) -> bool:
+    def delete_message(self, message_id: str, user_id: str) -> bool:
         """
         Soft delete a message (only by sender).
 
@@ -266,7 +266,7 @@ class MessageService(BaseService):
 
     # Phase 2: reactions
     @measure_operation
-    def add_reaction(self, message_id: int, user_id: int, emoji: str) -> bool:
+    def add_reaction(self, message_id: str, user_id: str, emoji: str) -> bool:
         # Access: user must be participant of the booking of this message
         message = self.repository.get_by_id(message_id)
         if not message:
@@ -296,7 +296,7 @@ class MessageService(BaseService):
             return ok
 
     @measure_operation
-    def remove_reaction(self, message_id: int, user_id: int, emoji: str) -> bool:
+    def remove_reaction(self, message_id: str, user_id: str, emoji: str) -> bool:
         message = self.repository.get_by_id(message_id)
         if not message:
             return False
@@ -315,7 +315,7 @@ class MessageService(BaseService):
             return ok
 
     @measure_operation
-    def edit_message(self, message_id: int, user_id: int, new_content: str) -> bool:
+    def edit_message(self, message_id: str, user_id: str, new_content: str) -> bool:
         # validate
         if not new_content or not new_content.strip():
             raise ValidationException("Message content cannot be empty")

@@ -13,6 +13,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User
 from app.services.notification_service import NotificationService
@@ -39,7 +40,7 @@ class TestEmailCleanArchitecture:
 
         # Mock booking with clean fields
         booking = Mock(spec=Booking)
-        booking.id = 123
+        booking.id = generate_ulid()
         booking.student = student
         booking.instructor = instructor
         booking.student_id = student.id
@@ -52,7 +53,7 @@ class TestEmailCleanArchitecture:
         booking.duration_minutes = 60
 
         # Service details
-        booking.service_id = 1
+        booking.service_id = generate_ulid()
         booking.service_name = "Piano Lessons"
         booking.hourly_rate = 50.00
         booking.total_price = 50.00

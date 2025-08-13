@@ -683,4 +683,4 @@ class TestInteractionTracking:
         # This would normally be called via the API endpoint
         # For now just verify the event exists for interaction tracking
         assert event.id is not None
-        assert isinstance(event.id, int)
+        assert isinstance(event.id, str)  # ULID is a string

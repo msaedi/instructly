@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.ulid_helper import generate_ulid
 from app.repositories.availability_repository import AvailabilityRepository
 from app.repositories.week_operation_repository import WeekOperationRepository
 from app.services.availability_service import AvailabilityService
@@ -123,8 +124,8 @@ class TestWeekOperationGetSlots:
 
         # Mock repository response with proper specific_date
         expected_slots = [
-            Mock(id=1, specific_date=date(2025, 6, 23), start_time=time(9, 0), end_time=time(10, 0)),
-            Mock(id=2, specific_date=date(2025, 6, 24), start_time=time(14, 0), end_time=time(16, 0)),
+            Mock(id=generate_ulid(), specific_date=date(2025, 6, 23), start_time=time(9, 0), end_time=time(10, 0)),
+            Mock(id=generate_ulid(), specific_date=date(2025, 6, 24), start_time=time(14, 0), end_time=time(16, 0)),
         ]
         service.repository.get_week_slots.return_value = expected_slots
 

@@ -13,6 +13,7 @@ from unittest.mock import create_autospec
 
 import pytest
 
+from app.core.ulid_helper import generate_ulid
 from app.repositories.availability_repository import AvailabilityRepository
 from app.repositories.week_operation_repository import WeekOperationRepository
 from app.services.availability_service import AvailabilityService
@@ -35,7 +36,7 @@ class TestRepositoryRefactoring:
 
         # Since we don't have test data, just verify it doesn't crash
         # and returns 0 (no slots to delete)
-        result = repo.delete_slots_by_dates(instructor_id=1, dates=test_dates)
+        result = repo.delete_slots_by_dates(instructor_id=generate_ulid(), dates=test_dates)
         assert result == 0  # No slots exist, so 0 deleted
 
     def test_week_operation_repository_no_duplicate_methods(self, db):
@@ -64,10 +65,11 @@ class TestRepositoryRefactoring:
         test_dates = [date.today(), date.today() + timedelta(days=1)]
 
         # The service would call this internally during save_week_availability
-        result = service.repository.delete_slots_by_dates(instructor_id=1, dates=test_dates)
+        instructor_id = generate_ulid()
+        result = service.repository.delete_slots_by_dates(instructor_id=instructor_id, dates=test_dates)
 
         # Verify the method was called
-        mock_repo.delete_slots_by_dates.assert_called_once_with(instructor_id=1, dates=test_dates)
+        mock_repo.delete_slots_by_dates.assert_called_once_with(instructor_id=instructor_id, dates=test_dates)
         assert result == 5
 
     def test_week_operation_service_uses_correct_repository(self, db):

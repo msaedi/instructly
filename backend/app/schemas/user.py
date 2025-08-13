@@ -78,7 +78,7 @@ class UserLogin(BaseModel):
 
 
 class UserResponse(StandardizedModel):  # Changed from UserBase
-    id: int
+    id: str
     email: EmailStr
     first_name: str
     last_name: str

@@ -18,6 +18,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.ulid_helper import generate_ulid
 from app.models.search_history import SearchHistory
 from app.models.user import User
 from app.repositories.search_history_repository import SearchHistoryRepository
@@ -513,7 +514,9 @@ class TestEdgeCases:
         service = SearchHistoryService(db)
 
         # Try to convert with non-existent user
-        converted = service.convert_guest_searches_to_user(guest_session_id="test-guest", user_id=99999)  # Non-existent
+        converted = service.convert_guest_searches_to_user(
+            guest_session_id="test-guest", user_id=generate_ulid()
+        )  # Non-existent
 
         assert converted == 0
 

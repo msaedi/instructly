@@ -19,6 +19,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictException, NotFoundException
+from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot, BlackoutDate
 from app.repositories.availability_repository import AvailabilityRepository
 from app.schemas.availability_window import SpecificDateAvailabilityCreate, WeekSpecificScheduleCreate
@@ -82,7 +83,7 @@ class TestAvailabilityServiceBusinessLogic:
         week_data = Mock()
         week_data.week_start = monday
         week_data.schedule = []
-        instructor_id = 1
+        instructor_id = generate_ulid()
 
         result = service._determine_week_start(week_data, instructor_id)
         assert result == monday
@@ -96,7 +97,7 @@ class TestAvailabilityServiceBusinessLogic:
             # Create mock schedule items with proper date attribute
             tomorrow = date.today() + timedelta(days=1)
             day_after = date.today() + timedelta(days=2)
-            instructor_id = 1
+            instructor_id = generate_ulid()
 
             # Create dictionary items that match what the method expects
             # Based on the service code, it expects dicts with 'date' key as string
@@ -124,7 +125,7 @@ class TestAvailabilityServiceBusinessLogic:
 
         # This should raise ConflictException due to slot existing
         with pytest.raises(ConflictException, match="This time slot already exists"):
-            service.add_specific_date_availability(instructor_id=1, availability_data=availability_data)
+            service.add_specific_date_availability(instructor_id=generate_ulid(), availability_data=availability_data)
 
 
 class TestAvailabilityServiceQueryHelpers:
@@ -256,7 +257,7 @@ class TestAvailabilityServiceCacheHandling:
 
         # Should still work despite cache error
         result = service.get_week_availability(
-            instructor_id=1, start_date=date.today() - timedelta(days=date.today().weekday())
+            instructor_id=generate_ulid(), start_date=date.today() - timedelta(days=date.today().weekday())
         )
 
         assert isinstance(result, dict)

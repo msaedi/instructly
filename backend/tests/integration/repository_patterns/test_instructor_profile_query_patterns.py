@@ -13,6 +13,7 @@ import pytest
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
+from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
@@ -586,5 +587,7 @@ class TestInstructorProfileQueryPatterns:
         assert exists == True
 
         # Check non-existent
-        not_exists = db.query(db.query(InstructorProfile).filter(InstructorProfile.user_id == 99999).exists()).scalar()
+        not_exists = db.query(
+            db.query(InstructorProfile).filter(InstructorProfile.user_id == generate_ulid()).exists()
+        ).scalar()
         assert not_exists == False

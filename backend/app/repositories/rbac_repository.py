@@ -70,7 +70,7 @@ class RBACRepository:
     # UserPermission Operations (6+ violations fixed)
     # ==========================================
 
-    def get_user_permission(self, user_id: int, permission_id: int) -> Optional[UserPermission]:
+    def get_user_permission(self, user_id: str, permission_id: str) -> Optional[UserPermission]:
         """
         Get a specific user permission override.
 
@@ -83,7 +83,7 @@ class RBACRepository:
             self.logger.error(f"Error getting user permission for user {user_id}, permission {permission_id}: {str(e)}")
             return None
 
-    def check_user_permission(self, user_id: int, permission_name: str) -> Optional[UserPermission]:
+    def check_user_permission(self, user_id: str, permission_name: str) -> Optional[UserPermission]:
         """
         Check if user has a specific permission override.
 
@@ -105,7 +105,7 @@ class RBACRepository:
             )
             return None
 
-    def get_user_permissions(self, user_id: int) -> List[UserPermission]:
+    def get_user_permissions(self, user_id: str) -> List[UserPermission]:
         """
         Get all permission overrides for a user.
 
@@ -118,7 +118,7 @@ class RBACRepository:
             self.logger.error(f"Error getting user permissions for user {user_id}: {str(e)}")
             return []
 
-    def add_user_permission(self, user_id: int, permission_id: int, granted: bool = True) -> UserPermission:
+    def add_user_permission(self, user_id: str, permission_id: str, granted: bool = True) -> UserPermission:
         """
         Add or update a user permission override.
 
@@ -183,7 +183,7 @@ class RBACRepository:
     # User-Role Operations
     # ==========================================
 
-    def get_user_by_id(self, user_id: int) -> Optional[User]:
+    def get_user_by_id(self, user_id: str) -> Optional[User]:
         """
         Get a user by ID for role operations.
 

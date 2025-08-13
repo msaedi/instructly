@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class CategoryResponse(BaseModel):
     """Service category response."""
 
-    id: int
+    id: str
     name: str
     subtitle: Optional[str] = None
     slug: str
@@ -25,8 +25,8 @@ class CategoryResponse(BaseModel):
 class CatalogServiceResponse(BaseModel):
     """Catalog service response."""
 
-    id: int
-    category_id: int
+    id: str
+    category_id: str
     category: Optional[str] = None
     name: str
     slug: str
@@ -42,7 +42,7 @@ class CatalogServiceResponse(BaseModel):
 class InstructorServiceCreate(BaseModel):
     """Create instructor service from catalog."""
 
-    catalog_service_id: int = Field(..., description="ID of the catalog service")
+    catalog_service_id: str = Field(..., description="ID of the catalog service")
     hourly_rate: float = Field(..., gt=0, description="Hourly rate for this service")
     custom_description: Optional[str] = Field(None, description="Custom description (optional)")
     duration_options: Optional[List[int]] = Field(
@@ -64,8 +64,8 @@ class InstructorServiceCreate(BaseModel):
 class InstructorServiceResponse(BaseModel):
     """Instructor service response with catalog info."""
 
-    id: int
-    catalog_service_id: int
+    id: str
+    catalog_service_id: str
     name: str
     category: str
     hourly_rate: float

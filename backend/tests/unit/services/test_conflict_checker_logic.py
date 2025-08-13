@@ -12,6 +12,7 @@ from unittest.mock import Mock, patch
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.ulid_helper import generate_ulid
 from app.models.availability import BlackoutDate
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
@@ -36,7 +37,8 @@ class TestConflictCheckerDataTransformation:
         """Test how booking conflicts are formatted for response."""
         # Create mock booking with proper time values
         mock_booking = Mock(spec=Booking)
-        mock_booking.id = 123
+        booking_id = generate_ulid()
+        mock_booking.id = booking_id
         mock_booking.service_name = "Piano Lessons"
         mock_booking.status = BookingStatus.CONFIRMED
         mock_booking.start_time = time(10, 0)
@@ -54,13 +56,13 @@ class TestConflictCheckerDataTransformation:
 
         # Test the formatting logic
         conflicts = service.check_booking_conflicts(
-            instructor_id=1, check_date=date.today(), start_time=time(9, 30), end_time=time(10, 30)
+            instructor_id=generate_ulid(), check_date=date.today(), start_time=time(9, 30), end_time=time(10, 30)
         )
 
         # Should format the conflict properly
         assert len(conflicts) == 1
         conflict = conflicts[0]
-        assert conflict["booking_id"] == 123
+        assert conflict["booking_id"] == booking_id
         assert conflict["start_time"] == "10:00:00"
         assert conflict["end_time"] == "11:00:00"
         assert conflict["student_first_name"] == "John"
@@ -71,32 +73,35 @@ class TestConflictCheckerDataTransformation:
         """Test formatting of booked times response."""
         # Create mock bookings with proper fields
         mock_booking = Mock(spec=Booking)
-        mock_booking.id = 789
+        booking_id = generate_ulid()
+        student_id = generate_ulid()
+        mock_booking.id = booking_id
         mock_booking.start_time = time(14, 0)
         mock_booking.end_time = time(15, 0)
         mock_booking.booking_date = date.today()
-        mock_booking.student_id = 111
+        mock_booking.student_id = student_id
         mock_booking.service_name = "Guitar Lessons"
         mock_booking.status = BookingStatus.CONFIRMED
 
         service.repository.get_bookings_for_date.return_value = [mock_booking]
 
         # Test the formatting
-        booked_times = service.get_booked_times_for_date(instructor_id=1, target_date=date.today())
+        booked_times = service.get_booked_times_for_date(instructor_id=generate_ulid(), target_date=date.today())
 
         assert len(booked_times) == 1
         time_info = booked_times[0]
-        assert time_info["booking_id"] == 789
+        assert time_info["booking_id"] == booking_id
         assert time_info["start_time"] == "14:00:00"
         assert time_info["end_time"] == "15:00:00"
-        assert time_info["student_id"] == 111
+        assert time_info["student_id"] == student_id
         assert time_info["service_name"] == "Guitar Lessons"
 
     def test_conflict_data_formatting(self, service):
         """Test how conflict data is formatted for response."""
         # Create mock booking with all fields
         mock_booking = Mock(spec=Booking)
-        mock_booking.id = 123
+        booking_id = generate_ulid()
+        mock_booking.id = booking_id
         mock_booking.service_name = "Piano Lessons"
         mock_booking.status = BookingStatus.CONFIRMED
         mock_booking.start_time = time(10, 0)
@@ -106,14 +111,14 @@ class TestConflictCheckerDataTransformation:
         service.repository.get_bookings_for_conflict_check.return_value = [mock_booking]
 
         conflicts = service.check_booking_conflicts(
-            instructor_id=1, check_date=date.today(), start_time=time(9, 30), end_time=time(10, 30)
+            instructor_id=generate_ulid(), check_date=date.today(), start_time=time(9, 30), end_time=time(10, 30)
         )
 
         # Verify conflict format
         assert len(conflicts) == 1
         conflict = conflicts[0]
 
-        assert conflict["booking_id"] == 123
+        assert conflict["booking_id"] == booking_id
         assert conflict["start_time"] == "10:00:00"
         assert conflict["end_time"] == "11:00:00"
         assert conflict["student_first_name"] == "John"
@@ -131,18 +136,18 @@ class TestConflictCheckerDataTransformation:
             booking_date = base_date + timedelta(days=day_offset)
             for hour in [9, 14]:
                 mock_booking = Mock(spec=Booking)
-                mock_booking.id = day_offset * 10 + hour
+                mock_booking.id = generate_ulid()
                 mock_booking.booking_date = booking_date
                 mock_booking.start_time = time(hour, 0)
                 mock_booking.end_time = time(hour + 1, 0)
-                mock_booking.student_id = 1
+                mock_booking.student_id = generate_ulid()
                 mock_booking.service_name = "Test Service"
                 mock_booking.status = BookingStatus.CONFIRMED
                 mock_bookings.append(mock_booking)
 
         service.repository.get_bookings_for_week.return_value = mock_bookings
 
-        result = service.get_booked_times_for_week(instructor_id=1, week_start=base_date)
+        result = service.get_booked_times_for_week(instructor_id=generate_ulid(), week_start=base_date)
 
         # Should be grouped by date
         assert len(result) == 3  # 3 days with bookings
@@ -165,13 +170,13 @@ class TestConflictCheckerDataTransformation:
 
         # Test empty conflicts
         conflicts = service.check_booking_conflicts(
-            instructor_id=1, check_date=date.today(), start_time=time(10, 0), end_time=time(11, 0)
+            instructor_id=generate_ulid(), check_date=date.today(), start_time=time(10, 0), end_time=time(11, 0)
         )
 
         assert conflicts == []
 
         # Test empty week data
-        week_data = service.get_booked_times_for_week(instructor_id=1, week_start=date.today())
+        week_data = service.get_booked_times_for_week(instructor_id=generate_ulid(), week_start=date.today())
 
         assert week_data == {}
 
@@ -188,7 +193,7 @@ class TestConflictCheckerValidationRules:
         service.repository = mock_repository
         return service
 
-    def _setup_user_mock(self, service, user_id=1, timezone="America/New_York"):
+    def _setup_user_mock(self, service, user_id=generate_ulid(), timezone="America/New_York"):
         """Helper to set up user mock with timezone."""
         mock_user = Mock()
         mock_user.id = user_id
@@ -212,7 +217,10 @@ class TestConflictCheckerValidationRules:
 
         # Test past date
         result = service.validate_booking_constraints(
-            instructor_id=1, booking_date=date.today() - timedelta(days=1), start_time=time(14, 0), end_time=time(15, 0)
+            instructor_id=generate_ulid(),
+            booking_date=date.today() - timedelta(days=1),
+            start_time=time(14, 0),
+            end_time=time(15, 0),
         )
 
         assert result["valid"] == False
@@ -239,11 +247,11 @@ class TestConflictCheckerValidationRules:
 
         # Test service duration mismatch - use a duration not in the options
         result = service.validate_booking_constraints(
-            instructor_id=1,
+            instructor_id=generate_ulid(),
             booking_date=date.today() + timedelta(days=1),
             start_time=time(14, 0),
             end_time=time(14, 45),  # 45 minutes - not in the options [60, 90, 120]
-            service_id=1,
+            service_id=generate_ulid(),
         )
 
         assert result["valid"] == True  # Valid but with warning
@@ -265,7 +273,10 @@ class TestConflictCheckerValidationRules:
         self._setup_user_mock(service)
 
         result = service.validate_booking_constraints(
-            instructor_id=1, booking_date=date.today() + timedelta(days=1), start_time=time(14, 0), end_time=time(15, 0)
+            instructor_id=generate_ulid(),
+            booking_date=date.today() + timedelta(days=1),
+            start_time=time(14, 0),
+            end_time=time(15, 0),
         )
 
         assert result["valid"] == False
@@ -295,18 +306,17 @@ class TestConflictCheckerValidationRules:
             (time(12, 30), time(14, 0)),  # After
         ]
 
-        booking_id = 1
         for start, end in overlapping_times + non_overlapping_times:
+            booking_id = generate_ulid()
             mock_booking = self._create_mock_booking(booking_id, start, end)
             mock_bookings.append(mock_booking)
-            booking_id += 1
 
         # Mock the repository method
         service.repository.get_bookings_for_conflict_check.return_value = mock_bookings
 
         # Call the method
         conflicts = service.check_booking_conflicts(
-            instructor_id=1, check_date=date.today(), start_time=check_start, end_time=check_end
+            instructor_id=generate_ulid(), check_date=date.today(), start_time=check_start, end_time=check_end
         )
 
         # Should detect exactly 4 conflicts
@@ -325,11 +335,14 @@ class TestConflictCheckerValidationRules:
 
         mock_bookings = []
 
-        # Edge cases
+        # Edge cases - generate ULIDs for each
+        id1 = generate_ulid()
+        id2 = generate_ulid()
+        id3 = generate_ulid()
         boundary_times = [
-            (1, time(9, 0), time(10, 0)),  # Ends exactly at start
-            (2, time(11, 0), time(12, 0)),  # Starts exactly at end
-            (3, time(10, 0), time(11, 0)),  # Exact same time
+            (id1, time(9, 0), time(10, 0)),  # Ends exactly at start
+            (id2, time(11, 0), time(12, 0)),  # Starts exactly at end
+            (id3, time(10, 0), time(11, 0)),  # Exact same time
         ]
 
         for booking_id, start, end in boundary_times:
@@ -339,12 +352,12 @@ class TestConflictCheckerValidationRules:
         service.repository.get_bookings_for_conflict_check.return_value = mock_bookings
 
         conflicts = service.check_booking_conflicts(
-            instructor_id=1, check_date=date.today(), start_time=check_start, end_time=check_end
+            instructor_id=generate_ulid(), check_date=date.today(), start_time=check_start, end_time=check_end
         )
 
         # Adjacent slots should not conflict, only exact overlap
         assert len(conflicts) == 1
-        assert conflicts[0]["booking_id"] == 3
+        assert conflicts[0]["booking_id"] == id3
 
     def test_validate_time_range_business_rules(self, service):
         """Test time range validation business logic."""
@@ -409,7 +422,7 @@ class TestConflictCheckerValidationRules:
                 # Test booking exactly 24 hours and 1 minute in advance
                 # Tomorrow at 10:01 AM
                 result = service.check_minimum_advance_booking(
-                    instructor_id=1,
+                    instructor_id=generate_ulid(),
                     booking_date=datetime(2024, 1, 16, 10, 1, 0).date(),
                     booking_time=datetime(2024, 1, 16, 10, 1, 0).time(),
                 )
@@ -419,7 +432,7 @@ class TestConflictCheckerValidationRules:
 
                 # Test booking too soon (23 hours - tomorrow at 9 AM)
                 result = service.check_minimum_advance_booking(
-                    instructor_id=1,
+                    instructor_id=generate_ulid(),
                     booking_date=datetime(2024, 1, 16, 9, 0, 0).date(),
                     booking_time=datetime(2024, 1, 16, 9, 0, 0).time(),
                 )
@@ -431,16 +444,16 @@ class TestConflictCheckerValidationRules:
         """Test finding next available time slot."""
         # Create existing bookings
         existing_bookings = [
-            self._create_mock_booking(1, time(9, 0), time(10, 0)),
-            self._create_mock_booking(2, time(11, 0), time(12, 0)),
-            self._create_mock_booking(3, time(14, 0), time(15, 0)),
+            self._create_mock_booking(generate_ulid(), time(9, 0), time(10, 0)),
+            self._create_mock_booking(generate_ulid(), time(11, 0), time(12, 0)),
+            self._create_mock_booking(generate_ulid(), time(14, 0), time(15, 0)),
         ]
 
         service.repository.get_bookings_for_date.return_value = existing_bookings
 
         # Find 60-minute slot
         result = service.find_next_available_time(
-            instructor_id=1,
+            instructor_id=generate_ulid(),
             target_date=date.today(),
             duration_minutes=60,
             earliest_time=time(9, 0),
@@ -457,19 +470,21 @@ class TestConflictCheckerValidationRules:
         # Test check_booking_conflicts uses repository
         service.repository.get_bookings_for_conflict_check.return_value = []
 
-        service.check_booking_conflicts(1, date.today(), time(10, 0), time(11, 0))
+        instructor_id = generate_ulid()
+        service.check_booking_conflicts(instructor_id, date.today(), time(10, 0), time(11, 0))
 
-        service.repository.get_bookings_for_conflict_check.assert_called_once_with(1, date.today(), None)
+        service.repository.get_bookings_for_conflict_check.assert_called_once_with(instructor_id, date.today(), None)
 
         # Test get_booked_times_for_date uses correct repository method
         service.repository.get_bookings_for_date.return_value = []
 
-        service.get_booked_times_for_date(1, date.today())
+        instructor_id2 = generate_ulid()
+        service.get_booked_times_for_date(instructor_id2, date.today())
 
-        service.repository.get_bookings_for_date.assert_called_once_with(1, date.today())
+        service.repository.get_bookings_for_date.assert_called_once_with(instructor_id2, date.today())
 
     # Helper methods
-    def _create_mock_booking(self, booking_id: int, start: time, end: time) -> Mock:
+    def _create_mock_booking(self, booking_id: str, start: time, end: time) -> Mock:
         """Create a mock booking with proper time values."""
         booking = Mock(spec=Booking)
         booking.id = booking_id
@@ -495,7 +510,7 @@ class TestConflictCheckerEdgeCases:
         service.repository = mock_repository
         return service
 
-    def _setup_user_mock(self, service, user_id=1, timezone="America/New_York"):
+    def _setup_user_mock(self, service, user_id=generate_ulid(), timezone="America/New_York"):
         """Helper to set up user mock with timezone."""
         mock_user = Mock()
         mock_user.id = user_id
@@ -538,7 +553,7 @@ class TestConflictCheckerEdgeCases:
         service.repository.get_instructor_profile.return_value = None
 
         result = service.check_minimum_advance_booking(
-            instructor_id=999, booking_date=date.today() + timedelta(days=1), booking_time=time(10, 0)
+            instructor_id=generate_ulid(), booking_date=date.today() + timedelta(days=1), booking_time=time(10, 0)
         )
 
         assert result["valid"] == False
@@ -561,11 +576,11 @@ class TestConflictCheckerEdgeCases:
         self._setup_user_mock(service)
 
         result = service.validate_booking_constraints(
-            instructor_id=1,
+            instructor_id=generate_ulid(),
             booking_date=date.today() + timedelta(days=1),
             start_time=time(10, 0),
             end_time=time(11, 0),
-            service_id=1,
+            service_id=generate_ulid(),
         )
 
         assert result["valid"] == False

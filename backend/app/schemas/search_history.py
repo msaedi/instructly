@@ -83,11 +83,11 @@ class GuestSearchHistoryCreate(BaseModel):
 class SearchHistoryResponse(SearchHistoryBase):
     """Schema for search history responses."""
 
-    id: int = Field(..., description="Unique identifier for the search history entry")
+    id: str = Field(..., description="Unique identifier for the search history entry")
     first_searched_at: datetime = Field(..., description="When the search was first performed")
     last_searched_at: datetime = Field(..., description="When the search was last performed")
     search_count: int = Field(..., description="Number of times this search was performed")
-    search_event_id: Optional[int] = Field(
+    search_event_id: Optional[str] = Field(
         None, description="ID of the associated search event for tracking interactions"
     )
 
@@ -102,13 +102,13 @@ class SearchHistoryResponse(SearchHistoryBase):
 class SearchHistoryInDB(SearchHistoryBase):
     """Schema for search history in database."""
 
-    id: int
-    user_id: Optional[int]
+    id: str
+    user_id: Optional[str]
     first_searched_at: datetime
     last_searched_at: datetime
     search_count: int
     deleted_at: Optional[datetime]
-    converted_to_user_id: Optional[int]
+    converted_to_user_id: Optional[str]
     converted_at: Optional[datetime]
 
     model_config = ConfigDict(from_attributes=True)

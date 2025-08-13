@@ -6,6 +6,7 @@ This model tracks how users interact with search results, including clicks,
 hovers, bookmarks, and other engagement metrics.
 """
 
+import ulid
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -26,10 +27,10 @@ class SearchInteraction(Base):
 
     __tablename__ = "search_interactions"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
 
     # Link to the search event
-    search_event_id = Column(Integer, ForeignKey("search_events.id", ondelete="CASCADE"), nullable=False, index=True)
+    search_event_id = Column(String(26), ForeignKey("search_events.id", ondelete="CASCADE"), nullable=False, index=True)
 
     # Session tracking
     session_id = Column(String(36), nullable=True, comment="Browser session ID")
@@ -44,7 +45,7 @@ class SearchInteraction(Base):
 
     # Result details
     instructor_id = Column(
-        Integer,
+        String(26),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,

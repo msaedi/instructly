@@ -15,6 +15,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from app.core.ulid_helper import generate_ulid
 from app.models.booking import BookingStatus
 from app.schemas.availability_window import (
     BulkUpdateRequest,
@@ -36,7 +37,7 @@ class TestBulkOperationLogic:
 
         # Mock user with proper timezone for get_user_today_by_id
         mock_user = Mock()
-        mock_user.id = 1
+        mock_user.id = generate_ulid()
         mock_user.timezone = "America/New_York"  # Valid timezone string
 
         # Set up the query chain
@@ -60,10 +61,10 @@ class TestBulkOperationLogic:
         """Create mock slot manager."""
         manager = Mock()
 
-        # FIXED: Configure mock to return objects with proper integer IDs
+        # FIXED: Configure mock to return objects with proper ULID IDs
         def create_slot_side_effect(*args, **kwargs):
             mock_slot = Mock()
-            mock_slot.id = 123  # Return actual integer, not Mock
+            mock_slot.id = generate_ulid()  # Return ULID string
             return mock_slot
 
         manager.create_slot = Mock(side_effect=create_slot_side_effect)
@@ -160,7 +161,7 @@ class TestBulkOperationLogic:
         # FIXED: Configure the mock to return a proper result with integer ID
         def create_slot_with_id(*args, **kwargs):
             result = Mock()
-            result.id = 100  # Actual integer
+            result.id = generate_ulid()  # ULID string
             return result
 
         mock_slot_manager.create_slot = Mock(side_effect=create_slot_with_id)
@@ -178,7 +179,7 @@ class TestBulkOperationLogic:
         )
 
         result = await bulk_service._process_add_operation(
-            instructor_id=1, operation=operation, operation_index=0, validate_only=False
+            instructor_id=generate_ulid(), operation=operation, operation_index=0, validate_only=False
         )
 
         assert result.status == "failed"
@@ -189,7 +190,7 @@ class TestBulkOperationLogic:
         operation = SlotOperation(action="add", date=past_date, start_time=time(9, 0), end_time=time(10, 0))
 
         result = await bulk_service._process_add_operation(
-            instructor_id=1, operation=operation, operation_index=0, validate_only=False
+            instructor_id=generate_ulid(), operation=operation, operation_index=0, validate_only=False
         )
 
         assert result.status == "failed"
@@ -203,13 +204,17 @@ class TestBulkOperationLogic:
     async def test_process_add_with_conflicts(self, bulk_service, mock_conflict_checker, mock_slot_manager):
         """Test add operation when conflicts exist - should succeed with new architecture."""
         # FIXED: Operations now succeed even when bookings exist
+        booking_id = generate_ulid()
         mock_conflict_checker.check_booking_conflicts.return_value = [
-            {"booking_id": 1, "start_time": "09:00", "end_time": "10:00"}
+            {"booking_id": booking_id, "start_time": "09:00", "end_time": "10:00"}
         ]
 
-        # Mock successful slot creation - return a mock slot with proper integer id
+        # Mock successful slot creation - return a mock slot with proper ULID
+        # Override the side_effect from fixture to control the ID
         mock_slot = Mock()
-        mock_slot.id = 123  # Use actual integer
+        slot_id = generate_ulid()
+        mock_slot.id = slot_id
+        mock_slot_manager.create_slot.side_effect = None  # Remove the side_effect
         mock_slot_manager.create_slot.return_value = mock_slot
 
         # Use a fixed future date to avoid timezone issues
@@ -218,16 +223,17 @@ class TestBulkOperationLogic:
         future_date = datetime(2026, 7, 1).date()  # July 1, 2026
         operation = SlotOperation(action="add", date=future_date, start_time=time(9, 0), end_time=time(10, 0))
 
+        instructor_id = generate_ulid()
         result = await bulk_service._process_add_operation(
-            instructor_id=1, operation=operation, operation_index=0, validate_only=False
+            instructor_id=instructor_id, operation=operation, operation_index=0, validate_only=False
         )
 
         # FIXED: Should succeed regardless of conflicts
         assert result.status == "success"
-        assert result.slot_id == 123
+        assert result.slot_id == slot_id
         # FIXED: Updated to match actual implementation - no validate_conflicts parameter
         mock_slot_manager.create_slot.assert_called_once_with(
-            instructor_id=1,
+            instructor_id=instructor_id,
             target_date=operation.date,
             start_time=time(9, 0),
             end_time=time(10, 0),
@@ -241,7 +247,7 @@ class TestBulkOperationLogic:
         operation = SlotOperation(action="remove", slot_id=None)
 
         result = await bulk_service._process_remove_operation(
-            instructor_id=1, operation=operation, operation_index=0, validate_only=False
+            instructor_id=generate_ulid(), operation=operation, operation_index=0, validate_only=False
         )
 
         assert result.status == "failed"
@@ -250,9 +256,9 @@ class TestBulkOperationLogic:
         # Test slot not found - repository returns None
         bulk_service.repository.get_slot_for_instructor.return_value = None
 
-        operation = SlotOperation(action="remove", slot_id=999)
+        operation = SlotOperation(action="remove", slot_id=generate_ulid())
         result = await bulk_service._process_remove_operation(
-            instructor_id=1, operation=operation, operation_index=0, validate_only=False
+            instructor_id=generate_ulid(), operation=operation, operation_index=0, validate_only=False
         )
 
         assert result.status == "failed"
@@ -263,7 +269,8 @@ class TestBulkOperationLogic:
         """Test remove operation when slot has booking - should succeed with new architecture."""
         # Mock slot that exists and belongs to instructor
         mock_slot = Mock()
-        mock_slot.id = 1
+        slot_id = generate_ulid()
+        mock_slot.id = slot_id
         bulk_service.repository.get_slot_for_instructor.return_value = mock_slot
 
         # Mock that slot has an active booking
@@ -274,15 +281,16 @@ class TestBulkOperationLogic:
         mock_booking.status = BookingStatus.CONFIRMED
         mock_db.query().filter().first.return_value = mock_booking
 
-        operation = SlotOperation(action="remove", slot_id=1)
+        # Use the same slot_id for the operation
+        operation = SlotOperation(action="remove", slot_id=slot_id)
         result = await bulk_service._process_remove_operation(
-            instructor_id=1, operation=operation, operation_index=0, validate_only=False
+            instructor_id=generate_ulid(), operation=operation, operation_index=0, validate_only=False
         )
 
         # FIXED: Should succeed regardless of bookings
         assert result.status == "success"
-        # Verify slot was deleted
-        mock_slot_manager.delete_slot.assert_called_once_with(1)
+        # Verify slot was deleted - should be called with mock_slot.id
+        mock_slot_manager.delete_slot.assert_called_once_with(mock_slot.id)
 
     @pytest.mark.asyncio
     async def test_validate_only_mode_behavior(self, bulk_service, mock_db, mock_conflict_checker):
@@ -294,7 +302,7 @@ class TestBulkOperationLogic:
         operation = SlotOperation(action="add", date=future_date, start_time=time(9, 0), end_time=time(10, 0))
 
         result = await bulk_service._process_add_operation(
-            instructor_id=1, operation=operation, operation_index=0, validate_only=True
+            instructor_id=generate_ulid(), operation=operation, operation_index=0, validate_only=True
         )
 
         assert result.status == "success"
@@ -327,10 +335,12 @@ class TestBulkOperationLogic:
 
     def test_generate_operations_from_states(self, bulk_service):
         """Test operation generation from week states."""
+        slot1_id = generate_ulid()
+        slot2_id = generate_ulid()
         existing_slots = {
             "2024-01-01": [
-                {"id": 1, "start_time": "09:00:00", "end_time": "10:00:00"},
-                {"id": 2, "start_time": "14:00:00", "end_time": "15:00:00"},
+                {"id": slot1_id, "start_time": "09:00:00", "end_time": "10:00:00"},
+                {"id": slot2_id, "start_time": "14:00:00", "end_time": "15:00:00"},
             ]
         }
 
@@ -351,7 +361,7 @@ class TestBulkOperationLogic:
 
         assert len(operations) == 1
         assert operations[0].action == "remove"
-        assert operations[0].slot_id == 2  # Afternoon slot should be removed
+        assert operations[0].slot_id == slot2_id  # Afternoon slot should be removed
 
     def test_generate_validation_summary(self, bulk_service):
         """Test validation summary generation."""
@@ -433,7 +443,7 @@ class TestBulkOperationLogic:
         operation = SlotOperation(action="update", slot_id=None, end_time=time(11, 0))
 
         result = await bulk_service._process_update_operation(
-            instructor_id=1, operation=operation, operation_index=0, validate_only=False
+            instructor_id=generate_ulid(), operation=operation, operation_index=0, validate_only=False
         )
 
         assert result.status == "failed"
@@ -447,7 +457,7 @@ class TestBulkOperationLogic:
         mock_slot = Mock()
         mock_slot.start_time = time(10, 0)
         mock_slot.end_time = time(11, 0)
-        mock_slot.instructor_id = 1
+        mock_slot.instructor_id = generate_ulid()
         mock_slot.date = future_date
 
         # Mock repository to return the slot
@@ -455,9 +465,9 @@ class TestBulkOperationLogic:
 
         mock_conflict_checker.validate_time_range.return_value = {"valid": False, "reason": "Invalid time"}
 
-        operation = SlotOperation(action="update", slot_id=1, end_time=time(9, 0))
+        operation = SlotOperation(action="update", slot_id=generate_ulid(), end_time=time(9, 0))
         result = await bulk_service._process_update_operation(
-            instructor_id=1, operation=operation, operation_index=0, validate_only=False
+            instructor_id=generate_ulid(), operation=operation, operation_index=0, validate_only=False
         )
 
         assert result.status == "failed"
@@ -472,7 +482,7 @@ class TestBulkOperationLogic:
 
         future_date = datetime(2026, 12, 1).date()  # December 1, 2026
         operations = [
-            SlotOperation(action="remove", slot_id=99999),  # Non-existent slot
+            SlotOperation(action="remove", slot_id=generate_ulid()),  # Non-existent slot
             SlotOperation(action="add", date=future_date, start_time=time(9, 0), end_time=time(10, 0)),
         ]
 
@@ -486,7 +496,7 @@ class TestBulkOperationLogic:
             return OperationResult(operation_index=0, action="remove", status="failed", reason="Slot not found")
 
         async def mock_add_operation(*args, **kwargs):
-            return OperationResult(operation_index=1, action="add", status="success", slot_id=200)
+            return OperationResult(operation_index=1, action="add", status="success", slot_id=generate_ulid())
 
         # Mock the methods with async functions
         with patch.object(bulk_service, "_process_remove_operation", side_effect=mock_remove_operation):

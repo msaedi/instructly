@@ -141,8 +141,13 @@ class TestAPIBehavior:
         for error in errors:
             assert "loc" in error
             assert "msg" in error
-            assert error["msg"] in ["Field required", "Extra inputs are not permitted"]
-            assert error["type"] == "missing"
+            # Updated to include ULID validation error message
+            assert error["msg"] in [
+                "Field required",
+                "Extra inputs are not permitted",
+                "Input should be a valid string",
+            ]
+            assert error["type"] in ["missing", "string_type"]
 
 
 # Additional validation tests
@@ -153,15 +158,21 @@ class TestCleanArchitectureValidation:
         """Verify BookingCreate accepts all valid fields."""
         from datetime import date, timedelta
 
+        from app.core.ulid_helper import generate_ulid
+
         # Use a future date to avoid validation error
         future_date = (date.today() + timedelta(days=7)).isoformat()
+
+        # Use valid ULID strings for IDs
+        instructor_id = generate_ulid()
+        service_id = generate_ulid()
 
         # This will fail at service level but validates schema accepts fields
         response = client.post(
             "/bookings/",
             json={
-                "instructor_id": 1,
-                "instructor_service_id": 1,
+                "instructor_id": instructor_id,
+                "instructor_service_id": service_id,
                 "booking_date": future_date,
                 "start_time": "09:00",
                 "end_time": "10:00",
@@ -181,14 +192,20 @@ class TestCleanArchitectureValidation:
         """Verify availability check accepts valid time-based format."""
         from datetime import date, timedelta
 
+        from app.core.ulid_helper import generate_ulid
+
         # Use a future date to avoid validation error
         future_date = (date.today() + timedelta(days=7)).isoformat()
+
+        # Use valid ULID strings for IDs
+        instructor_id = generate_ulid()
+        service_id = generate_ulid()
 
         response = client.post(
             "/bookings/check-availability",
             json={
-                "instructor_id": 1,
-                "instructor_service_id": 1,
+                "instructor_id": instructor_id,
+                "instructor_service_id": service_id,
                 "booking_date": future_date,
                 "start_time": "09:00",
                 "end_time": "10:00",

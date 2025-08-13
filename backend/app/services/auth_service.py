@@ -181,7 +181,7 @@ class AuthService(BaseService):
             return None
 
     @BaseService.measure_operation("get_user_by_id")
-    def get_user_by_id(self, user_id: int) -> Optional[User]:
+    def get_user_by_id(self, user_id: str) -> Optional[User]:
         """
         Get user by ID.
 

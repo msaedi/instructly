@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class InstructorInfo(BaseModel):
     """Instructor information in search results with privacy protection."""
 
-    id: int = Field(description="Instructor user ID")
+    id: str = Field(description="Instructor user ID")
     first_name: str = Field(description="Instructor first name")
     last_initial: str = Field(description="Instructor last name initial only")
     bio: Optional[str] = Field(default=None, description="Instructor bio")
@@ -37,7 +37,7 @@ class InstructorInfo(BaseModel):
 class ServiceOffering(BaseModel):
     """Service offering details."""
 
-    id: int = Field(description="Instructor service ID")
+    id: str = Field(description="Instructor service ID")
     hourly_rate: float = Field(description="Hourly rate for the service")
     experience_level: Optional[str] = Field(default=None, description="Experience level")
     description: Optional[str] = Field(default=None, description="Service description")

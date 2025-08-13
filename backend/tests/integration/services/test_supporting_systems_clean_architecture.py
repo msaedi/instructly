@@ -15,6 +15,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus
 from app.services.cache_service import CacheService
 from app.services.notification_service import NotificationService
@@ -233,7 +234,7 @@ class TestErrorHandlingWithCleanArchitecture:
 
         # Create booking with missing instructor relationship
         booking = Mock(spec=Booking)
-        booking.id = 123
+        booking.id = generate_ulid()
         booking.instructor = None  # Missing!
         booking.booking_date = date.today() + timedelta(days=1)
         booking.start_time = time(9, 0)

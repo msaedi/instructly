@@ -43,12 +43,16 @@ def upgrade() -> None:
     """Create initial user authentication schema."""
     print("Creating initial schema for users and authentication...")
 
+    # For ULID generation, we'll rely on Python defaults in the models
+    # No need for a complex PostgreSQL function
+    print("ULID generation will be handled by Python models...")
+
     # NO LONGER CREATING ENUM TYPE - Using VARCHAR instead
 
     # Create users table with all final columns
     op.create_table(
         "users",
-        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
         sa.Column("email", sa.String(), nullable=False),
         sa.Column("hashed_password", sa.String(), nullable=False),
         sa.Column("first_name", sa.String(50), nullable=False),
@@ -117,7 +121,7 @@ def upgrade() -> None:
     # Create roles table
     op.create_table(
         "roles",
-        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
         sa.Column("name", sa.String(50), nullable=False, unique=True),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column(
@@ -133,7 +137,7 @@ def upgrade() -> None:
     # Create permissions table
     op.create_table(
         "permissions",
-        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
         sa.Column("name", sa.String(100), nullable=False, unique=True),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("resource", sa.String(50), nullable=True),
@@ -151,8 +155,8 @@ def upgrade() -> None:
     # Create user_roles junction table
     op.create_table(
         "user_roles",
-        sa.Column("user_id", sa.Integer(), nullable=False),
-        sa.Column("role_id", sa.Integer(), nullable=False),
+        sa.Column("user_id", sa.String(26), nullable=False),
+        sa.Column("role_id", sa.String(26), nullable=False),
         sa.Column(
             "assigned_at",
             sa.DateTime(timezone=True),
@@ -176,8 +180,8 @@ def upgrade() -> None:
     # Create role_permissions junction table
     op.create_table(
         "role_permissions",
-        sa.Column("role_id", sa.Integer(), nullable=False),
-        sa.Column("permission_id", sa.Integer(), nullable=False),
+        sa.Column("role_id", sa.String(26), nullable=False),
+        sa.Column("permission_id", sa.String(26), nullable=False),
         sa.ForeignKeyConstraint(
             ["role_id"],
             ["roles.id"],
@@ -195,8 +199,8 @@ def upgrade() -> None:
     # Create user_permissions for individual overrides
     op.create_table(
         "user_permissions",
-        sa.Column("user_id", sa.Integer(), nullable=False),
-        sa.Column("permission_id", sa.Integer(), nullable=False),
+        sa.Column("user_id", sa.String(26), nullable=False),
+        sa.Column("permission_id", sa.String(26), nullable=False),
         sa.Column("granted", sa.Boolean(), nullable=False, server_default="true"),
         sa.ForeignKeyConstraint(
             ["user_id"],
@@ -219,118 +223,124 @@ def upgrade() -> None:
     op.create_index("idx_user_roles_user_id", "user_roles", ["user_id"])
     op.create_index("idx_user_roles_role_id", "user_roles", ["role_id"])
 
-    # Seed initial roles
-    op.execute(
-        f"""
-        INSERT INTO roles (name, description) VALUES
-        ('{ROLE_ADMIN}', 'Full system access'),
-        ('{ROLE_INSTRUCTOR}', 'Can manage own profile and availability'),
-        ('{ROLE_STUDENT}', 'Can search and book instructors')
-    """
-    )
+    # NOTE: Seed data removed from migration
+    # Roles and permissions need to be seeded with ULIDs by the application
+    print("Skipping seed data - will be handled by application seeding script")
 
-    # Seed initial permissions
-    op.execute(
-        """
-        INSERT INTO permissions (name, description, resource, action) VALUES
-        -- Shared permissions (all authenticated users)
-        ('manage_own_profile', 'Manage own profile information', 'profile', 'manage'),
-        ('view_own_bookings', 'View own bookings', 'bookings', 'view'),
-        ('view_own_search_history', 'View own search history', 'search', 'view'),
-        ('change_own_password', 'Change own password', 'account', 'update'),
-        ('delete_own_account', 'Delete own account', 'account', 'delete'),
+    # Original seed code commented out:
+    # op.execute(
+    #     f"""
+    #     INSERT INTO roles (name, description) VALUES
+    #     ('{ROLE_ADMIN}', 'Full system access'),
+    #     ('{ROLE_INSTRUCTOR}', 'Can manage own profile and availability'),
+    #     ('{ROLE_STUDENT}', 'Can search and book instructors')
+    # """
+    # )
 
-        -- Student-specific permissions
-        ('view_instructors', 'View instructor profiles', 'instructors', 'view'),
-        ('view_instructor_availability', 'View instructor availability', 'availability', 'view'),
-        ('create_bookings', 'Create new bookings', 'bookings', 'create'),
-        ('cancel_own_bookings', 'Cancel own bookings', 'bookings', 'cancel'),
-        ('view_booking_details', 'View booking details', 'bookings', 'view'),
-        ('send_messages', 'Send messages in booking chats', 'messages', 'send'),
-        ('view_messages', 'View messages in booking chats', 'messages', 'view'),
+    # Permissions seed data commented out - will be handled by application
 
-        -- Instructor-specific permissions
-        ('manage_instructor_profile', 'Manage instructor profile', 'instructor_profile', 'manage'),
-        ('manage_services', 'Manage offered services', 'services', 'manage'),
-        ('manage_availability', 'Manage availability schedule', 'availability', 'manage'),
-        ('view_incoming_bookings', 'View incoming bookings', 'bookings', 'view'),
-        ('complete_bookings', 'Mark bookings as completed', 'bookings', 'complete'),
-        ('cancel_student_bookings', 'Cancel student bookings', 'bookings', 'cancel'),
-        ('view_own_instructor_analytics', 'View own instructor analytics', 'analytics', 'view'),
-        ('suspend_own_instructor_account', 'Suspend own instructor account', 'account', 'suspend'),
-
-        -- Admin permissions
-        ('view_all_users', 'View all users', 'users', 'view'),
-        ('manage_users', 'Manage all users', 'users', 'manage'),
-        ('view_system_analytics', 'View system-wide analytics', 'analytics', 'view'),
-        ('export_analytics', 'Export analytics data', 'analytics', 'export'),
-        ('view_all_bookings', 'View all bookings', 'bookings', 'view'),
-        ('manage_all_bookings', 'Manage all bookings', 'bookings', 'manage'),
-        ('access_monitoring', 'Access monitoring endpoints', 'monitoring', 'access'),
-        ('moderate_content', 'Moderate user content', 'content', 'moderate'),
-        ('moderate_messages', 'Moderate chat messages', 'messages', 'moderate'),
-        ('view_financials', 'View financial data', 'financials', 'view'),
-        ('manage_financials', 'Manage financial data', 'financials', 'manage'),
-        ('manage_roles', 'Manage user roles', 'roles', 'manage'),
-        ('manage_permissions', 'Manage permissions', 'permissions', 'manage')
-    """
-    )
-
-    # Assign permissions to roles
-    # Admin gets everything
-    op.execute(
-        f"""
-        INSERT INTO role_permissions (role_id, permission_id)
-        SELECT r.id, p.id
-        FROM roles r, permissions p
-        WHERE r.name = '{ROLE_ADMIN}'
-    """
-    )
-
-    # Instructor permissions
-    op.execute(
-        f"""
-        INSERT INTO role_permissions (role_id, permission_id)
-        SELECT r.id, p.id
-        FROM roles r, permissions p
-        WHERE r.name = '{ROLE_INSTRUCTOR}'
-        AND p.name IN (
-            -- Shared permissions
-            'manage_own_profile', 'view_own_bookings', 'view_own_search_history',
-            'change_own_password', 'delete_own_account',
-            -- Instructor-specific permissions
-            'manage_instructor_profile', 'manage_services', 'manage_availability',
-            'view_incoming_bookings', 'complete_bookings', 'cancel_student_bookings',
-            'view_own_instructor_analytics', 'suspend_own_instructor_account',
-            'send_messages', 'view_messages'
-        )
-    """
-    )
-
-    # Student permissions
-    op.execute(
-        f"""
-        INSERT INTO role_permissions (role_id, permission_id)
-        SELECT r.id, p.id
-        FROM roles r, permissions p
-        WHERE r.name = '{ROLE_STUDENT}'
-        AND p.name IN (
-            -- Shared permissions
-            'manage_own_profile', 'view_own_bookings', 'view_own_search_history',
-            'change_own_password', 'delete_own_account',
-            -- Student-specific permissions
-            'view_instructors', 'view_instructor_availability', 'create_bookings',
-            'cancel_own_bookings', 'view_booking_details',
-            'send_messages', 'view_messages'
-        )
-    """
-    )
+    # Original permissions seed:
+    # op.execute(
+    #     """
+    #     INSERT INTO permissions (name, description, resource, action) VALUES
+    #     -- Shared permissions (all authenticated users)
+    #     ('manage_own_profile', 'Manage own profile information', 'profile', 'manage'),
+    #     ('view_own_bookings', 'View own bookings', 'bookings', 'view'),
+    #     ('view_own_search_history', 'View own search history', 'search', 'view'),
+    #     ('change_own_password', 'Change own password', 'account', 'update'),
+    #     ('delete_own_account', 'Delete own account', 'account', 'delete'),
+    #
+    #     -- Student-specific permissions
+    #     ('view_instructors', 'View instructor profiles', 'instructors', 'view'),
+    #     ('view_instructor_availability', 'View instructor availability', 'availability', 'view'),
+    #     ('create_bookings', 'Create new bookings', 'bookings', 'create'),
+    #     ('cancel_own_bookings', 'Cancel own bookings', 'bookings', 'cancel'),
+    #     ('view_booking_details', 'View booking details', 'bookings', 'view'),
+    #     ('send_messages', 'Send messages in booking chats', 'messages', 'send'),
+    #     ('view_messages', 'View messages in booking chats', 'messages', 'view'),
+    #
+    #     -- Instructor-specific permissions
+    #     ('manage_instructor_profile', 'Manage instructor profile', 'instructor_profile', 'manage'),
+    #     ('manage_services', 'Manage offered services', 'services', 'manage'),
+    #     ('manage_availability', 'Manage availability schedule', 'availability', 'manage'),
+    #     ('view_incoming_bookings', 'View incoming bookings', 'bookings', 'view'),
+    #     ('complete_bookings', 'Mark bookings as completed', 'bookings', 'complete'),
+    #     ('cancel_student_bookings', 'Cancel student bookings', 'bookings', 'cancel'),
+    #     ('view_own_instructor_analytics', 'View own instructor analytics', 'analytics', 'view'),
+    #     ('suspend_own_instructor_account', 'Suspend own instructor account', 'account', 'suspend'),
+    #
+    #     -- Admin permissions
+    #     ('view_all_users', 'View all users', 'users', 'view'),
+    #     ('manage_users', 'Manage all users', 'users', 'manage'),
+    #     ('view_system_analytics', 'View system-wide analytics', 'analytics', 'view'),
+    #     ('export_analytics', 'Export analytics data', 'analytics', 'export'),
+    #     ('view_all_bookings', 'View all bookings', 'bookings', 'view'),
+    #     ('manage_all_bookings', 'Manage all bookings', 'bookings', 'manage'),
+    #     ('access_monitoring', 'Access monitoring endpoints', 'monitoring', 'access'),
+    #     ('moderate_content', 'Moderate user content', 'content', 'moderate'),
+    #     ('moderate_messages', 'Moderate chat messages', 'messages', 'moderate'),
+    #     ('view_financials', 'View financial data', 'financials', 'view'),
+    #     ('manage_financials', 'Manage financial data', 'financials', 'manage'),
+    #     ('manage_roles', 'Manage user roles', 'roles', 'manage'),
+    #     ('manage_permissions', 'Manage permissions', 'permissions', 'manage')
+    #     """
+    # )
+    #
+    # # Assign permissions to roles
+    # # Admin gets everything
+    # op.execute(
+    #     f"""
+    #     INSERT INTO role_permissions (role_id, permission_id)
+    #     SELECT r.id, p.id
+    #     FROM roles r, permissions p
+    #     WHERE r.name = '{ROLE_ADMIN}'
+    #     """
+    # )
+    #
+    # # Instructor permissions
+    # op.execute(
+    #     f"""
+    #     INSERT INTO role_permissions (role_id, permission_id)
+    #     SELECT r.id, p.id
+    #     FROM roles r, permissions p
+    #     WHERE r.name = '{ROLE_INSTRUCTOR}'
+    #     AND p.name IN (
+    #         -- Shared permissions
+    #         'manage_own_profile', 'view_own_bookings', 'view_own_search_history',
+    #         'change_own_password', 'delete_own_account',
+    #         -- Instructor-specific permissions
+    #         'manage_instructor_profile', 'manage_services', 'manage_availability',
+    #         'view_incoming_bookings', 'complete_bookings', 'cancel_student_bookings',
+    #         'view_own_instructor_analytics', 'suspend_own_instructor_account',
+    #         'send_messages', 'view_messages'
+    #     )
+    #     """
+    # )
+    #
+    # # Student permissions
+    # op.execute(
+    #     f"""
+    #     INSERT INTO role_permissions (role_id, permission_id)
+    #     SELECT r.id, p.id
+    #     FROM roles r, permissions p
+    #     WHERE r.name = '{ROLE_STUDENT}'
+    #     AND p.name IN (
+    #         -- Shared permissions
+    #         'manage_own_profile', 'view_own_bookings', 'view_own_search_history',
+    #         'change_own_password', 'delete_own_account',
+    #         -- Student-specific permissions
+    #         'view_instructors', 'view_instructor_availability', 'create_bookings',
+    #         'cancel_own_bookings', 'view_booking_details',
+    #         'send_messages', 'view_messages'
+    #     )
+    #     """
+    # )
 
     # Create search_history table for tracking user searches (deduplicated for UX)
     op.create_table(
         "search_history",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("user_id", sa.Integer(), nullable=True),  # Now nullable for guest searches
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("user_id", sa.String(26), nullable=True),  # Now nullable for guest searches
         sa.Column("search_query", sa.Text(), nullable=False),
         sa.Column("normalized_query", sa.String(), nullable=False),  # For deduplication
         sa.Column(
@@ -358,7 +368,7 @@ def upgrade() -> None:
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         # Guest session tracking
         sa.Column("guest_session_id", sa.String(36), nullable=True),  # UUID as string
-        sa.Column("converted_to_user_id", sa.Integer(), nullable=True),
+        sa.Column("converted_to_user_id", sa.String(26), nullable=True),
         sa.Column("converted_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(
             ["user_id"],
@@ -377,8 +387,8 @@ def upgrade() -> None:
     # Create search_events table for analytics (append-only)
     op.create_table(
         "search_events",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("user_id", sa.Integer(), nullable=True),
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("user_id", sa.String(26), nullable=True),
         sa.Column("guest_session_id", sa.String(36), nullable=True),
         sa.Column("search_query", sa.Text(), nullable=False),
         sa.Column(
@@ -544,11 +554,11 @@ def upgrade() -> None:
     # Create search_interactions table
     op.create_table(
         "search_interactions",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("search_event_id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("search_event_id", sa.String(26), nullable=False),
         sa.Column("session_id", sa.String(36), nullable=True),
         sa.Column("interaction_type", sa.String(50), nullable=False),  # 'click', 'hover', 'bookmark'
-        sa.Column("instructor_id", sa.Integer(), nullable=True),
+        sa.Column("instructor_id", sa.String(26), nullable=True),
         sa.Column("result_position", sa.Integer(), nullable=True),
         sa.Column("time_to_interaction", sa.Float(), nullable=True),
         sa.Column("interaction_duration", sa.Float(), nullable=True),
@@ -604,6 +614,10 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Drop all tables and types created in upgrade."""
     print("Dropping initial schema...")
+
+    # Drop ULID function and extension
+    op.execute("DROP FUNCTION IF EXISTS generate_ulid()")
+    op.execute("DROP EXTENSION IF EXISTS pgcrypto")
 
     # Drop search tables if they exist
     # Using execute to handle if table doesn't exist

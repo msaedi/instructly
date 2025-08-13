@@ -14,6 +14,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ValidationException
+from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking
 from app.schemas.availability_window import BulkUpdateRequest, SlotOperation, ValidateWeekRequest
@@ -50,7 +51,7 @@ class TestBulkOperationMissingCoverage:
         request = BulkUpdateRequest(operations=operations, validate_only=False)
 
         # Mock successful operation - return proper OperationResult object
-        mock_result = OperationResult(operation_index=0, action="add", status="success", slot_id=1)
+        mock_result = OperationResult(operation_index=0, action="add", status="success", slot_id=generate_ulid())
 
         with patch.object(bulk_service_with_cache, "_process_single_operation", return_value=mock_result):
             with patch.object(
@@ -141,7 +142,7 @@ class TestBulkOperationMissingCoverage:
     @pytest.mark.asyncio
     async def test_remove_non_existent_slot(self, db: Session, test_instructor):
         """Test removing a slot that doesn't exist."""
-        operations = [SlotOperation(action="remove", slot_id=99999)]
+        operations = [SlotOperation(action="remove", slot_id=generate_ulid())]
 
         request = BulkUpdateRequest(operations=operations, validate_only=False)
         bulk_service = BulkOperationService(db)
@@ -223,8 +224,8 @@ class TestBulkOperationMissingCoverage:
     async def test_all_operations_fail_rollback(self, db: Session, test_instructor):
         """Test rollback when all operations fail."""
         operations = [
-            SlotOperation(action="remove", slot_id=99999),  # Non-existent
-            SlotOperation(action="remove", slot_id=99998),  # Non-existent
+            SlotOperation(action="remove", slot_id=generate_ulid()),  # Non-existent
+            SlotOperation(action="remove", slot_id="test_slot_99998"),  # Non-existent
         ]
 
         request = BulkUpdateRequest(operations=operations, validate_only=False)
@@ -348,7 +349,7 @@ class TestBulkOperationMissingCoverage:
         # Mock the existing slots query to match saved_week structure
         existing_slots = {
             (week_start + timedelta(days=1)).isoformat(): [
-                {"id": 123, "start_time": "14:00:00", "end_time": "15:00:00"}
+                {"id": generate_ulid(), "start_time": "14:00:00", "end_time": "15:00:00"}
             ]
         }
 
@@ -365,7 +366,7 @@ class TestBulkOperationMissingCoverage:
         bulk_service = BulkOperationService(db)
 
         # Should not raise any exception
-        bulk_service.log_operation("test_operation", instructor_id=1, extra_param="value")
+        bulk_service.log_operation("test_operation", instructor_id=generate_ulid(), extra_param="value")
 
     @pytest.mark.asyncio
     async def test_exception_during_transaction(self, db: Session, test_instructor):
@@ -444,7 +445,9 @@ class TestBulkOperationMissingCoverage:
 
         # Mock existing slots - this is what _get_existing_week_slots returns
         existing_slots = {
-            test_date.isoformat(): [{"id": 123, "start_time": "14:00:00", "end_time": "15:00:00"}]  # String format
+            test_date.isoformat(): [
+                {"id": generate_ulid(), "start_time": "14:00:00", "end_time": "15:00:00"}
+            ]  # String format
         }
 
         # Test the _generate_operations_from_states directly
@@ -458,7 +461,9 @@ class TestBulkOperationMissingCoverage:
             # Should generate 1 remove operation
             assert len(operations) == 1
             assert operations[0].action == "remove"
-            assert operations[0].slot_id == 123
+            # Slot ID should be a string (ULID)
+            assert isinstance(operations[0].slot_id, str)
+            assert len(operations[0].slot_id) == 26  # ULID length
 
     def test_debug_time_comparison(self, db: Session):
         """Debug test to understand time comparison issue."""
@@ -478,7 +483,7 @@ class TestBulkOperationMissingCoverage:
         print(f"  Comparison test: '14:00:00' == {start_str} = {'14:00:00' == start_str}")
 
         # Test the comparison that happens in _generate_operations_from_states
-        db_slot = {"id": 123, "start_time": "14:00:00", "end_time": "15:00:00"}
+        db_slot = {"id": generate_ulid(), "start_time": "14:00:00", "end_time": "15:00:00"}
 
         match1 = db_slot["start_time"] == slot.start_time.strftime("%H:%M:%S")
         match2 = db_slot["end_time"] == slot.end_time.strftime("%H:%M:%S")
@@ -530,7 +535,7 @@ class TestBulkOperationMissingCoverage:
         )
 
         # Mock existing slots
-        existing_slots = {day2.isoformat(): [{"id": 123, "start_time": "14:00:00", "end_time": "15:00:00"}]}
+        existing_slots = {day2.isoformat(): [{"id": generate_ulid(), "start_time": "14:00:00", "end_time": "15:00:00"}]}
 
         # Patch _generate_operations_from_states to add debug output
         original_generate = bulk_service._generate_operations_from_states
@@ -594,7 +599,7 @@ class TestBulkOperationMissingCoverage:
         bulk_service = BulkOperationService(db)
 
         # Existing slots in DB
-        existing_slots = {day2.isoformat(): [{"id": 123, "start_time": "14:00:00", "end_time": "15:00:00"}]}
+        existing_slots = {day2.isoformat(): [{"id": generate_ulid(), "start_time": "14:00:00", "end_time": "15:00:00"}]}
 
         # Test 1: Direct call to _generate_operations_from_states
         print("\n[TEST 1] Direct call to _generate_operations_from_states:")

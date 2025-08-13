@@ -181,7 +181,7 @@ async def apply_retention_policies(
 
 @router.get("/export/user/{user_id}", response_model=DataExportResponse)
 async def export_user_data_admin(
-    user_id: int,
+    user_id: str,
     current_user: User = Depends(require_permission(PermissionName.MANAGE_USERS)),
     db: Session = Depends(get_db),
 ) -> DataExportResponse:
@@ -214,7 +214,7 @@ async def export_user_data_admin(
 
 @router.post("/delete/user/{user_id}", response_model=UserDataDeletionResponse)
 async def delete_user_data_admin(
-    user_id: int,
+    user_id: str,
     request: UserDataDeletionRequest,
     current_user: User = Depends(require_permission(PermissionName.MANAGE_USERS)),
     db: Session = Depends(get_db),

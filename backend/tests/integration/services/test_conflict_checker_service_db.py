@@ -12,6 +12,7 @@ from datetime import date, time, timedelta
 
 from sqlalchemy.orm import Session
 
+from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot, BlackoutDate
 from app.models.booking import Booking
 from app.models.user import User
@@ -263,7 +264,10 @@ class TestConflictCheckerErrorConditions:
 
         # Test with nonexistent instructor
         conflicts = service.check_booking_conflicts(
-            instructor_id=99999, check_date=date.today(), start_time=time(9, 0), end_time=time(10, 0)  # Nonexistent
+            instructor_id=generate_ulid(),
+            check_date=date.today(),
+            start_time=time(9, 0),
+            end_time=time(10, 0),  # Nonexistent
         )
 
         # Should return empty list, not crash
@@ -271,7 +275,7 @@ class TestConflictCheckerErrorConditions:
 
         # Test minimum advance booking with nonexistent instructor
         advance_result = service.check_minimum_advance_booking(
-            instructor_id=99999, booking_date=date.today() + timedelta(days=1), booking_time=time(9, 0)
+            instructor_id=generate_ulid(), booking_date=date.today() + timedelta(days=1), booking_time=time(9, 0)
         )
 
         assert advance_result["valid"] == False

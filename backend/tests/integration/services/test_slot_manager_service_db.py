@@ -17,6 +17,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictException, NotFoundException, ValidationException
+from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.service_catalog import InstructorService as Service
@@ -530,17 +531,17 @@ class TestSlotManagerErrorConditions:
 
         # Test update non-existent slot
         with pytest.raises(NotFoundException) as exc_info:
-            service.update_slot(99999, end_time=time(12, 0))
+            service.update_slot(generate_ulid(), end_time=time(12, 0))
         assert "Slot not found" in str(exc_info.value)
 
         # Test delete non-existent slot
         with pytest.raises(NotFoundException) as exc_info:
-            service.delete_slot(99999)
+            service.delete_slot(generate_ulid())
         assert "Slot not found" in str(exc_info.value)
 
         # Test split non-existent slot
         with pytest.raises(NotFoundException) as exc_info:
-            service.split_slot(99999, time(10, 30))
+            service.split_slot(generate_ulid(), time(10, 30))
         assert "Slot not found" in str(exc_info.value)
 
     def test_invalid_time_range_operations(self, db: Session, test_instructor: User):

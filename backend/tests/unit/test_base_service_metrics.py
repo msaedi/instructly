@@ -11,6 +11,7 @@ from unittest.mock import Mock
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.ulid_helper import generate_ulid
 from app.services.base import BaseService
 
 
@@ -225,7 +226,11 @@ class TestMetricsIntegration:
         """Test that metrics work with async methods."""
         # Run the method (it's already decorated)
         result = await booking_service_mock.check_availability(
-            instructor_id=1, booking_date="2025-07-15", start_time="09:00", end_time="10:00", service_id=1
+            instructor_id=generate_ulid(),
+            booking_date="2025-07-15",
+            start_time="09:00",
+            end_time="10:00",
+            service_id=generate_ulid(),
         )
 
         # Check result

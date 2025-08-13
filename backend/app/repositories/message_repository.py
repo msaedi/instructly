@@ -35,7 +35,7 @@ class MessageRepository(BaseRepository[Message]):
         super().__init__(db, Message)
         self.logger = logging.getLogger(__name__)
 
-    def create_message(self, booking_id: int, sender_id: int, content: str) -> Message:
+    def create_message(self, booking_id: str, sender_id: str, content: str) -> Message:
         """
         Create a new message for a booking.
 
@@ -68,7 +68,7 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error creating message: {str(e)}")
             raise RepositoryException(f"Failed to create message: {str(e)}")
 
-    def get_messages_for_booking(self, booking_id: int, limit: int = 50, offset: int = 0) -> List[Message]:
+    def get_messages_for_booking(self, booking_id: str, limit: int = 50, offset: int = 0) -> List[Message]:
         """
         Get messages for a booking with pagination.
 
@@ -94,7 +94,7 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error fetching messages for booking {booking_id}: {str(e)}")
             raise RepositoryException(f"Failed to fetch messages: {str(e)}")
 
-    def get_unread_messages(self, booking_id: int, user_id: int) -> List[Message]:
+    def get_unread_messages(self, booking_id: str, user_id: str) -> List[Message]:
         """
         Get unread messages for a user in a booking.
 
@@ -125,7 +125,7 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error fetching unread messages: {str(e)}")
             raise RepositoryException(f"Failed to fetch unread messages: {str(e)}")
 
-    def mark_messages_as_read(self, message_ids: List[int], user_id: int) -> int:
+    def mark_messages_as_read(self, message_ids: List[str], user_id: str) -> int:
         """
         Mark messages as read for a user.
 
@@ -159,7 +159,7 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error marking messages as read: {str(e)}")
             raise RepositoryException(f"Failed to mark messages as read: {str(e)}")
 
-    def get_unread_count_for_user(self, user_id: int) -> int:
+    def get_unread_count_for_user(self, user_id: str) -> int:
         """
         Get total unread message count for a user.
 
@@ -230,7 +230,7 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error fetching reaction counts: {str(e)}")
             raise RepositoryException(f"Failed to fetch reaction counts: {str(e)}")
 
-    def get_user_reactions_for_message_ids(self, message_ids: List[int], user_id: int) -> List[tuple]:
+    def get_user_reactions_for_message_ids(self, message_ids: List[str], user_id: str) -> List[tuple]:
         """
         Return tuples of (message_id, emoji) for reactions by the user on given messages.
         """
@@ -252,7 +252,7 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error fetching user reactions: {str(e)}")
             raise RepositoryException(f"Failed to fetch user reactions: {str(e)}")
 
-    def has_user_reaction(self, message_id: int, user_id: int, emoji: str) -> bool:
+    def has_user_reaction(self, message_id: str, user_id: str, emoji: str) -> bool:
         """Check if a user has already reacted with emoji to a message."""
         try:
             from ..models.message import MessageReaction
@@ -273,7 +273,7 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error checking reaction existence: {str(e)}")
             raise RepositoryException(f"Failed to check reaction existence: {str(e)}")
 
-    def apply_message_edit(self, message_id: int, new_content: str) -> bool:
+    def apply_message_edit(self, message_id: str, new_content: str) -> bool:
         """
         Create a MessageEdit history row and update the Message content and edited_at.
         """
@@ -295,7 +295,7 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error applying message edit: {str(e)}")
             raise RepositoryException(f"Failed to apply message edit: {str(e)}")
 
-    def notify_booking_channel(self, booking_id: int, payload: dict) -> None:
+    def notify_booking_channel(self, booking_id: str, payload: dict) -> None:
         """Send a JSON payload to the booking chat LISTEN/NOTIFY channel.
 
         This is allowed at repository level for DB adjacency per repo pattern rules.
@@ -318,7 +318,7 @@ class MessageRepository(BaseRepository[Message]):
             # Non-fatal
             logger.warning(f"notify_booking_channel failed: {e}")
 
-    def get_booking_participants(self, booking_id: int) -> Optional[Tuple[int, int]]:
+    def get_booking_participants(self, booking_id: str) -> Optional[Tuple[str, str]]:
         """
         Get the student and instructor IDs for a booking.
 
@@ -339,7 +339,7 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error fetching booking participants: {str(e)}")
             raise RepositoryException(f"Failed to fetch booking participants: {str(e)}")
 
-    def _get_recipient_id(self, booking_id: int, sender_id: int) -> Optional[int]:
+    def _get_recipient_id(self, booking_id: str, sender_id: str) -> Optional[str]:
         """
         Get the recipient ID for a message notification.
 
@@ -358,7 +358,7 @@ class MessageRepository(BaseRepository[Message]):
         # Return the other participant
         return instructor_id if sender_id == student_id else student_id
 
-    def get_latest_message_for_booking(self, booking_id: int) -> Optional[Message]:
+    def get_latest_message_for_booking(self, booking_id: str) -> Optional[Message]:
         """
         Get the most recent message for a booking.
 
@@ -379,7 +379,7 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error fetching latest message: {str(e)}")
             raise RepositoryException(f"Failed to fetch latest message: {str(e)}")
 
-    def delete_message(self, message_id: int) -> bool:
+    def delete_message(self, message_id: str) -> bool:
         """
         Soft delete a message.
 
@@ -403,7 +403,7 @@ class MessageRepository(BaseRepository[Message]):
             raise RepositoryException(f"Failed to delete message: {str(e)}")
 
     # Phase 2: reactions
-    def add_reaction(self, message_id: int, user_id: int, emoji: str) -> bool:
+    def add_reaction(self, message_id: str, user_id: str, emoji: str) -> bool:
         try:
             from ..models.message import MessageReaction
 
@@ -430,7 +430,7 @@ class MessageRepository(BaseRepository[Message]):
             self.logger.error(f"Error adding reaction: {str(e)}")
             raise RepositoryException(f"Failed to add reaction: {str(e)}")
 
-    def remove_reaction(self, message_id: int, user_id: int, emoji: str) -> bool:
+    def remove_reaction(self, message_id: str, user_id: str, emoji: str) -> bool:
         try:
             from ..models.message import MessageReaction
 

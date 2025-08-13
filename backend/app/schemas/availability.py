@@ -31,7 +31,7 @@ class AvailabilitySlotBase(BaseModel):
 class AvailabilitySlotCreate(AvailabilitySlotBase):
     """Schema for creating a new availability slot."""
 
-    instructor_id: int
+    instructor_id: str
     specific_date: date
 
 
@@ -53,8 +53,8 @@ class AvailabilitySlotUpdate(BaseModel):
 class AvailabilitySlot(AvailabilitySlotBase):
     """Schema for returning availability slot data."""
 
-    id: int
-    instructor_id: int
+    id: str
+    instructor_id: str
     specific_date: date
     model_config = ConfigDict(from_attributes=True)
 

@@ -64,7 +64,7 @@ class PublicInstructorAvailability(BaseModel):
     - "full": Complete availability_by_date with all time slots
     """
 
-    instructor_id: int
+    instructor_id: str
     instructor_first_name: Optional[str] = Field(None, description="Instructor's first name if privacy settings allow")
     instructor_last_initial: Optional[str] = Field(None, description="Instructor's last name initial for privacy")
 
@@ -136,7 +136,7 @@ class PublicAvailabilityQuery(BaseModel):
 class PublicAvailabilityMinimal(BaseModel):
     """Minimal availability info - just yes/no."""
 
-    instructor_id: int
+    instructor_id: str
     instructor_first_name: Optional[str] = Field(None, description="Instructor's first name if privacy settings allow")
     instructor_last_initial: Optional[str] = Field(None, description="Instructor's last name initial for privacy")
     has_availability: bool
@@ -147,7 +147,7 @@ class PublicAvailabilityMinimal(BaseModel):
 class PublicAvailabilitySummary(BaseModel):
     """Summary availability - time ranges without specific slots."""
 
-    instructor_id: int
+    instructor_id: str
     instructor_first_name: Optional[str] = Field(None, description="Instructor's first name if privacy settings allow")
     instructor_last_initial: Optional[str] = Field(None, description="Instructor's last name initial for privacy")
     availability_summary: Dict[str, Dict[str, Union[str, bool, float]]]

@@ -26,8 +26,8 @@ class BookingCreate(BaseModel):
     the lesson will occur.
     """
 
-    instructor_id: int = Field(..., description="Instructor to book")
-    instructor_service_id: int = Field(..., description="Instructor service being booked")
+    instructor_id: str = Field(..., description="Instructor to book")
+    instructor_service_id: str = Field(..., description="Instructor service being booked")
     booking_date: date = Field(..., description="Date of the booking")
     start_time: time = Field(..., description="Start time")
     selected_duration: int = Field(..., description="Selected duration in minutes from service's duration_options")
@@ -143,10 +143,10 @@ class BookingCancel(BaseModel):
 class BookingBase(StandardizedModel):
     """Base booking information - self-contained record."""
 
-    id: int
-    student_id: int
-    instructor_id: int
-    instructor_service_id: int
+    id: str
+    student_id: str
+    instructor_id: str
+    instructor_service_id: str
 
     # Self-contained booking details
     booking_date: date
@@ -174,7 +174,7 @@ class BookingBase(StandardizedModel):
     cancelled_at: Optional[datetime]
 
     # Cancellation info
-    cancelled_by_id: Optional[int]
+    cancelled_by_id: Optional[str]
     cancellation_reason: Optional[str]
 
     model_config = ConfigDict(from_attributes=True)
@@ -183,7 +183,7 @@ class BookingBase(StandardizedModel):
 class StudentInfo(StandardizedModel):
     """Basic student information for booking display."""
 
-    id: int
+    id: str
     first_name: str
     last_name: str
     email: str
@@ -199,7 +199,7 @@ class InstructorInfo(StandardizedModel):
     Full last name never exposed to students.
     """
 
-    id: int
+    id: str
     first_name: str
     last_initial: str  # Only last initial (e.g., "S") - NO PERIOD
     # Note: email excluded for student privacy
@@ -218,7 +218,7 @@ class InstructorInfo(StandardizedModel):
 class ServiceInfo(StandardizedModel):
     """Basic service information for booking display."""
 
-    id: int
+    id: str
     name: str  # From catalog
     description: Optional[str]
 
@@ -327,8 +327,8 @@ class AvailabilityCheckRequest(BaseModel):
     No slot references needed.
     """
 
-    instructor_id: int = Field(..., description="Instructor to check")
-    instructor_service_id: int = Field(..., description="Service to book")
+    instructor_id: str = Field(..., description="Instructor to check")
+    instructor_service_id: str = Field(..., description="Service to book")
     booking_date: date = Field(..., description="Date to check")
     start_time: time = Field(..., description="Start time to check")
     end_time: time = Field(..., description="End time to check")
@@ -392,7 +392,7 @@ class UpcomingBookingResponse(StandardizedModel):
     full last name for instructors viewing their own bookings.
     """
 
-    id: int
+    id: str
     booking_date: date
     start_time: time
     end_time: time
@@ -428,8 +428,8 @@ class FindBookingOpportunitiesRequest(BaseModel):
     instructor availability and existing bookings.
     """
 
-    instructor_id: int = Field(..., description="Instructor to search")
-    instructor_service_id: int = Field(..., description="Service to book")
+    instructor_id: str = Field(..., description="Instructor to search")
+    instructor_service_id: str = Field(..., description="Service to book")
     date_range_start: date = Field(..., description="Start of search range")
     date_range_end: date = Field(..., description="End of search range")
     preferred_times: Optional[List[time]] = Field(None, description="Preferred start times")

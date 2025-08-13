@@ -125,15 +125,16 @@ class TestSearchInteractionEndpoint:
     def test_track_interaction_invalid_search_event(self, client: TestClient, test_instructor, auth_headers_student):
         """Test error handling for invalid search event ID."""
 
-        # Invalid search event ID
+        # Invalid search event ID (non-existent ULID)
+        invalid_ulid = "01K2H9999999999999999999999"
         response = client.post(
             "/api/search-history/interaction",
-            json={"search_event_id": 99999, "interaction_type": "click", "instructor_id": test_instructor.id},
+            json={"search_event_id": invalid_ulid, "interaction_type": "click", "instructor_id": test_instructor.id},
             headers=auth_headers_student,
         )
 
         assert response.status_code == 400
-        assert "Search event 99999 not found" in response.json()["detail"]
+        assert f"Search event {invalid_ulid} not found" in response.json()["detail"]
 
     def test_track_multiple_interaction_types(
         self, client: TestClient, test_search_event, test_instructor, auth_headers_student, db

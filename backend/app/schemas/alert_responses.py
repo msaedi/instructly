@@ -15,7 +15,7 @@ class AlertDetail(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: int = Field(description="Alert ID")
+    id: str = Field(description="Alert ID")
     type: str = Field(description="Type of alert")
     severity: str = Field(description="Alert severity level")
     title: str = Field(description="Alert title")

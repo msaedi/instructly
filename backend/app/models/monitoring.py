@@ -5,6 +5,7 @@ Monitoring and alert history models.
 from datetime import datetime
 from typing import Optional
 
+import ulid
 from sqlalchemy import JSON, DateTime, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -16,7 +17,7 @@ class AlertHistory(Base):
 
     __tablename__ = "alert_history"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
     alert_type: Mapped[str] = mapped_column(String(50), nullable=False)
     severity: Mapped[str] = mapped_column(String(20), nullable=False)  # critical, warning, info
     title: Mapped[str] = mapped_column(String(200), nullable=False)

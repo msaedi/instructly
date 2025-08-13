@@ -16,7 +16,7 @@ class SendRemindersResponse(BaseModel):
 class BookingPreviewResponse(BaseModel):
     """Response for booking preview with privacy protection."""
 
-    booking_id: int
+    booking_id: str
     student_first_name: str
     student_last_name: str
     instructor_first_name: str

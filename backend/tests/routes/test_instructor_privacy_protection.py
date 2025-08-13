@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.ulid_helper import generate_ulid
 from app.schemas.booking import BookingResponse, InstructorInfo
 from app.schemas.instructor import InstructorProfileResponse, UserBasicPrivacy
 from tests.fixtures.unique_test_data import unique_data
@@ -23,7 +24,7 @@ class TestSchemaPrivacyProtection:
         """Test InstructorInfo.from_user() only exposes last initial."""
         # Create mock user
         user = MagicMock()
-        user.id = 1
+        user.id = generate_ulid()
         user.first_name = "Michael"
         user.last_name = "Rodriguez"
 
@@ -39,7 +40,7 @@ class TestSchemaPrivacyProtection:
         """Test UserBasicPrivacy.from_user() only exposes last initial."""
         # Create mock user
         user = MagicMock()
-        user.id = 1
+        user.id = generate_ulid()
         user.first_name = "Sarah"
         user.last_name = "Thompson"
         user.email = "sarah.t@example.com"
@@ -58,9 +59,10 @@ class TestSchemaPrivacyProtection:
         """Test BookingResponse.from_orm() protects instructor privacy."""
         # Create mock booking with instructor
         booking = MagicMock()
-        booking.id = 1
-        booking.student_id = 100
-        booking.instructor_id = 200
+        booking.id = generate_ulid()
+        booking.student_id = generate_ulid()
+        instructor_id = generate_ulid()
+        booking.instructor_id = instructor_id
         booking.service_name = "Yoga"
         booking.booking_date = datetime.now().date()
         booking.start_time = datetime.now().time()
@@ -76,21 +78,21 @@ class TestSchemaPrivacyProtection:
         booking.cancelled_at = None
         booking.cancelled_by_id = None
         booking.cancellation_reason = None
-        booking.instructor_service_id = 1
+        booking.instructor_service_id = generate_ulid()
         booking.service_area = "Manhattan"
         booking.student_note = None
         booking.instructor_note = None
 
         # Mock instructor user
         instructor = MagicMock()
-        instructor.id = 200
+        instructor.id = instructor_id
         instructor.first_name = "Michael"
         instructor.last_name = "Rodriguez"
         booking.instructor = instructor
 
         # Mock student user
         student = MagicMock()
-        student.id = 100
+        student.id = generate_ulid()
         student.first_name = "John"
         student.last_name = "Smith"
         student.email = "john.smith@example.com"
@@ -98,7 +100,7 @@ class TestSchemaPrivacyProtection:
 
         # Mock instructor service
         service = MagicMock()
-        service.id = 1
+        service.id = generate_ulid()
         service.description = "Yoga classes for all levels"
         booking.instructor_service = service
 
@@ -118,8 +120,9 @@ class TestSchemaPrivacyProtection:
         """Test InstructorProfileResponse.from_orm() protects privacy."""
         # Create mock instructor profile
         profile = MagicMock()
-        profile.id = 1
-        profile.user_id = 200
+        profile.id = generate_ulid()
+        instructor_id = generate_ulid()
+        profile.user_id = instructor_id
         profile.bio = "Experienced yoga instructor"
         profile.areas_of_service = ["Manhattan", "Brooklyn"]
         profile.years_experience = 5
@@ -131,7 +134,7 @@ class TestSchemaPrivacyProtection:
 
         # Mock user
         user = MagicMock()
-        user.id = 200
+        user.id = generate_ulid()
         user.first_name = "Sarah"
         user.last_name = "Thompson"
         user.email = "sarah.t@example.com"

@@ -16,6 +16,7 @@ from datetime import date, datetime, timezone
 from enum import Enum
 from typing import Optional
 
+import ulid
 from sqlalchemy import CheckConstraint, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, Time
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -55,12 +56,12 @@ class Booking(Base):
     __tablename__ = "bookings"
 
     # Primary key
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String(26), primary_key=True, index=True, default=lambda: str(ulid.ULID()))
 
     # Core relationships
-    student_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    instructor_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    instructor_service_id = Column(Integer, ForeignKey("instructor_services.id"), nullable=False)
+    student_id = Column(String(26), ForeignKey("users.id"), nullable=False)
+    instructor_id = Column(String(26), ForeignKey("users.id"), nullable=False)
+    instructor_service_id = Column(String(26), ForeignKey("instructor_services.id"), nullable=False)
 
     # Self-contained booking data
     booking_date = Column(Date, nullable=False, index=True)
@@ -89,7 +90,7 @@ class Booking(Base):
     cancelled_at = Column(DateTime(timezone=True), nullable=True)
 
     # Cancellation tracking
-    cancelled_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    cancelled_by_id = Column(String(26), ForeignKey("users.id"), nullable=True)
     cancellation_reason = Column(Text, nullable=True)
 
     # Relationships

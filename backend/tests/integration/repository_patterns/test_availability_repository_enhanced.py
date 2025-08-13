@@ -12,6 +12,7 @@ from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import RepositoryException
+from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
@@ -343,7 +344,7 @@ class TestAvailabilityRepositoryEdgeCases:
         assert delete_count == 0
 
         # Test 2: Delete non-existent blackout
-        deleted = repository.delete_blackout_date(999999, instructor_id)
+        deleted = repository.delete_blackout_date(generate_ulid(), instructor_id)
         assert deleted == False
 
     def test_query_performance_with_large_dataset(self, db: Session, test_instructor: User):

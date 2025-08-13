@@ -75,7 +75,7 @@ def get_cache_service_dep(db: Session = Depends(get_db)) -> Optional[CacheServic
     description="Public endpoint to view instructor's available time slots for booking. No authentication required. Response detail level depends on configuration.",
 )
 async def get_instructor_public_availability(
-    instructor_id: int,
+    instructor_id: str,
     request: Request,
     response_obj: Response,
     start_date: date = Query(..., description="Start date for availability search"),
@@ -367,7 +367,7 @@ async def get_instructor_public_availability(
     description="Quick endpoint to find the next available booking slot",
 )
 async def get_next_available_slot(
-    instructor_id: int,
+    instructor_id: str,
     response_obj: Response,
     duration_minutes: int = Query(60, description="Required duration in minutes"),
     availability_service: AvailabilityService = Depends(get_availability_service),

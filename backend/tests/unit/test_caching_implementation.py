@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
+from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus
 from app.repositories.booking_repository import BookingRepository
 from app.repositories.cached_repository_mixin import CachedRepositoryMixin
@@ -42,7 +43,8 @@ class TestRepositoryCaching:
         repo = BookingRepository(db, cache_service=mock_cache)
 
         # Call a cached method
-        result = repo.get_student_bookings(student_id=123)
+        student_id = generate_ulid()
+        result = repo.get_student_bookings(student_id=student_id)
 
         # Verify cache was checked
         mock_cache.get.assert_called_once()
@@ -63,7 +65,8 @@ class TestRepositoryCaching:
             mock_query.return_value.options.return_value.filter.return_value.all.return_value = []
 
             # Call a cached method
-            result = repo.get_student_bookings(student_id=123)
+            student_id = generate_ulid()
+            result = repo.get_student_bookings(student_id=student_id)
 
             # Verify cache was checked
             mock_cache.get.assert_called_once()
@@ -82,16 +85,16 @@ class TestRepositoryCaching:
 
         # Mock booking
         booking = Mock(spec=Booking)
-        booking.id = 1
-        booking.student_id = 123
-        booking.instructor_id = 456
+        booking.id = generate_ulid()
+        booking.student_id = generate_ulid()
+        booking.instructor_id = generate_ulid()
         booking.status = BookingStatus.CONFIRMED
         booking.completed_at = None
 
         # Mock get_by_id to return our booking
         with patch.object(repo, "get_by_id", return_value=booking):
             # Complete the booking
-            repo.complete_booking(booking_id=1)
+            repo.complete_booking(booking_id=generate_ulid())
 
             # Verify cache invalidation was called for all related entities
             assert mock_cache.delete_pattern.call_count >= 3  # booking, student, instructor
@@ -226,7 +229,8 @@ class TestServiceCaching:
                 mock_query.return_value.options.return_value.filter.return_value.all.return_value = []
 
                 # Call a cached method
-                result = repo.get_student_bookings(student_id=123)
+                student_id = generate_ulid()
+                result = repo.get_student_bookings(student_id=student_id)
 
                 # Verify cache was NOT used
                 mock_cache.get.assert_not_called()
@@ -259,12 +263,13 @@ class TestCachePerformance:
 
         # First call - should hit database
         with patch.object(repo.db.query(Booking), "all", return_value=[]):
-            repo.get_student_bookings(student_id=123)
+            student_id = generate_ulid()
+            repo.get_student_bookings(student_id=student_id)
             first_query_count = query_count
 
         # Second call - should hit cache if enabled
         if repo._cache_service:
-            repo.get_student_bookings(student_id=123)
+            repo.get_student_bookings(student_id=student_id)
             second_query_count = query_count
 
             # With caching, second call should not increase query count

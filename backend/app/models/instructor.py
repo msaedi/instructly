@@ -11,6 +11,7 @@ booking preferences.
 import logging
 from typing import TYPE_CHECKING, List, Optional, Set
 
+import ulid
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -55,11 +56,11 @@ class InstructorProfile(Base):
     __tablename__ = "instructor_profiles"
 
     # Primary key
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String(26), primary_key=True, index=True, default=lambda: str(ulid.ULID()))
 
     # Foreign key to user (one-to-one relationship)
     user_id = Column(
-        Integer,
+        String(26),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,

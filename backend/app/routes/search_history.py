@@ -201,7 +201,7 @@ async def record_search(
 
 @router.delete("/{search_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_search(
-    search_id: int,
+    search_id: str,
     current_user: Optional[User] = Depends(get_current_user_optional),
     x_guest_session_id: Optional[str] = Header(None),
     db: Session = Depends(get_db),

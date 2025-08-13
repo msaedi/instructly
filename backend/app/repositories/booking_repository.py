@@ -52,11 +52,11 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
     def get_bookings_by_time_range(
         self,
-        instructor_id: int,
+        instructor_id: str,
         booking_date: date,
         start_time: time,
         end_time: time,
-        exclude_booking_id: Optional[int] = None,
+        exclude_booking_id: Optional[str] = None,
     ) -> List[Booking]:
         """
         Get bookings within a time range for conflict checking.
@@ -94,11 +94,11 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
     def check_time_conflict(
         self,
-        instructor_id: int,
+        instructor_id: str,
         booking_date: date,
         start_time: time,
         end_time: time,
-        exclude_booking_id: Optional[int] = None,
+        exclude_booking_id: Optional[str] = None,
     ) -> bool:
         """
         Check if a time range has any booking conflicts.
@@ -136,11 +136,11 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
     def check_student_time_conflict(
         self,
-        student_id: int,
+        student_id: str,
         booking_date: date,
         start_time: time,
         end_time: time,
-        exclude_booking_id: Optional[int] = None,
+        exclude_booking_id: Optional[str] = None,
     ) -> List[Booking]:
         """
         Check if a student has any conflicting bookings at the given time.
@@ -176,7 +176,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
     def get_instructor_bookings_for_date(
         self,
-        instructor_id: int,
+        instructor_id: str,
         target_date: date,
         status_filter: Optional[List[BookingStatus]] = None,
     ) -> List[Booking]:
@@ -208,7 +208,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
     def get_bookings_for_week(
         self,
-        instructor_id: int,
+        instructor_id: str,
         week_dates: List[date],
         status_filter: Optional[List[BookingStatus]] = None,
     ) -> List[Booking]:
@@ -243,7 +243,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
     def find_booking_opportunities(
         self,
         available_slots: List[Dict[str, any]],
-        instructor_id: int,
+        instructor_id: str,
         target_date: date,
         duration_minutes: int,
     ) -> List[Dict[str, any]]:
@@ -324,7 +324,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
     @cached_method(tier="hot")
     def get_student_bookings(
         self,
-        student_id: int,
+        student_id: str,
         status: Optional[BookingStatus] = None,
         upcoming_only: bool = False,
         exclude_future_confirmed: bool = False,
@@ -407,7 +407,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
     def get_instructor_bookings(
         self,
-        instructor_id: int,
+        instructor_id: str,
         status: Optional[BookingStatus] = None,
         upcoming_only: bool = False,
         exclude_future_confirmed: bool = False,
@@ -489,7 +489,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
     def get_instructor_future_bookings(
         self,
-        instructor_id: int,
+        instructor_id: str,
         from_date: Optional[date] = None,
         exclude_cancelled: bool = True,
     ) -> List[Booking]:
@@ -525,7 +525,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
     def get_bookings_for_service_catalog(
         self,
-        service_catalog_id: int,
+        service_catalog_id: str,
         from_date: date,
         to_date: Optional[date] = None,
     ) -> List[Booking]:
@@ -563,7 +563,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
     # Detailed Booking Queries (unchanged)
 
-    def get_booking_with_details(self, booking_id: int) -> Optional[Booking]:
+    def get_booking_with_details(self, booking_id: str) -> Optional[Booking]:
         """
         Get a booking with all relationships loaded.
 
@@ -646,7 +646,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
     # Counting Queries (unchanged)
 
-    def count_bookings_by_status(self, user_id: int, user_role: str) -> Dict[str, int]:
+    def count_bookings_by_status(self, user_id: str, user_role: str) -> Dict[str, int]:
         """
         Count bookings grouped by status for a user.
 
@@ -693,7 +693,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
     # Status Management Methods
 
-    def complete_booking(self, booking_id: int) -> Booking:
+    def complete_booking(self, booking_id: str) -> Booking:
         """
         Mark booking as completed with timestamp.
 
@@ -731,7 +731,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.logger.error(f"Error completing booking {booking_id}: {str(e)}")
             raise RepositoryException(f"Failed to complete booking: {str(e)}")
 
-    def cancel_booking(self, booking_id: int, cancelled_by_id: int, reason: Optional[str] = None) -> Booking:
+    def cancel_booking(self, booking_id: str, cancelled_by_id: str, reason: Optional[str] = None) -> Booking:
         """
         Cancel booking with audit trail.
 
@@ -773,7 +773,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.logger.error(f"Error cancelling booking {booking_id}: {str(e)}")
             raise RepositoryException(f"Failed to cancel booking: {str(e)}")
 
-    def mark_no_show(self, booking_id: int) -> Booking:
+    def mark_no_show(self, booking_id: str) -> Booking:
         """
         Mark booking as no-show.
 

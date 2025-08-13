@@ -21,6 +21,7 @@ from unittest.mock import Mock
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.ulid_helper import generate_ulid
 from app.repositories.availability_repository import AvailabilityRepository
 from app.repositories.week_operation_repository import WeekOperationRepository
 from app.services.availability_service import AvailabilityService
@@ -59,7 +60,7 @@ class TestWeekOperationQueryPatterns:
 
         With single-table design, this is a simple query directly on availability_slots.
         """
-        instructor_id = 1
+        instructor_id = generate_ulid()
         week_start = date(2025, 6, 23)  # Monday
         week_end = week_start + timedelta(days=6)
 
@@ -121,7 +122,7 @@ class TestWeekOperationQueryPatterns:
 
         UPDATED: Work Stream #9 - Returns time ranges, not slot IDs
         """
-        instructor_id = 1
+        instructor_id = generate_ulid()
         week_dates = [date(2025, 6, 23) + timedelta(days=i) for i in range(7)]
 
         result = repository.get_week_bookings_with_slots(instructor_id, week_dates)
@@ -145,7 +146,7 @@ class TestWeekOperationQueryPatterns:
 
         UPDATED: Work Stream #9 - Returns bookings by date, not slot IDs
         """
-        instructor_id = 1
+        instructor_id = generate_ulid()
         start_date = date(2025, 6, 1)
         end_date = date(2025, 6, 30)
 
@@ -169,7 +170,7 @@ class TestWeekOperationQueryPatterns:
 
         UPDATED: Checks time overlaps, not slot IDs
         """
-        instructor_id = 1
+        instructor_id = generate_ulid()
         target_date = date(2025, 6, 23)
 
         result = repository.get_slots_with_booking_status(instructor_id, target_date)

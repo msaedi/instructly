@@ -22,6 +22,7 @@ import pytz
 from sqlalchemy.orm import Session
 
 from app.core.timezone_utils import get_user_timezone, get_user_today_by_id
+from app.core.ulid_helper import generate_ulid
 from app.models.user import User
 from app.services.availability_service import AvailabilityService
 from app.services.booking_service import BookingService
@@ -34,41 +35,65 @@ class TestCrossTimezoneBookings:
         """Test when student and instructor are on different dates."""
         # Create instructor in Japan (UTC+9) - it's already tomorrow
         instructor = Mock(spec=User)
-        instructor.id = 1
+        instructor.id = generate_ulid()
         instructor.timezone = "Asia/Tokyo"
 
         # Create student in Hawaii (UTC-10) - it's still yesterday
         student = Mock(spec=User)
-        student.id = 2
+        student.id = generate_ulid()
         student.timezone = "Pacific/Honolulu"
 
-        # Mock the database queries
-        mock_query = Mock()
-        mock_filter = Mock()
-        mock_filter.first.side_effect = [instructor, student]
-        mock_query.filter.return_value = mock_filter
+        # Mock the database queries to return the appropriate user
+        from app.repositories.factory import RepositoryFactory
 
-        # Replace db.query with our mock
-        with patch.object(db, "query", return_value=mock_query):
-            # Get "today" for each user
-            instructor_today = get_user_today_by_id(instructor.id, db)
-            student_today = get_user_today_by_id(student.id, db)
+        with patch.object(RepositoryFactory, "create_user_repository") as mock_factory:
+            mock_repo = Mock()
+            mock_factory.return_value = mock_repo
 
-            # They should be on different dates (19 hour difference)
-            assert instructor_today != student_today
+            # When called with instructor ID, return instructor
+            # When called with student ID, return student
+            def get_user_by_id(user_id):
+                if user_id == instructor.id:
+                    return instructor
+                elif user_id == student.id:
+                    return student
+                return None
 
-            # Instructor's "today" should be ahead
-            assert instructor_today > student_today
+            mock_repo.get_by_id.side_effect = get_user_by_id
+
+            # Mock datetime to a time where Tokyo is tomorrow and Hawaii is yesterday
+            # Use 11 PM UTC - Tokyo is 8 AM next day, Hawaii is 1 PM previous day
+            with patch("app.core.timezone_utils.datetime") as mock_dt:
+                # Set to Jan 15, 2024 11 PM UTC
+                utc_time = pytz.UTC.localize(datetime(2024, 1, 15, 23, 0, 0))
+
+                # Mock datetime.now to return the appropriate time for each timezone
+                def mock_now(tz=None):
+                    if tz is None:
+                        return utc_time
+                    return utc_time.astimezone(tz)
+
+                mock_dt.now.side_effect = mock_now
+                mock_dt.combine = datetime.combine  # Keep the real combine method
+
+                instructor_today = get_user_today_by_id(instructor.id, db)
+                student_today = get_user_today_by_id(student.id, db)
+
+                # They should be on different dates (19 hour difference)
+                assert instructor_today != student_today
+
+                # Instructor's "today" should be ahead
+                assert instructor_today > student_today
 
     def test_same_day_different_times(self, db: Session):
         """Test when both users are on same calendar day but different times."""
         # Create users in adjacent timezones
         instructor = Mock(spec=User)
-        instructor.id = 1
+        instructor.id = generate_ulid()
         instructor.timezone = "America/New_York"  # Eastern Time
 
         student = Mock(spec=User)
-        student.id = 2
+        student.id = generate_ulid()
         student.timezone = "America/Chicago"  # Central Time (1 hour behind)
 
         # Mock the database queries
@@ -94,7 +119,7 @@ class TestCrossTimezoneBookings:
         """Test that availability validation uses instructor's timezone."""
         # Create instructor in Sydney (far ahead)
         instructor = Mock(spec=User)
-        instructor.id = 1
+        instructor.id = generate_ulid()
         instructor.timezone = "Australia/Sydney"
 
         # Mock the service
@@ -110,7 +135,7 @@ class TestCrossTimezoneBookings:
 
                 # This should skip the past date
                 slots = availability_service._prepare_slots_for_creation(
-                    instructor_id=1,
+                    instructor_id=generate_ulid(),
                     week_dates=[date(2024, 1, 15), date(2024, 1, 16)],
                     schedule_by_date={
                         date(2024, 1, 15): [{"start_time": "09:00", "end_time": "10:00"}],
@@ -130,7 +155,7 @@ class TestDSTTransitions:
         """Test booking when 2 AM becomes 3 AM (losing an hour)."""
         # Use New York timezone which has DST
         instructor = Mock(spec=User)
-        instructor.id = 1
+        instructor.id = generate_ulid()
         instructor.timezone = "America/New_York"
 
         # Spring forward happens on March 10, 2024 at 2 AM
@@ -285,8 +310,8 @@ class TestCIEnvironment:
         """Ensure tests pass when system timezone is UTC."""
         # Create users with various timezones
         users = [
-            Mock(id=1, timezone="America/New_York"),
-            Mock(id=2, timezone="Europe/London"),
+            Mock(id=generate_ulid(), timezone="America/New_York"),
+            Mock(id=generate_ulid(), timezone="Europe/London"),
             Mock(id=3, timezone="Asia/Tokyo"),
             Mock(id=4, timezone="Australia/Sydney"),
         ]

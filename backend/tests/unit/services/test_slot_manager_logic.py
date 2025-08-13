@@ -18,6 +18,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictException, NotFoundException, ValidationException
+from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot
 from app.services.conflict_checker import ConflictChecker
 from app.services.slot_manager import SlotManager
@@ -88,24 +89,29 @@ class TestSlotManagerTimeValidation:
         service.conflict_checker.validate_time_range = Mock(return_value={"valid": True})
 
         # Test that duplicate slot raises ConflictException
+        instructor_id = generate_ulid()
         with pytest.raises(ConflictException) as exc_info:
-            service.create_slot(instructor_id=1, target_date=date.today(), start_time=time(9, 0), end_time=time(10, 0))
+            service.create_slot(
+                instructor_id=instructor_id, target_date=date.today(), start_time=time(9, 0), end_time=time(10, 0)
+            )
 
         assert "already exists" in str(exc_info.value)
 
         # Verify repository method was called
-        service.availability_repository.slot_exists.assert_called_with(1, date.today(), time(9, 0), time(10, 0))
+        service.availability_repository.slot_exists.assert_called_with(
+            instructor_id, date.today(), time(9, 0), time(10, 0)
+        )
 
     def test_slots_can_merge_logic(self, service):
         """Test slot merging logic."""
         # Create mock slots
         slot1 = Mock(spec=AvailabilitySlot)
-        slot1.id = 1
+        slot1.id = generate_ulid()
         slot1.start_time = time(9, 0)
         slot1.end_time = time(10, 0)
 
         slot2 = Mock(spec=AvailabilitySlot)
-        slot2.id = 2
+        slot2.id = generate_ulid()
         slot2.start_time = time(10, 0)
         slot2.end_time = time(11, 0)
 
@@ -160,8 +166,8 @@ class TestSlotManagerCRUDLogic:
         with patch.object(service, "merge_overlapping_slots") as mock_merge:
             # Mock repository create
             new_slot = Mock(spec=AvailabilitySlot)
-            new_slot.id = 999
-            new_slot.instructor_id = 123
+            new_slot.id = generate_ulid()
+            new_slot.instructor_id = generate_ulid()
             new_slot.specific_date = date.today()
             new_slot.start_time = time(9, 0)
             new_slot.end_time = time(10, 0)
@@ -173,8 +179,9 @@ class TestSlotManagerCRUDLogic:
             service.db.refresh = Mock()
 
             # Work Stream #9: validate_conflicts parameter removed
+            instructor_id = generate_ulid()
             result = service.create_slot(
-                instructor_id=123,
+                instructor_id=instructor_id,
                 target_date=date.today(),
                 start_time=time(9, 0),
                 end_time=time(10, 0),
@@ -182,7 +189,7 @@ class TestSlotManagerCRUDLogic:
             )
 
             # Verify merge was called
-            mock_merge.assert_called_once_with(123, date.today())
+            mock_merge.assert_called_once_with(instructor_id, date.today())
 
             assert result == new_slot
 
@@ -190,10 +197,11 @@ class TestSlotManagerCRUDLogic:
         """Test business rules for slot update."""
         # Mock slot
         mock_slot = Mock(spec=AvailabilitySlot)
-        mock_slot.id = 1
+        slot_id = generate_ulid()
+        mock_slot.id = slot_id
         mock_slot.start_time = time(9, 0)
         mock_slot.end_time = time(10, 0)
-        mock_slot.instructor_id = 123
+        mock_slot.instructor_id = generate_ulid()
         mock_slot.specific_date = date.today()
 
         # Mock repository methods
@@ -206,17 +214,18 @@ class TestSlotManagerCRUDLogic:
         # Work Stream #9: Can update slots regardless of bookings
         service.db.commit = Mock()
 
-        result = service.update_slot(slot_id=1, start_time=time(10, 0), end_time=time(11, 0))
+        result = service.update_slot(slot_id=slot_id, start_time=time(10, 0), end_time=time(11, 0))
 
         # Verify repository update was called
-        service.repository.update.assert_called_with(1, start_time=time(10, 0), end_time=time(11, 0))
+        service.repository.update.assert_called_with(slot_id, start_time=time(10, 0), end_time=time(11, 0))
 
     def test_delete_slot_business_rules(self, service):
         """Test business rules for slot deletion."""
         # Mock slot
         mock_slot = Mock(spec=AvailabilitySlot)
-        mock_slot.id = 1
-        mock_slot.instructor_id = 123
+        slot_id = generate_ulid()
+        mock_slot.id = slot_id
+        mock_slot.instructor_id = generate_ulid()
         mock_slot.specific_date = date.today()
 
         # Mock repository methods
@@ -226,10 +235,10 @@ class TestSlotManagerCRUDLogic:
         service.db.commit = Mock()
 
         # Work Stream #9: Can delete slots regardless of bookings
-        result = service.delete_slot(1)
+        result = service.delete_slot(slot_id)
 
         assert result == True
-        service.repository.delete.assert_called_once_with(1)
+        service.repository.delete.assert_called_once_with(slot_id)
 
 
 class TestSlotManagerMergeLogic:
@@ -258,17 +267,17 @@ class TestSlotManagerMergeLogic:
         """Test the merging algorithm logic."""
         # Create mock slots
         slot1 = Mock(spec=AvailabilitySlot)
-        slot1.id = 1
+        slot1.id = generate_ulid()
         slot1.start_time = time(9, 0)
         slot1.end_time = time(10, 0)
 
         slot2 = Mock(spec=AvailabilitySlot)
-        slot2.id = 2
+        slot2.id = generate_ulid()
         slot2.start_time = time(10, 0)
         slot2.end_time = time(11, 0)
 
         slot3 = Mock(spec=AvailabilitySlot)
-        slot3.id = 3
+        slot3.id = generate_ulid()
         slot3.start_time = time(11, 0)
         slot3.end_time = time(12, 0)
 
@@ -294,12 +303,12 @@ class TestSlotManagerMergeLogic:
         """Test merging handles gaps correctly."""
         # Create slots with gap
         slot1 = Mock(spec=AvailabilitySlot)
-        slot1.id = 1
+        slot1.id = generate_ulid()
         slot1.start_time = time(9, 0)
         slot1.end_time = time(10, 0)
 
         slot2 = Mock(spec=AvailabilitySlot)
-        slot2.id = 2
+        slot2.id = generate_ulid()
         slot2.start_time = time(11, 0)  # 1 hour gap
         slot2.end_time = time(12, 0)
 
@@ -320,12 +329,12 @@ class TestSlotManagerMergeLogic:
         """Test that merge always happens (preserve_booked parameter removed)."""
         # Create mock slots
         slot1 = Mock(spec=AvailabilitySlot)
-        slot1.id = 1
+        slot1.id = generate_ulid()
         slot1.start_time = time(9, 0)
         slot1.end_time = time(10, 0)
 
         slot2 = Mock(spec=AvailabilitySlot)
-        slot2.id = 2
+        slot2.id = generate_ulid()
         slot2.start_time = time(10, 0)
         slot2.end_time = time(11, 0)
 
@@ -366,8 +375,10 @@ class TestSlotManagerSplitLogic:
         """Test slot splitting business logic."""
         # Mock original slot
         original_slot = Mock(spec=AvailabilitySlot)
-        original_slot.id = 1
-        original_slot.instructor_id = 123
+        slot_id = generate_ulid()
+        instructor_id = generate_ulid()
+        original_slot.id = slot_id
+        original_slot.instructor_id = instructor_id
         original_slot.specific_date = date.today()  # Use specific_date
         original_slot.start_time = time(9, 0)
         original_slot.end_time = time(11, 0)
@@ -376,8 +387,8 @@ class TestSlotManagerSplitLogic:
 
         # Mock new slot creation
         new_slot = Mock(spec=AvailabilitySlot)
-        new_slot.id = 2
-        new_slot.instructor_id = 123
+        new_slot.id = generate_ulid()
+        new_slot.instructor_id = instructor_id
         new_slot.specific_date = date.today()
         new_slot.start_time = time(10, 0)
         new_slot.end_time = time(11, 0)
@@ -389,7 +400,7 @@ class TestSlotManagerSplitLogic:
         # Work Stream #9: Can split slots regardless of bookings
         # Split at 10:00
         split_time = time(10, 0)
-        slot1, slot2 = service.split_slot(1, split_time)
+        slot1, slot2 = service.split_slot(slot_id, split_time)
 
         # Verify original slot was modified
         assert original_slot.end_time == split_time
@@ -398,7 +409,7 @@ class TestSlotManagerSplitLogic:
 
         # Verify new slot was created with specific_date
         service.repository.create.assert_called_with(
-            instructor_id=123,
+            instructor_id=instructor_id,
             specific_date=date.today(),  # Changed from date to specific_date
             start_time=split_time,
             end_time=time(11, 0),
@@ -416,7 +427,7 @@ class TestSlotManagerSplitLogic:
 
         # Test split before start
         with pytest.raises(ValidationException) as exc_info:
-            service.split_slot(1, time(8, 30))
+            service.split_slot(mock_slot.id, time(8, 30))
         assert "between slot start and end times" in str(exc_info.value)
 
         # Reset mock for next test
@@ -424,19 +435,19 @@ class TestSlotManagerSplitLogic:
 
         # Test split after end
         with pytest.raises(ValidationException) as exc_info:
-            service.split_slot(1, time(10, 30))
+            service.split_slot(mock_slot.id, time(10, 30))
         assert "between slot start and end times" in str(exc_info.value)
 
         # Test split at boundaries
         service.repository.get_slot_by_id = Mock(return_value=mock_slot)
 
         with pytest.raises(ValidationException):
-            service.split_slot(1, time(9, 0))  # At start
+            service.split_slot(mock_slot.id, time(9, 0))  # At start
 
         service.repository.get_slot_by_id = Mock(return_value=mock_slot)
 
         with pytest.raises(ValidationException):
-            service.split_slot(1, time(10, 0))  # At end
+            service.split_slot(mock_slot.id, time(10, 0))  # At end
 
 
 class TestSlotManagerGapAnalysis:
@@ -464,23 +475,25 @@ class TestSlotManagerGapAnalysis:
         """Test gap finding algorithm."""
         # Create mock slots with gaps
         slot1 = Mock(spec=AvailabilitySlot)
-        slot1.id = 1
+        slot1.id = generate_ulid()
         slot1.start_time = time(9, 0)
         slot1.end_time = time(10, 0)
 
         slot2 = Mock(spec=AvailabilitySlot)
-        slot2.id = 2
+        slot2.id = generate_ulid()
         slot2.start_time = time(11, 0)  # 1 hour gap
         slot2.end_time = time(12, 0)
 
         slot3 = Mock(spec=AvailabilitySlot)
-        slot3.id = 3
+        slot3.id = generate_ulid()
         slot3.start_time = time(14, 0)  # 2 hour gap
         slot3.end_time = time(15, 0)
 
         service.repository.get_slots_for_instructor_date.return_value = [slot1, slot2, slot3]
 
-        gaps = service.find_gaps_in_availability(instructor_id=1, target_date=date.today(), min_gap_minutes=30)
+        gaps = service.find_gaps_in_availability(
+            instructor_id=generate_ulid(), target_date=date.today(), min_gap_minutes=30
+        )
 
         assert len(gaps) == 2
 
@@ -488,38 +501,42 @@ class TestSlotManagerGapAnalysis:
         assert gaps[0]["start_time"] == "10:00:00"
         assert gaps[0]["end_time"] == "11:00:00"
         assert gaps[0]["duration_minutes"] == 60
-        assert gaps[0]["after_slot_id"] == 1
-        assert gaps[0]["before_slot_id"] == 2
+        assert gaps[0]["after_slot_id"] == slot1.id
+        assert gaps[0]["before_slot_id"] == slot2.id
 
         # Second gap: 12:00-14:00 (120 minutes)
         assert gaps[1]["start_time"] == "12:00:00"
         assert gaps[1]["end_time"] == "14:00:00"
         assert gaps[1]["duration_minutes"] == 120
-        assert gaps[1]["after_slot_id"] == 2
-        assert gaps[1]["before_slot_id"] == 3
+        assert gaps[1]["after_slot_id"] == slot2.id
+        assert gaps[1]["before_slot_id"] == slot3.id
 
     def test_find_gaps_with_minimum_size(self, service):
         """Test gap finding respects minimum size."""
         # Create slots with small gap
         slot1 = Mock(spec=AvailabilitySlot)
-        slot1.id = 1
+        slot1.id = generate_ulid()
         slot1.start_time = time(9, 0)
         slot1.end_time = time(9, 45)
 
         slot2 = Mock(spec=AvailabilitySlot)
-        slot2.id = 2
+        slot2.id = generate_ulid()
         slot2.start_time = time(10, 0)  # 15 minute gap
         slot2.end_time = time(11, 0)
 
         service.repository.get_slots_for_instructor_date.return_value = [slot1, slot2]
 
         # Should not find gap when minimum is 30 minutes
-        gaps = service.find_gaps_in_availability(instructor_id=1, target_date=date.today(), min_gap_minutes=30)
+        gaps = service.find_gaps_in_availability(
+            instructor_id=generate_ulid(), target_date=date.today(), min_gap_minutes=30
+        )
 
         assert len(gaps) == 0
 
         # Should find gap when minimum is 15 minutes
-        gaps = service.find_gaps_in_availability(instructor_id=1, target_date=date.today(), min_gap_minutes=15)
+        gaps = service.find_gaps_in_availability(
+            instructor_id=generate_ulid(), target_date=date.today(), min_gap_minutes=15
+        )
 
         assert len(gaps) == 1
         assert gaps[0]["duration_minutes"] == 15
@@ -549,12 +566,12 @@ class TestSlotManagerDataFormatting:
     def test_gap_response_formatting(self, service):
         """Test how gap data is formatted."""
         # Mock slots for gap calculation
-        slot1 = Mock(id=1, start_time=time(9, 0), end_time=time(10, 0))
-        slot2 = Mock(id=2, start_time=time(11, 30), end_time=time(12, 30))
+        slot1 = Mock(id=generate_ulid(), start_time=time(9, 0), end_time=time(10, 0))
+        slot2 = Mock(id=generate_ulid(), start_time=time(11, 30), end_time=time(12, 30))
 
         service.repository.get_slots_for_instructor_date.return_value = [slot1, slot2]
 
-        gaps = service.find_gaps_in_availability(1, date.today())
+        gaps = service.find_gaps_in_availability(generate_ulid(), date.today())
 
         # Verify formatting
         assert len(gaps) == 1
@@ -591,7 +608,7 @@ class TestSlotManagerErrorHandling:
         # Test time alignment validation (happens first)
         with pytest.raises(ValidationException) as exc_info:
             service.create_slot(
-                instructor_id=1,
+                instructor_id=generate_ulid(),
                 target_date=date.today(),
                 start_time=time(9, 17),  # Invalid minute
                 end_time=time(10, 0),
@@ -602,7 +619,9 @@ class TestSlotManagerErrorHandling:
         service.conflict_checker.validate_time_range.return_value = {"valid": False, "reason": "Duration too short"}
 
         with pytest.raises(ValidationException) as exc_info:
-            service.create_slot(instructor_id=1, target_date=date.today(), start_time=time(9, 0), end_time=time(9, 15))
+            service.create_slot(
+                instructor_id=generate_ulid(), target_date=date.today(), start_time=time(9, 0), end_time=time(9, 15)
+            )
         assert "Duration too short" in str(exc_info.value)
 
     def test_handle_business_rule_violations(self, service):
@@ -613,7 +632,7 @@ class TestSlotManagerErrorHandling:
         service.repository.get_slot_by_id = Mock(return_value=None)
 
         with pytest.raises(NotFoundException) as exc_info:
-            service.update_slot(999, end_time=time(12, 0))
+            service.update_slot(generate_ulid(), end_time=time(12, 0))
 
         assert "Slot not found" in str(exc_info.value)
 
@@ -644,10 +663,10 @@ class TestSlotManagerMissingCoverage:
         """Test update_slot when no new values provided (covers early return)."""
         # Mock slot
         mock_slot = Mock(spec=AvailabilitySlot)
-        mock_slot.id = 1
+        mock_slot.id = generate_ulid()
         mock_slot.start_time = time(9, 0)
         mock_slot.end_time = time(10, 0)
-        mock_slot.instructor_id = 123
+        mock_slot.instructor_id = generate_ulid()
         mock_slot.specific_date = date.today()
 
         service.repository.get_slot_by_id = Mock(return_value=mock_slot)
@@ -658,20 +677,21 @@ class TestSlotManagerMissingCoverage:
         service.db.commit = Mock()
 
         # Update with no changes (both None)
-        result = service.update_slot(slot_id=1, start_time=None, end_time=None)
+        slot_id = mock_slot.id
+        result = service.update_slot(slot_id=slot_id, start_time=None, end_time=None)
 
         # Should still return the slot
         assert result == mock_slot
 
         # Repository update should be called with original times
-        service.repository.update.assert_called_with(1, start_time=time(9, 0), end_time=time(10, 0))
+        service.repository.update.assert_called_with(slot_id, start_time=time(9, 0), end_time=time(10, 0))
 
     def test_merge_slots_with_no_slots(self, service):
         """Test merge when no slots exist (covers early return)."""
         # Empty slots list
         service.repository.get_slots_by_date_ordered.return_value = []
 
-        result = service.merge_overlapping_slots(instructor_id=1, target_date=date.today())
+        result = service.merge_overlapping_slots(instructor_id=generate_ulid(), target_date=date.today())
 
         assert result == 0
 
@@ -680,7 +700,7 @@ class TestSlotManagerMissingCoverage:
         single_slot = Mock(spec=AvailabilitySlot)
         service.repository.get_slots_by_date_ordered.return_value = [single_slot]
 
-        result = service.merge_overlapping_slots(instructor_id=1, target_date=date.today())
+        result = service.merge_overlapping_slots(instructor_id=generate_ulid(), target_date=date.today())
 
         assert result == 0
 
@@ -689,19 +709,19 @@ class TestSlotManagerMissingCoverage:
         # No slots for the instructor/date
         service.repository.get_slots_for_instructor_date.return_value = []
 
-        gaps = service.find_gaps_in_availability(instructor_id=1, target_date=date.today())
+        gaps = service.find_gaps_in_availability(instructor_id=generate_ulid(), target_date=date.today())
 
         assert gaps == []
 
     def test_slots_can_merge_with_exact_adjacency(self, service):
         """Test merging slots that are exactly adjacent (no gap)."""
         slot1 = Mock(spec=AvailabilitySlot)
-        slot1.id = 1
+        slot1.id = generate_ulid()
         slot1.start_time = time(9, 0)
         slot1.end_time = time(10, 0)
 
         slot2 = Mock(spec=AvailabilitySlot)
-        slot2.id = 2
+        slot2.id = generate_ulid()
         slot2.start_time = time(10, 0)  # Exactly adjacent
         slot2.end_time = time(11, 0)
 
@@ -736,12 +756,12 @@ class TestSlotManagerEdgeCases:
         """Test merging when slots overlap (not just adjacent)."""
         # Create overlapping slots
         slot1 = Mock(spec=AvailabilitySlot)
-        slot1.id = 1
+        slot1.id = generate_ulid()
         slot1.start_time = time(9, 0)
         slot1.end_time = time(10, 30)  # Overlaps with slot2
 
         slot2 = Mock(spec=AvailabilitySlot)
-        slot2.id = 2
+        slot2.id = generate_ulid()
         slot2.start_time = time(10, 0)  # Starts before slot1 ends
         slot2.end_time = time(11, 0)
 
@@ -751,7 +771,8 @@ class TestSlotManagerEdgeCases:
             service.repository.delete = Mock()
             service.db.commit = Mock()
 
-            merged_count = service.merge_overlapping_slots(1, date.today())
+            instructor_id = generate_ulid()
+            merged_count = service.merge_overlapping_slots(instructor_id, date.today())
 
             assert merged_count == 1
             # slot1 should extend to slot2's end time
@@ -765,6 +786,6 @@ class TestSlotManagerEdgeCases:
 
         service.repository.get_slots_for_instructor_date.return_value = [single_slot]
 
-        gaps = service.find_gaps_in_availability(instructor_id=1, target_date=date.today())
+        gaps = service.find_gaps_in_availability(instructor_id=generate_ulid(), target_date=date.today())
 
         assert len(gaps) == 0  # No gaps with single slot

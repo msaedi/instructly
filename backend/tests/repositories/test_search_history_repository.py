@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
+from app.core.ulid_helper import generate_ulid
 from app.models.search_history import SearchHistory
 from app.models.user import User
 from app.repositories.search_history_repository import SearchHistoryRepository
@@ -206,7 +207,7 @@ class TestSearchHistoryRepository:
         assert count == 3
 
         # Count for non-existent user
-        count = repo.count_searches(user_id=99999)
+        count = repo.count_searches(user_id=generate_ulid())
         assert count == 0
 
     def test_get_searches_to_delete(self, db: Session):
@@ -253,7 +254,7 @@ class TestSearchHistoryRepository:
     def test_soft_delete_old_searches(self, db: Session):
         """Test soft deleting searches not in keep list."""
         repo = SearchHistoryRepository(db)
-        user_id = 1
+        user_id = generate_ulid()
 
         # Create user
         user = User(
@@ -350,7 +351,7 @@ class TestSearchHistoryRepository:
         assert search2.deleted_at is not None
 
         # Try to delete non-existent
-        deleted = repo.soft_delete_by_id(search_id=99999, user_id=user.id)
+        deleted = repo.soft_delete_by_id(search_id=generate_ulid(), user_id=user.id)
         assert deleted is False
 
         # Try to delete another user's search

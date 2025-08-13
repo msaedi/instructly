@@ -74,8 +74,8 @@ class AvailabilityWindowResponse(StandardizedModel):
     Clean Architecture: Only meaningful fields for single-table design.
     """
 
-    id: int
-    instructor_id: int
+    id: str
+    instructor_id: str
     specific_date: DateType
     start_time: TimeType
     end_time: TimeType
@@ -96,8 +96,8 @@ class BlackoutDateCreate(BaseModel):
 class BlackoutDateResponse(StandardizedModel):
     """Response schema for blackout dates."""
 
-    id: int
-    instructor_id: int
+    id: str
+    instructor_id: str
     date: DateType
     reason: Optional[str] = None
     created_at: DateTimeType
@@ -228,7 +228,7 @@ class SlotOperation(BaseModel):
     start_time: Optional[TimeType] = None
     end_time: Optional[TimeType] = None
     # For remove/update:
-    slot_id: Optional[int] = None
+    slot_id: Optional[str] = None
 
     @field_validator("end_time")
     @classmethod
@@ -260,7 +260,7 @@ class OperationResult(BaseModel):
     action: str
     status: Literal["success", "failed", "skipped"]
     reason: Optional[str] = None
-    slot_id: Optional[int] = None  # For successful adds
+    slot_id: Optional[str] = None  # For successful adds
 
 
 class BulkUpdateResponse(BaseModel):
@@ -281,7 +281,7 @@ class ValidationSlotDetail(BaseModel):
     date: Optional[DateType] = None
     start_time: Optional[TimeType] = None
     end_time: Optional[TimeType] = None
-    slot_id: Optional[int] = None
+    slot_id: Optional[str] = None
     reason: Optional[str] = None
     conflicts_with: Optional[List[Dict[str, Any]]] = None
 

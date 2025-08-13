@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 import pytest
 
+from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User
 
@@ -20,7 +21,7 @@ from app.models.user import User
 def test_booking():
     """Create a test booking with all required fields."""
     student = User(
-        id=1,
+        id=generate_ulid(),
         email="student@example.com",
         first_name="Test",
         last_name="Student",
@@ -29,7 +30,7 @@ def test_booking():
     )
 
     instructor = User(
-        id=2,
+        id=generate_ulid(),
         email="instructor@example.com",
         first_name="Test",
         last_name="Instructor",
@@ -39,8 +40,8 @@ def test_booking():
 
     booking = Booking(
         id=100,
-        student_id=1,
-        instructor_id=2,
+        student_id=student.id,  # Use the actual student ID
+        instructor_id=instructor.id,  # Use the actual instructor ID
         instructor_service_id=10,
         booking_date=date.today() + timedelta(days=1),
         start_time=time(14, 0),
@@ -172,15 +173,20 @@ class TestCancellationNotification:
         assert result is True
         assert notification_service_with_mocked_email.email_service.send_email.call_count == 2
 
-        # Instructor should get cancellation notification
-        instructor_call = notification_service_with_mocked_email.email_service.send_email.call_args_list[0]
-        assert instructor_call.kwargs["to_email"] == test_booking.instructor.email
-        instructor_html = instructor_call.kwargs["html_content"]
-        assert "Schedule conflict" in instructor_html
+        # Check both emails were sent to correct recipients
+        email_calls = notification_service_with_mocked_email.email_service.send_email.call_args_list
+        recipients = [call.kwargs["to_email"] for call in email_calls]
+        assert test_booking.student.email in recipients
+        assert test_booking.instructor.email in recipients
 
-        # Student should get confirmation
-        student_call = notification_service_with_mocked_email.email_service.send_email.call_args_list[1]
-        assert student_call.kwargs["to_email"] == test_booking.student.email
+        # Find the instructor's email (should contain the reason)
+        for call in email_calls:
+            if call.kwargs["to_email"] == test_booking.instructor.email:
+                instructor_html = call.kwargs["html_content"]
+                assert "Schedule conflict" in instructor_html
+                break
+        else:
+            assert False, "Instructor email not found"
 
     @pytest.mark.asyncio
     async def test_instructor_cancellation(self, notification_service_with_mocked_email, test_booking):

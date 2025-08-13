@@ -54,7 +54,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
 
     # Week and Date-based Queries
 
-    def get_week_availability(self, instructor_id: int, start_date: date, end_date: date) -> List[AvailabilitySlot]:
+    def get_week_availability(self, instructor_id: str, start_date: date, end_date: date) -> List[AvailabilitySlot]:
         """
         Get all availability slots for a week.
 
@@ -85,7 +85,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error getting week availability: {str(e)}")
             raise RepositoryException(f"Failed to get week availability: {str(e)}")
 
-    def get_slots_by_date(self, instructor_id: int, target_date: date) -> List[AvailabilitySlot]:
+    def get_slots_by_date(self, instructor_id: str, target_date: date) -> List[AvailabilitySlot]:
         """
         Get all slots for a specific date.
 
@@ -116,7 +116,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
 
     # Booking-related Queries
 
-    def get_booked_slots_in_range(self, instructor_id: int, start_date: date, end_date: date) -> List[Booking]:
+    def get_booked_slots_in_range(self, instructor_id: str, start_date: date, end_date: date) -> List[Booking]:
         """
         Get all bookings within a date range for an instructor.
 
@@ -148,7 +148,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error getting booked slots: {str(e)}")
             raise RepositoryException(f"Failed to get booked slots: {str(e)}")
 
-    def get_booked_time_ranges(self, instructor_id: int, target_date: date) -> List[Tuple[time, time]]:
+    def get_booked_time_ranges(self, instructor_id: str, target_date: date) -> List[Tuple[time, time]]:
         """
         Get time ranges that have bookings on a specific date.
 
@@ -181,7 +181,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error getting booked time ranges: {str(e)}")
             raise RepositoryException(f"Failed to get booked times: {str(e)}")
 
-    def count_bookings_for_date(self, instructor_id: int, target_date: date) -> int:
+    def count_bookings_for_date(self, instructor_id: str, target_date: date) -> int:
         """
         Count confirmed/completed bookings for a specific date.
 
@@ -212,7 +212,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
 
     # Slot Management Queries
 
-    def get_availability_slot_with_details(self, slot_id: int) -> Optional[AvailabilitySlot]:
+    def get_availability_slot_with_details(self, slot_id: str) -> Optional[AvailabilitySlot]:
         """
         Get an availability slot by ID.
 
@@ -231,7 +231,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error getting availability slot details: {str(e)}")
             raise RepositoryException(f"Failed to get availability slot: {str(e)}")
 
-    def slot_exists(self, instructor_id: int, target_date: date, start_time: time, end_time: time) -> bool:
+    def slot_exists(self, instructor_id: str, target_date: date, start_time: time, end_time: time) -> bool:
         """
         Check if an exact slot already exists.
 
@@ -265,7 +265,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             raise RepositoryException(f"Failed to check slot: {str(e)}")
 
     def find_time_conflicts(
-        self, instructor_id: int, target_date: date, start_time: time, end_time: time
+        self, instructor_id: str, target_date: date, start_time: time, end_time: time
     ) -> List[AvailabilitySlot]:
         """
         Find slots that conflict with a proposed time range.
@@ -299,7 +299,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error finding time conflicts: {str(e)}")
             raise RepositoryException(f"Failed to find conflicts: {str(e)}")
 
-    def create_slot(self, instructor_id: int, target_date: date, start_time: time, end_time: time) -> AvailabilitySlot:
+    def create_slot(self, instructor_id: str, target_date: date, start_time: time, end_time: time) -> AvailabilitySlot:
         """
         Create a new availability slot.
 
@@ -337,7 +337,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
 
     # Delete Operations
 
-    def delete_slots_except(self, instructor_id: int, target_date: date, except_ids: List[int]) -> int:
+    def delete_slots_except(self, instructor_id: str, target_date: date, except_ids: List[str]) -> int:
         """
         Delete all slots for a date except those in the exception list.
 
@@ -372,7 +372,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error deleting slots: {str(e)}")
             raise RepositoryException(f"Failed to delete slots: {str(e)}")
 
-    def delete_slots_by_date(self, instructor_id: int, target_date: date) -> int:
+    def delete_slots_by_date(self, instructor_id: str, target_date: date) -> int:
         """
         Delete all slots for a specific date.
 
@@ -400,7 +400,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error deleting slots by date: {str(e)}")
             raise RepositoryException(f"Failed to delete slots: {str(e)}")
 
-    def delete_slots_by_dates(self, instructor_id: int, dates: List[date]) -> int:
+    def delete_slots_by_dates(self, instructor_id: str, dates: List[date]) -> int:
         """
         Delete all slots for multiple dates.
 
@@ -434,7 +434,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
 
     # Aggregate Queries
 
-    def count_available_slots(self, instructor_id: int, start_date: date, end_date: date) -> int:
+    def count_available_slots(self, instructor_id: str, start_date: date, end_date: date) -> int:
         """
         Count total available slots in a date range.
 
@@ -464,7 +464,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error counting slots: {str(e)}")
             raise RepositoryException(f"Failed to count slots: {str(e)}")
 
-    def get_availability_summary(self, instructor_id: int, start_date: date, end_date: date) -> Dict[str, int]:
+    def get_availability_summary(self, instructor_id: str, start_date: date, end_date: date) -> Dict[str, int]:
         """
         Get summary of availability (slot counts per date).
 
@@ -503,7 +503,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error getting summary: {str(e)}")
             raise RepositoryException(f"Failed to get summary: {str(e)}")
 
-    def get_instructor_availability_stats(self, instructor_id: int) -> Dict[str, any]:
+    def get_instructor_availability_stats(self, instructor_id: str) -> Dict[str, any]:
         """
         Get aggregated statistics for instructor availability.
 

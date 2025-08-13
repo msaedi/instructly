@@ -17,6 +17,7 @@ from datetime import date, time, timedelta
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot, BlackoutDate
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User
@@ -243,9 +244,12 @@ class TestAvailabilityQueryPatterns:
 
     def test_query_pattern_delete_slots_except(self, db: Session, test_instructor_with_availability: User):
         """Document pattern for deleting slots except specified IDs."""
+        from app.core.ulid_helper import generate_ulid
+
         instructor_id = test_instructor_with_availability.id
         target_date = date.today()
-        except_ids = [1, 2, 3]  # Example IDs to keep
+        # Generate ULID strings for example IDs to keep
+        except_ids = [generate_ulid(), generate_ulid(), generate_ulid()]
 
         # Document delete pattern - UPDATED for single table
         delete_count = (
@@ -405,8 +409,8 @@ class TestAvailabilityQueryPatterns:
 
     def test_query_pattern_delete_blackout_date(self, db: Session):
         """Document pattern for deleting blackout date."""
-        blackout_id = 1
-        instructor_id = 1
+        blackout_id = generate_ulid()
+        instructor_id = generate_ulid()
 
         # Delete with instructor check
         deleted = (

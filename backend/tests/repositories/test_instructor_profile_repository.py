@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.core.ulid_helper import generate_ulid
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.service_catalog import ServiceCatalog, ServiceCategory
@@ -324,7 +325,7 @@ class TestInstructorProfileRepositoryIntegration:
         repo = InstructorProfileRepository(db)
 
         # Test with invalid user_id
-        profile = repo.get_by_user_id_with_details(999999)
+        profile = repo.get_by_user_id_with_details(generate_ulid())
         assert profile is None  # Should return None, not raise
 
         # Test error handling in queries

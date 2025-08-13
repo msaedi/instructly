@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.enums import RoleName
 from app.core.exceptions import ConflictException
+from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
@@ -49,8 +50,8 @@ class TestStudentConflictValidation:
 
         # Mock service
         service = Mock(spec=Service)
-        service.id = 1
-        service.instructor_profile_id = 1
+        service.id = generate_ulid()
+        service.instructor_profile_id = generate_ulid()
         # Mock catalog_entry instead of skill
         catalog_entry = Mock()
         catalog_entry.name = "Math"
@@ -62,7 +63,7 @@ class TestStudentConflictValidation:
 
         # Mock instructor profile
         profile = Mock(spec=InstructorProfile)
-        profile.id = 1
+        profile.id = generate_ulid()
         profile.min_advance_booking_hours = 1
         profile.areas_of_service = "['Math']"
         repository.get_instructor_profile = Mock(return_value=profile)
@@ -79,7 +80,7 @@ class TestStudentConflictValidation:
         mock_student_role.name = RoleName.STUDENT
 
         student.roles = [mock_student_role]
-        student.id = 1
+        student.id = generate_ulid()
         student.email = "student@test.com"
         student.first_name = ("Test",)
         last_name = "Student"
@@ -95,7 +96,7 @@ class TestStudentConflictValidation:
         mock_instructor_role.name = RoleName.INSTRUCTOR
 
         instructor.roles = [mock_instructor_role]
-        instructor.id = 2
+        instructor.id = generate_ulid()
         instructor.email = "instructor@test.com"
         instructor.first_name = ("Test",)
         last_name = "Instructor"
@@ -122,7 +123,7 @@ class TestStudentConflictValidation:
         """Test that a student cannot book two overlapping sessions."""
         # Setup: Student already has a booking at 3:00-4:00 PM
         existing_booking = Mock(spec=Booking)
-        existing_booking.id = 100
+        existing_booking.id = generate_ulid()
         existing_booking.start_time = time(15, 0)
         existing_booking.end_time = time(16, 0)
         existing_booking.booking_date = date.today() + timedelta(days=1)
@@ -137,7 +138,7 @@ class TestStudentConflictValidation:
             start_time=time(15, 30),
             end_time=time(16, 30),
             selected_duration=60,
-            instructor_service_id=1,
+            instructor_service_id=generate_ulid(),
             location_type="neutral",
             meeting_location="Online",
         )
@@ -170,7 +171,7 @@ class TestStudentConflictValidation:
         """Test that a student can book adjacent non-overlapping sessions."""
         # Setup: Student has a booking at 3:00-4:00 PM
         existing_booking = Mock(spec=Booking)
-        existing_booking.id = 100
+        existing_booking.id = generate_ulid()
         existing_booking.start_time = time(15, 0)
         existing_booking.end_time = time(16, 0)
         existing_booking.booking_date = date.today() + timedelta(days=1)
@@ -193,7 +194,7 @@ class TestStudentConflictValidation:
             start_time=time(16, 0),  # Exactly when previous ends
             end_time=time(17, 0),
             selected_duration=60,
-            instructor_service_id=1,
+            instructor_service_id=generate_ulid(),
             location_type="neutral",
             meeting_location="Online",
         )
@@ -273,7 +274,7 @@ class TestStudentConflictValidation:
             start_time=time(15, 0),
             end_time=time(16, 0),
             selected_duration=60,
-            instructor_service_id=1,
+            instructor_service_id=generate_ulid(),
             location_type="neutral",
             meeting_location="Online",
         )
@@ -293,7 +294,7 @@ class TestStudentConflictValidation:
             start_time=time(15, 30),
             end_time=time(16, 30),
             selected_duration=60,
-            instructor_service_id=1,
+            instructor_service_id=generate_ulid(),
             location_type="neutral",
             meeting_location="Online",
         )
@@ -312,7 +313,7 @@ class TestStudentConflictValidation:
         """Test edge case where bookings overlap by just one minute."""
         # Existing booking: 3:00-4:00 PM
         existing_booking = Mock(spec=Booking)
-        existing_booking.id = 100
+        existing_booking.id = generate_ulid()
         existing_booking.start_time = time(15, 0)
         existing_booking.end_time = time(16, 0)
         existing_booking.booking_date = date.today() + timedelta(days=1)
@@ -333,7 +334,7 @@ class TestStudentConflictValidation:
             start_time=time(15, 59),  # 1 minute before existing ends
             end_time=time(17, 0),
             selected_duration=60,
-            instructor_service_id=1,
+            instructor_service_id=generate_ulid(),
             location_type="neutral",
             meeting_location="Online",
         )
@@ -378,7 +379,7 @@ class TestStudentConflictValidation:
             start_time=time(15, 0),
             end_time=time(16, 0),
             selected_duration=60,
-            instructor_service_id=1,
+            instructor_service_id=generate_ulid(),
             location_type="neutral",
             meeting_location="Online",
         )

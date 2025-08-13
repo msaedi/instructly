@@ -17,6 +17,7 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.exceptions import RepositoryException
+from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot, BlackoutDate
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
@@ -547,7 +548,7 @@ class TestAvailabilityRepositoryBlackoutDates:
         assert len(blackouts) == 0
 
         # Try deleting non-existent
-        deleted = repo.delete_blackout_date(blackout_id=999999, instructor_id=test_instructor.id)
+        deleted = repo.delete_blackout_date(blackout_id=generate_ulid(), instructor_id=test_instructor.id)
         assert deleted is False
 
 
@@ -573,7 +574,7 @@ class TestAvailabilityRepositoryEdgeCases:
         repo = AvailabilityRepository(db)
 
         # Should return empty results, not error
-        results = repo.get_slots_by_date(instructor_id=999999, target_date=date.today())
+        results = repo.get_slots_by_date(instructor_id=generate_ulid(), target_date=date.today())
 
         assert results == []
 

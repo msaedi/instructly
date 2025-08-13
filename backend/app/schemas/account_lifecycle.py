@@ -22,7 +22,7 @@ class AccountStatusChangeResponse(BaseModel):
 class AccountStatusResponse(BaseModel):
     """Response for account status check endpoint."""
 
-    user_id: int
+    user_id: str
     role: str
     account_status: str
     can_login: bool
@@ -40,7 +40,7 @@ class AccountStatusResponse(BaseModel):
 class FutureBookingInfo(BaseModel):
     """Information about a future booking that blocks status change."""
 
-    booking_id: int
+    booking_id: str
     booking_date: str
     start_time: str
     end_time: str

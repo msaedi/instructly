@@ -15,6 +15,7 @@ from datetime import date, time
 
 from sqlalchemy.orm import Session
 
+from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User
@@ -25,7 +26,7 @@ class TestSlotManagerQueryPatterns:
 
     def test_query_pattern_check_slot_exists(self, db: Session):
         """Document query for checking if exact slot already exists."""
-        instructor_id = 1
+        instructor_id = generate_ulid()
         target_date = date.today()
         start_time = time(9, 0)
         end_time = time(10, 0)
@@ -226,7 +227,7 @@ class TestSlotManagerQueryPatterns:
         # This test documents the pattern for systems that need to check
         # if slots have bookings by time overlap instead
 
-        instructor_id = 1
+        instructor_id = generate_ulid()
         target_date = date.today()
 
         # Get slots first

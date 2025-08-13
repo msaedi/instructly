@@ -51,7 +51,7 @@ router = APIRouter(prefix="/instructors", tags=["instructors"])
 
 @router.get("/", response_model=PaginatedResponse[InstructorProfileResponse])
 async def get_all_instructors(
-    service_catalog_id: int = Query(..., description="Service catalog ID (required)"),
+    service_catalog_id: str = Query(..., description="Service catalog ID (required)"),
     min_price: float = Query(None, ge=0, le=1000, description="Minimum hourly rate"),
     max_price: float = Query(None, ge=0, le=1000, description="Maximum hourly rate"),
     page: int = Query(1, ge=1, description="Page number"),
@@ -210,7 +210,7 @@ async def delete_instructor_profile(
 
 @router.get("/{instructor_id}", response_model=InstructorProfileResponse)
 async def get_instructor_profile(
-    instructor_id: int, instructor_service: InstructorService = Depends(get_instructor_service)
+    instructor_id: str, instructor_service: InstructorService = Depends(get_instructor_service)
 ):
     """Get a specific instructor's profile by user ID with privacy protection."""
     try:
@@ -230,7 +230,7 @@ async def get_instructor_profile(
 
 @router.post("/{instructor_id}/suspend", response_model=AccountStatusChangeResponse)
 async def suspend_instructor_account(
-    instructor_id: int,
+    instructor_id: str,
     current_user: User = Depends(get_current_active_user),
     account_service: AccountLifecycleService = Depends(get_account_lifecycle_service),
 ):
@@ -265,7 +265,7 @@ async def suspend_instructor_account(
 
 @router.post("/{instructor_id}/deactivate", response_model=AccountStatusChangeResponse)
 async def deactivate_instructor_account(
-    instructor_id: int,
+    instructor_id: str,
     current_user: User = Depends(get_current_active_user),
     account_service: AccountLifecycleService = Depends(get_account_lifecycle_service),
 ):
@@ -302,7 +302,7 @@ async def deactivate_instructor_account(
 
 @router.post("/{instructor_id}/reactivate", response_model=AccountStatusChangeResponse)
 async def reactivate_instructor_account(
-    instructor_id: int,
+    instructor_id: str,
     current_user: User = Depends(get_current_active_user),
     account_service: AccountLifecycleService = Depends(get_account_lifecycle_service),
 ):
@@ -332,7 +332,7 @@ async def reactivate_instructor_account(
 
 @router.get("/{instructor_id}/can-change-status", response_model=AccountStatusResponse)
 async def check_account_status(
-    instructor_id: int,
+    instructor_id: str,
     current_user: User = Depends(get_current_active_user),
     account_service: AccountLifecycleService = Depends(get_account_lifecycle_service),
 ):

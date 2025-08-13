@@ -12,6 +12,7 @@ from datetime import date, time, timedelta
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking
 from app.schemas.availability_window import BulkUpdateRequest, SlotOperation, TimeSlot, ValidateWeekRequest
@@ -214,7 +215,7 @@ class TestBulkOperationServiceIntegration:
 
         operations = [
             SlotOperation(action="add", date=tomorrow, start_time=time(9, 0), end_time=time(10, 0)),
-            SlotOperation(action="remove", slot_id=99999),  # Non-existent slot
+            SlotOperation(action="remove", slot_id=generate_ulid()),  # Non-existent slot
         ]
 
         request = BulkUpdateRequest(operations=operations, validate_only=False)

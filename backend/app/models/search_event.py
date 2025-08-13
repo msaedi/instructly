@@ -6,6 +6,7 @@ This model stores every search event for analytics purposes,
 maintaining a complete history of all searches without deduplication.
 """
 
+import ulid
 from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -23,10 +24,10 @@ class SearchEvent(Base):
 
     __tablename__ = "search_events"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
 
     # User identification (one or the other)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    user_id = Column(String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     guest_session_id = Column(String(36), nullable=True, index=True)
 
     # Search details

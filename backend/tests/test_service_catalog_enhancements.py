@@ -14,6 +14,7 @@ from datetime import datetime
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.ulid_helper import generate_ulid
 from app.models.service_catalog import InstructorService, ServiceAnalytics, ServiceCatalog, ServiceCategory
 from app.repositories.factory import RepositoryFactory
 from app.services.instructor_service import InstructorService as InstructorServiceClass
@@ -481,7 +482,7 @@ class TestServiceAnalyticsModel:
     def test_demand_score_calculation(self):
         """Test demand score calculation."""
         analytics = ServiceAnalytics(
-            service_catalog_id=1,
+            service_catalog_id=generate_ulid(),
             search_count_30d=150,
             booking_count_30d=25,
             view_to_booking_rate=0.4,
@@ -497,7 +498,7 @@ class TestServiceAnalyticsModel:
         """Test trending detection logic."""
         # Trending service
         trending = ServiceAnalytics(
-            service_catalog_id=1,
+            service_catalog_id=generate_ulid(),
             search_count_7d=70,  # 10/day average
             search_count_30d=210,  # 7/day average
             active_instructors=3,
@@ -505,7 +506,9 @@ class TestServiceAnalyticsModel:
         assert trending.is_trending is True
 
         # Not trending
-        stable = ServiceAnalytics(service_catalog_id=2, search_count_7d=20, search_count_30d=90, active_instructors=2)
+        stable = ServiceAnalytics(
+            service_catalog_id=generate_ulid(), search_count_7d=20, search_count_30d=90, active_instructors=2
+        )
         assert stable.is_trending is False
 
         # No data

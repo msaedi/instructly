@@ -137,7 +137,7 @@ async def send_message(
     "/stream/{booking_id}",
 )
 async def stream_messages(
-    booking_id: int,
+    booking_id: str,
     current_user: User = Depends(get_current_user_sse),
     service: MessageService = Depends(get_message_service),
 ):
@@ -311,7 +311,7 @@ async def stream_messages(
     )
 
 
-async def send_heartbeats(notification_service, booking_id: int):
+async def send_heartbeats(notification_service, booking_id: str):
     """Send periodic heartbeats to keep connection alive."""
     while True:
         await asyncio.sleep(30)  # Send heartbeat every 30 seconds
@@ -326,7 +326,7 @@ async def send_heartbeats(notification_service, booking_id: int):
 )
 @rate_limit("1/second", key_type=RateLimitKeyType.USER)
 async def send_typing_indicator(
-    booking_id: int,
+    booking_id: str,
     current_user: User = Depends(get_current_active_user),
     service: MessageService = Depends(get_message_service),
 ):
@@ -359,7 +359,7 @@ class ReactionRequest(BaseModel):
 )
 @rate_limit("10/minute", key_type=RateLimitKeyType.USER)
 async def add_reaction(
-    message_id: int,
+    message_id: str,
     request: ReactionRequest,
     current_user: User = Depends(get_current_active_user),
     service: MessageService = Depends(get_message_service),
@@ -383,7 +383,7 @@ async def add_reaction(
 )
 @rate_limit("10/minute", key_type=RateLimitKeyType.USER)
 async def remove_reaction(
-    message_id: int,
+    message_id: str,
     request: ReactionRequest,
     current_user: User = Depends(get_current_active_user),
     service: MessageService = Depends(get_message_service),
@@ -409,7 +409,7 @@ class EditMessageRequest(BaseModel):
 )
 @rate_limit("10/minute", key_type=RateLimitKeyType.USER)
 async def edit_message(
-    message_id: int,
+    message_id: str,
     request: EditMessageRequest,
     current_user: User = Depends(get_current_active_user),
     service: MessageService = Depends(get_message_service),
@@ -443,7 +443,7 @@ async def get_message_config():
     dependencies=[Depends(require_permission(PermissionName.VIEW_MESSAGES))],
 )
 async def get_message_history(
-    booking_id: int,
+    booking_id: str,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_active_user),
@@ -575,7 +575,7 @@ async def mark_messages_as_read(
     dependencies=[Depends(require_permission(PermissionName.SEND_MESSAGES))],
 )
 async def delete_message(
-    message_id: int,
+    message_id: str,
     current_user: User = Depends(get_current_active_user),
     service: MessageService = Depends(get_message_service),
 ):

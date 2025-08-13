@@ -94,9 +94,7 @@ class DatabaseSeeder:
             result = session.execute(text("DELETE FROM service_categories"))
             print(f"    Deleted {result.rowcount} service categories")
 
-            # Reset sequences
-            session.execute(text("ALTER SEQUENCE service_catalog_id_seq RESTART WITH 1"))
-            session.execute(text("ALTER SEQUENCE service_categories_id_seq RESTART WITH 1"))
+            # No sequences to reset - using ULIDs now
 
             # 3. Clean search history and search events
             print("  - Cleaning search history...")

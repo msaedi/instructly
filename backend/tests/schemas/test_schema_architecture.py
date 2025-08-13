@@ -15,6 +15,7 @@ from datetime import date, time, timedelta
 import pytest
 from pydantic import ValidationError
 
+from app.core.ulid_helper import generate_ulid
 from app.schemas.availability import AvailabilitySlot, AvailabilitySlotCreate, AvailabilitySlotResponse
 from app.schemas.availability_window import AvailabilityWindowResponse, TimeSlot
 from app.schemas.booking import AvailabilityCheckRequest, BookingCreate, FindBookingOpportunitiesRequest
@@ -25,16 +26,18 @@ class TestBookingCleanArchitecture:
 
     def test_booking_create_has_time_fields(self):
         """Verify BookingCreate uses direct time fields."""
+        instructor_id = generate_ulid()
+        service_id = generate_ulid()
         booking = BookingCreate(
-            instructor_id=1,
-            instructor_service_id=1,
+            instructor_id=instructor_id,
+            instructor_service_id=service_id,
             booking_date=date.today() + timedelta(days=1),
             start_time=time(9, 0),
             end_time=time(10, 0),
             selected_duration=60,
         )
-        assert booking.instructor_id == 1
-        assert booking.instructor_service_id == 1
+        assert booking.instructor_id == instructor_id
+        assert booking.instructor_service_id == service_id
         assert hasattr(booking, "booking_date")
         assert hasattr(booking, "start_time")
         assert hasattr(booking, "end_time")
@@ -46,8 +49,8 @@ class TestBookingCleanArchitecture:
         with pytest.raises(ValidationError) as exc:
             BookingCreate(
                 availability_slot_id=123,  # Should FAIL
-                instructor_id=1,
-                instructor_service_id=1,
+                instructor_id=generate_ulid(),
+                instructor_service_id=generate_ulid(),
                 booking_date=date.today() + timedelta(days=1),
                 start_time=time(9, 0),
                 end_time=time(10, 0),
@@ -59,8 +62,8 @@ class TestBookingCleanArchitecture:
         """Test that end time must be after start time."""
         with pytest.raises(ValidationError) as exc:
             BookingCreate(
-                instructor_id=1,
-                instructor_service_id=1,
+                instructor_id=generate_ulid(),
+                instructor_service_id=generate_ulid(),
                 booking_date=date.today() + timedelta(days=1),
                 start_time=time(10, 0),
                 end_time=time(9, 0),  # Before start time
@@ -72,8 +75,8 @@ class TestBookingCleanArchitecture:
         """Test that date validation is handled at service layer, not schema."""
         # Schema should accept past dates - validation moved to service layer for timezone support
         booking = BookingCreate(
-            instructor_id=1,
-            instructor_service_id=1,
+            instructor_id=generate_ulid(),
+            instructor_service_id=generate_ulid(),
             booking_date=date.today() - timedelta(days=1),  # Past date is allowed in schema
             start_time=time(9, 0),
             end_time=time(10, 0),
@@ -83,15 +86,17 @@ class TestBookingCleanArchitecture:
 
     def test_availability_check_request_self_contained(self):
         """Test AvailabilityCheckRequest uses instructor/date/time."""
+        instructor_id = generate_ulid()
+        service_id = generate_ulid()
         check = AvailabilityCheckRequest(
-            instructor_id=1,
-            instructor_service_id=2,
+            instructor_id=instructor_id,
+            instructor_service_id=service_id,
             booking_date=date.today() + timedelta(days=1),
             start_time=time(14, 0),
             end_time=time(15, 30),
         )
-        assert check.instructor_id == 1
-        assert check.instructor_service_id == 2
+        assert check.instructor_id == instructor_id
+        assert check.instructor_service_id == service_id
         assert hasattr(check, "booking_date")
         assert hasattr(check, "start_time")
         assert hasattr(check, "end_time")
@@ -100,14 +105,16 @@ class TestBookingCleanArchitecture:
 
     def test_find_booking_opportunities_request(self):
         """Test new pattern for finding booking opportunities."""
+        instructor_id = generate_ulid()
+        service_id = generate_ulid()
         request = FindBookingOpportunitiesRequest(
-            instructor_id=1,
-            instructor_service_id=2,
+            instructor_id=instructor_id,
+            instructor_service_id=service_id,
             date_range_start=date.today(),
             date_range_end=date.today() + timedelta(days=7),
         )
-        assert request.instructor_id == 1
-        assert request.instructor_service_id == 2
+        assert request.instructor_id == instructor_id
+        assert request.instructor_service_id == service_id
         # Should not have any slot references
         assert not hasattr(request, "availability_slot_id")
 
@@ -118,18 +125,26 @@ class TestAvailabilityCleanArchitecture:
     def test_no_is_available_in_slot_response(self):
         """Verify is_available has been removed from slot schemas."""
         slot = AvailabilitySlotResponse(
-            id=1, instructor_id=1, specific_date=date.today(), start_time=time(9, 0), end_time=time(10, 0)
+            id=generate_ulid(),
+            instructor_id=generate_ulid(),
+            specific_date=date.today(),
+            start_time=time(9, 0),
+            end_time=time(10, 0),
         )
         # Should not have is_available - slot exists means available
         assert not hasattr(slot, "is_available")
 
     def test_availability_slot_single_table_design(self):
         """Test that AvailabilitySlot reflects single-table design."""
+        instructor_id = generate_ulid()
         slot = AvailabilitySlotCreate(
-            instructor_id=1, specific_date=date.today() + timedelta(days=1), start_time=time(9, 0), end_time=time(10, 0)
+            instructor_id=instructor_id,
+            specific_date=date.today() + timedelta(days=1),
+            start_time=time(9, 0),
+            end_time=time(10, 0),
         )
         # Should have instructor_id and date (single-table design)
-        assert slot.instructor_id == 1
+        assert slot.instructor_id == instructor_id
         assert slot.specific_date == date.today() + timedelta(days=1)
         # Should not have availability_id (no InstructorAvailability table)
         assert not hasattr(slot, "availability_id")
@@ -148,7 +163,11 @@ class TestAvailabilityWindowCleanup:
     def test_availability_window_response_simplified(self):
         """Verify AvailabilityWindowResponse has no legacy fields."""
         response = AvailabilityWindowResponse(
-            id=1, instructor_id=1, specific_date=date.today(), start_time=time(9, 0), end_time=time(10, 0)
+            id=generate_ulid(),
+            instructor_id=generate_ulid(),
+            specific_date=date.today(),
+            start_time=time(9, 0),
+            end_time=time(10, 0),
         )
         # Should not have legacy fields
         assert not hasattr(response, "is_recurring")
@@ -211,10 +230,16 @@ class TestArchitecturalIntegrity:
     def test_schemas_reflect_single_table_design(self):
         """Test that schemas reflect single-table availability design."""
         # AvailabilitySlot should have instructor_id and date
+        slot_id = generate_ulid()
+        instructor_id = generate_ulid()
         slot = AvailabilitySlot(
-            id=1, instructor_id=1, specific_date=date.today(), start_time=time(9, 0), end_time=time(10, 0)
+            id=slot_id,
+            instructor_id=instructor_id,
+            specific_date=date.today(),
+            start_time=time(9, 0),
+            end_time=time(10, 0),
         )
-        assert slot.instructor_id == 1
+        assert slot.instructor_id == instructor_id
         assert slot.specific_date == date.today()
 
     def test_clean_separation_of_concerns(self):

@@ -20,6 +20,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import BusinessRuleException, NotFoundException, ValidationException
+from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
@@ -260,7 +261,7 @@ class TestBookingServiceUpdateEdgeCases:
 
         with pytest.raises(NotFoundException, match="Booking not found"):
             booking_service.update_booking(
-                booking_id=99999, user=test_instructor, update_data=update_data  # Non-existent ID
+                booking_id=generate_ulid(), user=test_instructor, update_data=update_data  # Non-existent ID
             )
 
     def test_update_booking_meeting_location(
@@ -290,7 +291,7 @@ class TestBookingServiceCompleteEdgeCases:
         booking_service = BookingService(db, mock_notification_service)
 
         with pytest.raises(NotFoundException, match="Booking not found"):
-            booking_service.complete_booking(booking_id=99999, instructor=test_instructor)  # Non-existent ID
+            booking_service.complete_booking(booking_id=generate_ulid(), instructor=test_instructor)  # Non-existent ID
 
     def test_complete_booking_wrong_instructor(
         self, db: Session, test_booking: Booking, mock_notification_service: Mock
@@ -344,11 +345,11 @@ class TestBookingServiceAvailabilityEdgeCases:
 
         # FIXED: Use time-based check_availability method
         result = await booking_service.check_availability(
-            instructor_id=99999,  # Non-existent instructor
+            instructor_id=generate_ulid(),  # Non-existent instructor
             booking_date=date.today() + timedelta(days=1),
             start_time=time(9, 0),
             end_time=time(10, 0),
-            service_id=1,
+            service_id=generate_ulid(),
         )
 
         assert result["available"] is False
@@ -379,7 +380,7 @@ class TestBookingServiceAvailabilityEdgeCases:
             booking_date=tomorrow,
             start_time=slot.start_time if slot else time(9, 0),
             end_time=slot.end_time if slot else time(10, 0),
-            service_id=99999,  # Non-existent service
+            service_id=generate_ulid(),  # Non-existent service
         )
 
         assert result["available"] is False

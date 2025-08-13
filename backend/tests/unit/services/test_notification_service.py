@@ -19,6 +19,7 @@ from jinja2.exceptions import TemplateNotFound
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ServiceException
+from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User
 from app.services.notification_service import NotificationService, retry
@@ -119,7 +120,7 @@ class TestNotificationService:
     def sample_booking(self):
         """Create a sample booking for testing."""
         student = User(
-            id=1,
+            id=generate_ulid(),
             email="student@test.com",
             first_name="Test",
             last_name="Student",
@@ -128,7 +129,7 @@ class TestNotificationService:
         )
 
         instructor = User(
-            id=2,
+            id=generate_ulid(),
             email="instructor@test.com",
             first_name="Test",
             last_name="Instructor",
@@ -140,8 +141,8 @@ class TestNotificationService:
             id=123,
             student=student,
             instructor=instructor,
-            student_id=1,
-            instructor_id=2,
+            student_id=generate_ulid(),
+            instructor_id=generate_ulid(),
             service_name="Piano Lessons",
             booking_date=date.today() + timedelta(days=1),
             start_time=time(14, 0),
@@ -320,8 +321,8 @@ class TestNotificationService:
             id=124,
             student=sample_booking.student,
             instructor=sample_booking.instructor,
-            student_id=1,
-            instructor_id=2,
+            student_id=generate_ulid(),
+            instructor_id=generate_ulid(),
             service_name="Piano Lessons",
             booking_date=date.today() + timedelta(days=1),
             start_time=time(15, 0),

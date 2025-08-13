@@ -301,7 +301,7 @@ async def bulk_update_availability(
 
 @router.patch("/{window_id}", response_model=AvailabilityWindowResponse)
 def update_availability_window(
-    window_id: int,
+    window_id: str,
     update_data: AvailabilityWindowUpdate,
     current_user: User = Depends(get_current_active_user),
     slot_manager: SlotManager = Depends(get_slot_manager),
@@ -340,7 +340,7 @@ def update_availability_window(
 
 @router.delete("/{window_id}", response_model=DeleteWindowResponse)
 def delete_availability_window(
-    window_id: int,
+    window_id: str,
     current_user: User = Depends(get_current_active_user),
     slot_manager: SlotManager = Depends(get_slot_manager),
 ):
@@ -448,7 +448,7 @@ def add_blackout_date(
 
 @router.delete("/blackout-dates/{blackout_id}", response_model=DeleteBlackoutResponse)
 def delete_blackout_date(
-    blackout_id: int,
+    blackout_id: str,
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
 ):

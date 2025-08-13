@@ -51,7 +51,7 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
 
     # Slot Retrieval
 
-    def get_slot_by_id(self, slot_id: int) -> Optional[AvailabilitySlot]:
+    def get_slot_by_id(self, slot_id: str) -> Optional[AvailabilitySlot]:
         """
         Get a slot by ID.
 
@@ -71,7 +71,7 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
 
     # Slot Collection Queries
 
-    def get_slots_by_date_ordered(self, instructor_id: int, target_date: date) -> List[AvailabilitySlot]:
+    def get_slots_by_date_ordered(self, instructor_id: str, target_date: date) -> List[AvailabilitySlot]:
         """
         Get all slots for a date ordered by start time.
 
@@ -98,7 +98,7 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error getting ordered slots: {str(e)}")
             raise RepositoryException(f"Failed to get slots: {str(e)}")
 
-    def get_slots_for_instructor_date(self, instructor_id: int, target_date: date) -> List[AvailabilitySlot]:
+    def get_slots_for_instructor_date(self, instructor_id: str, target_date: date) -> List[AvailabilitySlot]:
         """
         Get all slots for an instructor on a specific date.
 
@@ -113,7 +113,7 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
         """
         return self.get_slots_by_date_ordered(instructor_id, target_date)
 
-    def get_ordered_slots_for_gap_analysis(self, instructor_id: int, target_date: date) -> List[AvailabilitySlot]:
+    def get_ordered_slots_for_gap_analysis(self, instructor_id: str, target_date: date) -> List[AvailabilitySlot]:
         """
         Get slots ordered for gap analysis between consecutive slots.
 
@@ -130,7 +130,7 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
         # but kept separate for semantic clarity
         return self.get_slots_for_instructor_date(instructor_id, target_date)
 
-    def count_slots_for_date(self, instructor_id: int, target_date: date) -> int:
+    def count_slots_for_date(self, instructor_id: str, target_date: date) -> int:
         """
         Count the number of slots for an instructor on a date.
 
@@ -154,7 +154,7 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error counting slots: {str(e)}")
             raise RepositoryException(f"Failed to count slots: {str(e)}")
 
-    def get_slots_in_date_range(self, instructor_id: int, start_date: date, end_date: date) -> List[AvailabilitySlot]:
+    def get_slots_in_date_range(self, instructor_id: str, start_date: date, end_date: date) -> List[AvailabilitySlot]:
         """
         Get all slots for an instructor within a date range.
 
@@ -181,7 +181,7 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error getting slots in date range: {str(e)}")
             raise RepositoryException(f"Failed to get slots: {str(e)}")
 
-    def delete_slots_for_date(self, instructor_id: int, target_date: date) -> int:
+    def delete_slots_for_date(self, instructor_id: str, target_date: date) -> int:
         """
         Delete all slots for an instructor on a specific date.
 

@@ -14,6 +14,7 @@ Features:
 - Conversion tracking when guests become users
 """
 
+import ulid
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -33,8 +34,8 @@ class SearchHistory(Base):
 
     __tablename__ = "search_history"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)  # Nullable for guests
+    id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
+    user_id = Column(String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)  # Nullable for guests
 
     # Search details matching migration
     search_query = Column(Text, nullable=False)  # The exact search string
@@ -54,7 +55,7 @@ class SearchHistory(Base):
 
     # Guest session tracking
     guest_session_id = Column(String(36), nullable=True, index=True)  # UUID for guest sessions
-    converted_to_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    converted_to_user_id = Column(String(26), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     converted_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships

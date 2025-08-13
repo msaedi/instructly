@@ -38,7 +38,7 @@ class UserRepository(BaseRepository[User]):
     # Basic Lookups (10+ violations fixed)
     # ==========================================
 
-    def get_by_id(self, user_id: int) -> Optional[User]:
+    def get_by_id(self, user_id: str) -> Optional[User]:
         """
         Get user by ID.
 
@@ -67,7 +67,7 @@ class UserRepository(BaseRepository[User]):
     # With Relationships (6+ violations fixed)
     # ==========================================
 
-    def get_with_roles_and_permissions(self, user_id: int) -> Optional[User]:
+    def get_with_roles_and_permissions(self, user_id: str) -> Optional[User]:
         """
         Get user with eager loaded roles and permissions.
 
@@ -85,7 +85,7 @@ class UserRepository(BaseRepository[User]):
             self.logger.error(f"Error getting user with roles/permissions {user_id}: {str(e)}")
             return None
 
-    def get_with_roles(self, user_id: int) -> Optional[User]:
+    def get_with_roles(self, user_id: str) -> Optional[User]:
         """
         Get user with roles only (lighter query).
 
@@ -102,7 +102,7 @@ class UserRepository(BaseRepository[User]):
     # Role-Specific Queries (2 violations fixed)
     # ==========================================
 
-    def get_instructor(self, user_id: int) -> Optional[User]:
+    def get_instructor(self, user_id: str) -> Optional[User]:
         """
         Get user if they have instructor role.
 
@@ -124,7 +124,7 @@ class UserRepository(BaseRepository[User]):
             self.logger.error(f"Error getting instructor {user_id}: {str(e)}")
             return None
 
-    def is_instructor(self, user_id: int) -> bool:
+    def is_instructor(self, user_id: str) -> bool:
         """
         Check if user is an instructor (convenience method).
 

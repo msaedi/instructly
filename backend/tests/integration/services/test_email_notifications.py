@@ -16,6 +16,7 @@ from pathlib import Path
 # Add the parent directory to the path
 sys.path.append(str(Path(__file__).parent.parent))
 
+from app.core.ulid_helper import generate_ulid
 from app.database import SessionLocal
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User
@@ -28,7 +29,7 @@ def create_test_booking():
     # Create mock user objects
     # Using Resend's test email or replace with your actual email
     student = User(
-        id=1,
+        id=generate_ulid(),
         email="delivered@resend.dev",  # Resend's test email OR use your real email
         first_name="Test",
         last_name="Student",
@@ -37,7 +38,7 @@ def create_test_booking():
     )
 
     instructor = User(
-        id=2,
+        id=generate_ulid(),
         email="delivered@resend.dev",  # Resend's test email OR use your real email
         first_name="Test",
         last_name="Instructor",

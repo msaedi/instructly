@@ -13,6 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.core.ulid_helper import generate_ulid
 from app.main import fastapi_app as app
 from app.models.search_event import SearchEvent
 from app.models.search_history import SearchHistory
@@ -193,7 +194,7 @@ class TestSearchInteractionEdgeCases:
     def test_interaction_without_search_event(self, client, auth_headers):
         """Test interaction tracking with non-existent search event ID."""
         interaction_data = {
-            "search_event_id": 999999,  # Non-existent ID
+            "search_event_id": generate_ulid(),  # Non-existent ID
             "interaction_type": "click",
             "instructor_id": 123,
             "result_position": 1,
@@ -201,7 +202,7 @@ class TestSearchInteractionEdgeCases:
 
         response = client.post("/api/search-history/interaction", json=interaction_data, headers=auth_headers)
         assert response.status_code == 400
-        assert "Search event 999999 not found" in response.json()["detail"]
+        assert "not found" in response.json()["detail"].lower()
 
     def test_interaction_missing_required_fields(self, client, auth_headers):
         """Test interaction tracking with missing required fields."""

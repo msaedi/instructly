@@ -9,4 +9,4 @@ class SearchInteractionResponse(BaseModel):
     success: bool
     message: str = "Interaction recorded successfully"
     status: str = "tracked"
-    interaction_id: int
+    interaction_id: str

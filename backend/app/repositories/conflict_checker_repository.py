@@ -46,7 +46,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
     # Booking Conflict Queries
 
     def get_bookings_for_conflict_check(
-        self, instructor_id: int, check_date: date, exclude_booking_id: Optional[int] = None
+        self, instructor_id: str, check_date: date, exclude_booking_id: Optional[str] = None
     ) -> List[Booking]:
         """
         Get bookings that could conflict with a time range on a specific date.
@@ -84,7 +84,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             self.logger.error(f"Error getting bookings for conflict check: {str(e)}")
             raise RepositoryException(f"Failed to get conflict bookings: {str(e)}")
 
-    def get_bookings_for_date(self, instructor_id: int, target_date: date) -> List[Booking]:
+    def get_bookings_for_date(self, instructor_id: str, target_date: date) -> List[Booking]:
         """
         Get all bookings for an instructor on a specific date.
 
@@ -113,7 +113,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             self.logger.error(f"Error getting bookings for date: {str(e)}")
             raise RepositoryException(f"Failed to get bookings: {str(e)}")
 
-    def get_bookings_for_week(self, instructor_id: int, week_dates: List[date]) -> List[Booking]:
+    def get_bookings_for_week(self, instructor_id: str, week_dates: List[date]) -> List[Booking]:
         """
         Get all bookings for an instructor for a week.
 
@@ -144,7 +144,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
 
     # Blackout Date Queries (unchanged)
 
-    def get_blackout_date(self, instructor_id: int, target_date: date) -> Optional[BlackoutDate]:
+    def get_blackout_date(self, instructor_id: str, target_date: date) -> Optional[BlackoutDate]:
         """
         Check if a specific date is blacked out for an instructor.
 
@@ -170,7 +170,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
 
     # Instructor and Service Queries (unchanged)
 
-    def get_instructor_profile(self, instructor_id: int) -> Optional[InstructorProfile]:
+    def get_instructor_profile(self, instructor_id: str) -> Optional[InstructorProfile]:
         """
         Get instructor profile for validation checks.
 
@@ -186,7 +186,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
             self.logger.error(f"Error getting instructor profile: {str(e)}")
             raise RepositoryException(f"Failed to get profile: {str(e)}")
 
-    def get_active_service(self, service_id: int) -> Optional[InstructorService]:
+    def get_active_service(self, service_id: str) -> Optional[InstructorService]:
         """
         Get an active service by ID.
 

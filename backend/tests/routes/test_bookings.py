@@ -24,6 +24,7 @@ from fastapi import status
 
 from app.api.dependencies.services import get_booking_service
 from app.core.exceptions import ConflictException, NotFoundException, ValidationException
+from app.core.ulid_helper import generate_ulid
 from app.main import fastapi_app as app
 from app.models.booking import BookingStatus
 
@@ -31,8 +32,10 @@ from app.models.booking import BookingStatus
 class TestBookingRoutes:
     """Test booking API endpoints with time-based pattern."""
 
-    def _create_mock_instructor_service(self, service_id=1, name="Piano Lessons", description="Piano lessons"):
+    def _create_mock_instructor_service(self, service_id=None, name="Piano Lessons", description="Piano lessons"):
         """Helper to create a properly mocked instructor service with catalog entry."""
+        if service_id is None:
+            service_id = generate_ulid()
         mock_catalog_entry = Mock(name=name)
         mock_instructor_service = Mock(id=service_id, catalog_entry=mock_catalog_entry, description=description)
         # Make the mock service return proper values for ServiceInfo
@@ -46,8 +49,8 @@ class TestBookingRoutes:
         """Standard booking data following time-based pattern."""
         tomorrow = date.today() + timedelta(days=1)
         return {
-            "instructor_id": 1,
-            "instructor_service_id": 1,
+            "instructor_id": generate_ulid(),
+            "instructor_service_id": generate_ulid(),
             "booking_date": tomorrow.isoformat(),
             "start_time": "09:00",
             "end_time": "10:00",
@@ -90,10 +93,10 @@ class TestBookingRoutes:
         """Test successful booking creation with time-based pattern."""
         # Setup mock response
         mock_booking = Mock()
-        mock_booking.id = 123
-        mock_booking.student_id = 1
-        mock_booking.instructor_id = 1
-        mock_booking.instructor_service_id = 1
+        mock_booking.id = generate_ulid()
+        mock_booking.student_id = generate_ulid()
+        mock_booking.instructor_id = generate_ulid()
+        mock_booking.instructor_service_id = generate_ulid()
         mock_booking.booking_date = date.today() + timedelta(days=1)
         mock_booking.start_time = time(9, 0)
         mock_booking.end_time = time(10, 0)
@@ -115,8 +118,12 @@ class TestBookingRoutes:
         mock_booking.cancellation_reason = None
 
         # Setup related objects
-        mock_booking.student = Mock(id=1, first_name="Test", last_name="Student", email="student@test.com")
-        mock_booking.instructor = Mock(id=1, first_name="Test", last_name="Instructor", email="instructor@test.com")
+        mock_booking.student = Mock(
+            id=generate_ulid(), first_name="Test", last_name="Student", email="student@test.com"
+        )
+        mock_booking.instructor = Mock(
+            id=generate_ulid(), first_name="Test", last_name="Instructor", email="instructor@test.com"
+        )
         mock_booking.instructor_service = self._create_mock_instructor_service()
 
         mock_booking_service.create_booking.return_value = mock_booking
@@ -129,7 +136,7 @@ class TestBookingRoutes:
             print("Validation error:", response.json())
         assert response.status_code == status.HTTP_201_CREATED
         data = response.json()
-        assert data["id"] == 123
+        assert data["id"] == mock_booking.id
         assert data["status"] == BookingStatus.CONFIRMED.value
 
         # Verify service was called with correct parameters
@@ -138,7 +145,7 @@ class TestBookingRoutes:
     def test_create_booking_no_slot_id(self, client_with_mock_booking_service, auth_headers_student, booking_data):
         """Test that booking creation doesn't accept availability_slot_id."""
         # Add forbidden field
-        booking_data["availability_slot_id"] = 999
+        booking_data["availability_slot_id"] = generate_ulid()
 
         # Execute
         response = client_with_mock_booking_service.post("/bookings/", json=booking_data, headers=auth_headers_student)
@@ -205,7 +212,7 @@ class TestBookingRoutes:
         mock_bookings = []
         for i in range(3):
             booking = Mock()
-            booking.id = i + 1
+            booking.id = generate_ulid()
             booking.booking_date = date.today() + timedelta(days=i + 1)
             booking.start_time = time(9, 0)
             booking.end_time = time(10, 0)
@@ -219,17 +226,19 @@ class TestBookingRoutes:
             booking.location_type = "neutral"
             booking.student_note = None
             booking.instructor_note = None
-            booking.student_id = 1
-            booking.instructor_id = 2
-            booking.instructor_service_id = 1
+            booking.student_id = generate_ulid()
+            booking.instructor_id = generate_ulid()
+            booking.instructor_service_id = generate_ulid()
             booking.created_at = datetime.now()
             booking.confirmed_at = datetime.now()
             booking.completed_at = None
             booking.cancelled_at = None
             booking.cancelled_by_id = None
             booking.cancellation_reason = None
-            booking.student = Mock(id=1, first_name="Student", last_name="User", email="student@test.com")
-            booking.instructor = Mock(id=2, first_name="Instructor", last_name="User", email="instructor@test.com")
+            booking.student = Mock(id=generate_ulid(), first_name="Student", last_name="User", email="student@test.com")
+            booking.instructor = Mock(
+                id=generate_ulid(), first_name="Instructor", last_name="User", email="instructor@test.com"
+            )
             booking.instructor_service = self._create_mock_instructor_service(
                 name=f"Service {i+1}", description="Description"
             )
@@ -266,7 +275,7 @@ class TestBookingRoutes:
 
     def test_cancel_booking_success(self, client_with_mock_booking_service, auth_headers_student, mock_booking_service):
         """Test successful booking cancellation."""
-        booking_id = 123
+        booking_id = generate_ulid()
 
         # Setup mock return
         cancelled_booking = Mock()
@@ -284,18 +293,20 @@ class TestBookingRoutes:
         cancelled_booking.location_type = "neutral"
         cancelled_booking.student_note = None
         cancelled_booking.instructor_note = None
-        cancelled_booking.student_id = 1
-        cancelled_booking.instructor_id = 2
-        cancelled_booking.instructor_service_id = 1
+        cancelled_booking.student_id = generate_ulid()
+        cancelled_booking.instructor_id = generate_ulid()
+        cancelled_booking.instructor_service_id = generate_ulid()
         cancelled_booking.created_at = datetime.now()
         cancelled_booking.confirmed_at = datetime.now()
         cancelled_booking.completed_at = None
         cancelled_booking.cancelled_at = datetime.now()
-        cancelled_booking.cancelled_by_id = 1
+        cancelled_booking.cancelled_by_id = generate_ulid()
         cancelled_booking.cancellation_reason = "Schedule conflict"
-        cancelled_booking.student = Mock(id=1, first_name="Student", last_name="User", email="student@test.com")
+        cancelled_booking.student = Mock(
+            id=generate_ulid(), first_name="Student", last_name="User", email="student@test.com"
+        )
         cancelled_booking.instructor = Mock(
-            id=2, first_name="Instructor", last_name="User", email="instructor@test.com"
+            id=generate_ulid(), first_name="Instructor", last_name="User", email="instructor@test.com"
         )
         cancelled_booking.instructor_service = self._create_mock_instructor_service()
 
@@ -315,7 +326,7 @@ class TestBookingRoutes:
         self, client_with_mock_booking_service, auth_headers_student, mock_booking_service
     ):
         """Test cancelling non-existent booking."""
-        booking_id = 999
+        booking_id = generate_ulid()
         mock_booking_service.cancel_booking.side_effect = NotFoundException("Booking not found")
 
         # Execute
@@ -328,7 +339,7 @@ class TestBookingRoutes:
 
     def test_cancel_booking_missing_reason(self, client, auth_headers_student):
         """Test cancelling booking without reason."""
-        booking_id = 123
+        booking_id = generate_ulid()
 
         # Execute - missing reason
         response = client.post(f"/bookings/{booking_id}/cancel", json={}, headers=auth_headers_student)
@@ -340,7 +351,7 @@ class TestBookingRoutes:
         self, client_with_mock_booking_service, auth_headers_instructor, mock_booking_service
     ):
         """Test that only instructors can complete bookings."""
-        booking_id = 123
+        booking_id = generate_ulid()
 
         # Setup mock
         completed_booking = Mock()
@@ -358,18 +369,20 @@ class TestBookingRoutes:
         completed_booking.location_type = "neutral"
         completed_booking.student_note = None
         completed_booking.instructor_note = "Great progress!"
-        completed_booking.student_id = 1
-        completed_booking.instructor_id = 2
-        completed_booking.instructor_service_id = 1
+        completed_booking.student_id = generate_ulid()
+        completed_booking.instructor_id = generate_ulid()
+        completed_booking.instructor_service_id = generate_ulid()
         completed_booking.created_at = datetime.now()
         completed_booking.confirmed_at = datetime.now()
         completed_booking.completed_at = datetime.now()
         completed_booking.cancelled_at = None
         completed_booking.cancelled_by_id = None
         completed_booking.cancellation_reason = None
-        completed_booking.student = Mock(id=1, first_name="Student", last_name="User", email="student@test.com")
+        completed_booking.student = Mock(
+            id=generate_ulid(), first_name="Student", last_name="User", email="student@test.com"
+        )
         completed_booking.instructor = Mock(
-            id=2, first_name="Instructor", last_name="User", email="instructor@test.com"
+            id=generate_ulid(), first_name="Instructor", last_name="User", email="instructor@test.com"
         )
         completed_booking.instructor_service = self._create_mock_instructor_service()
 
@@ -390,8 +403,8 @@ class TestBookingRoutes:
         response = client.post(
             "/bookings/check-availability",
             json={
-                "instructor_id": 1,
-                "instructor_service_id": 1,
+                "instructor_id": generate_ulid(),
+                "instructor_service_id": generate_ulid(),
                 "booking_date": date.today().isoformat(),
                 "start_time": "14:00",
                 "end_time": "15:00",
@@ -416,8 +429,8 @@ class TestBookingRoutes:
         response = client_with_mock_booking_service.post(
             "/bookings/check-availability",
             json={
-                "instructor_id": 1,
-                "instructor_service_id": 1,
+                "instructor_id": generate_ulid(),
+                "instructor_service_id": generate_ulid(),
                 "booking_date": (date.today() + timedelta(days=1)).isoformat(),
                 "start_time": "14:00",
                 "end_time": "15:00",
@@ -487,7 +500,7 @@ class TestBookingRoutes:
         upcoming = []
         for i in range(2):
             booking = Mock()
-            booking.id = i + 1
+            booking.id = generate_ulid()
             booking.booking_date = date.today() + timedelta(days=i + 1)
             booking.start_time = time(9 + i, 0)
             booking.end_time = time(10 + i, 0)
@@ -496,11 +509,12 @@ class TestBookingRoutes:
 
             # Set IDs for privacy checks - use actual test_student.id
             booking.student_id = test_student.id  # Use actual test_student.id
-            booking.instructor_id = test_student.id + 100  # Different from student
+            instructor_id = generate_ulid()  # Generate a different ULID for instructor
+            booking.instructor_id = instructor_id
 
             # These are required for UpcomingBookingResponse
             booking.student = Mock(id=test_student.id, first_name="Test", last_name="Student")
-            booking.instructor = Mock(id=test_student.id + 100, first_name="Test", last_name="Instructor")
+            booking.instructor = Mock(id=instructor_id, first_name="Test", last_name="Instructor")
 
             # Add the from_orm compatible attributes
             booking.student_first_name = booking.student.first_name
@@ -533,7 +547,7 @@ class TestBookingRoutes:
 
     def test_get_booking_preview(self, client_with_mock_booking_service, auth_headers_student, mock_booking_service):
         """Test getting booking preview."""
-        booking_id = 123
+        booking_id = generate_ulid()
 
         # Setup mock
         mock_booking = Mock()
@@ -567,7 +581,7 @@ class TestBookingRoutes:
 
     def test_update_booking(self, client_with_mock_booking_service, auth_headers_instructor, mock_booking_service):
         """Test updating booking details."""
-        booking_id = 123
+        booking_id = generate_ulid()
 
         # Setup mock
         updated_booking = Mock()
@@ -575,9 +589,9 @@ class TestBookingRoutes:
         updated_booking.instructor_note = "Updated note"
         updated_booking.meeting_location = "New location"
         # Add all required fields for response
-        updated_booking.student_id = 1
-        updated_booking.instructor_id = 2
-        updated_booking.instructor_service_id = 1
+        updated_booking.student_id = generate_ulid()
+        updated_booking.instructor_id = generate_ulid()
+        updated_booking.instructor_service_id = generate_ulid()
         updated_booking.booking_date = date.today() + timedelta(days=1)
         updated_booking.start_time = time(9, 0)
         updated_booking.end_time = time(10, 0)
@@ -595,8 +609,12 @@ class TestBookingRoutes:
         updated_booking.cancelled_at = None
         updated_booking.cancelled_by_id = None
         updated_booking.cancellation_reason = None
-        updated_booking.student = Mock(id=1, first_name="Student", last_name="User", email="student@test.com")
-        updated_booking.instructor = Mock(id=2, first_name="Instructor", last_name="User", email="instructor@test.com")
+        updated_booking.student = Mock(
+            id=generate_ulid(), first_name="Student", last_name="User", email="student@test.com"
+        )
+        updated_booking.instructor = Mock(
+            id=generate_ulid(), first_name="Instructor", last_name="User", email="instructor@test.com"
+        )
         updated_booking.instructor_service = self._create_mock_instructor_service()
 
         mock_booking_service.update_booking.return_value = updated_booking
@@ -619,10 +637,11 @@ class TestBookingRoutes:
         """Test getting full booking details."""
         # Create complete mock booking
         mock_booking = Mock()
-        mock_booking.id = 123
-        mock_booking.student_id = 1
-        mock_booking.instructor_id = 2
-        mock_booking.instructor_service_id = 1
+        booking_id = generate_ulid()
+        mock_booking.id = booking_id
+        mock_booking.student_id = generate_ulid()
+        mock_booking.instructor_id = generate_ulid()
+        mock_booking.instructor_service_id = generate_ulid()
         mock_booking.booking_date = date.today() + timedelta(days=1)
         mock_booking.start_time = time(9, 0)
         mock_booking.end_time = time(10, 0)
@@ -642,17 +661,21 @@ class TestBookingRoutes:
         mock_booking.cancelled_at = None
         mock_booking.cancelled_by_id = None
         mock_booking.cancellation_reason = None
-        mock_booking.student = Mock(id=1, first_name="Test", last_name="Student", email="student@test.com")
-        mock_booking.instructor = Mock(id=2, first_name="Test", last_name="Instructor", email="instructor@test.com")
+        mock_booking.student = Mock(
+            id=generate_ulid(), first_name="Test", last_name="Student", email="student@test.com"
+        )
+        mock_booking.instructor = Mock(
+            id=generate_ulid(), first_name="Test", last_name="Instructor", email="instructor@test.com"
+        )
         mock_booking.instructor_service = self._create_mock_instructor_service()
 
         mock_booking_service.get_booking_for_user.return_value = mock_booking
 
-        response = client_with_mock_booking_service.get("/bookings/123", headers=auth_headers_student)
+        response = client_with_mock_booking_service.get(f"/bookings/{booking_id}", headers=auth_headers_student)
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert data["id"] == 123
+        assert data["id"] == booking_id
         assert data["service_name"] == "Piano Lesson"
 
     def test_get_booking_details_not_found(
@@ -789,8 +812,8 @@ class TestBookingRoutes:
         response = client_with_mock_booking_service.post(
             "/bookings/check-availability",
             json={
-                "instructor_id": 1,
-                "instructor_service_id": 1,
+                "instructor_id": generate_ulid(),
+                "instructor_service_id": generate_ulid(),
                 "booking_date": tomorrow.isoformat(),
                 "start_time": "09:00",
                 "end_time": "10:00",
@@ -945,7 +968,7 @@ class TestBookingRoutes:
         mock_bookings = []
         for i in range(2):
             booking = Mock()
-            booking.id = i + 1
+            booking.id = generate_ulid()
             booking.booking_date = date.today() + timedelta(days=i + 1)
             booking.start_time = time(14, 0)
             booking.end_time = time(15, 0)
@@ -959,19 +982,21 @@ class TestBookingRoutes:
             booking.location_type = "instructor_location"
             booking.student_note = "First lesson"
             booking.instructor_note = None
-            booking.student_id = 1
-            booking.instructor_id = 2
-            booking.instructor_service_id = 2
+            booking.student_id = generate_ulid()
+            booking.instructor_id = generate_ulid()
+            booking.instructor_service_id = generate_ulid()
             booking.created_at = datetime.now()
             booking.confirmed_at = datetime.now()
             booking.completed_at = None
             booking.cancelled_at = None
             booking.cancelled_by_id = None
             booking.cancellation_reason = None
-            booking.student = Mock(id=1, first_name="John", last_name="Doe", email="john@example.com")
-            booking.instructor = Mock(id=2, first_name="Jane", last_name="Smith", email="jane@example.com")
+            booking.student = Mock(id=generate_ulid(), first_name="John", last_name="Doe", email="john@example.com")
+            booking.instructor = Mock(
+                id=generate_ulid(), first_name="Jane", last_name="Smith", email="jane@example.com"
+            )
             booking.instructor_service = self._create_mock_instructor_service(
-                service_id=2, name="Guitar Lessons", description="Guitar lessons"
+                service_id=generate_ulid(), name="Guitar Lessons", description="Guitar lessons"
             )
             mock_bookings.append(booking)
 
@@ -997,8 +1022,8 @@ class TestBookingRoutes:
         response = client_with_mock_booking_service.post(
             "/bookings/check-availability",
             json={
-                "instructor_id": 1,
-                "instructor_service_id": 1,
+                "instructor_id": generate_ulid(),
+                "instructor_service_id": generate_ulid(),
                 "booking_date": (date.today() + timedelta(days=7)).isoformat(),
                 "start_time": "10:00",
                 "end_time": "11:00",
@@ -1017,7 +1042,7 @@ class TestBookingRoutes:
         """Test cancelling booking past deadline (still allowed but logged)."""
         # Should still succeed, just with a warning in logs
         cancelled_booking = Mock()
-        cancelled_booking.id = 123
+        cancelled_booking.id = generate_ulid()
         cancelled_booking.status = BookingStatus.CANCELLED
         cancelled_booking.booking_date = date.today()
         cancelled_booking.start_time = time(14, 0)
@@ -1031,18 +1056,20 @@ class TestBookingRoutes:
         cancelled_booking.location_type = "neutral"
         cancelled_booking.student_note = None
         cancelled_booking.instructor_note = None
-        cancelled_booking.student_id = 1
-        cancelled_booking.instructor_id = 2
-        cancelled_booking.instructor_service_id = 1
+        cancelled_booking.student_id = generate_ulid()
+        cancelled_booking.instructor_id = generate_ulid()
+        cancelled_booking.instructor_service_id = generate_ulid()
         cancelled_booking.created_at = datetime.now()
         cancelled_booking.confirmed_at = datetime.now()
         cancelled_booking.completed_at = None
         cancelled_booking.cancelled_at = datetime.now()
-        cancelled_booking.cancelled_by_id = 1
+        cancelled_booking.cancelled_by_id = generate_ulid()
         cancelled_booking.cancellation_reason = "Emergency"
-        cancelled_booking.student = Mock(id=1, first_name="Student", last_name="User", email="student@test.com")
+        cancelled_booking.student = Mock(
+            id=generate_ulid(), first_name="Student", last_name="User", email="student@test.com"
+        )
         cancelled_booking.instructor = Mock(
-            id=2, first_name="Instructor", last_name="User", email="instructor@test.com"
+            id=generate_ulid(), first_name="Instructor", last_name="User", email="instructor@test.com"
         )
         cancelled_booking.instructor_service = self._create_mock_instructor_service()
 

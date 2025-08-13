@@ -96,7 +96,7 @@ def format_datetime_for_user(dt: datetime, user: "User") -> dict:
     }
 
 
-def get_user_today_by_id(user_id: int, db: Session) -> date:
+def get_user_today_by_id(user_id: str, db: Session) -> date:
     """
     Get today's date for a user by ID.
 

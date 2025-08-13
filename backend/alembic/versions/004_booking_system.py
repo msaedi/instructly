@@ -34,10 +34,10 @@ def upgrade() -> None:
     # Create bookings table with self-contained design
     op.create_table(
         "bookings",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("student_id", sa.Integer(), nullable=False),
-        sa.Column("instructor_id", sa.Integer(), nullable=False),
-        sa.Column("instructor_service_id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("student_id", sa.String(26), nullable=False),
+        sa.Column("instructor_id", sa.String(26), nullable=False),
+        sa.Column("instructor_service_id", sa.String(26), nullable=False),
         # NO availability_slot_id - bookings are self-contained
         # Booking snapshot data
         sa.Column("booking_date", sa.Date(), nullable=False),
@@ -73,7 +73,7 @@ def upgrade() -> None:
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("cancelled_at", sa.DateTime(timezone=True), nullable=True),
         # Cancellation details
-        sa.Column("cancelled_by_id", sa.Integer(), nullable=True),
+        sa.Column("cancelled_by_id", sa.String(26), nullable=True),
         sa.Column("cancellation_reason", sa.Text(), nullable=True),
         # Foreign keys
         sa.ForeignKeyConstraint(["student_id"], ["users.id"]),
@@ -123,8 +123,8 @@ def upgrade() -> None:
     # Create password_reset_tokens table
     op.create_table(
         "password_reset_tokens",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("user_id", sa.String(26), nullable=False),
         sa.Column("token", sa.String(), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("used", sa.Boolean(), nullable=False, server_default="false"),
@@ -143,6 +143,29 @@ def upgrade() -> None:
     op.create_index("ix_password_reset_tokens_token", "password_reset_tokens", ["token"], unique=True)
     op.create_index("idx_password_reset_tokens_user_id", "password_reset_tokens", ["user_id"])
 
+    # Create user_favorites table for student-instructor favorites
+    op.create_table(
+        "user_favorites",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("student_id", sa.String(26), nullable=False),
+        sa.Column("instructor_id", sa.String(26), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(["student_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["instructor_id"], ["users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("student_id", "instructor_id", name="unique_student_instructor_favorite"),
+        comment="Students can favorite instructors",
+    )
+
+    # Create indexes for user_favorites
+    op.create_index("idx_favorites_student", "user_favorites", ["student_id"])
+    op.create_index("idx_favorites_instructor", "user_favorites", ["instructor_id"])
+
     print("Booking system tables created successfully!")
     print("- Created bookings table with self-contained design")
     print("- NO reference to availability_slots for complete layer independence")
@@ -153,6 +176,20 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Drop booking system tables."""
     print("Dropping booking system tables...")
+
+    # Drop user_favorites indexes and table (if they exist)
+    try:
+        op.drop_index("idx_favorites_instructor", table_name="user_favorites")
+    except:
+        pass  # Index might not exist
+    try:
+        op.drop_index("idx_favorites_student", table_name="user_favorites")
+    except:
+        pass  # Index might not exist
+    try:
+        op.drop_table("user_favorites")
+    except:
+        pass  # Table might not exist
 
     # Drop password_reset_tokens indexes and table
     op.drop_index("idx_password_reset_tokens_user_id", table_name="password_reset_tokens")

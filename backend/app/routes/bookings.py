@@ -391,7 +391,7 @@ async def create_booking(
 
 @router.get("/{booking_id}/preview", response_model=BookingPreviewResponse)
 async def get_booking_preview(
-    booking_id: int,
+    booking_id: str,
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
 ):
@@ -438,7 +438,7 @@ async def get_booking_preview(
 
 @router.get("/{booking_id}", response_model=BookingResponse)
 async def get_booking_details(
-    booking_id: int,
+    booking_id: str,
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
 ):
@@ -455,7 +455,7 @@ async def get_booking_details(
 
 @router.patch("/{booking_id}", response_model=BookingResponse)
 async def update_booking(
-    booking_id: int,
+    booking_id: str,
     update_data: BookingUpdate,
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
@@ -470,7 +470,7 @@ async def update_booking(
 
 @router.post("/{booking_id}/cancel", response_model=BookingResponse)
 async def cancel_booking(
-    booking_id: int,
+    booking_id: str,
     cancel_data: BookingCancel,
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
@@ -487,7 +487,7 @@ async def cancel_booking(
 
 @router.post("/{booking_id}/complete", response_model=BookingResponse)
 async def complete_booking(
-    booking_id: int,
+    booking_id: str,
     current_user: User = Depends(require_permission(PermissionName.COMPLETE_BOOKINGS)),
     booking_service: BookingService = Depends(get_booking_service),
 ):

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.core.enums import RoleName
 from app.core.exceptions import BusinessRuleException, ConflictException, NotFoundException, ValidationException
+from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
@@ -64,7 +65,7 @@ class TestBookingServiceUnit:
         repository.check_time_conflict.return_value = False  # No conflicts by default
         repository.check_student_time_conflict.return_value = []  # No student conflicts by default
         repository.get_bookings_by_time_range.return_value = []  # No existing bookings
-        repository.create.return_value = Mock(spec=Booking, id=1)
+        repository.create.return_value = Mock(spec=Booking, id=generate_ulid())
         repository.get_booking_with_details.return_value = None
         repository.update.return_value = None
         repository.get_student_bookings.return_value = []
@@ -107,7 +108,7 @@ class TestBookingServiceUnit:
         mock_student_role.name = RoleName.STUDENT
 
         student.roles = [mock_student_role]
-        student.id = 1
+        student.id = generate_ulid()
         student.email = "student@example.com"
         student.first_name = ("Test",)
         last_name = "Student"
@@ -124,7 +125,7 @@ class TestBookingServiceUnit:
         mock_instructor_role.name = RoleName.INSTRUCTOR
 
         instructor.roles = [mock_instructor_role]
-        instructor.id = 2
+        instructor.id = generate_ulid()
         instructor.email = "instructor@example.com"
         instructor.first_name = ("Test",)
         last_name = "Instructor"
@@ -136,7 +137,7 @@ class TestBookingServiceUnit:
     def mock_service(self):
         """Create a mock service."""
         service = Mock(spec=Service)
-        service.id = 1
+        service.id = generate_ulid()
         # Mock catalog_entry instead of skill
         catalog_entry = Mock()
         catalog_entry.name = "Piano"
@@ -144,15 +145,15 @@ class TestBookingServiceUnit:
         service.hourly_rate = 50.0
         service.is_active = True
         service.duration_options = [30, 60, 90]
-        service.instructor_profile_id = 1
+        service.instructor_profile_id = generate_ulid()
         return service
 
     @pytest.fixture
     def mock_instructor_profile(self):
         """Create a mock instructor profile."""
         profile = Mock(spec=InstructorProfile)
-        profile.id = 1
-        profile.user_id = 2  # Same as mock_instructor.id
+        profile.id = generate_ulid()
+        profile.user_id = generate_ulid()  # Same as mock_instructor.id
         profile.min_advance_booking_hours = 24
         profile.areas_of_service = "Manhattan, Brooklyn"
         return profile
@@ -161,8 +162,8 @@ class TestBookingServiceUnit:
     def mock_slot(self):
         """Create a mock availability slot with single-table design."""
         slot = Mock(spec=AvailabilitySlot)
-        slot.id = 1
-        slot.instructor_id = 2  # Same as mock_instructor.id
+        slot.id = generate_ulid()
+        slot.instructor_id = generate_ulid()  # Same as mock_instructor.id
         slot.specific_date = date.today() + timedelta(days=2)
         slot.start_time = time(14, 0)
         slot.end_time = time(15, 0)
@@ -172,7 +173,7 @@ class TestBookingServiceUnit:
     def mock_booking(self, mock_student, mock_instructor, mock_service):
         """Create a mock booking."""
         booking = Mock(spec=Booking)
-        booking.id = 1
+        booking.id = generate_ulid()
         booking.student_id = mock_student.id
         booking.instructor_id = mock_instructor.id
         booking.instructor_service_id = mock_service.id
@@ -214,7 +215,7 @@ class TestBookingServiceUnit:
         # Setup booking data with time-based fields
         booking_data = BookingCreate(
             instructor_id=mock_instructor.id,
-            instructor_service_id=1,
+            instructor_service_id=generate_ulid(),
             booking_date=date.today() + timedelta(days=2),
             start_time=time(14, 0),
             selected_duration=60,
@@ -238,7 +239,7 @@ class TestBookingServiceUnit:
         )
 
         # Mock repository create and get_booking_with_details
-        created_booking = Mock(spec=Booking, id=1, status=BookingStatus.CONFIRMED)
+        created_booking = Mock(spec=Booking, id=generate_ulid(), status=BookingStatus.CONFIRMED)
         booking_service.repository.create.return_value = created_booking
         booking_service.repository.get_booking_with_details.return_value = mock_booking
 
@@ -258,8 +259,8 @@ class TestBookingServiceUnit:
     async def test_create_booking_instructor_role_fails(self, booking_service, mock_instructor):
         """Test that instructors cannot create bookings."""
         booking_data = BookingCreate(
-            instructor_id=2,
-            instructor_service_id=1,
+            instructor_id=generate_ulid(),
+            instructor_service_id=generate_ulid(),
             booking_date=date.today() + timedelta(days=2),
             start_time=time(14, 0),
             selected_duration=60,
@@ -275,8 +276,8 @@ class TestBookingServiceUnit:
     async def test_create_booking_service_inactive(self, booking_service, mock_db, mock_student):
         """Test booking creation fails with inactive service."""
         booking_data = BookingCreate(
-            instructor_id=2,
-            instructor_service_id=1,
+            instructor_id=generate_ulid(),
+            instructor_service_id=generate_ulid(),
             booking_date=date.today() + timedelta(days=2),
             start_time=time(14, 0),
             selected_duration=60,
@@ -307,8 +308,8 @@ class TestBookingServiceUnit:
     ):
         """Test booking creation fails when time conflicts with existing booking."""
         booking_data = BookingCreate(
-            instructor_id=2,
-            instructor_service_id=1,
+            instructor_id=generate_ulid(),
+            instructor_service_id=generate_ulid(),
             booking_date=date.today() + timedelta(days=2),
             start_time=time(14, 0),
             selected_duration=60,
@@ -342,8 +343,8 @@ class TestBookingServiceUnit:
         # Set booking to be too soon
         # Use fixed times to avoid midnight wrap-around issues
         booking_data = BookingCreate(
-            instructor_id=2,
-            instructor_service_id=1,
+            instructor_id=generate_ulid(),
+            instructor_service_id=generate_ulid(),
             booking_date=date.today(),
             start_time=time(10, 0),  # 10:00 AM
             selected_duration=60,
@@ -376,7 +377,9 @@ class TestBookingServiceUnit:
         booking_service.repository.get_booking_with_details.return_value = mock_booking
 
         with patch.object(booking_service, "_invalidate_booking_caches"):
-            result = await booking_service.cancel_booking(booking_id=1, user=mock_student, reason="Schedule conflict")
+            result = await booking_service.cancel_booking(
+                booking_id=generate_ulid(), user=mock_student, reason="Schedule conflict"
+            )
 
         # Assertions
         mock_booking.cancel.assert_called_once_with(mock_student.id, "Schedule conflict")
@@ -561,7 +564,7 @@ class TestBookingServiceUnit:
         tomorrow_booking.id = 1
         tomorrow_booking.booking_date = date.today() + timedelta(days=1)
         tomorrow_booking.status = BookingStatus.CONFIRMED
-        tomorrow_booking.instructor_id = 1
+        tomorrow_booking.instructor_id = generate_ulid()
 
         booking_service.repository.get_bookings_for_date.return_value = [tomorrow_booking]
 
@@ -581,12 +584,12 @@ class TestBookingServiceUnit:
         booking1 = Mock()
         booking1.id = 1
         booking1.booking_date = date.today() + timedelta(days=1)
-        booking1.instructor_id = 1
+        booking1.instructor_id = generate_ulid()
 
         booking2 = Mock()
         booking2.id = 2
         booking2.booking_date = date.today() + timedelta(days=1)
-        booking2.instructor_id = 2
+        booking2.instructor_id = generate_ulid()
 
         booking_service.repository.get_bookings_for_date.return_value = [booking1, booking2]
 

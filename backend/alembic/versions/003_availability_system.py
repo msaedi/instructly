@@ -29,8 +29,8 @@ def upgrade() -> None:
     # Create availability_slots table with single-table design
     op.create_table(
         "availability_slots",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("instructor_id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("instructor_id", sa.String(26), nullable=False),
         sa.Column("specific_date", sa.Date(), nullable=False),
         sa.Column("start_time", sa.Time(), nullable=False),
         sa.Column("end_time", sa.Time(), nullable=False),
@@ -83,8 +83,8 @@ def upgrade() -> None:
     # Create blackout_dates table (UNCHANGED from original)
     op.create_table(
         "blackout_dates",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("instructor_id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("instructor_id", sa.String(26), nullable=False),
         sa.Column("date", sa.Date(), nullable=False),
         sa.Column("reason", sa.String(255), nullable=True),
         sa.Column(

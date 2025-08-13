@@ -12,6 +12,7 @@ from unittest.mock import Mock
 import pytest
 from sqlalchemy.orm import Session
 
+from app.core.ulid_helper import generate_ulid
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
 from app.models.user import User
@@ -164,18 +165,24 @@ class TestInstructorServiceFiltering:
         mock_profile_repository.find_by_filters.return_value = mock_profiles
 
         # Act
+        service_catalog_id = generate_ulid()
         result = instructor_service.get_instructors_filtered(
-            search="experienced", service_catalog_id=1, min_price=50.0, max_price=100.0
+            search="experienced", service_catalog_id=service_catalog_id, min_price=50.0, max_price=100.0
         )
 
         # Assert
         mock_profile_repository.find_by_filters.assert_called_once_with(
-            search="experienced", service_catalog_id=1, min_price=50.0, max_price=100.0, skip=0, limit=100
+            search="experienced",
+            service_catalog_id=service_catalog_id,
+            min_price=50.0,
+            max_price=100.0,
+            skip=0,
+            limit=100,
         )
         assert len(result["instructors"]) == 1
         assert result["metadata"]["filters_applied"] == {
             "search": "experienced",
-            "service_catalog_id": 1,
+            "service_catalog_id": service_catalog_id,
             "min_price": 50.0,
             "max_price": 100.0,
         }
@@ -258,7 +265,7 @@ class TestInstructorServiceFiltering:
         mock_profile_repository.find_by_filters.return_value = [profile]
 
         # Act
-        result = instructor_service.get_instructors_filtered(service_catalog_id=1)
+        result = instructor_service.get_instructors_filtered(service_catalog_id=generate_ulid())
 
         # Assert
         instructor = result["instructors"][0]

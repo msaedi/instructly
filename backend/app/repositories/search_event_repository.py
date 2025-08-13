@@ -22,7 +22,7 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         """Initialize with SearchEvent model."""
         super().__init__(db, SearchEvent)
 
-    def get_user_events(self, user_id: int) -> List[SearchEvent]:
+    def get_user_events(self, user_id: str) -> List[SearchEvent]:
         """
         Get all search events for a user.
 
@@ -41,7 +41,7 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
             .all()
         )
 
-    def delete_user_events(self, user_id: int) -> int:
+    def delete_user_events(self, user_id: str) -> int:
         """
         Delete all search events for a user.
 
@@ -215,7 +215,7 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
         """
         return self.db.query(func.count(SearchEvent.id)).filter(SearchEvent.searched_at >= since).scalar() or 0
 
-    def get_searches_by_user(self, user_id: int, limit: Optional[int] = None) -> List[SearchEvent]:
+    def get_searches_by_user(self, user_id: str, limit: Optional[int] = None) -> List[SearchEvent]:
         """
         Get search events for a specific user.
 

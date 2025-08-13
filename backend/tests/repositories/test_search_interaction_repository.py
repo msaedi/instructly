@@ -246,7 +246,9 @@ class TestSearchInteractionRepository:
 
     def test_get_average_position_clicked_no_clicks(self, interaction_repository):
         """Test average position when there are no clicks."""
-        avg_position = interaction_repository.get_average_position_clicked(999)
+        from app.core.ulid_helper import generate_ulid
+
+        avg_position = interaction_repository.get_average_position_clicked(generate_ulid())
         assert avg_position is None
 
     def test_get_interaction_funnel(self, interaction_repository, test_search_event, test_instructors, db):
@@ -327,7 +329,11 @@ class TestSearchInteractionRepository:
 
     def test_get_time_to_first_click_no_clicks(self, interaction_repository):
         """Test time to first click when there are no clicks."""
-        timing_data = interaction_repository.get_time_to_first_click([1, 2, 3])
+        from app.core.ulid_helper import generate_ulid
+
+        timing_data = interaction_repository.get_time_to_first_click(
+            [generate_ulid(), generate_ulid(), generate_ulid()]
+        )
 
         assert timing_data["avg_time_seconds"] is None
         assert timing_data["median_time_seconds"] is None

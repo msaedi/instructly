@@ -36,8 +36,8 @@ class PasswordResetResponse(BaseModel):
 class PasswordResetToken(BaseModel):
     """Internal model for password reset tokens"""
 
-    id: int
-    user_id: int
+    id: str
+    user_id: str
     token: str
     expires_at: datetime
     used: bool = False

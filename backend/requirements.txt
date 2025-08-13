@@ -84,3 +84,5 @@ wcwidth==0.2.13
 zipp==3.23.0
 sse-starlette==1.6.5
 asyncpg==0.29.0
+python-ulid==2.2.0
+uszipcode==1.0.1

@@ -38,7 +38,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         super().__init__(db, InstructorProfile)
         self.logger = logging.getLogger(__name__)
 
-    def get_by_user_id(self, user_id: int) -> Optional[InstructorProfile]:
+    def get_by_user_id(self, user_id: str) -> Optional[InstructorProfile]:
         """
         Get instructor profile by user ID.
 
@@ -98,7 +98,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
             raise RepositoryException(f"Failed to get instructor profiles: {str(e)}")
 
     def get_by_user_id_with_details(
-        self, user_id: int, include_inactive_services: bool = False
+        self, user_id: str, include_inactive_services: bool = False
     ) -> Optional[InstructorProfile]:
         """
         Get a single instructor profile by user_id with all relationships loaded.

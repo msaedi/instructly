@@ -34,7 +34,7 @@ class PermissionService(BaseService):
         self.rbac_repository = RepositoryFactory.create_rbac_repository(db)
 
     @BaseService.measure_operation("user_has_permission")
-    def user_has_permission(self, user_id: int, permission_name: Union[str, PermissionName]) -> bool:
+    def user_has_permission(self, user_id: str, permission_name: Union[str, PermissionName]) -> bool:
         """
         Check if a user has a specific permission.
 
@@ -80,7 +80,7 @@ class PermissionService(BaseService):
         return False
 
     @BaseService.measure_operation("get_user_permissions")
-    def get_user_permissions(self, user_id: int) -> Set[str]:
+    def get_user_permissions(self, user_id: str) -> Set[str]:
         """
         Get all permissions for a user.
 
@@ -117,7 +117,7 @@ class PermissionService(BaseService):
         return permissions
 
     @BaseService.measure_operation("get_user_roles")
-    def get_user_roles(self, user_id: int) -> List[str]:
+    def get_user_roles(self, user_id: str) -> List[str]:
         """
         Get all role names for a user.
 
@@ -135,7 +135,7 @@ class PermissionService(BaseService):
         return [role.name for role in user.roles]
 
     @BaseService.measure_operation("grant_permission")
-    def grant_permission(self, user_id: int, permission_name: str) -> bool:
+    def grant_permission(self, user_id: str, permission_name: str) -> bool:
         """
         Grant a specific permission to a user.
 
@@ -171,7 +171,7 @@ class PermissionService(BaseService):
         return True
 
     @BaseService.measure_operation("revoke_permission")
-    def revoke_permission(self, user_id: int, permission_name: str) -> bool:
+    def revoke_permission(self, user_id: str, permission_name: str) -> bool:
         """
         Revoke a specific permission from a user.
 
@@ -207,7 +207,7 @@ class PermissionService(BaseService):
         return True
 
     @BaseService.measure_operation("assign_role")
-    def assign_role(self, user_id: int, role_name: str) -> bool:
+    def assign_role(self, user_id: str, role_name: str) -> bool:
         """
         Assign a role to a user.
 
@@ -240,7 +240,7 @@ class PermissionService(BaseService):
         return True
 
     @BaseService.measure_operation("remove_role")
-    def remove_role(self, user_id: int, role_name: str) -> bool:
+    def remove_role(self, user_id: str, role_name: str) -> bool:
         """
         Remove a role from a user.
 
@@ -272,7 +272,7 @@ class PermissionService(BaseService):
 
         return True
 
-    def _clear_user_cache(self, user_id: int):
+    def _clear_user_cache(self, user_id: str):
         """Clear all cached entries for a specific user."""
         keys_to_remove = [k for k in self._cache.keys() if k.startswith(f"{user_id}:")]
         for key in keys_to_remove:

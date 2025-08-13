@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 class MessageSenderResponse(BaseModel):
     """Response schema for message sender info."""
 
-    id: int
+    id: str
     first_name: str
     last_name: str
     email: str
@@ -23,16 +23,16 @@ class MessageSenderResponse(BaseModel):
 class MessageResponse(BaseModel):
     """Response schema for a single message."""
 
-    id: int
-    booking_id: int
-    sender_id: int
+    id: str
+    booking_id: str
+    sender_id: str
     content: str
     created_at: datetime
     updated_at: datetime
     is_deleted: bool = False
     delivered_at: Optional[datetime] = None
     edited_at: Optional[datetime] = None
-    # Array of { user_id: int, read_at: datetime }
+    # Array of { user_id: str, read_at: datetime }
     read_by: Optional[List[dict]] = None
     # Reactions summary: counts per emoji and the current user's reactions
     reactions: Optional[dict] = None
@@ -52,7 +52,7 @@ class SendMessageResponse(BaseModel):
 class MessagesHistoryResponse(BaseModel):
     """Response for message history request."""
 
-    booking_id: int
+    booking_id: str
     messages: List[MessageResponse]
     limit: int
     offset: int
@@ -63,15 +63,15 @@ class UnreadCountResponse(BaseModel):
     """Response for unread message count."""
 
     unread_count: int
-    user_id: int
+    user_id: str
 
 
 class MessageNotificationResponse(BaseModel):
     """Response schema for message notification."""
 
-    id: int
-    message_id: int
-    user_id: int
+    id: str
+    message_id: str
+    user_id: str
     is_read: bool
     read_at: Optional[datetime] = None
     created_at: datetime

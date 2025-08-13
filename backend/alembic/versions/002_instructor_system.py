@@ -39,8 +39,8 @@ def upgrade() -> None:
     # Create instructor_profiles table
     op.create_table(
         "instructor_profiles",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("user_id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("user_id", sa.String(26), nullable=False),
         sa.Column("bio", sa.Text(), nullable=True),
         sa.Column("years_experience", sa.Integer(), nullable=True),
         sa.Column("areas_of_service", sa.String(), nullable=True),  # VARCHAR from start, not ARRAY
@@ -82,7 +82,7 @@ def upgrade() -> None:
     # Create service categories table
     op.create_table(
         "service_categories",
-        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("subtitle", sa.String(100), nullable=True),
         sa.Column("slug", sa.String(), nullable=False),
@@ -114,15 +114,15 @@ def upgrade() -> None:
     # Create service catalog table
     op.create_table(
         "service_catalog",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("category_id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("category_id", sa.String(26), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
         sa.Column("slug", sa.String(), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("search_terms", sa.ARRAY(sa.String), nullable=True),
         sa.Column("display_order", sa.Integer(), nullable=False, server_default="999"),
         sa.Column("embedding", Vector(384), nullable=True),
-        sa.Column("related_services", sa.ARRAY(sa.Integer), nullable=True),
+        sa.Column("related_services", sa.ARRAY(sa.String(26)), nullable=True),
         sa.Column("online_capable", sa.Boolean(), nullable=False, server_default="true"),
         sa.Column("requires_certification", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
@@ -178,9 +178,9 @@ def upgrade() -> None:
     # Create instructor services table (replaces old services table)
     op.create_table(
         "instructor_services",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("instructor_profile_id", sa.Integer(), nullable=False),
-        sa.Column("service_catalog_id", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("instructor_profile_id", sa.String(26), nullable=False),
+        sa.Column("service_catalog_id", sa.String(26), nullable=False),
         sa.Column("hourly_rate", sa.Float(), nullable=False),
         sa.Column("experience_level", sa.String(50), nullable=True),
         sa.Column("description", sa.Text(), nullable=True),
@@ -244,7 +244,7 @@ def upgrade() -> None:
     # Create service analytics table
     op.create_table(
         "service_analytics",
-        sa.Column("service_catalog_id", sa.Integer(), nullable=False),
+        sa.Column("service_catalog_id", sa.String(26), nullable=False),
         sa.Column("search_count_7d", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("search_count_30d", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("booking_count_7d", sa.Integer(), nullable=False, server_default="0"),
