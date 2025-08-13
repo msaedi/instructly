@@ -151,6 +151,86 @@ def run_command(cmd, description, cwd=None):
         return False
 
 
+def clear_cache(db_type):
+    """Clear cache after database operations."""
+    if db_type == "int":
+        print(f"\n▶ Skipping cache clear for INT database (testing use only)")
+        return True
+
+    print(f"\n▶ Clearing cache for {db_type.upper()} database...")
+
+    try:
+        if db_type == "prod":
+            # For production, use the API endpoint to clear cache remotely
+            import requests
+
+            print("  Clearing production cache via API...")
+
+            # Try to clear the specific catalog cache
+            cache_endpoints = [
+                "https://api.instainstru.com/admin/cache/clear/catalog",
+                "https://api.instainstru.com/admin/cache/clear/all",
+            ]
+
+            cleared = False
+            for endpoint in cache_endpoints:
+                try:
+                    response = requests.post(endpoint, timeout=10)
+                    if response.status_code == 200:
+                        print(f"  ✓ Cleared cache via {endpoint}")
+                        cleared = True
+                        break
+                except:
+                    continue
+
+            if not cleared:
+                print(f"  ⚠ Could not clear remote cache - continuing anyway")
+                print(f"  💡 You may need to manually clear cache or wait for TTL expiry")
+
+        else:
+            # For local databases (int/stg), clear cache directly
+            print("  Clearing local cache...")
+
+            # Import after setting environment variables
+            sys.path.insert(0, ".")
+            from app.database import get_db
+            from app.services.cache_service import CacheService
+
+            # Get database session
+            db = next(get_db())
+
+            # Initialize cache service
+            cache_service = CacheService(db)
+
+            # Clear catalog-related cache patterns
+            cache_patterns = ["catalog:*", "instructor:*", "search:*", "analytics:*"]
+
+            total_cleared = 0
+            for pattern in cache_patterns:
+                try:
+                    count = cache_service.delete_pattern(pattern)
+                    total_cleared += count
+                    if count > 0:
+                        print(f"  ✓ Cleared {count} keys matching '{pattern}'")
+                except Exception as e:
+                    print(f"  ⚠ Could not clear pattern '{pattern}': {e}")
+
+            db.close()
+
+            if total_cleared > 0:
+                print(f"  ✓ Total cache keys cleared: {total_cleared}")
+            else:
+                print(f"  ✓ Cache was already empty")
+
+        print(f"{GREEN}✓{NC} Cache clearing completed")
+        return True
+
+    except Exception as e:
+        print(f"{RED}✗{NC} Cache clearing failed: {e}")
+        print(f"  💡 Database operations completed successfully - cache will expire naturally")
+        return True  # Don't fail the entire process for cache issues
+
+
 def prep_database(db_type):
     """Prepare a specific database."""
     config = DB_CONFIG[db_type]
@@ -203,6 +283,10 @@ def prep_database(db_type):
 
     # Step 5: Calculate analytics
     if not run_command([sys.executable, "scripts/calculate_service_analytics.py"], "Calculate service analytics"):
+        return False
+
+    # Step 6: Clear cache to ensure fresh data
+    if not clear_cache(db_type):
         return False
 
     print(f"\n{GREEN}{BOLD}✅ Database preparation complete!{NC}")

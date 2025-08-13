@@ -415,8 +415,8 @@ instructors:
       - 60
       - 90
   availability_pattern: flexible_academic
-  first_name: Dr.
-  last_name: James Wilson
+  first_name: James
+  last_name: Wilson
   zip_code: '10025'
 - email: susan.martinez@example.com
   phone: '+12125551017'
@@ -1201,8 +1201,8 @@ instructors:
       - in-person
       - online
   availability_pattern: standard_weekday
-  first_name: Dr.
-  last_name: Rachel Green
+  first_name: Rachel
+  last_name: Green
   zip_code: '10060'
 - email: james.foster@example.com
   phone: '+12125551052'
@@ -1578,8 +1578,8 @@ instructors:
       location_types:
       - in-person
   availability_pattern: weekends_only
-  first_name: Dr.
-  last_name: Sarah Johnson
+  first_name: Sarah
+  last_name: Johnson
   zip_code: '10075'
 - email: brittany.jones@example.com
   phone: '+12125551068'
