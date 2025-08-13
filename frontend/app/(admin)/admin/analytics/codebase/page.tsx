@@ -28,7 +28,7 @@ export default function CodebaseMetricsPage() {
 
   useEffect(() => {
     if (!authLoading && !isAdmin) {
-      router.push('/admin');
+      router.push(`/login?redirect=${encodeURIComponent('/admin/analytics/codebase')}`);
     }
   }, [authLoading, isAdmin, router]);
 

@@ -26,7 +26,7 @@ export default function RedisAnalyticsPage() {
 
   useEffect(() => {
     if (!authLoading && !isAdmin) {
-      router.push('/admin');
+      router.push(`/login?redirect=${encodeURIComponent('/admin/analytics/redis')}`);
     }
   }, [authLoading, isAdmin, router]);
 

@@ -22,7 +22,7 @@ export default function DatabaseAnalyticsPage() {
 
   useEffect(() => {
     if (!authLoading && !isAdmin) {
-      router.push('/admin');
+      router.push(`/login?redirect=${encodeURIComponent('/admin/analytics/database')}`);
     }
   }, [authLoading, isAdmin, router]);
 
