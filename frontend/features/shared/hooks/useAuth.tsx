@@ -12,7 +12,7 @@ import {
 } from '@/lib/searchTracking';
 
 export interface User {
-  id: number;
+  id: string;
   email: string;
   first_name: string;
   last_name: string;
@@ -160,7 +160,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Handle guest session based on user preference
     clearGuestSession(); // This respects the user's clearDataOnLogout preference
 
-    router.push('/');
+    // Force hard navigation to avoid auth guards on current page racing to /login
+    if (typeof window !== 'undefined') {
+      window.location.assign('/');
+    } else {
+      router.replace('/');
+    }
     logger.info('User logged out');
   };
 
@@ -226,7 +231,7 @@ export function getUserInitials(user: any | null): string {
   return '';
 }
 
-export function getAvatarColor(userId: number): string {
+export function getAvatarColor(userId: string): string {
   // Generate a consistent color based on user ID
   const colors = [
     '#3B82F6', // blue
@@ -239,7 +244,9 @@ export function getAvatarColor(userId: number): string {
     '#F97316', // orange
   ];
 
-  return colors[userId % colors.length];
+  // Use the first few characters of the ULID to generate a hash
+  const hash = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return colors[hash % colors.length];
 }
 
 // Helper function to check if user has a specific role
