@@ -12,6 +12,7 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 import { recordSearch, trackSearchInteraction } from '@/lib/searchTracking';
 import { SearchType } from '@/types/enums';
 import { Instructor } from '@/types/api';
+import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
 
 interface SearchMetadata {
   filters_applied: Record<string, any>;
@@ -28,6 +29,7 @@ function SearchPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { isAuthenticated } = useAuth();
+  const { setActivity, clearOverrides } = useBackgroundConfig();
 
   // Debug logging to track renders
   useEffect(() => {
@@ -40,6 +42,7 @@ function SearchPageContent() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [serviceName, setServiceName] = useState<string>('');
+  const [serviceSlug, setServiceSlug] = useState<string>('');
   const [previousPath, setPreviousPath] = useState<string>('/');
   const [hasRecordedSearch, setHasRecordedSearch] = useState(false);
   const [fromPage, setFromPage] = useState<string | null>(null);
@@ -57,6 +60,23 @@ function SearchPageContent() {
     setHasRecordedSearch(false);
     setServiceName(''); // Also reset service name
   }, [query, category, serviceCatalogId]);
+
+  // Set background activity from query/category when present
+  useEffect(() => {
+    // Prefer query as activity, else category
+    const activity = (query || category || '').trim();
+    if (activity) {
+      setActivity(activity);
+    }
+    // Intentionally do NOT clear on unmount so instructor profile can inherit
+  }, [query, category, setActivity]);
+
+  // When navigating via service_catalog_id, set background using the resolved service slug (prefer)
+  useEffect(() => {
+    if (serviceCatalogId && (serviceSlug || serviceName)) {
+      setActivity((serviceSlug || serviceName).toLowerCase());
+    }
+  }, [serviceCatalogId, serviceSlug, serviceName, setActivity]);
 
   // Determine where user came from
   useEffect(() => {
@@ -301,7 +321,7 @@ function SearchPageContent() {
     fetchResults();
   }, [query, category, serviceCatalogId, availableNow, page]);
 
-  // Fetch service name when serviceCatalogId changes
+  // Fetch service metadata when serviceCatalogId changes
   useEffect(() => {
     if (serviceCatalogId) {
       const fetchServiceName = async () => {
@@ -311,6 +331,7 @@ function SearchPageContent() {
             const service = servicesResponse.data.find((s) => s.id.toString() === serviceCatalogId);
             if (service) {
               setServiceName(service.name);
+              setServiceSlug(service.slug);
             }
           }
         } catch (err) {
@@ -494,7 +515,7 @@ function SearchPageContent() {
   const totalPages = Math.ceil(total / 20);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

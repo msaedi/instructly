@@ -263,3 +263,246 @@ export function getOptimizedForDevice(path: string): string | null {
 export function clearAssetCache() {
   urlCache.clear();
 }
+
+// ---------------- Smart Activity Backgrounds (variants + category fallback) ----------------
+import { publicApi } from '@/features/shared/api/client';
+
+type ServiceMeta = {
+  id: string;
+  slug: string;
+  name: string;
+  categorySlug: string;
+};
+
+const serviceIdToMeta = new Map<string, ServiceMeta>();
+const serviceSlugToMeta = new Map<string, ServiceMeta>();
+const serviceNameToMeta = new Map<string, ServiceMeta>();
+let catalogLoadedPromise: Promise<void> | null = null;
+
+async function ensureServiceCatalogLoaded(): Promise<void> {
+  if (catalogLoadedPromise) return catalogLoadedPromise;
+  catalogLoadedPromise = (async () => {
+    try {
+      const resp = await publicApi.getAllServicesWithInstructors();
+      if (!resp || resp.error || !resp.data) return;
+      const { categories } = resp.data;
+      for (const cat of categories) {
+        const categorySlug: string = cat.slug;
+        for (const svc of cat.services) {
+          const meta: ServiceMeta = {
+            id: String(svc.id),
+            slug: svc.slug,
+            name: svc.name,
+            categorySlug,
+          };
+          serviceIdToMeta.set(meta.id, meta);
+          serviceSlugToMeta.set(meta.slug.toLowerCase(), meta);
+          serviceNameToMeta.set(meta.name.toLowerCase(), meta);
+        }
+      }
+    } catch {
+      // ignore; fallback to static mapping
+    }
+  })();
+  return catalogLoadedPromise;
+}
+
+// Minimal mapping for known specific activities → category and specific key
+const CATEGORY_FOR_ACTIVITY: Record<string, { category: string; specific?: string }> = {
+  // Arts
+  dance: { category: 'arts', specific: 'dance' },
+  dancing: { category: 'arts', specific: 'dance' },
+  ballet: { category: 'arts', specific: 'dance' },
+  painting: { category: 'arts' },
+  drawing: { category: 'arts' },
+  // Sports & Fitness
+  pilates: { category: 'sports-fitness', specific: 'yoga' },
+  tennis: { category: 'sports-fitness', specific: 'tennis' },
+  'personal training': { category: 'sports-fitness' },
+  'personal trainer': { category: 'sports-fitness' },
+  trainer: { category: 'sports-fitness' },
+  fitness: { category: 'sports-fitness' },
+  workout: { category: 'sports-fitness' },
+  // Music
+  guitar: { category: 'music', specific: 'guitar' },
+  piano: { category: 'music' },
+  drums: { category: 'music' },
+};
+
+const imageExistsCache = new Map<string, boolean>();
+const variantCache = new Map<string, string[]>(); // key: `${category}/${specific}`
+const currentVariantIndex = new Map<string, number>(); // key: `${category}-${specific}`
+const lastRotationTs = new Map<string, number>();
+
+function initializeRotation() {
+  if (typeof window === 'undefined') return;
+  try {
+    const stored = window.sessionStorage.getItem('background-variants');
+    if (stored) {
+      const entries: Array<[string, number]> = JSON.parse(stored);
+      entries.forEach(([k, v]) => currentVariantIndex.set(k, v));
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function saveRotationState() {
+  if (typeof window === 'undefined') return;
+  try {
+    const entries = Array.from(currentVariantIndex.entries());
+    window.sessionStorage.setItem('background-variants', JSON.stringify(entries));
+  } catch {
+    // ignore
+  }
+}
+
+async function imageExists(cleanPath: string): Promise<boolean> {
+  if (!R2_BASE) return false;
+  if (imageExistsCache.has(cleanPath)) return imageExistsCache.get(cleanPath)!;
+  const url = getOptimizedUrl(cleanPath, { width: 1, quality: 1 }) || buildR2Url(cleanPath) || '';
+  if (!url) return false;
+
+  // Prefer Image probe in browser to avoid HEAD/CORS issues
+  if (typeof window !== 'undefined') {
+    const result = await new Promise<boolean>((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(true);
+      img.onerror = () => resolve(false);
+      img.src = url;
+    });
+    imageExistsCache.set(cleanPath, result);
+    return result;
+  }
+
+  // Fallback for non-browser environments
+  try {
+    const res = await fetch(url, { method: 'HEAD' });
+    const ok = res.ok;
+    imageExistsCache.set(cleanPath, ok);
+    return ok;
+  } catch {
+    imageExistsCache.set(cleanPath, false);
+    return false;
+  }
+}
+
+async function getActivityVariants(category: string, specific: string): Promise<string[]> {
+  const cacheKey = `${category}/${specific}`;
+  if (variantCache.has(cacheKey)) return variantCache.get(cacheKey)!;
+
+  const variants: string[] = [];
+  const base = `/backgrounds/activities/${category}/${specific}`;
+
+  // Base file: prefer webp then png
+  if (await imageExists(`${base}.webp`)) variants.push(`${base}.webp`);
+  else if (await imageExists(`${base}.png`)) variants.push(`${base}.png`);
+
+  // Numbered variants 2..10
+  for (let i = 2; i <= 10; i++) {
+    const webp = `${base}-${i}.webp`;
+    const png = `${base}-${i}.png`;
+    if (await imageExists(webp)) variants.push(webp);
+    else if (await imageExists(png)) variants.push(png);
+    else break;
+  }
+
+  variantCache.set(cacheKey, variants);
+  return variants;
+}
+
+function getCategoryDefaultPath(category: string): string {
+  // Prefer webp; fall back to png (best-effort without HEAD)
+  return `/backgrounds/activities/${category}/default.webp`;
+}
+
+function getRotatedVariant(
+  variants: string[],
+  key: string,
+  enableRotation: boolean,
+  rotationIntervalMs: number,
+): string {
+  if (variants.length <= 1) return variants[0];
+
+  // Ensure rotation state is hydrated
+  if (typeof window !== 'undefined' && currentVariantIndex.size === 0) initializeRotation();
+
+  const now = Date.now();
+  const lastTs = lastRotationTs.get(key) || 0;
+  let idx = currentVariantIndex.get(key) || 0;
+
+  if (enableRotation) {
+    if (rotationIntervalMs > 0) {
+      if (now - lastTs >= rotationIntervalMs) {
+        idx = (idx + 1) % variants.length;
+        currentVariantIndex.set(key, idx);
+        lastRotationTs.set(key, now);
+        saveRotationState();
+      }
+    } else {
+      idx = (idx + 1) % variants.length;
+      currentVariantIndex.set(key, idx);
+      lastRotationTs.set(key, now);
+      saveRotationState();
+    }
+  }
+
+  return variants[idx];
+}
+
+/**
+ * Return a clean background path for a service/activity. If a categorySlug is provided,
+ * use it as fallback when no specific mapping exists.
+ */
+export async function getSmartBackgroundForService(
+  serviceIdentifier: string,
+  categorySlug?: string,
+  options?: { enableRotation?: boolean; rotationIntervalMs?: number }
+): Promise<string | null> {
+  const enableRotation = options?.enableRotation ?? true;
+  const rotationIntervalMs = options?.rotationIntervalMs ?? 0;
+  if (!serviceIdentifier) return categorySlug ? getCategoryDefaultPath(categorySlug) : '/backgrounds/activities/arts/default.webp';
+
+  const key = serviceIdentifier.trim().toLowerCase();
+
+  // Dynamic catalog-based resolution
+  await ensureServiceCatalogLoaded();
+  let meta: ServiceMeta | undefined = undefined;
+
+  // Try slug match
+  meta = serviceSlugToMeta.get(key);
+  // Try name match
+  if (!meta) meta = serviceNameToMeta.get(key);
+  // Try id match
+  if (!meta && serviceIdToMeta.has(key)) meta = serviceIdToMeta.get(key);
+
+  if (meta) {
+    // Try specific variants under category/service slug
+    const variants = await getActivityVariants(meta.categorySlug, meta.slug);
+    if (variants.length > 0) {
+      const rotated = getRotatedVariant(variants, `${meta.categorySlug}-${meta.slug}`, enableRotation, rotationIntervalMs);
+      return rotated;
+    }
+    // Fallback to category default
+    return getCategoryDefaultPath(meta.categorySlug);
+  }
+
+  // Static synonyms mapping as a final helper
+  const mapping = CATEGORY_FOR_ACTIVITY[key];
+  if (mapping?.specific) {
+    const variants = await getActivityVariants(mapping.category, mapping.specific);
+    if (variants.length > 0) {
+      const rotated = getRotatedVariant(variants, `${mapping.category}-${mapping.specific}`, enableRotation, rotationIntervalMs);
+      return rotated;
+    }
+    return getCategoryDefaultPath(mapping.category);
+  }
+  if (mapping) {
+    return getCategoryDefaultPath(mapping.category);
+  }
+
+  // If a category slug is provided by the caller, use that
+  if (categorySlug) return getCategoryDefaultPath(categorySlug);
+
+  return '/backgrounds/activities/arts/default.webp';
+}

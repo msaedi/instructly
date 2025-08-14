@@ -29,6 +29,7 @@ import {
 } from '@/features/student/payment';
 import { navigationStateManager } from '@/lib/navigation/navigationStateManager';
 import { format } from 'date-fns';
+import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
 
 // Booking intent helpers
 function storeBookingIntent(bookingIntent: {
@@ -83,6 +84,18 @@ function InstructorProfileContent() {
   const [hasRestoredIntent, setHasRestoredIntent] = useState(false);
 
   const { data: instructor, isLoading, error } = useInstructorProfile(instructorId);
+  const { setActivity } = useBackgroundConfig();
+
+  // Set background activity based on the service the user likely arrived for
+  useEffect(() => {
+    if (!instructor) return;
+    // Use the first service's skill as the activity identifier
+    const primaryService = instructor.services?.[0]?.skill || '';
+    if (primaryService) {
+      setActivity(primaryService.toLowerCase());
+    }
+    // Do not clear on unmount here to allow navigation within profile without flicker
+  }, [instructor, setActivity]);
   // IMPORTANT: Use the canonical instructor.id (user_id ULID) when available to avoid duplicate queries
   // Defer availability fetch until canonical id is known to avoid duplicate requests
   const availabilityInstructorId = instructor?.id || '';

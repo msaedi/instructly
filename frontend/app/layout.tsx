@@ -6,6 +6,7 @@ import './globals.css';
 import { logger } from '@/lib/logger';
 import { Providers } from './providers';
 import GlobalBackground from '../components/ui/GlobalBackground';
+import { BackgroundProvider } from '@/lib/config/backgroundProvider';
 
 /**
  * Geist Sans Font Configuration
@@ -143,15 +144,17 @@ export default function RootLayout({
         className="h-full antialiased bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
         style={{ isolation: 'isolate' }}
       >
-        {/* Global fixed background with blur-up and readability overlay */}
-        <GlobalBackground />
-        {/* Future enhancements could include:
+        <BackgroundProvider>
+          {/* Global fixed background with blur-up and readability overlay */}
+          <GlobalBackground />
+          {/* Future enhancements could include:
             - Global error boundary
             - Analytics provider
             - Toast notifications provider
             - Theme provider
-        */}
-        <Providers>{children}</Providers>
+          */}
+          <Providers>{children}</Providers>
+        </BackgroundProvider>
       </body>
     </html>
   );

@@ -3,7 +3,9 @@
 
 import React from 'react';
 import { usePathname } from 'next/navigation';
-import { getActivityBackground, getAuthBackground, getLowQualityUrl, getOptimizedUrl } from '@/lib/services/assetService';
+import { detectViewport, getActivityBackground, getAuthBackground, getLowQualityUrl, getOptimizedUrl, getSmartBackgroundForService, getViewportQuality, getViewportWidth } from '@/lib/services/assetService';
+import { uiConfig } from '@/lib/config/uiConfig';
+import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
 
 /**
  * GlobalBackground
@@ -15,8 +17,14 @@ import { getActivityBackground, getAuthBackground, getLowQualityUrl, getOptimize
  * - '/login' or '/signup' → auth 'default' (reuses activity 'home' fallback if desired)
  * - other routes → no background (can be extended later)
  */
-export default function GlobalBackground(): React.ReactElement | null {
+type Props = {
+  overrides?: Partial<typeof uiConfig.backgrounds>;
+  activity?: string;
+};
+
+export default function GlobalBackground({ overrides, activity }: Props): React.ReactElement | null {
   const pathname = usePathname();
+  const { activity: ctxActivity, overrides: ctxOverrides, setActivity: setCtxActivity } = useBackgroundConfig();
   const [bgUrl, setBgUrl] = React.useState<string | null>(null);
   const [lqUrl, setLqUrl] = React.useState<string | null>(null);
   const [isLowReady, setIsLowReady] = React.useState(false);
@@ -28,36 +36,16 @@ export default function GlobalBackground(): React.ReactElement | null {
   }, []);
 
   React.useEffect(() => {
-    const vw = typeof window !== 'undefined' ? window.innerWidth : 1024;
-    const viewport: 'mobile' | 'tablet' | 'desktop' = vw < 640 ? 'mobile' : vw < 1024 ? 'tablet' : 'desktop';
+    const viewport = detectViewport();
+    const merged = { ...uiConfig.backgrounds, ...(ctxOverrides || {}), ...(overrides || {}) };
 
-    let resolvedUrl: string | null = null;
-    if (pathname === '/' || pathname === '') {
-      resolvedUrl = getActivityBackground('home', viewport);
-    } else if (pathname.startsWith('/login') || pathname.startsWith('/signup')) {
-      // Use dedicated auth background from R2
-      resolvedUrl = getAuthBackground('default', viewport) || getActivityBackground('home', viewport);
-    } else {
-      // Default global background on all other routes: use 'home'
-      resolvedUrl = getActivityBackground('home', viewport);
-    }
-
-    setBgUrl(resolvedUrl);
-    setIsLoaded(false);
-    setIsLowReady(false);
-
-    // Generate a low-quality version for blur-up effect
-    // Extract path from the optimized URL to generate LQIP
     const generateLowQuality = (url: string | null): string | null => {
       if (!url) return null;
-      // The URL is already optimized, extract the path portion
       const match = url.match(/\/cdn-cgi\/image\/[^/]+(\/.+)$/);
       if (match) {
-        // This is an optimized URL, extract the original path
         const originalPath = match[1];
         return getLowQualityUrl(originalPath);
       }
-      // Fallback: try to extract path from regular URL
       try {
         const u = new URL(url);
         return getLowQualityUrl(u.pathname);
@@ -66,35 +54,75 @@ export default function GlobalBackground(): React.ReactElement | null {
       }
     };
 
-    const low = generateLowQuality(resolvedUrl);
-    setLqUrl(low);
+    async function resolveBg() {
+      let resolvedUrl: string | null = null;
 
-    if (resolvedUrl) {
-      const img = new Image();
-      img.src = resolvedUrl;
-      img.onload = () => {
-        // Ensure at least one paint with blur visible before showing sharp image
-        const commit = () => setIsLoaded(true);
-        if (!hasMounted) {
-          // Defer to next frames to guarantee transition after first paint
-          requestAnimationFrame(() => requestAnimationFrame(commit));
-        } else {
-          // Even when cached, add a tiny delay so transition is visible
-          setTimeout(commit, 80);
+      const isAuthOrHome = pathname === '/' || pathname === '' || pathname.startsWith('/login') || pathname.startsWith('/signup');
+      const effectiveActivity = isAuthOrHome ? (activity || null) : (activity || ctxActivity || null);
+      if (effectiveActivity) {
+        const cleanPath = await getSmartBackgroundForService(effectiveActivity, undefined, {
+          enableRotation: merged.enableRotation,
+          rotationIntervalMs: merged.rotationInterval,
+        });
+        if (cleanPath) {
+          resolvedUrl = getOptimizedUrl(cleanPath, {
+            width: getViewportWidth(viewport),
+            quality: getViewportQuality(viewport),
+            format: 'auto',
+            fit: 'cover',
+          });
         }
-      };
-      img.onerror = () => setIsLoaded(true);
+      }
+
+      if (!resolvedUrl) {
+        if (pathname === '/' || pathname === '') {
+          resolvedUrl = getActivityBackground('home', viewport);
+        } else if (pathname.startsWith('/login') || pathname.startsWith('/signup')) {
+          resolvedUrl = getAuthBackground('default', viewport) || getActivityBackground('home', viewport);
+        } else {
+          resolvedUrl = getActivityBackground('home', viewport);
+        }
+      }
+
+      setBgUrl(resolvedUrl);
+      setIsLoaded(false);
+      setIsLowReady(false);
+      const low = generateLowQuality(resolvedUrl);
+      setLqUrl(low);
+
+      if (resolvedUrl) {
+        const img = new Image();
+        img.src = resolvedUrl;
+        img.onload = () => {
+          const commit = () => setIsLoaded(true);
+          if (!hasMounted) {
+            requestAnimationFrame(() => requestAnimationFrame(commit));
+          } else {
+            setTimeout(commit, 80);
+          }
+        };
+        img.onerror = () => setIsLoaded(true);
+      }
+
+      if (low) {
+        const lq = new Image();
+        lq.src = low;
+        lq.onload = () => setIsLowReady(true);
+        lq.onerror = () => setIsLowReady(true);
+      } else {
+        setIsLowReady(true);
+      }
     }
 
-    if (low) {
-      const lq = new Image();
-      lq.src = low;
-      lq.onload = () => setIsLowReady(true);
-      lq.onerror = () => setIsLowReady(true);
-    } else {
-      setIsLowReady(true);
+    resolveBg();
+  }, [pathname, ctxActivity, ctxOverrides, overrides, activity, hasMounted]);
+
+  // Clear activity when entering home/login/signup routes so background resets immediately
+  React.useEffect(() => {
+    if (pathname === '/' || pathname === '' || pathname.startsWith('/login') || pathname.startsWith('/signup')) {
+      setCtxActivity(null);
     }
-  }, [pathname]);
+  }, [pathname, setCtxActivity]);
 
   if (!bgUrl) {
     return null;
