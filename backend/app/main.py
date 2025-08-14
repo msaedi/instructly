@@ -32,6 +32,7 @@ from .routes import (
     bookings,
     codebase_metrics,
     database_monitor,
+    favorites,
     instructors,
     messages,
     metrics,
@@ -177,6 +178,7 @@ app.include_router(services.router)
 app.include_router(availability_windows.router)
 app.include_router(password_reset.router)
 app.include_router(bookings.router)
+app.include_router(favorites.router)
 app.include_router(messages.router)
 app.include_router(metrics.router)
 app.include_router(monitoring.router)

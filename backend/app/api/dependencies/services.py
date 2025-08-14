@@ -19,6 +19,7 @@ from ...services.bulk_operation_service import BulkOperationService
 from ...services.cache_service import CacheService, get_cache_service
 from ...services.conflict_checker import ConflictChecker
 from ...services.email import EmailService
+from ...services.favorites_service import FavoritesService
 from ...services.instructor_service import InstructorService
 from ...services.notification_service import NotificationService
 from ...services.password_reset_service import PasswordResetService
@@ -108,6 +109,23 @@ def get_instructor_service(
     from ...services.instructor_service import InstructorService
 
     return InstructorService(db, cache_service)
+
+
+def get_favorites_service(
+    db: Session = Depends(get_db),
+    cache_service: CacheService = Depends(get_cache_service_dep),
+) -> FavoritesService:
+    """
+    Get favorites service instance with all dependencies.
+
+    Args:
+        db: Database session
+        cache_service: Cache service for performance optimization
+
+    Returns:
+        FavoritesService instance
+    """
+    return FavoritesService(db, cache_service=cache_service)
 
 
 def get_availability_service(

@@ -100,6 +100,20 @@ class User(Base):
     # Password reset relationships
     password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
 
+    # Favorites relationships
+    # Favorites where this user is the student (instructors they've favorited)
+    student_favorites = relationship(
+        "UserFavorite", foreign_keys="UserFavorite.student_id", back_populates="student", cascade="all, delete-orphan"
+    )
+
+    # Favorites where this user is the instructor (students who favorited them)
+    instructor_favorites = relationship(
+        "UserFavorite",
+        foreign_keys="UserFavorite.instructor_id",
+        back_populates="instructor",
+        cascade="all, delete-orphan",
+    )
+
     # Search history for personalization
     # Specify foreign_keys to resolve ambiguity with converted_to_user_id
     search_history = relationship(

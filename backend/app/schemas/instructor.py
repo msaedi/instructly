@@ -256,6 +256,8 @@ class InstructorProfileResponse(InstructorProfileBase):
     updated_at: Optional[datetime] = None
     user: UserBasicPrivacy  # Changed from UserBasic to protect privacy
     services: List[ServiceResponse]
+    is_favorited: Optional[bool] = Field(None, description="Whether the current user has favorited this instructor")
+    favorited_count: int = Field(0, description="Number of students who favorited this instructor")
 
     model_config = ConfigDict(from_attributes=True)
 

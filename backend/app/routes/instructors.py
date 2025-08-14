@@ -27,11 +27,18 @@ Router Endpoints:
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
 
-from ..api.dependencies.auth import get_current_active_user
-from ..api.dependencies.services import get_account_lifecycle_service, get_cache_service_dep, get_instructor_service
+from ..api.dependencies.auth import get_current_active_user, get_current_active_user_optional
+from ..api.dependencies.services import (
+    get_account_lifecycle_service,
+    get_cache_service_dep,
+    get_favorites_service,
+    get_instructor_service,
+)
 from ..core.enums import RoleName
 from ..core.exceptions import BusinessRuleException, ValidationException
+from ..database import get_db
 from ..models.user import User
 from ..schemas.account_lifecycle import AccountStatusChangeResponse, AccountStatusResponse
 from ..schemas.base_responses import PaginatedResponse
@@ -43,6 +50,7 @@ from ..schemas.instructor import (
 )
 from ..services.account_lifecycle_service import AccountLifecycleService
 from ..services.cache_service import CacheService
+from ..services.favorites_service import FavoritesService
 from ..services.instructor_service import InstructorService
 
 logger = logging.getLogger(__name__)
@@ -210,15 +218,36 @@ async def delete_instructor_profile(
 
 @router.get("/{instructor_id}", response_model=InstructorProfileResponse)
 async def get_instructor_profile(
-    instructor_id: str, instructor_service: InstructorService = Depends(get_instructor_service)
+    instructor_id: str,
+    instructor_service: InstructorService = Depends(get_instructor_service),
+    favorites_service: FavoritesService = Depends(get_favorites_service),
+    current_user: User = Depends(get_current_active_user_optional),
 ):
-    """Get a specific instructor's profile by user ID with privacy protection."""
+    """Get a specific instructor's profile by user ID with privacy protection and favorite status."""
     try:
         profile_data = instructor_service.get_instructor_profile(instructor_id)
+
         # Apply privacy protection using schema-owned construction
         if hasattr(profile_data, "id"):  # It's an ORM object
-            return InstructorProfileResponse.from_orm(profile_data)
-        return profile_data  # Already processed/dict
+            response = InstructorProfileResponse.from_orm(profile_data)
+        else:
+            # If it's already a dict, convert to Pydantic model
+            response = InstructorProfileResponse(**profile_data)
+
+        # Add favorite status and count
+        if current_user:
+            # Check if current user has favorited this instructor
+            response.is_favorited = favorites_service.is_favorited(
+                student_id=current_user.id, instructor_id=instructor_id
+            )
+        else:
+            response.is_favorited = None  # None indicates not authenticated
+
+        # Always show favorite count
+        stats = favorites_service.get_instructor_favorite_stats(instructor_id)
+        response.favorited_count = stats["favorite_count"]
+
+        return response
     except Exception as e:
         if "not found" in str(e).lower():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found")
