@@ -90,6 +90,12 @@ class AuthService(BaseService):
         # Hash the password
         hashed_password = get_password_hash(password)
 
+        # Get timezone from zip code
+        from app.core.timezone_service import get_timezone_from_zip
+
+        timezone = get_timezone_from_zip(zip_code) if zip_code else "America/New_York"
+        self.logger.info(f"Setting timezone {timezone} for zip code {zip_code}")
+
         try:
             with self.transaction():
                 # Create user without role (will be assigned via RBAC)
@@ -100,6 +106,7 @@ class AuthService(BaseService):
                     last_name=last_name,
                     phone=phone,
                     zip_code=zip_code,
+                    timezone=timezone,
                 )
 
                 # Assign role using PermissionService

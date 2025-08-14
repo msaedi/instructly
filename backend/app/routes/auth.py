@@ -315,36 +315,59 @@ async def update_current_user(
     try:
         user = auth_service.get_current_user(email=current_user)
 
-        # Update fields if provided
-        if user_update.first_name is not None:
-            user.first_name = user_update.first_name
-        if user_update.last_name is not None:
-            user.last_name = user_update.last_name
-        if user_update.phone is not None:
-            user.phone = user_update.phone
-        if user_update.zip_code is not None:
-            user.zip_code = user_update.zip_code
-        if user_update.timezone is not None:
-            user.timezone = user_update.timezone
+        # Use repository for updates
+        from app.repositories import RepositoryFactory
 
-        # Save changes
-        db.commit()
-        db.refresh(user)
+        user_repository = RepositoryFactory.create_user_repository(db)
+
+        # Prepare update data
+        update_data = {}
+        if user_update.first_name is not None:
+            update_data["first_name"] = user_update.first_name
+        if user_update.last_name is not None:
+            update_data["last_name"] = user_update.last_name
+        if user_update.phone is not None:
+            update_data["phone"] = user_update.phone
+
+        # Handle zip code change with automatic timezone update
+        if user_update.zip_code is not None:
+            old_zip = user.zip_code
+            update_data["zip_code"] = user_update.zip_code
+
+            # Auto-update timezone when zip code changes
+            if old_zip != user_update.zip_code:
+                from app.core.timezone_service import get_timezone_from_zip
+
+                new_timezone = get_timezone_from_zip(user_update.zip_code)
+                logger.info(
+                    f"Updating timezone from {user.timezone} to {new_timezone} for zip change {old_zip} -> {user_update.zip_code}"
+                )
+                update_data["timezone"] = new_timezone
+
+        # Allow manual timezone override
+        if user_update.timezone is not None:
+            update_data["timezone"] = user_update.timezone
+
+        # Update using repository
+        updated_user = user_repository.update_profile(user.id, **update_data)
+
+        if not updated_user:
+            raise NotFoundException("Failed to update user")
 
         # Get permissions for the response
         permission_service = PermissionService(db)
-        permissions = permission_service.get_user_permissions(user.id)
-        roles = permission_service.get_user_roles(user.id)
+        permissions = permission_service.get_user_permissions(updated_user.id)
+        roles = permission_service.get_user_roles(updated_user.id)
 
         return UserWithPermissionsResponse(
-            id=user.id,
-            email=user.email,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            phone=user.phone,
-            zip_code=user.zip_code,
-            is_active=user.is_active,
-            timezone=user.timezone,
+            id=updated_user.id,
+            email=updated_user.email,
+            first_name=updated_user.first_name,
+            last_name=updated_user.last_name,
+            phone=updated_user.phone,
+            zip_code=updated_user.zip_code,
+            is_active=updated_user.is_active,
+            timezone=updated_user.timezone,
             roles=roles,
             permissions=list(permissions),
         )
@@ -355,7 +378,6 @@ async def update_current_user(
         )
     except Exception as e:
         logger.error(f"Error updating user profile: {str(e)}")
-        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update user profile",

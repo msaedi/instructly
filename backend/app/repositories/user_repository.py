@@ -163,6 +163,43 @@ class UserRepository(BaseRepository[User]):
             return 0
 
     # ==========================================
+    # Update Operations
+    # ==========================================
+
+    def update_profile(self, user_id: str, **kwargs) -> Optional[User]:
+        """
+        Update user profile fields.
+
+        Used by: auth.py update_current_user endpoint
+        Fixes: Direct database access in routes
+
+        Args:
+            user_id: User ID to update
+            **kwargs: Fields to update (first_name, last_name, phone, zip_code, timezone)
+
+        Returns:
+            Updated user or None if not found
+        """
+        try:
+            user = self.get_by_id(user_id)
+            if not user:
+                return None
+
+            # Update provided fields
+            for field, value in kwargs.items():
+                if hasattr(user, field) and value is not None:
+                    setattr(user, field, value)
+
+            self.db.commit()
+            self.db.refresh(user)
+            return user
+
+        except Exception as e:
+            self.logger.error(f"Error updating user profile {user_id}: {str(e)}")
+            self.db.rollback()
+            return None
+
+    # ==========================================
     # Bulk Operations
     # ==========================================
 
