@@ -10,9 +10,10 @@ Provides common functionality for all service classes including:
 - Performance monitoring
 """
 
+import asyncio
 import logging
 import time
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
@@ -127,11 +128,64 @@ class BaseService:
             func._operation_name = operation_name
             func._is_measured = True
 
+            is_async = asyncio.iscoroutinefunction(func)
+
+            if not is_async:
+
+                @wraps(func)
+                def wrapper(self, *args, **kwargs):
+                    # Now we have access to self!
+                    if not hasattr(self, "_metrics"):
+                        # Initialize metrics if this is called on a non-BaseService instance
+                        self._metrics = {}
+
+                    start_time = time.time()
+                    success = False
+                    error_type = None
+
+                    try:
+                        result = func(self, *args, **kwargs)
+                        success = True
+                        return result
+                    except Exception as e:
+                        success = False
+                        error_type = type(e).__name__
+                        raise
+                    finally:
+                        elapsed = time.time() - start_time
+
+                        # Fast path: only do expensive work if needed
+                        if hasattr(self, "_record_metric"):
+                            self._record_metric(operation_name, elapsed, success)
+
+                        # Only log if it's actually slow
+                        if elapsed > 1.0:
+                            if hasattr(self, "logger"):
+                                self.logger.warning(f"Slow operation detected: {operation_name} took {elapsed:.2f}s")
+
+                        # Record Prometheus metrics (optimized)
+                        if PROMETHEUS_AVAILABLE and prometheus_metrics:
+                            try:
+                                # Cache service name to avoid repeated __class__ access
+                                service_name = self.__class__.__name__
+                                status = "success" if success else "error"
+
+                                prometheus_metrics.record_service_operation(
+                                    service=service_name,
+                                    operation=operation_name,
+                                    duration=elapsed,
+                                    status=status,
+                                    error_type=error_type,
+                                )
+                            except Exception:
+                                # Don't let metrics collection break the operation
+                                pass
+
+                return wrapper
+
             @wraps(func)
-            def wrapper(self, *args, **kwargs):
-                # Now we have access to self!
+            async def async_wrapper(self, *args, **kwargs):
                 if not hasattr(self, "_metrics"):
-                    # Initialize metrics if this is called on a non-BaseService instance
                     self._metrics = {}
 
                 start_time = time.time()
@@ -139,7 +193,7 @@ class BaseService:
                 error_type = None
 
                 try:
-                    result = func(self, *args, **kwargs)
+                    result = await func(self, *args, **kwargs)
                     success = True
                     return result
                 except Exception as e:
@@ -149,22 +203,17 @@ class BaseService:
                 finally:
                     elapsed = time.time() - start_time
 
-                    # Fast path: only do expensive work if needed
                     if hasattr(self, "_record_metric"):
                         self._record_metric(operation_name, elapsed, success)
 
-                    # Only log if it's actually slow
                     if elapsed > 1.0:
                         if hasattr(self, "logger"):
                             self.logger.warning(f"Slow operation detected: {operation_name} took {elapsed:.2f}s")
 
-                    # Record Prometheus metrics (optimized)
                     if PROMETHEUS_AVAILABLE and prometheus_metrics:
                         try:
-                            # Cache service name to avoid repeated __class__ access
                             service_name = self.__class__.__name__
                             status = "success" if success else "error"
-
                             prometheus_metrics.record_service_operation(
                                 service=service_name,
                                 operation=operation_name,
@@ -173,10 +222,9 @@ class BaseService:
                                 error_type=error_type,
                             )
                         except Exception:
-                            # Don't let metrics collection break the operation
                             pass
 
-            return wrapper
+            return async_wrapper
 
         return decorator
 
@@ -221,6 +269,36 @@ class BaseService:
                     )
                 except Exception:
                     # Don't let metrics collection break the operation
+                    pass
+
+    @asynccontextmanager
+    async def async_measure_operation_context(self, operation_name: str):
+        """
+        Async context manager to measure operation performance.
+        """
+        start_time = time.time()
+        success = False
+        try:
+            yield
+            success = True
+        except Exception:
+            success = False
+            raise
+        finally:
+            elapsed = time.time() - start_time
+            self._record_metric(operation_name, elapsed, success)
+
+            if elapsed > 1.0:
+                self.logger.warning(f"Slow operation detected: {operation_name} took {elapsed:.2f}s")
+
+            if PROMETHEUS_AVAILABLE and prometheus_metrics:
+                try:
+                    service_name = self.__class__.__name__
+                    status = "success" if success else "error"
+                    prometheus_metrics.record_service_operation(
+                        service=service_name, operation=operation_name, duration=elapsed, status=status
+                    )
+                except Exception:
                     pass
 
     def invalidate_cache(self, *keys: str) -> None:

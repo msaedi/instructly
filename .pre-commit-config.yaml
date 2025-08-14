@@ -43,7 +43,7 @@ repos:
 
       - id: check-repository-pattern
         name: Check Repository Pattern Compliance
-        entry: python backend/scripts/check_repository_pattern.py
+        entry: python3 backend/scripts/check_repository_pattern.py
         language: system
         files: ^backend/app/(services|core)/.*\.py$
         pass_filenames: false
@@ -51,7 +51,7 @@ repos:
 
       - id: enforce-service-metrics
         name: Enforce @BaseService.measure_operation on service methods
-        entry: python backend/scripts/check_service_metrics.py
+        entry: python3 backend/scripts/check_service_metrics.py
         language: system
         files: ^backend/app/services/.*\.py$
         pass_filenames: true

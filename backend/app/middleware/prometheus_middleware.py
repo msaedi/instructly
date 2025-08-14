@@ -36,7 +36,10 @@ class PrometheusMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         method = request.method
-        path = request.url.path
+        raw_path = request.url.path
+        # Normalize endpoint label to reduce cardinality (strip numeric IDs)
+        # Example: /api/bookings/123 -> /api/bookings/:id
+        path = "/".join(":id" if segment.isdigit() else segment for segment in raw_path.split("/"))
 
         # Track request start
         prometheus_metrics.track_http_request_start(method, path)
