@@ -23,6 +23,10 @@ services:
   - piano coaching
   - piano music
   - piano training
+  - piano class
+  - piano coaching
+  - keys
+  - keyboard lessons
   display_order: 1
   online_capable: true
   requires_certification: false
@@ -79,6 +83,9 @@ services:
   - guitar playing
   - guitar skills
   - guitar coaching
+  - guitar class
+  - guitar practice
+  - guitar tutor near me
   display_order: 3
   online_capable: true
   requires_certification: false
@@ -107,6 +114,8 @@ services:
   - voice training
   - singing skills
   - vocal skills
+  - voice lessons near me
+  - vocal class
   display_order: 4
   online_capable: true
   requires_certification: false
@@ -1609,6 +1618,12 @@ services:
   - private trainer
   - fitness mentor
   - workout coach
+  - 1 on 1 training
+  - 1:1 training
+  - private training
+  - personal trainers
+  - fitness instructor
+  - personal training coach
   display_order: 1
   online_capable: true
   requires_certification: true
@@ -1638,6 +1653,13 @@ services:
   - yoga coaching
   - yoga training
   - yoga practice
+  - yoga class
+  - yoga session
+  - yoga near me
+  - asana
+  - sun salutation
+  - namaste
+  - yogi
   display_order: 2
   online_capable: true
   requires_certification: true
@@ -1695,6 +1717,8 @@ services:
   - tennis instruction
   - beginner tennis
   - advanced tennis
+  - tennis pro
+  - tennis clinic
   display_order: 4
   online_capable: false
   requires_certification: false
@@ -2779,6 +2803,8 @@ services:
   - street dance
   - urban dance
   - hip hop choreography
+  - hip-hop dance
+  - hip hop class
   display_order: 6
   online_capable: true
   requires_certification: false
@@ -2794,6 +2820,7 @@ services:
   - contemporary movement
   - lyrical dance
   - expressive dance
+  - contemporary class
   display_order: 7
   online_capable: true
   requires_certification: true
@@ -2808,6 +2835,8 @@ services:
   - jazz dancing
   - jazz choreography
   - musical theater dance
+  - jazz technique
+  - jazz class
   display_order: 8
   online_capable: true
   requires_certification: true

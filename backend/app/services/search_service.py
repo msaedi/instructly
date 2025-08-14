@@ -148,8 +148,34 @@ class QueryParser:
         r"\bfitness\s+(?:classes?|training|instruction)\b",
         r"\barts?\s+(?:lessons?|classes?|instruction)\b",
         r"^(?:lessons?|classes?)\s+(?:under|below|for)",  # Generic "lessons" at start
-        r"\binstructors?\b$",  # Generic "instructors" at end
-        r"\bteachers?\b$",  # Generic "teachers" at end
+        # Do NOT classify queries ending in 'teacher' or 'instructor' as category by default
+        # We only want explicit category terms/patterns to trigger broader search
+    ]
+
+    # Lightweight morphology normalizations (generic)
+    MORPH_NORMALIZATIONS = {
+        # Plurals → singular
+        r"\bclasses\b": "class",
+        r"\blessons\b": "lesson",
+        r"\bteachers\b": "teacher",
+        r"\btutors\b": "tutor",
+        r"\binstructors\b": "instructor",
+        r"\bcoaches\b": "coach",
+        r"\btrainers\b": "trainer",
+        # Common verb-noun smoothing (keeps semantics close for catalog names)
+        r"\btraining\b": "training",  # noop placeholder for consistency
+        r"\btrainer\b": "trainer",
+        r"\bcoaching\b": "coaching",
+    }
+
+    # Generic role/format stop-words to reduce noise in specific queries
+    ROLE_STOPWORDS = [
+        r"\bteacher\b",
+        r"\btutor\b",
+        r"\binstructor\b",
+        r"\bcoach\b",
+        r"\bclass(?:es)?\b",
+        r"\blesson(?:s)?\b",
     ]
 
     def parse(self, query: str) -> Dict:
@@ -208,7 +234,18 @@ class QueryParser:
                 constraints["level"][level_type] = True
                 constraints["cleaned_query"] = re.sub(pattern, "", constraints["cleaned_query"])
 
-        # Clean up the query
+        # Clean up whitespace
+        constraints["cleaned_query"] = " ".join(constraints["cleaned_query"].split())
+
+        # Apply lightweight morphology normalizations (generic, not service-specific)
+        for pattern, repl in self.MORPH_NORMALIZATIONS.items():
+            constraints["cleaned_query"] = re.sub(pattern, repl, constraints["cleaned_query"], flags=re.IGNORECASE)
+
+        # Remove generic role/format words to improve matching (kept in original_query)
+        for pattern in self.ROLE_STOPWORDS:
+            constraints["cleaned_query"] = re.sub(pattern, "", constraints["cleaned_query"], flags=re.IGNORECASE)
+
+        # Final trim
         constraints["cleaned_query"] = " ".join(constraints["cleaned_query"].split())
 
         # Normalize service names
@@ -308,7 +345,25 @@ class SearchService(BaseService):
         if include_availability and parsed.get("time"):
             results = self._filter_by_availability(results, parsed["time"])
 
-        # Track search analytics
+        # Track search analytics (log when nothing matched for observability)
+        if not services:
+            logger.info(
+                "NL Search returned no services; consider synonyms or threshold tuning",
+                extra={"cleaned_query": parsed.get("cleaned_query")},
+            )
+            # Return an empty service set gracefully
+            return {
+                "query": query,
+                "parsed": parsed,
+                "results": [],
+                "total_found": 0,
+                "search_metadata": {
+                    "used_semantic_search": bool(parsed.get("cleaned_query")),
+                    "applied_filters": self._get_applied_filters(parsed),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
+            }
+
         self._track_search_analytics(services[:limit])
 
         # Build response
@@ -333,46 +388,67 @@ class SearchService(BaseService):
         elif parsed["location"].get("in_person"):
             online_capable = False
 
+        # Always initialize to avoid unbound variable errors in rare branches
+        similar_services = []
+
         # Determine search strategy based on query type
         if parsed.get("is_category_query"):
             # For category queries, use lower threshold for broader results
-            similar_services = self.catalog_repository.find_similar_by_embedding(
-                embedding=query_embedding, limit=limit, threshold=0.3
-            )
+            # Start at 0.5 and relax to 0.4 for better category breadth like 'dance'
+            thresholds = [0.5, 0.4]
+            similar_services = []
+            for th in thresholds:
+                similar_services = self.catalog_repository.find_similar_by_embedding(
+                    embedding=query_embedding, limit=limit, threshold=th
+                )
+                if similar_services:
+                    break
         else:
             # For specific service queries, first try exact match
-            exact_match_service = None
+            exact_candidates = []  # (service, score)
             if parsed["cleaned_query"]:
                 # Search for exact service name match
                 exact_services = self.catalog_repository.search_services(
-                    query_text=parsed["cleaned_query"], limit=5  # Get top 5 to check for exact matches
+                    query_text=parsed["cleaned_query"], limit=10  # Explore a few more close text matches
                 )
-                # Look for exact or very close matches
+                # Collect multiple close matches when the query is generic (e.g., 'dance')
+                query_lower = parsed["cleaned_query"].lower()
+                q_tokens = [t for t in query_lower.split() if t]
                 for service in exact_services:
                     service_name_lower = service.name.lower()
-                    query_lower = parsed["cleaned_query"].lower()
-                    # Check for exact match or if the service name is in the query
-                    # This handles "guitar lessons" matching "guitar"
-                    if (
-                        service_name_lower == query_lower
-                        or query_lower in service_name_lower
-                        or service_name_lower in query_lower
-                    ):
-                        exact_match_service = service
-                        break
+                    score = 0.0
+                    if service_name_lower == query_lower:
+                        score = 1.0
+                    elif query_lower in service_name_lower:
+                        # Penalize by length ratio so shorter queries don't always rank all
+                        ratio = len(query_lower) / max(1, len(service_name_lower))
+                        score = 0.85 + 0.1 * ratio  # 0.85..0.95
+                    elif service_name_lower in query_lower:
+                        score = 0.8
+                    # Token presence bump
+                    if any(tok in service_name_lower for tok in q_tokens):
+                        score = max(score, 0.8)
+                    if score >= 0.8:
+                        exact_candidates.append((service, score))
 
-            # If we found an exact match, use only that service
-            if exact_match_service:
-                similar_services = [(exact_match_service, 1.0)]  # Perfect score for exact match
+                # If we found any close text matches, use them (supports multiple variants like hip hop/jazz dance)
+                if exact_candidates:
+                    exact_candidates.sort(key=lambda x: x[1], reverse=True)
+                    similar_services = exact_candidates[:5]
             else:
-                # Otherwise, do semantic search with higher threshold for precision
-                similar_services = self.catalog_repository.find_similar_by_embedding(
-                    embedding=query_embedding, limit=limit, threshold=0.7  # High threshold for specific searches
-                )
+                # Otherwise, do semantic search with tiered thresholds for recall fallback
+                thresholds = [0.7, 0.6, 0.5, 0.4]
+                similar_services = []
+                for th in thresholds:
+                    similar_services = self.catalog_repository.find_similar_by_embedding(
+                        embedding=query_embedding, limit=limit, threshold=th
+                    )
+                    if similar_services:
+                        break
 
         # Convert to service dicts with scores
         services = []
-        for service, score in similar_services:
+        for service, score in similar_services or []:
             # Apply additional filters
             if online_capable is not None and service.online_capable != online_capable:
                 continue
@@ -385,7 +461,47 @@ class SearchService(BaseService):
             service_dict["demand_score"] = analytics.demand_score
             service_dict["is_trending"] = analytics.is_trending
 
+            # Simple hybrid re-ranking features
+            token_bonus = 0.0
+            if parsed.get("cleaned_query"):
+                q = parsed["cleaned_query"].lower()
+                name_l = service_dict["name"].lower()
+                desc_l = (service_dict.get("description") or "").lower()
+                if any(tok in name_l for tok in q.split()):
+                    token_bonus += 0.05
+                if any(tok in desc_l for tok in q.split()):
+                    token_bonus += 0.02
+            service_dict["relevance_score"] = min(service_dict["relevance_score"] + token_bonus, 1.0)
+
             services.append(service_dict)
+
+        # Apply dynamic relevance cutoff and token-overlap pruning for specific queries
+        if not parsed.get("is_category_query") and services:
+            # Determine a dynamic minimum based on the top score
+            top_score = max(s.get("relevance_score", 0.0) for s in services)
+            # Allow closely related neighbors (e.g., keyboard for piano), drop distant ones
+            min_score = max(0.5, top_score * 0.7)
+
+            q_tokens = [t for t in (parsed.get("cleaned_query") or "").lower().split() if len(t) > 2]
+
+            def has_token_overlap(svc: Dict) -> bool:
+                if not q_tokens:
+                    return False
+                name_l = (svc.get("name") or "").lower()
+                desc_l = (svc.get("description") or "").lower()
+                terms = [t.lower() for t in (svc.get("search_terms") or [])]
+                if any(tok in name_l for tok in q_tokens):
+                    return True
+                if any(tok in desc_l for tok in q_tokens):
+                    return True
+                if terms and any(any(tok in term for tok in q_tokens) for term in terms):
+                    return True
+                return False
+
+            pruned = [s for s in services if s.get("relevance_score", 0.0) >= min_score or has_token_overlap(s)]
+
+            # Keep up to 3 to allow one closely related neighbor (e.g., Keyboard) to appear
+            services = pruned[:3]
 
         return services
 
