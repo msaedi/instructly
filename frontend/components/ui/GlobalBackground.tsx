@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { usePathname } from 'next/navigation';
-import { detectViewport, getActivityBackground, getAuthBackground, getLowQualityUrl, getOptimizedUrl, getSmartBackgroundForService, getViewportQuality, getViewportWidth } from '@/lib/services/assetService';
+import { detectViewport, getActivityBackground, getAuthBackground, getLowQualityUrl, getOptimizedUrl, getSmartBackgroundForService, getViewportQuality, getViewportWidth, hasMultipleVariantsForService } from '@/lib/services/assetService';
 import { uiConfig } from '@/lib/config/uiConfig';
 import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
 
@@ -30,6 +30,8 @@ export default function GlobalBackground({ overrides, activity }: Props): React.
   const [isLowReady, setIsLowReady] = React.useState(false);
   const [isLoaded, setIsLoaded] = React.useState(false);
   const [hasMounted, setHasMounted] = React.useState(false);
+  const [canAutoRotate, setCanAutoRotate] = React.useState(false);
+  const [rotationTick, setRotationTick] = React.useState(0);
 
   React.useEffect(() => {
     setHasMounted(true);
@@ -60,6 +62,10 @@ export default function GlobalBackground({ overrides, activity }: Props): React.
       const isAuthOrHome = pathname === '/' || pathname === '' || pathname.startsWith('/login') || pathname.startsWith('/signup');
       const effectiveActivity = isAuthOrHome ? (activity || null) : (activity || ctxActivity || null);
       if (effectiveActivity) {
+        // Determine if this activity has multiple variants to decide if timer should run
+        const multi = await hasMultipleVariantsForService(effectiveActivity);
+        setCanAutoRotate(!!multi && merged.enableRotation && merged.rotationInterval > 0);
+
         const cleanPath = await getSmartBackgroundForService(effectiveActivity, undefined, {
           enableRotation: merged.enableRotation,
           rotationIntervalMs: merged.rotationInterval,
@@ -84,13 +90,21 @@ export default function GlobalBackground({ overrides, activity }: Props): React.
         }
       }
 
-      setBgUrl(resolvedUrl);
-      setIsLoaded(false);
-      setIsLowReady(false);
-      const low = generateLowQuality(resolvedUrl);
-      setLqUrl(low);
+      // If URL didn't change, avoid resetting state to prevent stuck blur
+      const urlChanged = resolvedUrl !== bgUrl;
+      if (urlChanged) {
+        setBgUrl(resolvedUrl);
+        setIsLoaded(false);
+        setIsLowReady(false);
+        const low = generateLowQuality(resolvedUrl);
+        setLqUrl(low);
+      } else {
+        // No change; ensure we are considered loaded
+        setIsLoaded(true);
+        setIsLowReady(true);
+      }
 
-      if (resolvedUrl) {
+      if (resolvedUrl && urlChanged) {
         const img = new Image();
         img.src = resolvedUrl;
         img.onload = () => {
@@ -104,18 +118,28 @@ export default function GlobalBackground({ overrides, activity }: Props): React.
         img.onerror = () => setIsLoaded(true);
       }
 
-      if (low) {
+      if (urlChanged && lqUrl) {
         const lq = new Image();
-        lq.src = low;
+        lq.src = lqUrl;
         lq.onload = () => setIsLowReady(true);
         lq.onerror = () => setIsLowReady(true);
-      } else {
-        setIsLowReady(true);
       }
     }
 
     resolveBg();
-  }, [pathname, ctxActivity, ctxOverrides, overrides, activity, hasMounted]);
+  }, [pathname, ctxActivity, ctxOverrides, overrides, activity, hasMounted, rotationTick]);
+
+  // Auto-rotate while staying on the same page when multiple variants exist
+  React.useEffect(() => {
+    const merged = { ...uiConfig.backgrounds, ...(ctxOverrides || {}), ...(overrides || {}) };
+    if (!canAutoRotate || !merged.enableRotation || merged.rotationInterval <= 0) return;
+
+    const id = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      setRotationTick((v) => v + 1);
+    }, merged.rotationInterval);
+    return () => window.clearInterval(id);
+  }, [canAutoRotate, ctxOverrides, overrides]);
 
   // Clear activity when entering home/login/signup routes so background resets immediately
   React.useEffect(() => {

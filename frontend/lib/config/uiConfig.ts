@@ -28,7 +28,7 @@ export const uiConfig: UIConfig = {
     overlayColorDark: 'rgba(0,0,0,0.60)',
     transitionDuration: 1000,
     enableRotation: true,
-    rotationInterval: 0,
+    rotationInterval: 30000,
   },
   darkMode: {
     backgroundOpacity: 1,

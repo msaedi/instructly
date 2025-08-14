@@ -311,6 +311,10 @@ async function ensureServiceCatalogLoaded(): Promise<void> {
 const CATEGORY_FOR_ACTIVITY: Record<string, { category: string; specific?: string }> = {
   // Arts
   dance: { category: 'arts', specific: 'dance' },
+  'hip hop dance': { category: 'arts', specific: 'dance' },
+  'jazz dance': { category: 'arts', specific: 'dance' },
+  'contemporary dance': { category: 'arts', specific: 'dance' },
+  'tap dance': { category: 'arts', specific: 'dance' },
   dancing: { category: 'arts', specific: 'dance' },
   ballet: { category: 'arts', specific: 'dance' },
   painting: { category: 'arts' },
@@ -323,6 +327,7 @@ const CATEGORY_FOR_ACTIVITY: Record<string, { category: string; specific?: strin
   trainer: { category: 'sports-fitness' },
   fitness: { category: 'sports-fitness' },
   workout: { category: 'sports-fitness' },
+  'dance fitness': { category: 'arts', specific: 'dance' },
   // Music
   guitar: { category: 'music', specific: 'guitar' },
   piano: { category: 'music' },
@@ -331,6 +336,7 @@ const CATEGORY_FOR_ACTIVITY: Record<string, { category: string; specific?: strin
 
 const imageExistsCache = new Map<string, boolean>();
 const variantCache = new Map<string, string[]>(); // key: `${category}/${specific}`
+const categoryVariantCache = new Map<string, string[]>(); // key: `${category}`
 const currentVariantIndex = new Map<string, number>(); // key: `${category}-${specific}`
 const lastRotationTs = new Map<string, number>();
 
@@ -416,6 +422,29 @@ function getCategoryDefaultPath(category: string): string {
   return `/backgrounds/activities/${category}/default.webp`;
 }
 
+async function getCategoryVariants(category: string): Promise<string[]> {
+  if (categoryVariantCache.has(category)) return categoryVariantCache.get(category)!;
+
+  const variants: string[] = [];
+  const base = `/backgrounds/activities/${category}/default`;
+
+  // Base default
+  if (await imageExists(`${base}.webp`)) variants.push(`${base}.webp`);
+  else if (await imageExists(`${base}.png`)) variants.push(`${base}.png`);
+
+  // Numbered defaults 2..10
+  for (let i = 2; i <= 10; i++) {
+    const webp = `${base}-${i}.webp`;
+    const png = `${base}-${i}.png`;
+    if (await imageExists(webp)) variants.push(webp);
+    else if (await imageExists(png)) variants.push(png);
+    else break;
+  }
+
+  categoryVariantCache.set(category, variants);
+  return variants;
+}
+
 function getRotatedVariant(
   variants: string[],
   key: string,
@@ -465,6 +494,55 @@ export async function getSmartBackgroundForService(
 
   const key = serviceIdentifier.trim().toLowerCase();
 
+  // Alias override BEFORE catalog lookup (handles synonyms taking precedence over slug assets)
+  const aliasDirect = CATEGORY_FOR_ACTIVITY[key] as { category: string; specific?: string } | undefined;
+  const aliasSpaceToDash = CATEGORY_FOR_ACTIVITY[key.replace(/\s+/g, '-')] as { category: string; specific?: string } | undefined;
+  const aliasDashToSpace = CATEGORY_FOR_ACTIVITY[key.replace(/-/g, ' ')] as { category: string; specific?: string } | undefined;
+  const aliasResolved = (aliasDirect || aliasSpaceToDash || aliasDashToSpace) as { category: string; specific?: string } | undefined;
+  if (aliasResolved?.specific) {
+    const variants = await getActivityVariants(aliasResolved.category, aliasResolved.specific);
+    if (variants.length > 0) {
+      const rotated = getRotatedVariant(variants, `${aliasResolved.category}-${aliasResolved.specific}`, enableRotation, rotationIntervalMs);
+      return rotated;
+    }
+    const catVariants = await getCategoryVariants(aliasResolved.category);
+    if (catVariants.length > 0) {
+      const rotated = getRotatedVariant(catVariants, `${aliasResolved.category}__category__`, enableRotation, rotationIntervalMs);
+      return rotated;
+    }
+    return getCategoryDefaultPath(aliasResolved.category);
+  } else if (aliasResolved) {
+    const catVariants = await getCategoryVariants(aliasResolved.category);
+    if (catVariants.length > 0) {
+      const rotated = getRotatedVariant(catVariants, `${aliasResolved.category}__category__`, enableRotation, rotationIntervalMs);
+      return rotated;
+    }
+    return getCategoryDefaultPath(aliasResolved.category);
+  }
+
+  // PRIORITY 1: Explicit alias override mapping (handles synonyms like hip hop dance → arts/dance)
+  const alias = CATEGORY_FOR_ACTIVITY[key];
+  if (alias?.specific) {
+    const variants = await getActivityVariants(alias.category, alias.specific);
+    if (variants.length > 0) {
+      const rotated = getRotatedVariant(variants, `${alias.category}-${alias.specific}`, enableRotation, rotationIntervalMs);
+      return rotated;
+    }
+    const catVariants = await getCategoryVariants(alias.category);
+    if (catVariants.length > 0) {
+      const rotated = getRotatedVariant(catVariants, `${alias.category}__category__`, enableRotation, rotationIntervalMs);
+      return rotated;
+    }
+    return getCategoryDefaultPath(alias.category);
+  } else if (alias) {
+    const catVariants = await getCategoryVariants(alias.category);
+    if (catVariants.length > 0) {
+      const rotated = getRotatedVariant(catVariants, `${alias.category}__category__`, enableRotation, rotationIntervalMs);
+      return rotated;
+    }
+    return getCategoryDefaultPath(alias.category);
+  }
+
   // Dynamic catalog-based resolution
   await ensureServiceCatalogLoaded();
   let meta: ServiceMeta | undefined = undefined;
@@ -483,21 +561,36 @@ export async function getSmartBackgroundForService(
       const rotated = getRotatedVariant(variants, `${meta.categorySlug}-${meta.slug}`, enableRotation, rotationIntervalMs);
       return rotated;
     }
-    // Fallback to category default
+    // Fallback to category variants rotation if present, else category default
+    const catVariants = await getCategoryVariants(meta.categorySlug);
+    if (catVariants.length > 0) {
+      const rotated = getRotatedVariant(catVariants, `${meta.categorySlug}__category__`, enableRotation, rotationIntervalMs);
+      return rotated;
+    }
     return getCategoryDefaultPath(meta.categorySlug);
   }
 
-  // Static synonyms mapping as a final helper
-  const mapping = CATEGORY_FOR_ACTIVITY[key];
+  // Static synonyms mapping as a final helper (supports minor slug/name differences)
+  const mapping = CATEGORY_FOR_ACTIVITY[key] || CATEGORY_FOR_ACTIVITY[key.replace(/-/g, ' ')] || CATEGORY_FOR_ACTIVITY[key.replace(/\s+/g, '-')];
   if (mapping?.specific) {
     const variants = await getActivityVariants(mapping.category, mapping.specific);
     if (variants.length > 0) {
       const rotated = getRotatedVariant(variants, `${mapping.category}-${mapping.specific}`, enableRotation, rotationIntervalMs);
       return rotated;
     }
+    const catVariants = await getCategoryVariants(mapping.category);
+    if (catVariants.length > 0) {
+      const rotated = getRotatedVariant(catVariants, `${mapping.category}__category__`, enableRotation, rotationIntervalMs);
+      return rotated;
+    }
     return getCategoryDefaultPath(mapping.category);
   }
   if (mapping) {
+    const catVariants = await getCategoryVariants(mapping.category);
+    if (catVariants.length > 0) {
+      const rotated = getRotatedVariant(catVariants, `${mapping.category}__category__`, enableRotation, rotationIntervalMs);
+      return rotated;
+    }
     return getCategoryDefaultPath(mapping.category);
   }
 
@@ -505,4 +598,58 @@ export async function getSmartBackgroundForService(
   if (categorySlug) return getCategoryDefaultPath(categorySlug);
 
   return '/backgrounds/activities/arts/default.webp';
+}
+
+/**
+ * Determine whether a given service has multiple specific image variants available.
+ * Returns true only if there are >1 variants for the specific service under its category.
+ */
+export async function hasMultipleVariantsForService(
+  serviceIdentifier: string,
+  categorySlug?: string
+): Promise<boolean> {
+  if (!serviceIdentifier) return false;
+  const key = serviceIdentifier.trim().toLowerCase();
+
+  // Alias override BEFORE catalog lookup
+  const aliasDirect2 = CATEGORY_FOR_ACTIVITY[key] as { category: string; specific?: string } | undefined;
+  const aliasSpaceToDash2 = CATEGORY_FOR_ACTIVITY[key.replace(/\s+/g, '-')] as { category: string; specific?: string } | undefined;
+  const aliasDashToSpace2 = CATEGORY_FOR_ACTIVITY[key.replace(/-/g, ' ')] as { category: string; specific?: string } | undefined;
+  const aliasResolved2 = (aliasDirect2 || aliasSpaceToDash2 || aliasDashToSpace2) as { category: string; specific?: string } | undefined;
+  if (aliasResolved2?.specific) {
+    const variants = await getActivityVariants(aliasResolved2.category, aliasResolved2.specific);
+    if (variants.length > 1) return true;
+    const catVariants = await getCategoryVariants(aliasResolved2.category);
+    return catVariants.length > 1;
+  } else if (aliasResolved2) {
+    const catVariants = await getCategoryVariants(aliasResolved2.category);
+    return catVariants.length > 1;
+  }
+
+  await ensureServiceCatalogLoaded();
+  let meta: ServiceMeta | undefined = serviceSlugToMeta.get(key) || serviceNameToMeta.get(key) || serviceIdToMeta.get(key);
+
+  if (meta) {
+    const variants = await getActivityVariants(meta.categorySlug, meta.slug);
+    if (variants.length > 1) return true;
+    // If no specific variants, see if category has multiple
+    const catVariants = await getCategoryVariants(meta.categorySlug);
+    return catVariants.length > 1;
+  }
+
+  // Fallback to static mapping if catalog resolution not found (supports slug/name differences)
+  const mapping = CATEGORY_FOR_ACTIVITY[key] || CATEGORY_FOR_ACTIVITY[key.replace(/-/g, ' ')] || CATEGORY_FOR_ACTIVITY[key.replace(/\s+/g, '-')];
+  if (mapping?.specific) {
+    const variants = await getActivityVariants(mapping.category, mapping.specific);
+    if (variants.length > 1) return true;
+    const catVariants = await getCategoryVariants(mapping.category);
+    return catVariants.length > 1;
+  }
+
+  if (mapping) {
+    const catVariants = await getCategoryVariants(mapping.category);
+    return catVariants.length > 1;
+  }
+
+  return false;
 }
