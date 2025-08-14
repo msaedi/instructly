@@ -1,5 +1,5 @@
 # InstaInstru Architecture State
-*Last Updated: Session v88 - Repository Pattern TRUE 100% Complete*
+*Last Updated: Session v93 - ULID Migration + Favorites System Complete*
 
 ## 🏗️ Service Layer Architecture (100% COMPLETE)
 
@@ -89,7 +89,8 @@ backend/app/repositories/
 ├── user_repository.py            # User data access (NEW - v86-88) ✅
 ├── privacy_repository.py         # Privacy operations (NEW - v86-88) ✅
 ├── analytics_repository.py       # Analytics data access (NEW - v86-88) ✅
-└── permission_repository.py      # RBAC permissions (NEW - v86-88) ✅
+├── permission_repository.py      # RBAC permissions (NEW - v86-88) ✅
+└── favorites_repository.py      # Favorites data access (NEW - v93) ✅
 ```
 
 ### Repository Implementation Status
@@ -255,6 +256,36 @@ The system now implements true architectural independence where availability and
 - 37 tests with full coverage
 - **Impact**: Unblocks all student features!
 
+## 🆔 ULID Architecture (NEW - Session v93)
+
+### Complete ULID Migration
+**ALL IDs in the system are now 26-character ULID strings**, not UUIDs. This was a comprehensive migration affecting:
+
+- All database models (User, Booking, InstructorProfile, etc.)
+- All API endpoints expecting/returning IDs
+- All frontend TypeScript types
+- All test fixtures and data
+
+### Why ULIDs?
+- **Sortable**: Lexicographically sortable (timestamp-based)
+- **Shorter**: 26 characters vs 36 for UUIDs
+- **Readable**: Case-insensitive, URL-safe
+- **Performance**: Better index performance due to sortability
+
+### Implementation Details
+```python
+from ulid import ULID
+
+class User(Base):
+    __tablename__ = "users"
+    id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ULID()))
+```
+
+### Migration Philosophy
+- **Clean Break**: No backward compatibility with UUIDs
+- **Schema-Owned Construction**: IDs generated at database layer
+- **Comprehensive Update**: Every ID reference updated
+
 ## 📊 Database Schema Architecture
 
 ### Migration History (Post Work Streams #9 & #10)
@@ -336,8 +367,19 @@ Users (1) ─────> (0..1) InstructorProfile
   │                              │
   ├─> (0..*) Bookings            └─> (0..*) AvailabilitySlots
   │                                         (no relationship)
-  └─> (0..*) PasswordResetTokens
+  ├─> (0..*) PasswordResetTokens
+  └─> (0..*) UserFavorites (NEW v93)
 ```
+
+### Favorites System (NEW - Session v93)
+- **Table**: user_favorites
+- **Relationships**: Many-to-many between students and instructors
+- **Constraints**: Unique on (student_id, instructor_id)
+- **Business Rules**:
+  - Students can only favorite instructors
+  - Instructors cannot favorite other users
+  - No self-favoriting allowed
+- **Caching**: 5-minute TTL in Redis
 
 ## 🔌 API Architecture
 
