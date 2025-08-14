@@ -266,6 +266,77 @@ export interface WebhookEvent {
 }
 
 /**
+ * Instructor type for search results and listings
+ */
+export interface Instructor {
+  /** Instructor profile ID (ULID string) */
+  id: string;
+
+  /** Associated user ID (ULID string) */
+  user_id: string;
+
+  /** Brief bio/description */
+  bio: string;
+
+  /** Areas served in NYC */
+  areas_of_service: string[];
+
+  /** Years of teaching experience */
+  years_experience: number;
+
+  /** Minimum advance booking hours required */
+  min_advance_booking_hours?: number;
+
+  /** Buffer time between sessions in minutes */
+  buffer_time_minutes?: number;
+
+  /** User information */
+  user: {
+    /** First name */
+    first_name: string;
+    /** Last initial for privacy */
+    last_initial: string;
+  };
+
+  /** Services offered */
+  services: Array<{
+    /** Service ID (ULID string) */
+    id: string;
+    /** Service catalog ID (ULID string) */
+    service_catalog_id: string;
+    /** Hourly rate */
+    hourly_rate: number;
+    /** Service description */
+    description?: string;
+    /** Duration options in minutes */
+    duration_options?: number[];
+    /** Whether service is active */
+    is_active?: boolean;
+  }>;
+
+  /** Optional relevance score for search results */
+  relevance_score?: number;
+
+  /** Average rating */
+  rating?: number;
+
+  /** Total number of reviews */
+  total_reviews?: number;
+
+  /** Total hours taught */
+  total_hours_taught?: number;
+
+  /** Whether instructor is verified */
+  verified?: boolean;
+
+  /** Creation timestamp */
+  created_at?: string;
+
+  /** Update timestamp */
+  updated_at?: string;
+}
+
+/**
  * Type guard to check if a value is a successful API response
  *
  * @param response - Response to check
@@ -339,11 +410,11 @@ export function handleAPIError(error: any): string {
  * @interface Service
  */
 export interface Service {
-  /** Service ID */
-  id: number;
+  /** Service ID (ULID string) */
+  id: string;
 
-  /** Reference to service catalog item */
-  service_catalog_id: number;
+  /** Reference to service catalog item (ULID string) */
+  service_catalog_id: string;
 
   /** Hourly rate for this service */
   hourly_rate: number;
@@ -359,64 +430,19 @@ export interface Service {
 }
 
 /**
- * Instructor profile information
- *
- * @interface Instructor
- */
-export interface Instructor {
-  /** Internal instructor ID */
-  id: number;
-
-  /** Associated user ID */
-  user_id: number;
-
-  /** Instructor biography */
-  bio: string;
-
-  /** Areas where instructor provides services */
-  areas_of_service: string[];
-
-  /** Years of teaching experience */
-  years_experience: number;
-
-  /** Associated user information */
-  user: {
-    first_name: string;
-    last_initial: string;  // Privacy protected - only last initial
-    // email removed for privacy
-  };
-
-  /** Services offered by the instructor */
-  services: Service[];
-
-  // Optional fields that might come from the API
-  /** Average rating */
-  rating?: number;
-
-  /** Total number of reviews */
-  total_reviews?: number;
-
-  /** Total hours taught */
-  total_hours_taught?: number;
-
-  /** Whether instructor is verified */
-  verified?: boolean;
-}
-
-/**
  * Service catalog item (master list of available services)
  *
  * @interface ServiceCatalogItem
  */
 export interface ServiceCatalogItem {
   /** Catalog item ID */
-  id: number;
+  id: string;
 
   /** Service name */
   name: string;
 
   /** Category this service belongs to */
-  category_id: number;
+  category_id: string;
 
   /** Optional description */
   description?: string;

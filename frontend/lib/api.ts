@@ -288,7 +288,7 @@ export async function validateWeekChanges(
  * }
  * ```
  */
-export async function fetchBookingPreview(bookingId: number): Promise<BookingPreview> {
+export async function fetchBookingPreview(bookingId: string): Promise<BookingPreview> {
   logger.info('Fetching booking preview', { bookingId });
 
   try {

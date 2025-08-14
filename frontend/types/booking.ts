@@ -6,7 +6,7 @@ export type LocationType = 'student_home' | 'instructor_location' | 'neutral';
 
 // Privacy-protected instructor info for student-facing views
 export interface InstructorInfo {
-  id: number;
+  id: string;
   first_name: string;
   last_initial: string;  // Only last initial, no full last name for privacy
   // Note: email excluded for privacy
@@ -14,7 +14,7 @@ export interface InstructorInfo {
 
 // Student info (students see their own full details)
 export interface StudentInfo {
-  id: number;
+  id: string;
   first_name: string;
   last_name: string;  // Students see their own full last name
   email: string;
@@ -22,10 +22,10 @@ export interface StudentInfo {
 
 // Main booking interface matching backend schema
 export interface Booking {
-  id: number;
-  student_id: number;
-  instructor_id: number;
-  instructor_service_id: number;
+  id: string;
+  student_id: string;
+  instructor_id: string;
+  instructor_service_id: string;
   // REMOVED: availability_slot_id - no longer exists in backend
 
   // Date and time fields
@@ -58,7 +58,7 @@ export interface Booking {
 
   // Cancellation fields
   cancelled_by?: 'STUDENT' | 'INSTRUCTOR';
-  cancelled_by_id?: number;
+  cancelled_by_id?: string;
   cancellation_reason?: string;
 
   // Relations (populated in detailed views)
@@ -70,7 +70,7 @@ export interface Booking {
 
 // User type for relations
 export interface User {
-  id: number;
+  id: string;
   email: string;
   first_name: string;
   last_name: string;
@@ -80,8 +80,8 @@ export interface User {
 
 // Service offered by instructor
 export interface Service {
-  id: number;
-  instructor_profile_id: number;
+  id: string;
+  instructor_profile_id: string;
   name: string;
   description: string;
   hourly_rate: number;
@@ -92,8 +92,8 @@ export interface Service {
 
 // Instructor profile extension
 export interface InstructorProfile {
-  id: number;
-  user_id: number;
+  id: string;
+  user_id: string;
   bio: string;
   experience_years: number;
   areas_of_service: string[]; // NYC neighborhoods
@@ -109,8 +109,8 @@ export interface InstructorProfile {
 
 // Single-table availability slot (Work Stream #10)
 export interface AvailabilitySlot {
-  id: number;
-  instructor_id: number; // Direct reference, no availability_id
+  id: string;
+  instructor_id: string; // Direct reference, no availability_id
   date: string; // YYYY-MM-DD
   start_time: string; // HH:MM:SS
   end_time: string; // HH:MM:SS
@@ -122,8 +122,8 @@ export interface AvailabilitySlot {
 
 // Blackout date
 export interface BlackoutDate {
-  id: number;
-  instructor_id: number;
+  id: string;
+  instructor_id: string;
   date: string; // YYYY-MM-DD
   reason?: string;
   created_at: string;
@@ -140,7 +140,7 @@ export interface BookingListResponse {
 }
 
 export interface AvailabilityResponse {
-  instructor_id: number;
+  instructor_id: string;
   start_date: string;
   end_date: string;
   availabilities: AvailabilitySlot[]; // Direct slots, no wrapper
@@ -149,8 +149,8 @@ export interface AvailabilityResponse {
 
 // NEW: Time-based booking creation
 export interface BookingCreate {
-  instructor_id: number;
-  service_id: number;
+  instructor_id: string;
+  service_id: string;
   booking_date: string; // ISO date: "2025-07-15"
   start_time: string; // 24hr format: "09:00"
   end_time: string; // 24hr format: "10:00"
@@ -161,7 +161,7 @@ export interface BookingCreate {
 
 // Form/UI specific types
 export interface TimeSlot {
-  id: number;
+  id: string;
   date: string;
   start_time: string;
   end_time: string;
@@ -175,8 +175,8 @@ export interface BookingCreateResponse {
 
 // NEW: Time-based availability check
 export interface AvailabilityCheckRequest {
-  instructor_id: number;
-  service_id: number;
+  instructor_id: string;
+  service_id: string;
   booking_date: string; // ISO date
   start_time: string; // 24hr format
   end_time: string; // 24hr format
@@ -189,13 +189,13 @@ export interface AvailabilityCheckResponse {
     date: string;
     start_time: string;
     end_time: string;
-    instructor_id: number;
+    instructor_id: string;
   };
   min_advance_hours?: number;
 }
 
 export interface BookedSlotPreview {
-  booking_id: number;
+  booking_id: string;
   date: string;
   start_time: string;
   end_time: string;
@@ -212,7 +212,7 @@ export interface BookedSlotsResponse {
 }
 
 export interface BookingPreview {
-  booking_id: number;
+  booking_id: string;
   student_first_name: string;
   student_last_name: string;  // Full if viewing own, initial if viewing others
   instructor_first_name: string;
@@ -232,7 +232,7 @@ export interface BookingPreview {
 }
 
 export interface UpcomingBooking {
-  id: number;
+  id: string;
   booking_date: string;
   start_time: string;
   end_time: string;

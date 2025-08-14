@@ -12,10 +12,10 @@ import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 
 interface UniqueInstructor {
-  instructorId: number;
+  instructorId: string;
   instructorName: string;
   serviceName: string;
-  serviceId: number;
+  serviceId: string;
   hourlyRate: number;
   rating?: number;
   lastBookingDate: string;
@@ -55,7 +55,7 @@ export function BookAgain({ onLoadComplete }: BookAgainProps) {
       total: bookingsData.total,
     });
 
-    const instructorMap = new Map<number, UniqueInstructor>();
+    const instructorMap = new Map<string, UniqueInstructor>();
 
     bookingsData.items.forEach((booking) => {
       if (booking.instructor && !instructorMap.has(booking.instructor.id)) {

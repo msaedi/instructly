@@ -11,25 +11,25 @@ import { logger } from '@/lib/logger';
 
 // Types
 export interface Message {
-  id: number;
-  booking_id: number;
-  sender_id: number;
+  id: string;
+  booking_id: string;
+  sender_id: string;
   content: string;
   created_at: string;
   updated_at: string;
   is_deleted: boolean;
   delivered_at?: string | null;
   edited_at?: string | null;
-  read_by?: Array<{ user_id: number; read_at: string }>;
+  read_by?: Array<{ user_id: string; read_at: string }>;
   sender?: {
-    id: number;
+    id: string;
     full_name: string;
     email: string;
   };
 }
 
 export interface SendMessageRequest {
-  booking_id: number;
+  booking_id: string;
   content: string;
 }
 
@@ -39,7 +39,7 @@ export interface SendMessageResponse {
 }
 
 export interface MessagesHistoryResponse {
-  booking_id: number;
+  booking_id: string;
   messages: Message[];
   limit: number;
   offset: number;
@@ -48,12 +48,12 @@ export interface MessagesHistoryResponse {
 
 export interface UnreadCountResponse {
   unread_count: number;
-  user_id: number;
+  user_id: string;
 }
 
 export interface MarkMessagesReadRequest {
-  booking_id?: number;
-  message_ids?: number[];
+  booking_id?: string;
+  message_ids?: string[];
 }
 
 /**
@@ -106,7 +106,7 @@ class MessageService {
    * Get message history for a booking
    */
   async getMessageHistory(
-    bookingId: number,
+    bookingId: string,
     limit: number = 50,
     offset: number = 0
   ): Promise<MessagesHistoryResponse> {
@@ -190,7 +190,7 @@ class MessageService {
   /**
    * Delete a message (soft delete)
    */
-  async deleteMessage(messageId: number): Promise<boolean> {
+  async deleteMessage(messageId: string): Promise<boolean> {
     try {
       const response = await fetchWithAuth(`${this.baseUrl}/${messageId}`, {
         method: 'DELETE',
@@ -212,7 +212,7 @@ class MessageService {
   /**
    * Send typing indicator (ephemeral)
    */
-  async sendTyping(bookingId: number): Promise<void> {
+  async sendTyping(bookingId: string): Promise<void> {
     try {
       const response = await fetchWithAuth(`${this.baseUrl}/typing/${bookingId}`, {
         method: 'POST',
@@ -230,7 +230,7 @@ class MessageService {
   /**
    * Add a reaction to a message (optimistic-friendly)
    */
-  async addReaction(messageId: number, emoji: string): Promise<boolean> {
+  async addReaction(messageId: string, emoji: string): Promise<boolean> {
     try {
       const response = await fetchWithAuth(`${this.baseUrl}/${messageId}/reactions`, {
         method: 'POST',
@@ -246,7 +246,7 @@ class MessageService {
   /**
    * Remove a reaction from a message (optimistic-friendly)
    */
-  async removeReaction(messageId: number, emoji: string): Promise<boolean> {
+  async removeReaction(messageId: string, emoji: string): Promise<boolean> {
     try {
       const response = await fetchWithAuth(`${this.baseUrl}/${messageId}/reactions`, {
         method: 'DELETE',
@@ -262,7 +262,7 @@ class MessageService {
   /**
    * Edit an existing message (own message, 5-minute window)
    */
-  async editMessage(messageId: number, content: string): Promise<boolean> {
+  async editMessage(messageId: string, content: string): Promise<boolean> {
     try {
       const response = await fetchWithAuth(`${this.baseUrl}/${messageId}`, {
         method: 'PATCH',
@@ -290,7 +290,7 @@ class MessageService {
    * Note: This returns an EventSource object that must be managed
    * by the calling component/hook for proper cleanup
    */
-  createMessageStream(bookingId: number): EventSource {
+  createMessageStream(bookingId: string): EventSource {
     const token = localStorage.getItem('access_token');
     const url = `${API_URL}${this.baseUrl}/stream/${bookingId}`;
 

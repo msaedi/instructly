@@ -1,3 +1,5 @@
+import TEST_ULIDS from './ulids';
+
 export const testData = {
   search: {
     instrument: 'piano',
@@ -18,7 +20,7 @@ export const testData = {
 
   // Mock instructor data that matches what we expect from the API
   mockInstructor: {
-    id: 1,
+    id: TEST_ULIDS.instructor8,
     user: {
       firstName: 'John',
       lastName: 'Doe',

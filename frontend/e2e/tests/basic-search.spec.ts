@@ -30,8 +30,8 @@ test.describe('Basic Search Flow', () => {
     const serviceLink = page.getByRole('link', { name: /Personal Training/i });
     await serviceLink.click();
 
-    // Verify we're on the search page with service filter
-    await expect(page).toHaveURL(/\/search\?service_catalog_id=97/);
+    // Verify we're on the search page with service filter (ULID format)
+    await expect(page).toHaveURL(/\/search\?service_catalog_id=[0-9A-Z]{26}/);
   });
 
   test('shows available instructors section', async ({ page }) => {

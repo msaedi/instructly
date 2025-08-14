@@ -28,8 +28,8 @@ export enum UserRole {
  * @interface User
  */
 export interface User {
-  /** Unique user identifier */
-  id: number;
+  /** Unique user identifier (ULID string) */
+  id: string;
 
   /** User's email address (used for authentication) */
   email: string;
@@ -78,8 +78,8 @@ export interface User {
  * @extends User
  */
 export interface UserData extends User {
-  /** Instructor profile ID if user is an instructor */
-  instructor_profile_id?: number;
+  /** Instructor profile ID if user is an instructor (ULID string) */
+  instructor_profile_id?: string;
 
   /** Whether user has completed onboarding */
   onboarding_completed?: boolean;

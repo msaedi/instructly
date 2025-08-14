@@ -94,7 +94,7 @@ export function useCancelLesson() {
   return useMutation<
     Booking,
     Error,
-    { lessonId: number; reason: string },
+    { lessonId: string; reason: string },
     { previousData?: BookingListResponse }
   >({
     mutationFn: ({ lessonId, reason }) =>
@@ -149,7 +149,7 @@ export function useRescheduleLesson() {
   return useMutation<
     Booking,
     Error,
-    { lessonId: number; newDate: string; newStartTime: string; newEndTime: string },
+    { lessonId: string; newDate: string; newStartTime: string; newEndTime: string },
     { previousDetail?: Booking }
   >({
     mutationFn: ({ lessonId, newDate, newStartTime, newEndTime }) =>
@@ -208,7 +208,7 @@ export function useRescheduleLesson() {
 export function useCompleteLesson() {
   const queryClient = useQueryClient();
 
-  return useMutation<Booking, Error, number>({
+  return useMutation<Booking, Error, string>({
     mutationFn: (lessonId) => bookingsApi.completeBooking(lessonId),
 
     onSuccess: (data) => {
@@ -228,7 +228,7 @@ export function useCompleteLesson() {
 export function useMarkNoShow() {
   const queryClient = useQueryClient();
 
-  return useMutation<Booking, Error, number>({
+  return useMutation<Booking, Error, string>({
     mutationFn: (lessonId) => bookingsApi.markNoShow(lessonId),
 
     onSuccess: (data) => {

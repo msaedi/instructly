@@ -41,7 +41,7 @@ export function useInstructorProfile(instructorId: string) {
 
       // Add the id field if missing (use user_id as id)
       const instructorProfile: InstructorProfile = {
-        id: instructor.user_id || Number(instructorId),
+        id: instructor.user_id || instructorId,
         user_id: instructor.user_id,
         bio: instructor.bio || '',
         areas_of_service: instructor.areas_of_service || [],

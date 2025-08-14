@@ -17,8 +17,8 @@ import {
 } from '@/features/student/payment';
 
 interface Service {
-  id: number;
-  service_catalog_id: number;
+  id: string;
+  service_catalog_id: string;
   hourly_rate: number;
   description?: string;
   duration_options: number[];
@@ -26,7 +26,7 @@ interface Service {
 }
 
 interface InstructorData {
-  user_id: number;
+  user_id: string;
   user: {
     first_name: string;
     last_initial: string;

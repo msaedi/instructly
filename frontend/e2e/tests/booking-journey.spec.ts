@@ -16,7 +16,7 @@ test.describe('Student Booking Journey', () => {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          id: 1,
+          id: '01J5TESTUSER00000000000001',
           email: 'student@example.com',
           first_name: 'Test',
           last_name: 'Student',
@@ -371,7 +371,8 @@ test.describe('Student Booking Journey', () => {
 
     // Don't set auth token for this test - we want to test login requirement
     // Navigate directly to an instructor profile
-    await page.goto('/instructors/1');
+    // Use ULID-based instructor in legacy test too
+    await page.goto('/instructors/01J5TESTINSTR0000000000008');
 
     const instructorProfile = new InstructorProfilePage(page);
     await instructorProfile.waitForAvailability();

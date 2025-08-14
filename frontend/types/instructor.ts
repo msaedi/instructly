@@ -18,11 +18,11 @@
  * @interface InstructorBasic
  */
 export interface InstructorBasic {
-  /** Instructor profile ID */
-  id: number;
+  /** Instructor profile ID (ULID string) */
+  id: string;
 
-  /** Associated user ID */
-  user_id: number;
+  /** Associated user ID (ULID string) */
+  user_id: string;
 
   /** Instructor's first name */
   first_name: string;
@@ -59,11 +59,11 @@ export interface InstructorBasic {
  * @extends InstructorBasic
  */
 export interface InstructorProfile {
-  /** Instructor profile ID */
-  id: number;
+  /** Instructor profile ID (ULID string) */
+  id: string;
 
-  /** Associated user ID */
-  user_id: number;
+  /** Associated user ID (ULID string) */
+  user_id: string;
 
   /** Detailed bio/description */
   bio: string;
@@ -105,11 +105,14 @@ export interface InstructorProfile {
  * @interface InstructorService
  */
 export interface InstructorService {
-  /** Service ID */
-  id: number;
+  /** Service ID (ULID string) */
+  id: string;
+
+  /** Service catalog ID (ULID string) */
+  service_catalog_id?: string;
 
   /** Skill name (e.g., "Piano", "Yoga", "Spanish") */
-  skill: string;
+  skill?: string;
 
   /** Hourly rate in USD */
   hourly_rate: number;
@@ -123,8 +126,8 @@ export interface InstructorService {
   /** Whether this service is currently active */
   is_active?: boolean;
 
-  /** Instructor ID (when not nested) */
-  instructor_id?: number;
+  /** Instructor ID (ULID string, when not nested) */
+  instructor_id?: string;
 }
 
 /**

@@ -51,8 +51,8 @@ export interface AvailabilityWindowUpdate {
 }
 
 export interface AvailabilityWindowResponse {
-  id: number;
-  instructor_id: number;
+  id: string;
+  instructor_id: string;
   specific_date: string;
   start_time: string;
   end_time: string;
@@ -64,8 +64,8 @@ export interface BlackoutDateCreate {
 }
 
 export interface BlackoutDateResponse {
-  id: number;
-  instructor_id: number;
+  id: string;
+  instructor_id: string;
   date: string;
   reason?: string | null;
   created_at: string;
@@ -98,7 +98,7 @@ export interface SlotOperation {
   date?: string | null;
   start_time?: string | null;
   end_time?: string | null;
-  slot_id?: number | null;
+  slot_id?: string | null;
 }
 
 export interface BulkUpdateRequest {
@@ -111,7 +111,7 @@ export interface OperationResult {
   action: string;
   status: string;
   reason?: string | null;
-  slot_id?: number | null;
+  slot_id?: string | null;
 }
 
 export interface BulkUpdateResponse {
@@ -127,7 +127,7 @@ export interface ValidationSlotDetail {
   date?: string | null;
   start_time?: string | null;
   end_time?: string | null;
-  slot_id?: number | null;
+  slot_id?: string | null;
   reason?: string | null;
   conflicts_with?: Record<string, any>[] | null;
 }
@@ -157,8 +157,8 @@ export interface ValidateWeekRequest {
 // From base.py
 // From booking.py
 export interface BookingCreate {
-  instructor_id: number;
-  service_id: number;
+  instructor_id: string;
+  service_id: string;
   booking_date: string;
   start_time: string;
   end_time: string;
@@ -178,10 +178,10 @@ export interface BookingCancel {
 }
 
 export interface BookingBase {
-  id: number;
-  student_id: number;
-  instructor_id: number;
-  service_id: number;
+  id: string;
+  student_id: string;
+  instructor_id: string;
+  service_id: string;
   booking_date: string;
   start_time: string;
   end_time: string;
@@ -199,24 +199,24 @@ export interface BookingBase {
   confirmed_at: string | null;
   completed_at: string | null;
   cancelled_at: string | null;
-  cancelled_by_id: number | null;
+  cancelled_by_id: string | null;
   cancellation_reason: string | null;
 }
 
 export interface StudentInfo {
-  id: number;
+  id: string;
   full_name: string;
   email: string;
 }
 
 export interface InstructorInfo {
-  id: number;
+  id: string;
   full_name: string;
   email: string;
 }
 
 export interface ServiceInfo {
-  id: number;
+  id: string;
   skill: string;
   description: string | null;
 }
@@ -229,8 +229,8 @@ export interface BookingListResponse {
 }
 
 export interface AvailabilityCheckRequest {
-  instructor_id: number;
-  service_id: number;
+  instructor_id: string;
+  service_id: string;
   booking_date: string;
   start_time: string;
   end_time: string;
@@ -255,8 +255,8 @@ export interface BookingStatsResponse {
 
 
 export interface FindBookingOpportunitiesRequest {
-  instructor_id: number;
-  service_id: number;
+  instructor_id: string;
+  service_id: string;
   date_range_start: string;
   date_range_end: string;
   preferred_times?: string[] | null;
@@ -318,8 +318,8 @@ export interface PasswordResetResponse {
 }
 
 export interface PasswordResetToken {
-  id: number;
-  user_id: number;
+  id: string;
+  user_id: string;
   token: string;
   expires_at: string;
   used?: boolean;
@@ -339,7 +339,7 @@ export interface PublicDayAvailability {
 }
 
 export interface PublicInstructorAvailability {
-  instructor_id: number;
+  instructor_id: string;
   instructor_first_name?: string | null;
   instructor_last_initial?: string | null;
   availability_by_date?: Record<string, PublicDayAvailability>;
@@ -354,7 +354,7 @@ export interface PublicAvailabilityQuery {
 }
 
 export interface PublicAvailabilityMinimal {
-  instructor_id: number;
+  instructor_id: string;
   instructor_first_name?: string | null;
   instructor_last_initial?: string | null;
   has_availability: boolean;
@@ -363,7 +363,7 @@ export interface PublicAvailabilityMinimal {
 }
 
 export interface PublicAvailabilitySummary {
-  instructor_id: number;
+  instructor_id: string;
   instructor_first_name?: string | null;
   instructor_last_initial?: string | null;
   availability_summary: Record<string, Record<string, any>>;
@@ -386,7 +386,7 @@ export interface UserLogin {
 }
 
 export interface UserResponse {
-  id: number;
+  id: string;
   email: string;
   full_name?: string | null;
   role: UserRole;
@@ -465,7 +465,7 @@ export interface ServiceCreate {
 }
 
 export interface ServiceResponse {
-  id: number;
+  id: string;
   skill: string;
   hourly_rate: Money;
   description?: string | null;
@@ -474,10 +474,10 @@ export interface ServiceResponse {
 }
 
 export interface BookingResponse {
-  id: number;
-  student_id: number;
-  instructor_id: number;
-  service_id: number;
+  id: string;
+  student_id: string;
+  instructor_id: string;
+  service_id: string;
   booking_date: string;
   start_time: string;
   end_time: string;
@@ -495,7 +495,7 @@ export interface BookingResponse {
   confirmed_at?: string | null;
   completed_at?: string | null;
   cancelled_at?: string | null;
-  cancelled_by_id?: number | null;
+  cancelled_by_id?: string | null;
   cancellation_reason?: string | null;
   student?: StudentInfo;
   instructor?: InstructorInfo;
@@ -512,8 +512,8 @@ export interface InstructorProfileCreate {
 }
 
 export interface InstructorProfileResponse {
-  id: number;
-  user_id: number;
+  id: string;
+  user_id: string;
   created_at: string;
   updated_at?: string | null;
   user: UserBasic;

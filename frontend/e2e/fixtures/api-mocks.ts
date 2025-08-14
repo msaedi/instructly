@@ -1,6 +1,9 @@
 import { Page, Route } from '@playwright/test';
 import { testData } from './test-data';
 
+// Test ULIDs for consistent E2E testing (single source of truth)
+import TEST_ULIDS from './ulids';
+export { TEST_ULIDS };
 
 export async function mockInstructorProfile(page: Page) {
   // Mock the instructor profile endpoint - matches /instructors/[id]
@@ -9,19 +12,30 @@ export async function mockInstructorProfile(page: Page) {
     // Handle /instructors/[id] but not availability or search endpoints
     if (!url.includes('/availability') && !url.includes('/search') && !url.includes('/services')) {
       // Extract instructor ID from URL
-      const idMatch = url.match(/instructors\/(\d+)/);
-      const instructorId = idMatch ? parseInt(idMatch[1]) : 1;
+      const idMatch = url.match(/instructors\/([^\/]+)$/);
+      const instructorIdStr = idMatch ? idMatch[1] : TEST_ULIDS.instructor1;
+      console.log('Mock intercepting instructors API:', url);
+      console.log('Extracted instructor ID:', instructorIdStr);
 
+      // Determine which instructor profile to return based on ID
+      // Only support ULID now - no backward compatibility with numeric IDs
+      const isInstructor8 = instructorIdStr === TEST_ULIDS.instructor8;
+
+      // Always use ULID in response - this is what the real API would return
+      const responseId = isInstructor8 ? TEST_ULIDS.instructor8 : TEST_ULIDS.instructor1;
+      const userId = isInstructor8 ? TEST_ULIDS.user8 : TEST_ULIDS.user1;
+
+      // Create the response without spreading testData.mockInstructor
+      // to avoid any numeric ID conflicts
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          ...testData.mockInstructor,
-          id: instructorId,
-          user_id: instructorId,
+          // Real API doesn't return 'id', only 'user_id'
+          user_id: userId,
           user: {
-            first_name: instructorId === 8 ? 'Sarah' : 'John',
-            last_initial: instructorId === 8 ? 'C' : 'D',
+            first_name: isInstructor8 ? 'Sarah' : 'John',
+            last_initial: isInstructor8 ? 'C' : 'D',
             // No email for privacy
           },
           bio: 'Professional piano teacher with 10 years of experience',
@@ -31,7 +45,9 @@ export async function mockInstructorProfile(page: Page) {
           total_reviews: 25,
           services: [
             {
-              id: 1,
+              id: TEST_ULIDS.service1,
+              service_catalog_id: TEST_ULIDS.service1,
+              name: 'Piano',  // Added 'name' field
               skill: 'Piano',
               hourly_rate: 120,
               description: 'Professional piano lessons',
@@ -255,7 +271,7 @@ export async function mockAuthentication(routeContext: Page | any) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          id: 1,
+          id: TEST_ULIDS.user1,
           email: 'john.smith@example.com',
           first_name: 'John',
           last_name: 'Smith',
@@ -289,7 +305,7 @@ export async function setupAllMocks(page: Page, context: any = null) {
 
   // Mock the search endpoint FIRST (before the general instructors handler)
   await routeContext.route('**/api/search/instructors**', async (route: Route) => {
-    console.log('Mock intercepting api:', route.request().url());
+    // Reduce noisy logs
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -308,7 +324,7 @@ export async function setupAllMocks(page: Page, context: any = null) {
         results: [
           {
             instructor: {
-              id: 8,
+              id: TEST_ULIDS.instructor8,
               first_name: 'Sarah',
               last_initial: 'C',
               bio: 'Professional piano teacher with 10 years of experience',
@@ -318,7 +334,7 @@ export async function setupAllMocks(page: Page, context: any = null) {
               years_experience: 10,
             },
             service: {
-              id: 1,
+              id: TEST_ULIDS.service1,
               name: 'Piano',
               actual_min_price: 120,
               description: 'Professional piano lessons',
@@ -340,22 +356,33 @@ export async function setupAllMocks(page: Page, context: any = null) {
     });
   });
 
-  // Mock services catalog endpoints
+  // Mock services catalog endpoints (consistent response shapes)
   await routeContext.route('**/services/catalog**', async (route: Route) => {
-    console.log('Mock intercepting services:', route.request().url());
     const url = route.request().url();
-
     if (url.includes('top-per-category')) {
+      // Return TopServicesResponse with categories array
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          'Music': [
-            { id: 1, name: 'Piano', category_id: 1 },
-            { id: 2, name: 'Guitar', category_id: 1 }
-          ],
-          'Fitness': [
-            { id: 97, name: 'Personal Training', category_id: 2 }
+          categories: [
+            {
+              id: 1,
+              name: 'Music',
+              slug: 'music',
+              services: [
+                { id: 1, name: 'Piano', slug: 'piano', demand_score: 90, active_instructors: 5, is_trending: false, display_order: 1 },
+                { id: 2, name: 'Guitar', slug: 'guitar', demand_score: 70, active_instructors: 3, is_trending: true, display_order: 2 },
+              ]
+            },
+            {
+              id: 2,
+              name: 'Fitness',
+              slug: 'fitness',
+              services: [
+                { id: 97, name: 'Personal Training', slug: 'personal-training', demand_score: 85, active_instructors: 2, is_trending: true, display_order: 1 },
+              ]
+            }
           ]
         })
       });
@@ -364,8 +391,8 @@ export async function setupAllMocks(page: Page, context: any = null) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify([
-          { id: 1, name: 'Piano', category_id: 1 },
-          { id: 2, name: 'Guitar', category_id: 1 },
+          { id: TEST_ULIDS.service1, name: 'Piano', category_id: '1' },
+          { id: '01J5TESTSERV00000000000002', name: 'Guitar', category_id: '1' },
           { id: 97, name: 'Personal Training', category_id: 2 }
         ])
       });
@@ -374,7 +401,6 @@ export async function setupAllMocks(page: Page, context: any = null) {
 
   // First set up search-history mock (called on homepage load)
   await routeContext.route('**/search-history**', async (route: Route) => {
-    console.log('Mock intercepting api:', route.request().url());
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -382,54 +408,150 @@ export async function setupAllMocks(page: Page, context: any = null) {
     });
   });
 
-  // Mock availability endpoint (needs to be before general instructors handler)
-  await routeContext.route('**/api/public/instructors/*/availability**', async (route: Route) => {
-    console.log('Mock intercepting api:', route.request().url());
+  // Mock availability endpoint for the alternative pattern
+  await routeContext.route('**/availability/instructor/**', async (route: Route) => {
 
-    // Use FIXED dates for consistent testing
-    // This ensures the same dates are returned regardless of when the test runs
-    const baseDate = new Date('2025-08-13'); // Fixed Wednesday
-    const thursday = new Date('2025-08-14');
-    const friday = new Date('2025-08-15');
-
-    const formatDate = (date: Date) => date.toISOString().split('T')[0];
-
+    // This is the format used by some other parts of the app
+    // Always return successful availability data
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        instructor_id: 8,
+        instructor_id: TEST_ULIDS.instructor8,
+        availability: []  // Simple empty response for this endpoint
+      })
+    });
+  });
+
+  // IMPORTANT: Make sure availability handlers run before any generic **/api/** handler
+  // Match both /api/public/instructors and just /instructors availability endpoints
+  await routeContext.route('**/api/public/instructors/*/availability**', async (route: Route) => {
+    // Extract instructor ID from URL
+    const currentUrl = route.request().url();
+    const idMatch = currentUrl.match(/instructors\/([^\/\?]+)/i);
+    const instructorId = idMatch ? idMatch[1] : TEST_ULIDS.instructor8;
+    console.log('Extracted instructor ID for availability:', instructorId);
+
+    // Check if this is our test instructor - be flexible with the ID format
+    const isTestInstructor = instructorId === TEST_ULIDS.instructor8 ||
+                            instructorId === '01J5TESTINSTR0000000000008' ||
+                            instructorId === '8';
+    // keep silent
+
+    // Use FIXED dates for consistent testing - full week
+    const wed = new Date('2025-08-13');
+    const thu = new Date('2025-08-14');
+    const fri = new Date('2025-08-15');
+    const sat = new Date('2025-08-16');
+    const sun = new Date('2025-08-17');
+    const mon = new Date('2025-08-18');
+    const tue = new Date('2025-08-19');
+
+    const formatDate = (date: Date) => date.toISOString().split('T')[0];
+
+    // Always return a successful response with availability data
+    // This prevents "Instructor not found" errors
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+      },
+      body: JSON.stringify({
+        instructor_id: TEST_ULIDS.instructor8,  // Always use the test ULID
         instructor_first_name: 'Sarah',
         instructor_last_initial: 'C',
         availability_by_date: {
-          [formatDate(baseDate)]: {
-            date: formatDate(baseDate),
+          // Thursday slots
+          [formatDate(thu)]: {
+            date: formatDate(thu),
             available_slots: [
-              { start_time: '09:00', end_time: '10:00' },
               { start_time: '10:00', end_time: '11:00' },
               { start_time: '14:00', end_time: '15:00' },
             ],
             is_blackout: false,
           },
-          [formatDate(thursday)]: {
-            date: formatDate(thursday),
-            available_slots: [
-              { start_time: '10:00', end_time: '11:00' },
-              { start_time: '11:00', end_time: '12:00' },
-              { start_time: '14:00', end_time: '15:00' },
-              { start_time: '19:00', end_time: '20:00' }, // 7pm slot
-            ],
-            is_blackout: false,
-          },
-          [formatDate(friday)]: {
-            date: formatDate(friday),
+          // Friday slots
+          [formatDate(fri)]: {
+            date: formatDate(fri),
             available_slots: [
               { start_time: '09:00', end_time: '10:00' },
-              { start_time: '10:00', end_time: '11:00' },
-              { start_time: '11:00', end_time: '12:00' },
+              { start_time: '14:00', end_time: '15:00' },
+              { start_time: '17:00', end_time: '18:00' },
             ],
             is_blackout: false,
           },
+          // Monday slots
+          [formatDate(mon)]: {
+            date: formatDate(mon),
+            available_slots: [
+              { start_time: '08:00', end_time: '09:00' },
+              { start_time: '09:00', end_time: '10:00' },
+              { start_time: '10:00', end_time: '11:00' },
+              { start_time: '14:00', end_time: '15:00' },
+              { start_time: '17:00', end_time: '18:00' },
+            ],
+            is_blackout: false,
+          },
+          // Tuesday slots
+          [formatDate(tue)]: {
+            date: formatDate(tue),
+            available_slots: [
+              { start_time: '06:00', end_time: '07:00' },
+              { start_time: '08:00', end_time: '09:00' },
+              { start_time: '11:00', end_time: '12:00' },
+              { start_time: '17:00', end_time: '18:00' },
+            ],
+            is_blackout: false,
+          },
+        },
+      }),
+    });
+  });
+
+  // Secondary catch-all for any other instructors availability patterns, but let the above take precedence
+  await routeContext.route('**/instructors/*/availability**', async (route: Route) => {
+    const url = route.request().url();
+    console.log('Mock intercepting availability (fallback):', url);
+    // Forward to the same handler body by fulfilling with the same fixed data
+    const thu = new Date('2025-08-14');
+    const fri = new Date('2025-08-15');
+    const mon = new Date('2025-08-18');
+    const tue = new Date('2025-08-19');
+    const formatDate = (date: Date) => date.toISOString().split('T')[0];
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+      },
+      body: JSON.stringify({
+        instructor_id: TEST_ULIDS.instructor8,
+        instructor_first_name: 'Sarah',
+        instructor_last_initial: 'C',
+        availability_by_date: {
+          [formatDate(thu)]: { date: formatDate(thu), available_slots: [
+            { start_time: '10:00', end_time: '11:00' },
+            { start_time: '14:00', end_time: '15:00' },
+          ], is_blackout: false },
+          [formatDate(fri)]: { date: formatDate(fri), available_slots: [
+            { start_time: '09:00', end_time: '10:00' },
+            { start_time: '14:00', end_time: '15:00' },
+            { start_time: '17:00', end_time: '18:00' },
+          ], is_blackout: false },
+          [formatDate(mon)]: { date: formatDate(mon), available_slots: [
+            { start_time: '08:00', end_time: '09:00' },
+            { start_time: '09:00', end_time: '10:00' },
+            { start_time: '10:00', end_time: '11:00' },
+            { start_time: '14:00', end_time: '15:00' },
+            { start_time: '17:00', end_time: '18:00' },
+          ], is_blackout: false },
+          [formatDate(tue)]: { date: formatDate(tue), available_slots: [
+            { start_time: '06:00', end_time: '07:00' },
+            { start_time: '08:00', end_time: '09:00' },
+            { start_time: '11:00', end_time: '12:00' },
+            { start_time: '17:00', end_time: '18:00' },
+          ], is_blackout: false },
         },
       }),
     });
@@ -448,31 +570,27 @@ export async function setupAllMocks(page: Page, context: any = null) {
 
     console.log('Mock intercepting instructors API:', url);
 
-    // Handle instructor profile API endpoint (must come before other instructor checks)
-    if (url.match(/\/instructors\/\d+$/) && !url.includes('/availability') && !url.includes('/search')) {
-      const idMatch = url.match(/instructors\/(\d+)/);
-      const instructorId = idMatch ? parseInt(idMatch[1]) : 1;
-
+    // Handle instructor profile API endpoint - ULID format only
+    if (url.match(/\/instructors\/[0-9A-Z]{26}$/i) && !url.includes('/availability') && !url.includes('/search')) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          id: instructorId,
-          user_id: instructorId,
+          // Always return our canonical test instructor to keep tests stable
+          user_id: TEST_ULIDS.user8,
           user: {
-            first_name: instructorId === 8 ? 'Sarah' : 'John',
-            last_initial: instructorId === 8 ? 'C' : 'D',
-            // No email for privacy
+            first_name: 'Sarah',
+            last_initial: 'C',
           },
           bio: 'Professional piano teacher with 10 years of experience',
           areas_of_service: ['Upper West Side', 'Midtown'],
           years_experience: 10,
           rating: 4.9,
-          total_reviews: 25,
+          total_reviews: 127,
           services: [
             {
-              id: 1,
-              service_catalog_id: 1,
+              id: TEST_ULIDS.service1,
+              service_catalog_id: TEST_ULIDS.service1,
               name: 'Piano',
               skill: 'Piano',
               hourly_rate: 120,
@@ -502,56 +620,6 @@ export async function setupAllMocks(page: Page, context: any = null) {
           }
         ])
       });
-    } else if (url.includes('/availability')) {
-      // Use same FIXED dates as the other availability mock for consistency
-      const baseDate = new Date('2025-08-13'); // Fixed Wednesday
-      const thursday = new Date('2025-08-14');
-      const friday = new Date('2025-08-15');
-
-      const formatDate = (date: Date) => date.toISOString().split('T')[0];
-
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          instructor_id: 8,
-          instructor_first_name: 'Sarah',
-        instructor_last_initial: 'C',
-          availability_by_date: {
-            [formatDate(baseDate)]: {
-              date: formatDate(baseDate),
-              available_slots: [
-                { start_time: '09:00', end_time: '10:00' },
-                { start_time: '10:00', end_time: '11:00' },
-                { start_time: '14:00', end_time: '15:00' },
-              ],
-              is_blackout: false,
-            },
-            [formatDate(thursday)]: {
-              date: formatDate(thursday),
-              available_slots: [
-                { start_time: '10:00', end_time: '11:00' },
-                { start_time: '11:00', end_time: '12:00' },
-                { start_time: '14:00', end_time: '15:00' },
-                { start_time: '19:00', end_time: '20:00' }, // 7pm slot
-              ],
-              is_blackout: false,
-            },
-            [formatDate(friday)]: {
-              date: formatDate(friday),
-              available_slots: [
-                { start_time: '09:00', end_time: '10:00' },
-                { start_time: '10:00', end_time: '11:00' },
-                { start_time: '11:00', end_time: '12:00' },
-              ],
-              is_blackout: false,
-            },
-          },
-          timezone: 'America/New_York',
-          total_available_slots: 10,
-          earliest_available_date: formatDate(baseDate),
-        }),
-      });
     } else if (url.includes('/auth/')) {
       // Auth is already handled, just continue
       await route.continue();
@@ -560,10 +628,16 @@ export async function setupAllMocks(page: Page, context: any = null) {
     }
   });
 
-  // Set up route handler for other API endpoints
+  // Set up route handler for other API endpoints (register BEFORE generic instructors to avoid overrides)
   await routeContext.route('**/api/**', async (route: Route) => {
     const url = route.request().url();
     console.log('Mock intercepting api:', url);
+
+    // Never override availability mocks
+    if (url.includes('/api/public/instructors/') && url.includes('/availability')) {
+      await route.continue();
+      return;
+    }
 
     if (url.includes('/search-history/interaction')) {
       // Mock search interaction tracking
@@ -632,5 +706,95 @@ export async function setupAllMocks(page: Page, context: any = null) {
     } else {
       await route.continue();
     }
+  });
+
+  // Re-register availability mocks LAST so they win when multiple handlers match
+  await routeContext.route('**/api/public/instructors/*/availability**', async (route: Route) => {
+    const currentUrl = route.request().url();
+    const idMatch = currentUrl.match(/instructors\/([^\/\?]+)/i);
+    const instructorId = idMatch ? idMatch[1] : TEST_ULIDS.instructor8;
+
+    const thu = new Date('2025-08-14');
+    const fri = new Date('2025-08-15');
+    const mon = new Date('2025-08-18');
+    const tue = new Date('2025-08-19');
+    const formatDate = (date: Date) => date.toISOString().split('T')[0];
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({
+        instructor_id: instructorId,
+        instructor_first_name: 'Sarah',
+        instructor_last_initial: 'C',
+        availability_by_date: {
+          [formatDate(thu)]: { date: formatDate(thu), available_slots: [
+            { start_time: '10:00', end_time: '11:00' },
+            { start_time: '14:00', end_time: '15:00' },
+          ], is_blackout: false },
+          [formatDate(fri)]: { date: formatDate(fri), available_slots: [
+            { start_time: '09:00', end_time: '10:00' },
+            { start_time: '14:00', end_time: '15:00' },
+            { start_time: '17:00', end_time: '18:00' },
+          ], is_blackout: false },
+          [formatDate(mon)]: { date: formatDate(mon), available_slots: [
+            { start_time: '08:00', end_time: '09:00' },
+            { start_time: '09:00', end_time: '10:00' },
+            { start_time: '10:00', end_time: '11:00' },
+            { start_time: '14:00', end_time: '15:00' },
+            { start_time: '17:00', end_time: '18:00' },
+          ], is_blackout: false },
+          [formatDate(tue)]: { date: formatDate(tue), available_slots: [
+            { start_time: '06:00', end_time: '07:00' },
+            { start_time: '08:00', end_time: '09:00' },
+            { start_time: '11:00', end_time: '12:00' },
+            { start_time: '17:00', end_time: '18:00' },
+          ], is_blackout: false },
+        },
+      }),
+    });
+  });
+
+  await routeContext.route('**/instructors/*/availability**', async (route: Route) => {
+    const thu = new Date('2025-08-14');
+    const fri = new Date('2025-08-15');
+    const mon = new Date('2025-08-18');
+    const tue = new Date('2025-08-19');
+    const formatDate = (date: Date) => date.toISOString().split('T')[0];
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({
+        instructor_id: TEST_ULIDS.instructor8,
+        instructor_first_name: 'Sarah',
+        instructor_last_initial: 'C',
+        availability_by_date: {
+          [formatDate(thu)]: { date: formatDate(thu), available_slots: [
+            { start_time: '10:00', end_time: '11:00' },
+            { start_time: '14:00', end_time: '15:00' },
+          ], is_blackout: false },
+          [formatDate(fri)]: { date: formatDate(fri), available_slots: [
+            { start_time: '09:00', end_time: '10:00' },
+            { start_time: '14:00', end_time: '15:00' },
+            { start_time: '17:00', end_time: '18:00' },
+          ], is_blackout: false },
+          [formatDate(mon)]: { date: formatDate(mon), available_slots: [
+            { start_time: '08:00', end_time: '09:00' },
+            { start_time: '09:00', end_time: '10:00' },
+            { start_time: '10:00', end_time: '11:00' },
+            { start_time: '14:00', end_time: '15:00' },
+            { start_time: '17:00', end_time: '18:00' },
+          ], is_blackout: false },
+          [formatDate(tue)]: { date: formatDate(tue), available_slots: [
+            { start_time: '06:00', end_time: '07:00' },
+            { start_time: '08:00', end_time: '09:00' },
+            { start_time: '11:00', end_time: '12:00' },
+            { start_time: '17:00', end_time: '18:00' },
+          ], is_blackout: false },
+        },
+      }),
+    });
   });
 }

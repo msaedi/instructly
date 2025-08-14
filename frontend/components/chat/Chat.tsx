@@ -24,8 +24,8 @@ import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 
 interface ChatProps {
-  bookingId: number;
-  currentUserId: number;
+  bookingId: string;
+  currentUserId: string;
   currentUserName: string;
   otherUserName: string;
   className?: string;
@@ -79,12 +79,12 @@ export function Chat({
   } = useMessageHistory(bookingId);
 
   // Clear optimistic messages when history is refreshed
-  // Since optimistic messages have negative IDs, we only keep those that are truly optimistic
+  // Since optimistic messages have negative timestamp IDs (as strings), we only keep those that are truly optimistic
   useEffect(() => {
     if (historyData?.messages) {
-      // Remove any optimistic messages that have negative IDs only
-      // Real messages from the server will have positive IDs
-      setOptimisticMessages(prev => prev.filter(msg => msg.id < 0));
+      // Keep only optimistic messages (those with IDs starting with '-')
+      // Real messages from the server will have ULID strings
+      setOptimisticMessages(prev => prev.filter(msg => msg.id.startsWith('-')));
     }
   }, [historyData]);
 
@@ -116,7 +116,7 @@ export function Chat({
 
   // Combine history, optimistic, and real-time messages with deduplication
   const allMessages = React.useMemo(() => {
-    const messageMap = new Map<number, Message>();
+    const messageMap = new Map<string | number, Message>();
 
     // Add history messages
     (historyData?.messages || []).forEach(msg => {
@@ -143,7 +143,7 @@ export function Chat({
 
   // Build a stable read map derived from server-provided read_by and live receipts
   const mergedReadReceipts = React.useMemo(() => {
-    const map: Record<number, Array<{ user_id: number; read_at: string }>> = { ...readReceipts };
+    const map: Record<string, Array<{ user_id: string; read_at: string }>> = { ...readReceipts };
     for (const m of allMessages) {
       if ((m as any).read_by && Array.isArray((m as any).read_by)) {
         const existing = map[m.id] || [];
@@ -161,7 +161,7 @@ export function Chat({
 
   // Determine the latest own message that has a read receipt (global, not per-day group)
   const lastOwnReadMessageId = React.useMemo(() => {
-    let latest: { id: number; ts: number } | null = null;
+    let latest: { id: string; ts: number } | null = null;
     for (const m of allMessages) {
       if (m.sender_id !== currentUserId) continue;
       const reads = mergedReadReceipts[m.id] || [];
@@ -212,7 +212,7 @@ export function Chat({
     // Create optimistic message with temporary ID
     const tempId = -Date.now(); // Negative ID to distinguish from real IDs
     const optimisticMessage: Message = {
-      id: tempId,
+      id: tempId.toString(),
       booking_id: bookingId,
       sender_id: currentUserId,
       content,
@@ -238,12 +238,12 @@ export function Chat({
 
       // Remove the optimistic message after successful send
       // The real message will appear in historyData after React Query invalidation
-      setOptimisticMessages(prev => prev.filter(msg => msg.id !== tempId));
+      setOptimisticMessages(prev => prev.filter(msg => msg.id !== tempId.toString()));
 
     } catch (error) {
       logger.error('Failed to send message', error);
       // Remove optimistic message on error
-      setOptimisticMessages(prev => prev.filter(msg => msg.id !== tempId));
+      setOptimisticMessages(prev => prev.filter(msg => msg.id !== tempId.toString()));
       // Restore input message on error
       setInputMessage(content);
     }
@@ -276,23 +276,27 @@ export function Chat({
   };
 
   // Quick reactions toggle per-message
-  const [openReactionsForMessageId, setOpenReactionsForMessageId] = useState<number | null>(null);
+  const [openReactionsForMessageId, setOpenReactionsForMessageId] = useState<string | number | null>(null);
   const quickEmojis = ['👍', '❤️', '😊', '😮', '🎉'];
-  const handleAddReaction = async (messageId: number, emoji: string) => {
-    if (messageId < 0) {
-      // Optimistic/temporary message; ignore until real id arrives
+  const handleAddReaction = async (messageId: string | number, emoji: string) => {
+    // For optimistic/temporary messages with negative numeric IDs
+    if (typeof messageId === 'number' && messageId < 0) {
+      return;
+    }
+    // For string IDs that start with '-' (negative)
+    if (typeof messageId === 'string' && messageId.startsWith('-')) {
       return;
     }
     try {
       const { messageService } = await import('@/services/messageService');
       // Optimistic UX: close popover immediately
       setOpenReactionsForMessageId(null);
-      await messageService.addReaction(messageId, emoji);
+      await messageService.addReaction(messageId.toString(), emoji);
     } catch {}
   };
 
   // Edit mode state
-  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState<string>("");
   const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
   useEffect(() => {
@@ -316,7 +320,9 @@ export function Chat({
     setIsSavingEdit(true);
     try {
       const { messageService } = await import('@/services/messageService');
-      const ok = await messageService.editMessage(editingMessageId, editingContent.trim());
+      // TypeScript should know editingMessageId is string here due to the guard above
+      const messageId: string = editingMessageId;
+      const ok = await messageService.editMessage(messageId, editingContent.trim());
       if (ok) {
         setEditingMessageId(null);
         setEditingContent("");
@@ -335,7 +341,7 @@ export function Chat({
   };
 
   // Track local my-reaction toggles for highlight state (messageId -> emoji -> delta {-1, 0, 1})
-  const [reactionMyDeltas, setReactionMyDeltas] = useState<Record<number, Record<string, number>>>({});
+  const [reactionMyDeltas, setReactionMyDeltas] = useState<Record<string | number, Record<string, number>>>({});
   const toggleReactionLocal = (message: Message, emoji: string) => {
     const baseMy = Array.isArray((message as any).my_reactions) && (message as any).my_reactions.includes(emoji);
     const currentDelta = (reactionMyDeltas[message.id] || {})[emoji] || 0;

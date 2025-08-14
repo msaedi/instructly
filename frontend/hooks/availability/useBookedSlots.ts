@@ -33,7 +33,7 @@ export interface UseBookedSlotsReturn {
   /** Error state for booking operations */
   bookingError: string | null;
   /** Selected booking ID for preview */
-  selectedBookingId: number | null;
+  selectedBookingId: string | null;
   /** Whether booking preview modal is shown */
   showBookingPreview: boolean;
 
@@ -51,7 +51,7 @@ export interface UseBookedSlotsReturn {
   /** Fetch booked slots for a week */
   fetchBookedSlots: (weekStart: Date) => Promise<void>;
   /** Handle booking slot click */
-  handleBookingClick: (bookingId: number) => void;
+  handleBookingClick: (bookingId: string) => void;
   /** Close booking preview */
   closeBookingPreview: () => void;
   /** Refresh booking data */
@@ -97,7 +97,7 @@ export function useBookedSlots(
   const [bookedSlots, setBookedSlots] = useState<BookedSlotPreview[]>([]);
   const [isLoadingBookings, setIsLoadingBookings] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
-  const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
+  const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [showBookingPreview, setShowBookingPreview] = useState(false);
 
   // Cache management
@@ -231,7 +231,7 @@ export function useBookedSlots(
   /**
    * Handle booking click event
    */
-  const handleBookingClick = useCallback((bookingId: number) => {
+  const handleBookingClick = useCallback((bookingId: string) => {
     logger.debug('Booking clicked', { bookingId });
     setSelectedBookingId(bookingId);
     setShowBookingPreview(true);

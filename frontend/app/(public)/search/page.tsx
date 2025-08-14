@@ -184,8 +184,8 @@ function SearchPageContent() {
             instructorsData = nlResponse.data.results.map(
               (result: any) =>
                 ({
-                  id: result.instructor?.id || 0,
-                  user_id: result.instructor?.id || 0, // Using instructor.id as user_id
+                  id: result.instructor?.id || '',
+                  user_id: result.instructor?.id || '', // Using instructor.id as user_id
                   bio: result.instructor?.bio || '',
                   areas_of_service: result.instructor?.areas_of_service
                     ? result.instructor.areas_of_service.split(', ')
@@ -248,7 +248,7 @@ function SearchPageContent() {
         } else if (serviceCatalogId) {
           // Service catalog ID provided - fetch instructors for specific service
           const apiParams = {
-            service_catalog_id: parseInt(serviceCatalogId),
+            service_catalog_id: serviceCatalogId,  // Now using ULID strings, no parseInt
             page: page,
             per_page: 20,
           };
@@ -431,10 +431,10 @@ function SearchPageContent() {
   ]);
 
   // Generate realistic next available times (deterministic for SSR)
-  const getNextAvailableSlots = (instructorId: number) => {
-    // Some instructors may not have availability (e.g., Sarah Chen with ID 100)
+  const getNextAvailableSlots = (instructorId: string) => {
+    // Some instructors may not have availability (e.g., specific ULIDs)
     // Simulate this by having certain instructor IDs return no availability
-    const instructorsWithNoAvailability = [100]; // Sarah Chen
+    const instructorsWithNoAvailability: string[] = []; // Can add specific ULIDs if needed
     if (instructorsWithNoAvailability.includes(instructorId)) {
       return [];
     }
@@ -451,8 +451,10 @@ function SearchPageContent() {
       slotDate.setDate(today.getDate() + i + 1); // Start from tomorrow
 
       // Vary times based on instructor ID to make them unique but deterministic
+      // Convert ULID string to a number for calculation (use first few chars as seed)
       const baseHours = [9, 11, 14, 16, 18]; // 9 AM, 11 AM, 2 PM, 4 PM, 6 PM
-      const hourIndex = (instructorId + i) % baseHours.length;
+      const idSeed = instructorId.charCodeAt(0) + instructorId.charCodeAt(1);
+      const hourIndex = (idSeed + i) % baseHours.length;
       const hour = baseHours[hourIndex];
 
       slotDate.setHours(hour, 0, 0, 0);

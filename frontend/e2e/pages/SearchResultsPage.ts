@@ -23,9 +23,11 @@ export class SearchResultsPage {
   }
 
   async clickFirstInstructor() {
-    // Click on "View Profile" link in the first card specifically
-    const viewProfileLink = this.firstInstructorCard.locator('a:has-text("View Profile")').first();
-    await viewProfileLink.click();
+    // Click a profile link in the first card; fall back to any /instructors/{id} link
+    const link = this.firstInstructorCard
+      .locator('a:has-text("View Profile")').first()
+      .or(this.firstInstructorCard.locator('a[href^="/instructors/"]').first());
+    await link.click();
   }
 
   async getInstructorCount() {

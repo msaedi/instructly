@@ -75,12 +75,10 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack }: Paym
     goToStep(PaymentStep.PROCESSING);
 
     try {
-      // Parse instructor ID and service ID from booking data
-      const instructorId = parseInt(bookingData.instructorId);
-      // Try to get serviceId from metadata first, otherwise try to parse from lessonType
-      const serviceId = bookingData.metadata?.serviceId
-        ? parseInt(bookingData.metadata.serviceId)
-        : parseInt(bookingData.lessonType); // Fallback if serviceId not in metadata
+      // Get instructor ID and service ID from booking data (now strings/ULIDs)
+      const instructorId = bookingData.instructorId;
+      // Try to get serviceId from metadata first, otherwise use lessonType
+      const serviceId = bookingData.metadata?.serviceId || bookingData.lessonType;
 
       // Format time to remove seconds if present
       const formattedStartTime = bookingData.startTime.split(':').slice(0, 2).join(':');

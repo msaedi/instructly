@@ -70,6 +70,18 @@ export function AvailabilityGrid({
     logger.info('Using mock availability data', { reason: error ? 'error' : 'no data' });
   }
 
+  // Normalize time strings to HH:00 for consistent comparison
+  const toTwentyFourHour = (label: string): string => {
+    if (/^\d{2}:\d{2}$/.test(label)) return label; // already HH:MM
+    const match = label.match(/(\d+)(am|pm)/i);
+    if (!match) return label;
+    let hour = parseInt(match[1]);
+    const isPm = match[2].toLowerCase() === 'pm';
+    if (isPm && hour !== 12) hour += 12;
+    if (!isPm && hour === 12) hour = 0;
+    return `${hour.toString().padStart(2, '0')}:00`;
+  };
+
   // Calculate available duration from a selected time slot
   const calculateAvailableDuration = (dateStr: string, startTime: string): number => {
     if (useMockData) {
@@ -367,8 +379,9 @@ export function AvailabilityGrid({
                   const isTooSoon = hoursUntilSlot < minAdvanceBookingHours;
                   const isBookable = !isPastDate && !isTooSoon;
 
+                  const candidateTime = useMockData ? time : timeStr;
                   const isSelected = selectedSlot?.date === dateStr &&
-                    selectedSlot?.time === (useMockData ? time : timeStr);
+                    toTwentyFourHour(selectedSlot?.time || '') === toTwentyFourHour(candidateTime);
 
                   return (
                     <td key={`${dateStr}-${time}`} className="p-1 text-center align-middle">

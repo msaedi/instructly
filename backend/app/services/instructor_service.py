@@ -123,7 +123,7 @@ class InstructorService(BaseService):
     def get_instructors_filtered(
         self,
         search: Optional[str] = None,
-        service_catalog_id: Optional[int] = None,
+        service_catalog_id: Optional[str] = None,
         min_price: Optional[float] = None,
         max_price: Optional[float] = None,
         skip: int = 0,
@@ -837,13 +837,13 @@ class InstructorService(BaseService):
 
         return {"services": results, "metadata": metadata}
 
-    def _get_service_analytics(self, service_catalog_id: int) -> Dict:
+    def _get_service_analytics(self, service_catalog_id: str) -> Dict:
         """Get or create analytics for a service."""
         analytics = self.analytics_repository.get_or_create(service_catalog_id)
         return analytics.to_dict() if analytics else {}
 
     def _get_instructors_for_service_in_price_range(
-        self, service_catalog_id: int, min_price: Optional[float], max_price: Optional[float]
+        self, service_catalog_id: str, min_price: Optional[float], max_price: Optional[float]
     ) -> List[Service]:
         """Get instructors offering a service within price range."""
         query_filters = {"service_catalog_id": service_catalog_id, "is_active": True}

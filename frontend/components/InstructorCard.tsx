@@ -58,7 +58,7 @@ export default function InstructorCard({
   };
 
   // Helper function to get service name from catalog
-  const getServiceName = (serviceId: number): string => {
+  const getServiceName = (serviceId: string): string => {
     const service = serviceCatalog.find((s) => s.id === serviceId);
     return service?.name || `Service ${serviceId}`;
   };

@@ -5,7 +5,7 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 import { useState, useEffect } from 'react';
 
 interface SavedInstructor {
-  instructor_id: number;
+  instructor_id: string;
   saved_at: string;
 }
 
@@ -13,7 +13,7 @@ interface SavedInstructor {
  * Hook to manage saved/favorite instructors with optimistic updates
  * Handles both logged-in (persisted) and logged-out (localStorage) states
  */
-export function useSaveInstructor(instructorId: number) {
+export function useSaveInstructor(instructorId: string) {
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuth();
   const [isSaved, setIsSaved] = useState(false);
@@ -23,7 +23,7 @@ export function useSaveInstructor(instructorId: number) {
     if (!isAuthenticated) {
       const savedInstructors = localStorage.getItem('savedInstructors');
       if (savedInstructors) {
-        const saved = JSON.parse(savedInstructors) as number[];
+        const saved = JSON.parse(savedInstructors) as string[];
         setIsSaved(saved.includes(instructorId));
       }
     }
@@ -84,7 +84,7 @@ export function useSaveInstructor(instructorId: number) {
     if (!isAuthenticated) {
       // Handle localStorage for non-authenticated users
       const savedInstructors = localStorage.getItem('savedInstructors');
-      let saved: number[] = savedInstructors ? JSON.parse(savedInstructors) : [];
+      let saved: string[] = savedInstructors ? JSON.parse(savedInstructors) : [];
 
       if (isSaved) {
         saved = saved.filter(id => id !== instructorId);

@@ -327,7 +327,7 @@ export interface NaturalLanguageSearchResponse {
  * Service catalog API types
  */
 export interface ServiceCategory {
-  id: number;
+  id: string;
   name: string;
   slug: string;
   subtitle: string;
@@ -337,8 +337,8 @@ export interface ServiceCategory {
 }
 
 export interface CatalogService {
-  id: number;
-  category_id: number;
+  id: string;
+  category_id: string;
   name: string;
   slug: string;
   description: string;
@@ -513,7 +513,7 @@ export const publicApi = {
    * Note: service_catalog_id is now required
    */
   async searchInstructors(params: {
-    service_catalog_id: number; // Required: Service catalog ID
+    service_catalog_id: string; // Required: Service catalog ID (ULID string)
     min_price?: number; // Minimum hourly rate
     max_price?: number; // Maximum hourly rate
     page?: number; // Page number (1-based)
@@ -522,8 +522,8 @@ export const publicApi = {
     // Backend now always returns standardized paginated response
     return cleanFetch<{
       items: Array<{
-        id: number;
-        user_id: number;
+        id: string;  // ULID string
+        user_id: string;  // ULID string
         bio: string;
         areas_of_service: string[];
         years_experience: number;
@@ -532,14 +532,14 @@ export const publicApi = {
         created_at: string;
         updated_at?: string;
         user: {
-          id: number;
+          id: string;  // ULID string
           first_name: string;
           last_initial: string;
           // No email for privacy
         };
         services: Array<{
-          id: number;
-          service_catalog_id: number;
+          id: string;  // ULID string
+          service_catalog_id: string;  // ULID string
           hourly_rate: number;
           description?: string;
           duration_options: number[];
@@ -561,7 +561,7 @@ export const publicApi = {
    */
   async getInstructorProfile(instructorId: string) {
     return cleanFetch<{
-      user_id: number;
+      user_id: string;
       bio: string;
       areas_of_service: string[];
       years_experience: number;
@@ -575,8 +575,8 @@ export const publicApi = {
         // No email for privacy
       };
       services: Array<{
-        id: number;
-        service_catalog_id: number;
+        id: string;
+        service_catalog_id: string;
         name?: string;
         hourly_rate: number;
         description?: string;
@@ -603,7 +603,7 @@ export const publicApi = {
     }
   ) {
     return cleanFetch<{
-      instructor_id: number;
+      instructor_id: string;
       instructor_first_name: string | null;
       instructor_last_initial: string | null;
       availability_by_date: Record<
@@ -687,8 +687,8 @@ export const publicApi = {
  * Booking type definitions
  */
 export interface CreateBookingRequest {
-  instructor_id: number;
-  service_id: number;
+  instructor_id: string;
+  service_id: string;
   booking_date: string; // ISO date string (YYYY-MM-DD)
   start_time: string; // HH:MM format
   end_time: string; // HH:MM format
@@ -699,10 +699,10 @@ export interface CreateBookingRequest {
 }
 
 export interface Booking {
-  id: number;
-  instructor_id: number;
-  student_id: number;
-  service_id: number;
+  id: string;
+  instructor_id: string;
+  student_id: string;
+  service_id: string;
   booking_date: string;
   start_time: string;
   end_time: string;
@@ -715,7 +715,7 @@ export interface Booking {
   created_at: string;
   updated_at: string;
   instructor: {
-    user_id: number;
+    user_id: string;
     user: {
       first_name: string;
       last_initial: string;

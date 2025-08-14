@@ -240,7 +240,7 @@ export const bookingsApi = {
    * const booking = await bookingsApi.getBooking(123);
    * ```
    */
-  getBooking: async (bookingId: number): Promise<Booking> => {
+  getBooking: async (bookingId: string): Promise<Booking> => {
     logger.debug('Fetching booking details', { bookingId });
 
     const response = await fetchWithAuth(`/bookings/${bookingId}`);
@@ -270,7 +270,7 @@ export const bookingsApi = {
    * const preview = await bookingsApi.getBookingPreview(123);
    * ```
    */
-  getBookingPreview: async (bookingId: number): Promise<BookingPreview> => {
+  getBookingPreview: async (bookingId: string): Promise<BookingPreview> => {
     logger.debug('Fetching booking preview', { bookingId });
 
     const response = await fetchWithAuth(`/bookings/${bookingId}/preview`);
@@ -303,7 +303,7 @@ export const bookingsApi = {
    * });
    * ```
    */
-  cancelBooking: async (bookingId: number, data: CancelBookingRequest): Promise<Booking> => {
+  cancelBooking: async (bookingId: string, data: CancelBookingRequest): Promise<Booking> => {
     logger.info('Cancelling booking', {
       bookingId,
       hasReason: !!data.cancellation_reason,
@@ -361,7 +361,7 @@ export const bookingsApi = {
    * const completedBooking = await bookingsApi.completeBooking(123);
    * ```
    */
-  completeBooking: async (bookingId: number): Promise<Booking> => {
+  completeBooking: async (bookingId: string): Promise<Booking> => {
     logger.info('Marking booking as complete', { bookingId });
 
     const response = await fetchWithAuth(`/bookings/${bookingId}/complete`, {
@@ -391,7 +391,7 @@ export const bookingsApi = {
    * const noShowBooking = await bookingsApi.markNoShow(123);
    * ```
    */
-  markNoShow: async (bookingId: number): Promise<Booking> => {
+  markNoShow: async (bookingId: string): Promise<Booking> => {
     logger.info('Marking booking as no-show', { bookingId });
 
     const response = await fetchWithAuth(`/bookings/${bookingId}/no-show`, {
@@ -489,7 +489,7 @@ export const bookingsApi = {
    * ```
    */
   rescheduleBooking: async (
-    bookingId: number,
+    bookingId: string,
     data: {
       booking_date: string;
       start_time: string;
@@ -550,7 +550,7 @@ export const availabilityApi = {
    * );
    * ```
    */
-  getInstructorAvailability: async (instructorId: number, startDate: string, endDate: string) => {
+  getInstructorAvailability: async (instructorId: string, startDate: string, endDate: string) => {
     logger.debug('Fetching instructor availability', {
       instructorId,
       startDate,
@@ -601,7 +601,7 @@ export const availabilityApi = {
    * );
    * ```
    */
-  getAvailableSlots: async (instructorId: number, date: string, serviceId?: number) => {
+  getAvailableSlots: async (instructorId: string, date: string, serviceId?: string) => {
     logger.debug('Fetching available slots', {
       instructorId,
       date,

@@ -18,8 +18,8 @@ import { cn } from '@/lib/utils';
 interface ChatModalProps {
   isOpen: boolean;
   onClose: () => void;
-  bookingId: number;
-  currentUserId: number;
+  bookingId: string;
+  currentUserId: string;
   currentUserName: string;
   otherUserName: string;
   lessonTitle?: string;

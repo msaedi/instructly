@@ -27,8 +27,8 @@ import { logger } from '@/lib/logger';
 // Query key factory for consistent cache keys
 export const messageQueryKeys = {
   all: ['messages'] as const,
-  history: (bookingId: number) => ['messages', 'history', bookingId] as const,
-  historyPaginated: (bookingId: number, limit: number, offset: number) =>
+  history: (bookingId: string) => ['messages', 'history', bookingId] as const,
+  historyPaginated: (bookingId: string, limit: number, offset: number) =>
     ['messages', 'history', bookingId, { limit, offset }] as const,
   unreadCount: () => ['messages', 'unread-count'] as const,
 };
@@ -37,7 +37,7 @@ export const messageQueryKeys = {
  * Hook for fetching message history with pagination
  */
 export function useMessageHistory(
-  bookingId: number,
+  bookingId: string,
   limit: number = 50,
   offset: number = 0,
   enabled: boolean = true
@@ -45,7 +45,7 @@ export function useMessageHistory(
   return useQuery<MessagesHistoryResponse, Error>({
     queryKey: messageQueryKeys.historyPaginated(bookingId, limit, offset),
     queryFn: () => messageService.getMessageHistory(bookingId, limit, offset),
-    enabled: enabled && bookingId > 0,
+    enabled: enabled && bookingId.length > 0,
     staleTime: 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 10, // 10 minutes (formerly cacheTime)
     refetchOnWindowFocus: true,
@@ -178,7 +178,7 @@ export function useDeleteMessage() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (messageId: number) =>
+    mutationFn: (messageId: string) =>
       messageService.deleteMessage(messageId),
     onSuccess: (_, messageId) => {
       // Invalidate all message history queries
@@ -203,7 +203,7 @@ export function useDeleteMessage() {
 export function usePrefetchMessageHistory() {
   const queryClient = useQueryClient();
 
-  return (bookingId: number, limit: number = 50, offset: number = 0) => {
+  return (bookingId: string, limit: number = 50, offset: number = 0) => {
     return queryClient.prefetchQuery({
       queryKey: messageQueryKeys.historyPaginated(bookingId, limit, offset),
       queryFn: () => messageService.getMessageHistory(bookingId, limit, offset),

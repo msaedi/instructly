@@ -32,8 +32,8 @@ import { format } from 'date-fns';
 
 // Booking intent helpers
 function storeBookingIntent(bookingIntent: {
-  instructorId: number;
-  serviceId?: number;
+  instructorId: string;
+  serviceId?: string;
   date: string;
   time: string;
   duration: number;
@@ -47,8 +47,8 @@ function storeBookingIntent(bookingIntent: {
 }
 
 function getBookingIntent(): {
-  instructorId: number;
-  serviceId?: number;
+  instructorId: string;
+  serviceId?: string;
   date: string;
   time: string;
   duration: number;
@@ -83,12 +83,15 @@ function InstructorProfileContent() {
   const [hasRestoredIntent, setHasRestoredIntent] = useState(false);
 
   const { data: instructor, isLoading, error } = useInstructorProfile(instructorId);
+  // IMPORTANT: Use the canonical instructor.id (user_id ULID) when available to avoid duplicate queries
+  // Defer availability fetch until canonical id is known to avoid duplicate requests
+  const availabilityInstructorId = instructor?.id || '';
   const { data: availability } = useInstructorAvailability(
-    instructorId,
+    availabilityInstructorId,
     weekStart ? format(weekStart, 'yyyy-MM-dd') : undefined
   );
   const { isSaved, toggleSave, isLoading: isSaveLoading } = useSaveInstructor(
-    instructor?.id ? Number(instructor.id) : 0
+    instructor?.id || ''
   );
   const bookingModal = useBookingModal();
 
@@ -195,7 +198,7 @@ function InstructorProfileContent() {
     // Check for booking intent (from login flow)
     const bookingIntent = getBookingIntent();
 
-    if (bookingIntent && bookingIntent.instructorId === Number(instructorId)) {
+    if (bookingIntent && bookingIntent.instructorId === instructorId) {
       // If skipModal flag is set, user already went through login and should go to payment
       if (bookingIntent.skipModal) {
         // The login redirect should have gone directly to /student/booking/confirm
@@ -527,7 +530,7 @@ function InstructorProfileContent() {
             years_experience: instructor.years_experience,
             services: instructor.services.map(s => ({
               id: s.id,
-              skill: s.skill,
+              skill: s.skill || '',
               hourly_rate: s.hourly_rate,
               duration: s.duration_options?.[0] || 60,
               duration_options: s.duration_options || [60],

@@ -15,13 +15,13 @@ interface TimeSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   instructor: {
-    user_id: number;
+    user_id: string;
     user: {
       first_name: string;
       last_initial: string;
     };
     services: Array<{
-      id?: number;
+      id?: string;
       duration_options: number[];
       hourly_rate: number;
       skill: string;
@@ -30,7 +30,7 @@ interface TimeSelectionModalProps {
   preSelectedDate?: string; // From search context (format: "YYYY-MM-DD")
   preSelectedTime?: string; // Pre-selected time slot
   onTimeSelected?: (selection: { date: string; time: string; duration: number }) => void;
-  serviceId?: number; // Optional service ID from search context
+  serviceId?: string; // Optional service ID from search context
 }
 
 export default function TimeSelectionModal({

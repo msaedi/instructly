@@ -5,7 +5,7 @@ import { API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
 import { logger } from '@/lib/logger';
 
 interface User {
-  id: number;
+  id: string;
   email: string;
   full_name: string;
   roles: string[];
@@ -127,8 +127,8 @@ export function useAuth(): UseAuthReturn {
  * @param bookingIntent - The booking details to preserve
  */
 export function storeBookingIntent(bookingIntent: {
-  instructorId: number;
-  serviceId?: number;
+  instructorId: string;
+  serviceId?: string;
   date: string;
   time: string;
   duration: number;
@@ -148,8 +148,8 @@ export function storeBookingIntent(bookingIntent: {
  * @returns The stored booking intent or null
  */
 export function getBookingIntent(): {
-  instructorId: number;
-  serviceId?: number;
+  instructorId: string;
+  serviceId?: string;
   date: string;
   time: string;
   duration: number;

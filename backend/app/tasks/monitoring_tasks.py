@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 
 import httpx
+import ulid
 from celery import Task
 from sqlalchemy import func
 
@@ -83,9 +84,14 @@ def process_monitoring_alert(
         details: Additional alert details
     """
     try:
-        # Create alert history record
+        # Create alert history record - explicitly set id with ULID
         alert = AlertHistory(
-            alert_type=alert_type, severity=severity, title=title, message=message, details=details or {}
+            id=str(ulid.ULID()),
+            alert_type=alert_type,
+            severity=severity,
+            title=title,
+            message=message,
+            details=details or {},
         )
         self.db.add(alert)
         self.db.commit()
@@ -106,7 +112,7 @@ def process_monitoring_alert(
 
 
 @celery_app.task(base=MonitoringTask, bind=True, max_retries=3)
-def send_alert_email(self, alert_id: int):
+def send_alert_email(self, alert_id: str):
     """Send email notification for an alert."""
     try:
         alert = self.db.query(AlertHistory).filter_by(id=alert_id).first()
@@ -195,7 +201,7 @@ def send_alert_email(self, alert_id: int):
 
 
 @celery_app.task(base=MonitoringTask, bind=True, max_retries=3)
-def create_github_issue_for_alert(self, alert_id: int):
+def create_github_issue_for_alert(self, alert_id: str):
     """Create a GitHub issue for persistent alerts."""
     try:
         alert = self.db.query(AlertHistory).filter_by(id=alert_id).first()

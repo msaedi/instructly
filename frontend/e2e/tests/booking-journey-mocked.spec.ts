@@ -5,7 +5,7 @@ import { InstructorProfilePage } from '../pages/InstructorProfilePage';
 // import { BookingPage } from '../pages/BookingPage'; // Not needed for this simplified test
 // import { ConfirmationPage } from '../pages/ConfirmationPage'; // Uncomment when payment button bug is fixed
 import { testData } from '../fixtures/test-data';
-import { setupAllMocks } from '../fixtures/api-mocks';
+import { setupAllMocks, TEST_ULIDS } from '../fixtures/api-mocks';
 
 test.describe('Student Booking Journey (Mocked)', () => {
   test.beforeEach(async ({ page, context }) => {
@@ -108,17 +108,17 @@ test.describe('Student Booking Journey (Mocked)', () => {
     await page.waitForLoadState('networkidle');
 
     // Set mock authentication before clicking Continue to Booking
-    await page.evaluate(() => {
+    await page.evaluate((ids) => {
       // Use the correct key that the app expects
       localStorage.setItem('access_token', 'mock_access_token');
       localStorage.setItem('user', JSON.stringify({
-        id: 1,
+        id: ids.user1,
         email: 'john.smith@example.com',
         first_name: 'John',
         last_name: 'Smith',
         role: 'student'
       }));
-    });
+    }, { user1: TEST_ULIDS.user1 });
 
     // Modal opens and should redirect to login automatically for unauthenticated users
 
@@ -292,7 +292,7 @@ test.describe('Student Booking Journey (Mocked)', () => {
 
   test('should display correct booking details', async ({ page }) => {
     // Navigate directly to instructor profile
-    await page.goto('/instructors/8');
+    await page.goto(`/instructors/${TEST_ULIDS.instructor8}`);
 
     const instructorProfile = new InstructorProfilePage(page);
     await instructorProfile.waitForAvailability();
@@ -314,17 +314,17 @@ test.describe('Student Booking Journey (Mocked)', () => {
     await page.waitForLoadState('networkidle');
 
     // Set mock authentication before clicking Continue to Booking
-    await page.evaluate(() => {
+    await page.evaluate((ids) => {
       // Use the correct key that the app expects
       localStorage.setItem('access_token', 'mock_access_token');
       localStorage.setItem('user', JSON.stringify({
-        id: 1,
+        id: ids.user1,
         email: 'john.smith@example.com',
         first_name: 'John',
         last_name: 'Smith',
         role: 'student'
       }));
-    });
+    }, { user1: TEST_ULIDS.user1 });
 
     // Modal opens and should redirect to login automatically for unauthenticated users
 

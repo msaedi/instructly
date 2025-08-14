@@ -6,7 +6,7 @@ import Modal from '@/components/Modal';
 import { logger } from '@/lib/logger';
 
 interface BookingQuickPreviewProps {
-  bookingId: number;
+  bookingId: string;
   onClose: () => void;
   onViewFullDetails: () => void;
 }

@@ -210,7 +210,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
     def find_by_filters(
         self,
         search: Optional[str] = None,
-        service_catalog_id: Optional[int] = None,
+        service_catalog_id: Optional[str] = None,
         min_price: Optional[float] = None,
         max_price: Optional[float] = None,
         skip: int = 0,

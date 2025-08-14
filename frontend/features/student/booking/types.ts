@@ -1,7 +1,7 @@
 // frontend/features/student/booking/types.ts
 
 export interface Service {
-  id: number;
+  id: string;
   skill: string;
   hourly_rate: number;
   description?: string;
@@ -11,8 +11,8 @@ export interface Service {
 }
 
 export interface Instructor {
-  id?: number; // Optional for compatibility with different data sources
-  user_id: number;
+  id?: string; // Optional for compatibility with different data sources
+  user_id: string;
   user: {
     first_name: string;
     last_initial: string;  // Privacy protected

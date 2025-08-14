@@ -195,7 +195,7 @@ export default function BecomeInstructorPage() {
 
     // Add service
     const serviceToAdd: InstructorService = {
-      id: Date.now(), // Temporary ID for UI
+      id: `temp-${Date.now()}`, // Temporary ID for UI
       skill: newService.skill,
       hourly_rate: newService.hourly_rate,
       description: newService.description || null,

@@ -27,7 +27,7 @@ export enum ConnectionStatus {
 
 // Hook options
 interface UseSSEMessagesOptions {
-  bookingId: number;
+  bookingId: string;
   enabled?: boolean;
   onMessage?: (message: Message) => void;
   onConnectionChange?: (status: ConnectionStatus) => void;
@@ -44,9 +44,9 @@ interface UseSSEMessagesReturn {
   reconnect: () => void;
   disconnect: () => void;
   clearMessages: () => void;
-  readReceipts: Record<number, Array<{ user_id: number; read_at: string }>>;
-  typingStatus: { userId: number; userName: string; until: number } | null;
-  reactionDeltas: Record<number, Record<string, number>>;
+  readReceipts: Record<string, Array<{ user_id: string; read_at: string }>>;
+  typingStatus: { userId: string; userName: string; until: number } | null;
+  reactionDeltas: Record<string, Record<string, number>>;
 }
 
 /**
@@ -63,9 +63,9 @@ export function useSSEMessages({
   reconnectDelay = 1000,
 }: UseSSEMessagesOptions): UseSSEMessagesReturn {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [readReceipts, setReadReceipts] = useState<Record<number, Array<{ user_id: number; read_at: string }>>>({});
-  const [typingStatus, setTypingStatus] = useState<{ userId: number; userName: string; until: number } | null>(null);
-  const [reactionDeltas, setReactionDeltas] = useState<Record<number, Record<string, number>>>({});
+  const [readReceipts, setReadReceipts] = useState<Record<string, Array<{ user_id: string; read_at: string }>>>({});
+  const [typingStatus, setTypingStatus] = useState<{ userId: string; userName: string; until: number } | null>(null);
+  const [reactionDeltas, setReactionDeltas] = useState<Record<string, Record<string, number>>>({});
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(
     ConnectionStatus.DISCONNECTED
   );
@@ -162,7 +162,7 @@ export function useSSEMessages({
       }
 
       if (eventType === 'reaction_update') {
-        const { message_id, emoji, action } = messageData as { message_id: number; emoji: string; action: 'added' | 'removed' };
+        const { message_id, emoji, action } = messageData as { message_id: string; emoji: string; action: 'added' | 'removed' };
         setReactionDeltas(prev => {
           const current = prev[message_id] || {};
           const delta = action === 'added' ? 1 : -1;

@@ -40,7 +40,7 @@ export default function AvailabilityCalendar({
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [preSelectedDate, setPreSelectedDate] = useState<string | undefined>();
   const [preSelectedTime, setPreSelectedTime] = useState<string | undefined>();
-  const [preSelectedServiceId, setPreSelectedServiceId] = useState<number | undefined>();
+  const [preSelectedServiceId, setPreSelectedServiceId] = useState<string | undefined>();
   const [shouldOpenModalFromIntent, setShouldOpenModalFromIntent] = useState(false);
 
   // Handle time slot selection - opens TimeSelectionModal with pre-selected values

@@ -1,0 +1,12 @@
+// Shared ULID constants for E2E tests to avoid circular imports
+export const TEST_ULIDS = {
+  instructor1: '01J5TESTINSTR0000000000001',
+  instructor8: '01J5TESTINSTR0000000000008',
+  service1: '01J5TESTSERV00000000000001',
+  service97: '01K2H3PT1WZHA34GW1RGG0038HG',
+  booking1: '01J5TESTBOOK00000000000001',
+  user1: '01J5TESTUSER00000000000001',
+  user8: '01J5TESTUSER00000000000008',
+};
+
+export default TEST_ULIDS;

@@ -245,7 +245,7 @@ export async function getRecentSearches(
 export async function trackSearchInteraction(
   searchEventId: number,
   interactionType: 'click' | 'hover' | 'bookmark' | 'view_profile' | 'contact' | 'book',
-  instructorId: number,
+  instructorId: string,
   resultPosition: number,
   isAuthenticated: boolean,
   timeToInteraction: number | null = null
