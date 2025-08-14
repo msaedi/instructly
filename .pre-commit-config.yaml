@@ -48,3 +48,11 @@ repos:
         files: ^backend/app/(services|core)/.*\.py$
         pass_filenames: false
         description: Ensures services only use repositories for database access
+
+      - id: enforce-service-metrics
+        name: Enforce @BaseService.measure_operation on service methods
+        entry: python backend/scripts/check_service_metrics.py
+        language: system
+        files: ^backend/app/services/.*\.py$
+        pass_filenames: true
+        description: Ensure public methods in BaseService subclasses are decorated with metrics

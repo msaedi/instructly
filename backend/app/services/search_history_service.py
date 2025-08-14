@@ -86,7 +86,7 @@ class SearchHistoryService(BaseService):
 
         return await self._record_search_impl(ctx, data, request_ip, user_agent, device_context)
 
-    def normalize_search_query(self, query: str) -> str:
+    def normalize_search_query(self, query: str) -> str:  # no-metrics
         """Normalize a search query for deduplication."""
         if not query:
             return ""

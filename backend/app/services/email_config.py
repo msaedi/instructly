@@ -23,22 +23,22 @@ class EmailConfigService(BaseService):
     def __init__(self, db: Session):
         super().__init__(db)
 
-    def get_sender(self, email_type: str = "default") -> str:
+    def get_sender(self, email_type: str = "default") -> str:  # no-metrics
         """Get sender for email type"""
         return self.EMAIL_SENDERS.get(email_type, self.EMAIL_SENDERS["default"])
 
-    def get_monitoring_sender(self) -> str:
+    def get_monitoring_sender(self) -> str:  # no-metrics
         """Get monitoring-specific sender"""
         return self.EMAIL_SENDERS["monitoring"]
 
-    def get_transactional_sender(self) -> str:
+    def get_transactional_sender(self) -> str:  # no-metrics
         """Get transactional email sender"""
         return self.EMAIL_SENDERS["transactional"]
 
-    def get_booking_sender(self) -> str:
+    def get_booking_sender(self) -> str:  # no-metrics
         """Get booking-specific sender"""
         return self.EMAIL_SENDERS["booking"]
 
-    def get_security_sender(self) -> str:
+    def get_security_sender(self) -> str:  # no-metrics
         """Get security-specific sender (password resets, etc.)"""
         return self.EMAIL_SENDERS["password_reset"]

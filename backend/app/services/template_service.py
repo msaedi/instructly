@@ -310,7 +310,7 @@ class TemplateService(BaseService):
 
         return exists
 
-    def invalidate_cache(self) -> None:
+    def invalidate_cache(self) -> None:  # no-metrics
         """
         Invalidate all template-related caches.
 
@@ -330,7 +330,7 @@ class TemplateService(BaseService):
         except Exception as e:
             self.logger.error(f"Failed to invalidate template cache: {e}")
 
-    def get_cache_stats(self) -> Dict[str, Any]:
+    def get_cache_stats(self) -> Dict[str, Any]:  # no-metrics
         """
         Get cache statistics for monitoring.
 

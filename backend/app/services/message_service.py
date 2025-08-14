@@ -28,11 +28,6 @@ from .notification_service import NotificationService
 logger = logging.getLogger(__name__)
 
 
-def measure_operation(func):
-    """Decorator for performance monitoring (stub for now)."""
-    return func
-
-
 class MessageService(BaseService):
     """
     Service for managing chat messages in bookings.
@@ -55,7 +50,7 @@ class MessageService(BaseService):
         self.notification_service = notification_service
         self.logger = logging.getLogger(__name__)
 
-    @measure_operation
+    @BaseService.measure_operation("send_message")
     def send_message(self, booking_id: str, sender_id: str, content: str) -> Message:
         """
         Send a message in a booking chat.
@@ -100,7 +95,7 @@ class MessageService(BaseService):
             self.logger.info(f"Message sent: booking={booking_id}, sender={sender_id}")
             return message
 
-    @measure_operation
+    @BaseService.measure_operation("get_message_history")
     def get_message_history(self, booking_id: str, user_id: str, limit: int = 50, offset: int = 0) -> List[Message]:
         """
         Get message history for a booking.
@@ -162,7 +157,7 @@ class MessageService(BaseService):
 
         return messages
 
-    @measure_operation
+    @BaseService.measure_operation("get_unread_count")
     def get_unread_count(self, user_id: str) -> int:
         """
         Get total unread message count for a user.
@@ -175,7 +170,7 @@ class MessageService(BaseService):
         """
         return self.repository.get_unread_count_for_user(user_id)
 
-    @measure_operation
+    @BaseService.measure_operation("send_typing_indicator")
     def send_typing_indicator(self, booking_id: str, user_id: str, user_name: str) -> None:
         """Broadcast a typing indicator for a booking (ephemeral)."""
         # Verify access
@@ -192,7 +187,7 @@ class MessageService(BaseService):
         }
         self.repository.notify_booking_channel(booking_id, payload)
 
-    @measure_operation
+    @BaseService.measure_operation("mark_messages_as_read")
     def mark_messages_as_read(self, message_ids: List[str], user_id: str) -> int:
         """
         Mark messages as read for a user.
@@ -212,7 +207,7 @@ class MessageService(BaseService):
             self.logger.info(f"Marked {count} messages as read for user {user_id}")
             return count
 
-    @measure_operation
+    @BaseService.measure_operation("mark_booking_messages_as_read")
     def mark_booking_messages_as_read(self, booking_id: str, user_id: str) -> int:
         """
         Mark all messages in a booking as read for a user.
@@ -239,7 +234,7 @@ class MessageService(BaseService):
             return self.mark_messages_as_read(message_ids, user_id)
         return 0
 
-    @measure_operation
+    @BaseService.measure_operation("delete_message")
     def delete_message(self, message_id: str, user_id: str) -> bool:
         """
         Soft delete a message (only by sender).
@@ -265,7 +260,7 @@ class MessageService(BaseService):
             return self.repository.delete_message(message_id)
 
     # Phase 2: reactions
-    @measure_operation
+    @BaseService.measure_operation("add_reaction")
     def add_reaction(self, message_id: str, user_id: str, emoji: str) -> bool:
         # Access: user must be participant of the booking of this message
         message = self.repository.get_by_id(message_id)
@@ -295,7 +290,7 @@ class MessageService(BaseService):
             self.repository.notify_booking_channel(message.booking_id, payload)
             return ok
 
-    @measure_operation
+    @BaseService.measure_operation("remove_reaction")
     def remove_reaction(self, message_id: str, user_id: str, emoji: str) -> bool:
         message = self.repository.get_by_id(message_id)
         if not message:
@@ -314,7 +309,7 @@ class MessageService(BaseService):
             self.repository.notify_booking_channel(message.booking_id, payload)
             return ok
 
-    @measure_operation
+    @BaseService.measure_operation("edit_message")
     def edit_message(self, message_id: str, user_id: str, new_content: str) -> bool:
         # validate
         if not new_content or not new_content.strip():

@@ -278,6 +278,6 @@ class PermissionService(BaseService):
         for key in keys_to_remove:
             del self._cache[key]
 
-    def clear_cache(self):
+    def clear_cache(self):  # no-metrics
         """Clear the entire permission cache."""
         self._cache.clear()

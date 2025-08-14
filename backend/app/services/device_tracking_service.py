@@ -47,7 +47,7 @@ class DeviceTrackingService(BaseService):
         super().__init__(db)
         self._user_agent_cache = {}  # Simple in-memory cache for parsing results
 
-    def parse_user_agent(self, user_agent: str) -> Dict:
+    def parse_user_agent(self, user_agent: str) -> Dict:  # no-metrics
         """
         Parse user agent string to extract device/browser information.
 
@@ -123,7 +123,7 @@ class DeviceTrackingService(BaseService):
 
         return "desktop"
 
-    def extract_client_hints(self, request) -> Dict:
+    def extract_client_hints(self, request) -> Dict:  # no-metrics
         """
         Extract Client Hints from request headers for modern browsers.
 
@@ -150,7 +150,7 @@ class DeviceTrackingService(BaseService):
         # Remove None values
         return {k: v for k, v in hints.items() if v is not None}
 
-    def get_connection_type(self, request) -> Optional[str]:
+    def get_connection_type(self, request) -> Optional[str]:  # no-metrics
         """
         Determine connection type from various indicators.
 
@@ -190,6 +190,7 @@ class DeviceTrackingService(BaseService):
 
         return None
 
+    @BaseService.measure_operation("get_device_context_from_request")
     def get_device_context_from_request(self, request) -> Dict:
         """
         Extract complete device context from HTTP request.
@@ -233,7 +234,7 @@ class DeviceTrackingService(BaseService):
             "raw_user_agent": user_agent or "",
         }
 
-    def format_for_analytics(self, device_context: Dict) -> Dict:
+    def format_for_analytics(self, device_context: Dict) -> Dict:  # no-metrics
         """
         Format device context for storage in analytics tables.
 
@@ -275,7 +276,7 @@ class DeviceTrackingService(BaseService):
             "connection_type": device_context.get("connection_type"),
         }
 
-    def get_analytics_summary(self, device_contexts: list) -> Dict:
+    def get_analytics_summary(self, device_contexts: list) -> Dict:  # no-metrics
         """
         Generate analytics summary from multiple device contexts.
 
