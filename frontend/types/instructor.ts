@@ -86,6 +86,12 @@ export interface InstructorProfile {
   /** Services offered by this instructor */
   services: InstructorService[];
 
+  /** Whether the current user has favorited this instructor */
+  is_favorited?: boolean;
+
+  /** Total number of students who favorited this instructor */
+  favorited_count: number;
+
   /** Verification status (for future use) */
   is_verified?: boolean;
 
@@ -251,6 +257,47 @@ export interface InstructorStats {
 
   /** Upcoming bookings count */
   upcoming_bookings: number;
+}
+
+/**
+ * Favorited instructor from the favorites API
+ *
+ * @interface FavoritedInstructor
+ */
+export interface FavoritedInstructor {
+  /** Instructor user ID (ULID string) */
+  id: string;
+
+  /** Instructor email */
+  email: string;
+
+  /** Instructor first name */
+  first_name: string;
+
+  /** Instructor last name */
+  last_name: string;
+
+  /** Whether the instructor is active */
+  is_active: boolean;
+
+  /** Instructor profile details */
+  profile?: InstructorProfile;
+
+  /** When this instructor was favorited */
+  favorited_at?: string;
+}
+
+/**
+ * Favorites list API response
+ *
+ * @interface FavoritesListResponse
+ */
+export interface FavoritesListResponse {
+  /** List of favorited instructors */
+  favorites: FavoritedInstructor[];
+
+  /** Total number of favorites */
+  total: number;
 }
 
 /**

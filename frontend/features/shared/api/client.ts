@@ -560,7 +560,7 @@ export const publicApi = {
    * Get instructor profile
    */
   async getInstructorProfile(instructorId: string) {
-    return cleanFetch<{
+    return optionalAuthFetch<{
       user_id: string;
       bio: string;
       areas_of_service: string[];
@@ -589,6 +589,8 @@ export const publicApi = {
       education?: string;
       languages?: string[];
       verified?: boolean;
+      is_favorited?: boolean;
+      favorited_count?: number;
     }>(PUBLIC_ENDPOINTS.instructors.profile(instructorId));
   },
 

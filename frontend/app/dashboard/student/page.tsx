@@ -5,7 +5,7 @@ import { BRAND } from '@/app/config/brand';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Calendar, Search, LogOut } from 'lucide-react';
+import { Calendar, Search, LogOut, Heart } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { queryFn } from '@/lib/react-query/api';
@@ -13,6 +13,8 @@ import { BookingListResponse } from '@/types/booking';
 import { logger } from '@/lib/logger';
 import { useAuth, hasRole, type User } from '@/features/shared/hooks/useAuth';
 import { RoleName } from '@/types/enums';
+import { favoritesApi } from '@/services/api/favorites';
+import { FavoritesListResponse } from '@/types/instructor';
 
 /**
  * StudentDashboard Component
@@ -60,6 +62,14 @@ export default function StudentDashboard() {
       },
       requireAuth: true,
     }),
+    staleTime: CACHE_TIMES.FREQUENT, // 5 minutes
+    enabled: !!userData && hasRole(userData, RoleName.STUDENT), // Only fetch if user is a student
+  });
+
+  // Fetch favorite instructors
+  const { data: favoritesData, isLoading: isLoadingFavorites } = useQuery<FavoritesListResponse>({
+    queryKey: ['favorites'],
+    queryFn: () => favoritesApi.list(),
     staleTime: CACHE_TIMES.FREQUENT, // 5 minutes
     enabled: !!userData && hasRole(userData, RoleName.STUDENT), // Only fetch if user is a student
   });
@@ -205,7 +215,7 @@ export default function StudentDashboard() {
         </div>
 
         {/* Upcoming Sessions */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 mb-8">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
             Upcoming Sessions
           </h2>
@@ -294,6 +304,85 @@ export default function StudentDashboard() {
                 </Link>
               </div>
             </>
+          )}
+        </div>
+
+        {/* Favorite Instructors */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <Heart className="h-5 w-5 text-red-500 fill-current" />
+              Favorite Instructors
+            </h2>
+            {favoritesData && favoritesData.total > 0 && (
+              <span className="text-sm text-gray-500">
+                {favoritesData.total} saved
+              </span>
+            )}
+          </div>
+
+          {isLoadingFavorites ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500 mx-auto"></div>
+              <p className="text-gray-500 mt-2">Loading favorites...</p>
+            </div>
+          ) : favoritesData && favoritesData.favorites.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {favoritesData.favorites.slice(0, 6).map((favorite) => (
+                <Link
+                  key={favorite.id}
+                  href={`/instructors/${favorite.id}`}
+                  className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 text-sm font-medium">
+                      {favorite.first_name.charAt(0)}
+                      {favorite.last_name.charAt(0)}
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-900 dark:text-white">
+                        {favorite.first_name} {favorite.last_name.charAt(0)}.
+                      </h4>
+                      {favorite.profile && (
+                        <>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            {favorite.profile.services?.[0]?.skill || 'Expert Instructor'}
+                          </p>
+                          <p className="text-sm text-gray-500 mt-1">
+                            {favorite.profile.years_experience} years experience
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Heart className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">No favorite instructors yet</p>
+              <p className="text-sm text-gray-400 mt-1">
+                Save your favorite instructors to easily book with them again
+              </p>
+              <Link
+                href="/search"
+                className="inline-block mt-4 px-4 py-2 text-indigo-600 hover:text-indigo-700 font-medium transition-colors"
+              >
+                Browse Instructors →
+              </Link>
+            </div>
+          )}
+
+          {favoritesData && favoritesData.total > 6 && (
+            <div className="text-center mt-4">
+              <Link
+                href="/student/favorites"
+                className="text-indigo-600 hover:text-indigo-700 font-medium transition-colors"
+              >
+                View all {favoritesData.total} favorites →
+              </Link>
+            </div>
           )}
         </div>
       </div>

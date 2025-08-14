@@ -3,11 +3,14 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Star, MapPin, Check } from 'lucide-react';
+import { Star, MapPin, Check, Heart } from 'lucide-react';
 import { Instructor, ServiceCatalogItem } from '@/types/api';
 import { useEffect, useState } from 'react';
 import { publicApi } from '@/features/shared/api/client';
 import { navigationStateManager } from '@/lib/navigation/navigationStateManager';
+import { useAuth } from '@/features/shared/hooks/useAuth';
+import { favoritesApi } from '@/services/api/favorites';
+import { toast } from 'sonner';
 
 interface InstructorCardProps {
   instructor: Instructor;
@@ -29,7 +32,10 @@ export default function InstructorCard({
   onTimeSlotClick,
 }: InstructorCardProps) {
   const router = useRouter();
+  const { user } = useAuth();
   const [serviceCatalog, setServiceCatalog] = useState<ServiceCatalogItem[]>([]);
+  const [isFavorited, setIsFavorited] = useState(false);
+  const [isLoadingFavorite, setIsLoadingFavorite] = useState(false);
 
   // Fetch service catalog on mount
   useEffect(() => {
@@ -45,6 +51,15 @@ export default function InstructorCard({
     };
     fetchServiceCatalog();
   }, []);
+
+  // Check favorite status on mount if user is logged in
+  useEffect(() => {
+    if (user && instructor?.user_id) {
+      favoritesApi.check(instructor.user_id)
+        .then(res => setIsFavorited(res.is_favorited))
+        .catch(() => setIsFavorited(false));
+    }
+  }, [user, instructor?.user_id]);
 
   // Filter out past availability slots
   const futureAvailableSlots = nextAvailableSlots.filter((slot) => {
@@ -74,6 +89,38 @@ export default function InstructorCard({
     router.push(`/book/${instructor.user_id}?date=${date}&time=${time}`);
   };
 
+  const handleFavoriteClick = async () => {
+    // Guest users - redirect to login
+    if (!user) {
+      const returnUrl = `/search?instructorToFavorite=${instructor.user_id}`;
+      router.push(`/login?returnTo=${encodeURIComponent(returnUrl)}`);
+      return;
+    }
+
+    if (isLoadingFavorite) return;
+
+    // Optimistic update
+    setIsFavorited(!isFavorited);
+    setIsLoadingFavorite(true);
+
+    try {
+      if (isFavorited) {
+        await favoritesApi.remove(instructor.user_id);
+        toast.success('Removed from favorites');
+      } else {
+        await favoritesApi.add(instructor.user_id);
+        toast.success('Added to favorites!');
+      }
+    } catch (error) {
+      // Revert on error
+      setIsFavorited(isFavorited);
+      toast.error('Failed to update favorite');
+      console.error('Favorite toggle error:', error);
+    } finally {
+      setIsLoadingFavorite(false);
+    }
+  };
+
   return (
     <div
       className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow"
@@ -88,16 +135,33 @@ export default function InstructorCard({
             </div>
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-lg text-gray-900" data-testid="instructor-name">
-              {instructor.user.first_name} {instructor.user.last_initial ? `${instructor.user.last_initial}.` : ''}
-            </h3>
-            <p className="text-gray-600">{getInstructorServiceNames()}</p>
-            <div className="flex items-center mt-1">
-              <Star className="h-4 w-4 text-yellow-500 fill-current" />
-              <span className="ml-1 text-sm font-medium">{instructor.rating || 4.8}</span>
-              <span className="text-sm text-gray-600 ml-1">
-                ({instructor.total_reviews || 0} reviews)
-              </span>
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h3 className="font-semibold text-lg text-gray-900" data-testid="instructor-name">
+                  {instructor.user.first_name} {instructor.user.last_initial ? `${instructor.user.last_initial}.` : ''}
+                </h3>
+                <p className="text-gray-600">{getInstructorServiceNames()}</p>
+                <div className="flex items-center mt-1">
+                  <Star className="h-4 w-4 text-yellow-500 fill-current" />
+                  <span className="ml-1 text-sm font-medium">{instructor.rating || 4.8}</span>
+                  <span className="text-sm text-gray-600 ml-1">
+                    ({instructor.total_reviews || 0} reviews)
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={handleFavoriteClick}
+                disabled={isLoadingFavorite}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                aria-label={user ? "Toggle favorite" : "Sign in to save"}
+                title={!user ? "Sign in to save this instructor" : isFavorited ? "Remove from favorites" : "Add to favorites"}
+              >
+                <Heart
+                  className="h-5 w-5"
+                  fill={isFavorited ? '#ff0000' : 'none'}
+                  color={isFavorited ? '#ff0000' : '#666'}
+                />
+              </button>
             </div>
           </div>
         </div>

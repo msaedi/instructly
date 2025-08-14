@@ -8,6 +8,7 @@ import { AuthProvider } from '@/features/shared/hooks/useAuth';
 import { useGuestSessionCleanup } from '@/hooks/useGuestSessionCleanup';
 import { initializeSessionTracking, cleanupSessionTracking } from '@/lib/sessionTracking';
 import { queryClient } from '@/lib/react-query/queryClient';
+import { Toaster } from 'sonner';
 
 function AppInitializer({ children }: { children: ReactNode }) {
   // Initialize guest session cleanup on app mount
@@ -31,6 +32,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <AppInitializer>{children}</AppInitializer>
+        <Toaster position="top-right" richColors />
       </AuthProvider>
       {/* React Query DevTools - Only visible in development */}
       <ReactQueryDevtools initialIsOpen={false} />

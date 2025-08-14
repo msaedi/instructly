@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import userEvent from '@testing-library/user-event';
 import { useInstructorProfile } from '../hooks/useInstructorProfile';
 import { InstructorHeader } from '../components/InstructorHeader';
+import { AuthProvider } from '@/features/shared/hooks/useAuth';
+import React from 'react';
 
 // Mock the hooks
 jest.mock('../hooks/useInstructorProfile');
@@ -25,37 +27,66 @@ jest.mock('next/navigation', () => ({
   }),
 }));
 
+// Mock the favorites API
+jest.mock('@/services/api/favorites', () => ({
+  favoritesApi: {
+    check: jest.fn().mockResolvedValue({ is_favorited: false }),
+    add: jest.fn().mockResolvedValue({ success: true }),
+    remove: jest.fn().mockResolvedValue({ success: true }),
+  },
+}));
+
 const mockInstructor = {
-  id: 1,
-  user_id: 1,
+  id: '01K2MAY484FQGFEQVN3VKGYZ58',
+  user_id: '01K2MAY484FQGFEQVN3VKGYZ58',
   bio: 'Experienced piano teacher with 10 years of experience',
   areas_of_service: ['Upper West Side', 'Manhattan'],
   years_experience: 10,
   user: {
     first_name: 'Sarah',
     last_initial: 'C',
-    email: 'sarah@example.com',
   },
   services: [
     {
-      id: 1,
+      id: '01K2MAY484FQGFEQVN3VKGYZ59',
+      service_catalog_id: '01K2MAY484FQGFEQVN3VKGYZ60',
       skill: 'Piano',
       hourly_rate: 75,
       description: 'Piano lessons for all levels',
-      duration_minutes: 60,
+      duration_options: [60],
       is_active: true,
     },
     {
-      id: 2,
+      id: '01K2MAY484FQGFEQVN3VKGYZ61',
+      service_catalog_id: '01K2MAY484FQGFEQVN3VKGYZ62',
       skill: 'Music Theory',
       hourly_rate: 65,
       description: 'Comprehensive music theory',
-      duration_minutes: 45,
+      duration_options: [45],
       is_active: true,
     },
   ],
   is_verified: true,
   background_check_completed: true,
+  is_favorited: false,
+  favorited_count: 5,
+};
+
+// Test wrapper component that provides all necessary context
+const TestWrapper = ({ children }: { children: React.ReactNode }) => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+    },
+  });
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        {children}
+      </AuthProvider>
+    </QueryClientProvider>
+  );
 };
 
 describe('InstructorProfilePage', () => {
@@ -75,9 +106,9 @@ describe('InstructorProfilePage', () => {
 
   it('renders instructor header with correct information', () => {
     render(
-      <QueryClientProvider client={queryClient}>
+      <TestWrapper>
         <InstructorHeader instructor={mockInstructor} />
-      </QueryClientProvider>
+      </TestWrapper>
     );
 
     expect(screen.getByText('Sarah C.')).toBeInTheDocument();
@@ -139,9 +170,9 @@ describe('InstructorProfilePage', () => {
 
   it('shows background check badge when instructor has completed background check', () => {
     render(
-      <QueryClientProvider client={queryClient}>
+      <TestWrapper>
         <InstructorHeader instructor={mockInstructor} />
-      </QueryClientProvider>
+      </TestWrapper>
     );
 
     expect(screen.getByText('Background Checked')).toBeInTheDocument();

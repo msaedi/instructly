@@ -50,6 +50,8 @@ export function useInstructorProfile(instructorId: string) {
         services: mappedServices,
         is_verified: instructor.verified,
         background_check_completed: false, // Not provided by API
+        favorited_count: instructor.favorited_count || 0,
+        is_favorited: instructor.is_favorited,
       };
 
       return instructorProfile;

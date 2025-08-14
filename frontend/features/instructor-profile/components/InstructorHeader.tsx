@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Star, CheckCircle, Dumbbell, Music, Guitar, Heart } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/features/shared/hooks/useAuth';
+import { favoritesApi } from '@/services/api/favorites';
+import { toast } from 'sonner';
 import type { InstructorProfile } from '@/types/instructor';
 
 interface InstructorHeaderProps {
@@ -9,7 +13,26 @@ interface InstructorHeaderProps {
 }
 
 export function InstructorHeader({ instructor }: InstructorHeaderProps) {
-  const [isSaved, setIsSaved] = useState(false);
+  const router = useRouter();
+  const { user } = useAuth();
+  const [isSaved, setIsSaved] = useState(instructor.is_favorited || false);
+  const [favoriteCount, setFavoriteCount] = useState(instructor.favorited_count || 0);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Update favorite status and count when instructor prop changes
+  useEffect(() => {
+    setIsSaved(instructor.is_favorited || false);
+    setFavoriteCount(instructor.favorited_count || 0);
+  }, [instructor.is_favorited, instructor.favorited_count]);
+
+  // Check favorite status on mount if user is logged in
+  useEffect(() => {
+    if (user && instructor?.user_id) {
+      favoritesApi.check(instructor.user_id)
+        .then(res => setIsSaved(res.is_favorited))
+        .catch(() => setIsSaved(false));
+    }
+  }, [user, instructor?.user_id]);
 
   // Get display name with privacy (FirstName L.)
   const getDisplayName = (): string => {
@@ -54,6 +77,43 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
     return null;
   };
 
+  const handleHeartClick = async () => {
+    // Guest users - redirect to login with return URL
+    if (!user) {
+      const returnUrl = `/instructors/${instructor.user_id}?action=favorite`;
+      router.push(`/login?returnTo=${encodeURIComponent(returnUrl)}`);
+      return;
+    }
+
+    // Prevent multiple clicks
+    if (isLoading) return;
+
+    // Optimistic update
+    const newSavedState = !isSaved;
+    setIsSaved(newSavedState);
+    // Update the count optimistically
+    setFavoriteCount(prevCount => newSavedState ? prevCount + 1 : Math.max(0, prevCount - 1));
+    setIsLoading(true);
+
+    try {
+      if (isSaved) {
+        await favoritesApi.remove(instructor.user_id);
+        toast.success('Removed from favorites');
+      } else {
+        await favoritesApi.add(instructor.user_id);
+        toast.success('Added to favorites!');
+      }
+    } catch (error) {
+      // Revert on error
+      setIsSaved(isSaved);
+      setFavoriteCount(instructor.favorited_count || 0);
+      toast.error('Failed to update favorite');
+      console.error('Favorite toggle error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const formatServices = () => {
     const uniqueServices = new Set<string>();
     instructor.services?.forEach(s => {
@@ -77,18 +137,27 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
         {/* Name with Heart Button */}
         <div className="flex items-center gap-2">
           <h1 className="text-2xl lg:text-3xl font-bold" data-testid="instructor-profile-name">{displayName}</h1>
-          <button
-            onClick={() => setIsSaved(!isSaved)}
-            className="ml-2 p-1 bg-transparent border-none hover:scale-110 transition-transform cursor-pointer"
-            aria-label="Save instructor"
-            style={{ background: 'transparent', border: 'none' }}
-          >
-            <Heart
-              className="h-5 w-5"
-              fill={isSaved ? '#ff0000' : 'none'}
-              color={isSaved ? '#ff0000' : '#666'}
-            />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleHeartClick}
+              disabled={isLoading}
+              className="p-1 bg-transparent border-none hover:scale-110 transition-transform cursor-pointer disabled:opacity-50"
+              aria-label={user ? "Toggle favorite" : "Sign in to save"}
+              title={!user ? "Sign in to save this instructor" : isSaved ? "Remove from favorites" : "Add to favorites"}
+              style={{ background: 'transparent', border: 'none' }}
+            >
+              <Heart
+                className="h-5 w-5"
+                fill={isSaved ? '#ff0000' : 'none'}
+                color={isSaved ? '#ff0000' : '#666'}
+              />
+            </button>
+            {favoriteCount > 0 && (
+              <span className="text-sm text-muted-foreground">
+                ({favoriteCount})
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Rating and Reviews */}
