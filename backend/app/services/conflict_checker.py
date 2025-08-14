@@ -52,7 +52,7 @@ class ConflictChecker(BaseService):
     @BaseService.measure_operation("check_booking_conflicts")
     def check_booking_conflicts(
         self,
-        instructor_id: int,
+        instructor_id: str,
         check_date: date,
         start_time: time,
         end_time: time,
@@ -102,7 +102,7 @@ class ConflictChecker(BaseService):
     @BaseService.measure_operation("check_time_conflicts")
     def check_time_conflicts(
         self,
-        instructor_id: int,
+        instructor_id: str,
         booking_date: date,
         start_time: time,
         end_time: time,
@@ -127,7 +127,7 @@ class ConflictChecker(BaseService):
         return len(conflicts) > 0
 
     @BaseService.measure_operation("get_booked_times_date")
-    def get_booked_times_for_date(self, instructor_id: int, target_date: date) -> List[Dict[str, Any]]:
+    def get_booked_times_for_date(self, instructor_id: str, target_date: date) -> List[Dict[str, Any]]:
         """
         Get all booked time ranges for an instructor on a specific date.
 
@@ -156,7 +156,7 @@ class ConflictChecker(BaseService):
         ]
 
     @BaseService.measure_operation("get_booked_times_week")
-    def get_booked_times_for_week(self, instructor_id: int, week_start: date) -> Dict[str, List[Dict[str, Any]]]:
+    def get_booked_times_for_week(self, instructor_id: str, week_start: date) -> Dict[str, List[Dict[str, Any]]]:
         """
         Get all booked times for an instructor for a week.
 
@@ -245,7 +245,7 @@ class ConflictChecker(BaseService):
 
     @BaseService.measure_operation("check_advance_booking")
     def check_minimum_advance_booking(
-        self, instructor_id: int, booking_date: date, booking_time: time
+        self, instructor_id: str, booking_date: date, booking_time: time
     ) -> Dict[str, Any]:
         """
         Check if booking meets minimum advance booking requirements.
@@ -297,7 +297,7 @@ class ConflictChecker(BaseService):
         return {"valid": True, "min_advance_hours": profile.min_advance_booking_hours}
 
     @BaseService.measure_operation("check_blackout")
-    def check_blackout_date(self, instructor_id: int, target_date: date) -> bool:
+    def check_blackout_date(self, instructor_id: str, target_date: date) -> bool:
         """
         Check if a date is blacked out for an instructor.
 
@@ -314,7 +314,7 @@ class ConflictChecker(BaseService):
     @BaseService.measure_operation("validate_constraints")
     def validate_booking_constraints(
         self,
-        instructor_id: int,
+        instructor_id: str,
         booking_date: date,
         start_time: time,
         end_time: time,
@@ -404,7 +404,7 @@ class ConflictChecker(BaseService):
     @BaseService.measure_operation("find_next_available")
     def find_next_available_time(
         self,
-        instructor_id: int,
+        instructor_id: str,
         target_date: date,
         duration_minutes: int,
         earliest_time: Optional[time] = None,

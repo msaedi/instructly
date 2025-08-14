@@ -79,6 +79,8 @@ jobs:
     - name: Seed test data
       working-directory: backend
       run: |
+        # Seed roles and permissions first (required for RBAC)
+        python scripts/seed_roles_permissions.py
         # Seed catalog data for tests
         python scripts/seed_catalog_only.py
 

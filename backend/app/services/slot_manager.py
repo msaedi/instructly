@@ -135,7 +135,7 @@ class SlotManager(BaseService):
     @BaseService.measure_operation("update_slot")
     def update_slot(
         self,
-        slot_id: int,
+        slot_id: str,
         start_time: Optional[time] = None,
         end_time: Optional[time] = None,
     ) -> AvailabilitySlot:
@@ -180,7 +180,7 @@ class SlotManager(BaseService):
             return updated_slot
 
     @BaseService.measure_operation("delete_slot")
-    def delete_slot(self, slot_id: int) -> bool:
+    def delete_slot(self, slot_id: str) -> bool:
         """
         Delete an availability slot.
 
@@ -273,7 +273,7 @@ class SlotManager(BaseService):
         return merged_count
 
     @BaseService.measure_operation("split_slot")
-    def split_slot(self, slot_id: int, split_time: time) -> Tuple[AvailabilitySlot, AvailabilitySlot]:
+    def split_slot(self, slot_id: str, split_time: time) -> Tuple[AvailabilitySlot, AvailabilitySlot]:
         """
         Split a slot into two at the specified time.
 
@@ -327,7 +327,7 @@ class SlotManager(BaseService):
 
     @BaseService.measure_operation("find_gaps")
     def find_gaps_in_availability(
-        self, instructor_id: int, target_date: date, min_gap_minutes: int = 30
+        self, instructor_id: str, target_date: date, min_gap_minutes: int = 30
     ) -> List[Dict[str, Any]]:
         """
         Find gaps in availability that could be filled.

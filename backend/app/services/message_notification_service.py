@@ -33,7 +33,7 @@ class MessageNotificationService:
     def __init__(self):
         """Initialize the notification service."""
         self.connection: Optional[Connection] = None
-        self.subscribers: Dict[int, Set[asyncio.Queue]] = {}  # booking_id -> set of queues
+        self.subscribers: Dict[str, Set[asyncio.Queue]] = {}  # booking_id -> set of queues
         self.listen_task: Optional[asyncio.Task] = None
         self.is_listening = False
         self.logger = logging.getLogger(__name__)
@@ -91,7 +91,7 @@ class MessageNotificationService:
 
         self.logger.info("Message notification service stopped")
 
-    async def subscribe(self, booking_id: int) -> asyncio.Queue:
+    async def subscribe(self, booking_id: str) -> asyncio.Queue:
         """
         Subscribe to notifications for a specific booking.
 
@@ -116,7 +116,7 @@ class MessageNotificationService:
 
         return queue
 
-    async def unsubscribe(self, booking_id: int, queue: asyncio.Queue):
+    async def unsubscribe(self, booking_id: str, queue: asyncio.Queue):
         """
         Unsubscribe from notifications for a booking.
 
@@ -196,7 +196,7 @@ class MessageNotificationService:
         try:
             # Extract booking ID from channel name
             if channel.startswith("booking_chat_"):
-                booking_id = int(channel.replace("booking_chat_", ""))
+                booking_id = channel.replace("booking_chat_", "")
 
                 # Parse the JSON payload
                 message_data = json.loads(payload)
@@ -228,7 +228,7 @@ class MessageNotificationService:
         except asyncio.QueueFull:
             self.logger.warning("Subscriber queue is full, dropping message")
 
-    async def send_heartbeat(self, booking_id: int):
+    async def send_heartbeat(self, booking_id: str):
         """
         Send a heartbeat to all subscribers of a booking.
 
@@ -243,7 +243,7 @@ class MessageNotificationService:
             for queue in self.subscribers[booking_id]:
                 await self._send_to_queue(queue, heartbeat_data)
 
-    def get_subscriber_count(self, booking_id: int) -> int:
+    def get_subscriber_count(self, booking_id: str) -> int:
         """
         Get the number of subscribers for a booking.
 

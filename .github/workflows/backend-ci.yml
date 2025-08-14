@@ -83,7 +83,7 @@ jobs:
         cd backend
         alembic upgrade head
 
-    - name: Seed service catalog
+    - name: Seed test data
       env:
         SECRET_KEY: test-secret-key-for-ci
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
@@ -95,6 +95,9 @@ jobs:
         REDIS_URL: redis://localhost:6379
       run: |
         cd backend
+        # Seed roles and permissions first (required for RBAC)
+        python scripts/seed_roles_permissions.py
+        # Seed service catalog
         python scripts/seed_catalog_only.py
 
     - name: Generate service embeddings for NLS tests

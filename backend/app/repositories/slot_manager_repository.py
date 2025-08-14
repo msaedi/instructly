@@ -228,7 +228,7 @@ class SlotManagerRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error bulk creating slots: {str(e)}")
             raise RepositoryException(f"Failed to bulk create slots: {str(e)}")
 
-    def bulk_delete_slots(self, slot_ids: List[int]) -> int:
+    def bulk_delete_slots(self, slot_ids: List[str]) -> int:
         """
         Bulk delete multiple slots by ID.
 

@@ -29,7 +29,7 @@ class CacheWarmingStrategy:
         self.logger = logging.getLogger(__name__)
 
     async def warm_with_verification(
-        self, instructor_id: int, week_start: date, expected_slot_count: Optional[int] = None
+        self, instructor_id: str, week_start: date, expected_slot_count: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Warm cache with verification that data is fresh.
@@ -85,7 +85,7 @@ class CacheWarmingStrategy:
         return last_result or {}
 
     async def invalidate_and_warm(
-        self, instructor_id: int, dates: list[date], expected_changes: Optional[Dict[str, Any]] = None
+        self, instructor_id: str, dates: list[date], expected_changes: Optional[Dict[str, Any]] = None
     ) -> None:
         """
         Invalidate caches and immediately warm with fresh data.
@@ -126,7 +126,7 @@ class ReadThroughCache:
         self.logger = logging.getLogger(__name__)
 
     async def get_week_availability(
-        self, instructor_id: int, week_start: date, force_refresh: bool = False
+        self, instructor_id: str, week_start: date, force_refresh: bool = False
     ) -> Dict[str, Any]:
         """
         Get week availability with read-through caching.

@@ -593,7 +593,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
     # Statistics Queries (unchanged)
 
-    def get_instructor_bookings_for_stats(self, instructor_id: int) -> List[Booking]:
+    def get_instructor_bookings_for_stats(self, instructor_id: str) -> List[Booking]:
         """
         Get all bookings for an instructor for statistics calculation.
 

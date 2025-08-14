@@ -116,7 +116,7 @@ export function Chat({
 
   // Combine history, optimistic, and real-time messages with deduplication
   const allMessages = React.useMemo(() => {
-    const messageMap = new Map<string | number, Message>();
+    const messageMap = new Map<string, Message>();
 
     // Add history messages
     (historyData?.messages || []).forEach(msg => {
@@ -276,15 +276,11 @@ export function Chat({
   };
 
   // Quick reactions toggle per-message
-  const [openReactionsForMessageId, setOpenReactionsForMessageId] = useState<string | number | null>(null);
+  const [openReactionsForMessageId, setOpenReactionsForMessageId] = useState<string | null>(null);
   const quickEmojis = ['👍', '❤️', '😊', '😮', '🎉'];
-  const handleAddReaction = async (messageId: string | number, emoji: string) => {
-    // For optimistic/temporary messages with negative numeric IDs
-    if (typeof messageId === 'number' && messageId < 0) {
-      return;
-    }
-    // For string IDs that start with '-' (negative)
-    if (typeof messageId === 'string' && messageId.startsWith('-')) {
+  const handleAddReaction = async (messageId: string, emoji: string) => {
+    // For optimistic/temporary messages with negative IDs
+    if (messageId.startsWith('-')) {
       return;
     }
     try {
@@ -341,7 +337,7 @@ export function Chat({
   };
 
   // Track local my-reaction toggles for highlight state (messageId -> emoji -> delta {-1, 0, 1})
-  const [reactionMyDeltas, setReactionMyDeltas] = useState<Record<string | number, Record<string, number>>>({});
+  const [reactionMyDeltas, setReactionMyDeltas] = useState<Record<string, Record<string, number>>>({});
   const toggleReactionLocal = (message: Message, emoji: string) => {
     const baseMy = Array.isArray((message as any).my_reactions) && (message as any).my_reactions.includes(emoji);
     const currentDelta = (reactionMyDeltas[message.id] || {})[emoji] || 0;

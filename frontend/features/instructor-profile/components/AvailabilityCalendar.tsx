@@ -7,7 +7,7 @@ import { useInstructorAvailability } from '../hooks/useInstructorAvailability';
 import { format, addDays } from 'date-fns';
 
 interface AvailabilityCalendarProps {
-  instructorId: string | number;
+  instructorId: string;
   onSelectSlot?: (date: string, time: string) => void;
 }
 

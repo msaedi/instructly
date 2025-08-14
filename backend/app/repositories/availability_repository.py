@@ -625,7 +625,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             self.logger.error(f"Error creating blackout: {str(e)}")
             raise RepositoryException(f"Failed to create blackout: {str(e)}")
 
-    def delete_blackout_date(self, blackout_id: int, instructor_id: int) -> bool:
+    def delete_blackout_date(self, blackout_id: str, instructor_id: str) -> bool:
         """
         Delete a blackout date.
 

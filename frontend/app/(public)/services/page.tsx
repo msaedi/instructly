@@ -62,7 +62,7 @@ const CATEGORY_CONFIG = [
 ];
 
 interface CategoryWithServices {
-  id: number;
+  id: string;
   slug: string;
   name: string;
   icon: any; // Lucide icon component

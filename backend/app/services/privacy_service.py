@@ -42,7 +42,7 @@ class PrivacyService(BaseService):
         self.search_event_repository = RepositoryFactory.create_search_event_repository(db)
 
     @BaseService.measure_operation("export_user_data")
-    def export_user_data(self, user_id: int) -> Dict:
+    def export_user_data(self, user_id: str) -> Dict:
         """
         Export all user data for GDPR compliance.
 
@@ -127,7 +127,7 @@ class PrivacyService(BaseService):
         return export_data
 
     @BaseService.measure_operation("delete_user_data")
-    def delete_user_data(self, user_id: int, delete_account: bool = False) -> Dict[str, int]:
+    def delete_user_data(self, user_id: str, delete_account: bool = False) -> Dict[str, int]:
         """
         Delete user data for right to be forgotten requests.
 
@@ -265,7 +265,7 @@ class PrivacyService(BaseService):
         return stats
 
     @BaseService.measure_operation("anonymize_user")
-    def anonymize_user(self, user_id: int) -> bool:
+    def anonymize_user(self, user_id: str) -> bool:
         """
         Anonymize a user's data while keeping the account.
 

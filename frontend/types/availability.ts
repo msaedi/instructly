@@ -66,7 +66,7 @@ export interface SlotOperation {
   end_time?: string;
 
   /** Slot ID for remove/update operations */
-  slot_id?: number;
+  slot_id?: string;
 }
 
 /**
@@ -78,7 +78,7 @@ export interface SlotOperation {
  * const request: BulkUpdateRequest = {
  *   operations: [
  *     { action: 'add', date: '2025-06-15', start_time: '09:00:00', end_time: '10:00:00' },
- *     { action: 'remove', slot_id: 456 }
+ *     { action: 'remove', slot_id: '01J5TESTSLOT0000000000456' }
  *   ],
  *   validate_only: true // Preview changes without applying
  * };
@@ -111,7 +111,7 @@ export interface OperationResult {
   reason?: string;
 
   /** ID of the affected slot (for successful operations) */
-  slot_id?: number;
+  slot_id?: string;
 }
 
 /**
@@ -187,7 +187,7 @@ export interface ValidationSlotDetail {
   end_time?: string;
 
   /** Slot ID for the operation (if applicable) */
-  slot_id?: number;
+  slot_id?: string;
 
   /** Reason for validation failure */
   reason?: string;

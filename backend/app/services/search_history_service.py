@@ -53,7 +53,7 @@ class SearchHistoryService(BaseService):
     @BaseService.measure_operation("record_search")
     async def record_search(
         self,
-        user_id: Optional[int] = None,
+        user_id: Optional[str] = None,
         guest_session_id: Optional[str] = None,
         query: str = None,
         search_type: str = "natural_language",
@@ -230,7 +230,7 @@ class SearchHistoryService(BaseService):
     @BaseService.measure_operation("get_recent_searches")
     def get_recent_searches(
         self,
-        user_id: Optional[int] = None,
+        user_id: Optional[str] = None,
         guest_session_id: Optional[str] = None,
         context: Optional[SearchUserContext] = None,
         limit: int = 10,
@@ -280,7 +280,7 @@ class SearchHistoryService(BaseService):
 
     @BaseService.measure_operation("delete_search")
     def delete_search(
-        self, user_id: Optional[int] = None, guest_session_id: Optional[str] = None, search_id: int = None
+        self, user_id: Optional[str] = None, guest_session_id: Optional[str] = None, search_id: int = None
     ) -> bool:
         """
         Soft delete a search for any user type.
@@ -342,7 +342,7 @@ class SearchHistoryService(BaseService):
 
     # Guest-to-user conversion (remains as specific operation)
     @BaseService.measure_operation("convert_guest_searches_to_user")
-    def convert_guest_searches_to_user(self, guest_session_id: str, user_id: int) -> int:
+    def convert_guest_searches_to_user(self, guest_session_id: str, user_id: str) -> int:
         """
         Convert guest searches to user searches when a guest logs in or signs up.
 
@@ -406,7 +406,7 @@ class SearchHistoryService(BaseService):
         self,
         search_event_id: int,
         interaction_type: str,
-        instructor_id: Optional[int] = None,
+        instructor_id: Optional[str] = None,
         result_position: Optional[int] = None,
         time_to_interaction: Optional[float] = None,
         session_id: Optional[str] = None,

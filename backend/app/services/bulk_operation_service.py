@@ -68,7 +68,7 @@ class BulkOperationService(BaseService):
         self.week_operation_repository = RepositoryFactory.create_week_operation_repository(db)
 
     @BaseService.measure_operation("bulk_update")
-    async def process_bulk_update(self, instructor_id: int, update_data: BulkUpdateRequest) -> Dict[str, Any]:
+    async def process_bulk_update(self, instructor_id: str, update_data: BulkUpdateRequest) -> Dict[str, Any]:
         """
         Process bulk update operations.
 
@@ -96,7 +96,7 @@ class BulkOperationService(BaseService):
     @BaseService.measure_operation("validate_bulk_operations")
     async def _validate_bulk_operations(
         self,
-        instructor_id: int,
+        instructor_id: str,
         update_data: BulkUpdateRequest,
     ) -> Dict[str, Any]:
         """
@@ -131,7 +131,7 @@ class BulkOperationService(BaseService):
     @BaseService.measure_operation("execute_bulk_operations")
     async def _execute_bulk_operations(
         self,
-        instructor_id: int,
+        instructor_id: str,
         update_data: BulkUpdateRequest,
     ) -> Dict[str, Any]:
         """
@@ -177,7 +177,7 @@ class BulkOperationService(BaseService):
     @BaseService.measure_operation("process_operations")
     async def _process_operations(
         self,
-        instructor_id: int,
+        instructor_id: str,
         operations: List[SlotOperation],
         validate_only: bool,
     ) -> Tuple[List[OperationResult], int, int]:
@@ -229,7 +229,7 @@ class BulkOperationService(BaseService):
     @BaseService.measure_operation("invalidate_affected_cache")
     async def _invalidate_affected_cache(
         self,
-        instructor_id: int,
+        instructor_id: str,
         operations: List[SlotOperation],
         results: List[OperationResult],
     ) -> None:
@@ -329,7 +329,7 @@ class BulkOperationService(BaseService):
         }
 
     @BaseService.measure_operation("validate_week")
-    async def validate_week_changes(self, instructor_id: int, validation_data: ValidateWeekRequest) -> Dict[str, Any]:
+    async def validate_week_changes(self, instructor_id: str, validation_data: ValidateWeekRequest) -> Dict[str, Any]:
         """
         Validate planned changes to week availability.
 
@@ -377,7 +377,7 @@ class BulkOperationService(BaseService):
 
     async def _process_single_operation(
         self,
-        instructor_id: int,
+        instructor_id: str,
         operation: SlotOperation,
         operation_index: int,
         validate_only: bool,
@@ -426,7 +426,7 @@ class BulkOperationService(BaseService):
             return f"Missing required fields for add operation: {', '.join(missing_fields)}"
         return None
 
-    def _validate_add_operation_timing(self, operation: SlotOperation, instructor_id: int) -> Optional[str]:
+    def _validate_add_operation_timing(self, operation: SlotOperation, instructor_id: str) -> Optional[str]:
         """Validate time constraints and alignment."""
         # Check for past dates using instructor's timezone
         instructor_today = get_user_today_by_id(instructor_id, self.db)
@@ -447,7 +447,7 @@ class BulkOperationService(BaseService):
 
         return None
 
-    async def _check_add_operation_conflicts(self, instructor_id: int, operation: SlotOperation) -> Optional[str]:
+    async def _check_add_operation_conflicts(self, instructor_id: str, operation: SlotOperation) -> Optional[str]:
         """Check for booking conflicts and blackout dates."""
         # Check if slot already exists
         if self.availability_repository.slot_exists(
@@ -460,7 +460,7 @@ class BulkOperationService(BaseService):
         return None
 
     async def _create_slot_for_operation(
-        self, instructor_id: int, operation: SlotOperation, validate_only: bool
+        self, instructor_id: str, operation: SlotOperation, validate_only: bool
     ) -> Optional[Any]:
         """Create the actual slot if not validation only."""
         if validate_only:
@@ -485,7 +485,7 @@ class BulkOperationService(BaseService):
     @BaseService.measure_operation("process_add_operation")
     async def _process_add_operation(
         self,
-        instructor_id: int,
+        instructor_id: str,
         operation: SlotOperation,
         operation_index: int,
         validate_only: bool,
@@ -547,7 +547,7 @@ class BulkOperationService(BaseService):
                 reason=str(e),
             )
 
-    async def _validate_remove_operation(self, instructor_id: int, slot_id: int) -> Tuple[Optional[Any], Optional[str]]:
+    async def _validate_remove_operation(self, instructor_id: str, slot_id: str) -> Tuple[Optional[Any], Optional[str]]:
         """Validate slot exists and belongs to instructor."""
         if not slot_id:
             return None, "Missing slot_id for remove operation - cannot identify which slot to remove"
@@ -560,12 +560,12 @@ class BulkOperationService(BaseService):
 
         return slot, None
 
-    async def _check_remove_operation_bookings(self, slot_id: int) -> Optional[str]:
+    async def _check_remove_operation_bookings(self, slot_id: str) -> Optional[str]:
         """Check if slot has active bookings."""
         # With layer independence, we don't check bookings
         return None
 
-    async def _execute_slot_removal(self, slot: Any, slot_id: int, validate_only: bool) -> bool:
+    async def _execute_slot_removal(self, slot: Any, slot_id: str, validate_only: bool) -> bool:
         """Execute the removal if not validation only."""
         if validate_only:
             return True
@@ -579,7 +579,7 @@ class BulkOperationService(BaseService):
     @BaseService.measure_operation("process_remove_operation")
     async def _process_remove_operation(
         self,
-        instructor_id: int,
+        instructor_id: str,
         operation: SlotOperation,
         operation_index: int,
         validate_only: bool,
@@ -639,7 +639,7 @@ class BulkOperationService(BaseService):
             return "Missing slot_id for update operation - cannot identify which slot to update"
         return None
 
-    async def _find_slot_for_update(self, instructor_id: int, slot_id: int) -> Tuple[Optional[Any], Optional[str]]:
+    async def _find_slot_for_update(self, instructor_id: str, slot_id: str) -> Tuple[Optional[Any], Optional[str]]:
         """Find the slot to update and verify ownership."""
         # Find the slot using repository
         slot = self.repository.get_slot_for_instructor(slot_id, instructor_id)
@@ -650,7 +650,7 @@ class BulkOperationService(BaseService):
         return slot, None
 
     async def _validate_update_timing_and_conflicts(
-        self, instructor_id: int, operation: SlotOperation, existing_slot: Any
+        self, instructor_id: str, operation: SlotOperation, existing_slot: Any
     ) -> Optional[str]:
         """Validate new times and check for conflicts."""
         # Determine new times
@@ -689,7 +689,7 @@ class BulkOperationService(BaseService):
     @BaseService.measure_operation("process_update_operation")
     async def _process_update_operation(
         self,
-        instructor_id: int,
+        instructor_id: str,
         operation: SlotOperation,
         operation_index: int,
         validate_only: bool,
@@ -756,7 +756,7 @@ class BulkOperationService(BaseService):
                 reason=str(e),
             )
 
-    def _get_existing_week_slots(self, instructor_id: int, week_start: date) -> Dict[str, List[Dict]]:
+    def _get_existing_week_slots(self, instructor_id: str, week_start: date) -> Dict[str, List[Dict]]:
         """Get existing slots for a week from database."""
         end_date = week_start + timedelta(days=6)
 
@@ -843,7 +843,7 @@ class BulkOperationService(BaseService):
         return operations
 
     async def _validate_operations(
-        self, instructor_id: int, operations: List[SlotOperation]
+        self, instructor_id: str, operations: List[SlotOperation]
     ) -> List[ValidationSlotDetail]:
         """Validate a list of operations."""
         validation_details = []

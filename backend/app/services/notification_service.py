@@ -621,7 +621,7 @@ class NotificationService(BaseService):
 
     @BaseService.measure_operation("send_message_notification")
     def send_message_notification(
-        self, recipient_id: int, booking: Booking, sender_id: int, message_content: str
+        self, recipient_id: str, booking: Booking, sender_id: str, message_content: str
     ) -> bool:
         """
         Send email notification for a new chat message.

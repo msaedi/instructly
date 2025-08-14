@@ -74,7 +74,7 @@ export function useCancelledLessons(page: number = 1) {
  * Hook to fetch a single lesson details
  * Uses 10-minute cache consistent with list
  */
-export function useLessonDetails(lessonId: string | number) {
+export function useLessonDetails(lessonId: string) {
   return useQuery<Booking>({
     queryKey: queryKeys.bookings.detail(String(lessonId)),
     queryFn: queryFn(`/bookings/${lessonId}`, {

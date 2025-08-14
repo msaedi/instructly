@@ -215,7 +215,7 @@ export function findSlotId(
   slot: TimeSlot,
   date: string,
   existingSlots: ExistingSlot[]
-): number | null {
+): string | null {
   const existing = existingSlots.find(
     (s) => s.date === date && s.start_time === slot.start_time && s.end_time === slot.end_time
   );

@@ -130,7 +130,7 @@ class ServiceException(DomainException):
 class BookingConflictException(ConflictException):
     """Raised when a booking conflicts with existing bookings."""
 
-    def __init__(self, slot_id: int, message: Optional[str] = None):
+    def __init__(self, slot_id: str, message: Optional[str] = None):
         super().__init__(
             message=message or f"Slot {slot_id} is already booked",
             code="BOOKING_CONFLICT",

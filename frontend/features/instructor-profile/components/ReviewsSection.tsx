@@ -6,7 +6,7 @@ import { useInstructorReviews } from '../hooks/useInstructorReviews';
 import { formatDistanceToNow } from 'date-fns';
 
 interface ReviewsSectionProps {
-  instructorId: string | number;
+  instructorId: string;
 }
 
 function StarRating({ rating }: { rating: number }) {

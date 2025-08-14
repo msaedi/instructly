@@ -9,7 +9,7 @@ import { logger } from '@/lib/logger';
 import { useRef, useEffect, useState, useMemo } from 'react';
 
 interface AvailabilityGridProps {
-  instructorId: string | number;
+  instructorId: string;
   weekStart: Date | null;
   onWeekChange: (date: Date) => void;
   selectedSlot: { date: string; time: string; duration: number; availableDuration?: number } | null;

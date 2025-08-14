@@ -57,7 +57,7 @@ class BulkOperationRepository(BaseRepository[AvailabilitySlot]):
 
     # Ownership Validation
 
-    def get_slot_for_instructor(self, slot_id: int, instructor_id: int) -> Optional[AvailabilitySlot]:
+    def get_slot_for_instructor(self, slot_id: str, instructor_id: str) -> Optional[AvailabilitySlot]:
         """
         Get a slot only if it belongs to the instructor.
 
@@ -86,7 +86,7 @@ class BulkOperationRepository(BaseRepository[AvailabilitySlot]):
 
     # Booking Validation
 
-    def has_bookings_on_date(self, instructor_id: int, target_date: date) -> bool:
+    def has_bookings_on_date(self, instructor_id: str, target_date: date) -> bool:
         """
         Check if instructor has any bookings on a specific date.
 
@@ -120,7 +120,7 @@ class BulkOperationRepository(BaseRepository[AvailabilitySlot]):
 
     # Data Retrieval for Validation
 
-    def get_slots_by_ids(self, slot_ids: List[int]) -> List[Tuple[int, date, time, time]]:
+    def get_slots_by_ids(self, slot_ids: List[str]) -> List[Tuple[str, date, time, time]]:
         """
         Get slots with their dates for validation and cache invalidation.
 
@@ -152,7 +152,7 @@ class BulkOperationRepository(BaseRepository[AvailabilitySlot]):
 
     # Cache Support
 
-    def get_unique_dates_from_operations(self, instructor_id: int, operation_dates: List[date]) -> List[date]:
+    def get_unique_dates_from_operations(self, instructor_id: str, operation_dates: List[date]) -> List[date]:
         """
         Get unique dates that actually exist for cache invalidation.
 

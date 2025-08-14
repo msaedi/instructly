@@ -291,7 +291,7 @@ export async function trackSearchInteraction(
 /**
  * Delete a search (unified for both authenticated and guest users)
  */
-export async function deleteSearch(searchId: number, isAuthenticated: boolean): Promise<boolean> {
+export async function deleteSearch(searchId: string, isAuthenticated: boolean): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/search-history/${searchId}`, {
       method: 'DELETE',

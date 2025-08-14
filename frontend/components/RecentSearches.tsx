@@ -99,33 +99,21 @@ export function RecentSearches() {
     }
   };
 
-  const handleDeleteSearch = async (searchId: number | string) => {
+  const handleDeleteSearch = async (searchId: string) => {
     try {
-      if (typeof searchId === 'number') {
-        // Optimistically remove from local state FIRST
-        setSearches((prev) => prev.filter((s) => s.id !== searchId));
+      // Optimistically remove from local state FIRST
+      setSearches((prev) => prev.filter((s) => s.id !== searchId));
 
-        // Use unified delete function
-        const success = await deleteSearch(searchId, isAuthenticated);
+      // Use unified delete function
+      const success = await deleteSearch(searchId, isAuthenticated);
 
-        if (!success) {
-          // On error, refresh to restore the correct state
-          if (isAuthenticated) {
-            fetchRecentSearches();
-          } else {
-            loadGuestSearches();
-          }
+      if (!success) {
+        // On error, refresh to restore the correct state
+        if (isAuthenticated) {
+          fetchRecentSearches();
+        } else {
+          loadGuestSearches();
         }
-      } else if (typeof searchId === 'string' && searchId.startsWith('guest-')) {
-        // Fallback: Delete from sessionStorage for legacy guest searches
-        const guestSearches = getGuestSearches();
-        const index = parseInt(searchId.replace('guest-', ''));
-        guestSearches.splice(index, 1);
-        sessionStorage.setItem('recentSearches', JSON.stringify(guestSearches));
-
-        // Reload guest searches
-        loadGuestSearches();
-        logger.info('Guest search deleted from sessionStorage', { searchId });
       }
     } catch (err) {
       logger.error('Error deleting search', err as Error);

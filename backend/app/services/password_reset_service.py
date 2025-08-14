@@ -201,7 +201,7 @@ class PasswordResetService(BaseService):
             self.logger.error(f"Error resetting password: {str(e)}")
             raise ValidationException("An error occurred while resetting your password")
 
-    def _generate_reset_token(self, user_id: int) -> str:
+    def _generate_reset_token(self, user_id: str) -> str:
         """
         Generate a unique reset token for a user.
 
@@ -223,7 +223,7 @@ class PasswordResetService(BaseService):
 
         return token
 
-    def _invalidate_existing_tokens(self, user_id: int) -> None:
+    def _invalidate_existing_tokens(self, user_id: str) -> None:
         """
         Mark all existing tokens for a user as used.
 
