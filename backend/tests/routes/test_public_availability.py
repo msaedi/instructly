@@ -189,7 +189,8 @@ class TestPublicAvailability:
     def test_get_public_availability_instructor_not_found(self, public_client, full_detail_settings):
         """Test 404 when instructor doesn't exist."""
         response = public_client.get(
-            "/api/public/instructors/99999/availability", params={"start_date": date.today().isoformat()}
+            "/api/public/instructors/01J5TESTINSTR0000000000999/availability",
+            params={"start_date": date.today().isoformat()},
         )
 
         if response.status_code == 404 and "Not Found" in response.json().get("detail", ""):

@@ -348,7 +348,7 @@ class MessageService(BaseService):
             self.repository.notify_booking_channel(message.booking_id, payload)
             return ok
 
-    def _user_has_booking_access(self, booking_id: int, user_id: int) -> bool:
+    def _user_has_booking_access(self, booking_id: str, user_id: str) -> bool:
         """
         Check if user has access to a booking's messages.
 
@@ -366,7 +366,7 @@ class MessageService(BaseService):
         student_id, instructor_id = participants
         return user_id in [student_id, instructor_id]
 
-    def _get_booking(self, booking_id: int) -> Booking:
+    def _get_booking(self, booking_id: str) -> Booking:
         """
         Get a booking by ID.
 
@@ -384,7 +384,7 @@ class MessageService(BaseService):
             raise NotFoundException(f"Booking {booking_id} not found")
         return booking
 
-    def _send_offline_notification(self, booking: Booking, sender_id: int, content: str):
+    def _send_offline_notification(self, booking: Booking, sender_id: str, content: str):
         """
         Send email notification for offline recipient.
 

@@ -17,7 +17,7 @@ import {
 // Removed recordSearch and SearchType - tracking now handled by search page
 
 interface SearchHistoryItem {
-  id: number;
+  id: string;
   search_query: string;
   search_type: string;
   results_count: number | null;

@@ -81,7 +81,7 @@ class WeekOperationService(BaseService):
 
     @BaseService.measure_operation("copy_week")  # METRICS ADDED
     async def copy_week_availability(
-        self, instructor_id: int, from_week_start: date, to_week_start: date
+        self, instructor_id: str, from_week_start: date, to_week_start: date
     ) -> Dict[str, Any]:
         """
         Copy availability from one week to another.
@@ -130,7 +130,7 @@ class WeekOperationService(BaseService):
     @BaseService.measure_operation("apply_pattern")  # METRICS ADDED
     async def apply_pattern_to_date_range(
         self,
-        instructor_id: int,
+        instructor_id: str,
         from_week_start: date,
         start_date: date,
         end_date: date,
@@ -197,7 +197,7 @@ class WeekOperationService(BaseService):
         return [monday + timedelta(days=i) for i in range(7)]
 
     @BaseService.measure_operation("get_week_pattern")  # METRICS ADDED
-    def get_week_pattern(self, instructor_id: int, week_start: date) -> Dict[str, List[Dict[str, Any]]]:
+    def get_week_pattern(self, instructor_id: str, week_start: date) -> Dict[str, List[Dict[str, Any]]]:
         """
         Extract the availability pattern for a week.
 
@@ -220,13 +220,13 @@ class WeekOperationService(BaseService):
         if to_week_start.weekday() != 0:
             self.logger.warning(f"Target week start {to_week_start} is not a Monday")
 
-    def _clear_week_slots(self, instructor_id: int, week_dates: List[date]) -> int:
+    def _clear_week_slots(self, instructor_id: str, week_dates: List[date]) -> int:
         """Clear all existing slots from a week."""
         deleted_count = self.availability_repository.delete_slots_by_dates(instructor_id, week_dates)
         self.logger.debug(f"Deleted {deleted_count} existing slots from target week")
         return deleted_count
 
-    def _copy_slots_between_weeks(self, instructor_id: int, from_week_start: date, to_week_start: date) -> int:
+    def _copy_slots_between_weeks(self, instructor_id: str, from_week_start: date, to_week_start: date) -> int:
         """Copy slots from source week to target week."""
         # Get source week slots
         source_slots = self.repository.get_week_slots(
@@ -258,7 +258,7 @@ class WeekOperationService(BaseService):
             return 0
 
     async def _warm_cache_and_get_result(
-        self, instructor_id: int, week_start: date, created_count: int
+        self, instructor_id: str, week_start: date, created_count: int
     ) -> Dict[str, Any]:
         """Warm cache and get result for week copy."""
         # Use CacheWarmingStrategy for consistent fresh data
@@ -285,7 +285,7 @@ class WeekOperationService(BaseService):
         return result
 
     def _extract_week_pattern_from_source(
-        self, instructor_id: int, from_week_start: date
+        self, instructor_id: str, from_week_start: date
     ) -> Dict[str, List[Dict[str, Any]]]:
         """Get source week availability and extract pattern."""
         source_week = self.availability_service.get_week_availability(instructor_id, from_week_start)
@@ -300,7 +300,7 @@ class WeekOperationService(BaseService):
             current_date += timedelta(days=1)
         return all_dates
 
-    def _clear_date_range_slots(self, instructor_id: int, dates: List[date]) -> int:
+    def _clear_date_range_slots(self, instructor_id: str, dates: List[date]) -> int:
         """Clear all existing slots in a date range."""
         deleted_count = self.availability_repository.delete_slots_by_dates(instructor_id, dates)
         self.logger.debug(f"Deleted {deleted_count} existing slots from date range")
@@ -308,7 +308,7 @@ class WeekOperationService(BaseService):
 
     def _apply_pattern_to_dates(
         self,
-        instructor_id: int,
+        instructor_id: str,
         week_pattern: Dict[str, List[Dict[str, Any]]],
         start_date: date,
         end_date: date,
@@ -349,7 +349,7 @@ class WeekOperationService(BaseService):
             self.logger.info("No slots to create - pattern may be empty")
             return 0, 0
 
-    async def _warm_cache_for_affected_weeks(self, instructor_id: int, start_date: date, end_date: date) -> None:
+    async def _warm_cache_for_affected_weeks(self, instructor_id: str, start_date: date, end_date: date) -> None:
         """Warm cache for all weeks affected by pattern application."""
         from .cache_strategies import CacheWarmingStrategy
 

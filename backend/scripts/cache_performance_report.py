@@ -121,7 +121,7 @@ async def generate_report():
         print(f"\n{BOLD}5. ETag Test:{RESET}")
 
         # Make a request and check for ETag
-        url = f"http://localhost:8000/api/public/instructors/1/availability"
+        url = f"http://localhost:8000/api/public/instructors/01J5TESTINSTR0000000000001/availability"
         params = {"start_date": start_date.isoformat(), "end_date": end_date.isoformat()}
         response = await client.get(url, params=params)
 

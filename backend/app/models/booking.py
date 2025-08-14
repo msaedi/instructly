@@ -183,7 +183,7 @@ class Booking(Base):
         }.get(self.location_type, "Neutral Location")
 
     @property
-    def can_be_modified_by(self, user_id: int) -> bool:
+    def can_be_modified_by(self, user_id: str) -> bool:
         """Check if user can modify this booking."""
         return user_id in [self.student_id, self.instructor_id]
 

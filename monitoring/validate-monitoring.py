@@ -280,7 +280,7 @@ class MonitoringValidator:
             ("GET", "/api/admin/users", 401),  # Unauthorized
 
             # Instructor operations
-            ("GET", "/api/public/instructors/1/availability", 200),
+            ("GET", "/api/public/instructors/01J5TESTINSTR0000000000001/availability", 200),
             ("GET", "/api/instructors/profile", 401),  # Needs auth
         ]
 

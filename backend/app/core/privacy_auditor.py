@@ -366,7 +366,7 @@ class PrivacyAuditor:
             ),
             EndpointTest(path="/services/search", method="GET", category=EndpointCategory.PUBLIC, params={"q": "yoga"}),
             EndpointTest(
-                path="/api/public/instructors/1/availability",
+                path="/api/public/instructors/01J5TESTINSTR0000000000001/availability",
                 method="GET",
                 category=EndpointCategory.PUBLIC,
                 params={"start_date": "2025-01-20", "end_date": "2025-01-27"},

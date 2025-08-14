@@ -54,7 +54,7 @@ class SlotManager(BaseService):
     @BaseService.measure_operation("create_slot")
     def create_slot(
         self,
-        instructor_id: int,
+        instructor_id: str,
         target_date: date,
         start_time: time,
         end_time: time,
@@ -210,7 +210,7 @@ class SlotManager(BaseService):
             return True
 
     @BaseService.measure_operation("merge_slots")
-    def merge_overlapping_slots(self, instructor_id: int, target_date: date) -> int:
+    def merge_overlapping_slots(self, instructor_id: str, target_date: date) -> int:
         """
         Merge overlapping or adjacent slots for a specific date.
 
@@ -378,7 +378,7 @@ class SlotManager(BaseService):
         return gaps
 
     @BaseService.measure_operation("get_slots_for_date")
-    def get_slots_for_date(self, instructor_id: int, target_date: date) -> List[AvailabilitySlot]:
+    def get_slots_for_date(self, instructor_id: str, target_date: date) -> List[AvailabilitySlot]:
         """
         Get all availability slots for an instructor on a date.
 

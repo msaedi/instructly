@@ -153,7 +153,7 @@ export interface BulkUpdateResponse {
  */
 export interface ExistingSlot {
   /** Unique identifier of the slot */
-  id: number;
+  id: string;
 
   /** Date of the slot (ISO format: YYYY-MM-DD) */
   date: string;
@@ -195,7 +195,7 @@ export interface ValidationSlotDetail {
   /** Bookings that conflict with this operation */
   conflicts_with?: Array<{
     /** ID of the conflicting booking */
-    booking_id: number;
+    booking_id: string;
     /** Start time of the conflicting booking */
     start_time: string;
     /** End time of the conflicting booking */

@@ -569,7 +569,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
 
     # Blackout Date Operations (unchanged)
 
-    def get_future_blackout_dates(self, instructor_id: int) -> List[BlackoutDate]:
+    def get_future_blackout_dates(self, instructor_id: str) -> List[BlackoutDate]:
         """
         Get all future blackout dates for an instructor.
 
@@ -596,7 +596,7 @@ class AvailabilityRepository(BaseRepository[AvailabilitySlot]):
             raise RepositoryException(f"Failed to get blackout dates: {str(e)}")
 
     def create_blackout_date(
-        self, instructor_id: int, blackout_date: date, reason: Optional[str] = None
+        self, instructor_id: str, blackout_date: date, reason: Optional[str] = None
     ) -> BlackoutDate:
         """
         Create a new blackout date.

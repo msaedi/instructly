@@ -20,7 +20,7 @@ interface DayAvailability {
 }
 
 interface PublicAvailability {
-  instructor_id: number;
+  instructor_id: string;
   instructor_first_name: string | null;
   instructor_last_initial: string | null;
   availability_by_date: Record<string, DayAvailability>;

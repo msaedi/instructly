@@ -270,7 +270,7 @@ export interface NaturalLanguageSearchResponse {
   };
   results: Array<{
     service: {
-      id: number;
+      id: string;
       category_id: number;
       category_name: string;
       category_slug: string;
@@ -292,7 +292,7 @@ export interface NaturalLanguageSearchResponse {
       is_trending: boolean;
     };
     instructor: {
-      id: number;
+      id: string;
       first_name: string;
       last_initial: string;  // Privacy protected
       bio: string;
@@ -300,7 +300,7 @@ export interface NaturalLanguageSearchResponse {
       areas_of_service: string;
     };
     offering: {
-      id: number;
+      id: string;
       hourly_rate: number;
       experience_level: string;
       description: string;
@@ -353,7 +353,7 @@ export interface CatalogService {
 }
 
 export interface TopServiceSummary {
-  id: number;
+  id: string;
   name: string;
   slug: string;
   demand_score: number;
@@ -363,7 +363,7 @@ export interface TopServiceSummary {
 }
 
 export interface CategoryWithTopServices {
-  id: number;
+  id: string;
   name: string;
   slug: string;
   icon_name?: string;
@@ -656,7 +656,7 @@ export const publicApi = {
   async getAllServicesWithInstructors() {
     return cleanFetch<{
       categories: Array<{
-        id: number;
+        id: string;
         name: string;
         slug: string;
         subtitle: string;
