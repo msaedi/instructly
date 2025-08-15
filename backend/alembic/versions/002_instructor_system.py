@@ -35,6 +35,8 @@ def upgrade() -> None:
 
     # Enable pgvector extension for semantic search
     op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    # Enable pg_trgm for fuzzy text matching
+    op.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
 
     # Create instructor_profiles table
     op.create_table(
@@ -173,6 +175,20 @@ def upgrade() -> None:
         ["embedding"],
         postgresql_using="ivfflat",
         postgresql_ops={"embedding": "vector_cosine_ops"},
+    )
+
+    # Trigram GIN indexes for fuzzy text search on name/description
+    op.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_service_catalog_name_trgm
+        ON service_catalog USING gin (name gin_trgm_ops);
+        """
+    )
+    op.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_service_catalog_description_trgm
+        ON service_catalog USING gin (description gin_trgm_ops);
+        """
     )
 
     # Create instructor services table (replaces old services table)
@@ -364,6 +380,8 @@ def downgrade() -> None:
     op.drop_table("instructor_services")
 
     # Drop service_catalog indexes and table
+    op.execute("DROP INDEX IF EXISTS idx_service_catalog_description_trgm")
+    op.execute("DROP INDEX IF EXISTS idx_service_catalog_name_trgm")
     op.drop_index("idx_service_catalog_embedding", table_name="service_catalog")
     op.drop_index("idx_service_catalog_online_capable", table_name="service_catalog")
     op.drop_index("idx_service_catalog_display_order", table_name="service_catalog")
@@ -386,7 +404,8 @@ def downgrade() -> None:
     op.drop_index("ix_instructor_profiles_id", table_name="instructor_profiles")
     op.drop_table("instructor_profiles")
 
-    # Drop pgvector extension
+    # Drop extensions
     op.execute("DROP EXTENSION IF EXISTS vector")
+    op.execute("DROP EXTENSION IF EXISTS pg_trgm")
 
     print("Instructor system tables dropped successfully!")

@@ -30,6 +30,13 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
     def __init__(self, db: Session):
         """Initialize with ServiceCatalog model."""
         super().__init__(db, ServiceCatalog)
+        # Detect pg_trgm availability once per repository instance
+        self._pg_trgm_available = False
+        try:
+            res = self.db.execute(text("SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm'"))
+            self._pg_trgm_available = bool(res.fetchone())
+        except Exception:
+            self._pg_trgm_available = False
 
     def find_similar_by_embedding(
         self, embedding: List[float], limit: int = 10, threshold: float = 0.8
@@ -111,17 +118,30 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         # Text search across multiple fields
         if query_text:
             search_pattern = f"%{query_text}%"
-            # For array search, use PostgreSQL's array containment
-            query = query.filter(
-                or_(
-                    ServiceCatalog.name.ilike(search_pattern),
-                    ServiceCatalog.description.ilike(search_pattern),
-                    # Check if any search term contains the query
-                    text(
-                        "EXISTS (SELECT 1 FROM unnest(search_terms) AS term WHERE lower(term) LIKE lower(:pattern))"
-                    ).params(pattern=search_pattern),
+            if self._pg_trgm_available:
+                # Use trigram similarity when available
+                query = query.filter(
+                    or_(
+                        text("(name % :q) OR (similarity(name, :q) >= 0.3)").params(q=query_text),
+                        text(
+                            "(description IS NOT NULL AND ((description % :q) OR (similarity(description, :q) >= 0.3)))"
+                        ).params(q=query_text),
+                        text(
+                            "EXISTS (SELECT 1 FROM unnest(search_terms) AS term WHERE lower(term) LIKE lower(:pattern))"
+                        ).params(pattern=search_pattern),
+                    )
                 )
-            )
+            else:
+                # Fallback to ILIKE + search_terms
+                query = query.filter(
+                    or_(
+                        ServiceCatalog.name.ilike(search_pattern),
+                        ServiceCatalog.description.ilike(search_pattern),
+                        text(
+                            "EXISTS (SELECT 1 FROM unnest(search_terms) AS term WHERE lower(term) LIKE lower(:pattern))"
+                        ).params(pattern=search_pattern),
+                    )
+                )
 
         # Apply filters
         if category_id is not None:
@@ -133,8 +153,18 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         if requires_certification is not None:
             query = query.filter(ServiceCatalog.requires_certification == requires_certification)
 
-        # Order by display_order and name
-        query = query.order_by(ServiceCatalog.display_order, ServiceCatalog.name)
+        # Order by a hybrid of similarity then display_order/name when a query is present
+        if query_text:
+            if self._pg_trgm_available:
+                query = query.order_by(
+                    text("COALESCE(similarity(name, :q), 0) DESC").params(q=query_text),
+                    ServiceCatalog.display_order,
+                    ServiceCatalog.name,
+                )
+            else:
+                query = query.order_by(ServiceCatalog.display_order, ServiceCatalog.name)
+        else:
+            query = query.order_by(ServiceCatalog.display_order, ServiceCatalog.name)
 
         # Apply pagination
         return query.offset(skip).limit(limit).all()

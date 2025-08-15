@@ -417,6 +417,46 @@ class SearchService(BaseService):
 
     def _search_services(self, query_embedding: List[float], parsed: Dict, limit: int) -> tuple[List[Dict], List[Dict]]:
         """Search for services using embeddings and filters, and prepare top-N candidates for observability."""
+
+        # Lightweight helpers for fuzzy token matching (to capitalize on pg_trgm in exact-text phase)
+        def _levenshtein_distance(a: str, b: str) -> int:
+            if a == b:
+                return 0
+            la, lb = len(a), len(b)
+            if la == 0:
+                return lb
+            if lb == 0:
+                return la
+            # DP row-wise (space-optimized)
+            prev = list(range(lb + 1))
+            curr = [0] * (lb + 1)
+            for i in range(1, la + 1):
+                curr[0] = i
+                ca = a[i - 1]
+                for j in range(1, lb + 1):
+                    cb = b[j - 1]
+                    cost = 0 if ca == cb else 1
+                    curr[j] = min(
+                        prev[j] + 1,  # deletion
+                        curr[j - 1] + 1,  # insertion
+                        prev[j - 1] + cost,  # substitution
+                    )
+                prev, curr = curr, prev
+            return prev[lb]
+
+        def _has_fuzzy_token_overlap(query_text: str, candidate_name: str) -> bool:
+            q_tokens = [t for t in query_text.lower().split() if t]
+            name_tokens = [t for t in candidate_name.lower().replace("-", " ").split() if t]
+            if not q_tokens or not name_tokens:
+                return False
+            for qt in q_tokens:
+                for nt in name_tokens:
+                    # Allow small spelling errors: distance <= 1 for short tokens, <= 2 for length >= 6
+                    dist = _levenshtein_distance(qt, nt)
+                    if (len(qt) < 6 and dist <= 1) or (len(qt) >= 6 and dist <= 2):
+                        return True
+            return False
+
         # Determine filters
         online_capable = None
         if parsed["location"].get("online"):
@@ -475,6 +515,9 @@ class SearchService(BaseService):
                         score = 0.8
                     if any(tok in service_name_lower for tok in q_tokens):
                         score = max(score, 0.8)
+                    # NEW: fuzzy token overlap (e.g., paino→piano, tenis→tennis)
+                    if score < 0.8 and _has_fuzzy_token_overlap(query_lower, service_name_lower):
+                        score = max(score, 0.82)
                     if score >= 0.8:
                         exact_candidates.append((service, score))
 
@@ -512,26 +555,32 @@ class SearchService(BaseService):
             service_dict["demand_score"] = analytics.demand_score
             service_dict["is_trending"] = analytics.is_trending
 
-            # Simple hybrid re-ranking features
+            # Simple hybrid re-ranking features (tuning pass)
             token_bonus = 0.0
             if parsed.get("cleaned_query"):
                 q = parsed["cleaned_query"].lower()
                 name_l = service_dict["name"].lower()
                 desc_l = (service_dict.get("description") or "").lower()
-                if any(tok in name_l for tok in q.split()):
-                    token_bonus += 0.05
-                if any(tok in desc_l for tok in q.split()):
-                    token_bonus += 0.02
+                tokens = [t for t in q.split() if t]
+                if any(tok in name_l for tok in tokens):
+                    token_bonus += 0.06  # slightly higher boost on name overlap
+                if any(tok in desc_l for tok in tokens):
+                    token_bonus += 0.025
+
+                # Exact alias handling: if an exact search_terms match, give a meaningful bump
+                terms = [t.lower() for t in (service_dict.get("search_terms") or [])]
+                if terms and (q in terms or any(q == term for term in terms)):
+                    token_bonus += 0.08
             service_dict["relevance_score"] = min(service_dict["relevance_score"] + token_bonus, 1.0)
 
             services.append(service_dict)
 
         # Apply dynamic relevance cutoff and token-overlap pruning for specific queries
         if not parsed.get("is_category_query") and services:
-            # Determine a dynamic minimum based on the top score
+            # Determine a dynamic minimum based on the top score (slightly looser after pg_trgm)
             top_score = max(s.get("relevance_score", 0.0) for s in services)
             # Allow closely related neighbors (e.g., keyboard for piano), drop distant ones
-            min_score = max(0.5, top_score * 0.7)
+            min_score = max(0.5, top_score * 0.68)
 
             q_tokens = [t for t in (parsed.get("cleaned_query") or "").lower().split() if len(t) > 2]
 
