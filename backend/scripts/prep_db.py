@@ -265,7 +265,8 @@ def clear_cache(db_type):
     try:
         if db_type == "prod":
             # Trigger a one-off job on Render to clear cache in production
-            command = f"{sys.executable} backend/scripts/clear_cache.py --scope all"
+            # Use the container's Python via a shell, not the local sys.executable path
+            command = 'bash -lc "python backend/scripts/clear_cache.py --scope all"'
             ok = _trigger_render_one_off_job(command)
             if not ok:
                 print("  ⚠ Could not trigger Render job; cache may remain warm until TTL")
