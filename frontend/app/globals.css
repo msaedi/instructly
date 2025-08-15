@@ -18,9 +18,18 @@ body {
   --foreground-secondary: #6b7280;
 
   /* Brand Colors */
-  --color-primary: #4f46e5; /* Indigo 600 */
-  --color-primary-hover: #4338ca; /* Indigo 700 */
-  --color-primary-light: #e0e7ff; /* Indigo 100 */
+  --color-primary: #6741D9; /* Elegant Purple */
+  --color-primary-hover: #5B4BC3; /* Elegant Purple (hover) */
+  --color-primary-light: #EDE7F6; /* Pastel Lavender for cards */
+
+  /* Map to shadcn/ui CSS variables */
+  --primary: var(--color-primary);
+  --primary-foreground: #ffffff;
+  --accent: var(--color-primary-light);
+  --card: var(--color-primary-light);
+  --card-foreground: var(--foreground);
+  --input: #e5e7eb; /* gray-200 fallback */
+  --ring: var(--color-primary);
 
   /* Modal Settings */
   --modal-backdrop: rgba(0, 0, 0, 0.5); /* Semi-transparent backdrop for modals */

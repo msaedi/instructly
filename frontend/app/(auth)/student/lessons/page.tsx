@@ -132,11 +132,11 @@ function MyLessonsContent() {
       <div className="space-y-4">
         {error ? (
           // Error state
-          <Card className="p-8">
+          <Card className="p-8 bg-red-50 border-red-200">
             <div className="flex flex-col items-center text-center space-y-3">
-              <AlertCircle className="h-12 w-12 text-destructive" />
-              <h3 className="text-lg font-semibold">Failed to load lessons</h3>
-              <p className="text-muted-foreground">
+              <AlertCircle className="h-12 w-12 text-red-500" />
+              <h3 className="text-lg font-semibold text-red-800">Failed to load lessons</h3>
+              <p className="text-red-600">
                 There was an error loading your lessons. Please try again.
               </p>
               <Button
@@ -164,6 +164,7 @@ function MyLessonsContent() {
               isCompleted={activeTab === 'history'}
               onViewDetails={() => router.push(`/student/lessons/${lesson.id}`)}
               onChat={() => handleOpenChat(lesson)}
+              className="bg-[#EDE7F6] text-gray-900"
             />
           ))
         ) : (

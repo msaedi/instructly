@@ -71,7 +71,7 @@ export default function LessonDetailsPage() {
   const isCompleted = lesson.status === 'COMPLETED';
 
   const formattedDate = format(lessonDateTime, 'EEEE, MMMM d, yyyy');
-  const formattedTime = format(lessonDateTime, 'h:mm a zzz');
+  const formattedTime = format(lessonDateTime, 'h:mm a');
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -102,7 +102,7 @@ export default function LessonDetailsPage() {
       </div>
 
       {/* Main Content */}
-      <Card className="p-6 sm:p-8">
+      <Card className="p-6 sm:p-8 bg-[#EDE7F6]">
         {/* Lesson Title and Status */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold mb-2">
@@ -123,38 +123,29 @@ export default function LessonDetailsPage() {
           </div>
           <div className="flex items-center gap-3">
             <DollarSign className="h-5 w-5 text-muted-foreground" />
-            <span className="text-lg">${lesson.total_price.toFixed(2)}</span>
+            <span className="text-lg">{lesson.total_price.toFixed(2)}</span>
           </div>
         </div>
 
         {/* Instructor Info */}
         <div className="mb-6">
-          <InstructorInfo instructor={lesson.instructor} onChat={() => console.log('Open chat')} />
+          <InstructorInfo instructor={lesson.instructor} />
         </div>
 
         {/* Action Buttons */}
         <div className="mb-8">
-          {isUpcoming && (
-            <Button
-              onClick={() => console.log('Open chat')}
-              className="w-full sm:w-auto"
-              variant="outline"
-            >
-              <MessageCircle className="h-4 w-4 mr-2" />
-              Chat with instructor
-            </Button>
-          )}
+          {isUpcoming && null}
           {isCompleted && (
             <div className="flex flex-wrap gap-3">
-              <Button onClick={() => console.log('Review & tip')} variant="outline">
+              <Button onClick={() => console.log('Review & tip')} className="bg-[#6741D9] hover:bg-[#5B4BC3] text-white border-transparent">
                 Review & tip
               </Button>
-              <Button onClick={() => console.log('Chat history')} variant="outline">
+              <Button onClick={() => console.log('Chat history')} className="bg-[#6741D9] hover:bg-[#5B4BC3] text-white border-transparent">
                 Chat history
               </Button>
               <Button
                 onClick={() => router.push(`/instructors/${lesson.instructor_id}`)}
-                className="bg-primary hover:bg-primary/90"
+                className="bg-[#6741D9] hover:bg-[#5B4BC3] text-white"
               >
                 Book Again
               </Button>
@@ -211,8 +202,7 @@ export default function LessonDetailsPage() {
               <div className="flex flex-wrap gap-3">
                 <Button
                   onClick={() => setShowRescheduleModal(true)}
-                  variant="outline"
-                  className="flex-1 sm:flex-initial"
+                  className="flex-1 sm:flex-initial bg-[#6741D9] hover:bg-[#5B4BC3] text-white border-transparent"
                 >
                   Reschedule lesson
                 </Button>
@@ -241,7 +231,7 @@ export default function LessonDetailsPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">
-                    ${lesson.hourly_rate.toFixed(2)}/hr x {lesson.duration_minutes / 60} hr
+                    {lesson.hourly_rate.toFixed(2)}/hr x {lesson.duration_minutes / 60} hr
                   </span>
                   <span>${lesson.total_price.toFixed(2)}</span>
                 </div>

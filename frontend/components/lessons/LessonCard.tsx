@@ -14,6 +14,7 @@ interface LessonCardProps {
   onBookAgain?: () => void;
   onChat?: () => void;
   onReviewTip?: () => void;
+  className?: string;
 }
 
 export function LessonCard({
@@ -23,17 +24,17 @@ export function LessonCard({
   onBookAgain,
   onChat,
   onReviewTip,
+  className,
 }: LessonCardProps) {
   const lessonDate = new Date(`${lesson.booking_date}T${lesson.start_time}`);
   const formattedDate = format(lessonDate, 'EEE MMM d');
   const formattedTime = format(lessonDate, 'h:mmaaa');
-  const timeZone = format(lessonDate, 'zzz');
 
   const displayStatus = formatLessonStatus(lesson.status, lesson.cancelled_at);
 
   return (
     <Card
-      className="p-4 sm:p-6 hover:shadow-lg transition-shadow cursor-pointer"
+      className={`p-4 sm:p-6 hover:shadow-lg transition-shadow cursor-pointer ${className || ''}`}
       onClick={onViewDetails}
     >
       <div className="space-y-4">
@@ -65,9 +66,7 @@ export function LessonCard({
           </div>
           <div className="flex items-center gap-2 text-muted-foreground">
             <Clock className="h-4 w-4" />
-            <span>
-              {formattedTime} {timeZone}
-            </span>
+            <span>{formattedTime}</span>
           </div>
           <div className="flex items-center gap-2 text-muted-foreground">
             <DollarSign className="h-4 w-4" />
@@ -75,7 +74,7 @@ export function LessonCard({
               {lesson.status === 'CANCELLED' && lesson.cancelled_at ? (
                 <>{getCancellationFeeDisplay(lesson)}</>
               ) : (
-                `$${lesson.total_price.toFixed(2)}`
+                `${lesson.total_price.toFixed(2)}`
               )}
             </span>
           </div>

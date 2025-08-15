@@ -11,22 +11,36 @@ export function useInstructorProfile(instructorId: string) {
   return useQuery<InstructorProfile>({
     queryKey: queryKeys.instructors.detail(instructorId),
     queryFn: async () => {
-      // Fetch both instructor profile and service catalog in parallel
-      const [profileResponse, catalogResponse] = await Promise.all([
-        publicApi.getInstructorProfile(instructorId),
-        publicApi.getCatalogServices(),
+      // Fetch both instructor profile and service catalog.
+      // If either returns a rate limit, wait and retry once in this hook to avoid surfacing errors.
+      const runWithRateLimitRetry = async <T>(fn: () => Promise<{ data?: T; error?: string; status: number; retryAfterSeconds?: number }>): Promise<T> => {
+        const res = await fn();
+        if (res.status === 429) {
+          const waitMs = (res as any).retryAfterSeconds ? (res as any).retryAfterSeconds * 1000 : 0;
+          if (waitMs > 0) {
+            await new Promise((r) => setTimeout(r, waitMs));
+            const res2 = await fn();
+            if (res2.status === 429) {
+              throw new Error(res2.error || 'Temporarily busy. Please try again.');
+            }
+            if (res2.error) throw new Error(res2.error);
+            return res2.data as T;
+          }
+        }
+        if (res.error) throw new Error(res.error);
+        return res.data as T;
+      };
+
+      const [instructor, serviceCatalog] = await Promise.all([
+        runWithRateLimitRetry(() => publicApi.getInstructorProfile(instructorId)),
+        runWithRateLimitRetry(() => publicApi.getCatalogServices()),
       ]);
 
-      if (profileResponse.error) {
-        throw new Error(profileResponse.error);
-      }
-
-      const instructor = profileResponse.data;
-      const serviceCatalog = catalogResponse.data || [];
+      const catalogList = serviceCatalog || [];
 
       // Map service names from catalog and fix data structure
       const mappedServices = instructor?.services?.map((service: any) => {
-        const catalogService = serviceCatalog.find((s: any) => s.id === service.service_catalog_id);
+        const catalogService = catalogList.find((s: any) => s.id === service.service_catalog_id);
         return {
           ...service,
           skill: catalogService?.name || service.name || `Service ${service.service_catalog_id}`,

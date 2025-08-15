@@ -12,6 +12,10 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 import { favoritesApi } from '@/services/api/favorites';
 import { toast } from 'sonner';
 
+// Simple in-module cache to avoid N duplicate catalog fetches (one per card)
+let catalogCache: ServiceCatalogItem[] | null = null;
+let catalogPromise: Promise<ServiceCatalogItem[]> | null = null;
+
 interface InstructorCardProps {
   instructor: Instructor;
   nextAvailableSlots?: Array<{
@@ -20,7 +24,7 @@ interface InstructorCardProps {
     displayText: string;
   }>;
   onViewProfile?: () => void;
-  onBookNow?: () => void;
+  onBookNow?: (e?: React.MouseEvent) => void;
   onTimeSlotClick?: () => void;
 }
 
@@ -37,14 +41,27 @@ export default function InstructorCard({
   const [isFavorited, setIsFavorited] = useState(false);
   const [isLoadingFavorite, setIsLoadingFavorite] = useState(false);
 
-  // Fetch service catalog on mount
+  // Fetch service catalog on mount with simple de-duplication
   useEffect(() => {
     const fetchServiceCatalog = async () => {
       try {
-        const response = await publicApi.getCatalogServices();
-        if (response.data) {
-          setServiceCatalog(response.data);
+        if (catalogCache) {
+          setServiceCatalog(catalogCache);
+          return;
         }
+        if (catalogPromise) {
+          const data = await catalogPromise;
+          setServiceCatalog(data);
+          return;
+        }
+        catalogPromise = (async () => {
+          const response = await publicApi.getCatalogServices();
+          const data = response.data || [];
+          catalogCache = data;
+          return data;
+        })();
+        const data = await catalogPromise;
+        setServiceCatalog(data);
       } catch (error) {
         console.error('Failed to fetch service catalog:', error);
       }
@@ -75,13 +92,15 @@ export default function InstructorCard({
   // Helper function to get service name from catalog
   const getServiceName = (serviceId: string): string => {
     const service = serviceCatalog.find((s) => s.id === serviceId);
-    return service?.name || `Service ${serviceId}`;
+    return service?.name || '';
   };
 
   const getInstructorServiceNames = (): string => {
-    if (instructor.services.length === 0) return 'Expert Instructor';
-    const serviceNames = instructor.services.map((s) => getServiceName(s.service_catalog_id));
-    return serviceNames.join(', ') + ' Expert';
+    if (instructor.services.length === 0) return '';
+    const serviceNames = instructor.services
+      .map((s) => getServiceName(s.service_catalog_id))
+      .filter(Boolean);
+    return serviceNames.join(', ');
   };
 
   const handleInstantBook = (date: string, time: string) => {
@@ -234,7 +253,9 @@ export default function InstructorCard({
           <Link
             href={`/book/${instructor.user_id}`}
             className="flex-1 text-center py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 transition-colors"
-            onClick={onBookNow}
+            onClick={(e) => {
+              onBookNow?.(e);
+            }}
           >
             Book Now →
           </Link>

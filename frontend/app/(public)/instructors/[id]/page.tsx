@@ -83,8 +83,42 @@ function InstructorProfileContent() {
   const [weekStart, setWeekStart] = useState<Date | null>(null);
   const [hasRestoredIntent, setHasRestoredIntent] = useState(false);
 
-  const { data: instructor, isLoading, error } = useInstructorProfile(instructorId);
+  const { data: instructor, isLoading, error, refetch, isFetching } = useInstructorProfile(instructorId);
+  const [rateSecs, setRateSecs] = useState<number | null>(null);
   const { setActivity } = useBackgroundConfig();
+  // Detect rate limit errors and auto-retry once with a friendly inline banner
+  useEffect(() => {
+    if (!error) return;
+    const message = (error as any)?.message || '';
+    const isRateLimited = /hamsters|Too Many Requests|rate limit/i.test(message);
+    if (!isRateLimited) return;
+    const m = message.match(/(\d+)s/);
+    const seconds = m ? parseInt(m[1], 10) : 3;
+    setRateSecs(seconds);
+    const interval = setInterval(() => {
+      setRateSecs((prev) => {
+        if (prev === null) return prev;
+        if (prev <= 1) {
+          clearInterval(interval);
+          refetch();
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [error, refetch]);
+
+  const RateLimitBanner = () => (
+    rateSecs !== null ? (
+      <div className="container mx-auto px-4 max-w-6xl">
+        <div className="mb-4 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-900 px-3 py-2 text-sm">
+          Our hamsters are sprinting. Give them {rateSecs}s.
+        </div>
+      </div>
+    ) : null
+  );
+
 
   // Set background activity based on the service the user likely arrived for
   useEffect(() => {
@@ -306,11 +340,16 @@ function InstructorProfileContent() {
   }, [availability, selectedSlot, hasRestoredIntent, instructorId]);
 
 
-  if (isLoading) {
-    return <InstructorProfileSkeleton />;
+  if (isLoading || (rateSecs !== null) || isFetching) {
+    return (
+      <>
+        <RateLimitBanner />
+        <InstructorProfileSkeleton />
+      </>
+    );
   }
 
-  if (error || !instructor) {
+  if ((error && rateSecs === null) || !instructor) {
     return (
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         <div className="text-center py-12">

@@ -11,7 +11,7 @@ const upcomingLesson = {
   service: 'Mathematics',
   date: 'Wed Dec 25',
   time: '2:00pm',
-  price: '$60.00',
+  price: '60.00',
 };
 
 const completedLesson = {
@@ -738,7 +738,7 @@ test.describe('Lesson Details Page', () => {
     await expect(page.locator('text=December 25, 2024')).toBeVisible();
     // The page shows time with timezone, not time range
     await expect(page.locator('text=2:00 PM')).toBeVisible();
-    await expect(page.locator('text=$60.00')).toBeVisible();
+    await expect(page.locator('text=60.00')).toBeVisible();
 
     // Verify instructor info
     await expect(page.locator('text=' + upcomingLesson.instructor)).toBeVisible();

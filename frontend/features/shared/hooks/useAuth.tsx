@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
+import { API_ENDPOINTS, fetchWithAuth, getErrorMessage } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import {
   transferGuestSearchesToAccount,
@@ -61,11 +61,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       logger.info('Checking authentication status');
-      const response = await fetchWithAuth(API_ENDPOINTS.ME);
+      let response = await fetchWithAuth(API_ENDPOINTS.ME);
+
+      if (response.status === 429) {
+        // Respect Retry-After and retry once silently
+        const retryAfter = parseInt(response.headers.get('Retry-After') || '0', 10);
+        if (Number.isFinite(retryAfter) && retryAfter > 0) {
+          await new Promise((r) => setTimeout(r, retryAfter * 1000));
+          response = await fetchWithAuth(API_ENDPOINTS.ME);
+        }
+      }
 
       if (response.ok) {
         const userData = await response.json();
-
         logger.info('User authenticated', {
           userId: userData.id,
           roles: userData.roles,
@@ -77,11 +85,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem('access_token');
         setUser(null);
       } else {
+        const msg = await getErrorMessage(response);
         logger.error('Failed to fetch user data', undefined, {
           status: response.status,
           statusText: response.statusText,
         });
-        setError('Failed to verify authentication');
+        setError(msg);
       }
     } catch (err) {
       logger.error('Authentication check error', err);

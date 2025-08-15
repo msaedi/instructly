@@ -7,6 +7,7 @@ This is a pure ASGI implementation that avoids the BaseHTTPMiddleware
 
 import json
 import logging
+import re
 import time
 from typing import Optional
 
@@ -14,7 +15,7 @@ from starlette.datastructures import MutableHeaders
 from starlette.responses import JSONResponse
 
 from ..core.config import settings
-from ..core.constants import SSE_PATH_PREFIX
+from ..core.constants import ALLOWED_ORIGINS, CORS_ORIGIN_REGEX, SSE_PATH_PREFIX
 from .rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
@@ -41,12 +42,23 @@ class RateLimitMiddlewareASGI:
             await self.app(scope, receive, send)
             return
 
+        # Honor global rate limit toggle (disable entirely when false)
+        if not getattr(settings, "rate_limit_enabled", True):
+            await self.app(scope, receive, send)
+            return
+
         # Get the path
         path = scope.get("path", "")
+        method = scope.get("method", "GET")
 
         # Skip rate limiting for health checks, metrics, and SSE endpoints
         # SSE connections are long-lived and should never be rate-limited
         if path in ["/health", "/metrics/health", "/metrics/performance"] or path.startswith(SSE_PATH_PREFIX):
+            await self.app(scope, receive, send)
+            return
+
+        # Always allow CORS preflight requests
+        if method == "OPTIONS":
             await self.app(scope, receive, send)
             return
 
@@ -60,6 +72,33 @@ class RateLimitMiddlewareASGI:
         )
 
         if not allowed:
+            # Try to reflect CORS headers for blocked responses
+            origin_header = None
+            try:
+                for k, v in scope.get("headers", []) or []:
+                    if k.decode().lower() == "origin":
+                        origin_header = v.decode()
+                        break
+            except Exception:
+                origin_header = None
+
+            cors_headers = {}
+            try:
+                if origin_header:
+                    origin_allowed = origin_header in ALLOWED_ORIGINS or (
+                        CORS_ORIGIN_REGEX and re.match(CORS_ORIGIN_REGEX, origin_header)
+                    )
+                    if origin_allowed:
+                        cors_headers = {
+                            "Access-Control-Allow-Origin": origin_header,
+                            "Access-Control-Allow-Credentials": "true",
+                            "Access-Control-Allow-Headers": "*",
+                            "Access-Control-Allow-Methods": "*",
+                        }
+            except Exception:
+                # Best-effort; if anything fails, send without extra CORS headers
+                cors_headers = {}
+
             # Send rate limit response directly
             response = JSONResponse(
                 status_code=429,
@@ -73,6 +112,7 @@ class RateLimitMiddlewareASGI:
                     "X-RateLimit-Limit": str(self.general_limit),
                     "X-RateLimit-Remaining": "0",
                     "X-RateLimit-Reset": str(int(time.time()) + retry_after),
+                    **cors_headers,
                 },
             )
 

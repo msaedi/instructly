@@ -61,6 +61,20 @@ export function useInstructorAvailability(instructorId: string, startDate?: stri
         end_date: endDate,
       });
 
+      // Handle rate limit: wait Retry-After and retry once
+      if (response.status === 429 && (response as any).retryAfterSeconds) {
+        await new Promise((r) => setTimeout(r, (response as any).retryAfterSeconds * 1000));
+        const retry = await publicApi.getInstructorAvailability(instructorId, {
+          start_date: actualStartDate,
+          end_date: endDate,
+        });
+        if (retry.error) {
+          logger.error('Availability retry failed', { error: retry.error });
+          throw new Error(retry.error);
+        }
+        return retry.data!;
+      }
+
       logger.debug('Availability response received', {
         hasData: !!response.data,
         hasError: !!response.error,

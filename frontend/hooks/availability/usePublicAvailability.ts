@@ -29,7 +29,7 @@ interface PublicAvailability {
   earliest_available_date: string | null;
 }
 
-export function usePublicAvailability(instructorId: number, startDate?: Date) {
+export function usePublicAvailability(instructorId: string, startDate?: Date) {
   const [availability, setAvailability] = useState<PublicAvailability | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

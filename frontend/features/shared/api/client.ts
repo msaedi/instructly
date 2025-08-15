@@ -140,17 +140,39 @@ async function cleanFetch<T>(
       },
     });
 
-    const data = await response.json();
+    const retryAfterHeader = response.headers.get('Retry-After');
+    const retryAfterSeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : undefined;
+
+    let data: any = null;
+    try {
+      data = await response.json();
+    } catch (_) {
+      data = null;
+    }
 
     if (!response.ok) {
+      // Normalize rate limit errors for callers
+      if (response.status === 429) {
+        const secs = Number.isFinite(retryAfterSeconds) ? retryAfterSeconds! : undefined;
+        return {
+          // Friendly user-facing copy
+          error: secs ? `Our hamsters are sprinting. Give them ${secs}s.` : 'Our hamsters are sprinting. Please try again shortly.',
+          status: 429,
+          // @ts-ignore — allow extra fields on ApiResponse
+          code: 'RATE_LIMIT',
+          // @ts-ignore
+          retryAfterSeconds: secs,
+        } as any;
+      }
+
       return {
-        error: data.detail || `Error: ${response.status}`,
+        error: data?.detail || `Error: ${response.status}`,
         status: response.status,
       };
     }
 
     return {
-      data,
+      data: data as T,
       status: response.status,
     };
   } catch (error) {
@@ -169,51 +191,19 @@ async function optionalAuthFetch<T>(
   endpoint: string,
   options: FetchOptions = {}
 ): Promise<ApiResponse<T>> {
-  const { params, ...fetchOptions } = options;
-
-  // Build URL with query params
-  const url = new URL(`${API_BASE_URL}${endpoint}`);
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        url.searchParams.append(key, String(value));
-      }
-    });
-  }
-
-  // Get token if available
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  const mergedHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...getAnalyticsHeaders(),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...((options.headers as Record<string, string>) || {}),
+  };
 
-  try {
-    const response = await fetch(url.toString(), {
-      ...fetchOptions,
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAnalyticsHeaders(),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...((fetchOptions.headers as Record<string, string>) || {}),
-      },
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      return {
-        error: data.detail || `Error: ${response.status}`,
-        status: response.status,
-      };
-    }
-
-    return {
-      data,
-      status: response.status,
-    };
-  } catch (error) {
-    return {
-      error: error instanceof Error ? error.message : 'Network error',
-      status: 0,
-    };
-  }
+  // Delegate to cleanFetch to get normalized 429 handling
+  return cleanFetch<T>(endpoint, {
+    ...options,
+    headers: mergedHeaders,
+  });
 }
 
 /**

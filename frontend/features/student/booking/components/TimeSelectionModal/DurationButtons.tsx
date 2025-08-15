@@ -9,12 +9,14 @@ interface DurationButtonsProps {
   }>;
   selectedDuration: number;
   onDurationSelect: (duration: number) => void;
+  disabledDurations?: number[];
 }
 
 export default function DurationButtons({
   durationOptions,
   selectedDuration,
   onDurationSelect,
+  disabledDurations = [],
 }: DurationButtonsProps) {
   logger.debug('DurationButtons rendered', {
     durationOptions,
@@ -35,11 +37,13 @@ export default function DurationButtons({
       <div className="flex flex-wrap gap-3">
         {durationOptions.map((option) => {
           const isSelected = selectedDuration === option.duration;
+          const isDisabled = disabledDurations.includes(option.duration);
 
           return (
             <button
               key={option.duration}
-              onClick={() => onDurationSelect(option.duration)}
+              onClick={() => !isDisabled && onDurationSelect(option.duration)}
+              disabled={isDisabled}
               className={`
                 h-10 px-5 rounded transition-colors
                 ${
@@ -53,7 +57,8 @@ export default function DurationButtons({
                 borderRadius: '4px',
                 fontSize: '14px',
                 backgroundColor: isSelected ? '#6B46C1' : undefined,
-                color: isSelected ? '#FFFFFF' : '#333333',
+                color: isDisabled ? '#999999' : isSelected ? '#FFFFFF' : '#333333',
+                opacity: isDisabled ? 0.6 : 1,
               }}
             >
               {option.duration}m/${option.price}

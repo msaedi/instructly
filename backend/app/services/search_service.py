@@ -341,6 +341,35 @@ class SearchService(BaseService):
         # Find instructors for matched services
         results = self._find_instructors_for_services(services=services, parsed=parsed, limit=limit)
 
+        # Category fallback: if category query yielded no instructors, broaden within the category
+        if parsed.get("is_category_query") and not results:
+            try:
+                category_name = parsed.get("category")
+                if category_name:
+                    all_active = self.catalog_repository.get_active_services_with_categories()
+                    fallback_services = []
+                    for svc in all_active:
+                        try:
+                            if (
+                                svc.category
+                                and svc.category.name.lower() == category_name.lower()
+                                and any(s.is_active for s in svc.instructor_services)
+                            ):
+                                svc_dict = svc.to_dict()
+                                svc_dict["relevance_score"] = 0.51
+                                analytics = self.analytics_repository.get_or_create(svc.id)
+                                svc_dict["demand_score"] = analytics.demand_score
+                                svc_dict["is_trending"] = analytics.is_trending
+                                fallback_services.append(svc_dict)
+                        except Exception:
+                            continue
+                    if fallback_services:
+                        results = self._find_instructors_for_services(
+                            services=fallback_services[: limit or 10], parsed=parsed, limit=limit
+                        )
+            except Exception:
+                pass
+
         # Check availability if requested
         if include_availability and parsed.get("time"):
             results = self._filter_by_availability(results, parsed["time"])
@@ -403,6 +432,20 @@ class SearchService(BaseService):
                 )
                 if similar_services:
                     break
+
+            # If a specific category was detected, restrict to that category
+            category_name = parsed.get("category")
+            if category_name and similar_services:
+                filtered = []
+                for svc, score in similar_services:
+                    try:
+                        if svc.category and svc.category.name.lower() == category_name.lower():
+                            filtered.append((svc, score))
+                    except Exception:
+                        # If relationship not loaded, keep original entry
+                        pass
+                if filtered:
+                    similar_services = filtered
         else:
             # For specific service queries, first try exact match
             exact_candidates = []  # (service, score)
@@ -502,6 +545,34 @@ class SearchService(BaseService):
 
             # Keep up to 3 to allow one closely related neighbor (e.g., Keyboard) to appear
             services = pruned[:3]
+
+        # Fallback for category queries: if nothing survived, pick active services from that category
+        if parsed.get("is_category_query") and not services:
+            try:
+                category_name = parsed.get("category")
+                if category_name:
+                    # Get all active services with categories eagerly loaded, then filter
+                    all_active = self.catalog_repository.get_active_services_with_categories()
+                    fallback = []
+                    for svc in all_active:
+                        try:
+                            if (
+                                svc.category
+                                and svc.category.name.lower() == category_name.lower()
+                                and any(s.is_active for s in svc.instructor_services)
+                            ):
+                                svc_dict = svc.to_dict()
+                                svc_dict["relevance_score"] = 0.51  # modest default
+                                # Add analytics if available
+                                analytics = self.analytics_repository.get_or_create(svc.id)
+                                svc_dict["demand_score"] = analytics.demand_score
+                                svc_dict["is_trending"] = analytics.is_trending
+                                fallback.append(svc_dict)
+                        except Exception:
+                            continue
+                    services = fallback[: limit or 10]
+            except Exception:
+                pass
 
         return services
 

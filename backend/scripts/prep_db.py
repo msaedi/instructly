@@ -151,6 +151,109 @@ def run_command(cmd, description, cwd=None):
         return False
 
 
+def _trigger_render_one_off_job(command: str) -> bool:
+    """Trigger a Render one-off job on the backend service to run a command.
+
+    Requires env var RENDER_API_KEY and either RENDER_BACKEND_SERVICE_ID or a
+    service name via RENDER_BACKEND_SERVICE_NAME (defaults to 'instainstru-backend').
+    """
+    import requests
+
+    api_key = os.getenv("RENDER_API_KEY")
+    if not api_key:
+        # Try loading backend/.env.render
+        env_render_path = Path(backend_dir) / ".env.render"
+        if env_render_path.exists():
+            try:
+                for line in env_render_path.read_text().splitlines():
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    k, v = line.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip())
+                api_key = os.getenv("RENDER_API_KEY")
+            except Exception:
+                pass
+    if not api_key:
+        print("  ⚠ RENDER_API_KEY not set; cannot trigger Render job")
+        return False
+
+    service_id = os.getenv("RENDER_BACKEND_SERVICE_ID")
+    # Primary preferred name via env; otherwise we'll try common candidates
+    service_name = os.getenv("RENDER_BACKEND_SERVICE_NAME")
+
+    try:
+        if not service_id:
+            # Lookup service ID by name
+            resp = requests.get(
+                "https://api.render.com/v1/services?limit=100",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=15,
+            )
+            resp.raise_for_status()
+            services = resp.json()
+            # Accept either a configured name or common candidates
+            candidate_names = [
+                name
+                for name in [
+                    service_name,
+                    "instainstru-backend",
+                    "instructly",
+                    "instructly-backend",
+                    "instainstru-celery",
+                ]
+                if name
+            ]
+            for svc in services:
+                # Render returns a flat object list; handle potential nested structure defensively
+                candidate_name = (
+                    (svc.get("service") or {}).get("name")
+                    if isinstance(svc, dict) and "service" in svc
+                    else svc.get("name")
+                )
+                candidate_id = (
+                    (svc.get("service") or {}).get("id")
+                    if isinstance(svc, dict) and "service" in svc
+                    else svc.get("id")
+                )
+                if candidate_name in candidate_names and candidate_id:
+                    service_id = candidate_id
+                    break
+
+        if not service_id:
+            looked_for = service_name or "(common candidates)"
+            print(f"  ⚠ Could not find Render service ID for '{looked_for}'")
+            return False
+
+        # Start the one-off job
+        job_resp = requests.post(
+            f"https://api.render.com/v1/services/{service_id}/jobs",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={"startCommand": command},
+            timeout=15,
+        )
+        if job_resp.status_code not in (200, 201):
+            print(f"  ⚠ Failed to start Render job [{job_resp.status_code}]")
+            try:
+                print(f"    Response: {job_resp.text[:300]}")
+            except Exception:
+                pass
+            return False
+
+        job_id = job_resp.json().get("id") or job_resp.json().get("job", {}).get("id")
+        if job_id:
+            print(f"  ✓ Started Render job {job_id} to clear cache")
+        else:
+            print("  ✓ Started Render cache clear job")
+        return True
+    except Exception as e:
+        print(f"  ⚠ Exception starting Render job: {e}")
+        return False
+
+
 def clear_cache(db_type):
     """Clear cache after database operations."""
     if db_type == "int":
@@ -161,68 +264,22 @@ def clear_cache(db_type):
 
     try:
         if db_type == "prod":
-            # For production, use the API endpoint to clear cache remotely
-            import requests
-
-            print("  Clearing production cache via API...")
-
-            # Try to clear the specific catalog cache
-            cache_endpoints = [
-                "https://api.instainstru.com/admin/cache/clear/catalog",
-                "https://api.instainstru.com/admin/cache/clear/all",
-            ]
-
-            cleared = False
-            for endpoint in cache_endpoints:
-                try:
-                    response = requests.post(endpoint, timeout=10)
-                    if response.status_code == 200:
-                        print(f"  ✓ Cleared cache via {endpoint}")
-                        cleared = True
-                        break
-                except:
-                    continue
-
-            if not cleared:
-                print(f"  ⚠ Could not clear remote cache - continuing anyway")
-                print(f"  💡 You may need to manually clear cache or wait for TTL expiry")
-
+            # Trigger a one-off job on Render to clear cache in production
+            command = f"{sys.executable} backend/scripts/clear_cache.py --scope all"
+            ok = _trigger_render_one_off_job(command)
+            if not ok:
+                print("  ⚠ Could not trigger Render job; cache may remain warm until TTL")
+        elif db_type == "stg":
+            # For staging, run against local Docker Redis directly
+            print("  Clearing cache locally via script...")
+            result = subprocess.call([sys.executable, "scripts/clear_cache.py", "--scope", "all"], cwd=backend_dir)
+            if result != 0:
+                print(f"  ⚠ Cache clear script exited with code {result}")
         else:
-            # For local databases (int/stg), clear cache directly
-            print("  Clearing local cache...")
+            # INT: no Redis per env description; skip
+            print("  Skipping cache clear (INT has no Redis)")
 
-            # Import after setting environment variables
-            sys.path.insert(0, ".")
-            from app.database import get_db
-            from app.services.cache_service import CacheService
-
-            # Get database session
-            db = next(get_db())
-
-            # Initialize cache service
-            cache_service = CacheService(db)
-
-            # Clear catalog-related cache patterns
-            cache_patterns = ["catalog:*", "instructor:*", "search:*", "analytics:*"]
-
-            total_cleared = 0
-            for pattern in cache_patterns:
-                try:
-                    count = cache_service.delete_pattern(pattern)
-                    total_cleared += count
-                    if count > 0:
-                        print(f"  ✓ Cleared {count} keys matching '{pattern}'")
-                except Exception as e:
-                    print(f"  ⚠ Could not clear pattern '{pattern}': {e}")
-
-            db.close()
-
-            if total_cleared > 0:
-                print(f"  ✓ Total cache keys cleared: {total_cleared}")
-            else:
-                print(f"  ✓ Cache was already empty")
-
-        print(f"{GREEN}✓{NC} Cache clearing completed")
+        print(f"{GREEN}✓{NC} Cache clearing initiated/completed")
         return True
 
     except Exception as e:

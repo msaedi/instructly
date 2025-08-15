@@ -73,12 +73,20 @@ export function InstructorInfo({
       {/* Action Buttons */}
       <div className="flex items-center gap-2 w-full sm:w-auto">
         {showReviewButton && onReview && (
-          <Button onClick={onReview} variant="outline" size="sm" className="flex-1 sm:flex-initial">
+          <Button
+            onClick={onReview}
+            size="sm"
+            className="flex-1 sm:flex-initial bg-[#6741D9] hover:bg-[#5B4BC3] text-white border-transparent"
+          >
             Review & tip
           </Button>
         )}
         {onChat && (
-          <Button onClick={onChat} variant="outline" size="sm" className="flex-1 sm:flex-initial">
+          <Button
+            onClick={onChat}
+            size="sm"
+            className="flex-1 sm:flex-initial bg-[#6741D9] hover:bg-[#5B4BC3] text-white border-transparent"
+          >
             <MessageCircle className="h-4 w-4 mr-1" />
             Chat
           </Button>

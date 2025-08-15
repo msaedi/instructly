@@ -13,6 +13,7 @@ import { recordSearch, trackSearchInteraction } from '@/lib/searchTracking';
 import { SearchType } from '@/types/enums';
 import { Instructor } from '@/types/api';
 import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
+import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 
 interface SearchMetadata {
   filters_applied: Record<string, any>;
@@ -48,6 +49,17 @@ function SearchPageContent() {
   const [fromPage, setFromPage] = useState<string | null>(null);
   const [searchEventId, setSearchEventId] = useState<number | null>(null);
   const [searchTimestamp, setSearchTimestamp] = useState<number | null>(null);
+  const [rateLimit, setRateLimit] = useState<{ seconds: number } | null>(null);
+  const [showTimeSelection, setShowTimeSelection] = useState(false);
+  const [timeSelectionContext, setTimeSelectionContext] = useState<any>(null);
+
+  // Inline banner for rate limit
+  const RateLimitBanner = () =>
+    rateLimit ? (
+      <div className="mb-4 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-900 px-3 py-2 text-sm">
+        Our hamsters are sprinting. Give them {rateLimit.seconds}s.
+      </div>
+    ) : null;
 
   // Parse search parameters from URL
   const query = searchParams.get('q') || '';
@@ -277,6 +289,15 @@ function SearchPageContent() {
 
           response = await publicApi.searchInstructors(apiParams);
 
+          // Handle rate limit: auto-retry once and show inline banner
+          if (!response.data && response.status === 429 && (response as any).retryAfterSeconds) {
+            const secs = (response as any).retryAfterSeconds as number;
+            setRateLimit({ seconds: secs });
+            await new Promise((r) => setTimeout(r, secs * 1000));
+            response = await publicApi.searchInstructors(apiParams);
+            setRateLimit(null);
+          }
+
           logger.info('API Response received', {
             hasError: !!response.error,
             hasData: !!response.data,
@@ -451,60 +472,101 @@ function SearchPageContent() {
     fromPage,
   ]);
 
-  // Generate realistic next available times (deterministic for SSR)
+  // Fetch real next available slots per instructor using the public API
+  const [nextAvailableByInstructor, setNextAvailableByInstructor] = useState<Record<string, Array<{date: string; time: string; displayText: string}>>>({});
+
   const getNextAvailableSlots = (instructorId: string) => {
-    // Some instructors may not have availability (e.g., specific ULIDs)
-    // Simulate this by having certain instructor IDs return no availability
-    const instructorsWithNoAvailability: string[] = []; // Can add specific ULIDs if needed
-    if (instructorsWithNoAvailability.includes(instructorId)) {
-      return [];
-    }
-
-    // Use a fixed base date for SSR consistency (always start from tomorrow)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize to start of day for consistency
-
-    const slots = [];
-
-    // Always start from tomorrow (24+ hours advance) to comply with booking rules
-    for (let i = 0; i < 3; i++) {
-      const slotDate = new Date(today);
-      slotDate.setDate(today.getDate() + i + 1); // Start from tomorrow
-
-      // Vary times based on instructor ID to make them unique but deterministic
-      // Convert ULID string to a number for calculation (use first few chars as seed)
-      const baseHours = [9, 11, 14, 16, 18]; // 9 AM, 11 AM, 2 PM, 4 PM, 6 PM
-      const idSeed = instructorId.charCodeAt(0) + instructorId.charCodeAt(1);
-      const hourIndex = (idSeed + i) % baseHours.length;
-      const hour = baseHours[hourIndex];
-
-      slotDate.setHours(hour, 0, 0, 0);
-
-      const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
-      const ampm = hour >= 12 ? 'PM' : 'AM';
-
-      let displayText;
-      if (i === 0) {
-        displayText = `Tomorrow ${displayHour}:00 ${ampm}`;
-      } else if (i === 1) {
-        // Day after tomorrow
-        const dayName = slotDate.toLocaleDateString('en-US', { weekday: 'short' });
-        displayText = `${dayName} ${displayHour}:00 ${ampm}`;
-      } else {
-        // Future days
-        const dayName = slotDate.toLocaleDateString('en-US', { weekday: 'short' });
-        displayText = `${dayName} ${displayHour}:00 ${ampm}`;
-      }
-
-      slots.push({
-        date: slotDate.toISOString().split('T')[0],
-        time: `${hour.toString().padStart(2, '0')}:00:00`,
-        displayText,
-      });
-    }
-
-    return slots;
+    return nextAvailableByInstructor[instructorId] || [];
   };
+
+  useEffect(() => {
+    const fetchAvailabilities = async () => {
+      try {
+        const updates: Record<string, Array<{date: string; time: string; displayText: string}>> = {};
+        const today = new Date();
+        const startDate = new Date(today);
+        startDate.setDate(today.getDate() + 1); // start from tomorrow
+        const endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 14); // look ahead 2 weeks
+        const formatDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+        await Promise.all(
+          instructors.map(async (i) => {
+            try {
+              const { data, status } = await publicApi.getInstructorAvailability(i.user_id, {
+                start_date: formatDate(startDate),
+                end_date: formatDate(endDate),
+              });
+              if (!data || status !== 200) {
+                updates[i.user_id] = [];
+                return;
+              }
+              const slots: Array<{date: string; time: string; displayText: string}> = [];
+              const byDate = data.availability_by_date || {};
+              const dates = Object.keys(byDate).sort(); // YYYY-MM-DD sorts chronologically
+
+              // Strategy: fill from the earliest date first. If fewer than 3, continue to subsequent dates
+              for (const d of dates) {
+                const day = byDate[d];
+                if (day?.is_blackout || !day?.available_slots?.length) continue;
+
+                // Sort within-day slots by start_time ascending
+                const sortedSlots = [...day.available_slots].sort((a: any, b: any) => {
+                  const at = a.start_time.padEnd(8, ':00');
+                  const bt = b.start_time.padEnd(8, ':00');
+                  return at.localeCompare(bt);
+                });
+
+                // Expand windows into discrete bookable start times (assume 60-minute default session)
+                const stepMinutes = 60;
+                const toMinutes = (hhmm: string) => {
+                  const [hh, mm] = hhmm.split(':').map((x: string) => parseInt(x, 10));
+                  return hh * 60 + (isNaN(mm) ? 0 : mm);
+                };
+                const toDisplay = (dateStr: string, totalMinutes: number) => {
+                  const hours = Math.floor(totalMinutes / 60);
+                  const dt = new Date(`${dateStr}T${String(hours).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}:00`);
+                  const dayName = dt.toLocaleDateString('en-US', { weekday: 'short' });
+                  const hr12 = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+                  const ampm = hours >= 12 ? 'PM' : 'AM';
+                  return `${dayName} ${hr12}:${String(totalMinutes % 60).padStart(2, '0')} ${ampm}`;
+                };
+
+                for (const s of sortedSlots) {
+                  const startMin = toMinutes(s.start_time);
+                  const endMin = toMinutes(s.end_time);
+                  for (let t = startMin; t + stepMinutes <= endMin; t += stepMinutes) {
+                    slots.push({
+                      date: d,
+                      time: `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`,
+                      displayText: toDisplay(d, t),
+                    });
+                    if (slots.length >= 3) break;
+                  }
+                  if (slots.length >= 3) break;
+                }
+
+                if (slots.length >= 3) break;
+              }
+              updates[i.user_id] = slots;
+            } catch (e) {
+              updates[i.user_id] = [];
+            }
+          })
+        );
+
+        if (Object.keys(updates).length) {
+          setNextAvailableByInstructor((prev) => ({ ...prev, ...updates }));
+        }
+      } catch (e) {
+        // ignore batch errors
+      }
+    };
+
+    if (instructors && instructors.length) {
+      fetchAvailabilities();
+    }
+  }, [instructors]);
 
   // Format subject for display
   const formatSubject = (subject: string) => {
@@ -550,6 +612,8 @@ function SearchPageContent() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Rate limit banner */}
+        <RateLimitBanner />
         {/* Show applied filters if metadata available */}
         {metadata &&
           metadata.filters_applied &&
@@ -652,7 +716,19 @@ function SearchPageContent() {
                       instructor={enhancedInstructor}
                       nextAvailableSlots={getNextAvailableSlots(instructor.user_id)}
                       onViewProfile={() => handleInteraction('view_profile')}
-                      onBookNow={() => handleInteraction('book')}
+                      onBookNow={(e) => {
+                        e?.preventDefault?.();
+                        e?.stopPropagation?.();
+                        handleInteraction('book');
+                        // Open time selection modal
+                        setShowTimeSelection(true);
+                        setTimeSelectionContext({
+                          instructor: enhancedInstructor,
+                          preSelectedDate: null,
+                          preSelectedTime: null,
+                          serviceId: enhancedInstructor.services?.[0]?.id,
+                        });
+                      }}
                       onTimeSlotClick={() => handleInteraction('click')}
                     />
                   </div>
@@ -687,6 +763,22 @@ function SearchPageContent() {
           </>
         )}
       </main>
+
+      {/* Time Selection Modal */}
+      {showTimeSelection && timeSelectionContext && (
+        <TimeSelectionModal
+          isOpen={showTimeSelection}
+          onClose={() => setShowTimeSelection(false)}
+          instructor={{
+            user_id: timeSelectionContext.instructor.user_id,
+            user: timeSelectionContext.instructor.user,
+            services: timeSelectionContext.instructor.services || [],
+          }}
+          preSelectedDate={timeSelectionContext.preSelectedDate}
+          preSelectedTime={timeSelectionContext.preSelectedTime}
+          serviceId={timeSelectionContext.serviceId}
+        />
+      )}
     </div>
   );
 }
