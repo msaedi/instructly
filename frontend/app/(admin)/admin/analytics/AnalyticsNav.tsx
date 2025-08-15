@@ -15,6 +15,12 @@ export function AnalyticsNav() {
       active: pathname === '/admin/analytics/search',
     },
     {
+      name: 'Candidates Analytics',
+      href: '/admin/analytics/candidates',
+      icon: Search,
+      active: pathname === '/admin/analytics/candidates',
+    },
+    {
       name: 'Redis Monitoring',
       href: '/admin/analytics/redis',
       icon: Server,

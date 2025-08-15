@@ -18,6 +18,8 @@ export interface SearchRecord {
   search_type: SearchType;
   results_count?: number | null;
   timestamp?: string;
+  // Optional: top-N candidates from search response for observability persistence
+  observability_candidates?: Array<Record<string, any>>;
 }
 
 /**
@@ -154,16 +156,22 @@ export async function recordSearch(
     logger.debug('Search tracking - device context', { deviceContext });
     logger.debug('Search tracking - device info', { deviceInfo });
 
+    // Build payload with optional observability candidates if provided
+    const body: any = {
+      search_query: searchRecord.query,
+      search_type: searchRecord.search_type,
+      results_count: searchRecord.results_count,
+      search_context: analyticsContext,
+      device_context: deviceInfo,
+    };
+    if (searchRecord.observability_candidates && searchRecord.observability_candidates.length > 0) {
+      body.observability_candidates = searchRecord.observability_candidates;
+    }
+
     const response = await fetch(`${API_BASE_URL}/api/search-history/`, {
       method: 'POST',
       headers: getHeaders(isAuthenticated),
-      body: JSON.stringify({
-        search_query: searchRecord.query,
-        search_type: searchRecord.search_type,
-        results_count: searchRecord.results_count,
-        search_context: analyticsContext,
-        device_context: deviceInfo,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {

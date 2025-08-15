@@ -6,7 +6,7 @@ Defines request/response models for search history endpoints.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
@@ -48,6 +48,13 @@ class SearchHistoryCreate(SearchHistoryBase):
     )
     device_context: Optional[Dict[str, Any]] = Field(
         None, description="Device context from frontend including screen size, connection type, etc."
+    )
+    observability_candidates: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        description=(
+            "Optional top-N candidate objects for observability. "
+            "Each item may include: position, service_catalog_id (or id), score, vector_score, lexical_score, source."
+        ),
     )
 
 

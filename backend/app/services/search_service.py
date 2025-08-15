@@ -326,15 +326,18 @@ class SearchService(BaseService):
         parsed = self.parser.parse(query)
         logger.info(f"Parsed query: {parsed}")
 
-        # Generate embedding for cleaned query
+        # Generate embedding for cleaned query (robust to list/ndarray return types)
         if parsed["cleaned_query"]:
-            query_embedding = self.model.encode([parsed["cleaned_query"]])[0].tolist()
+            emb0 = self.model.encode([parsed["cleaned_query"]])[0]
         else:
             # If no service query remains, use full query
-            query_embedding = self.model.encode([query])[0].tolist()
+            emb0 = self.model.encode([query])[0]
+
+        # Support both numpy arrays (with tolist) and plain Python lists/tuples
+        query_embedding = emb0.tolist() if hasattr(emb0, "tolist") else list(emb0)
 
         # Search for services using semantic similarity
-        services = self._search_services(
+        services, observability_candidates = self._search_services(
             query_embedding=query_embedding, parsed=parsed, limit=limit * 2  # Get more to filter later
         )
 
@@ -390,6 +393,9 @@ class SearchService(BaseService):
                     "used_semantic_search": bool(parsed.get("cleaned_query")),
                     "applied_filters": self._get_applied_filters(parsed),
                     "timestamp": datetime.now(timezone.utc).isoformat(),
+                    # Always include any top-N candidates surfaced by the service layer,
+                    # even if the final results are empty (zero-result analytics).
+                    "observability_candidates": observability_candidates,
                 },
             }
 
@@ -405,11 +411,12 @@ class SearchService(BaseService):
                 "used_semantic_search": bool(parsed["cleaned_query"]),
                 "applied_filters": self._get_applied_filters(parsed),
                 "timestamp": datetime.now(timezone.utc).isoformat(),
+                "observability_candidates": observability_candidates,
             },
         }
 
-    def _search_services(self, query_embedding: List[float], parsed: Dict, limit: int) -> List[Dict]:
-        """Search for services using embeddings and filters."""
+    def _search_services(self, query_embedding: List[float], parsed: Dict, limit: int) -> tuple[List[Dict], List[Dict]]:
+        """Search for services using embeddings and filters, and prepare top-N candidates for observability."""
         # Determine filters
         online_capable = None
         if parsed["location"].get("online"):
@@ -421,6 +428,7 @@ class SearchService(BaseService):
         similar_services = []
 
         # Determine search strategy based on query type
+        raw_candidates: List[tuple] = []  # List of (ServiceCatalog, score, source)
         if parsed.get("is_category_query"):
             # For category queries, use lower threshold for broader results
             # Start at 0.5 and relax to 0.4 for better category breadth like 'dance'
@@ -447,39 +455,36 @@ class SearchService(BaseService):
                 if filtered:
                     similar_services = filtered
         else:
-            # For specific service queries, first try exact match
+            # For specific service queries, first try exact match; if none, fall back to semantic search
             exact_candidates = []  # (service, score)
+            performed_vector_search = False
             if parsed["cleaned_query"]:
-                # Search for exact service name match
-                exact_services = self.catalog_repository.search_services(
-                    query_text=parsed["cleaned_query"], limit=10  # Explore a few more close text matches
-                )
-                # Collect multiple close matches when the query is generic (e.g., 'dance')
+                # Search for exact/close text matches
+                exact_services = self.catalog_repository.search_services(query_text=parsed["cleaned_query"], limit=10)
                 query_lower = parsed["cleaned_query"].lower()
                 q_tokens = [t for t in query_lower.split() if t]
                 for service in exact_services:
-                    service_name_lower = service.name.lower()
+                    service_name_lower = (service.name or "").lower()
                     score = 0.0
                     if service_name_lower == query_lower:
                         score = 1.0
                     elif query_lower in service_name_lower:
-                        # Penalize by length ratio so shorter queries don't always rank all
                         ratio = len(query_lower) / max(1, len(service_name_lower))
                         score = 0.85 + 0.1 * ratio  # 0.85..0.95
                     elif service_name_lower in query_lower:
                         score = 0.8
-                    # Token presence bump
                     if any(tok in service_name_lower for tok in q_tokens):
                         score = max(score, 0.8)
                     if score >= 0.8:
                         exact_candidates.append((service, score))
 
-                # If we found any close text matches, use them (supports multiple variants like hip hop/jazz dance)
                 if exact_candidates:
                     exact_candidates.sort(key=lambda x: x[1], reverse=True)
+                    raw_candidates = [(svc, score, "exact") for svc, score in exact_candidates[:10]]
                     similar_services = exact_candidates[:5]
-            else:
-                # Otherwise, do semantic search with tiered thresholds for recall fallback
+
+            # If no exact candidates were found, perform semantic search with tiered thresholds
+            if not exact_candidates:
                 thresholds = [0.7, 0.6, 0.5, 0.4]
                 similar_services = []
                 for th in thresholds:
@@ -488,6 +493,9 @@ class SearchService(BaseService):
                     )
                     if similar_services:
                         break
+                performed_vector_search = True
+                if similar_services:
+                    raw_candidates = [(svc, score, "vector") for svc, score in similar_services[:10]]
 
         # Convert to service dicts with scores
         services = []
@@ -574,7 +582,70 @@ class SearchService(BaseService):
             except Exception:
                 pass
 
-        return services
+        # Observability: when no services, log top-N vector candidates to aid tuning
+        if not services:
+            try:
+                top_candidates = self.catalog_repository.find_similar_by_embedding(
+                    embedding=query_embedding,
+                    limit=10,
+                    threshold=0.0,
+                )
+                if top_candidates:
+                    # If we didn't already collect raw candidates above, promote these
+                    # vector neighbors to raw candidates so the API can return
+                    # observability_candidates for zero-result queries.
+                    if not raw_candidates:
+                        raw_candidates = [(svc, score, "vector") for svc, score in top_candidates[:10]]
+                    logger.info(
+                        "NL Search observability: top vector candidates when no results",
+                        extra={
+                            "parsed": parsed,
+                            "candidates": [
+                                {"id": svc.id, "name": svc.name, "score": float(f"{score:.4f}")}
+                                for svc, score in top_candidates
+                            ],
+                        },
+                    )
+                else:
+                    logger.info("NL Search observability: no vector candidates found", extra={"parsed": parsed})
+            except Exception as e:
+                logger.warning(f"Observability logging failed: {e}")
+
+        # Build observability candidates list with hybrid scores
+        def _token_bonus_for(service_name: str, service_desc: str) -> float:
+            bonus = 0.0
+            if parsed.get("cleaned_query"):
+                q = parsed["cleaned_query"].lower()
+                name_l = (service_name or "").lower()
+                desc_l = (service_desc or "").lower()
+                if any(tok in name_l for tok in q.split()):
+                    bonus += 0.05
+                if any(tok in desc_l for tok in q.split()):
+                    bonus += 0.02
+            return bonus
+
+        obs: List[Dict] = []
+        seen = set()
+        for idx, (svc, base_score, source) in enumerate(raw_candidates[:10]):
+            if svc.id in seen:
+                continue
+            seen.add(svc.id)
+            # Compute hybrid score similar to main ranking
+            bonus = _token_bonus_for(getattr(svc, "name", ""), getattr(svc, "description", "") or "")
+            hybrid_score = min((base_score or 0.0) + bonus, 1.0)
+            obs.append(
+                {
+                    "position": idx + 1,
+                    "service_catalog_id": svc.id,
+                    "name": svc.name,
+                    "score": hybrid_score,
+                    "vector_score": base_score if source == "vector" else None,
+                    "lexical_score": base_score if source == "exact" else None,
+                    "source": "hybrid" if source == "vector" else source,
+                }
+            )
+
+        return services, obs
 
     def _find_instructors_for_services(self, services: List[Dict], parsed: Dict, limit: int) -> List[Dict]:
         """Find instructors offering the matched services."""

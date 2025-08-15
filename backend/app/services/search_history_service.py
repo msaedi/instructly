@@ -63,6 +63,7 @@ class SearchHistoryService(BaseService):
         request_ip: Optional[str] = None,
         user_agent: Optional[str] = None,
         device_context: Optional[Dict] = None,
+        observability_candidates: Optional[List[Dict]] = None,
     ) -> SearchHistory:
         """
         Record a search - supports both old and new API.
@@ -72,7 +73,14 @@ class SearchHistoryService(BaseService):
         """
         # If context is provided, use new API
         if context is not None and search_data is not None:
-            return await self._record_search_impl(context, search_data, request_ip, user_agent, device_context)
+            return await self._record_search_impl(
+                context,
+                search_data,
+                request_ip,
+                user_agent,
+                device_context,
+                observability_candidates=observability_candidates,
+            )
 
         # Otherwise use old API parameters
         if user_id:
@@ -84,7 +92,14 @@ class SearchHistoryService(BaseService):
 
         data = {"search_query": query, "search_type": search_type, "results_count": results_count}
 
-        return await self._record_search_impl(ctx, data, request_ip, user_agent, device_context)
+        return await self._record_search_impl(
+            ctx,
+            data,
+            request_ip,
+            user_agent,
+            device_context,
+            observability_candidates=observability_candidates,
+        )
 
     def normalize_search_query(self, query: str) -> str:  # no-metrics
         """Normalize a search query for deduplication."""
@@ -99,6 +114,7 @@ class SearchHistoryService(BaseService):
         request_ip: Optional[str] = None,
         user_agent: Optional[str] = None,
         device_context: Optional[Dict] = None,
+        observability_candidates: Optional[List[Dict]] = None,
     ) -> SearchHistory:
         """
         Internal implementation of search recording using PostgreSQL UPSERT.
@@ -209,6 +225,26 @@ class SearchHistoryService(BaseService):
                 "consent_type": "analytics",  # Default for now
             }
             event = self.event_repository.create_event(event_data)
+
+            # Persist observability top-N candidates if provided
+            try:
+                if observability_candidates:
+                    # Normalize candidate payload keys
+                    normalized = []
+                    for idx, c in enumerate(observability_candidates):
+                        normalized.append(
+                            {
+                                "position": int(c.get("position", idx + 1)),
+                                "service_catalog_id": c.get("service_catalog_id") or c.get("id"),
+                                "score": c.get("score"),
+                                "vector_score": c.get("vector_score"),
+                                "lexical_score": c.get("lexical_score"),
+                                "source": c.get("source", "hybrid"),
+                            }
+                        )
+                    self.event_repository.bulk_insert_candidates(event.id, normalized)
+            except Exception as e:
+                logger.warning(f"Failed to persist observability candidates for event {event.id}: {e}")
 
             # Use service transaction pattern instead of direct DB operations
             with self.transaction():

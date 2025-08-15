@@ -7,7 +7,7 @@ maintaining a complete history of all searches without deduplication.
 """
 
 import ulid
-from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Column, DateTime, Float, ForeignKey, Integer, SmallInteger, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -68,6 +68,37 @@ class SearchEvent(Base):
 
     # Relationships
     user = relationship("User", foreign_keys=[user_id])
+    candidates = relationship(
+        "SearchEventCandidate",
+        back_populates="search_event",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     def __repr__(self):
         return f"<SearchEvent(id={self.id}, query='{self.search_query[:30]}...', user_id={self.user_id})>"
+
+
+class SearchEventCandidate(Base):
+    """
+    Top-N candidate considered for a search event.
+
+    Stores ranking position and scores for observability/analytics.
+    """
+
+    __tablename__ = "search_event_candidates"
+
+    id = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
+    search_event_id = Column(String(26), ForeignKey("search_events.id", ondelete="CASCADE"), nullable=False, index=True)
+    position = Column(SmallInteger, nullable=False, comment="1-based rank in candidate list")
+    service_catalog_id = Column(
+        String(26), ForeignKey("service_catalog.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    score = Column(Float, nullable=True, comment="primary score used for ordering (e.g., hybrid)")
+    vector_score = Column(Float, nullable=True, comment="raw vector similarity if available")
+    lexical_score = Column(Float, nullable=True, comment="text/trigram or token overlap score if available")
+    source = Column(String(20), nullable=True, comment="vector|trgm|exact|hybrid")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+    # Relationships
+    search_event = relationship("SearchEvent", back_populates="candidates")

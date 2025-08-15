@@ -443,3 +443,59 @@ class ExportAnalyticsResponse(BaseModel):
             }
         }
     )
+
+
+# ===== Candidates (Top-N) Analytics Schemas =====
+
+
+class CandidateSummaryResponse(BaseModel):
+    total_candidates: int
+    events_with_candidates: int
+    avg_candidates_per_event: float
+    zero_result_events_with_candidates: int
+    source_breakdown: Dict[str, int]
+
+
+class CandidateCategoryTrend(BaseModel):
+    date: str
+    category: str
+    count: int
+
+
+class CandidateCategoryTrendsResponse(RootModel[List[CandidateCategoryTrend]]):
+    pass
+
+
+class CandidateTopService(BaseModel):
+    service_catalog_id: str
+    service_name: str
+    category_name: str
+    candidate_count: int
+    avg_score: float
+    avg_position: float
+    active_instructors: int
+    opportunity_score: float
+
+
+class CandidateTopServicesResponse(RootModel[List[CandidateTopService]]):
+    pass
+
+
+class CandidateServiceQuery(BaseModel):
+    searched_at: str
+    search_query: str
+    results_count: Optional[int]
+    position: int
+    score: Optional[float]
+    source: Optional[str]
+
+
+class CandidateServiceQueriesResponse(RootModel[List[CandidateServiceQuery]]):
+    pass
+
+
+class CandidateScoreDistributionResponse(BaseModel):
+    gte_0_90: int
+    gte_0_80_lt_0_90: int
+    gte_0_70_lt_0_80: int
+    lt_0_70: int

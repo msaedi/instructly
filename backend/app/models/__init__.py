@@ -23,7 +23,7 @@ from .message import Message, MessageNotification
 from .monitoring import AlertHistory
 from .password_reset import PasswordResetToken
 from .rbac import Permission, Role, RolePermission, UserPermission, UserRole
-from .search_event import SearchEvent
+from .search_event import SearchEvent, SearchEventCandidate
 from .search_history import SearchHistory
 from .search_interaction import SearchInteraction
 from .service_catalog import InstructorService, ServiceAnalytics, ServiceCatalog, ServiceCategory
@@ -62,5 +62,6 @@ __all__ = [
     # Search history
     "SearchHistory",
     "SearchEvent",
+    "SearchEventCandidate",
     "SearchInteraction",
 ]

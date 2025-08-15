@@ -171,6 +171,9 @@ async def record_search(
             request_ip=client_ip,
             user_agent=user_agent,
             device_context=device_context,
+            observability_candidates=(
+                search_data.observability_candidates if hasattr(search_data, "observability_candidates") else None
+            ),
         )
 
         return SearchHistoryResponse(

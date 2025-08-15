@@ -64,6 +64,14 @@ class SearchMetadata(BaseModel):
     used_semantic_search: bool = Field(description="Whether semantic search was used")
     applied_filters: List[str] = Field(description="List of applied filters")
     timestamp: str = Field(description="Search timestamp (ISO format)")
+    # Optional observability payload with top-N candidates (if computed)
+    observability_candidates: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        description=(
+            "Optional top-N candidates considered during search for observability/analytics "
+            "(position, service_catalog_id, name, score, vector_score, lexical_score, source)."
+        ),
+    )
 
 
 class InstructorSearchResponse(BaseModel):

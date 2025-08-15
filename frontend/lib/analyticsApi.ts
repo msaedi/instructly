@@ -197,6 +197,32 @@ export interface SearchPerformance {
   }>;
 }
 
+// Candidates analytics types
+export interface CandidateSummary {
+  total_candidates: number;
+  events_with_candidates: number;
+  avg_candidates_per_event: number;
+  zero_result_events_with_candidates: number;
+  source_breakdown: Record<string, number>;
+}
+
+export interface CandidateCategoryTrend {
+  date: string;
+  category: string;
+  count: number;
+}
+
+export interface CandidateTopService {
+  service_catalog_id: string;
+  service_name: string;
+  category_name: string;
+  candidate_count: number;
+  avg_score: number;
+  avg_position: number;
+  active_instructors: number;
+  opportunity_score: number;
+}
+
 // Shared fetch helper
 async function fetchWithAuth<T>(endpoint: string, token: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -285,6 +311,43 @@ export const analyticsApi = {
       `/api/analytics/search/search-performance?days=${days}`,
       token
     );
+  },
+
+  // Candidates analytics
+  async getCandidatesSummary(token: string, days: number = 30): Promise<CandidateSummary> {
+    return fetchWithAuth<CandidateSummary>(`/api/analytics/search/candidates/summary?days=${days}`, token);
+  }
+  ,
+  async getCandidateCategoryTrends(token: string, days: number = 30): Promise<CandidateCategoryTrend[]> {
+    return fetchWithAuth<CandidateCategoryTrend[]>(
+      `/api/analytics/search/candidates/category-trends?days=${days}`,
+      token
+    );
+  }
+  ,
+  async getCandidateTopServices(token: string, days: number = 30, limit: number = 20): Promise<CandidateTopService[]> {
+    return fetchWithAuth<CandidateTopService[]>(
+      `/api/analytics/search/candidates/top-services?days=${days}&limit=${limit}`,
+      token
+    );
+  }
+  ,
+  async getCandidateServiceQueries(
+    token: string,
+    service_catalog_id: string,
+    days: number = 30,
+    limit: number = 50
+  ): Promise<Array<{ searched_at: string; search_query: string; results_count: number | null; position: number; score: number | null; source: string | null }>> {
+    return fetchWithAuth(
+      `/api/analytics/search/candidates/queries?service_catalog_id=${service_catalog_id}&days=${days}&limit=${limit}`,
+      token
+    );
+  },
+  async getCandidateScoreDistribution(
+    token: string,
+    days: number = 30
+  ): Promise<{ gte_0_90: number; gte_0_80_lt_0_90: number; gte_0_70_lt_0_80: number; lt_0_70: number }> {
+    return fetchWithAuth(`/api/analytics/search/candidates/score-distribution?days=${days}`, token);
   },
 
   async getServicePillPerformance(

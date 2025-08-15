@@ -621,6 +621,7 @@ def downgrade() -> None:
 
     # Drop search tables if they exist
     # Using execute to handle if table doesn't exist
+    op.execute("DROP TABLE IF EXISTS search_event_candidates CASCADE")
     op.execute("DROP TABLE IF EXISTS search_interactions CASCADE")
     op.execute("DROP TABLE IF EXISTS search_events CASCADE")
     op.execute("DROP TABLE IF EXISTS search_history CASCADE")

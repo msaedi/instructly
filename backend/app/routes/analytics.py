@@ -6,19 +6,28 @@ These routes provide access to analytics dashboards and data exports,
 protected by RBAC permissions.
 """
 
+import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import and_, desc, func
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.expression import literal
 
 from ..core.enums import PermissionName
 from ..database import get_db
 from ..dependencies.permissions import require_permission
-from ..models.search_event import SearchEvent
+from ..models.search_event import SearchEvent, SearchEventCandidate
 from ..models.search_history import SearchHistory
 from ..models.user import User
 from ..schemas.analytics_responses import (
+    CandidateCategoryTrend,
+    CandidateCategoryTrendsResponse,
+    CandidateScoreDistributionResponse,
+    CandidateServiceQueriesResponse,
+    CandidateSummaryResponse,
+    CandidateTopService,
+    CandidateTopServicesResponse,
     ConversionMetricsResponse,
     DailySearchTrend,
     ExportAnalyticsResponse,
@@ -32,6 +41,7 @@ from ..schemas.analytics_responses import (
 )
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/search/search-trends", response_model=SearchTrendsResponse)
@@ -527,4 +537,269 @@ async def export_analytics(
         user=current_user.email,
         status="Not implemented",
         download_url=None,
+    )
+
+
+# ===== Observability Candidates Analytics =====
+
+
+@router.get("/search/candidates/summary", response_model=CandidateSummaryResponse)
+async def candidates_summary(
+    days: int = Query(30, ge=1, le=365),
+    current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
+    db: Session = Depends(get_db),
+) -> CandidateSummaryResponse:
+    from sqlalchemy import and_, func, literal
+
+    end_date = datetime.now(timezone.utc)
+    start_date = end_date - timedelta(days=days)
+
+    total_candidates = (
+        db.query(func.count(SearchEventCandidate.id))
+        .filter(and_(SearchEventCandidate.created_at >= start_date, SearchEventCandidate.created_at <= end_date))
+        .scalar()
+        or 0
+    )
+
+    events_with_candidates = (
+        db.query(func.count(func.distinct(SearchEventCandidate.search_event_id)))
+        .filter(and_(SearchEventCandidate.created_at >= start_date, SearchEventCandidate.created_at <= end_date))
+        .scalar()
+        or 0
+    )
+
+    avg_candidates_per_event = 0.0
+    if events_with_candidates > 0:
+        avg_candidates_per_event = round(total_candidates / float(events_with_candidates), 2)
+
+    zero_result_events_with_candidates = (
+        db.query(func.count(func.distinct(SearchEventCandidate.search_event_id)))
+        .join(SearchEvent, SearchEvent.id == SearchEventCandidate.search_event_id)
+        .filter(
+            and_(
+                SearchEventCandidate.created_at >= start_date,
+                SearchEventCandidate.created_at <= end_date,
+                SearchEvent.results_count == 0,
+            )
+        )
+        .scalar()
+        or 0
+    )
+
+    # Source breakdown
+    rows = (
+        db.query(SearchEventCandidate.source, func.count(SearchEventCandidate.id))
+        .filter(and_(SearchEventCandidate.created_at >= start_date, SearchEventCandidate.created_at <= end_date))
+        .group_by(SearchEventCandidate.source)
+        .all()
+    )
+    source_breakdown = {r[0] or "unknown": r[1] for r in rows}
+
+    return CandidateSummaryResponse(
+        total_candidates=total_candidates,
+        events_with_candidates=events_with_candidates,
+        avg_candidates_per_event=avg_candidates_per_event,
+        zero_result_events_with_candidates=zero_result_events_with_candidates,
+        source_breakdown=source_breakdown,
+    )
+
+
+@router.get("/search/candidates/category-trends", response_model=CandidateCategoryTrendsResponse)
+async def candidates_category_trends(
+    days: int = Query(30, ge=1, le=365),
+    current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
+    db: Session = Depends(get_db),
+) -> CandidateCategoryTrendsResponse:
+    from sqlalchemy import and_, func
+
+    end_date = datetime.now(timezone.utc)
+    start_date = end_date - timedelta(days=days)
+
+    # Count candidates per day per category via join to service_catalog -> service_categories
+    from ..models.service_catalog import ServiceCatalog, ServiceCategory
+
+    date_expr = func.date(SearchEventCandidate.created_at)
+    category_expr = func.coalesce(ServiceCategory.name, literal("unknown"))
+
+    try:
+        rows = (
+            db.query(
+                date_expr.label("date"),
+                category_expr.label("category"),
+                func.count(SearchEventCandidate.id).label("count"),
+            )
+            .select_from(SearchEventCandidate)
+            .outerjoin(ServiceCatalog, ServiceCatalog.id == SearchEventCandidate.service_catalog_id)
+            .outerjoin(ServiceCategory, ServiceCategory.id == ServiceCatalog.category_id)
+            .filter(and_(SearchEventCandidate.created_at >= start_date, SearchEventCandidate.created_at <= end_date))
+            .group_by(date_expr, category_expr)
+            .order_by(date_expr)
+            .all()
+        )
+    except Exception as e:
+        logger.error(f"candidates_category_trends query failed: {e}", exc_info=True)
+        rows = []
+
+    # Fallback simple by day without category if query failed or returned no rows
+    if not rows:
+        rows = (
+            db.query(
+                func.date(SearchEventCandidate.created_at).label("date"),
+                literal("unknown").label("category"),
+                func.count(SearchEventCandidate.id).label("count"),
+            )
+            .filter(and_(SearchEventCandidate.created_at >= start_date, SearchEventCandidate.created_at <= end_date))
+            .group_by(func.date(SearchEventCandidate.created_at))
+            .order_by(func.date(SearchEventCandidate.created_at))
+            .all()
+        )
+
+    return CandidateCategoryTrendsResponse(
+        [CandidateCategoryTrend(date=str(r.date), category=r.category, count=r.count) for r in rows]
+    )
+
+
+@router.get("/search/candidates/top-services", response_model=CandidateTopServicesResponse)
+async def candidates_top_services(
+    days: int = Query(30, ge=1, le=365),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
+    db: Session = Depends(get_db),
+) -> CandidateTopServicesResponse:
+    from sqlalchemy import and_, func
+
+    from ..models.service_catalog import ServiceCatalog, ServiceCategory
+
+    end_date = datetime.now(timezone.utc)
+    start_date = end_date - timedelta(days=days)
+
+    rows = (
+        db.query(
+            SearchEventCandidate.service_catalog_id,
+            ServiceCatalog.name.label("service_name"),
+            ServiceCategory.name.label("category_name"),
+            func.count(SearchEventCandidate.id).label("candidate_count"),
+            func.avg(func.coalesce(SearchEventCandidate.score, 0)).label("avg_score"),
+            func.avg(SearchEventCandidate.position).label("avg_position"),
+        )
+        .join(ServiceCatalog, ServiceCatalog.id == SearchEventCandidate.service_catalog_id)
+        .join(ServiceCategory, ServiceCategory.id == ServiceCatalog.category_id)
+        .filter(and_(SearchEventCandidate.created_at >= start_date, SearchEventCandidate.created_at <= end_date))
+        .group_by(SearchEventCandidate.service_catalog_id, ServiceCatalog.name, ServiceCategory.name)
+        .order_by(func.count(SearchEventCandidate.id).desc())
+        .limit(limit)
+        .all()
+    )
+
+    # Supply: active instructor count per service
+    service_ids = [r.service_catalog_id for r in rows]
+    supply_map = {}
+    if service_ids:
+        from ..models.service_catalog import InstructorService
+
+        supply_rows = (
+            db.query(InstructorService.service_catalog_id, func.count(InstructorService.id))
+            .filter(InstructorService.service_catalog_id.in_(service_ids), InstructorService.is_active == True)
+            .group_by(InstructorService.service_catalog_id)
+            .all()
+        )
+        supply_map = {sid: cnt for sid, cnt in supply_rows}
+
+    items = []
+    for r in rows:
+        active_instructors = int(supply_map.get(r.service_catalog_id, 0))
+        opportunity = float(r.candidate_count) / max(1, active_instructors)
+        items.append(
+            CandidateTopService(
+                service_catalog_id=r.service_catalog_id,
+                service_name=r.service_name,
+                category_name=r.category_name,
+                candidate_count=r.candidate_count,
+                avg_score=float(r.avg_score or 0),
+                avg_position=float(r.avg_position or 0),
+                active_instructors=active_instructors,
+                opportunity_score=round(opportunity, 2),
+            )
+        )
+
+    return CandidateTopServicesResponse(items)
+
+
+@router.get("/search/candidates/score-distribution", response_model=CandidateScoreDistributionResponse)
+async def candidates_score_distribution(
+    days: int = Query(30, ge=1, le=365),
+    current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
+    db: Session = Depends(get_db),
+) -> CandidateScoreDistributionResponse:
+    from sqlalchemy import and_, func
+
+    end_date = datetime.now(timezone.utc)
+    start_date = end_date - timedelta(days=days)
+
+    def count_where(cond):
+        return (
+            db.query(func.count(SearchEventCandidate.id))
+            .filter(and_(SearchEventCandidate.created_at >= start_date, SearchEventCandidate.created_at <= end_date))
+            .filter(cond)
+            .scalar()
+            or 0
+        )
+
+    gte_0_90 = count_where(SearchEventCandidate.score >= 0.9)
+    gte_0_80_lt_0_90 = count_where(and_(SearchEventCandidate.score >= 0.8, SearchEventCandidate.score < 0.9))
+    gte_0_70_lt_0_80 = count_where(and_(SearchEventCandidate.score >= 0.7, SearchEventCandidate.score < 0.8))
+    lt_0_70 = count_where(SearchEventCandidate.score < 0.7)
+
+    return CandidateScoreDistributionResponse(
+        gte_0_90=gte_0_90,
+        gte_0_80_lt_0_90=gte_0_80_lt_0_90,
+        gte_0_70_lt_0_80=gte_0_70_lt_0_80,
+        lt_0_70=lt_0_70,
+    )
+
+
+@router.get("/search/candidates/queries", response_model=CandidateServiceQueriesResponse)
+async def candidate_service_queries(
+    service_catalog_id: str,
+    days: int = Query(30, ge=1, le=365),
+    limit: int = Query(50, ge=1, le=200),
+    current_user: User = Depends(require_permission(PermissionName.VIEW_SYSTEM_ANALYTICS)),
+    db: Session = Depends(get_db),
+) -> CandidateServiceQueriesResponse:
+    """List queries that produced candidates for a given service (recent first)."""
+    end_date = datetime.now(timezone.utc)
+    start_date = end_date - timedelta(days=days)
+
+    rows = (
+        db.query(
+            SearchEvent.searched_at,
+            SearchEvent.search_query,
+            SearchEvent.results_count,
+            SearchEventCandidate.position,
+            SearchEventCandidate.score,
+            SearchEventCandidate.source,
+        )
+        .join(SearchEvent, SearchEvent.id == SearchEventCandidate.search_event_id)
+        .filter(
+            SearchEventCandidate.service_catalog_id == service_catalog_id,
+            SearchEventCandidate.created_at >= start_date,
+            SearchEventCandidate.created_at <= end_date,
+        )
+        .order_by(SearchEvent.searched_at.desc(), SearchEventCandidate.position.asc())
+        .limit(limit)
+        .all()
+    )
+
+    return CandidateServiceQueriesResponse(
+        [
+            {
+                "searched_at": r.searched_at.isoformat() if r.searched_at else "",
+                "search_query": r.search_query or "",
+                "results_count": r.results_count,
+                "position": r.position,
+                "score": float(r.score) if r.score is not None else None,
+                "source": r.source,
+            }
+            for r in rows
+        ]
     )

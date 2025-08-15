@@ -307,10 +307,47 @@ def upgrade() -> None:
     print("- Added vector similarity search index for natural language queries")
     print("- Added constraints for pricing and duration validation")
 
+    # Now that service_catalog exists, create search_event_candidates table (observability)
+    op.create_table(
+        "search_event_candidates",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("search_event_id", sa.String(26), nullable=False),
+        sa.Column("position", sa.SmallInteger(), nullable=False, comment="1-based rank in candidate list"),
+        sa.Column("service_catalog_id", sa.String(26), nullable=True),
+        sa.Column("score", sa.Float(), nullable=True, comment="primary score used for ordering (e.g., hybrid)"),
+        sa.Column("vector_score", sa.Float(), nullable=True, comment="raw vector similarity if available"),
+        sa.Column(
+            "lexical_score", sa.Float(), nullable=True, comment="text/trigram or token overlap score if available"
+        ),
+        sa.Column("source", sa.String(20), nullable=True, comment="vector|trgm|exact|hybrid"),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.ForeignKeyConstraint(["search_event_id"], ["search_events.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["service_catalog_id"], ["service_catalog.id"], ondelete="SET NULL"),
+        sa.PrimaryKeyConstraint("id"),
+        comment="Top-N candidates considered for a search event (observability)",
+    )
+    op.create_index(
+        "idx_search_event_candidates_event_position",
+        "search_event_candidates",
+        ["search_event_id", "position"],
+        unique=True,
+    )
+    op.create_index(
+        "idx_search_event_candidates_service_created",
+        "search_event_candidates",
+        ["service_catalog_id", "created_at"],
+        unique=False,
+    )
+
 
 def downgrade() -> None:
     """Drop instructor system tables."""
     print("Dropping instructor system tables...")
+
+    # Drop observability table and indexes first due to FKs
+    op.drop_index("idx_search_event_candidates_service_created", table_name="search_event_candidates")
+    op.drop_index("idx_search_event_candidates_event_position", table_name="search_event_candidates")
+    op.drop_table("search_event_candidates")
 
     # Drop service_analytics indexes and table
     op.drop_index("idx_service_analytics_last_calculated", table_name="service_analytics")

@@ -276,6 +276,11 @@ function SearchPageContent() {
               total_matches: nlResponse.data.total_found,
               active_instructors: nlResponse.data.total_found,
             });
+            // Cache observability candidates from search response for persistence on record
+            try {
+              const obs = (nlResponse.data.search_metadata as any)?.observability_candidates || [];
+              (window as any).__lastObsCandidates = Array.isArray(obs) ? obs : [];
+            } catch {}
           }
         } else if (serviceCatalogId) {
           // Service catalog ID provided - fetch instructors for specific service
@@ -426,12 +431,13 @@ function SearchPageContent() {
       });
 
       try {
-        // Record search with unified tracker
+        const observabilityCandidates = (typeof window !== 'undefined' && (window as any).__lastObsCandidates) || [];
         const eventId = await recordSearch(
           {
             query: searchQuery,
             search_type: searchType,
             results_count: total,
+            observability_candidates: observabilityCandidates,
           },
           isAuthenticated
         );

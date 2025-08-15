@@ -11,7 +11,7 @@ from typing import Dict, List, Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..models.search_event import SearchEvent
+from ..models.search_event import SearchEvent, SearchEventCandidate
 from .base_repository import BaseRepository
 
 
@@ -115,6 +115,42 @@ class SearchEventRepository(BaseRepository[SearchEvent]):
             return self.create(**event_data)
         # Otherwise use kwargs
         return self.create(**kwargs)
+
+    def bulk_insert_candidates(
+        self,
+        search_event_id: str,
+        candidates: List[Dict],
+    ) -> int:
+        """
+        Persist top-N candidates for a search event.
+
+        Args:
+            search_event_id: Parent event id
+            candidates: List of dicts with keys: position, service_catalog_id, score, vector_score, lexical_score, source
+
+        Returns:
+            Number of rows inserted
+        """
+        if not candidates:
+            return 0
+
+        objects = [
+            SearchEventCandidate(
+                search_event_id=search_event_id,
+                position=c.get("position"),
+                service_catalog_id=c.get("service_catalog_id"),
+                score=c.get("score"),
+                vector_score=c.get("vector_score"),
+                lexical_score=c.get("lexical_score"),
+                source=c.get("source"),
+            )
+            for c in candidates
+        ]
+
+        self.db.bulk_save_objects(objects)
+        # Flush so event id can be used immediately by callers if needed
+        self.db.flush()
+        return len(objects)
 
     def get_popular_searches(self, limit: int = 10, days: int = 30) -> List[Dict]:
         """
