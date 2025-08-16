@@ -47,6 +47,8 @@ from .routes import (
     services,
 )
 from .schemas.main_responses import HealthLiteResponse, HealthResponse, PerformanceMetricsResponse, RootResponse
+from .services.template_registry import TemplateRegistry
+from .services.template_service import TemplateService
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -81,6 +83,21 @@ async def lifespan(app: FastAPI):
         logger.info("🔐 HTTPS redirect enabled for production")
     else:
         logger.info("🔓 HTTPS redirect disabled for development")
+
+    # Smoke-check: render templates without sending to catch syntax/encoding issues
+    try:
+        ts = TemplateService(None, None)
+        _ = ts.render_template(
+            TemplateRegistry.AUTH_PASSWORD_RESET, {"reset_url": "https://example.com", "user_name": "Test"}
+        )
+        _ = ts.render_template(TemplateRegistry.AUTH_PASSWORD_RESET_CONFIRMATION, {"user_name": "Test"})
+        _ = ts.render_template(
+            TemplateRegistry.REFERRALS_INVITE_STANDALONE,
+            {"inviter_name": "Test", "referral_link": "https://example.com"},
+        )
+        logger.info("Template smoke-check passed")
+    except Exception as e:
+        logger.error(f"Template smoke-check failed: {e}")
 
     # Production startup optimizations
     if settings.environment == "production":

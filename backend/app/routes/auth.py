@@ -22,6 +22,7 @@ from ..core.exceptions import ConflictException, NotFoundException
 from ..database import get_db
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ..schemas import Token, UserCreate, UserLogin, UserResponse, UserUpdate, UserWithPermissionsResponse
+from ..schemas.security import PasswordChangeRequest, PasswordChangeResponse
 from ..services.auth_service import AuthService
 from ..services.permission_service import PermissionService
 from ..services.search_history_service import SearchHistoryService
@@ -165,6 +166,44 @@ async def login(
     )
 
     return Token(access_token=access_token, token_type="bearer")
+
+
+@router.post("/change-password", response_model=PasswordChangeResponse)
+async def change_password(
+    request: PasswordChangeRequest,
+    current_user: str = Depends(get_current_user),
+    auth_service: AuthService = Depends(get_auth_service),
+    db: Session = Depends(get_db),
+):
+    """
+    Change password for the current authenticated user.
+
+    Verifies the current password, enforces minimal strength, and updates the hash.
+    """
+    # Get user object
+    user = auth_service.get_current_user(email=current_user)
+
+    # Verify current password
+    from app.auth import get_password_hash, verify_password
+
+    if not verify_password(request.current_password, user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+
+    # Basic strength checks
+    new_pw = request.new_password
+    if len(new_pw) < 8 or new_pw.lower() == new_pw or not any(c.isdigit() for c in new_pw):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New password is too weak")
+
+    hashed = get_password_hash(new_pw)
+
+    from app.repositories import RepositoryFactory
+
+    user_repository = RepositoryFactory.create_user_repository(db)
+    success = user_repository.update_password(user.id, hashed)
+    if not success:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update password")
+
+    return PasswordChangeResponse(message="Password changed successfully")
 
 
 @router.post("/login-with-session", response_model=Token)

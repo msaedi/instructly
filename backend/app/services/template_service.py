@@ -88,12 +88,14 @@ class TemplateService(BaseService):
 
         # Create the Jinja2 environment
         # Note: Jinja2 has its own internal template compilation cache
+        # Use utf-8-sig to gracefully handle potential BOMs in template files
         self.env = Environment(
-            loader=FileSystemLoader(template_dir),
+            loader=FileSystemLoader(template_dir, encoding="utf-8-sig"),
             autoescape=True,  # Enable autoescaping for security
             trim_blocks=True,  # Remove trailing newlines from blocks
             lstrip_blocks=True,  # Remove leading whitespace from blocks
             cache_size=400,  # Jinja2's internal cache for compiled templates
+            auto_reload=True,  # Reload templates when files change
         )
 
         # Add custom filters if needed
@@ -215,8 +217,13 @@ class TemplateService(BaseService):
             TemplateNotFound: If template doesn't exist
         """
         try:
+            # Coerce Enum values to plain strings if needed
+            try:
+                template_name_str = template_name.value  # type: ignore[attr-defined]
+            except Exception:
+                template_name_str = str(template_name)
             # Get the template (Jinja2 caches compiled templates internally)
-            template = self.env.get_template(template_name)
+            template = self.env.get_template(template_name_str)
 
             # Merge contexts - get_common_context() uses caching
             full_context = self.get_common_context()
@@ -234,8 +241,31 @@ class TemplateService(BaseService):
             self.logger.error(f"Template not found: {template_name}")
             raise
         except Exception as e:
-            self.logger.error(f"Error rendering template {template_name}: {str(e)}")
-            raise
+            # Fallback: read file content and render from string after sanitizing any stray bytes
+            try:
+                try:
+                    template_name_str = template_name.value  # type: ignore[attr-defined]
+                except Exception:
+                    template_name_str = str(template_name)
+                template_path = (Path(__file__).parent.parent / "templates" / template_name_str).resolve()
+                with open(template_path, "r", encoding="utf-8-sig", errors="replace") as f:
+                    raw = f.read()
+                # Basic sanitize: strip any leading non-printable characters
+                import re
+
+                sanitized = re.sub(r"^[^\x09\x0A\x0D\x20-\x7E]+", "", raw)
+
+                template = self.env.from_string(sanitized)
+                full_context = self.get_common_context()
+                if context:
+                    full_context.update(context)
+                full_context.update(kwargs)
+                rendered = template.render(full_context)
+                self.logger.warning(f"Rendered {template_name} via fallback sanitize path")
+                return rendered
+            except Exception as inner:
+                self.logger.error(f"Error rendering template {template_name}: {str(e)} | Fallback failed: {inner}")
+                raise
 
     @BaseService.measure_operation("render_string")
     def render_string(self, template_string: str, context: Optional[Dict[str, Any]] = None, **kwargs) -> str:
@@ -295,7 +325,11 @@ class TemplateService(BaseService):
 
         # Check if template exists
         try:
-            self.env.get_template(template_name)
+            try:
+                template_name_str = template_name.value  # type: ignore[attr-defined]
+            except Exception:
+                template_name_str = str(template_name)
+            self.env.get_template(template_name_str)
             exists = True
         except TemplateNotFound:
             exists = False
