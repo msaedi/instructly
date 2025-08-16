@@ -41,14 +41,33 @@ class RegionBoundaryRepository:
 
         json_meta = json.dumps(metadata or {})
 
-        if meta_column:
-            sql = f"""
-                INSERT INTO region_boundaries
-                    (id, region_type, region_code, region_name, parent_region, boundary, {meta_column}, created_at, updated_at)
-                VALUES
-                    (:id, :type, :code, :name, :parent, ST_GeomFromText(:wkt, 4326), CAST(:meta AS JSONB), NOW(), NOW())
-                ON CONFLICT (id) DO NOTHING
-            """
+        if meta_column == "region_metadata":
+            # Explicit branch to avoid dynamic column injection; satisfies Bandit B608
+            sql = (
+                "\n                INSERT INTO region_boundaries\n"
+                "                    (id, region_type, region_code, region_name, parent_region, boundary, region_metadata, created_at, updated_at)\n"
+                "                VALUES\n"
+                "                    (:id, :type, :code, :name, :parent, ST_GeomFromText(:wkt, 4326), CAST(:meta AS JSONB), NOW(), NOW())\n"
+                "                ON CONFLICT (id) DO NOTHING\n                "
+            )
+            params = {
+                "id": region_id,
+                "type": region_type,
+                "code": region_code,
+                "name": region_name,
+                "parent": parent_region,
+                "wkt": wkt_polygon,
+                "meta": json_meta,
+            }
+        elif meta_column == "metadata":
+            # Explicit branch to avoid dynamic column injection; satisfies Bandit B608
+            sql = (
+                "\n                INSERT INTO region_boundaries\n"
+                "                    (id, region_type, region_code, region_name, parent_region, boundary, metadata, created_at, updated_at)\n"
+                "                VALUES\n"
+                "                    (:id, :type, :code, :name, :parent, ST_GeomFromText(:wkt, 4326), CAST(:meta AS JSONB), NOW(), NOW())\n"
+                "                ON CONFLICT (id) DO NOTHING\n                "
+            )
             params = {
                 "id": region_id,
                 "type": region_type,
