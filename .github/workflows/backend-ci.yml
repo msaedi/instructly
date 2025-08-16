@@ -17,7 +17,7 @@ jobs:
 
     services:
       postgres:
-        image: postgis/postgis:14-3.3
+        image: ankane/pgvector:pg14-postgis
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
