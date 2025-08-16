@@ -2,7 +2,7 @@
 'use client';
 
 import { BRAND } from '@/app/config/brand';
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { LogOut, Heart, User, CreditCard, Bell, Eye, EyeOff } from 'lucide-react';
@@ -49,6 +49,9 @@ function StudentDashboardContent() {
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [referralEmails, setReferralEmails] = useState('');
   const [referralStatus, setReferralStatus] = useState('');
+  const [addresses, setAddresses] = useState<any[] | null>(null);
+  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
+  const [showAddressModal, setShowAddressModal] = useState<null | { mode: 'create' } | { mode: 'edit'; address: any }>(null);
 
   const tabs = useMemo(
     () => [
@@ -159,6 +162,29 @@ function StudentDashboardContent() {
   };
 
   const memberSince = decodeUlidTimestamp(userData?.id || '');
+
+  // Load addresses
+  const loadAddresses = async () => {
+    try {
+      setIsLoadingAddresses(true);
+      const res = await fetchWithAuth('/api/addresses/me');
+      if (!res.ok) {
+        setAddresses([]);
+        return;
+      }
+      const data = await res.json();
+      setAddresses(data.items || []);
+    } catch (e) {
+      setAddresses([]);
+    } finally {
+      setIsLoadingAddresses(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAddresses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Loading state
   if (isLoading) {
@@ -286,21 +312,77 @@ function StudentDashboardContent() {
                     </div>
                   </div>
 
-                  {/* Addresses (placeholder) */}
+                  {/* Addresses */}
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-lg font-semibold text-gray-900">Addresses</h3>
-                      <button className="text-sm font-medium text-indigo-600 hover:text-indigo-700">+ Add</button>
+                      <button
+                        className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+                        onClick={() => setShowAddressModal({ mode: 'create' })}
+                      >
+                        + Add
+                      </button>
                     </div>
                     <div className="grid grid-cols-1 gap-3">
-                      <div className="rounded-md border p-4">
-                        <p className="font-medium text-gray-900">Home (Default)</p>
-                        <p className="text-sm text-gray-600">123 Main St, Apt 4B, New York, NY 10023</p>
-                        <div className="mt-2 flex gap-3 text-sm">
-                          <button className="text-indigo-600 hover:text-indigo-700">Edit</button>
-                          <button className="text-gray-500 hover:text-gray-700">Remove</button>
+                      {isLoadingAddresses && (
+                        <div className="rounded-md border p-4 text-sm text-gray-600">Loading addresses…</div>
+                      )}
+                      {!isLoadingAddresses && (addresses?.length || 0) === 0 && (
+                        <div className="rounded-md border p-4 text-sm text-gray-600">No addresses added yet.</div>
+                      )}
+                      {!isLoadingAddresses && (addresses || []).map((a) => (
+                        <div key={a.id} className="rounded-md border p-4">
+                          <p className="font-medium text-gray-900">
+                            {(a.label ? a.label.charAt(0).toUpperCase() + a.label.slice(1) : 'Address')} {a.is_default ? '(Default)' : ''}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {[a.street_line1, a.street_line2].filter(Boolean).join(', ')}{[a.locality, a.administrative_area].some(Boolean) ? `, ${[a.locality, a.administrative_area].filter(Boolean).join(', ')}` : ''}{a.postal_code ? `, ${a.postal_code}` : ''}
+                          </p>
+                          <div className="mt-2 flex gap-3 text-sm">
+                            <button
+                              className="text-indigo-600 hover:text-indigo-700"
+                              onClick={() => setShowAddressModal({ mode: 'edit', address: a })}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="text-gray-500 hover:text-gray-700"
+                              onClick={async () => {
+                                // Custom confirm modal
+                                const ok = await new Promise<boolean>((resolve) => {
+                                  const overlay = document.createElement('div');
+                                  overlay.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4';
+                                  const modal = document.createElement('div');
+                                  modal.className = 'w-full max-w-sm rounded-lg bg-white p-6 shadow-lg ring-1 ring-gray-200';
+                                  modal.innerHTML = `
+                                    <h3 class="text-base font-semibold text-gray-900">Remove address</h3>
+                                    <p class="mt-2 text-sm text-gray-600">Are you sure you want to remove this saved address?</p>
+                                    <div class="mt-5 flex justify-end gap-3">
+                                      <button id="cancelBtn" class="rounded-md border border-gray-200 px-4 py-2 text-sm">Cancel</button>
+                                      <button id="confirmBtn" class="rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">Remove</button>
+                                    </div>
+                                  `;
+                                  overlay.appendChild(modal);
+                                  document.body.appendChild(overlay);
+                                  const cleanup = () => { try { document.body.removeChild(overlay); } catch {} };
+                                  modal.querySelector('#cancelBtn')?.addEventListener('click', () => { cleanup(); resolve(false); });
+                                  modal.querySelector('#confirmBtn')?.addEventListener('click', () => { cleanup(); resolve(true); });
+                                });
+                                if (!ok) return;
+                                const res = await fetchWithAuth(`/api/addresses/me/${a.id}`, { method: 'DELETE' });
+                                if (res.ok) {
+                                  toast.success('Address removed');
+                                  loadAddresses();
+                                } else {
+                                  toast.error('Failed to remove address');
+                                }
+                              }}
+                            >
+                              Remove
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      ))}
                     </div>
                   </div>
 
@@ -439,6 +521,18 @@ function StudentDashboardContent() {
           onClose={() => setShowChangePassword(false)}
         />
       )}
+
+      {showAddressModal && (
+        <AddressModal
+          mode={showAddressModal.mode}
+          address={(showAddressModal as any).address}
+          onClose={() => setShowAddressModal(null)}
+          onSaved={() => {
+            setShowAddressModal(null);
+            loadAddresses();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -448,6 +542,175 @@ export default function StudentDashboard() {
     <Suspense fallback={<div className="min-h-screen" />}>
       <StudentDashboardContent />
     </Suspense>
+  );
+}
+
+function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'edit'; address?: any; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({
+    label: address?.label || 'home',
+    street_line1: address?.street_line1 || '',
+    street_line2: address?.street_line2 || '',
+    locality: address?.locality || '',
+    administrative_area: address?.administrative_area || '',
+    postal_code: address?.postal_code || '',
+    country_code: address?.country_code || 'US',
+    is_default: !!address?.is_default,
+    place_id: '',
+  });
+  const [query, setQuery] = useState('');
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const debounceRef = useRef<any>(null);
+  const suppressAutocompleteRef = useRef(false);
+
+  useEffect(() => {
+    if (!query) {
+      setSuggestions([]);
+      return;
+    }
+    if (suppressAutocompleteRef.current) {
+      // Skip one autocomplete cycle triggered by programmatic setQuery after selection
+      suppressAutocompleteRef.current = false;
+      return;
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetchWithAuth(`/api/addresses/places/autocomplete?q=${encodeURIComponent(query)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setSuggestions(data.items || []);
+      } catch {}
+    }, 250);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+
+  const save = async () => {
+    setLoading(true);
+    try {
+      const payload = { ...form } as any;
+      // Trim empty strings
+      Object.keys(payload).forEach((k) => { if (payload[k] === '') delete payload[k]; });
+      const endpoint = mode === 'create' ? '/api/addresses/me' : `/api/addresses/me/${address.id}`;
+      const method = mode === 'create' ? 'POST' : 'PATCH';
+      const res = await fetchWithAuth(endpoint, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        toast.error('Failed to save address');
+        setLoading(false);
+        return;
+      }
+      toast.success('Address saved');
+      onSaved();
+    } catch {
+      toast.error('Network error');
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+      <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl ring-1 ring-gray-200">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">{mode === 'create' ? 'Add Address' : 'Edit Address'}</h3>
+          <p className="mt-1 text-sm text-gray-600">Add a saved address for quick booking.</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Label</label>
+              <select className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200" value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })}>
+                <option value="home">Home</option>
+                <option value="work">Work</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2 mt-6">
+              <input id="is_default" type="checkbox" checked={form.is_default} onChange={(e) => setForm({ ...form, is_default: e.target.checked })} />
+              <label htmlFor="is_default" className="text-sm text-gray-700">Set as default</label>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Address</label>
+            <input className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200" placeholder="Start typing…" value={query} onChange={(e) => { suppressAutocompleteRef.current = false; setQuery(e.target.value); }} />
+            {suggestions.length > 0 && (
+              <div className="mt-1 max-h-56 overflow-auto rounded-md border border-gray-200 bg-white text-sm shadow">
+                {suggestions.map((s) => (
+                  <button
+                    key={s.place_id}
+                    className="block w-full text-left px-3 py-2 hover:bg-gray-50"
+                    onClick={async () => {
+                      try {
+                        // Fetch normalized place details and auto-fill fields
+                        const res = await fetchWithAuth(`/api/addresses/places/details?place_id=${encodeURIComponent(s.place_id)}`);
+                        if (res.ok) {
+                          const d = await res.json();
+                          const street = [d.street_number, d.street_name].filter(Boolean).join(' ');
+                          setForm((prev) => ({
+                            ...prev,
+                            place_id: s.place_id,
+                            street_line1: street || prev.street_line1,
+                            locality: d.city || prev.locality,
+                            administrative_area: d.state || prev.administrative_area,
+                            postal_code: d.postal_code || prev.postal_code,
+                          }));
+                          suppressAutocompleteRef.current = true;
+                          setQuery(d.formatted_address || s.description || s.text);
+                        } else {
+                          setForm((prev) => ({ ...prev, place_id: s.place_id }));
+                          suppressAutocompleteRef.current = true;
+                          setQuery(s.description || s.text);
+                        }
+                      } catch {
+                        setForm((prev) => ({ ...prev, place_id: s.place_id }));
+                        suppressAutocompleteRef.current = true;
+                        setQuery(s.description || s.text);
+                      }
+                      setSuggestions([]);
+                    }}
+                  >
+                    {s.description || s.text}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Address line 1</label>
+              <input className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200" value={form.street_line1} onChange={(e) => setForm({ ...form, street_line1: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Address line 2</label>
+              <input className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200" value={form.street_line2} onChange={(e) => setForm({ ...form, street_line2: e.target.value })} />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">City</label>
+              <input className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200" value={form.locality} onChange={(e) => setForm({ ...form, locality: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">State</label>
+              <input className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200" value={form.administrative_area} onChange={(e) => setForm({ ...form, administrative_area: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Postal code</label>
+              <input className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200" value={form.postal_code} onChange={(e) => setForm({ ...form, postal_code: e.target.value })} />
+            </div>
+          </div>
+        </div>
+        <div className="mt-5 flex justify-end gap-3">
+          <button className="rounded-md border border-gray-200 px-4 py-2 text-sm" onClick={onClose} disabled={loading}>Cancel</button>
+          <button className={`rounded-md px-4 py-2 text-sm text-white ${loading ? 'bg-indigo-300' : 'bg-indigo-600 hover:bg-indigo-700'}`} onClick={save} disabled={loading}>
+            {loading ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

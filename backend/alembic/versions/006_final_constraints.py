@@ -29,6 +29,29 @@ def upgrade() -> None:
     dialect_name = bind.dialect.name if bind is not None else "postgresql"
     is_postgres = dialect_name == "postgresql"
 
+    # Enable PostGIS extension for spatial features (idempotent)
+    if is_postgres:
+        print("Checking/Enabling PostGIS extension (if not already enabled)...")
+        conn = op.get_bind()
+        try:
+            res = conn.exec_driver_sql(
+                "SELECT 1 FROM pg_available_extensions WHERE name='postgis' AND installed_version IS NOT NULL"
+            )
+            already_installed = res.first() is not None
+        except Exception:
+            already_installed = False
+        if not already_installed:
+            try:
+                op.execute("CREATE EXTENSION IF NOT EXISTS postgis;")
+                print("PostGIS extension created")
+            except Exception as e:
+                # Provide a clear, actionable error for local setups
+                raise RuntimeError(
+                    "PostGIS extension is not installed on this PostgreSQL instance. "
+                    "Install PostGIS (e.g., 'brew install postgis' on macOS, or use a PostGIS-enabled Docker image) "
+                    "and re-run migrations. Original error: %s" % str(e)
+                )
+
     # Add alert history table for monitoring
     print("Creating alert_history table...")
     op.create_table(
@@ -186,6 +209,141 @@ def upgrade() -> None:
             """
         )
 
+    # -------------------------------
+    # Addresses and Spatial Data
+    # -------------------------------
+
+    # Lightweight Geometry type for migrations without geoalchemy2 dependency
+    class Geometry(sa.types.UserDefinedType):
+        def __init__(self, geom_type: str = "POINT", srid: int = 4326):
+            self.geom_type = geom_type
+            self.srid = srid
+
+        def get_col_spec(self, **kw):  # type: ignore[override]
+            return f"GEOMETRY({self.geom_type}, {self.srid})"
+
+    print("Creating user_addresses table...")
+    op.create_table(
+        "user_addresses",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("user_id", sa.String(26), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        # Labels and defaults
+        sa.Column("label", sa.String(20), nullable=True),  # 'home' | 'work' | 'other'
+        sa.Column("custom_label", sa.String(50), nullable=True),
+        sa.Column("is_default", sa.Boolean(), nullable=False, server_default="false"),
+        # Recipient and lines
+        sa.Column("recipient_name", sa.String(100), nullable=True),
+        sa.Column("street_line1", sa.String(255), nullable=False),
+        sa.Column("street_line2", sa.String(255), nullable=True),
+        # Locality
+        sa.Column("locality", sa.String(100), nullable=False),  # city/town
+        sa.Column("administrative_area", sa.String(100), nullable=False),  # state/province
+        sa.Column("postal_code", sa.String(20), nullable=False),
+        sa.Column("country_code", sa.String(2), nullable=False, server_default="US"),
+        # Coordinates
+        sa.Column("latitude", sa.Numeric(10, 8), nullable=True),
+        sa.Column("longitude", sa.Numeric(11, 8), nullable=True),
+        # Provider references
+        sa.Column("place_id", sa.String(255), nullable=True),
+        sa.Column("verification_status", sa.String(20), nullable=False, server_default="unverified"),
+        sa.Column("normalized_payload", sa.JSON(), nullable=True),
+        # Geometry (PostGIS)
+        sa.Column("location", Geometry("POINT", 4326), nullable=True),
+        # Generic location hierarchy (globally applicable)
+        sa.Column("district", sa.String(100), nullable=True),
+        sa.Column("neighborhood", sa.String(100), nullable=True),
+        sa.Column("subneighborhood", sa.String(100), nullable=True),
+        # Flexible location metadata for city/region specific details
+        sa.Column("location_metadata", sa.JSON(), nullable=True),
+        # Metadata
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("last_used_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+
+    # Indexes and constraints for addresses
+    op.create_index("ix_user_addresses_user_active", "user_addresses", ["user_id", "is_active"])
+    if is_postgres:
+        # Geometry index
+        op.create_index(
+            "ix_user_addresses_location",
+            "user_addresses",
+            ["location"],
+            postgresql_using="gist",
+        )
+        # Partial unique: one default address per user
+        op.create_index(
+            "uq_user_default_address",
+            "user_addresses",
+            ["user_id"],
+            unique=True,
+            postgresql_where=sa.text("is_default = true"),
+        )
+    # Basic helpers
+    op.create_index("ix_user_addresses_postal_code", "user_addresses", ["postal_code"])
+
+    # Label checks
+    op.create_check_constraint(
+        "ck_user_addresses_label_values",
+        "user_addresses",
+        "label IS NULL OR label IN ('home','work','other')",
+    )
+    op.create_check_constraint(
+        "ck_user_addresses_other_label_has_custom",
+        "user_addresses",
+        "label != 'other' OR custom_label IS NOT NULL",
+    )
+
+    # NYC neighborhoods table for service areas
+    # Removed legacy nyc_neighborhoods in favor of generic region_boundaries
+
+    # Generic region boundaries table (global, additive alongside nyc_neighborhoods for now)
+    print("Creating region_boundaries table (generic global regions)...")
+    op.create_table(
+        "region_boundaries",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("region_type", sa.String(50), nullable=False),  # 'nyc', 'sf', 'toronto', etc.
+        sa.Column("region_code", sa.String(50), nullable=True),
+        sa.Column("region_name", sa.String(100), nullable=True),
+        sa.Column("parent_region", sa.String(100), nullable=True),
+        sa.Column("boundary", Geometry("POLYGON", 4326), nullable=True),
+        sa.Column("centroid", Geometry("POINT", 4326), nullable=True),
+        sa.Column("region_metadata", sa.JSON(), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    if is_postgres:
+        op.create_index(
+            "ix_region_boundaries_boundary",
+            "region_boundaries",
+            ["boundary"],
+            postgresql_using="gist",
+        )
+    op.create_index("ix_region_boundaries_type", "region_boundaries", ["region_type"])
+    op.create_index("ix_region_boundaries_region", "region_boundaries", ["region_type", "region_code"])
+    op.create_index("ix_region_boundaries_name", "region_boundaries", ["region_type", "region_name"])
+
+    # Instructor service areas (link instructors to neighborhoods)
+    print("Creating instructor_service_areas table...")
+    op.create_table(
+        "instructor_service_areas",
+        sa.Column("instructor_id", sa.String(26), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "neighborhood_id", sa.String(26), sa.ForeignKey("region_boundaries.id", ondelete="CASCADE"), nullable=False
+        ),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
+        sa.PrimaryKeyConstraint("instructor_id", "neighborhood_id"),
+    )
+    op.create_index(
+        "ix_instructor_service_areas_instructor",
+        "instructor_service_areas",
+        ["instructor_id", "is_active"],
+    )
+
     # Reactions table for message reactions
     op.create_table(
         "message_reactions",
@@ -289,6 +447,46 @@ def downgrade() -> None:
     bind = op.get_bind()
     dialect_name = bind.dialect.name if bind is not None else "postgresql"
     is_postgres = dialect_name == "postgresql"
+
+    # Drop service area tables and spatial indexes first (to avoid dependency issues)
+    print("Dropping instructor service area and neighborhoods tables...")
+    op.drop_index("ix_instructor_service_areas_instructor", table_name="instructor_service_areas")
+    op.drop_table("instructor_service_areas")
+    # Legacy nyc_neighborhoods not created in this migration anymore
+
+    # Drop region_boundaries and its indexes to avoid duplicate-table issues on re-upgrade
+    print("Dropping region_boundaries table and indexes...")
+    try:
+        op.drop_index("ix_region_boundaries_name", table_name="region_boundaries")
+    except Exception:
+        pass
+    try:
+        op.drop_index("ix_region_boundaries_region", table_name="region_boundaries")
+    except Exception:
+        pass
+    try:
+        op.drop_index("ix_region_boundaries_type", table_name="region_boundaries")
+    except Exception:
+        pass
+    if is_postgres:
+        try:
+            op.drop_index("ix_region_boundaries_boundary", table_name="region_boundaries")
+        except Exception:
+            pass
+    try:
+        op.drop_table("region_boundaries")
+    except Exception:
+        pass
+
+    print("Dropping user_addresses table and indexes...")
+    op.drop_index("ix_user_addresses_postal_code", table_name="user_addresses")
+    if is_postgres:
+        op.drop_index("uq_user_default_address", table_name="user_addresses")
+        op.drop_index("ix_user_addresses_location", table_name="user_addresses")
+    op.drop_index("ix_user_addresses_user_active", table_name="user_addresses")
+    op.drop_constraint("ck_user_addresses_other_label_has_custom", "user_addresses", type_="check")
+    op.drop_constraint("ck_user_addresses_label_values", "user_addresses", type_="check")
+    op.drop_table("user_addresses")
 
     op.drop_constraint("check_message_content_length", "messages", type_="check")
     op.drop_constraint("check_time_order", "bookings", type_="check")

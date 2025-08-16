@@ -25,6 +25,7 @@ from .middleware.prometheus_middleware import PrometheusMiddleware
 from .middleware.rate_limiter_asgi import RateLimitMiddlewareASGI
 from .middleware.timing_asgi import TimingMiddlewareASGI
 from .routes import (
+    addresses,
     alerts,
     analytics,
     auth,
@@ -205,6 +206,7 @@ app.include_router(codebase_metrics.router)
 app.include_router(public.router)
 app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(search_history.router, prefix="/api/search-history", tags=["search-history"])
+app.include_router(addresses.router)
 app.include_router(redis_monitor.router)
 app.include_router(database_monitor.router)
 app.include_router(privacy.router, prefix="/api", tags=["privacy"])

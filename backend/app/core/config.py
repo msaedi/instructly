@@ -143,6 +143,11 @@ class Settings(BaseSettings):
     # Messaging configuration
     message_edit_window_minutes: int = Field(default=5, description="How many minutes a user can edit their message")
 
+    # Geocoding/Maps providers
+    geocoding_provider: str = Field(default="google", description="Geocoding provider: google|mapbox|mock")
+    google_maps_api_key: str = Field(default="", description="Google Maps API key for geocoding/places")
+    mapbox_access_token: str = Field(default="", description="Mapbox access token for geocoding/search")
+
     @field_validator("int_database_url_raw")
     @classmethod
     def validate_test_database(cls, v: str, info) -> str:
