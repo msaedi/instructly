@@ -93,6 +93,77 @@ const TEST_BOOKING_ID = '01K2MAY484FQGFEQVN3VKGYZ59';   // ✅ Correct
 - ✅ Frontend: All TypeScript types updated to string
 - ✅ Tests: All test data uses proper ULIDs
 
+## 🐘 CI Database Image
+
+**CRITICAL**: Our CI uses a custom PostgreSQL image with PostGIS + pgvector extensions.
+
+### Image Details
+- **Location**: `ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector`
+- **Source**: `.github/docker/postgres-ci/Dockerfile`
+- **Build**: Automated via `.github/workflows/build-ci-database.yml`
+- **Base**: `postgis/postgis:14-3.3` + pgvector installed
+
+### Why Custom Image?
+- No official image includes both PostGIS AND pgvector
+- CI tests require both extensions for spatial features and NL search
+- Migrations will FAIL without both extensions
+
+### Maintenance
+- Image rebuilds automatically when Dockerfile changes
+- To manually rebuild: Actions → "Build CI Database Image" → Run workflow
+- Update tag in `backend-ci.yml` if creating new versions
+
+### ⚠️ DO NOT:
+- Use random community images (security risk)
+- Remove pgvector or PostGIS from migrations
+- Change CI to use standard postgres image
+
+## 📍 Spatial Intelligence with PostGIS (v95)
+
+### Location Architecture
+- **Global Scalability**: Generic region boundaries support any city
+- **PostGIS Enabled**: Spatial queries with GiST indexes
+- **Provider-Agnostic Geocoding**: Swap between Google/Mapbox/Mock
+- **Address Management**: Full CRUD with Google Places autocomplete
+- **Region Detection**: Automatic neighborhood/region assignment
+
+### Key Spatial Features
+```python
+# Region boundary detection with PostGIS
+ST_Contains(region_boundaries.geometry, ST_MakePoint(lng, lat))
+
+# Spatial repositories with performance metrics
+RegionBoundaryRepository.find_region_for_point(lat, lng)
+UserAddressRepository.create_with_geocoding(address_data)
+```
+
+### Database Tables
+- **user_addresses**: User addresses with geocoding and metadata
+- **region_boundaries**: Generic regions (NYC neighborhoods ready)
+- **instructor_service_areas**: Service area preferences with regions
+
+## 🎯 Natural Language Search Excellence (v94)
+
+### Search Capabilities
+- **Typo Tolerance**: Handles common misspellings using pg_trgm
+- **Morphology**: Word form normalization (teach/teacher/teaching)
+- **Hybrid Scoring**: Combines semantic vectors with text similarity
+- **Zero-Result Handling**: Shows related options via vector neighbors
+- **Performance**: Sub-50ms with GIN indexes
+
+### PostgreSQL pg_trgm Extension
+```sql
+-- Fuzzy text search with trigram similarity
+WHERE name % 'query' OR similarity(name, 'query') >= 0.3
+ORDER BY similarity(name, 'query') DESC
+```
+
+### Search Observability
+- Persists top-N candidates with scores
+- Admin dashboards for category trends
+- Query-level debugging and analysis
+- Supply gap identification
+
 ## 🚨 CRITICAL: Client-Side Caching with React Query
 
 InstaInstru uses React Query (TanStack Query v5) for ALL data fetching. This is MANDATORY - no exceptions.
@@ -163,24 +234,40 @@ Remember: Every API call costs money and time. React Query saves both.
 
 ### Critical Context
 - **Mission**: Building for MEGAWATTS of energy allocation - quality over speed
-- **Platform Status**: ~96% complete - instructor features work, student booking ready for implementation
-- **Test Coverage**: 1415+ tests passing (100%), database safety tests complete
-- **Major Blocker**: Only 2 critical pages remaining (Instructor Profile + My Lessons Tab)
+- **Platform Status**: ~89-91% complete (booking flow works, address management complete!)
+- **Test Coverage**: 1452+ tests passing (100%), comprehensive coverage with spatial tests
+- **Major Blockers**: Payment integration (Stripe) and Reviews/Ratings system
 
 ### Immediate Priorities
-1. **Instructor Profile Page**: Next critical component (1-2 days)
-2. **My Lessons Tab**: Complete user management interface (2 days)
-3. **Phoenix Week 4**: Final instructor migration (1 week)
+1. **Payment Mock Fix**: Quick fix to restore testing capability (2-3 hours)
+2. **Payment Integration (Stripe)**: CRITICAL - No revenue without this (2-3 days)
+3. **Reviews/Ratings System**: Design decision needed, then implement (3-4 days)
 4. **Security Audit**: Critical for launch (1-2 days)
 5. **Load Testing**: Verify scalability (3-4 hours)
 
+### CORRECTION: What Actually Works ✅
+- **Instructor Profile Page**: 100% COMPLETE (was incorrectly reported as blocking)
+- **Booking Flow**: COMPLETE except payment processing
+- **Availability Selection**: Working with duration constraints
+- **Favorites System**: Working with heart icons
+- **Booking Confirmation**: Shows correct information
+- **Student Dashboard**: Functional (shows lessons, can cancel)
+- **Address Management**: Complete with Google Places autocomplete
+- **Spatial Location Services**: PostGIS-enabled with region boundaries
+
 ### Recently Completed ✅
-1. **Database Safety System**: Three-tier protection (INT/STG/PROD)
-2. **Search History Race Condition Fix**: PostgreSQL UPSERT eliminating duplicates
-3. **Analytics Enhancement 100% Complete**: Privacy framework with GDPR compliance
-4. **RBAC System**: 30 permissions replacing role-based access
-5. **Redis Migration**: Migrated from Upstash to Render Redis ($7/month)
-6. **Privacy Framework**: Complete GDPR compliance with automated retention
+1. **Complete Address Management System**: Full CRUD with Google Places autocomplete (v95)
+2. **PostGIS Spatial Queries**: Region boundaries and spatial intelligence (v95)
+3. **Provider-Agnostic Geocoding**: Factory pattern for Google/Mapbox/Mock (v95)
+4. **Smart Backgrounds System**: Intelligent activity-based backgrounds with rotation (v94)
+5. **Natural Language Search Excellence**: World-class search with typo tolerance and morphology (v94)
+6. **Search Observability Pipeline**: Complete analytics for search behavior (v94)
+7. **pg_trgm Fuzzy Matching**: PostgreSQL trigram similarity with GIN indexes (v94)
+8. **ULID Migration**: All IDs are 26-character strings (v93)
+9. **Favorites System**: Students can favorite instructors (v93)
+10. **Timezone Detection**: Auto-detect from ZIP code (v93)
+11. **Database Safety System**: Three-tier protection (INT/STG/PROD)
+12. **RBAC System**: 30 permissions replacing role-based access
 
 ### Key Architectural Decisions
 - **NO SLOT IDs**: Time-based booking only (instructor_id, date, start_time, end_time)
@@ -192,6 +279,12 @@ Remember: Every API call costs money and time. React Query saves both.
 - **Database Safety**: Three-tier protection system preventing production accidents
 - **Privacy Framework**: GDPR compliance with automated retention and user controls
 - **Race Condition Prevention**: PostgreSQL UPSERT for atomic operations
+- **NL Search Strategy**: Hybrid semantic + text similarity with pg_trgm fuzzy matching
+- **Search Observability**: Persist top-N candidates per search for analytics
+- **Smart Backgrounds**: Activity-based with CDN rotation and WebP-first strategy
+- **Spatial Architecture**: PostGIS with region boundaries for global scalability
+- **Geocoding Abstraction**: Provider-agnostic factory pattern (Google/Mapbox/Mock)
+- **Address Management**: Complete system with autocomplete and enrichment
 
 ### Technical Debt Details
 Frontend believes slots are database entities with IDs (WRONG). The operation pattern in useAvailabilityOperations.ts is 600+ lines that should be ~50 lines. Mental model mismatch causes 5x slower development.

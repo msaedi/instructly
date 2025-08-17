@@ -142,6 +142,17 @@ class PrivacyService(BaseService):
         if not user:
             raise ValueError(f"User {user_id} not found")
 
+        # Business rule: Do NOT allow account deletion if there are active/future bookings
+        # This applies to both students and instructors
+        future_student_bookings = self.booking_repository.get_student_bookings(user_id, upcoming_only=True)
+        future_instructor_bookings = self.booking_repository.get_instructor_bookings(user_id, upcoming_only=True)
+        total_future_bookings = len(future_student_bookings) + len(future_instructor_bookings)
+        if delete_account and total_future_bookings > 0:
+            # Raise a value error that routes will convert to 400
+            raise ValueError(
+                "You have active bookings. Please cancel all upcoming bookings before deleting your account."
+            )
+
         deletion_stats = {
             "search_history": 0,
             "search_events": 0,
@@ -172,11 +183,26 @@ class PrivacyService(BaseService):
             # Note: AlertHistory is for system alerts, not user-specific
 
             if delete_account:
-                # Soft delete the user account
+                # Soft delete the user account (never hard delete to preserve FKs)
                 user.is_active = False
+                # Mark lifecycle status so auth blocks login
+                try:
+                    user.account_status = "deactivated"
+                except Exception:
+                    pass
+                # Anonymize PII
                 user.email = f"deleted_{user.id}@deleted.com"
                 user.first_name = "Deleted"
                 user.last_name = "User"
+                # Additional PII anonymization
+                try:
+                    user.phone = None  # phone is nullable
+                except Exception:
+                    pass
+                try:
+                    user.zip_code = "00000"  # zip_code is non-nullable; use neutral placeholder
+                except Exception:
+                    pass
 
                 # Delete instructor profile if exists
                 instructor = self.instructor_repository.get_by_user_id(user_id)

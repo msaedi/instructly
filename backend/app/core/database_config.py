@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Literal, Optional
 
-from app.core.config import settings
+from .config import settings
 
 logger = logging.getLogger(__name__)
 

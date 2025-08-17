@@ -208,9 +208,11 @@ class BaseRepository(IRepository[T]):
             return entity
         except IntegrityError as e:
             self.logger.error(f"Integrity error creating {self.model.__name__}: {str(e)}")
+            self.db.rollback()
             raise RepositoryException(f"Integrity constraint violated: {str(e)}")
         except SQLAlchemyError as e:
             self.logger.error(f"Error creating {self.model.__name__}: {str(e)}")
+            self.db.rollback()
             raise RepositoryException(f"Failed to create {self.model.__name__}: {str(e)}")
 
     def update(self, id: int, **kwargs) -> Optional[T]:
@@ -233,6 +235,7 @@ class BaseRepository(IRepository[T]):
             return entity
         except SQLAlchemyError as e:
             self.logger.error(f"Error updating {self.model.__name__} {id}: {str(e)}")
+            self.db.rollback()
             raise RepositoryException(f"Failed to update {self.model.__name__}: {str(e)}")
 
     def delete(self, id: int) -> bool:
@@ -251,9 +254,11 @@ class BaseRepository(IRepository[T]):
             return True
         except IntegrityError as e:
             self.logger.error(f"Cannot delete {self.model.__name__} {id} due to constraints: {str(e)}")
+            self.db.rollback()
             raise RepositoryException(f"Cannot delete due to existing references: {str(e)}")
         except SQLAlchemyError as e:
             self.logger.error(f"Error deleting {self.model.__name__} {id}: {str(e)}")
+            self.db.rollback()
             raise RepositoryException(f"Failed to delete {self.model.__name__}: {str(e)}")
 
     def exists(self, **kwargs) -> bool:

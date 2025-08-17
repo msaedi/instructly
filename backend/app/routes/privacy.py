@@ -118,6 +118,9 @@ async def delete_my_data(
             else:
                 raise Exception("Anonymization failed")
 
+    except ValueError as e:
+        # Business rule violations (e.g., has active bookings)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Error deleting user data: {str(e)}")
         raise HTTPException(

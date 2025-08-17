@@ -77,6 +77,8 @@ from .public_availability import (
     PublicInstructorAvailability,
     PublicTimeSlot,
 )
+from .referrals import ReferralSendError, ReferralSendRequest, ReferralSendResponse
+from .security import PasswordChangeRequest, PasswordChangeResponse
 
 # User and authentication schemas
 from .user import Token, UserCreate, UserLogin, UserResponse, UserUpdate, UserWithPermissionsResponse
@@ -89,6 +91,9 @@ __all__ = [
     "UserUpdate",
     "UserWithPermissionsResponse",
     "Token",
+    # Security
+    "PasswordChangeRequest",
+    "PasswordChangeResponse",
     # Instructor schemas
     "InstructorProfileBase",
     "InstructorProfileCreate",
@@ -144,6 +149,10 @@ __all__ = [
     "FindBookingOpportunitiesRequest",
     "FindBookingOpportunitiesResponse",
     "BookingOpportunity",
+    # Referrals
+    "ReferralSendRequest",
+    "ReferralSendResponse",
+    "ReferralSendError",
     # Public availability schemas
     "PublicTimeSlot",
     "PublicDayAvailability",

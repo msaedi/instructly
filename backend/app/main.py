@@ -25,6 +25,7 @@ from .middleware.prometheus_middleware import PrometheusMiddleware
 from .middleware.rate_limiter_asgi import RateLimitMiddlewareASGI
 from .middleware.timing_asgi import TimingMiddlewareASGI
 from .routes import (
+    addresses,
     alerts,
     analytics,
     auth,
@@ -45,8 +46,11 @@ from .routes import (
     search,
     search_history,
     services,
+    two_factor_auth,
 )
 from .schemas.main_responses import HealthLiteResponse, HealthResponse, PerformanceMetricsResponse, RootResponse
+from .services.template_registry import TemplateRegistry
+from .services.template_service import TemplateService
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -81,6 +85,21 @@ async def lifespan(app: FastAPI):
         logger.info("🔐 HTTPS redirect enabled for production")
     else:
         logger.info("🔓 HTTPS redirect disabled for development")
+
+    # Smoke-check: render templates without sending to catch syntax/encoding issues
+    try:
+        ts = TemplateService(None, None)
+        _ = ts.render_template(
+            TemplateRegistry.AUTH_PASSWORD_RESET, {"reset_url": "https://example.com", "user_name": "Test"}
+        )
+        _ = ts.render_template(TemplateRegistry.AUTH_PASSWORD_RESET_CONFIRMATION, {"user_name": "Test"})
+        _ = ts.render_template(
+            TemplateRegistry.REFERRALS_INVITE_STANDALONE,
+            {"inviter_name": "Test", "referral_link": "https://example.com"},
+        )
+        logger.info("Template smoke-check passed")
+    except Exception as e:
+        logger.error(f"Template smoke-check failed: {e}")
 
     # Production startup optimizations
     if settings.environment == "production":
@@ -173,6 +192,7 @@ app.add_middleware(SSEAwareGZipMiddleware, minimum_size=500)
 
 # Include routers
 app.include_router(auth.router)
+app.include_router(two_factor_auth.router)
 app.include_router(instructors.router)
 app.include_router(services.router)
 app.include_router(availability_windows.router)
@@ -188,6 +208,7 @@ app.include_router(codebase_metrics.router)
 app.include_router(public.router)
 app.include_router(search.router, prefix="/api/search", tags=["search"])
 app.include_router(search_history.router, prefix="/api/search-history", tags=["search-history"])
+app.include_router(addresses.router)
 app.include_router(redis_monitor.router)
 app.include_router(database_monitor.router)
 app.include_router(privacy.router, prefix="/api", tags=["privacy"])

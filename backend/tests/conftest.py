@@ -59,9 +59,13 @@ from app.core.enums import RoleName
 from app.database import Base, get_db
 from app.main import fastapi_app as app  # Use FastAPI instance for tests
 from app.models import SearchEvent, SearchHistory
+
+# Ensure address and region models are registered so Base.metadata.create_all creates their tables
+from app.models.address import InstructorServiceArea, NYCNeighborhood, UserAddress  # noqa: F401
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
+from app.models.region_boundary import RegionBoundary  # noqa: F401
 from app.models.service_catalog import InstructorService as Service
 from app.models.service_catalog import ServiceCatalog, ServiceCategory
 from app.models.user import User
@@ -308,6 +312,8 @@ def db():
 
     # Create tables
     Base.metadata.create_all(bind=test_engine)
+
+    # Do not run direct DDL here; importing models above ensures tables are created
 
     # Seed catalog data if needed
     _ensure_catalog_data()

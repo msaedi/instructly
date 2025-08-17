@@ -27,6 +27,7 @@ from ..core.timezone_utils import get_user_today
 from ..database import get_db
 from ..models.instructor import InstructorProfile
 from ..models.user import User
+from ..schemas import ReferralSendError, ReferralSendRequest, ReferralSendResponse
 from ..schemas.public_availability import (
     NextAvailableSlotResponse,
     PublicDayAvailability,
@@ -36,6 +37,7 @@ from ..schemas.public_availability import (
 from ..services.availability_service import AvailabilityService
 from ..services.cache_service import CacheService
 from ..services.conflict_checker import ConflictChecker
+from ..services.email import EmailService
 from ..services.instructor_service import InstructorService
 
 logger = logging.getLogger(__name__)
@@ -450,3 +452,54 @@ async def get_next_available_slot(
     response_obj.headers["Cache-Control"] = "public, max-age=60"
 
     return NextAvailableSlotResponse(found=False, message=f"No available slots found in the next {search_days} days")
+
+
+@router.post(
+    "/referrals/send",
+    response_model=ReferralSendResponse,
+    summary="Send referral invites",
+    description="Send referral invitation emails to one or more recipients.",
+)
+async def send_referral_invites(
+    payload: ReferralSendRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Send referral invite emails to a list of recipients.
+
+    Payload: { "emails": ["a@b.com"], "referral_link": "https://instainstru.com/ref/ABC123", "from_name": "Emma" }
+    """
+    emails = payload.emails
+    referral_link = str(payload.referral_link)
+    from_name = payload.from_name or "A friend"
+
+    if not isinstance(emails, list) or not emails:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No recipient emails provided")
+
+    logger.info(f"[Referrals] Sending invites: count={len(emails)} link={referral_link} from={from_name}")
+    email_service = EmailService(db)
+    try:
+        email_service.validate_email_config()
+        logger.info("[Referrals] Email config validated")
+    except Exception as e:
+        logger.error(f"[Referrals] Email config invalid: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Email not configured")
+
+    sent = 0
+    failures = 0
+    error_details: list[ReferralSendError] = []
+    for to_email in emails:
+        try:
+            email_service.send_referral_invite(to_email=to_email, referral_link=referral_link, inviter_name=from_name)
+            sent += 1
+        except Exception as e:
+            # continue to next
+            logger.error(f"Failed to send referral to {to_email}: {e}")
+            failures += 1
+            try:
+                error_details.append(ReferralSendError(email=to_email, error=str(e)))
+            except Exception:
+                pass
+
+    logger.info(f"[Referrals] Completed: sent={sent} failed={failures}")
+    return ReferralSendResponse(status="ok", sent=sent, failed=failures, errors=error_details)

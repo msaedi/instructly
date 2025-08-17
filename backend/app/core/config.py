@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
 
+    # 2FA / TOTP
+    totp_encryption_key: SecretStr = Field(
+        default="", description="Fernet key for encrypting TOTP secrets (optional in dev)"
+    )
+    two_factor_trust_days: int = Field(default=30, description="Days to trust a browser for 2FA")
+
     # Raw database URLs - DO NOT USE DIRECTLY! Use properties instead
     # In CI environments, DATABASE_URL is the CI database, not production
     prod_database_url_raw: str = Field(
@@ -143,6 +149,11 @@ class Settings(BaseSettings):
     # Messaging configuration
     message_edit_window_minutes: int = Field(default=5, description="How many minutes a user can edit their message")
 
+    # Geocoding/Maps providers
+    geocoding_provider: str = Field(default="google", description="Geocoding provider: google|mapbox|mock")
+    google_maps_api_key: str = Field(default="", description="Google Maps API key for geocoding/places")
+    mapbox_access_token: str = Field(default="", description="Mapbox access token for geocoding/search")
+
     @field_validator("int_database_url_raw")
     @classmethod
     def validate_test_database(cls, v: str, info) -> str:
@@ -186,7 +197,7 @@ class Settings(BaseSettings):
             )
 
         # Import here to avoid circular dependency
-        from app.core.database_config import DatabaseConfig
+        from .database_config import DatabaseConfig
 
         # Use the new database configuration system
         try:
@@ -218,7 +229,7 @@ class Settings(BaseSettings):
         This makes ALL database access safe by default, even for old scripts!
         """
         # Import here to avoid circular dependency
-        from app.core.database_config import DatabaseConfig
+        from .database_config import DatabaseConfig
 
         return DatabaseConfig().get_database_url()
 

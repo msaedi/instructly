@@ -375,6 +375,10 @@ class TestResponseModelCoverage:
             "MessageNotificationResponse",  # Used in notification system
             "MessageSenderResponse",  # Used in MessageResponse
             "MessageResponse",  # Used in SendMessageResponse and MessagesHistoryResponse
+            # Search candidates (nested in response wrappers)
+            "CandidateCategoryTrend",
+            "CandidateServiceQuery",
+            "CandidateTopService",
         }
         unused_models = unused_models - allowed_unused
 

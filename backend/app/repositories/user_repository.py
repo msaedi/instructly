@@ -199,6 +199,29 @@ class UserRepository(BaseRepository[User]):
             self.db.rollback()
             return None
 
+    def update_password(self, user_id: str, hashed_password: str) -> bool:
+        """
+        Update only the user's hashed password.
+
+        Args:
+            user_id: User ID to update
+            hashed_password: New hashed password
+
+        Returns:
+            True if updated, False otherwise
+        """
+        try:
+            user = self.get_by_id(user_id)
+            if not user:
+                return False
+            user.hashed_password = hashed_password
+            self.db.commit()
+            return True
+        except Exception as e:
+            self.logger.error(f"Error updating user password {user_id}: {str(e)}")
+            self.db.rollback()
+            return False
+
     # ==========================================
     # Bulk Operations
     # ==========================================

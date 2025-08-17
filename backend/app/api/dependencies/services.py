@@ -25,6 +25,7 @@ from ...services.notification_service import NotificationService
 from ...services.password_reset_service import PasswordResetService
 from ...services.presentation_service import PresentationService
 from ...services.slot_manager import SlotManager
+from ...services.two_factor_auth_service import TwoFactorAuthService
 from ...services.week_operation_service import WeekOperationService
 from .database import get_db
 
@@ -232,6 +233,11 @@ def get_presentation_service(db: Session = Depends(get_db)) -> PresentationServi
 def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
     """Get AuthService instance."""
     return AuthService(db)
+
+
+def get_two_factor_auth_service(db: Session = Depends(get_db)) -> TwoFactorAuthService:
+    """Get TwoFactorAuthService instance."""
+    return TwoFactorAuthService(db)
 
 
 def get_password_reset_service(

@@ -15,6 +15,7 @@ Note: The Service model has been replaced with a three-table catalog system:
 - InstructorService: Links instructors to catalog services
 """
 
+from .address import InstructorServiceArea, NYCNeighborhood, UserAddress
 from .availability import AvailabilitySlot, BlackoutDate
 from .booking import Booking, BookingStatus
 from .favorite import UserFavorite
@@ -23,6 +24,7 @@ from .message import Message, MessageNotification
 from .monitoring import AlertHistory
 from .password_reset import PasswordResetToken
 from .rbac import Permission, Role, RolePermission, UserPermission, UserRole
+from .region_boundary import RegionBoundary
 from .search_event import SearchEvent, SearchEventCandidate
 from .search_history import SearchHistory
 from .search_interaction import SearchInteraction
@@ -59,6 +61,11 @@ __all__ = [
     "MessageNotification",
     # Monitoring models
     "AlertHistory",
+    # Address/Spatial models
+    "UserAddress",
+    "NYCNeighborhood",
+    "InstructorServiceArea",
+    "RegionBoundary",
     # Search history
     "SearchHistory",
     "SearchEvent",
