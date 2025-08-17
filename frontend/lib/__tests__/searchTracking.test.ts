@@ -355,12 +355,18 @@ describe('Search Tracking', () => {
 
   describe('trackSearchInteraction', () => {
     it('should track search result clicks correctly', async () => {
+      // Mock sessionStorage to have a guest session ID for unauthenticated user
+      mockSessionStorage.getItem.mockImplementation((key) => {
+        if (key === 'guest_session_id') return 'guest-123';
+        return null;
+      });
+
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ status: 'tracked' }),
       } as Response);
 
-      await trackSearchInteraction(123, 'click', 456, 2, false);
+      await trackSearchInteraction(123, 'click', '456', 2, false);
 
       expect(mockFetch).toHaveBeenCalledWith(
         'http://localhost:8000/api/search-history/interaction',
@@ -377,25 +383,31 @@ describe('Search Tracking', () => {
       const body = JSON.parse(requestInit.body as string);
       expect(body.search_event_id).toBe(123);
       expect(body.interaction_type).toBe('click');
-      expect(body.instructor_id).toBe(456);
+      expect(body.instructor_id).toBe('456');
       expect(body.result_position).toBe(2);
       expect(body.time_to_interaction).toBeNull();
     });
 
     it('should track search interaction with time to interaction', async () => {
+      // Mock localStorage to have an auth token
+      mockLocalStorage.getItem.mockImplementation((key) => {
+        if (key === 'access_token') return 'test-token';
+        return null;
+      });
+
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ status: 'tracked' }),
       } as Response);
 
-      await trackSearchInteraction(123, 'view_profile', 789, 1, true, 5.5);
+      await trackSearchInteraction(123, 'view_profile', '789', 1, true, 5.5);
 
       const callArgs = mockFetch.mock.calls[0];
       const requestInit = callArgs[1] as RequestInit;
       const body = JSON.parse(requestInit.body as string);
       expect(body.search_event_id).toBe(123);
       expect(body.interaction_type).toBe('view_profile');
-      expect(body.instructor_id).toBe(789);
+      expect(body.instructor_id).toBe('789');
       expect(body.result_position).toBe(1);
       expect(body.time_to_interaction).toBe(5.5);
     });
