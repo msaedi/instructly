@@ -7,12 +7,18 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 import { createPortal } from 'react-dom';
 
 export default function UserProfileDropdown() {
-  const { user, logout } = useAuth();
+  const { user, logout, isLoading } = useAuth();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Ensure component only renders on client
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Get user initials
   const getInitials = () => {
@@ -64,6 +70,13 @@ export default function UserProfileDropdown() {
     setIsOpen(false);
     logout();
   };
+
+  // Don't render until mounted to avoid hydration mismatch
+  if (!isMounted || isLoading) {
+    return (
+      <div className="w-9 h-9 bg-gray-200 rounded-full animate-pulse" />
+    );
+  }
 
   if (!user) {
     // Show login button for guests
