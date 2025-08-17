@@ -1,0 +1,7 @@
+# Minimal dependencies for the Flower monitoring container (no heavy backend deps)
+
+celery[redis]==5.3.4
+# Let celery[redis] resolve a compatible redis (<5.0.0); avoid explicit conflicting pin
+hiredis==2.3.2
+flower==2.0.1
+msgpack==1.0.7

@@ -10,18 +10,20 @@ from datetime import timedelta
 
 from celery.schedules import crontab
 
+from app.core.config import settings
+
 # Main beat schedule configuration
 CELERYBEAT_SCHEDULE = {
-    # Analytics calculation - runs every 3 hours
+    # Analytics calculation - runs at 2:30 AM and 2:30 PM (consistent across envs)
     "calculate-service-analytics": {
         "task": "app.tasks.analytics.calculate_analytics",
-        "schedule": crontab(hour="*/3", minute=0),  # Every 3 hours
+        "schedule": crontab(hour="3,15", minute=30),
         # For testing: uncomment the line below to run every minute
         # "schedule": crontab(minute="*/1"),  # Every minute
         "args": (90,),  # Calculate analytics for last 90 days
         "kwargs": {},
         "options": {
-            "queue": "analytics",
+            "queue": "celery" if settings.environment != "production" else "analytics",
             "priority": 3,
         },
         # Note: Calculate service analytics every 3 hours
@@ -35,12 +37,12 @@ CELERYBEAT_SCHEDULE = {
             "priority": 3,
         },
     },
-    # Codebase metrics snapshot - runs daily at 2:10 AM
+    # Codebase metrics snapshot - runs at 2:30 AM and 2:30 PM (consistent across envs)
     "append-codebase-metrics-history": {
         "task": "app.tasks.codebase_metrics.append_history",
-        "schedule": crontab(hour=2, minute=10),
+        "schedule": crontab(hour="3,15", minute=30),
         "options": {
-            "queue": "analytics",
+            "queue": "celery" if settings.environment != "production" else "analytics",
             "priority": 2,
         },
         # Note: Persists daily codebase snapshot for trend charts
@@ -228,18 +230,6 @@ CELERYBEAT_SCHEDULE = {
 # Schedule configuration for different environments
 SCHEDULE_CONFIG = {
     "production": CELERYBEAT_SCHEDULE,
-    "development": {
-        # Override with faster intervals for testing
-        "calculate-service-analytics": {
-            "task": "app.tasks.analytics.calculate_analytics",
-            "schedule": timedelta(minutes=5),  # Every 5 minutes for testing
-            "args": (7,),  # Only last 7 days for faster execution
-            "options": {
-                "queue": "analytics",
-                "priority": 3,
-            },
-        },
-    },
     "testing": {
         # Minimal schedule for test environment
         "test-analytics": {
@@ -265,4 +255,9 @@ def get_beat_schedule(environment: str = "production"):
     Returns:
         dict: The beat schedule configuration
     """
-    return SCHEDULE_CONFIG.get(environment, CELERYBEAT_SCHEDULE)
+    # Start from the base schedule, then apply environment-specific overrides
+    base = dict(CELERYBEAT_SCHEDULE)
+    overrides = SCHEDULE_CONFIG.get(environment)
+    if overrides:
+        base.update(overrides)
+    return base
