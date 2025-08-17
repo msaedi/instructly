@@ -34,37 +34,35 @@ export default function DurationButtons({
 
   return (
     <div className="mt-4">
-      <div className="flex flex-wrap gap-3">
-        {durationOptions.map((option) => {
-          const isSelected = selectedDuration === option.duration;
-          const isDisabled = disabledDurations.includes(option.duration);
+      <div className="flex items-center gap-4">
+        <p className="text-sm font-medium text-gray-700">Session duration:</p>
+        <div className="flex gap-4">
+          {durationOptions.map((option) => {
+            const isSelected = selectedDuration === option.duration;
+            const isDisabled = disabledDurations.includes(option.duration);
+            const radioName = `duration-modal-${Date.now()}`; // Unique name to avoid conflicts
 
-          return (
-            <button
-              key={option.duration}
-              onClick={() => !isDisabled && onDurationSelect(option.duration)}
-              disabled={isDisabled}
-              className={`
-                h-10 px-5 rounded transition-colors
-                ${
-                  isSelected
-                    ? 'text-white'
-                    : 'bg-white dark:bg-gray-900 hover:bg-purple-50 dark:hover:bg-purple-900/20 text-gray-900 dark:text-gray-100'
-                }
-              `}
-              style={{
-                border: isSelected ? 'none' : '1px solid #E0E0E0',
-                borderRadius: '4px',
-                fontSize: '14px',
-                backgroundColor: isSelected ? '#6B46C1' : undefined,
-                color: isDisabled ? '#999999' : isSelected ? '#FFFFFF' : '#333333',
-                opacity: isDisabled ? 0.6 : 1,
-              }}
-            >
-              {option.duration}m/${option.price}
-            </button>
-          );
-        })}
+            return (
+              <label
+                key={option.duration}
+                className={`flex items-center cursor-pointer ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <input
+                  type="radio"
+                  name={radioName}
+                  value={option.duration}
+                  checked={isSelected}
+                  onChange={() => !isDisabled && onDurationSelect(option.duration)}
+                  disabled={isDisabled}
+                  className="w-4 h-4 text-purple-700 accent-purple-700 border-gray-300 focus:ring-purple-500"
+                />
+                <span className="ml-2 text-sm text-gray-700">
+                  {option.duration} min (${option.price})
+                </span>
+              </label>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

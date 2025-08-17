@@ -2,17 +2,31 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Calendar, Clock, MapPin, DollarSign, User } from 'lucide-react';
 import { PaymentSection } from '@/features/student/payment';
 import { BookingPayment } from '@/features/student/payment/types';
 import { navigationStateManager } from '@/lib/navigation/navigationStateManager';
 import { logger } from '@/lib/logger';
+import UserProfileDropdown from '@/components/UserProfileDropdown';
+import { useAuth } from '@/features/shared/hooks/useAuth';
 
 export default function BookingConfirmationPage() {
   const [bookingData, setBookingData] = useState<BookingPayment | null>(null);
   const [serviceId, setServiceId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [paymentComplete, setPaymentComplete] = useState(false);
+  const [confirmationNumber, setConfirmationNumber] = useState<string>('');
   const router = useRouter();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+
+  // Check authentication and redirect if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      // Store the current URL to return after login
+      const returnUrl = '/student/booking/confirm';
+      logger.info('User not authenticated, redirecting to login', { returnUrl });
+      router.push(`/login?redirect=${encodeURIComponent(returnUrl)}`);
+    }
+  }, [authLoading, isAuthenticated, router]);
 
   useEffect(() => {
     // Skip if already loaded
@@ -46,7 +60,11 @@ export default function BookingConfirmationPage() {
     }
   }, [bookingData, router]);
 
-  const handlePaymentSuccess = (confirmationNumber: string) => {
+  const handlePaymentSuccess = (confirmationNum: string) => {
+    // Set payment complete state
+    setPaymentComplete(true);
+    setConfirmationNumber(confirmationNum);
+
     // Clear all session storage after successful payment
     sessionStorage.removeItem('bookingData');
     sessionStorage.removeItem('serviceId');
@@ -54,7 +72,10 @@ export default function BookingConfirmationPage() {
     // Clear navigation state since booking is complete
     navigationStateManager.clearBookingFlow();
 
-    // The PaymentSection already handles redirect to dashboard
+    // Redirect to dashboard after a delay
+    setTimeout(() => {
+      router.push('/student/lessons');
+    }, 5000); // 5 seconds to show success message
   };
 
   const handlePaymentError = (error: Error) => {
@@ -104,30 +125,43 @@ export default function BookingConfirmationPage() {
     }
   };
 
-  const formatDate = (date: Date | string) => {
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
-    return dateObj.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
 
-  const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}:${minutes} ${ampm}`;
-  };
+  // Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-48 mb-4"></div>
+          <div className="h-4 bg-gray-200 rounded w-32"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // If not authenticated, don't render anything (redirect will happen)
+  if (!isAuthenticated) {
+    return null;
+  }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-48 mb-4"></div>
-          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32"></div>
+      <div className="min-h-screen">
+        {/* Header - matching search results page */}
+        <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between max-w-full">
+            <a href="/" className="inline-block">
+              <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            </a>
+            <div className="pr-4">
+              <UserProfileDropdown />
+            </div>
+          </div>
+        </header>
+        <div className="flex items-center justify-center pt-32">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-48 mb-4"></div>
+            <div className="h-4 bg-gray-200 rounded w-32"></div>
+          </div>
         </div>
       </div>
     );
@@ -135,165 +169,131 @@ export default function BookingConfirmationPage() {
 
   if (!bookingData) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-            No booking data found
-          </h2>
-          <button
-            onClick={() => router.push('/search')}
-            className="text-blue-600 dark:text-blue-400 hover:underline"
-          >
-            Back to search
-          </button>
+      <div className="min-h-screen">
+        {/* Header - matching search results page */}
+        <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between max-w-full">
+            <a href="/" className="inline-block">
+              <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            </a>
+            <div className="pr-4">
+              <UserProfileDropdown />
+            </div>
+          </div>
+        </header>
+        <div className="flex items-center justify-center pt-32">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              No booking data found
+            </h2>
+            <button
+              onClick={() => router.push('/search')}
+              className="text-purple-700 hover:text-purple-800 hover:underline"
+            >
+              Back to search
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show success view if payment is complete
+  if (paymentComplete) {
+    return (
+      <div className="min-h-screen">
+        {/* Header - matching search results page */}
+        <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between max-w-full">
+            <a href="/" className="inline-block">
+              <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            </a>
+            <div className="pr-4">
+              <UserProfileDropdown />
+            </div>
+          </div>
+        </header>
+
+        <div className="px-6 py-6">
+          <div className="max-w-md mx-auto">
+            <div className="bg-white/95 backdrop-blur-sm rounded-xl border border-gray-200 p-8 text-center">
+              {/* Success Icon */}
+              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg className="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">Booking Confirmed!</h2>
+
+              <p className="text-lg text-gray-600 mb-2">
+                Your lesson with <span className="font-semibold">{bookingData?.instructorName}</span> is confirmed.
+              </p>
+
+              <p className="text-sm text-gray-500 mb-8">
+                Confirmation #{confirmationNumber}
+              </p>
+
+              <div className="bg-purple-50 rounded-lg p-4 mb-8">
+                <p className="text-sm text-purple-800">
+                  Check your email for booking details and instructor contact information.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  onClick={() => router.push('/student/lessons')}
+                  className="w-full bg-purple-700 text-white py-3 px-6 rounded-lg font-medium hover:bg-purple-800 transition-colors"
+                >
+                  View My Lessons
+                </button>
+
+                <button
+                  onClick={() => router.push('/search')}
+                  className="w-full bg-white text-purple-700 py-3 px-6 rounded-lg font-medium border-2 border-purple-700 hover:bg-purple-50 transition-colors"
+                >
+                  Book Another Lesson
+                </button>
+              </div>
+
+              <p className="text-xs text-gray-500 mt-6">
+                Redirecting to your lessons in 5 seconds...
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          <button
-            onClick={handleBack}
-            className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-            data-testid="payment-back-button"
-          >
-            <ArrowLeft className="h-5 w-5 mr-2" />
-            Back
-          </button>
+    <div className="min-h-screen">
+      {/* Header - matching search results page */}
+      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between max-w-full">
+          <a href="/" className="inline-block">
+            <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+          </a>
+          <div className="pr-4">
+            <UserProfileDropdown />
+          </div>
         </div>
-      </div>
+      </header>
 
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">
-          Complete Your Booking
-        </h1>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Booking Details - Left Side */}
-          <div className="lg:col-span-1">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 sticky top-8">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                Booking Summary
-              </h2>
-
-              <div className="space-y-4">
-                {/* Instructor */}
-                <div className="flex items-start">
-                  <User className="h-5 w-5 text-gray-500 dark:text-gray-400 mt-0.5 mr-3" />
-                  <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Instructor</div>
-                    <div className="font-medium text-gray-900 dark:text-white">
-                      {bookingData.instructorName}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Service */}
-                <div className="flex items-start">
-                  <div className="h-5 w-5 text-gray-500 dark:text-gray-400 mt-0.5 mr-3">📚</div>
-                  <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Service</div>
-                    <div className="font-medium text-gray-900 dark:text-white">
-                      {bookingData.lessonType}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Date */}
-                <div className="flex items-start">
-                  <Calendar className="h-5 w-5 text-gray-500 dark:text-gray-400 mt-0.5 mr-3" />
-                  <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Date</div>
-                    <div className="font-medium text-gray-900 dark:text-white">
-                      {formatDate(bookingData.date)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Time */}
-                <div className="flex items-start">
-                  <Clock className="h-5 w-5 text-gray-500 dark:text-gray-400 mt-0.5 mr-3" />
-                  <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Time</div>
-                    <div className="font-medium text-gray-900 dark:text-white">
-                      {formatTime(bookingData.startTime)} - {formatTime(bookingData.endTime)}
-                    </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                      {bookingData.duration} minutes
-                    </div>
-                  </div>
-                </div>
-
-                {/* Location */}
-                <div className="flex items-start">
-                  <MapPin className="h-5 w-5 text-gray-500 dark:text-gray-400 mt-0.5 mr-3" />
-                  <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Location</div>
-                    <div className="font-medium text-gray-900 dark:text-white">
-                      {bookingData.location}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Divider */}
-                <hr className="border-gray-200 dark:border-gray-700" />
-
-                {/* Pricing */}
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Base price</span>
-                    <span className="text-gray-900 dark:text-white">
-                      ${bookingData.basePrice.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 dark:text-gray-400">Service fee</span>
-                    <span className="text-gray-900 dark:text-white">
-                      ${bookingData.serviceFee.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between font-semibold text-lg pt-2 border-t border-gray-200 dark:border-gray-700">
-                    <span className="text-gray-900 dark:text-white">Total</span>
-                    <span className="text-blue-600 dark:text-blue-400">
-                      ${bookingData.totalAmount.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Cancellation Policy */}
-                {bookingData.freeCancellationUntil && (
-                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 mt-4">
-                    <p className="text-sm text-blue-800 dark:text-blue-300">
-                      Free cancellation until {formatDate(bookingData.freeCancellationUntil)} at{' '}
-                      {formatTime(
-                        new Date(bookingData.freeCancellationUntil).toTimeString().slice(0, 5)
-                      )}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Payment Section - Right Side */}
-          <div className="lg:col-span-2">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md">
-              <PaymentSection
-                bookingData={{
-                  ...bookingData,
-                  // Pass the service ID if needed
-                  metadata: { serviceId },
-                }}
-                onSuccess={handlePaymentSuccess}
-                onError={handlePaymentError}
-                onBack={handleBack}
-              />
-            </div>
-          </div>
+      <div className="px-6 py-6">
+        <div className="max-w-4xl mx-auto">
+          {/* Payment Section - Full Width */}
+          <PaymentSection
+            bookingData={{
+              ...bookingData,
+              // Pass the service ID if needed
+              metadata: { serviceId },
+            }}
+            onSuccess={handlePaymentSuccess}
+            onError={handlePaymentError}
+            onBack={handleBack}
+            showPaymentMethodInline={true}
+          />
         </div>
       </div>
     </div>

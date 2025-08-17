@@ -19,7 +19,11 @@ export default function SummarySection({
 }: SummarySectionProps) {
   // Format date to human-readable format
   const formatDate = (dateStr: string, timeStr: string) => {
-    const date = new Date(dateStr);
+    // Parse the date string as local date, not UTC
+    // Split the date string and create date with local timezone
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day); // month is 0-indexed
+
     const monthNames = [
       'January',
       'February',
@@ -34,14 +38,14 @@ export default function SummarySection({
       'November',
       'December',
     ];
-    const month = monthNames[date.getMonth()];
-    const day = date.getDate();
+    const monthName = monthNames[date.getMonth()];
+    const dayNum = date.getDate();
 
     // Convert time to 12-hour format if needed
     const formattedTime =
       timeStr.includes('am') || timeStr.includes('pm') ? timeStr : formatTime24to12(timeStr);
 
-    return `${month} ${day}, ${formattedTime}`;
+    return `${monthName} ${dayNum}, ${formattedTime}`;
   };
 
   // Convert 24-hour time to 12-hour format
@@ -61,20 +65,20 @@ export default function SummarySection({
     <div className="w-full">
       <div className="text-center">
         {/* Request for header */}
-        <p className="text-sm mb-3" style={{ color: '#666666' }}>
+        <p className="text-sm mb-1" style={{ color: '#666666' }}>
           Request for:
         </p>
 
         {/* Date and Time */}
         {selectedDate && selectedTime && (
-          <p className="text-lg font-medium mb-3" style={{ color: '#333333', fontSize: '18px' }}>
+          <p className="text-lg font-bold mb-1" style={{ color: '#333333', fontSize: '18px' }}>
             {formatDate(selectedDate, selectedTime)}
           </p>
         )}
 
         {/* Duration and Price */}
         {selectedDuration && price > 0 && (
-          <p className="text-base mb-6" style={{ color: '#333333', fontSize: '16px' }}>
+          <p className="text-base mb-4" style={{ color: '#333333', fontSize: '16px' }}>
             {selectedDuration} min · ${price}
           </p>
         )}
@@ -84,19 +88,13 @@ export default function SummarySection({
           onClick={onContinue}
           disabled={!isComplete}
           className={`
-            w-full py-3 px-4 rounded font-medium transition-colors
+            w-full py-2.5 px-4 rounded-lg font-medium transition-colors
             ${
               isComplete
-                ? 'text-white hover:opacity-90'
+                ? 'bg-purple-700 text-white hover:bg-purple-800'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }
           `}
-          style={{
-            backgroundColor: isComplete ? '#6B46C1' : undefined,
-            height: '44px',
-            fontSize: '16px',
-            borderRadius: '4px',
-          }}
         >
           Select and continue
         </button>

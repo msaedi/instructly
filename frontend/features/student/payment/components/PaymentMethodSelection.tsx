@@ -49,9 +49,7 @@ export default function PaymentMethodSelection({
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <h2 className="text-2xl font-bold mb-6">Select Payment Method</h2>
-
+    <div className="p-6">
       {/* Credits Section */}
       {credits.totalAmount > 0 && (
         <div className="mb-6 p-4 bg-[#FFFEF5] dark:bg-gray-800/50 rounded-lg">

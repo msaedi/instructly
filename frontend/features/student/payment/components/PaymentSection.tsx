@@ -1,9 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import { AlertCircle } from 'lucide-react';
-import { BookingPayment, PaymentCard, CreditBalance } from '../types';
+import { BookingPayment, PaymentCard, CreditBalance, PaymentMethod } from '../types';
 import { usePaymentFlow, PaymentStep } from '../hooks/usePaymentFlow';
 import PaymentMethodSelection from './PaymentMethodSelection';
 import PaymentConfirmation from './PaymentConfirmation';
@@ -17,10 +16,10 @@ interface PaymentSectionProps {
   onSuccess: (confirmationNumber: string) => void;
   onError: (error: Error) => void;
   onBack?: () => void;
+  showPaymentMethodInline?: boolean;
 }
 
-export function PaymentSection({ bookingData, onSuccess, onError, onBack }: PaymentSectionProps) {
-  const router = useRouter();
+export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPaymentMethodInline = false }: PaymentSectionProps) {
   const {
     createBooking,
     isLoading: isCreatingBooking,
@@ -69,6 +68,14 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack }: Paym
     },
   });
 
+  // If inline mode, skip directly to confirmation
+  useEffect(() => {
+    if (showPaymentMethodInline && currentStep === PaymentStep.METHOD_SELECTION) {
+      // Auto-select credit card payment
+      selectPaymentMethod(PaymentMethod.CREDIT_CARD, userCards[0]?.id);
+    }
+  }, [showPaymentMethodInline, currentStep, selectPaymentMethod, userCards]);
+
   // Override processPayment to create booking during payment
   const processPayment = async () => {
     // Set to processing state
@@ -116,10 +123,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack }: Paym
         // Call success callback
         onSuccess(confirmationNum);
 
-        // After a delay, redirect to dashboard
-        setTimeout(() => {
-          router.push('/student/lessons');
-        }, 3000);
+        // Don't redirect here - let the parent component handle it
       } else {
         throw new Error(bookingError || 'Failed to create booking');
       }

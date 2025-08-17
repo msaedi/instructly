@@ -14,6 +14,7 @@ import { SearchType } from '@/types/enums';
 import { Instructor } from '@/types/api';
 import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
+import UserProfileDropdown from '@/components/UserProfileDropdown';
 
 interface SearchMetadata {
   filters_applied: Record<string, any>;
@@ -53,11 +54,11 @@ function SearchPageContent() {
   const [rateLimit, setRateLimit] = useState<{ seconds: number } | null>(null);
   const [showTimeSelection, setShowTimeSelection] = useState(false);
   const [timeSelectionContext, setTimeSelectionContext] = useState<any>(null);
-  
+
   // Refs for infinite scroll
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
-  
+
   // State for highlighting neighborhoods on hover
   const [highlightedAreas, setHighlightedAreas] = useState<string[]>([]);
 
@@ -90,6 +91,9 @@ function SearchPageContent() {
     const activity = (query || category || '').trim();
     if (activity) {
       setActivity(activity);
+    } else {
+      // If no query or category, clear activity to allow default background
+      setActivity(null);
     }
     // Intentionally do NOT clear on unmount so instructor profile can inherit
   }, [query, category, setActivity]);
@@ -279,7 +283,7 @@ function SearchPageContent() {
 
             // Natural language search doesn't support pagination yet, so we load all results at once
             setHasMore(false);
-            
+
             /* setMetadata({
               filters_applied: {
                 search: query,
@@ -568,17 +572,17 @@ function SearchPageContent() {
                 const firstSlot = day.available_slots[0];
                 const date = new Date(d);
                 const [hours, minutes] = firstSlot.start_time.split(':').map(Number);
-                const dateStr = date.toLocaleDateString('en-US', { 
-                  weekday: 'short', 
-                  month: 'short', 
-                  day: 'numeric' 
+                const dateStr = date.toLocaleDateString('en-US', {
+                  weekday: 'short',
+                  month: 'short',
+                  day: 'numeric'
                 });
                 const timeStr = new Date(2000, 0, 1, hours, minutes).toLocaleTimeString('en-US', {
                   hour: 'numeric',
                   minute: '2-digit',
                   hour12: true
                 });
-                
+
                 updates[i.user_id] = {
                   date: d,
                   time: firstSlot.start_time,
@@ -606,56 +610,61 @@ function SearchPageContent() {
   }, [instructors]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <Link href="/" className="inline-block">
-          <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
-        </Link>
+      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between max-w-full">
+          <Link href="/" className="inline-block">
+            <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+          </Link>
+          <div className="pr-4">
+            <UserProfileDropdown />
+          </div>
+        </div>
       </header>
 
-      {/* Filter Bar and Content */}
+      {/* Main Content Area */}
       <div className="flex">
         {/* Left Side - Filter and Instructor Cards */}
-        <div className="flex-1">
-          {/* Filter Bar */}
-          <div className="bg-gray-50 px-6 py-4">
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="flex-1 overflow-visible">
+          {/* Filter Bar - Scrolls with content */}
+          <div className="px-6 py-4">
+            <div className="bg-white/95 backdrop-blur-sm rounded-xl border border-gray-200 p-4">
               <div className="flex items-center justify-between">
                 <div className="flex gap-6">
                   {/* Date filters group */}
                   <div className="bg-gray-100 rounded-lg px-1 py-1 flex gap-1">
-                    <button className="px-4 py-2 bg-white rounded-md text-sm font-medium">
+                    <button className="px-4 py-2 bg-white rounded-md text-sm font-medium cursor-pointer">
                       Today
                     </button>
-                    <button className="px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-md text-sm">
+                    <button className="px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-md text-sm cursor-pointer">
                       This Week
                     </button>
-                    <button className="px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-md text-sm">
+                    <button className="px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-md text-sm cursor-pointer">
                       Choose Date
                     </button>
                   </div>
-                  
+
                   {/* Time filters group */}
                   <div className="bg-gray-100 rounded-lg px-1 py-1 flex gap-1">
-                    <button className="px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-md text-sm">
+                    <button className="px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-md text-sm cursor-pointer">
                       Morning
                     </button>
-                    <button className="px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-md text-sm">
+                    <button className="px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-md text-sm cursor-pointer">
                       Afternoon
                     </button>
                   </div>
-                  
+
                   {/* More Filters button */}
-                  <button className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
+                  <button className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 cursor-pointer">
                     More Filters
                   </button>
                 </div>
-                
+
                 {/* Sort section */}
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-600">Sort by:</span>
-                  <button className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 flex items-center gap-2">
+                  <button className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 flex items-center gap-2 cursor-pointer">
                     <span>Recommended</span>
                     <span className="text-gray-500">▼</span>
                   </button>
@@ -663,7 +672,7 @@ function SearchPageContent() {
               </div>
             </div>
           </div>
-          
+
           {/* Instructor Cards */}
           <div className="overflow-y-auto p-6 scrollbar-hide h-[calc(100vh-15rem)]"
                style={{
@@ -672,7 +681,7 @@ function SearchPageContent() {
                }}>
           {/* Rate limit banner */}
           <RateLimitBanner />
-          
+
           {loading ? (
             <div className="flex justify-center items-center h-64">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-700"></div>
@@ -741,7 +750,7 @@ function SearchPageContent() {
                   };
 
                   return (
-                    <div 
+                    <div
                       key={instructor.id}
                       onMouseEnter={() => setHighlightedAreas(instructor.areas_of_service || [])}
                       onMouseLeave={() => setHighlightedAreas([])}
@@ -754,7 +763,7 @@ function SearchPageContent() {
                           e?.preventDefault?.();
                           e?.stopPropagation?.();
                           handleInteraction('book');
-                          // Open time selection modal
+                          // Open time selection modal when "More options" is clicked
                           setShowTimeSelection(true);
                           setTimeSelectionContext({
                             instructor: enhancedInstructor,
@@ -780,7 +789,7 @@ function SearchPageContent() {
                   )}
                 </div>
               )}
-              
+
               {/* End of results message */}
               {!hasMore && instructors.length > 0 && (
                 <div className="mt-8 text-center text-gray-600 py-4">
@@ -791,13 +800,13 @@ function SearchPageContent() {
           )}
           </div>
         </div>
-        
+
         {/* Right Side - Map */}
         <div className="w-1/3 hidden xl:block">
-          <div className="pl-0 pr-6 pt-4 pb-6" style={{ minHeight: 'calc(100vh - 11rem)' }}>
-            <div className="bg-white rounded-xl border border-gray-200 p-4 h-full">
+          <div className="pl-0 pr-6 pt-4 pb-6">
+            <div className="bg-white/95 backdrop-blur-sm rounded-xl border border-gray-200 p-4">
               {/* Manhattan Map Component */}
-              <ManhattanMap 
+              <ManhattanMap
                 highlightedAreas={highlightedAreas}
               />
             </div>

@@ -7,8 +7,8 @@ interface ManhattanMapProps {
 
 const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
   const isHighlighted = (area: string) => {
-    return highlightedAreas.some(a => 
-      a.toLowerCase().includes(area.toLowerCase()) || 
+    return highlightedAreas.some(a =>
+      a.toLowerCase().includes(area.toLowerCase()) ||
       area.toLowerCase().includes(a.toLowerCase())
     );
   };
@@ -24,7 +24,7 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
           Inwood
         </div>
       </div>
-      
+
       {/* Washington Heights - widening */}
       <div className="mx-auto" style={{ width: '45%' }}>
         <div className={`p-1 text-xs text-center transition-colors ${
@@ -34,7 +34,7 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
           Washington Heights
         </div>
       </div>
-      
+
       {/* Harlem - wider */}
       <div className="mx-auto" style={{ width: '65%' }}>
         <div className="grid grid-cols-2 gap-0">
@@ -52,7 +52,7 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
           </div>
         </div>
       </div>
-      
+
       {/* Central Park area with park in middle */}
       <div className="mx-auto" style={{ width: '85%' }}>
         <div className="grid grid-cols-5 gap-0">
@@ -74,7 +74,7 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
           </div>
         </div>
       </div>
-      
+
       {/* Midtown - widest part with curved edges */}
       <div className="mx-auto" style={{ width: '100%' }}>
         <div className="grid grid-cols-3 gap-0">
@@ -98,7 +98,7 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
           </div>
         </div>
       </div>
-      
+
       {/* Chelsea to Flatiron - slight narrowing */}
       <div className="mx-auto" style={{ width: '95%' }}>
         <div className="grid grid-cols-3 gap-0">
@@ -122,7 +122,7 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
           </div>
         </div>
       </div>
-      
+
       {/* Villages */}
       <div className="mx-auto" style={{ width: '90%' }}>
         <div className="grid grid-cols-3 gap-0">
@@ -146,7 +146,7 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
           </div>
         </div>
       </div>
-      
+
       {/* SoHo/Nolita/LES - continuing to narrow */}
       <div className="mx-auto" style={{ width: '85%' }}>
         <div className="grid grid-cols-3 gap-0">
@@ -170,7 +170,7 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
           </div>
         </div>
       </div>
-      
+
       {/* Tribeca/Chinatown - narrower */}
       <div className="mx-auto" style={{ width: '75%' }}>
         <div className="grid grid-cols-2 gap-0">
@@ -188,7 +188,7 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
           </div>
         </div>
       </div>
-      
+
       {/* Financial District - narrowing to tip */}
       <div className="mx-auto" style={{ width: '50%' }}>
         <div className={`p-1 text-xs text-center transition-colors ${
@@ -198,7 +198,7 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
           FiDi
         </div>
       </div>
-      
+
       {/* Battery Park - very tip */}
       <div className="mx-auto" style={{ width: '25%' }}>
         <div className={`p-0.5 text-xs text-center transition-colors ${

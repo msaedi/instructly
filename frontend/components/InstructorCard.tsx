@@ -81,6 +81,15 @@ export default function InstructorCard({
     return service?.name || '';
   };
 
+  // Helper function to calculate end time
+  const calculateEndTime = (startTime: string, durationMinutes: number): string => {
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const totalMinutes = hours * 60 + minutes + durationMinutes;
+    const endHours = Math.floor(totalMinutes / 60);
+    const endMinutes = totalMinutes % 60;
+    return `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+  };
+
 
   const handleFavoriteClick = async () => {
     // Guest users - redirect to login
@@ -123,7 +132,7 @@ export default function InstructorCard({
     "Professional pianist with 15+ years of teaching experience. All levels welcome",
     "Conservatory-trained instructor passionate about helping students reach their potential"
   ];
-  
+
   // Get a consistent bio based on instructor ID
   const getBio = () => {
     if (instructor.bio) return instructor.bio;
@@ -143,7 +152,7 @@ export default function InstructorCard({
           <div className="w-56 h-56 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
             <span className="text-7xl">👤</span>
           </div>
-          
+
           {/* View and review profile link */}
           <div className="mt-3 text-center">
             <button
@@ -151,14 +160,14 @@ export default function InstructorCard({
                 e.preventDefault();
                 onViewProfile?.();
               }}
-              className="text-purple-700 hover:text-purple-800 text-lg font-medium leading-tight"
+              className="text-purple-700 hover:text-purple-800 text-lg font-medium leading-tight cursor-pointer"
             >
               <div>View Profile</div>
               <div>and Reviews</div>
             </button>
           </div>
         </div>
-        
+
         {/* Right side - Details */}
         <div className="flex-1">
           {/* Header row with name, price and favorite */}
@@ -173,15 +182,15 @@ export default function InstructorCard({
                   <CheckCircle className="h-7 w-7 text-purple-700 ml-2" />
                 )}
               </div>
-              
+
               {/* Services as pills with double padding */}
               <div className="flex gap-2 mt-3 mb-2">
                 {instructor.services.map((service, idx) => {
                   const serviceName = getServiceName(service.service_catalog_id);
                   if (!serviceName) return null;
                   return (
-                    <span 
-                      key={idx} 
+                    <span
+                      key={idx}
                       className="px-6 py-1 bg-gray-100 text-gray-700 rounded-full text-lg font-bold"
                     >
                       {serviceName}
@@ -189,7 +198,7 @@ export default function InstructorCard({
                   );
                 })}
               </div>
-              
+
               {/* Rating */}
               <div className="flex items-center gap-1 text-lg text-gray-600 mb-2">
                 <Star className="h-5 w-5 text-yellow-500 fill-current" />
@@ -197,28 +206,28 @@ export default function InstructorCard({
                 <span>·</span>
                 <span>{instructor.total_reviews || 0} reviews</span>
               </div>
-              
+
               {/* Experience - Moved after rating */}
               <p className="text-lg text-gray-600 mb-2">{instructor.years_experience} years experience</p>
-              
+
               {/* Location */}
               <div className="flex items-center text-lg text-gray-600 mb-2">
                 <MapPin className="h-5 w-5 mr-1" />
                 <span>{instructor.areas_of_service.slice(0, 2).join(', ') || 'Manhattan'}</span>
               </div>
             </div>
-            
+
             {/* Price in upper right */}
             <div className="flex items-center gap-3">
               <p className="text-3xl font-bold text-purple-700" data-testid="instructor-price">
                 ${instructor.services[0]?.hourly_rate || 0}/hr
               </p>
-              
+
               {/* Favorite Button */}
               <button
                 onClick={handleFavoriteClick}
                 disabled={isLoadingFavorite}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
                 aria-label={user ? "Toggle favorite" : "Sign in to save"}
                 title={!user ? "Sign in to save this instructor" : isFavorited ? "Remove from favorites" : "Add to favorites"}
               >
@@ -230,7 +239,7 @@ export default function InstructorCard({
               </button>
             </div>
           </div>
-          
+
           {/* Bio with 5-line limit and soft yellow background */}
           <div className="mb-3 bg-yellow-50 p-4 rounded-lg">
             <p className={`text-gray-700 italic ${!isExpanded ? 'line-clamp-5' : ''}`}>
@@ -239,72 +248,90 @@ export default function InstructorCard({
             {getBio().length > 400 && (
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="text-purple-700 hover:text-purple-800 text-sm font-medium mt-1"
+                className="text-purple-700 hover:text-purple-800 text-sm font-medium mt-1 cursor-pointer"
               >
                 {isExpanded ? 'Show less' : 'Read more'}
               </button>
             )}
           </div>
-          
-          {/* Session Duration Selection */}
-          <div className="flex items-center gap-4 mb-4">
-            <p className="text-sm font-medium text-gray-700">Session duration:</p>
-            <div className="flex gap-4">
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="radio"
-                  name={`duration-${instructor.user_id}`}
-                  value="45"
-                  defaultChecked
-                  className="w-4 h-4 text-purple-700 accent-purple-700 border-gray-300 focus:ring-purple-500"
-                />
-                <span className="ml-2 text-sm text-gray-700">45 min</span>
-              </label>
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="radio"
-                  name={`duration-${instructor.user_id}`}
-                  value="60"
-                  className="w-4 h-4 text-purple-700 accent-purple-700 border-gray-300 focus:ring-purple-500"
-                />
-                <span className="ml-2 text-sm text-gray-700">60 min</span>
-              </label>
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="radio"
-                  name={`duration-${instructor.user_id}`}
-                  value="90"
-                  className="w-4 h-4 text-purple-700 accent-purple-700 border-gray-300 focus:ring-purple-500"
-                />
-                <span className="ml-2 text-sm text-gray-700">90 min</span>
-              </label>
+
+          {/* Session Duration Selection - Only show if instructor offers multiple durations */}
+          {instructor.services?.[0]?.duration_options && instructor.services[0].duration_options.length > 1 && (
+            <div className="flex items-center gap-4 mb-4">
+              <p className="text-sm font-medium text-gray-700">Session duration:</p>
+              <div className="flex gap-4">
+                {instructor.services[0].duration_options.map((duration, index) => {
+                  const price = Math.round((instructor.services[0].hourly_rate * duration) / 60);
+                  return (
+                    <label key={duration} className="flex items-center cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`duration-${instructor.user_id}`}
+                        value={duration}
+                        defaultChecked={index === 0}
+                        className="w-4 h-4 text-purple-700 accent-purple-700 border-gray-300 focus:ring-purple-500"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">{duration} min (${price})</span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-          
+          )}
+
           {/* Action Buttons */}
           <div className="flex gap-3">
             <button
               onClick={(e) => {
-                onBookNow?.(e);
+                e.preventDefault();
+                if (nextAvailableSlot) {
+                  // Navigate directly to booking confirmation with the next available slot
+                  const bookingData = {
+                    instructorId: instructor.user_id,
+                    instructorName: `${instructor.user.first_name} ${instructor.user.last_initial ? `${instructor.user.last_initial}.` : ''}`,
+                    lessonType: getServiceName(instructor.services[0]?.service_catalog_id) || 'Service',
+                    date: nextAvailableSlot.date,
+                    startTime: nextAvailableSlot.time,
+                    endTime: calculateEndTime(nextAvailableSlot.time, instructor.services[0]?.duration_options?.[0] || 60),
+                    duration: instructor.services[0]?.duration_options?.[0] || 60,
+                    location: instructor.areas_of_service?.[0] || 'Manhattan',
+                    basePrice: instructor.services[0]?.hourly_rate || 0,
+                    serviceFee: Math.round((instructor.services[0]?.hourly_rate || 0) * 0.1), // 10% service fee
+                    totalAmount: Math.round((instructor.services[0]?.hourly_rate || 0) * 1.1),
+                    freeCancellationUntil: new Date(nextAvailableSlot.date),
+                  };
+
+                  // Store booking data in sessionStorage
+                  sessionStorage.setItem('bookingData', JSON.stringify(bookingData));
+                  sessionStorage.setItem('serviceId', instructor.services[0]?.id || '');
+
+                  // Navigate to booking confirmation
+                  router.push('/student/booking/confirm');
+                }
               }}
-              className="flex-1 bg-purple-700 text-white py-2.5 px-4 rounded-lg font-medium hover:bg-purple-800 transition-colors"
+              disabled={!nextAvailableSlot}
+              className={`flex-1 text-center py-2.5 px-4 rounded-lg font-medium transition-colors ${
+                nextAvailableSlot
+                  ? 'bg-purple-700 text-white hover:bg-purple-800 cursor-pointer'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
             >
-              {nextAvailableSlot 
+              {nextAvailableSlot
                 ? `Next Available: ${nextAvailableSlot.displayText}`
-                : 'Check Availability'}
+                : 'No availability info'}
             </button>
-            
+
             <button
               onClick={(e) => {
                 e.preventDefault();
-                onViewProfile?.();
+                onBookNow?.(e);
               }}
-              className="flex-1 text-center bg-white text-purple-700 py-2.5 px-4 rounded-lg font-medium border-2 border-purple-700 hover:bg-purple-50 transition-colors"
+              className="flex-1 text-center bg-white text-purple-700 py-2.5 px-4 rounded-lg font-medium border-2 border-purple-700 hover:bg-purple-50 transition-colors cursor-pointer"
             >
               More options
             </button>
           </div>
-          
+
           {/* Reviews Section - Two columns */}
           <div className="mt-6 grid grid-cols-2 gap-4">
             <div className="bg-gray-50 p-3 rounded-lg">
@@ -320,7 +347,7 @@ export default function InstructorCard({
               </p>
               <p className="text-xs text-gray-500 mt-1">- Sarah M.</p>
             </div>
-            
+
             <div className="bg-gray-50 p-3 rounded-lg">
               <div className="flex items-center mb-1">
                 <div className="flex">

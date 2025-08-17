@@ -148,21 +148,24 @@ export default function Calendar({
               onClick={() => isAvailable && !isPast && onDateSelect(dateStr)}
               disabled={!isAvailable || isPast}
               className={`
-                h-9 rounded-full text-sm relative
+                h-9 w-9 mx-auto rounded-lg text-base font-medium relative flex items-center justify-center
                 ${isCurrentMonth ? '' : 'text-gray-400 dark:text-gray-600'}
-                ${isToday ? 'font-semibold underline' : ''}
+                ${isToday ? 'font-bold' : ''}
                 ${
                   isAvailable && !isPast
-                    ? 'cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/20'
+                    ? isSelected
+                      ? 'cursor-pointer bg-purple-700 hover:bg-purple-800 text-white'
+                      : 'cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/20'
                     : 'cursor-not-allowed'
                 }
-                ${isSelected ? 'ring-2 ring-purple-600' : ''}
                 transition-colors
               `}
               style={{
-                color: isAvailable && !isPast && isCurrentMonth ? '#6B46C1' : '#CCCCCC',
-                backgroundColor: isAvailable && !isPast && isSelected ? '#F9F7FF' : undefined,
-                borderColor: isSelected ? '#6B46C1' : undefined,
+                color: isSelected ? '#FFFFFF' : (isAvailable && !isPast && isCurrentMonth ? '#333333' : '#CCCCCC'),
+                textDecoration: isToday ? 'underline' : 'none',
+                textDecorationThickness: isToday ? '2px' : undefined,
+                textDecorationColor: isToday ? '#6b21a8' : undefined,
+                textUnderlineOffset: isToday ? '4px' : undefined,
               }}
             >
               {date.getDate()}

@@ -147,7 +147,7 @@ export default function TimeDropdown({
               <div className="flex items-center justify-between">
                 <span>{time}</span>
                 {selectedTime === time && (
-                  <svg className="w-5 h-5 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                  <svg className="w-5 h-5 text-purple-700" fill="currentColor" viewBox="0 0 20 20">
                     <path
                       fillRule="evenodd"
                       d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
@@ -177,7 +177,7 @@ export default function TimeDropdown({
         }
         disabled={disabled || hasNoTimes || isLoading}
         className={`
-          w-full h-11 px-4 py-3 text-left rounded
+          w-full h-11 px-4 py-3 text-left rounded-lg border border-gray-300
           flex items-center justify-between
           transition-colors
           ${
@@ -186,11 +186,9 @@ export default function TimeDropdown({
               : 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer'
           }
           ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
-          ${isOpen ? 'ring-2 ring-purple-500' : ''}
+          ${isOpen ? 'ring-2 ring-purple-700' : ''}
         `}
         style={{
-          border: '1px solid #E0E0E0',
-          borderRadius: '4px',
           fontSize: '16px',
           color: hasNoTimes || isLoading ? '#999999' : '#333333',
           fontStyle: hasNoTimes && !isLoading ? 'italic' : 'normal',

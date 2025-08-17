@@ -184,8 +184,52 @@ export default function TimeSelectionModal({
         });
         setAvailableDates(datesWithSlots);
 
+        // Auto-select first available date if no pre-selection
+        if (!preSelectedDate && datesWithSlots.length > 0) {
+          const firstDate = datesWithSlots[0];
+          setSelectedDate(firstDate);
+          setShowTimeDropdown(true); // Show time dropdown immediately
+
+          // Load time slots for the first available date
+          const slots = availabilityByDate[firstDate].available_slots || [];
+          const expandDiscreteStarts = (
+            start: string,
+            end: string,
+            stepMinutes: number,
+            requiredMinutes: number
+          ): string[] => {
+            const [sh, sm] = start.split(':').map((v: string) => parseInt(v, 10));
+            const [eh, em] = end.split(':').map((v: string) => parseInt(v, 10));
+            const startTotal = sh * 60 + (sm || 0);
+            const endTotal = eh * 60 + (em || 0);
+
+            const times: string[] = [];
+            for (let t = startTotal; t + requiredMinutes <= endTotal; t += stepMinutes) {
+              const h = Math.floor(t / 60);
+              const m = t % 60;
+              const ampm = h >= 12 ? 'pm' : 'am';
+              const displayHour = (h % 12) || 12;
+              times.push(`${displayHour}:${String(m).padStart(2, '0')}${ampm}`);
+            }
+            return times;
+          };
+
+          const formattedSlots = slots.flatMap((slot: any) =>
+            expandDiscreteStarts(slot.start_time, slot.end_time, 60, selectedDuration)
+          );
+
+          setTimeSlots(formattedSlots);
+
+          // Auto-select first available time slot
+          if (formattedSlots.length > 0 && !preSelectedTime) {
+            setSelectedTime(formattedSlots[0]);
+          }
+        }
+
         // If we have a pre-selected date, load its time slots
         if (preSelectedDate && availabilityByDate[preSelectedDate]) {
+          setSelectedDate(preSelectedDate);
+          setShowTimeDropdown(true); // Show time dropdown immediately
           const slots = availabilityByDate[preSelectedDate].available_slots || [];
 
           const expandDiscreteStarts = (
@@ -224,6 +268,9 @@ export default function TimeSelectionModal({
             const displayHour = hour % 12 || 12;
             const formattedTime = `${displayHour}:${minutes.padStart(2, '0')}${ampm}`;
             setSelectedTime(formattedTime);
+          } else if (formattedSlots.length > 0) {
+            // Auto-select first time if no pre-selected time
+            setSelectedTime(formattedSlots[0]);
           }
         }
       }
@@ -456,7 +503,7 @@ export default function TimeSelectionModal({
   // Handle date selection
   const handleDateSelect = async (date: string) => {
     setSelectedDate(date);
-    setSelectedTime(null); // Clear previous time selection
+    setSelectedTime(null); // Clear previous time selection initially
     setShowTimeDropdown(true);
     setTimeSlots([]); // Clear previous slots
     setLoadingTimeSlots(true); // Show loading state
@@ -535,6 +582,12 @@ export default function TimeSelectionModal({
       const formattedSlots = slotsByDuration[selectedDuration] || [];
       setDisabledDurations(baseDisabledDurations);
       setTimeSlots(formattedSlots);
+
+      // Auto-select first available time slot
+      if (formattedSlots.length > 0 && !selectedTime) {
+        setSelectedTime(formattedSlots[0]);
+      }
+
       setLoadingTimeSlots(false);
       logger.info('Date selected', { date, slotsGenerated: formattedSlots.length, isToday });
     } else {
@@ -610,6 +663,12 @@ export default function TimeSelectionModal({
           const formattedSlots = slotsByDuration[selectedDuration] || [];
           setDisabledDurations(baseDisabledDurations);
           setTimeSlots(formattedSlots);
+
+          // Auto-select first available time slot
+          if (formattedSlots.length > 0 && !selectedTime) {
+            setSelectedTime(formattedSlots[0]);
+          }
+
           setLoadingTimeSlots(false);
           logger.info('Fetched date-specific availability', { date, slots: formattedSlots.length });
         } else {
@@ -647,6 +706,41 @@ export default function TimeSelectionModal({
     }
   }, [timeSlots, selectedTime, loadingTimeSlots]);
 
+  // Recalculate available dates when duration changes
+  useEffect(() => {
+    if (availabilityData && selectedDuration) {
+      const datesWithSlotsForDuration: string[] = [];
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+      Object.keys(availabilityData).forEach((date) => {
+        const slots = availabilityData[date].available_slots || [];
+
+        // Check if any slot on this date can accommodate the selected duration
+        const hasValidSlot = slots.some((slot: any) => {
+          // Check if it's in the past
+          if (date === todayStr) {
+            const currentHHMM = nowHHMMInTz(studentTimezone);
+            if (slot.start_time.slice(0, 5) <= currentHHMM) return false;
+          }
+
+          // Check if slot duration is enough
+          const [sh, sm] = slot.start_time.split(':').map((v: string) => parseInt(v, 10));
+          const [eh, em] = slot.end_time.split(':').map((v: string) => parseInt(v, 10));
+          const slotDuration = (eh * 60 + em) - (sh * 60 + sm);
+          return slotDuration >= selectedDuration;
+        });
+
+        if (hasValidSlot) {
+          datesWithSlotsForDuration.push(date);
+        }
+      });
+
+      setAvailableDates(datesWithSlotsForDuration);
+      logger.info('Updated available dates for duration', { duration: selectedDuration, availableDates: datesWithSlotsForDuration });
+    }
+  }, [selectedDuration, availabilityData, studentTimezone]);
+
   // Handle duration selection
   const handleDurationSelect = (duration: number) => {
     const previousDuration = selectedDuration;
@@ -655,10 +749,62 @@ export default function TimeSelectionModal({
     logger.info('Duration selected', { duration, previousDuration });
 
     // Re-filter time slots if we have a selected date
-    if (selectedDate && previousDuration !== duration) {
+    if (selectedDate && previousDuration !== duration && availabilityData) {
       try {
-        if (!availabilityData || !availabilityData[selectedDate]) {
-          // Fallback to existing behavior
+        // First check if current date still has availability for new duration
+        const currentDateData = availabilityData[selectedDate];
+        if (currentDateData) {
+          const slots = currentDateData.available_slots || [];
+
+          // Check if any slot can accommodate the new duration
+          const canAccommodate = slots.some((slot: any) => {
+            const [sh, sm] = slot.start_time.split(':').map((v: string) => parseInt(v, 10));
+            const [eh, em] = slot.end_time.split(':').map((v: string) => parseInt(v, 10));
+            const slotDuration = (eh * 60 + em) - (sh * 60 + sm);
+            return slotDuration >= duration;
+          });
+
+          if (!canAccommodate) {
+            // Current date can't accommodate new duration, find next available date
+            const sortedDates = Object.keys(availabilityData).sort();
+            let newSelectedDate: string | null = null;
+
+            for (const date of sortedDates) {
+              const dayData = availabilityData[date];
+              const daySlots = dayData.available_slots || [];
+
+              // Check if this date can accommodate the duration
+              const dateCanAccommodate = daySlots.some((slot: any) => {
+                const [sh, sm] = slot.start_time.split(':').map((v: string) => parseInt(v, 10));
+                const [eh, em] = slot.end_time.split(':').map((v: string) => parseInt(v, 10));
+                const slotDuration = (eh * 60 + em) - (sh * 60 + sm);
+                return slotDuration >= duration;
+              });
+
+              if (dateCanAccommodate) {
+                // Also check if it's not in the past
+                const now = new Date();
+                const dateObj = new Date(date);
+                if (dateObj >= new Date(now.getFullYear(), now.getMonth(), now.getDate())) {
+                  newSelectedDate = date;
+                  break;
+                }
+              }
+            }
+
+            if (newSelectedDate) {
+              // Switch to the new date that can accommodate the duration
+              setSelectedDate(newSelectedDate);
+              handleDateSelect(newSelectedDate);
+              logger.info('Switched to new date for duration', { newDate: newSelectedDate, duration });
+              return;
+            }
+          }
+        }
+
+        // If we get here, either current date works or we couldn't find a better date
+        // Continue with existing logic
+        if (!availabilityData[selectedDate]) {
           handleDateSelect(selectedDate);
           return;
         }
@@ -878,15 +1024,18 @@ export default function TimeSelectionModal({
             >
               <ArrowLeft className="h-6 w-6 text-gray-600 dark:text-gray-400" />
             </button>
-            <h2 className="text-xl font-medium text-gray-900 dark:text-white">
-              Select Your Lesson Time
+            <h2 className="text-2xl font-medium text-gray-900 dark:text-white">
+              Set your lesson date & time
             </h2>
             <div className="w-10" /> {/* Spacer for centering */}
           </div>
 
           {/* Instructor Name */}
-          <div className="px-4 pt-4 pb-2">
-            <p className="text-base text-gray-600 dark:text-gray-400">
+          <div className="px-4 pt-4 pb-2 flex items-center gap-2">
+            <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
+              <span className="text-sm">👤</span>
+            </div>
+            <p className="text-base font-bold text-black">
               {getInstructorDisplayName()}'s availability
             </p>
           </div>
@@ -972,10 +1121,10 @@ export default function TimeSelectionModal({
             {/* Desktop Header */}
             <div className="flex items-center justify-between p-8 pb-0">
               <h2
-                className="text-xl font-medium text-gray-900 dark:text-white"
+                className="text-2xl font-medium text-gray-900 dark:text-white"
                 style={{ color: '#333333' }}
               >
-                Select Your Lesson Time
+                Set your lesson date & time
               </h2>
               <button
                 onClick={onClose}
@@ -987,8 +1136,11 @@ export default function TimeSelectionModal({
             </div>
 
             {/* Instructor Name */}
-            <div className="px-8 pt-2 pb-6">
-              <p className="text-base" style={{ color: '#666666' }}>
+            <div className="px-8 pt-2 pb-6 flex items-center gap-2">
+              <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
+                <span className="text-sm">👤</span>
+              </div>
+              <p className="text-base font-bold text-black">
                 {getInstructorDisplayName()}'s availability
               </p>
             </div>
@@ -1038,7 +1190,7 @@ export default function TimeSelectionModal({
                 />
 
                 {/* Right Section - Summary and CTA */}
-                <div className="w-[200px] flex-shrink-0">
+                <div className="w-[200px] flex-shrink-0 pt-12">
                   <SummarySection
                     selectedDate={selectedDate}
                     selectedTime={selectedTime}

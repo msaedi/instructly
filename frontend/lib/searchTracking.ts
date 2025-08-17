@@ -259,7 +259,20 @@ export async function trackSearchInteraction(
   timeToInteraction: number | null = null
 ): Promise<void> {
   try {
-    // If time not provided, don't send it (backend will handle as null)
+    // Ensure headers are properly set for both authenticated and guest users
+    const headers = getHeaders(isAuthenticated);
+
+    // Cast to Record to check properties
+    const headersRecord = headers as Record<string, string>;
+
+    // Double-check that we have either auth token or guest session
+    const hasAuth = headersRecord['Authorization'] ? true : false;
+    const hasGuestSession = headersRecord['X-Guest-Session-ID'] ? true : false;
+
+    if (!hasAuth && !hasGuestSession) {
+      logger.warn('No authentication or guest session available, skipping interaction tracking');
+      return;
+    }
 
     logger.debug('Tracking search interaction', {
       searchEventId,
@@ -267,11 +280,13 @@ export async function trackSearchInteraction(
       instructorId,
       resultPosition,
       timeToInteraction,
+      hasAuth,
+      hasGuestSession,
     });
 
     const response = await fetch(`${API_BASE_URL}/api/search-history/interaction`, {
       method: 'POST',
-      headers: getHeaders(isAuthenticated),
+      headers,
       body: JSON.stringify({
         search_event_id: searchEventId,
         interaction_type: interactionType,
@@ -283,10 +298,14 @@ export async function trackSearchInteraction(
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error(
-        'Failed to track search interaction',
-        new Error(`Status: ${response.status}, ${errorText}`)
-      );
+
+      // Only log as error if it's not an auth issue (which we've already handled above)
+      if (!errorText.includes('authentication token or guest session')) {
+        logger.error(
+          'Failed to track search interaction',
+          new Error(`Status: ${response.status}, ${errorText}`)
+        );
+      }
       return;
     }
 

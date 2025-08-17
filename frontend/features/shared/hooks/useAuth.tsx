@@ -42,8 +42,30 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Initialize user from localStorage if token exists to prevent flashing
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('access_token');
+      const cachedUser = localStorage.getItem('cached_user');
+      if (token && cachedUser) {
+        try {
+          return JSON.parse(cachedUser);
+        } catch {
+          return null;
+        }
+      }
+    }
+    return null;
+  });
+  // Don't show loading if we have cached user data
+  const [isLoading, setIsLoading] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('access_token');
+      const cachedUser = localStorage.getItem('cached_user');
+      return !(token && cachedUser);
+    }
+    return true;
+  });
   const [error, setError] = useState<string | null>(null);
 
   const checkAuth = async () => {
@@ -80,21 +102,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email: userData.email,
         });
         setUser(userData);
+        // Cache user data to prevent auth loss during navigation
+        localStorage.setItem('cached_user', JSON.stringify(userData));
       } else if (response.status === 401) {
-        logger.warn('Invalid or expired auth token');
-        localStorage.removeItem('access_token');
-        setUser(null);
+        logger.warn('Invalid or expired auth token - NOT removing token on single failure');
+        // Don't immediately remove token - might be a temporary network issue
+        // Only remove token if user is already null (meaning we haven't successfully authenticated before)
+        if (!user) {
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('cached_user');
+          setUser(null);
+        }
+        // If user was previously authenticated, keep them logged in
       } else {
         const msg = await getErrorMessage(response);
         logger.error('Failed to fetch user data', undefined, {
           status: response.status,
           statusText: response.statusText,
         });
-        setError(msg);
+        // Don't clear user on non-401 errors if already authenticated
+        if (!user) {
+          setError(msg);
+        }
       }
     } catch (err) {
       logger.error('Authentication check error', err);
-      setError('Network error while checking authentication');
+      // Don't clear user on network errors if already authenticated
+      if (!user) {
+        setError('Network error while checking authentication');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -144,6 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           logger.info('Guest search transfer completed after login');
         }
 
+        // Immediately fetch and cache user data
         await checkAuth();
 
         return true;
@@ -162,8 +199,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    // Clear auth token
+    // Clear auth token and cached user
     localStorage.removeItem('access_token');
+    localStorage.removeItem('cached_user');
     setUser(null);
 
     // Handle guest session based on user preference
@@ -187,15 +225,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       encodedUrl,
     });
 
-    // Use replace instead of push to avoid polluting browser history
-    // This way the back button won't land on the auth page
-    router.replace(`/login?redirect=${encodedUrl}`);
+    // Use push to maintain proper navigation history
+    router.push(`/login?redirect=${encodedUrl}`);
   };
 
-  // Check authentication on mount
+  // Check authentication on mount only
   useEffect(() => {
-    checkAuth();
-  }, []);
+    // Only check auth if we don't already have a user
+    // This prevents unnecessary auth checks on navigation
+    if (!user) {
+      checkAuth();
+    }
+  }, []); // Empty dependency array - only run once on mount
 
   return (
     <AuthContext.Provider
