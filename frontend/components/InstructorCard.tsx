@@ -1,13 +1,11 @@
 // frontend/components/InstructorCard.tsx
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Star, MapPin, Check, Heart } from 'lucide-react';
+import { Star, MapPin, Heart, CheckCircle } from 'lucide-react';
 import { Instructor, ServiceCatalogItem } from '@/types/api';
 import { useEffect, useState } from 'react';
 import { publicApi } from '@/features/shared/api/client';
-import { navigationStateManager } from '@/lib/navigation/navigationStateManager';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { favoritesApi } from '@/services/api/favorites';
 import { toast } from 'sonner';
@@ -18,28 +16,27 @@ let catalogPromise: Promise<ServiceCatalogItem[]> | null = null;
 
 interface InstructorCardProps {
   instructor: Instructor;
-  nextAvailableSlots?: Array<{
+  nextAvailableSlot?: {
     date: string;
     time: string;
     displayText: string;
-  }>;
+  };
   onViewProfile?: () => void;
   onBookNow?: (e?: React.MouseEvent) => void;
-  onTimeSlotClick?: () => void;
 }
 
 export default function InstructorCard({
   instructor,
-  nextAvailableSlots = [],
+  nextAvailableSlot,
   onViewProfile,
   onBookNow,
-  onTimeSlotClick,
 }: InstructorCardProps) {
   const router = useRouter();
   const { user } = useAuth();
   const [serviceCatalog, setServiceCatalog] = useState<ServiceCatalogItem[]>([]);
   const [isFavorited, setIsFavorited] = useState(false);
   const [isLoadingFavorite, setIsLoadingFavorite] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // Fetch service catalog on mount with simple de-duplication
   useEffect(() => {
@@ -78,35 +75,12 @@ export default function InstructorCard({
     }
   }, [user, instructor?.user_id]);
 
-  // Filter out past availability slots
-  const futureAvailableSlots = nextAvailableSlots.filter((slot) => {
-    const slotDateTime = new Date(`${slot.date}T${slot.time}`);
-    return slotDateTime > new Date();
-  });
-
-  const getMinimumRate = () => {
-    if (instructor.services.length === 0) return 0;
-    return Math.min(...instructor.services.map((s) => s.hourly_rate));
-  };
-
   // Helper function to get service name from catalog
   const getServiceName = (serviceId: string): string => {
     const service = serviceCatalog.find((s) => s.id === serviceId);
     return service?.name || '';
   };
 
-  const getInstructorServiceNames = (): string => {
-    if (instructor.services.length === 0) return '';
-    const serviceNames = instructor.services
-      .map((s) => getServiceName(s.service_catalog_id))
-      .filter(Boolean);
-    return serviceNames.join(', ');
-  };
-
-  const handleInstantBook = (date: string, time: string) => {
-    // Navigate to quick booking page with pre-selected time
-    router.push(`/book/${instructor.user_id}?date=${date}&time=${time}`);
-  };
 
   const handleFavoriteClick = async () => {
     // Guest users - redirect to login
@@ -140,34 +114,107 @@ export default function InstructorCard({
     }
   };
 
+  // Mock bio for demo purposes - in production this should come from instructor data
+  const mockBios = [
+    "Juilliard graduate, patient teacher specializing in classical and pop music for all ages",
+    "Berklee College graduate with 8 years experience. I specialize in jazz and contemporary music",
+    "Fun and engaging lessons for all ages. Specializing in music theory and sight reading",
+    "Great with kids and beginners. Making piano fun and accessible for everyone!",
+    "Professional pianist with 15+ years of teaching experience. All levels welcome",
+    "Conservatory-trained instructor passionate about helping students reach their potential"
+  ];
+  
+  // Get a consistent bio based on instructor ID
+  const getBio = () => {
+    if (instructor.bio) return instructor.bio;
+    const index = instructor.user_id.charCodeAt(0) % mockBios.length;
+    return mockBios[index];
+  };
+
   return (
     <div
-      className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow"
+      className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg transition-shadow relative"
       data-testid="instructor-card"
     >
-      <div className="p-6">
-        {/* Header with photo placeholder and name */}
-        <div className="flex items-start mb-4">
-          <div className="w-20 h-20 bg-gray-200 rounded-lg mr-4 flex-shrink-0">
-            <div className="w-full h-full flex items-center justify-center text-gray-400">
-              Photo
-            </div>
+      <div className="flex gap-6">
+        {/* Left side - Profile Photo */}
+        <div className="flex-shrink-0">
+          {/* Profile Photo - Doubled in size */}
+          <div className="w-56 h-56 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
+            <span className="text-7xl">👤</span>
           </div>
-          <div className="flex-1">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h3 className="font-semibold text-lg text-gray-900" data-testid="instructor-name">
+          
+          {/* View and review profile link */}
+          <div className="mt-3 text-center">
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                onViewProfile?.();
+              }}
+              className="text-purple-700 hover:text-purple-800 text-lg font-medium leading-tight"
+            >
+              <div>View Profile</div>
+              <div>and Reviews</div>
+            </button>
+          </div>
+        </div>
+        
+        {/* Right side - Details */}
+        <div className="flex-1">
+          {/* Header row with name, price and favorite */}
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex-1">
+              {/* Name with verification badge */}
+              <div className="flex items-center">
+                <h2 className="text-3xl font-bold text-purple-700" data-testid="instructor-name">
                   {instructor.user.first_name} {instructor.user.last_initial ? `${instructor.user.last_initial}.` : ''}
-                </h3>
-                <p className="text-gray-600">{getInstructorServiceNames()}</p>
-                <div className="flex items-center mt-1">
-                  <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                  <span className="ml-1 text-sm font-medium">{instructor.rating || 4.8}</span>
-                  <span className="text-sm text-gray-600 ml-1">
-                    ({instructor.total_reviews || 0} reviews)
-                  </span>
-                </div>
+                </h2>
+                {instructor.verified && (
+                  <CheckCircle className="h-7 w-7 text-purple-700 ml-2" />
+                )}
               </div>
+              
+              {/* Services as pills with double padding */}
+              <div className="flex gap-2 mt-3 mb-2">
+                {instructor.services.map((service, idx) => {
+                  const serviceName = getServiceName(service.service_catalog_id);
+                  if (!serviceName) return null;
+                  return (
+                    <span 
+                      key={idx} 
+                      className="px-6 py-1 bg-gray-100 text-gray-700 rounded-full text-lg font-bold"
+                    >
+                      {serviceName}
+                    </span>
+                  );
+                })}
+              </div>
+              
+              {/* Rating */}
+              <div className="flex items-center gap-1 text-lg text-gray-600 mb-2">
+                <Star className="h-5 w-5 text-yellow-500 fill-current" />
+                <span className="font-medium">{instructor.rating || 4.8}</span>
+                <span>·</span>
+                <span>{instructor.total_reviews || 0} reviews</span>
+              </div>
+              
+              {/* Experience - Moved after rating */}
+              <p className="text-lg text-gray-600 mb-2">{instructor.years_experience} years experience</p>
+              
+              {/* Location */}
+              <div className="flex items-center text-lg text-gray-600 mb-2">
+                <MapPin className="h-5 w-5 mr-1" />
+                <span>{instructor.areas_of_service.slice(0, 2).join(', ') || 'Manhattan'}</span>
+              </div>
+            </div>
+            
+            {/* Price in upper right */}
+            <div className="flex items-center gap-3">
+              <p className="text-3xl font-bold text-purple-700" data-testid="instructor-price">
+                ${instructor.services[0]?.hourly_rate || 0}/hr
+              </p>
+              
+              {/* Favorite Button */}
               <button
                 onClick={handleFavoriteClick}
                 disabled={isLoadingFavorite}
@@ -183,82 +230,111 @@ export default function InstructorCard({
               </button>
             </div>
           </div>
-        </div>
-
-        {/* Info row */}
-        <div className="flex items-center text-sm text-gray-600 mb-4">
-          <MapPin className="h-4 w-4 mr-1" />
-          <span>{instructor.areas_of_service[0] || 'Manhattan'}</span>
-          <span className="mx-2">·</span>
-          <span className="font-medium text-gray-900" data-testid="instructor-price">
-            ${instructor.services[0]?.hourly_rate || 0}/hour
-          </span>
-        </div>
-
-        {/* Features */}
-        <div className="space-y-2 mb-4">
-          <div className="flex items-center text-sm text-gray-600">
-            <Check className="h-4 w-4 text-green-600 mr-2" />
-            Background checked
+          
+          {/* Bio with 5-line limit and soft yellow background */}
+          <div className="mb-3 bg-yellow-50 p-4 rounded-lg">
+            <p className={`text-gray-700 italic ${!isExpanded ? 'line-clamp-5' : ''}`}>
+              "{getBio()}"
+            </p>
+            {getBio().length > 400 && (
+              <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="text-purple-700 hover:text-purple-800 text-sm font-medium mt-1"
+              >
+                {isExpanded ? 'Show less' : 'Read more'}
+              </button>
+            )}
           </div>
-          <div className="flex items-center text-sm text-gray-600">
-            <Check className="h-4 w-4 text-green-600 mr-2" />
-            Teaches all levels
-          </div>
-          <div className="flex items-center text-sm text-gray-600">
-            <Check className="h-4 w-4 text-green-600 mr-2" />
-            {instructor.years_experience} years experience
-          </div>
-        </div>
-
-        {/* Next available times */}
-        <div className="mb-4">
-          <p className="text-sm font-medium text-gray-900 mb-2">Next available:</p>
-          {futureAvailableSlots.length > 0 ? (
-            <div className="flex gap-2 flex-wrap">
-              {futureAvailableSlots.slice(0, 3).map((slot, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    onTimeSlotClick?.();
-                    handleInstantBook(slot.date, slot.time);
-                  }}
-                  className="px-3 py-2 bg-gray-100 rounded-lg text-sm hover:bg-gray-200"
-                >
-                  <div className="font-medium">{slot.displayText.split(' ')[0]}</div>
-                  <div className="text-gray-600">
-                    {slot.displayText.split(' ').slice(1).join(' ')}
-                  </div>
-                </button>
-              ))}
+          
+          {/* Session Duration Selection */}
+          <div className="flex items-center gap-4 mb-4">
+            <p className="text-sm font-medium text-gray-700">Session duration:</p>
+            <div className="flex gap-4">
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  name={`duration-${instructor.user_id}`}
+                  value="45"
+                  defaultChecked
+                  className="w-4 h-4 text-purple-700 accent-purple-700 border-gray-300 focus:ring-purple-500"
+                />
+                <span className="ml-2 text-sm text-gray-700">45 min</span>
+              </label>
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  name={`duration-${instructor.user_id}`}
+                  value="60"
+                  className="w-4 h-4 text-purple-700 accent-purple-700 border-gray-300 focus:ring-purple-500"
+                />
+                <span className="ml-2 text-sm text-gray-700">60 min</span>
+              </label>
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  name={`duration-${instructor.user_id}`}
+                  value="90"
+                  className="w-4 h-4 text-purple-700 accent-purple-700 border-gray-300 focus:ring-purple-500"
+                />
+                <span className="ml-2 text-sm text-gray-700">90 min</span>
+              </label>
             </div>
-          ) : (
-            <div className="text-sm text-gray-500 italic">No upcoming availability</div>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div className="flex gap-3">
-          <Link
-            href={`/instructors/${instructor.user_id}`}
-            className="flex-1 text-center py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white transition-colors"
-            onClick={() => {
-              // Clear navigation state when viewing profile from search - this is a fresh navigation
-              navigationStateManager.clearBookingFlow();
-              onViewProfile?.();
-            }}
-          >
-            View Profile
-          </Link>
-          <Link
-            href={`/book/${instructor.user_id}`}
-            className="flex-1 text-center py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 transition-colors"
-            onClick={(e) => {
-              onBookNow?.(e);
-            }}
-          >
-            Book Now →
-          </Link>
+          </div>
+          
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            <button
+              onClick={(e) => {
+                onBookNow?.(e);
+              }}
+              className="flex-1 bg-purple-700 text-white py-2.5 px-4 rounded-lg font-medium hover:bg-purple-800 transition-colors"
+            >
+              {nextAvailableSlot 
+                ? `Next Available: ${nextAvailableSlot.displayText}`
+                : 'Check Availability'}
+            </button>
+            
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                onViewProfile?.();
+              }}
+              className="flex-1 text-center bg-white text-purple-700 py-2.5 px-4 rounded-lg font-medium border-2 border-purple-700 hover:bg-purple-50 transition-colors"
+            >
+              More options
+            </button>
+          </div>
+          
+          {/* Reviews Section - Two columns */}
+          <div className="mt-6 grid grid-cols-2 gap-4">
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <div className="flex items-center mb-1">
+                <div className="flex">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="h-4 w-4 text-yellow-500 fill-current" />
+                  ))}
+                </div>
+              </div>
+              <p className="text-sm text-gray-700 italic line-clamp-3">
+                "Amazing instructor! Very patient and knowledgeable. My skills improved significantly."
+              </p>
+              <p className="text-xs text-gray-500 mt-1">- Sarah M.</p>
+            </div>
+            
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <div className="flex items-center mb-1">
+                <div className="flex">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="h-4 w-4 text-yellow-500 fill-current" />
+                  ))}
+                </div>
+              </div>
+              <p className="text-sm text-gray-700 italic line-clamp-3">
+                "Best teacher I've had! Makes learning fun and engaging. Highly recommend!"
+              </p>
+              <p className="text-xs text-gray-500 mt-1">- John D.</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

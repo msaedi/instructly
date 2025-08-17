@@ -1,13 +1,13 @@
 // frontend/app/(public)/search/page.tsx
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Filter } from 'lucide-react';
 import { publicApi } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import InstructorCard from '@/components/InstructorCard';
+import ManhattanMap from '@/components/ManhattanMap';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { recordSearch, trackSearchInteraction } from '@/lib/searchTracking';
 import { SearchType } from '@/types/enums';
@@ -37,10 +37,11 @@ function SearchPageContent() {
     logger.debug('SearchPageContent rendered');
   });
   const [instructors, setInstructors] = useState<Instructor[]>([]);
-  const [metadata, setMetadata] = useState<SearchMetadata | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [total, setTotal] = useState(0);
   const [serviceName, setServiceName] = useState<string>('');
   const [serviceSlug, setServiceSlug] = useState<string>('');
@@ -52,6 +53,13 @@ function SearchPageContent() {
   const [rateLimit, setRateLimit] = useState<{ seconds: number } | null>(null);
   const [showTimeSelection, setShowTimeSelection] = useState(false);
   const [timeSelectionContext, setTimeSelectionContext] = useState<any>(null);
+  
+  // Refs for infinite scroll
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  
+  // State for highlighting neighborhoods on hover
+  const [highlightedAreas, setHighlightedAreas] = useState<string[]>([]);
 
   // Inline banner for rate limit
   const RateLimitBanner = () =>
@@ -67,10 +75,13 @@ function SearchPageContent() {
   const serviceCatalogId = searchParams.get('service_catalog_id') || '';
   const availableNow = searchParams.get('available_now') === 'true';
 
-  // Reset hasRecordedSearch when search parameters change
+  // Reset hasRecordedSearch and pagination when search parameters change
   useEffect(() => {
     setHasRecordedSearch(false);
     setServiceName(''); // Also reset service name
+    setPage(1);
+    setInstructors([]);
+    setHasMore(true);
   }, [query, category, serviceCatalogId]);
 
   // Set background activity from query/category when present
@@ -163,33 +174,38 @@ function SearchPageContent() {
     }
   }, []);
 
-  useEffect(() => {
-    async function fetchResults() {
+  // Fetch results function
+  const fetchResults = useCallback(async (pageNum: number, append: boolean = false) => {
+    if (!append) {
       setLoading(true);
-      setError(null);
+    } else {
+      setLoadingMore(true);
+    }
+    setError(null);
 
-      logger.info('Search page loading', {
-        query,
-        category,
-        serviceCatalogId,
-        availableNow,
-        page,
-      });
+    logger.info('Search page loading', {
+      query,
+      category,
+      serviceCatalogId,
+      availableNow,
+      page: pageNum,
+      append,
+    });
 
-      try {
-        let response;
-        let instructorsData: Instructor[] = [];
-        let totalResults = 0;
+    try {
+      let response;
+      let instructorsData: Instructor[] = [];
+      let totalResults = 0;
 
-        // Use natural language search if we have a query
-        if (query) {
-          logger.info('Using natural language search', {
-            query,
-            endpoint: '/api/search/instructors',
-          });
+      // Use natural language search if we have a query
+      if (query) {
+        logger.info('Using natural language search', {
+          query,
+          endpoint: '/api/search/instructors',
+        });
 
-          // Use the new natural language search endpoint
-          const nlResponse = await publicApi.searchWithNaturalLanguage(query);
+        // Use the new natural language search endpoint
+        const nlResponse = await publicApi.searchWithNaturalLanguage(query);
 
           logger.info('Natural language API Response received', {
             hasError: !!nlResponse.error,
@@ -261,7 +277,10 @@ function SearchPageContent() {
               nlResponse.data.parsed?.constraints?.location ||
               nlResponse.data.parsed?.location?.area;
 
-            setMetadata({
+            // Natural language search doesn't support pagination yet, so we load all results at once
+            setHasMore(false);
+            
+            /* setMetadata({
               filters_applied: {
                 search: query,
                 ...(maxPrice && { max_price: maxPrice }),
@@ -275,7 +294,7 @@ function SearchPageContent() {
               },
               total_matches: nlResponse.data.total_found,
               active_instructors: nlResponse.data.total_found,
-            });
+            }); */
             // Cache observability candidates from search response for persistence on record
             try {
               const obs = (nlResponse.data.search_metadata as any)?.observability_candidates || [];
@@ -284,11 +303,11 @@ function SearchPageContent() {
           }
         } else if (serviceCatalogId) {
           // Service catalog ID provided - fetch instructors for specific service
-          const apiParams = {
-            service_catalog_id: serviceCatalogId,  // Now using ULID strings, no parseInt
-            page: page,
-            per_page: 20,
-          };
+        const apiParams = {
+          service_catalog_id: serviceCatalogId,  // Now using ULID strings, no parseInt
+          page: pageNum,
+          per_page: 20,
+        };
 
           logger.info('Filtering by service catalog ID', { serviceCatalogId });
 
@@ -323,7 +342,9 @@ function SearchPageContent() {
 
             instructorsData = response.data.items;
             totalResults = response.data.total;
-            setMetadata(null); // No legacy metadata structure
+            // Check if there are more pages
+            const totalPages = Math.ceil(totalResults / 20);
+            setHasMore(pageNum < totalPages);
           }
         } else {
           // No query provided - this is no longer supported with service-first model
@@ -333,19 +354,54 @@ function SearchPageContent() {
           return;
         }
 
-        // Set the final data
+      // Set the final data
+      if (append) {
+        setInstructors(prev => [...prev, ...instructorsData]);
+      } else {
         setInstructors(instructorsData);
-        setTotal(totalResults);
-      } catch (err) {
-        logger.error('Failed to fetch search results', err as Error);
-        setError('Failed to load search results');
-      } finally {
-        setLoading(false);
       }
+      setTotal(totalResults);
+    } catch (err) {
+      logger.error('Failed to fetch search results', err as Error);
+      setError('Failed to load search results');
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, [query, category, serviceCatalogId, availableNow]);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchResults(1, false);
+  }, [query, category, serviceCatalogId, availableNow, fetchResults]);
+
+  // Set up infinite scroll observer
+  useEffect(() => {
+    if (observerRef.current) {
+      observerRef.current.disconnect();
     }
 
-    fetchResults();
-  }, [query, category, serviceCatalogId, availableNow, page]);
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          const nextPage = page + 1;
+          setPage(nextPage);
+          fetchResults(nextPage, true);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreRef.current) {
+      observerRef.current.observe(loadMoreRef.current);
+    }
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, [hasMore, loadingMore, loading, page, fetchResults]);
 
   // Fetch service metadata when serviceCatalogId changes
   useEffect(() => {
@@ -478,20 +534,15 @@ function SearchPageContent() {
     fromPage,
   ]);
 
-  // Fetch real next available slots per instructor using the public API
-  const [nextAvailableByInstructor, setNextAvailableByInstructor] = useState<Record<string, Array<{date: string; time: string; displayText: string}>>>({});
-
-  const getNextAvailableSlots = (instructorId: string) => {
-    return nextAvailableByInstructor[instructorId] || [];
-  };
+  // Fetch next available slot for each instructor
+  const [nextAvailableByInstructor, setNextAvailableByInstructor] = useState<Record<string, {date: string; time: string; displayText: string}>>({});
 
   useEffect(() => {
     const fetchAvailabilities = async () => {
       try {
-        const updates: Record<string, Array<{date: string; time: string; displayText: string}>> = {};
+        const updates: Record<string, {date: string; time: string; displayText: string}> = {};
         const today = new Date();
         const startDate = new Date(today);
-        startDate.setDate(today.getDate() + 1); // start from tomorrow
         const endDate = new Date(startDate);
         endDate.setDate(startDate.getDate() + 14); // look ahead 2 weeks
         const formatDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -504,65 +555,45 @@ function SearchPageContent() {
                 end_date: formatDate(endDate),
               });
               if (!data || status !== 200) {
-                updates[i.user_id] = [];
                 return;
               }
-              const slots: Array<{date: string; time: string; displayText: string}> = [];
               const byDate = data.availability_by_date || {};
-              const dates = Object.keys(byDate).sort(); // YYYY-MM-DD sorts chronologically
+              const dates = Object.keys(byDate).sort();
 
-              // Strategy: fill from the earliest date first. If fewer than 3, continue to subsequent dates
+              // Find the first available slot
               for (const d of dates) {
                 const day = byDate[d];
                 if (day?.is_blackout || !day?.available_slots?.length) continue;
 
-                // Sort within-day slots by start_time ascending
-                const sortedSlots = [...day.available_slots].sort((a: any, b: any) => {
-                  const at = a.start_time.padEnd(8, ':00');
-                  const bt = b.start_time.padEnd(8, ':00');
-                  return at.localeCompare(bt);
+                const firstSlot = day.available_slots[0];
+                const date = new Date(d);
+                const [hours, minutes] = firstSlot.start_time.split(':').map(Number);
+                const dateStr = date.toLocaleDateString('en-US', { 
+                  weekday: 'short', 
+                  month: 'short', 
+                  day: 'numeric' 
                 });
-
-                // Expand windows into discrete bookable start times (assume 60-minute default session)
-                const stepMinutes = 60;
-                const toMinutes = (hhmm: string) => {
-                  const [hh, mm] = hhmm.split(':').map((x: string) => parseInt(x, 10));
-                  return hh * 60 + (isNaN(mm) ? 0 : mm);
+                const timeStr = new Date(2000, 0, 1, hours, minutes).toLocaleTimeString('en-US', {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  hour12: true
+                });
+                
+                updates[i.user_id] = {
+                  date: d,
+                  time: firstSlot.start_time,
+                  displayText: `${dateStr}, ${timeStr}`
                 };
-                const toDisplay = (dateStr: string, totalMinutes: number) => {
-                  const hours = Math.floor(totalMinutes / 60);
-                  const dt = new Date(`${dateStr}T${String(hours).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}:00`);
-                  const dayName = dt.toLocaleDateString('en-US', { weekday: 'short' });
-                  const hr12 = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-                  const ampm = hours >= 12 ? 'PM' : 'AM';
-                  return `${dayName} ${hr12}:${String(totalMinutes % 60).padStart(2, '0')} ${ampm}`;
-                };
-
-                for (const s of sortedSlots) {
-                  const startMin = toMinutes(s.start_time);
-                  const endMin = toMinutes(s.end_time);
-                  for (let t = startMin; t + stepMinutes <= endMin; t += stepMinutes) {
-                    slots.push({
-                      date: d,
-                      time: `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`,
-                      displayText: toDisplay(d, t),
-                    });
-                    if (slots.length >= 3) break;
-                  }
-                  if (slots.length >= 3) break;
-                }
-
-                if (slots.length >= 3) break;
+                break;
               }
-              updates[i.user_id] = slots;
             } catch (e) {
-              updates[i.user_id] = [];
+              // ignore errors for individual instructors
             }
           })
         );
 
         if (Object.keys(updates).length) {
-          setNextAvailableByInstructor((prev) => ({ ...prev, ...updates }));
+          setNextAvailableByInstructor(updates);
         }
       } catch (e) {
         // ignore batch errors
@@ -574,201 +605,205 @@ function SearchPageContent() {
     }
   }, [instructors]);
 
-  // Format subject for display
-  const formatSubject = (subject: string) => {
-    return subject.charAt(0).toUpperCase() + subject.slice(1).replace('_', ' ');
-  };
-
-  // Calculate total pages
-  const totalPages = Math.ceil(total / 20);
-
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
-              <Link href={previousPath} className="mr-4">
-                <ChevronLeft className="h-6 w-6 text-gray-600" />
-              </Link>
-              <h1 className="text-xl font-semibold text-gray-900">
-                {query
-                  ? `Results for "${query}"`
-                  : serviceCatalogId && serviceName
-                    ? `Showing all ${serviceName} instructors`
-                    : category
-                      ? formatSubject(category)
-                      : 'All Instructors'}
-              </h1>
-              {total > 0 && <span className="ml-2 text-gray-600">({total} found)</span>}
-            </div>
-            {/* TODO: Implement filter functionality in future iteration */}
-            <button
-              className="flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700 dark:text-white opacity-50 cursor-not-allowed"
-              disabled
-              title="Filters coming soon"
-            >
-              <Filter className="h-5 w-5 mr-2" />
-              Filters
-            </button>
-          </div>
-        </div>
+      <header className="bg-white border-b border-gray-200 px-6 py-4">
+        <Link href="/" className="inline-block">
+          <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+        </Link>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Rate limit banner */}
-        <RateLimitBanner />
-        {/* Show applied filters if metadata available */}
-        {metadata &&
-          metadata.filters_applied &&
-          Object.keys(metadata.filters_applied).length > 0 && (
-            <div className="mb-4 text-sm text-gray-600">
-              <span className="font-medium">Active filters:</span>
-              {metadata.filters_applied.search && (
-                <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded">
-                  Search: {metadata.filters_applied.search}
-                </span>
-              )}
-              {metadata.filters_applied.skill && (
-                <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 rounded">
-                  Skill: {metadata.filters_applied.skill}
-                </span>
-              )}
-              {metadata.filters_applied.min_price !== undefined && (
-                <span className="ml-2 px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
-                  Min: ${metadata.filters_applied.min_price}
-                </span>
-              )}
-              {metadata.filters_applied.max_price !== undefined && (
-                <span className="ml-2 px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
-                  Max: ${metadata.filters_applied.max_price}
-                </span>
-              )}
-            </div>
-          )}
-
-        {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          </div>
-        ) : error ? (
-          <div className="text-center py-12">
-            <p className="text-red-600">{error}</p>
-            <Link href="/" className="text-blue-600 hover:underline mt-4 inline-block">
-              Return to Home
-            </Link>
-          </div>
-        ) : instructors.length === 0 ? (
-          <div className="text-center py-12" data-testid="no-results">
-            <p className="text-gray-600 text-lg mb-4">No instructors found matching your search.</p>
-            <Link href="/" className="text-blue-600 hover:underline">
-              Try a different search
-            </Link>
-          </div>
-        ) : (
-          <>
-            {/* Results Grid */}
-            <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
-              {instructors.map((instructor, index) => {
-                // Add mock rating and reviews
-                const enhancedInstructor = {
-                  ...instructor,
-                  rating: instructor.rating || 4.8,
-                  total_reviews: instructor.total_reviews || Math.floor(Math.random() * 100) + 20,
-                  verified: true,
-                };
-
-                const handleInteraction = (
-                  interactionType:
-                    | 'click'
-                    | 'hover'
-                    | 'bookmark'
-                    | 'view_profile'
-                    | 'contact'
-                    | 'book' = 'click'
-                ) => {
-                  const currentTime = Date.now() / 1000; // Current time in seconds
-                  const timeToInteraction = searchTimestamp ? currentTime - searchTimestamp : null;
-
-                  logger.info('Instructor interaction', {
-                    searchEventId,
-                    instructorId: instructor.id,
-                    instructorUserId: instructor.user_id,
-                    position: index + 1,
-                    isAuthenticated,
-                    interactionType,
-                    timeToInteraction,
-                  });
-
-                  if (searchEventId) {
-                    trackSearchInteraction(
-                      searchEventId,
-                      interactionType,
-                      instructor.user_id, // Use user_id instead of id
-                      index + 1,
-                      isAuthenticated,
-                      timeToInteraction
-                    );
-                  } else {
-                    logger.warn('No searchEventId available for interaction tracking');
-                  }
-                };
-
-                return (
-                  <div key={instructor.id}>
-                    <InstructorCard
-                      instructor={enhancedInstructor}
-                      nextAvailableSlots={getNextAvailableSlots(instructor.user_id)}
-                      onViewProfile={() => handleInteraction('view_profile')}
-                      onBookNow={(e) => {
-                        e?.preventDefault?.();
-                        e?.stopPropagation?.();
-                        handleInteraction('book');
-                        // Open time selection modal
-                        setShowTimeSelection(true);
-                        setTimeSelectionContext({
-                          instructor: enhancedInstructor,
-                          preSelectedDate: null,
-                          preSelectedTime: null,
-                          serviceId: enhancedInstructor.services?.[0]?.id,
-                        });
-                      }}
-                      onTimeSlotClick={() => handleInteraction('click')}
-                    />
+      {/* Filter Bar and Content */}
+      <div className="flex">
+        {/* Left Side - Filter and Instructor Cards */}
+        <div className="flex-1">
+          {/* Filter Bar */}
+          <div className="bg-gray-50 px-6 py-4">
+            <div className="bg-white rounded-xl border border-gray-200 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex gap-6">
+                  {/* Date filters group */}
+                  <div className="bg-gray-100 rounded-lg px-1 py-1 flex gap-1">
+                    <button className="px-4 py-2 bg-white rounded-md text-sm font-medium">
+                      Today
+                    </button>
+                    <button className="px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-md text-sm">
+                      This Week
+                    </button>
+                    <button className="px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-md text-sm">
+                      Choose Date
+                    </button>
                   </div>
-                );
-              })}
-            </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="mt-8 flex justify-center">
-                <nav className="flex items-center space-x-2">
-                  <button
-                    onClick={() => setPage(Math.max(1, page - 1))}
-                    disabled={page === 1}
-                    className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                  >
-                    Previous
+                  
+                  {/* Time filters group */}
+                  <div className="bg-gray-100 rounded-lg px-1 py-1 flex gap-1">
+                    <button className="px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-md text-sm">
+                      Morning
+                    </button>
+                    <button className="px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-md text-sm">
+                      Afternoon
+                    </button>
+                  </div>
+                  
+                  {/* More Filters button */}
+                  <button className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
+                    More Filters
                   </button>
-                  <span className="px-4 py-2">
-                    Page {page} of {totalPages}
-                  </span>
-                  <button
-                    onClick={() => setPage(Math.min(totalPages, page + 1))}
-                    disabled={page === totalPages}
-                    className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-                  >
-                    Next
+                </div>
+                
+                {/* Sort section */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Sort by:</span>
+                  <button className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 flex items-center gap-2">
+                    <span>Recommended</span>
+                    <span className="text-gray-500">▼</span>
                   </button>
-                </nav>
+                </div>
               </div>
-            )}
-          </>
-        )}
-      </main>
+            </div>
+          </div>
+          
+          {/* Instructor Cards */}
+          <div className="overflow-y-auto p-6 scrollbar-hide h-[calc(100vh-15rem)]"
+               style={{
+                 scrollbarWidth: 'none',
+                 msOverflowStyle: 'none',
+               }}>
+          {/* Rate limit banner */}
+          <RateLimitBanner />
+          
+          {loading ? (
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-700"></div>
+            </div>
+          ) : error ? (
+            <div className="text-center py-12">
+              <p className="text-red-600">{error}</p>
+              <Link href="/" className="text-purple-700 hover:underline mt-4 inline-block">
+                Return to Home
+              </Link>
+            </div>
+          ) : instructors.length === 0 ? (
+            <div className="text-center py-12" data-testid="no-results">
+              <p className="text-gray-600 text-lg mb-4">No instructors found matching your search.</p>
+              <Link href="/" className="text-purple-700 hover:underline">
+                Try a different search
+              </Link>
+            </div>
+          ) : (
+            <>
+              {/* Results - Single column layout */}
+              <div className="space-y-6">
+                {instructors.map((instructor, index) => {
+                  // Add mock rating and reviews
+                  const enhancedInstructor = {
+                    ...instructor,
+                    rating: instructor.rating || 4.8,
+                    total_reviews: instructor.total_reviews || Math.floor(Math.random() * 100) + 20,
+                    verified: true,
+                  };
+
+                  const handleInteraction = (
+                    interactionType:
+                      | 'click'
+                      | 'hover'
+                      | 'bookmark'
+                      | 'view_profile'
+                      | 'contact'
+                      | 'book' = 'click'
+                  ) => {
+                    const currentTime = Date.now() / 1000; // Current time in seconds
+                    const timeToInteraction = searchTimestamp ? currentTime - searchTimestamp : null;
+
+                    logger.info('Instructor interaction', {
+                      searchEventId,
+                      instructorId: instructor.id,
+                      instructorUserId: instructor.user_id,
+                      position: index + 1,
+                      isAuthenticated,
+                      interactionType,
+                      timeToInteraction,
+                    });
+
+                    if (searchEventId) {
+                      trackSearchInteraction(
+                        searchEventId,
+                        interactionType,
+                        instructor.user_id, // Use user_id instead of id
+                        index + 1,
+                        isAuthenticated,
+                        timeToInteraction
+                      );
+                    } else {
+                      logger.warn('No searchEventId available for interaction tracking');
+                    }
+                  };
+
+                  return (
+                    <div 
+                      key={instructor.id}
+                      onMouseEnter={() => setHighlightedAreas(instructor.areas_of_service || [])}
+                      onMouseLeave={() => setHighlightedAreas([])}
+                    >
+                      <InstructorCard
+                        instructor={enhancedInstructor}
+                        nextAvailableSlot={nextAvailableByInstructor[instructor.user_id]}
+                        onViewProfile={() => handleInteraction('view_profile')}
+                        onBookNow={(e) => {
+                          e?.preventDefault?.();
+                          e?.stopPropagation?.();
+                          handleInteraction('book');
+                          // Open time selection modal
+                          setShowTimeSelection(true);
+                          setTimeSelectionContext({
+                            instructor: enhancedInstructor,
+                            preSelectedDate: null,
+                            preSelectedTime: null,
+                            serviceId: enhancedInstructor.services?.[0]?.id,
+                          });
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Infinite scroll loading indicator */}
+              {hasMore && (
+                <div ref={loadMoreRef} className="mt-8 flex justify-center py-4">
+                  {loadingMore && (
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-700"></div>
+                      <span className="text-gray-600">Loading more instructors...</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* End of results message */}
+              {!hasMore && instructors.length > 0 && (
+                <div className="mt-8 text-center text-gray-600 py-4">
+                  You've reached the end of {total} results
+                </div>
+              )}
+            </>
+          )}
+          </div>
+        </div>
+        
+        {/* Right Side - Map */}
+        <div className="w-1/3 hidden xl:block">
+          <div className="pl-0 pr-6 pt-4 pb-6" style={{ minHeight: 'calc(100vh - 11rem)' }}>
+            <div className="bg-white rounded-xl border border-gray-200 p-4 h-full">
+              {/* Manhattan Map Component */}
+              <ManhattanMap 
+                highlightedAreas={highlightedAreas}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Time Selection Modal */}
       {showTimeSelection && timeSelectionContext && (
