@@ -111,13 +111,26 @@ def create_celery_app() -> Celery:
         "app.tasks.cleanup.*": {"queue": "maintenance"},
     }
 
-    # Set up task autodiscovery
-    celery_app.autodiscover_tasks(["app.tasks"])
+    # Set up task autodiscovery (namespace package)
+    celery_app.autodiscover_tasks(["app.tasks"])  # base namespace
 
-    # Import beat schedule
-    from app.tasks.beat_schedule import CELERYBEAT_SCHEDULE
+    # Explicitly import task modules to guarantee registration in all envs
+    # (Celery autodiscovery expects 'tasks' modules; our tasks are under app.tasks.*)
+    try:
+        from app.tasks import analytics as _analytics  # noqa: F401
+        from app.tasks import codebase_metrics as _codebase_metrics  # noqa: F401
+        from app.tasks import monitoring_tasks as _monitoring_tasks  # noqa: F401
+        from app.tasks import privacy_audit_task as _privacy_audit_task  # noqa: F401
+        from app.tasks import privacy_tasks as _privacy_tasks  # noqa: F401
+        from app.tasks import search_analytics as _search_analytics  # noqa: F401
+    except Exception:
+        # Avoid startup failure if a dev-only module is missing; workers still start
+        pass
 
-    celery_app.conf.beat_schedule = CELERYBEAT_SCHEDULE
+    # Import environment-aware beat schedule
+    from app.tasks.beat_schedule import get_beat_schedule
+
+    celery_app.conf.beat_schedule = get_beat_schedule(settings.environment)
 
     return celery_app
 

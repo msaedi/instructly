@@ -20,6 +20,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from ..database import Base
+from .favorite import UserFavorite
 
 if TYPE_CHECKING:
     pass
@@ -113,13 +114,16 @@ class User(Base):
     # Favorites relationships
     # Favorites where this user is the student (instructors they've favorited)
     student_favorites = relationship(
-        "UserFavorite", foreign_keys="UserFavorite.student_id", back_populates="student", cascade="all, delete-orphan"
+        "UserFavorite",
+        foreign_keys=[UserFavorite.student_id],
+        back_populates="student",
+        cascade="all, delete-orphan",
     )
 
     # Favorites where this user is the instructor (students who favorited them)
     instructor_favorites = relationship(
         "UserFavorite",
-        foreign_keys="UserFavorite.instructor_id",
+        foreign_keys=[UserFavorite.instructor_id],
         back_populates="instructor",
         cascade="all, delete-orphan",
     )

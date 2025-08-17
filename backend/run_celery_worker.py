@@ -20,10 +20,17 @@ os.environ["USE_STG_DATABASE"] = "true"
 if __name__ == "__main__":
     print("🚀 Starting Celery worker with STAGING database...")
     print("📊 This preserves your local development data between test runs")
-    print("🔄 Worker configuration: concurrency=2, max-tasks-per-child=100")
+    print(
+        "🔄 Worker configuration: concurrency=2, max-tasks-per-child=100, queues=analytics,celery,privacy,maintenance,email,notifications"
+    )
     print("")
 
     # Run Celery worker with the same settings as the user's command
+    queues = os.getenv(
+        "CELERY_QUEUES",
+        "analytics,celery,privacy,maintenance,email,notifications",
+    )
+
     cmd = [
         sys.executable,
         "-m",
@@ -35,6 +42,8 @@ if __name__ == "__main__":
         "--concurrency=2",
         "--max-tasks-per-child=100",
         "--pool=prefork",
+        "-Q",
+        queues,
     ]
 
     subprocess.run(cmd)
