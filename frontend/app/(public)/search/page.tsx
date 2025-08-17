@@ -53,11 +53,11 @@ function SearchPageContent() {
   const [rateLimit, setRateLimit] = useState<{ seconds: number } | null>(null);
   const [showTimeSelection, setShowTimeSelection] = useState(false);
   const [timeSelectionContext, setTimeSelectionContext] = useState<any>(null);
-  
+
   // Refs for infinite scroll
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
-  
+
   // State for highlighting neighborhoods on hover
   const [highlightedAreas, setHighlightedAreas] = useState<string[]>([]);
 
@@ -279,7 +279,7 @@ function SearchPageContent() {
 
             // Natural language search doesn't support pagination yet, so we load all results at once
             setHasMore(false);
-            
+
             /* setMetadata({
               filters_applied: {
                 search: query,
@@ -568,17 +568,17 @@ function SearchPageContent() {
                 const firstSlot = day.available_slots[0];
                 const date = new Date(d);
                 const [hours, minutes] = firstSlot.start_time.split(':').map(Number);
-                const dateStr = date.toLocaleDateString('en-US', { 
-                  weekday: 'short', 
-                  month: 'short', 
-                  day: 'numeric' 
+                const dateStr = date.toLocaleDateString('en-US', {
+                  weekday: 'short',
+                  month: 'short',
+                  day: 'numeric'
                 });
                 const timeStr = new Date(2000, 0, 1, hours, minutes).toLocaleTimeString('en-US', {
                   hour: 'numeric',
                   minute: '2-digit',
                   hour12: true
                 });
-                
+
                 updates[i.user_id] = {
                   date: d,
                   time: firstSlot.start_time,
@@ -635,7 +635,7 @@ function SearchPageContent() {
                       Choose Date
                     </button>
                   </div>
-                  
+
                   {/* Time filters group */}
                   <div className="bg-gray-100 rounded-lg px-1 py-1 flex gap-1">
                     <button className="px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-md text-sm">
@@ -645,13 +645,13 @@ function SearchPageContent() {
                       Afternoon
                     </button>
                   </div>
-                  
+
                   {/* More Filters button */}
                   <button className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
                     More Filters
                   </button>
                 </div>
-                
+
                 {/* Sort section */}
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-600">Sort by:</span>
@@ -663,7 +663,7 @@ function SearchPageContent() {
               </div>
             </div>
           </div>
-          
+
           {/* Instructor Cards */}
           <div className="overflow-y-auto p-6 scrollbar-hide h-[calc(100vh-15rem)]"
                style={{
@@ -672,7 +672,7 @@ function SearchPageContent() {
                }}>
           {/* Rate limit banner */}
           <RateLimitBanner />
-          
+
           {loading ? (
             <div className="flex justify-center items-center h-64">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-700"></div>
@@ -741,7 +741,7 @@ function SearchPageContent() {
                   };
 
                   return (
-                    <div 
+                    <div
                       key={instructor.id}
                       onMouseEnter={() => setHighlightedAreas(instructor.areas_of_service || [])}
                       onMouseLeave={() => setHighlightedAreas([])}
@@ -780,7 +780,7 @@ function SearchPageContent() {
                   )}
                 </div>
               )}
-              
+
               {/* End of results message */}
               {!hasMore && instructors.length > 0 && (
                 <div className="mt-8 text-center text-gray-600 py-4">
@@ -791,13 +791,13 @@ function SearchPageContent() {
           )}
           </div>
         </div>
-        
+
         {/* Right Side - Map */}
         <div className="w-1/3 hidden xl:block">
           <div className="pl-0 pr-6 pt-4 pb-6" style={{ minHeight: 'calc(100vh - 11rem)' }}>
             <div className="bg-white rounded-xl border border-gray-200 p-4 h-full">
               {/* Manhattan Map Component */}
-              <ManhattanMap 
+              <ManhattanMap
                 highlightedAreas={highlightedAreas}
               />
             </div>

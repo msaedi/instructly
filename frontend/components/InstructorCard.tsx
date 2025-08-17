@@ -123,7 +123,7 @@ export default function InstructorCard({
     "Professional pianist with 15+ years of teaching experience. All levels welcome",
     "Conservatory-trained instructor passionate about helping students reach their potential"
   ];
-  
+
   // Get a consistent bio based on instructor ID
   const getBio = () => {
     if (instructor.bio) return instructor.bio;
@@ -143,7 +143,7 @@ export default function InstructorCard({
           <div className="w-56 h-56 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
             <span className="text-7xl">👤</span>
           </div>
-          
+
           {/* View and review profile link */}
           <div className="mt-3 text-center">
             <button
@@ -158,7 +158,7 @@ export default function InstructorCard({
             </button>
           </div>
         </div>
-        
+
         {/* Right side - Details */}
         <div className="flex-1">
           {/* Header row with name, price and favorite */}
@@ -173,15 +173,15 @@ export default function InstructorCard({
                   <CheckCircle className="h-7 w-7 text-purple-700 ml-2" />
                 )}
               </div>
-              
+
               {/* Services as pills with double padding */}
               <div className="flex gap-2 mt-3 mb-2">
                 {instructor.services.map((service, idx) => {
                   const serviceName = getServiceName(service.service_catalog_id);
                   if (!serviceName) return null;
                   return (
-                    <span 
-                      key={idx} 
+                    <span
+                      key={idx}
                       className="px-6 py-1 bg-gray-100 text-gray-700 rounded-full text-lg font-bold"
                     >
                       {serviceName}
@@ -189,7 +189,7 @@ export default function InstructorCard({
                   );
                 })}
               </div>
-              
+
               {/* Rating */}
               <div className="flex items-center gap-1 text-lg text-gray-600 mb-2">
                 <Star className="h-5 w-5 text-yellow-500 fill-current" />
@@ -197,23 +197,23 @@ export default function InstructorCard({
                 <span>·</span>
                 <span>{instructor.total_reviews || 0} reviews</span>
               </div>
-              
+
               {/* Experience - Moved after rating */}
               <p className="text-lg text-gray-600 mb-2">{instructor.years_experience} years experience</p>
-              
+
               {/* Location */}
               <div className="flex items-center text-lg text-gray-600 mb-2">
                 <MapPin className="h-5 w-5 mr-1" />
                 <span>{instructor.areas_of_service.slice(0, 2).join(', ') || 'Manhattan'}</span>
               </div>
             </div>
-            
+
             {/* Price in upper right */}
             <div className="flex items-center gap-3">
               <p className="text-3xl font-bold text-purple-700" data-testid="instructor-price">
                 ${instructor.services[0]?.hourly_rate || 0}/hr
               </p>
-              
+
               {/* Favorite Button */}
               <button
                 onClick={handleFavoriteClick}
@@ -230,7 +230,7 @@ export default function InstructorCard({
               </button>
             </div>
           </div>
-          
+
           {/* Bio with 5-line limit and soft yellow background */}
           <div className="mb-3 bg-yellow-50 p-4 rounded-lg">
             <p className={`text-gray-700 italic ${!isExpanded ? 'line-clamp-5' : ''}`}>
@@ -245,7 +245,7 @@ export default function InstructorCard({
               </button>
             )}
           </div>
-          
+
           {/* Session Duration Selection */}
           <div className="flex items-center gap-4 mb-4">
             <p className="text-sm font-medium text-gray-700">Session duration:</p>
@@ -280,7 +280,7 @@ export default function InstructorCard({
               </label>
             </div>
           </div>
-          
+
           {/* Action Buttons */}
           <div className="flex gap-3">
             <button
@@ -289,11 +289,11 @@ export default function InstructorCard({
               }}
               className="flex-1 bg-purple-700 text-white py-2.5 px-4 rounded-lg font-medium hover:bg-purple-800 transition-colors"
             >
-              {nextAvailableSlot 
+              {nextAvailableSlot
                 ? `Next Available: ${nextAvailableSlot.displayText}`
                 : 'Check Availability'}
             </button>
-            
+
             <button
               onClick={(e) => {
                 e.preventDefault();
@@ -304,7 +304,7 @@ export default function InstructorCard({
               More options
             </button>
           </div>
-          
+
           {/* Reviews Section - Two columns */}
           <div className="mt-6 grid grid-cols-2 gap-4">
             <div className="bg-gray-50 p-3 rounded-lg">
@@ -320,7 +320,7 @@ export default function InstructorCard({
               </p>
               <p className="text-xs text-gray-500 mt-1">- Sarah M.</p>
             </div>
-            
+
             <div className="bg-gray-50 p-3 rounded-lg">
               <div className="flex items-center mb-1">
                 <div className="flex">
