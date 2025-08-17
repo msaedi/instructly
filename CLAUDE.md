@@ -93,6 +93,31 @@ const TEST_BOOKING_ID = '01K2MAY484FQGFEQVN3VKGYZ59';   // ✅ Correct
 - ✅ Frontend: All TypeScript types updated to string
 - ✅ Tests: All test data uses proper ULIDs
 
+## 🐘 CI Database Image
+
+**CRITICAL**: Our CI uses a custom PostgreSQL image with PostGIS + pgvector extensions.
+
+### Image Details
+- **Location**: `ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector`
+- **Source**: `.github/docker/postgres-ci/Dockerfile`
+- **Build**: Automated via `.github/workflows/build-ci-database.yml`
+- **Base**: `postgis/postgis:14-3.3` + pgvector installed
+
+### Why Custom Image?
+- No official image includes both PostGIS AND pgvector
+- CI tests require both extensions for spatial features and NL search
+- Migrations will FAIL without both extensions
+
+### Maintenance
+- Image rebuilds automatically when Dockerfile changes
+- To manually rebuild: Actions → "Build CI Database Image" → Run workflow
+- Update tag in `backend-ci.yml` if creating new versions
+
+### ⚠️ DO NOT:
+- Use random community images (security risk)
+- Remove pgvector or PostGIS from migrations
+- Change CI to use standard postgres image
+
 ## 📍 Spatial Intelligence with PostGIS (v95)
 
 ### Location Architecture

@@ -1,0 +1,31 @@
+{
+  "total_violations": 5,
+  "instructions": "Add '# repo-pattern-migrate: TODO: migrate to repository' above each violation",
+  "violations": [
+    {
+      "file": "backend/app/services/two_factor_auth_service.py",
+      "line": 68,
+      "code": "self.db.commit()"
+    },
+    {
+      "file": "backend/app/services/two_factor_auth_service.py",
+      "line": 106,
+      "code": "self.db.commit()"
+    },
+    {
+      "file": "backend/app/services/two_factor_auth_service.py",
+      "line": 119,
+      "code": "self.db.commit()"
+    },
+    {
+      "file": "backend/app/services/two_factor_auth_service.py",
+      "line": 135,
+      "code": "self.db.commit()"
+    },
+    {
+      "file": "backend/app/services/two_factor_auth_service.py",
+      "line": 148,
+      "code": "self.db.commit()"
+    }
+  ]
+}

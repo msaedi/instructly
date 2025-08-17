@@ -56,8 +56,11 @@ export const fetchWithAuth = async (endpoint: string, options: RequestInit = {})
   logger.time(timerLabel);
 
   try {
+    const needsCookies = endpoint.startsWith('/auth/') || endpoint.startsWith('/api/auth/2fa');
     const response = await fetch(`${API_URL}${endpoint}`, {
       ...options,
+      // Ensure trust/delete cookies flow for auth endpoints
+      credentials: options.credentials ?? (needsCookies ? 'include' : 'same-origin'),
       headers: {
         ...options.headers,
         Authorization: token ? `Bearer ${token}` : '',
@@ -83,11 +86,20 @@ export const fetchWithAuth = async (endpoint: string, options: RequestInit = {})
       // Try to get error details from response body
       try {
         const errorBody = await response.clone().json();
-        logger.error('API error response body', undefined, {
-          endpoint,
-          status: response.status,
-          error: errorBody,
-        });
+        // Downgrade 4xx (client/expected) to warn to avoid noisy console errors
+        if (response.status >= 500) {
+          logger.error('API error response body', undefined, {
+            endpoint,
+            status: response.status,
+            error: errorBody,
+          });
+        } else {
+          logger.warn('API error response', {
+            endpoint,
+            status: response.status,
+          });
+          logger.debug('API error body', { endpoint, error: errorBody });
+        }
       } catch (e) {
         // Response body might not be JSON
         logger.debug('Could not parse error response as JSON');

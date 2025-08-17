@@ -47,11 +47,13 @@ function StudentDashboardContent() {
   const [isStatsVisible, setIsStatsVisible] = useState(true);
   const [showDelete, setShowDelete] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showTfaModal, setShowTfaModal] = useState(false);
   const [referralEmails, setReferralEmails] = useState('');
   const [referralStatus, setReferralStatus] = useState('');
   const [addresses, setAddresses] = useState<any[] | null>(null);
   const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState<null | { mode: 'create' } | { mode: 'edit'; address: any }>(null);
+  const [tfaStatus, setTfaStatus] = useState<{ enabled: boolean; verified_at?: string | null; last_used_at?: string | null } | null>(null);
 
   const tabs = useMemo(
     () => [
@@ -183,6 +185,16 @@ function StudentDashboardContent() {
 
   useEffect(() => {
     loadAddresses();
+    // Preload TFA status in background
+    (async () => {
+      try {
+        const res = await fetchWithAuth('/api/auth/2fa/status');
+        if (res.ok) {
+          const data = await res.json();
+          setTfaStatus({ enabled: !!data.enabled, verified_at: data.verified_at || null, last_used_at: data.last_used_at || null });
+        }
+      } catch {}
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -386,7 +398,7 @@ function StudentDashboardContent() {
                     </div>
                   </div>
 
-                  {/* Security (placeholder) */}
+                  {/* Security */}
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Security</h3>
                     <div className="flex flex-wrap gap-3">
@@ -396,10 +408,18 @@ function StudentDashboardContent() {
                       >
                         Change Password
                       </button>
-                      <button className="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200" disabled>
-                        Enable Two-Factor Authentication
+                      <button
+                        className="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200"
+                        onClick={() => setShowTfaModal(true)}
+                      >
+                        {tfaStatus?.enabled ? 'Manage Two-Factor Authentication' : 'Enable Two-Factor Authentication'}
                       </button>
                     </div>
+                    {tfaStatus && (
+                      <p className="mt-2 text-sm text-gray-600">
+                        2FA Status: {tfaStatus.enabled ? 'Enabled' : 'Disabled'}{tfaStatus.last_used_at ? ` • Last used: ${new Date(tfaStatus.last_used_at).toLocaleString()}` : ''}
+                      </p>
+                    )}
                   </div>
 
                   {/* Referral Program (mock) */}
@@ -533,6 +553,203 @@ function StudentDashboardContent() {
           }}
         />
       )}
+
+      {showTfaModal && (
+        <TfaModal
+          onClose={() => setShowTfaModal(false)}
+          onChanged={async () => {
+            try {
+              const res = await fetchWithAuth('/api/auth/2fa/status');
+              if (res.ok) {
+                const data = await res.json();
+                setTfaStatus({ enabled: !!data.enabled, verified_at: data.verified_at || null, last_used_at: data.last_used_at || null });
+              }
+            } catch {}
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function TfaModal({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
+  const [step, setStep] = useState<'idle' | 'show' | 'verify' | 'enabled' | 'disabled'>('idle');
+  const [qr, setQr] = useState<string | null>(null);
+  const [secret, setSecret] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Load current status; if disabled, immediately initiate and show QR (no confirmation step)
+    (async () => {
+      try {
+        const res = await fetchWithAuth('/api/auth/2fa/status');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.enabled) {
+            setStep('enabled');
+          } else {
+            setStep('show');
+            await initiate();
+          }
+        }
+      } catch {}
+    })();
+  }, []);
+
+  const initiate = async () => {
+    setError(null); setLoading(true);
+    try {
+      const res = await fetchWithAuth('/api/auth/2fa/setup/initiate', { method: 'POST' });
+      if (!res.ok) {
+        setError('Failed to initiate 2FA.'); setLoading(false); return;
+      }
+      const data = await res.json();
+      setQr(data.qr_code_data_url);
+      setSecret(data.secret);
+      setStep('show');
+    } catch { setError('Network error.'); } finally { setLoading(false); }
+  };
+
+  const verify = async () => {
+    setError(null); setLoading(true);
+    try {
+      const res = await fetchWithAuth('/api/auth/2fa/setup/verify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code })
+      });
+      if (!res.ok) { const b = await res.json().catch(() => ({})); setError(b.detail || 'That code didn’t work. Please try again.'); setLoading(false); return; }
+      const data = await res.json();
+      setBackupCodes(data.backup_codes || []);
+      setStep('enabled');
+      onChanged();
+    } catch { setError('Network error.'); } finally { setLoading(false); }
+  };
+
+  const disable = async () => {
+    setError(null); setLoading(true);
+    try {
+      const res = await fetchWithAuth('/api/auth/2fa/disable', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ current_password: currentPassword })
+      });
+      if (!res.ok) { const b = await res.json().catch(() => ({})); setError(b.detail || 'Failed to disable'); setLoading(false); return; }
+      setStep('disabled');
+      onChanged();
+    } catch { setError('Network error.'); } finally { setLoading(false); }
+  };
+
+  const regen = async () => {
+    setError(null); setLoading(true);
+    try {
+      const res = await fetchWithAuth('/api/auth/2fa/regenerate-backup-codes', { method: 'POST' });
+      if (!res.ok) { setError('Failed to regenerate'); setLoading(false); return; }
+      const data = await res.json();
+      setBackupCodes(data.backup_codes || []);
+    } catch { setError('Network error.'); } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">Two-Factor Authentication</h3>
+          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+        </div>
+        {step === 'show' && (
+          <div className="space-y-4">
+            {qr && <img src={qr} alt="QR code" className="mx-auto h-40 w-40" />}
+            {secret && (
+              <div className="text-sm text-gray-700">
+                <p className="font-medium">Secret (manual entry):</p>
+                <p className="mt-1 break-all rounded bg-gray-50 p-2 border text-gray-800">{secret}</p>
+              </div>
+            )}
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Enter 6-digit code</label>
+              <input
+                className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !loading && code.trim().length >= 6) {
+                    e.preventDefault();
+                    verify();
+                  }
+                }}
+                placeholder="123 456"
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <button className="rounded-md border px-4 py-2 text-sm hover:bg-gray-100 active:bg-gray-200 transition-colors" onClick={onClose}>Close</button>
+              <button className={`rounded-md px-4 py-2 text-sm text-white transition-colors ${loading ? 'bg-indigo-300' : 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800'}`} onClick={verify} disabled={loading}>
+                {loading ? 'Verifying…' : 'Verify & Enable'}
+              </button>
+            </div>
+          </div>
+        )}
+        {step === 'enabled' && (
+          <div className="space-y-4">
+            <p className="text-sm text-green-700">Two-factor authentication is now enabled.</p>
+            {backupCodes && backupCodes.length > 0 && (
+              <div className="text-sm text-gray-700">
+                <p className="font-medium mb-1">Backup codes (store securely):</p>
+                <ul className="list-disc pl-5 space-y-0.5">
+                  {backupCodes.map((c) => (<li key={c} className="font-mono text-xs">{c}</li>))}
+                </ul>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    className="rounded-md border px-3 py-1 text-xs hover:bg-gray-100 active:bg-gray-200 transition-colors"
+                    onClick={() => { navigator.clipboard.writeText(backupCodes.join('\n')); toast.success('Backup codes copied'); }}
+                  >
+                    Copy
+                  </button>
+                  <button
+                    className={`rounded-md border px-3 py-1 text-xs transition-colors ${loading ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-100 active:bg-gray-200'}`}
+                    onClick={async () => { await regen(); toast.success('Backup codes regenerated'); }}
+                    disabled={loading}
+                  >
+                    {loading ? 'Working…' : 'Regenerate'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        {step === 'disabled' && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-700">Two-factor authentication has been disabled.</p>
+            <div className="flex justify-end gap-3">
+              <button autoFocus className="rounded-md border px-4 py-2 text-sm hover:bg-gray-100 active:bg-gray-200 transition-colors" onClick={onClose}>Close</button>
+            </div>
+          </div>
+        )}
+        {step === 'enabled' && (
+          <div className="mt-6 border-t pt-4 space-y-3">
+            <p className="text-sm text-gray-700">To disable 2FA, confirm your password.</p>
+            <input
+              type="password"
+              className="w-full rounded-md border px-3 py-2 text-sm"
+              placeholder="Current password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !loading && currentPassword.trim().length > 0) {
+                  e.preventDefault();
+                  disable();
+                }
+              }}
+            />
+            <div className="flex justify-end gap-3">
+              <button className="rounded-md border px-4 py-2 text-sm hover:bg-gray-100 active:bg-gray-200 transition-colors" onClick={onClose}>Close</button>
+              <button className={`rounded-md px-4 py-2 text-sm text-white transition-colors ${loading ? 'bg-red-300' : 'bg-red-600 hover:bg-red-700 active:bg-red-800'}`} onClick={disable} disabled={loading}>
+                {loading ? 'Disabling…' : 'Disable 2FA'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

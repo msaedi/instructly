@@ -22,7 +22,7 @@ from ..core.exceptions import ConflictException, NotFoundException
 from ..database import get_db
 from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ..schemas import Token, UserCreate, UserLogin, UserResponse, UserUpdate, UserWithPermissionsResponse
-from ..schemas.security import PasswordChangeRequest, PasswordChangeResponse
+from ..schemas.security import LoginResponse, PasswordChangeRequest, PasswordChangeResponse
 from ..services.auth_service import AuthService
 from ..services.permission_service import PermissionService
 from ..services.search_history_service import SearchHistoryService
@@ -109,7 +109,7 @@ async def register(
         )
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=LoginResponse)
 @rate_limit(
     f"{settings.rate_limit_auth_per_minute}/minute",
     key_type=RateLimitKeyType.IP,
@@ -148,6 +148,20 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # If user has 2FA enabled and not trusted (no trust cookie), return requires_2fa
+    if getattr(user, "totp_enabled", False):
+        # Check trust cookie set by 2FA verification
+        is_trusted = request.cookies.get("tfa_trusted") == "1"
+        # Dev convenience: allow header-based trust when not in production (since cross-origin cookies may be restricted locally)
+        if not is_trusted and settings.environment != "production":
+            if request.headers.get("X-Trusted-Bypass", "false").lower() == "true":
+                is_trusted = True
+        if not is_trusted:
+            temp_token = create_access_token(
+                data={"sub": user.email, "tfa_pending": True}, expires_delta=timedelta(minutes=5)
+            )
+            return LoginResponse(requires_2fa=True, temp_token=temp_token)
+
     # Create access token (HTTP concern - stays in route)
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
     access_token = create_access_token(
@@ -165,7 +179,7 @@ async def login(
         max_age=settings.access_token_expire_minutes * 60,  # Convert to seconds
     )
 
-    return Token(access_token=access_token, token_type="bearer")
+    return LoginResponse(access_token=access_token, token_type="bearer", requires_2fa=False)
 
 
 @router.post("/change-password", response_model=PasswordChangeResponse)

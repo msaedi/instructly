@@ -48,6 +48,7 @@ class AuthService(BaseService):
         self.instructor_repository = instructor_repository or RepositoryFactory.create_base_repository(
             db, InstructorProfile
         )
+        # Avoid instantiating TFA service here to keep auth lightweight and avoid config/key coupling
 
     @BaseService.measure_operation("register_user")
     def register_user(

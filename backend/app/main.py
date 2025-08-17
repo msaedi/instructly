@@ -46,6 +46,7 @@ from .routes import (
     search,
     search_history,
     services,
+    two_factor_auth,
 )
 from .schemas.main_responses import HealthLiteResponse, HealthResponse, PerformanceMetricsResponse, RootResponse
 from .services.template_registry import TemplateRegistry
@@ -191,6 +192,7 @@ app.add_middleware(SSEAwareGZipMiddleware, minimum_size=500)
 
 # Include routers
 app.include_router(auth.router)
+app.include_router(two_factor_auth.router)
 app.include_router(instructors.router)
 app.include_router(services.router)
 app.include_router(availability_windows.router)

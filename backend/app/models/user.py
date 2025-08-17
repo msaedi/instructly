@@ -15,7 +15,7 @@ import logging
 from typing import TYPE_CHECKING
 
 import ulid
-from sqlalchemy import Boolean, Column, DateTime, String
+from sqlalchemy import JSON, Boolean, Column, DateTime, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -81,6 +81,16 @@ class User(Base):
     timezone = Column(String(50), nullable=False, default="America/New_York")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # 2FA fields
+    totp_secret = Column(String(255), nullable=True)  # Encrypted at rest via service layer
+    totp_enabled = Column(Boolean, nullable=False, default=False)
+    totp_verified_at = Column(DateTime(timezone=True), nullable=True)
+    # Use generic JSON in the model for cross-dialect compatibility (SQLite in tests)
+    # The migration creates JSONB on Postgres for better operator support
+    backup_codes = Column(JSON, nullable=True)
+    two_factor_setup_at = Column(DateTime(timezone=True), nullable=True)
+    two_factor_last_used_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     # RBAC relationship

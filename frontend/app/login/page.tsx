@@ -24,6 +24,7 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
  * - Error handling for invalid credentials and network errors
  * - Forgot password link
  * - Sign up link with redirect preservation
+ * - Two-step 2FA support (TOTP or backup code)
  *
  * Security considerations:
  * - Uses OAuth2 password flow with form data
@@ -45,6 +46,14 @@ function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // 2FA state
+  const [requires2FA, setRequires2FA] = useState(false);
+  const [tempToken, setTempToken] = useState<string | null>(null);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [backupCode, setBackupCode] = useState('');
+  const [trustThisBrowser, setTrustThisBrowser] = useState(false);
+  const [isVerifying2FA, setIsVerifying2FA] = useState(false);
+
   /**
    * Handle form input changes
    */
@@ -55,51 +64,22 @@ function LoginForm() {
       ...prev,
       [name]: nextValue,
     }));
-    // Clear error for this field when user starts typing
-    if (errors[name]) {
-      setErrors((prev) => ({
-        ...prev,
-        [name]: '',
-      }));
-    }
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
   };
 
-  /**
-   * Validate form inputs
-   * @returns boolean indicating if form is valid
-   */
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email';
-    }
-
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    }
-
+    if (!formData.email.trim()) newErrors.email = 'Email is required';
+    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Please enter a valid email';
+    if (!formData.password) newErrors.password = 'Password is required';
     setErrors(newErrors);
-
-    if (Object.keys(newErrors).length > 0) {
-      logger.debug('Login form validation failed', { errors: newErrors });
-    }
-
+    if (Object.keys(newErrors).length > 0) logger.debug('Login form validation failed', { errors: newErrors });
     return Object.keys(newErrors).length === 0;
   };
 
-  /**
-   * Handle form submission
-   * Authenticates user and redirects based on role
-   */
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     setIsSubmitting(true);
     logger.info('Login attempt started', {
@@ -111,28 +91,84 @@ function LoginForm() {
     });
 
     try {
-      // Use the auth context login method
-      const success = await authLogin(formData.email, formData.password);
+      // Attempt login via auth context; adjust to capture 2FA challenge
+      // Directly post to /auth/login to capture requires_2fa/temp_token
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/auth/login`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ username: formData.email, password: formData.password }).toString(),
+          credentials: 'include',
+        }
+      );
 
-      if (success) {
-        logger.info('Login successful via auth context');
-
-        // Force auth check to ensure state is updated
-        await checkAuth();
-
-        // Now navigate with updated auth state
-        router.push(redirect);
-      } else {
-        logger.warn('Login failed - invalid credentials', {
-          email: formData.email,
-        });
-        setErrors({ password: 'Invalid email or password' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setErrors({ password: body.detail || 'Invalid email or password' });
+        return;
       }
+
+      const data = await res.json();
+      // 2FA required?
+      if (data.requires_2fa) {
+        setRequires2FA(true);
+        setTempToken(data.temp_token || null);
+        setIsSubmitting(false);
+        return;
+      }
+
+      // No 2FA: complete login using existing flow
+      localStorage.setItem('access_token', data.access_token);
+      await checkAuth();
+      router.push(redirect);
     } catch (error) {
       logger.error('Login network error', error);
       setErrors({ password: 'Network error. Please check your connection and try again.' });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleVerify2FA = async (e?: FormEvent) => {
+    if (e) e.preventDefault();
+    if (!tempToken) {
+      setErrors({ password: 'Invalid 2FA session. Please try logging in again.' });
+      return;
+    }
+    if (!twoFactorCode.trim() && !backupCode.trim()) {
+      setErrors({ twofa: 'Enter a 6-digit code or a backup code' });
+      return;
+    }
+
+    setIsVerifying2FA(true);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/2fa/verify-login`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Trust-Browser': trustThisBrowser ? 'true' : 'false' },
+          body: JSON.stringify({ temp_token: tempToken, code: twoFactorCode || undefined, backup_code: backupCode || undefined }),
+          credentials: 'include',
+        }
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setErrors({ twofa: body.detail || "That code didn’t work. Please check the 6‑digit code or use a backup code." });
+        setIsVerifying2FA(false);
+        return;
+      }
+      const data = await res.json();
+      // Persist token and optional trust flag
+      localStorage.setItem('access_token', data.access_token);
+      if (trustThisBrowser) localStorage.setItem('tfa_trusted', 'true');
+      await checkAuth();
+      router.push(redirect);
+    } catch (err) {
+      logger.error('2FA verification error', err);
+      setErrors({ twofa: 'Network error verifying code' });
+    } finally {
+      setIsVerifying2FA(false);
     }
   };
 
@@ -146,143 +182,81 @@ function LoginForm() {
             </h1>
           </Link>
         </div>
-        <form className="space-y-6" onSubmit={handleSubmit} noValidate>
-          {/* Email Field */}
-          <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-200"
-            >
-              Email address
-            </label>
-            <div className="mt-1">
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={formData.email}
-                onChange={handleChange}
-                disabled={isSubmitting}
-                className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 autofill-fix"
-                placeholder="you@example.com"
-              />
-              {errors.email && (
-                <p className="mt-1 text-sm text-red-600" role="alert">
-                  {errors.email}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Password Field */}
-          <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-200"
-            >
-              Password
-            </label>
-            <div className="mt-1">
-              <div className="relative">
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  required
-                  value={formData.password}
-                  onChange={handleChange}
-                  disabled={isSubmitting}
-                  className="appearance-none block w-full px-3 py-2 h-10 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 autofill-fix"
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                  disabled={isSubmitting}
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5" aria-hidden="true" />
-                  ) : (
-                    <Eye className="h-5 w-5" aria-hidden="true" />
-                  )}
-                </button>
+        {!requires2FA ? (
+          <form className="space-y-6" onSubmit={handleSubmit} noValidate>
+            {/* Email Field */}
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-200">Email address</label>
+              <div className="mt-1">
+                <input id="email" name="email" type="email" autoComplete="email" required value={formData.email} onChange={handleChange} disabled={isSubmitting} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 autofill-fix" placeholder="you@example.com" />
+                {errors.email && (<p className="mt-1 text-sm text-red-600" role="alert">{errors.email}</p>)}
               </div>
-              {errors.password && (
-                <p className="mt-1 text-sm text-red-600" role="alert">
-                  {errors.password}
-                </p>
-              )}
             </div>
-          </div>
+            {/* Password Field */}
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-200">Password</label>
+              <div className="mt-1">
+                <div className="relative">
+                  <input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={formData.password} onChange={handleChange} disabled={isSubmitting} className="appearance-none block w-full px-3 py-2 h-10 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 autofill-fix" placeholder="••••••••" />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300" disabled={isSubmitting}>
+                    {showPassword ? (<EyeOff className="h-5 w-5" aria-hidden="true" />) : (<Eye className="h-5 w-5" aria-hidden="true" />)}
+                  </button>
+                </div>
+                {errors.password && (<p className="mt-1 text-sm text-red-600" role="alert">{errors.password}</p>)}
+              </div>
+            </div>
+            {/* Forgot Password */}
+            <div className="flex items-center justify-between">
+              <div className="text-sm">
+                <Link href="/forgot-password" className="font-medium text-indigo-600 hover:text-indigo-500 transition-colors" onClick={() => logger.debug('Navigating to forgot password')}>
+                  Forgot your password?
+                </Link>
+              </div>
+            </div>
+            {/* Submit */}
+            <div>
+              <button type="submit" disabled={isSubmitting} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                {isSubmitting ? (<><svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Signing in...</>) : ('Sign in')}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <form className="space-y-6" onSubmit={handleVerify2FA}>
+            <div>
+              <p className="text-sm text-gray-700">Enter your 6-digit authentication code or a backup code to continue.</p>
+            </div>
+            <div>
+              <label htmlFor="twofa" className="block text-sm font-medium text-gray-700">6-digit code</label>
+              <input id="twofa" inputMode="numeric" pattern="[0-9]*" maxLength={6} className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" value={twoFactorCode} onChange={(e) => setTwoFactorCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !isVerifying2FA && twoFactorCode.trim().length >= 6) { e.preventDefault(); handleVerify2FA(); } }} placeholder="123 456" />
+            </div>
+            <div>
+              <label htmlFor="backup" className="block text-sm font-medium text-gray-700">Backup code (optional)</label>
+              <input id="backup" className="mt-1 block w-full px-3 py-2 h-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" value={backupCode} onChange={(e) => setBackupCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !isVerifying2FA && backupCode.trim().length > 0) { e.preventDefault(); handleVerify2FA(); } }} placeholder="ABCD-EFGH-1234" />
+            </div>
+            <div className="flex items-center gap-2">
+              <input id="trust" type="checkbox" className="h-4 w-4" checked={trustThisBrowser} onChange={(e) => setTrustThisBrowser(e.target.checked)} />
+              <label htmlFor="trust" className="text-sm text-gray-700">Trust this browser</label>
+            </div>
+            {errors.twofa && (<p className="text-sm text-red-600" role="alert">{errors.twofa}</p>)}
+            <div>
+              <button type="submit" disabled={isVerifying2FA} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                {isVerifying2FA ? 'Verifying…' : 'Verify & Continue'}
+              </button>
+            </div>
+          </form>
+        )}
 
-          {/* Forgot Password Link */}
-          <div className="flex items-center justify-between">
-            <div className="text-sm">
-              <Link
-                href="/forgot-password"
-                className="font-medium text-indigo-600 hover:text-indigo-500 transition-colors"
-                onClick={() => logger.debug('Navigating to forgot password')}
-              >
-                Forgot your password?
+        {/* Sign Up Link (hidden during 2FA step) */}
+        {!requires2FA && (
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Don't have an account?{' '}
+              <Link href={`/signup${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`} className="font-medium text-indigo-600 hover:text-indigo-500 transition-colors" onClick={() => logger.debug('Navigating to sign up', { preservedRedirect: redirect })}>
+                Sign up
               </Link>
-            </div>
+            </p>
           </div>
-
-          {/* Submit Button */}
-          <div>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isSubmitting ? (
-                <>
-                  <svg
-                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Signing in...
-                </>
-              ) : (
-                'Sign in'
-              )}
-            </button>
-          </div>
-        </form>
-
-        {/* Sign Up Link */}
-        <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Don't have an account?{' '}
-            <Link
-              href={`/signup${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
-              className="font-medium text-indigo-600 hover:text-indigo-500 transition-colors"
-              onClick={() => logger.debug('Navigating to sign up', { preservedRedirect: redirect })}
-            >
-              Sign up
-            </Link>
-          </p>
-        </div>
+        )}
       </div>
     </div>
   );

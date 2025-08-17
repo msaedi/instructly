@@ -59,6 +59,13 @@ def upgrade() -> None:
         sa.Column("last_name", sa.String(50), nullable=False),
         sa.Column("phone", sa.String(20), nullable=True),
         sa.Column("zip_code", sa.String(10), nullable=False),
+        # 2FA fields (final form in initial migration)
+        sa.Column("totp_secret", sa.String(255), nullable=True),
+        sa.Column("totp_enabled", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("totp_verified_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("backup_codes", sa.dialects.postgresql.JSONB(), nullable=True),
+        sa.Column("two_factor_setup_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("two_factor_last_used_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("is_active", sa.Boolean(), nullable=True, server_default="true"),
         sa.Column(
             "account_status",
@@ -105,6 +112,13 @@ def upgrade() -> None:
         "idx_users_email",
         "users",
         ["email"],
+        unique=False,
+    )
+    # Filter/index for 2FA-enabled lookups
+    op.create_index(
+        "ix_users_totp_enabled",
+        "users",
+        ["totp_enabled"],
         unique=False,
     )
 
@@ -640,6 +654,7 @@ def downgrade() -> None:
     op.drop_index("idx_users_email", table_name="users")
     op.drop_index("ix_users_id", table_name="users")
     op.drop_index("ix_users_email", table_name="users")
+    op.drop_index("ix_users_totp_enabled", table_name="users")
 
     # Drop tables
     op.drop_table("users")

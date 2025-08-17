@@ -137,6 +137,14 @@ instructly/
 - **Response Times**: <100ms achieved with production monitoring
 - **Monitoring**: API key protected endpoints at `/api/monitoring/*`
 
+### CI/CD Infrastructure
+- **Custom Database Image**: PostgreSQL 14 with PostGIS + pgvector
+  - Required for spatial features and NL search testing
+  - Image: `ghcr.io/msaedi/instructly-ci-postgres:14-postgis-pgvector`
+  - See [CI Database Documentation](docs/infrastructure/ci-database.md)
+- **GitHub Actions**: Automated testing on all PRs
+- **Pre-commit Hooks**: Code quality enforcement
+
 ### Deployment
 - **Backend**: Deploy to Render using `render.yaml`
 - **Frontend**: Deploy to Vercel via GitHub integration
