@@ -1,6 +1,6 @@
 """Generic region boundary model for global city support."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import ulid
@@ -23,8 +23,8 @@ class RegionBoundary(Base):
 
     region_metadata = Column(JSON, nullable=True)
 
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<RegionBoundary {self.region_type}:{self.region_code} {self.region_name}>"

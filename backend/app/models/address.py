@@ -8,7 +8,7 @@ This module defines ORM models for:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import ulid
@@ -69,8 +69,8 @@ class UserAddress(Base):
     # Removed NYC-specific columns in favor of generic fields + metadata
 
     # Metadata
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     last_used_at = Column(DateTime(timezone=True), nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
 
@@ -92,7 +92,7 @@ class NYCNeighborhood(Base):
     community_district = Column(Integer, nullable=True)
     # boundary geometry is present in DB but not mapped here (avoid geoalchemy2 dependency)
     # centroid geometry is present in DB but not mapped here
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     def __repr__(self):
         return f"<NYCNeighborhood {self.ntacode} {self.ntaname} ({self.borough})>"
@@ -105,8 +105,11 @@ class InstructorServiceArea(Base):
 
     instructor_id = Column(String(26), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     neighborhood_id = Column(String(26), ForeignKey("region_boundaries.id", ondelete="CASCADE"), primary_key=True)
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     is_active = Column(Boolean, nullable=False, default=True)
+    coverage_type = Column(String(20), nullable=True)
+    max_distance_miles = Column(Numeric(5, 2), nullable=True)
 
     instructor = relationship("User", backref="service_areas")
     # Import locally to avoid circular import at module import time

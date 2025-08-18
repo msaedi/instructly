@@ -67,3 +67,44 @@ class InstructorServiceAreaRepository(BaseRepository[InstructorServiceArea]):
             else:
                 self.create(instructor_id=instructor_id, neighborhood_id=nid, is_active=True)
         return len(neighborhood_ids)
+
+    def upsert_area(
+        self,
+        instructor_id: str,
+        neighborhood_id: str,
+        coverage_type: str | None = None,
+        max_distance_miles: float | None = None,
+        is_active: bool = True,
+    ) -> InstructorServiceArea:
+        existing = (
+            self.db.query(InstructorServiceArea)
+            .filter(
+                InstructorServiceArea.instructor_id == instructor_id,
+                InstructorServiceArea.neighborhood_id == neighborhood_id,
+            )
+            .first()
+        )
+        if existing:
+            updates = {"is_active": is_active}
+            if coverage_type is not None:
+                updates["coverage_type"] = coverage_type
+            if max_distance_miles is not None:
+                updates["max_distance_miles"] = max_distance_miles
+            self.update((instructor_id, neighborhood_id), **updates)  # type: ignore[arg-type]
+            return existing
+        return self.create(
+            instructor_id=instructor_id,
+            neighborhood_id=neighborhood_id,
+            coverage_type=coverage_type,
+            max_distance_miles=max_distance_miles,
+            is_active=is_active,
+        )
+
+    def list_neighborhoods_for_instructors(self, instructor_ids: List[str]) -> list[InstructorServiceArea]:
+        if not instructor_ids:
+            return []
+        return (
+            self._build_query()
+            .filter(InstructorServiceArea.instructor_id.in_(instructor_ids), InstructorServiceArea.is_active.is_(True))
+            .all()
+        )

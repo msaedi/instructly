@@ -87,3 +87,4 @@ zipp==3.23.0
 sse-starlette==1.6.5
 asyncpg==0.30.0
 python-ulid==2.2.0
+geopandas==0.14.4

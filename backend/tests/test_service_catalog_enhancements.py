@@ -9,7 +9,7 @@ Tests cover:
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 from sqlalchemy.orm import Session
@@ -182,7 +182,7 @@ class TestServiceCatalogRepository:
                 booking_count_7d=5 * (i + 1),
                 booking_count_30d=20 * (i + 1),
                 active_instructors=i + 1,
-                last_calculated=datetime.utcnow(),
+                last_calculated=datetime.now(timezone.utc),
             )
             db.add(analytics)
         db.commit()
@@ -407,7 +407,7 @@ class TestInstructorServiceEnhancements:
                 booking_count_7d=5,
                 booking_count_30d=20,
                 active_instructors=2,
-                last_calculated=datetime.utcnow(),
+                last_calculated=datetime.now(timezone.utc),
                 **data,
             )
             db.add(analytics)

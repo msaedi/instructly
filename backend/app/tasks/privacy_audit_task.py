@@ -66,7 +66,7 @@ def audit_privacy_production() -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Privacy audit failed: {e}")
-        return {"status": "failed", "error": str(e), "timestamp": datetime.utcnow().isoformat()}
+        return {"status": "failed", "error": str(e), "timestamp": datetime.now(timezone.utc).isoformat()}
     finally:
         loop.close()
 

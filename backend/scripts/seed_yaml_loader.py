@@ -12,6 +12,7 @@ class SeedDataLoader:
         self.students = self._load_yaml("students.yaml")
         self.availability_patterns = self._load_yaml("availability_patterns.yaml")
         self.bookings = self._load_yaml("bookings.yaml")
+        self.coverage = self._load_yaml("coverage.yaml")
 
     def _load_yaml(self, filename: str) -> Dict[str, Any]:
         filepath = self.seed_data_dir / filename
@@ -32,3 +33,6 @@ class SeedDataLoader:
 
     def get_default_password(self) -> str:
         return self.config.get("settings", {}).get("default_password", "Test123")
+
+    def get_coverage_rules(self) -> Dict[str, Any]:
+        return self.coverage or {}

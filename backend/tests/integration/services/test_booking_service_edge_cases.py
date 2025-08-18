@@ -13,7 +13,7 @@ UPDATED FOR WORK STREAM #9: Layer independence - time-based booking.
 """
 
 import logging
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -237,7 +237,7 @@ class TestBookingServiceStatisticsEdgeCases:
             duration_minutes=120,
             status=BookingStatus.COMPLETED,
             location_type="neutral",
-            completed_at=datetime.utcnow(),
+            completed_at=datetime.now(timezone.utc),
         )
         db.add(completed_booking)
         db.commit()

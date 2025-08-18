@@ -22,6 +22,7 @@ from ..schemas.address import (
     ServiceAreasResponse,
     ServiceAreasUpdateRequest,
 )
+from ..schemas.address_responses import CoverageFeatureCollectionResponse
 from ..services.address_service import AddressService
 
 logger = logging.getLogger(__name__)
@@ -153,3 +154,54 @@ def replace_my_service_areas(
     service.replace_service_areas(current_user.id, payload.neighborhood_ids)
     items = [ServiceAreaItem(**a) for a in service.list_service_areas(current_user.id)]
     return ServiceAreasResponse(items=items, total=len(items))
+
+
+# Public helper for map: bulk coverage for instructor ids
+@router.get("/coverage/bulk", response_model=CoverageFeatureCollectionResponse)
+def get_bulk_coverage_geojson(
+    ids: str, service: AddressService = Depends(get_address_service)
+) -> CoverageFeatureCollectionResponse:
+    """Return GeoJSON FeatureCollection of neighborhoods served by the given instructors.
+
+    'ids' is a comma-separated list of instructor user IDs.
+    """
+    instructor_ids = [s.strip() for s in (ids or "").split(",") if s.strip()]
+    # Basic validation and limit
+    if not instructor_ids:
+        return CoverageFeatureCollectionResponse(type="FeatureCollection", features=[])
+    if len(instructor_ids) > 100:
+        instructor_ids = instructor_ids[:100]
+    geo = service.get_coverage_geojson_for_instructors(instructor_ids)
+    return CoverageFeatureCollectionResponse(
+        type=geo.get("type", "FeatureCollection"), features=geo.get("features", [])
+    )
+
+
+class NeighborhoodItem(BaseModel):
+    id: str
+    name: str
+    borough: str | None = None
+    code: str | None = None
+
+
+class NeighborhoodsListResponse(BaseModel):
+    items: list[NeighborhoodItem]
+    total: int
+    page: int | None = None
+    per_page: int | None = None
+
+
+@router.get("/regions/neighborhoods", response_model=NeighborhoodsListResponse)
+def list_neighborhoods(
+    region_type: str = "nyc",
+    borough: str | None = None,
+    page: int = 1,
+    per_page: int = 100,
+    service: AddressService = Depends(get_address_service),
+):
+    per_page = max(1, min(per_page, 500))
+    page = max(1, page)
+    offset = (page - 1) * per_page
+    items_raw = service.list_neighborhoods(region_type=region_type, borough=borough, limit=per_page, offset=offset)
+    items = [NeighborhoodItem(**r) for r in items_raw]
+    return NeighborhoodsListResponse(items=items, total=len(items), page=page, per_page=per_page)

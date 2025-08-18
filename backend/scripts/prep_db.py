@@ -331,6 +331,37 @@ def prep_database(db_type):
     if not run_command(["alembic", "upgrade", "head"], "Apply database migrations"):
         return False
 
+    # Load region boundaries if table exists and is empty
+    try:
+        db_params = parse_database_url(config["url"])
+        conn = psycopg2.connect(
+            host=db_params["host"],
+            port=db_params["port"],
+            user=db_params["user"],
+            password=db_params["password"],
+            database=db_params["database"],
+        )
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.tables
+                    WHERE table_schema='public' AND table_name='region_boundaries'
+                )
+                """
+            )
+            exists = cur.fetchone()[0]
+            count = 0
+            if exists:
+                cur.execute("SELECT COUNT(1) FROM region_boundaries")
+                count = cur.fetchone()[0]
+        conn.close()
+        if exists and count == 0:
+            if not run_command([sys.executable, "scripts/load_region_boundaries.py"], "Load region boundaries"):
+                return False
+    except Exception as e:
+        print(f"{YELLOW}⚠{NC} Skipping auto-load of region boundaries ({e})")
+
     # Step 3: Seed roles and permissions (required for ULID migration)
     if not run_command([sys.executable, "scripts/seed_roles_permissions.py"], "Seed roles and permissions"):
         return False

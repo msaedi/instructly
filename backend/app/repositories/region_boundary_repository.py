@@ -136,6 +136,7 @@ class RegionBoundaryRepository:
                 WHERE boundary IS NOT NULL
                   AND ST_Intersects(boundary, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326))
                   AND region_type = :rtype
+                ORDER BY ST_Area(boundary) ASC NULLS LAST
                 LIMIT 1
                 """
             )
@@ -146,3 +147,97 @@ class RegionBoundaryRepository:
             except Exception:
                 pass
             return None
+
+    # --- Listing and GeoJSON helpers ---
+
+    def list_regions(self, region_type: str, parent_region: str | None = None, limit: int = 500, offset: int = 0):
+        """List regions of a given type, optionally filtered by parent (e.g., borough).
+
+        Returns mappings with: id, region_type, region_code, region_name, parent_region
+        """
+        try:
+            base_sql = (
+                "SELECT id, region_type, region_code, region_name, parent_region FROM region_boundaries "
+                "WHERE region_type = :rtype"
+            )
+            params: dict = {"rtype": region_type, "limit": limit, "offset": offset}
+            if parent_region:
+                base_sql += " AND parent_region = :parent"
+                params["parent"] = parent_region
+            base_sql += " ORDER BY parent_region, region_name LIMIT :limit OFFSET :offset"
+            return self.db.execute(text(base_sql), params).mappings().all()
+        except Exception:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return []
+
+    def get_simplified_geojson_by_ids(self, ids: list[str], tolerance: float = 0.0008):
+        """Return list of mappings with id, region_name, parent_region, region_type, geometry (parsed GeoJSON)."""
+        if not ids:
+            return []
+        try:
+            rows = (
+                self.db.execute(
+                    text(
+                        """
+                    SELECT id, region_name, parent_region, region_type,
+                           ST_AsGeoJSON(ST_Simplify(boundary, :tol)) AS geojson
+                    FROM region_boundaries
+                    WHERE id = ANY(:ids)
+                    """
+                    ),
+                    {"ids": ids, "tol": tolerance},
+                )
+                .mappings()
+                .all()
+            )
+            import json as _json
+
+            results = []
+            for row in rows:
+                results.append(
+                    {
+                        "id": row["id"],
+                        "region_name": row["region_name"],
+                        "parent_region": row["parent_region"],
+                        "region_type": row["region_type"],
+                        "geometry": (row["geojson"] and _json.loads(row["geojson"])) or None,
+                    }
+                )
+            return results
+        except Exception:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return []
+
+    def find_region_ids_by_partial_names(self, names: list[str], region_type: str = "nyc") -> dict[str, str]:
+        """Return a mapping from partial name to region id by simple ILIKE match (first result)."""
+        if not names:
+            return {}
+        result: dict[str, str] = {}
+        for n in names:
+            try:
+                row = self.db.execute(
+                    text(
+                        """
+                        SELECT id
+                        FROM region_boundaries
+                        WHERE region_type = :rtype AND region_name ILIKE :n
+                        ORDER BY region_name
+                        LIMIT 1
+                        """
+                    ),
+                    {"rtype": region_type, "n": f"%{n}%"},
+                ).first()
+                if row and row[0]:
+                    result[n] = row[0]
+            except Exception:
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass
+        return result

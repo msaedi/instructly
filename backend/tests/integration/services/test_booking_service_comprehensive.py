@@ -12,7 +12,7 @@ UPDATED FOR WORK STREAM #10: Single-table availability design.
 UPDATED FOR WORK STREAM #9: Layer independence - time-based booking.
 """
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock, Mock
 
@@ -334,7 +334,7 @@ class TestBookingServiceCancellation:
         """Test cancelling an already cancelled booking fails."""
         # Cancel the booking first
         test_booking.status = BookingStatus.CANCELLED
-        test_booking.cancelled_at = datetime.utcnow()
+        test_booking.cancelled_at = datetime.now(timezone.utc)
         db.commit()
 
         booking_service = BookingService(db, mock_notification_service)

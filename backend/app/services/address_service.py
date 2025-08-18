@@ -9,19 +9,26 @@ from ..repositories.address_repository import (
     NYCNeighborhoodRepository,
     UserAddressRepository,
 )
+from ..repositories.region_boundary_repository import RegionBoundaryRepository
 from ..repositories.user_repository import UserRepository
 from .base import BaseService
+from .cache_service import CacheService, get_cache_service
 from .geocoding.factory import create_geocoding_provider
 from .location_enrichment import LocationEnrichmentService
 
 
 class AddressService(BaseService):
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, cache_service: Optional[CacheService] = None):
         super().__init__(db)
         self.address_repo = UserAddressRepository(db)
         self.neighborhood_repo = NYCNeighborhoodRepository(db)
         self.service_area_repo = InstructorServiceAreaRepository(db)
         self.user_repo = UserRepository(db)
+        self.region_repo = RegionBoundaryRepository(db)
+        try:
+            self.cache: Optional[CacheService] = cache_service or get_cache_service(db)
+        except Exception:
+            self.cache = None
 
     # User addresses
     @BaseService.measure_operation("list_addresses")
@@ -166,6 +173,97 @@ class AddressService(BaseService):
         with self.transaction():
             count = self.service_area_repo.replace_areas(instructor_id, neighborhood_ids)
             return count
+
+    # Map support utilities
+    @BaseService.measure_operation("get_coverage_geojson_for_instructors")
+    def get_coverage_geojson_for_instructors(self, instructor_ids: List[str]) -> dict:
+        """Return a GeoJSON FeatureCollection of active coverage polygons for instructors.
+
+        Uses simplified boundaries via ST_AsGeoJSON directly from DB through the RegionBoundaryRepository
+        helper methods to preserve repository pattern.
+        """
+        if not instructor_ids:
+            return {"type": "FeatureCollection", "features": []}
+
+        # Cache key
+        cache_key = None
+        if self.cache:
+            try:
+                ordered = sorted(set(instructor_ids))
+                cache_key = f"coverage:bulk:{','.join(ordered)}"
+                cached = self.cache.get(cache_key)
+                if cached:
+                    return cached
+            except Exception:
+                pass
+
+        # List areas for instructors
+        areas = self.service_area_repo.list_neighborhoods_for_instructors(instructor_ids)
+        neighborhood_ids = list({a.neighborhood_id for a in areas if a.neighborhood_id})
+        if not neighborhood_ids:
+            return {"type": "FeatureCollection", "features": []}
+
+        # Fetch minimal boundary JSON via repository helper
+        features: list[dict] = []
+        chunk_size = 200
+        for i in range(0, len(neighborhood_ids), chunk_size):
+            chunk = neighborhood_ids[i : i + chunk_size]
+            rows = self.region_repo.get_simplified_geojson_by_ids(chunk)
+            for row in rows:
+                serving = [a.instructor_id for a in areas if a.neighborhood_id == row["id"]]
+                features.append(
+                    {
+                        "type": "Feature",
+                        "geometry": row["geometry"],
+                        "properties": {
+                            "region_id": row["id"],
+                            "name": row["region_name"],
+                            "borough": row["parent_region"],
+                            "region_type": row["region_type"],
+                            "instructors": serving,
+                        },
+                    }
+                )
+
+        result = {"type": "FeatureCollection", "features": features}
+        if self.cache and cache_key:
+            try:
+                self.cache.set(cache_key, result, tier="hot")  # ~5 minutes
+            except Exception:
+                pass
+        return result
+
+    @BaseService.measure_operation("list_neighborhoods")
+    def list_neighborhoods(
+        self, region_type: str = "nyc", borough: Optional[str] = None, limit: int = 100, offset: int = 0
+    ) -> list[dict]:
+        # Cache key for pagination
+        cache_key = None
+        if self.cache:
+            try:
+                cache_key = f"neighborhoods:{region_type}:{borough or 'all'}:{limit}:{offset}"
+                cached = self.cache.get(cache_key)
+                if cached is not None:
+                    return cached
+            except Exception:
+                pass
+
+        rows = self.region_repo.list_regions(region_type=region_type, parent_region=borough, limit=limit, offset=offset)
+        items = [
+            {
+                "id": r["id"],
+                "name": r["region_name"],
+                "borough": r["parent_region"],
+                "code": r["region_code"],
+            }
+            for r in rows
+        ]
+        if self.cache and cache_key:
+            try:
+                self.cache.set(cache_key, items, tier="warm")  # ~1 hour
+            except Exception:
+                pass
+        return items
 
     # Helpers
     def _to_dict(self, a) -> dict:

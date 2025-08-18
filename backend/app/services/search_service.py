@@ -760,7 +760,25 @@ class SearchService(BaseService):
                     },
                     "match_score": self._calculate_match_score(service["relevance_score"], instructor_service, parsed),
                 }
+                # Optional: attach minimal coverage metadata if available via service area repo
+                try:
+                    from ..repositories.address_repository import InstructorServiceAreaRepository
 
+                    area_repo = InstructorServiceAreaRepository(self.db)
+                    areas = area_repo.list_for_instructor(instructor_profile.user_id)
+                    if areas:
+                        result["coverage_regions"] = [
+                            {
+                                "region_id": a.neighborhood_id,
+                                "name": (a.neighborhood.region_name if a.neighborhood else None),
+                                "borough": (a.neighborhood.parent_region if a.neighborhood else None),
+                                "coverage_type": getattr(a, "coverage_type", None),
+                            }
+                            for a in areas
+                            if a.is_active
+                        ]
+                except Exception:
+                    pass
                 results.append(result)
 
         # Sort by match score

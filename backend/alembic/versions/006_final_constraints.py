@@ -308,7 +308,8 @@ def upgrade() -> None:
         sa.Column("region_code", sa.String(50), nullable=True),
         sa.Column("region_name", sa.String(100), nullable=True),
         sa.Column("parent_region", sa.String(100), nullable=True),
-        sa.Column("boundary", Geometry("POLYGON", 4326), nullable=True),
+        # Use MULTIPOLYGON to support NYC NTA (many are MultiPolygons)
+        sa.Column("boundary", Geometry("MULTIPOLYGON", 4326), nullable=True),
         sa.Column("centroid", Geometry("POINT", 4326), nullable=True),
         sa.Column("region_metadata", sa.JSON(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
@@ -335,13 +336,28 @@ def upgrade() -> None:
             "neighborhood_id", sa.String(26), sa.ForeignKey("region_boundaries.id", ondelete="CASCADE"), nullable=False
         ),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
+        sa.Column("coverage_type", sa.String(20), nullable=True),  # primary|secondary|by_request
+        sa.Column("max_distance_miles", sa.Numeric(5, 2), nullable=True),
         sa.PrimaryKeyConstraint("instructor_id", "neighborhood_id"),
     )
     op.create_index(
         "ix_instructor_service_areas_instructor",
         "instructor_service_areas",
         ["instructor_id", "is_active"],
+    )
+    # Helpful index for filtering by instructor and coverage_type
+    op.create_index(
+        "ix_isa_instructor_coverage",
+        "instructor_service_areas",
+        ["instructor_id", "coverage_type"],
+    )
+    # CHECK constraint for coverage_type values
+    op.create_check_constraint(
+        "ck_instructor_service_areas_coverage_type",
+        "instructor_service_areas",
+        "coverage_type IS NULL OR coverage_type IN ('primary','secondary','by_request')",
     )
 
     # Reactions table for message reactions

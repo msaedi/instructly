@@ -18,7 +18,7 @@ availability_slot_id in the test_booking fixture. That fixture should be updated
 to create bookings without any slot references.
 """
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -278,7 +278,7 @@ class TestModelInstantiation:
     def test_password_reset_token_creation(self, db, test_student):
         """Test PasswordResetToken model instantiation."""
         token = PasswordResetToken(
-            user_id=test_student.id, token="reset_token_123", expires_at=datetime.utcnow(), used=False
+            user_id=test_student.id, token="reset_token_123", expires_at=datetime.now(timezone.utc), used=False
         )
         db.add(token)
         db.flush()

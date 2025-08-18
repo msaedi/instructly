@@ -34,6 +34,8 @@ from app.models.rbac import Role
 from app.models.rbac import UserRole as UserRoleJunction
 from app.models.service_catalog import InstructorService, ServiceCatalog
 from app.models.user import User
+from app.repositories.address_repository import InstructorServiceAreaRepository
+from app.repositories.region_boundary_repository import RegionBoundaryRepository
 
 
 class DatabaseSeeder:
@@ -131,6 +133,7 @@ class DatabaseSeeder:
         self.create_students()
         self.create_instructors()
         self.create_availability()
+        self.create_coverage_areas()
         self.create_bookings()
         self.print_summary()
         print("✅ Database seeding complete!")
@@ -280,6 +283,65 @@ class DatabaseSeeder:
             print(
                 f"   ⚠️  Including test instructors: {status_counts['suspended']} suspended, {status_counts['deactivated']} deactivated"
             )
+
+    def create_coverage_areas(self):
+        """Assign deterministic primary/secondary/by_request neighborhoods using repository pattern.
+
+        Coverage rules are defined in seed_data/coverage.yaml, allowing per-instructor overrides
+        by email, and default Manhattan neighborhoods otherwise.
+        """
+        with Session(self.engine) as session:
+            isa_repo = InstructorServiceAreaRepository(session)
+            region_repo = RegionBoundaryRepository(session)
+
+            rules = self.loader.get_coverage_rules()
+            defaults = rules.get(
+                "defaults",
+                {
+                    "names": [
+                        {"name": "Upper West Side", "coverage_type": "primary"},
+                        {"name": "Upper East Side", "coverage_type": "secondary"},
+                        {"name": "Midtown", "coverage_type": "by_request"},
+                    ]
+                },
+            )
+
+            # Resolve ids for all distinct names in one pass
+            all_names = []
+            for cfg in defaults.get("names", []):
+                all_names.append(cfg["name"])
+            overrides = rules.get("overrides", {})
+            for ov in overrides.values():
+                for cfg in ov.get("names", []):
+                    all_names.append(cfg["name"])
+            name_to_id = region_repo.find_region_ids_by_partial_names(list(dict.fromkeys(all_names)))
+
+            # Assign to each example instructor
+            for email, user_id in self.created_users.items():
+                if not email.endswith("@example.com"):
+                    continue
+                # Skip non-instructors
+                with session.no_autoflush:
+                    user = session.query(User).filter(User.id == user_id).first()
+                    if not user or not any(r.name == RoleName.INSTRUCTOR for r in user.roles):
+                        continue
+
+                # Pick config: override by email, else defaults
+                cfg = overrides.get(email, defaults)
+                for item in cfg.get("names", []):
+                    rid = name_to_id.get(item["name"]) if item.get("name") else None
+                    if not rid:
+                        continue
+                    isa_repo.upsert_area(
+                        instructor_id=user_id,
+                        neighborhood_id=rid,
+                        coverage_type=item.get("coverage_type"),
+                        max_distance_miles=float(cfg.get("max_distance_miles", 2.0)),
+                        is_active=True,
+                    )
+
+            session.commit()
+            print("✅ Assigned instructor coverage areas from YAML rules")
 
     def create_availability(self):
         """Create availability slots based on patterns"""

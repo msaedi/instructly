@@ -1,0 +1,45 @@
+defaults:
+  max_distance_miles: 2.0
+  names:
+    - name: Upper West Side
+      coverage_type: primary
+    - name: Upper East Side
+      coverage_type: secondary
+    - name: Midtown
+      coverage_type: by_request
+
+overrides:
+  sarah.chen@example.com:
+    max_distance_miles: 2.0
+    names:
+      - name: Upper West Side
+        coverage_type: primary
+      - name: Upper East Side
+        coverage_type: secondary
+      - name: Midtown
+        coverage_type: by_request
+  michael.rodriguez@example.com:
+    max_distance_miles: 3.0
+    names:
+      - name: Greenwich Village
+        coverage_type: primary
+      - name: Chelsea
+        coverage_type: primary
+      - name: SoHo
+        coverage_type: secondary
+  dr.james.wilson@example.com:
+    max_distance_miles: 1.0
+    names:
+      - name: Midtown
+        coverage_type: primary
+      - name: Upper East Side
+        coverage_type: primary
+  priya.sharma@example.com:
+    max_distance_miles: 2.0
+    names:
+      - name: Tribeca
+        coverage_type: primary
+      - name: Financial District
+        coverage_type: primary
+      - name: SoHo
+        coverage_type: secondary

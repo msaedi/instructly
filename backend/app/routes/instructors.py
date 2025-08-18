@@ -27,6 +27,7 @@ Router Endpoints:
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..api.dependencies.auth import get_current_active_user, get_current_active_user_optional
@@ -41,6 +42,7 @@ from ..core.exceptions import BusinessRuleException, ValidationException
 from ..database import get_db
 from ..models.user import User
 from ..schemas.account_lifecycle import AccountStatusChangeResponse, AccountStatusResponse
+from ..schemas.address_responses import CoverageFeatureCollectionResponse
 from ..schemas.base_responses import PaginatedResponse
 from ..schemas.instructor import (
     InstructorFilterParams,
@@ -49,6 +51,7 @@ from ..schemas.instructor import (
     InstructorProfileUpdate,
 )
 from ..services.account_lifecycle_service import AccountLifecycleService
+from ..services.address_service import AddressService
 from ..services.cache_service import CacheService
 from ..services.favorites_service import FavoritesService
 from ..services.instructor_service import InstructorService
@@ -118,6 +121,10 @@ async def get_all_instructors(
         has_next=page * per_page < total,
         has_prev=page > 1,
     )
+
+
+def get_address_service(db: Session = Depends(get_db)) -> AddressService:
+    return AddressService(db)
 
 
 @router.post(
@@ -252,6 +259,17 @@ async def get_instructor_profile(
         if "not found" in str(e).lower():
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found")
         raise
+
+
+@router.get("/{instructor_id}/coverage", response_model=CoverageFeatureCollectionResponse)
+async def get_instructor_coverage(
+    instructor_id: str,
+    address_service: AddressService = Depends(get_address_service),
+):
+    geo = address_service.get_coverage_geojson_for_instructors([instructor_id])
+    return CoverageFeatureCollectionResponse(
+        type=geo.get("type", "FeatureCollection"), features=geo.get("features", [])
+    )
 
 
 # Account Lifecycle Endpoints

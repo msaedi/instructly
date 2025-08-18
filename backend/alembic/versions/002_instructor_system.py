@@ -46,6 +46,12 @@ def upgrade() -> None:
         sa.Column("bio", sa.Text(), nullable=True),
         sa.Column("years_experience", sa.Integer(), nullable=True),
         sa.Column("areas_of_service", sa.String(), nullable=True),  # VARCHAR from start, not ARRAY
+        # Travel preferences JSON to store mobility options (car/subway etc.)
+        sa.Column(
+            "travel_preferences",
+            sa.dialects.postgresql.JSONB(astext_type=sa.Text()),
+            nullable=True,
+        ),
         sa.Column("min_advance_booking_hours", sa.Integer(), nullable=False, server_default="2"),
         sa.Column("buffer_time_minutes", sa.Integer(), nullable=False, server_default="0"),
         sa.Column(

@@ -56,6 +56,11 @@ class SearchResult(BaseModel):
     instructor: InstructorInfo = Field(description="Instructor information")
     offering: ServiceOffering = Field(description="Service offering details")
     match_score: float = Field(description="Match score (0-100)")
+    # Optional lightweight coverage data for map summaries (no geometries)
+    coverage_regions: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        description="List of regions served with minimal fields: region_id, name, borough, coverage_type",
+    )
 
 
 class SearchMetadata(BaseModel):
