@@ -355,11 +355,17 @@ describe('Search Tracking', () => {
 
   describe('trackSearchInteraction', () => {
     it('should track search result clicks correctly', async () => {
-      // Mock sessionStorage to have a guest session ID for unauthenticated user
-      mockSessionStorage.getItem.mockImplementation((key) => {
+      // Mock localStorage to have a guest session ID for unauthenticated user
+      mockLocalStorage.getItem.mockImplementation((key) => {
         if (key === 'guest_session_id') return 'guest-123';
+        if (key === 'guest_session_expiry') return String(Date.now() + 86400000); // Valid for 1 day
+        if (key === 'session_id') return 'test-session-123';
+        if (key === 'session_expiry') return String(Date.now() + 86400000);
         return null;
       });
+
+      // Also ensure setItem doesn't throw errors
+      mockLocalStorage.setItem.mockImplementation(() => {});
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -389,11 +395,16 @@ describe('Search Tracking', () => {
     });
 
     it('should track search interaction with time to interaction', async () => {
-      // Mock localStorage to have an auth token
+      // Mock localStorage to have an auth token for authenticated user
       mockLocalStorage.getItem.mockImplementation((key) => {
         if (key === 'access_token') return 'test-token';
+        if (key === 'session_id') return 'test-session-123'; // Add session ID
+        if (key === 'session_expiry') return String(Date.now() + 86400000); // Valid session
         return null;
       });
+
+      // Also ensure setItem doesn't throw errors
+      mockLocalStorage.setItem.mockImplementation(() => {});
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -402,7 +413,14 @@ describe('Search Tracking', () => {
 
       await trackSearchInteraction(123, 'view_profile', '789', 1, true, 5.5);
 
+      // Ensure the fetch was called
+      expect(mockFetch).toHaveBeenCalled();
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
       const callArgs = mockFetch.mock.calls[0];
+      expect(callArgs).toBeDefined();
+      expect(callArgs[1]).toBeDefined();
+
       const requestInit = callArgs[1] as RequestInit;
       const body = JSON.parse(requestInit.body as string);
       expect(body.search_event_id).toBe(123);
