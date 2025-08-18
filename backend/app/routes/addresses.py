@@ -174,13 +174,6 @@ def get_bulk_coverage_geojson(
         return CoverageFeatureCollectionResponse(type="FeatureCollection", features=[])
     if len(instructor_ids) > 100:
         instructor_ids = instructor_ids[:100]
-    # ULID validation
-    invalid = [i for i in instructor_ids if not is_valid_ulid(i)]
-    if invalid:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid instructor ids: {', '.join(invalid[:5])}",
-        )
     geo = service.get_coverage_geojson_for_instructors(instructor_ids)
     return CoverageFeatureCollectionResponse(
         type=geo.get("type", "FeatureCollection"), features=geo.get("features", [])

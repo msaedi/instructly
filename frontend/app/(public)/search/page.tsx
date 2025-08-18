@@ -7,7 +7,8 @@ import Link from 'next/link';
 import { publicApi } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import InstructorCard from '@/components/InstructorCard';
-import ManhattanMap from '@/components/ManhattanMap';
+import dynamic from 'next/dynamic';
+const InstructorCoverageMap = dynamic(() => import('@/components/maps/InstructorCoverageMap'), { ssr: false });
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { recordSearch, trackSearchInteraction } from '@/lib/searchTracking';
 import { SearchType } from '@/types/enums';
@@ -60,7 +61,9 @@ function SearchPageContent() {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   // State for highlighting neighborhoods on hover
-  const [highlightedAreas, setHighlightedAreas] = useState<string[]>([]);
+  const [hoveredInstructorId, setHoveredInstructorId] = useState<string | null>(null);
+  const [showCoverage, setShowCoverage] = useState<boolean>(true);
+  const [coverageGeoJSON, setCoverageGeoJSON] = useState<any | null>(null);
 
   // Inline banner for rate limit
   const RateLimitBanner = () =>
@@ -378,6 +381,32 @@ function SearchPageContent() {
   useEffect(() => {
     fetchResults(1, false);
   }, [query, category, serviceCatalogId, availableNow, fetchResults]);
+
+  // Fetch bulk coverage when instructor list changes
+  useEffect(() => {
+    const fetchCoverage = async () => {
+      try {
+        // Collect visible instructor user_ids
+        const ids = Array.from(new Set((instructors || []).map((i) => i.user_id).filter(Boolean)));
+        if (!ids.length) {
+          setCoverageGeoJSON({ type: 'FeatureCollection', features: [] });
+          return;
+        }
+        const params = new URLSearchParams({ ids: ids.join(',') });
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+        const res = await fetch(`${apiUrl}/api/addresses/coverage/bulk?${params.toString()}`);
+        if (!res.ok) {
+          setCoverageGeoJSON({ type: 'FeatureCollection', features: [] });
+          return;
+        }
+        const data = await res.json();
+        setCoverageGeoJSON(data);
+      } catch (e) {
+        setCoverageGeoJSON({ type: 'FeatureCollection', features: [] });
+      }
+    };
+    fetchCoverage();
+  }, [instructors]);
 
   // Set up infinite scroll observer
   useEffect(() => {
@@ -747,13 +776,17 @@ function SearchPageContent() {
                     } else {
                       logger.warn('No searchEventId available for interaction tracking');
                     }
+
+                    if (interactionType === 'view_profile') {
+                      router.push(`/instructors/${instructor.user_id}`);
+                    }
                   };
 
                   return (
                     <div
                       key={instructor.id}
-                      onMouseEnter={() => setHighlightedAreas(instructor.areas_of_service || [])}
-                      onMouseLeave={() => setHighlightedAreas([])}
+                      onMouseEnter={() => setHoveredInstructorId(instructor.user_id)}
+                      onMouseLeave={() => setHoveredInstructorId(null)}
                     >
                       <InstructorCard
                         instructor={enhancedInstructor}
@@ -805,9 +838,18 @@ function SearchPageContent() {
         <div className="w-1/3 hidden xl:block">
           <div className="pl-0 pr-6 pt-4 pb-6">
             <div className="bg-white/95 backdrop-blur-sm rounded-xl border border-gray-200 p-4">
-              {/* Manhattan Map Component */}
-              <ManhattanMap
-                highlightedAreas={highlightedAreas}
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm text-gray-600">Show coverage</div>
+                <label className="inline-flex items-center cursor-pointer">
+                  <input type="checkbox" className="sr-only peer" checked={showCoverage} onChange={() => setShowCoverage((v) => !v)} />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600 relative" />
+                </label>
+              </div>
+              <InstructorCoverageMap
+                height="calc(100vh - 12rem)"
+                featureCollection={coverageGeoJSON}
+                showCoverage={showCoverage}
+                highlightInstructorId={hoveredInstructorId}
               />
             </div>
           </div>

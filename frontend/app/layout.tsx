@@ -139,7 +139,15 @@ export default function RootLayout({
 
   return (
     <html lang="en" className="h-full">
-      <head>{/* Additional meta tags can be added here if needed */}</head>
+      <head>
+        {/* Leaflet CSS */}
+        <link
+          rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossOrigin=""
+        />
+      </head>
       <body
         className="h-full antialiased bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
         style={{ isolation: 'isolate' }}
