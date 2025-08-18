@@ -20,11 +20,12 @@ def test_list_neighborhoods_pagination_and_format(db):
     if not repo.table_has_boundary():
         pytest.skip("Boundary column not present; PostGIS likely unavailable in test DB")
 
-    # Seed two small regions if empty
-    rows = service.list_neighborhoods(limit=2, offset=0)
-    if len(rows) == 0:
+    # Ensure at least two regions exist for pagination test (robust on CI)
+    existing = repo.list_regions(region_type="nyc", parent_region=None, limit=1000, offset=0)
+    needed = max(0, 2 - len(existing))
+    if needed >= 1:
         repo.insert_wkt(
-            region_id="TESTREGION_NEI_01_123456789012",
+            region_id=generate_ulid(),
             region_type="nyc",
             region_code="T01",
             region_name="UnitTest One",
@@ -32,8 +33,9 @@ def test_list_neighborhoods_pagination_and_format(db):
             wkt_polygon=_square_wkt(-73.99, 40.75, -73.98, 40.76),
             metadata={"seed": True},
         )
+    if needed >= 2:
         repo.insert_wkt(
-            region_id="TESTREGION_NEI_02_123456789012",
+            region_id=generate_ulid(),
             region_type="nyc",
             region_code="T02",
             region_name="UnitTest Two",
@@ -41,6 +43,7 @@ def test_list_neighborhoods_pagination_and_format(db):
             wkt_polygon=_square_wkt(-73.98, 40.75, -73.97, 40.76),
             metadata={"seed": True},
         )
+    if needed:
         db.commit()
 
     page1 = service.list_neighborhoods(region_type="nyc", borough=None, limit=1, offset=0)
