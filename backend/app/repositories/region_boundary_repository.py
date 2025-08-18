@@ -47,7 +47,7 @@ class RegionBoundaryRepository:
                 "\n                INSERT INTO region_boundaries\n"
                 "                    (id, region_type, region_code, region_name, parent_region, boundary, region_metadata, created_at, updated_at)\n"
                 "                VALUES\n"
-                "                    (:id, :type, :code, :name, :parent, ST_GeomFromText(:wkt, 4326), CAST(:meta AS JSONB), NOW(), NOW())\n"
+                "                    (:id, :type, :code, :name, :parent, ST_Multi(ST_GeomFromText(:wkt, 4326)), CAST(:meta AS JSONB), NOW(), NOW())\n"
                 "                ON CONFLICT (id) DO NOTHING\n                "
             )
             params = {
@@ -65,7 +65,7 @@ class RegionBoundaryRepository:
                 "\n                INSERT INTO region_boundaries\n"
                 "                    (id, region_type, region_code, region_name, parent_region, boundary, metadata, created_at, updated_at)\n"
                 "                VALUES\n"
-                "                    (:id, :type, :code, :name, :parent, ST_GeomFromText(:wkt, 4326), CAST(:meta AS JSONB), NOW(), NOW())\n"
+                "                    (:id, :type, :code, :name, :parent, ST_Multi(ST_GeomFromText(:wkt, 4326)), CAST(:meta AS JSONB), NOW(), NOW())\n"
                 "                ON CONFLICT (id) DO NOTHING\n                "
             )
             params = {
@@ -82,7 +82,7 @@ class RegionBoundaryRepository:
                 INSERT INTO region_boundaries
                     (id, region_type, region_code, region_name, parent_region, boundary, created_at, updated_at)
                 VALUES
-                    (:id, :type, :code, :name, :parent, ST_GeomFromText(:wkt, 4326), NOW(), NOW())
+                    (:id, :type, :code, :name, :parent, ST_Multi(ST_GeomFromText(:wkt, 4326)), NOW(), NOW())
                 ON CONFLICT (id) DO NOTHING
             """
             params = {
