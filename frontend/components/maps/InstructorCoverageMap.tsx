@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, GeoJSON, AttributionControl, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import L, { type LatLngExpression } from 'leaflet';
+import L, { type LatLngExpression, type LeafletEventHandlerFnMap } from 'leaflet';
 
 type FeatureCollection = {
   type: 'FeatureCollection';
@@ -61,6 +61,17 @@ export default function InstructorCoverageMap({
     : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
   const fallbackUrl = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
   const [tileUrl, setTileUrl] = useState<string>(primaryUrl);
+  const [jawgFailed, setJawgFailed] = useState<boolean>(false);
+
+  // Live theme switching: update tiles when theme changes, unless Jawg previously failed
+  useEffect(() => {
+    if (jawgToken && !jawgFailed) {
+      setTileUrl(primaryUrl);
+    } else if (!jawgToken) {
+      setTileUrl(fallbackUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDark, jawgToken, jawgFailed]);
 
   const containerStyle = {
     height: typeof height === 'number' ? `${height}px` : (height as string),
@@ -82,12 +93,12 @@ export default function InstructorCoverageMap({
 
         <TileLayer
           url={tileUrl}
-          whenCreated={(layer) => {
-            // If tiles fail to load (e.g., invalid/expired token), fall back to CartoDB
-            layer.on('tileerror', () => {
+          eventHandlers={{
+            tileerror: () => {
+              setJawgFailed(true);
               if (tileUrl !== fallbackUrl) setTileUrl(fallbackUrl);
-            });
-          }}
+            },
+          } as LeafletEventHandlerFnMap}
         />
 
         <AttributionControl position="bottomright" />

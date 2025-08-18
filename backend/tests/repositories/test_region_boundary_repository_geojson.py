@@ -22,10 +22,10 @@ def test_get_simplified_geojson_by_ids_returns_geometry(db):
     wkt = _square_wkt(-73.9000, 40.7000, -73.8900, 40.7100)
     repo.insert_wkt(
         region_id=region_id,
-        region_type="nyc_test",
+        region_type="nyc",
         region_code="TST",
         region_name="Test Region A",
-        parent_region="Queens",
+        parent_region="Manhattan",
         wkt_polygon=wkt,
         metadata={"source": "unit_test"},
     )
