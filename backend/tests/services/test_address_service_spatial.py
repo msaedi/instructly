@@ -65,9 +65,9 @@ def test_get_coverage_geojson_for_instructors_builds_featurecollection(db, test_
         region_id=region_id,
         region_type="nyc",
         region_code="C01",
-        region_name="Coverage One",
-        parent_region="Manhattan",
-        wkt_polygon=_square_wkt(-73.987, 40.757, -73.985, 40.759),
+        region_name="Coverage One (Far)",
+        parent_region="Queens",
+        wkt_polygon=_square_wkt(-73.90, 40.70, -73.89, 40.71),
         metadata={"seed": True},
     )
     db.commit()

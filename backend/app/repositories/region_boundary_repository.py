@@ -241,3 +241,58 @@ class RegionBoundaryRepository:
                 except Exception:
                     pass
         return result
+
+    # --- Maintenance helpers (used by tests and admin flows) ---
+    def delete_by_region_name(self, region_name: str, region_type: str | None = None) -> int:
+        try:
+            if region_type:
+                sql = text(
+                    """
+                    DELETE FROM region_boundaries
+                    WHERE region_name = :rname AND region_type = :rtype
+                    """
+                )
+                res = self.db.execute(sql, {"rname": region_name, "rtype": region_type})
+            else:
+                sql = text(
+                    """
+                    DELETE FROM region_boundaries
+                    WHERE region_name = :rname
+                    """
+                )
+                res = self.db.execute(sql, {"rname": region_name})
+            self.db.flush()
+            return getattr(res, "rowcount", 0) or 0
+        except Exception:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return 0
+
+    def delete_by_region_code(self, region_code: str, region_type: str | None = None) -> int:
+        try:
+            if region_type:
+                sql = text(
+                    """
+                    DELETE FROM region_boundaries
+                    WHERE region_code = :rcode AND region_type = :rtype
+                    """
+                )
+                res = self.db.execute(sql, {"rcode": region_code, "rtype": region_type})
+            else:
+                sql = text(
+                    """
+                    DELETE FROM region_boundaries
+                    WHERE region_code = :rcode
+                    """
+                )
+                res = self.db.execute(sql, {"rcode": region_code})
+            self.db.flush()
+            return getattr(res, "rowcount", 0) or 0
+        except Exception:
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+            return 0

@@ -17,15 +17,15 @@ def test_get_simplified_geojson_by_ids_returns_geometry(db):
     if not repo.table_has_boundary():
         pytest.skip("Boundary column not present; PostGIS likely unavailable in test DB")
 
-    # Insert a tiny square region with a valid 26-char ULID
+    # Insert a tiny square region with a valid 26-char ULID (far from Times Square to avoid test collisions)
     region_id = generate_ulid()
-    wkt = _square_wkt(-73.9860, 40.7575, -73.9850, 40.7585)
+    wkt = _square_wkt(-73.9000, 40.7000, -73.8900, 40.7100)
     repo.insert_wkt(
         region_id=region_id,
-        region_type="nyc",
+        region_type="nyc_test",
         region_code="TST",
         region_name="Test Region A",
-        parent_region="Manhattan",
+        parent_region="Queens",
         wkt_polygon=wkt,
         metadata={"source": "unit_test"},
     )

@@ -236,6 +236,9 @@ def test_enrichment_uses_region_boundaries(db, client, monkeypatch):
     # Insert region boundary (WKT polygon); geometry columns exist in DB
     wkt_poly = "POLYGON((-73.9860 40.7575,-73.9850 40.7575,-73.9850 40.7585,-73.9860 40.7585,-73.9860 40.7575))"
     repo = RegionBoundaryRepository(db)
+    # Clean up any leftover test regions via repository (repository pattern)
+    repo.delete_by_region_name("Test Region A")
+    repo.delete_by_region_code("TST", region_type="nyc")
     repo.insert_wkt(
         region_id="TESTREGION12345678901234",
         region_type="nyc",
