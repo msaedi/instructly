@@ -85,6 +85,7 @@ export default function InstructorCoverageMap({
         zoom={12}
         style={{ height: '100%', width: '100%' }}
         attributionControl={false}
+        zoomControl={false}
         whenReady={() => {
           console.log('MapContainer whenReady (no args)');
         }}
@@ -101,7 +102,7 @@ export default function InstructorCoverageMap({
           } as LeafletEventHandlerFnMap}
         />
 
-        <AttributionControl position="bottomright" />
+        <AttributionControl position="bottomleft" />
 
         {showCoverage && fc && fc.features?.length ? (
           <GeoJSON
@@ -126,6 +127,9 @@ export default function InstructorCoverageMap({
         {showCoverage && fc && fc.features?.length ? (
           <FitToCoverage featureCollection={fc} />
         ) : null}
+
+        {/* Place custom controls top-right so they're always visible in stacked view */}
+        <CustomControls />
       </MapContainer>
     </div>
   );
@@ -138,10 +142,141 @@ function FitToCoverage({ featureCollection }: { featureCollection: FeatureCollec
       const layer = L.geoJSON(featureCollection as any);
       const bounds = layer.getBounds();
       if (bounds.isValid()) {
-        map.fitBounds(bounds.pad(0.05));
+        // Add padding: [top, right, bottom, left] in pixels
+        // More padding at bottom to account for controls
+        map.fitBounds(bounds, {
+          paddingTopLeft: [20, 20],
+          paddingBottomRight: [20, 60]
+        });
       }
       layer.remove();
     } catch {}
   }, [featureCollection, map]);
+  return null;
+}
+
+function CustomControls() {
+  const map = useMap();
+  useEffect(() => {
+    const control = new L.Control({ position: 'bottomright' });
+    control.onAdd = () => {
+      const container = L.DomUtil.create('div');
+      container.style.display = 'flex';
+      container.style.flexDirection = 'column';
+      container.style.margin = '8px';
+      container.style.zIndex = '1200';
+
+      const panel = document.createElement('div');
+      panel.style.background = '#ffffff';
+      panel.style.borderRadius = '10px';
+      panel.style.boxShadow = '0 3px 10px rgba(0,0,0,0.16)';
+      panel.style.display = 'flex';
+      panel.style.flexDirection = 'column';
+      panel.style.alignItems = 'center';
+      panel.style.padding = '5px';
+      panel.style.zIndex = '1200';
+
+      const btnBase: React.CSSProperties = {
+        width: '24px',
+        height: '24px',
+        borderRadius: '6px',
+        background: '#fff',
+        border: '0',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.08) inset',
+      };
+
+      const divider = () => {
+        const d = document.createElement('div');
+        d.style.height = '1px';
+        d.style.width = '18px';
+        d.style.background = 'rgba(0,0,0,0.15)';
+        d.style.margin = '5px 0';
+        return d;
+      };
+
+      // Locate button
+      const locate = document.createElement('button');
+      Object.assign(locate.style, btnBase as any);
+      locate.title = 'Show your location';
+      locate.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></svg>`;
+      let locationMarker: L.CircleMarker | null = null;
+      let isMoving = false;
+      locate.onclick = (e) => {
+        e.preventDefault();
+        if (!navigator.geolocation) return;
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const latlng = [pos.coords.latitude, pos.coords.longitude] as [number, number];
+            // Stop ongoing animations to avoid jitter
+            (map as any).stop?.();
+            if (isMoving) return;
+            isMoving = true;
+            const targetZoom = Math.max(map.getZoom(), 14);
+            const current = map.getCenter();
+            const dx = Math.abs(current.lat - latlng[0]);
+            const dy = Math.abs(current.lng - latlng[1]);
+            const farMove = dx + dy > 0.002; // ~200m threshold
+            const end = () => {
+              isMoving = false;
+              map.off('moveend', end);
+              map.off('zoomend', end);
+            };
+            map.on('moveend', end);
+            map.on('zoomend', end);
+            if (farMove) {
+              map.flyTo(latlng, targetZoom, { duration: 0.45, animate: true });
+            } else {
+              map.setView(latlng, targetZoom, { animate: false });
+            }
+            // Replace previous marker if exists
+            if (locationMarker) {
+              locationMarker.remove();
+            }
+            locationMarker = L.circleMarker(latlng, { radius: 4, color: '#7c3aed', fillOpacity: 0.9 });
+            locationMarker.addTo(map);
+          },
+          () => {},
+          { enableHighAccuracy: true, timeout: 8000 }
+        );
+      };
+
+      const plus = document.createElement('button');
+      Object.assign(plus.style, btnBase as any);
+      plus.title = 'Zoom in';
+      plus.innerHTML = '<span style="font-size:14px;font-weight:600;color:#555">+</span>';
+      plus.onclick = (e) => {
+        e.preventDefault();
+        map.zoomIn(1);
+      };
+
+      const minus = document.createElement('button');
+      Object.assign(minus.style, btnBase as any);
+      minus.title = 'Zoom out';
+      minus.innerHTML = '<span style="font-size:14px;font-weight:600;color:#555">−</span>';
+      minus.onclick = (e) => {
+        e.preventDefault();
+        map.zoomOut(1);
+      };
+
+      panel.appendChild(locate);
+      panel.appendChild(divider());
+      panel.appendChild(plus);
+      panel.appendChild(divider());
+      panel.appendChild(minus);
+
+      container.appendChild(panel);
+      L.DomEvent.disableClickPropagation(container);
+      L.DomEvent.disableScrollPropagation(container);
+      return container;
+    };
+    const ctl = (control as unknown as L.Control).addTo(map);
+    return () => {
+      ctl.remove();
+    };
+  }, [map]);
   return null;
 }
