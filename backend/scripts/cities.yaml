@@ -1,0 +1,18 @@
+cities:
+  nyc:
+    region_type: nyc
+    simplify_tolerance: 0.0005
+    sources:
+      - https://data.cityofnewyork.us/resource/9nt8-h7nd.geojson
+      - https://data.cityofnewyork.us/resource/9nt8-h7nd.json
+      - https://data.cityofnewyork.us/api/geospatial/7t3b-ywvw?method=export&format=GeoJSON
+      - https://data.cityofnewyork.us/api/geospatial/cpf4-rkhq?method=export&format=GeoJSON
+      - https://raw.githubusercontent.com/NYCPlanning/labs-nyc-boundaries/master/data/geojson/ntas.geojson
+      - https://data.cityofnewyork.us/resource/7t3b-ywvw.geojson?$limit=100000
+      - https://data.cityofnewyork.us/resource/cpf4-rkhq.geojson?$limit=100000
+    fields:
+      code: [ntacode, NTACode, nta_code, nta2020]
+      name: [ntaname, NTAName, nta_name, name, Name]
+      parent: [boroname, BoroName, borough, Borough]
+      boro_code: [borocode, BoroCode]
+      community_district: [cdta, CDTA, cdta2020]

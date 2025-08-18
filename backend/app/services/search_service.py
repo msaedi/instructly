@@ -770,13 +770,14 @@ class SearchService(BaseService):
                         result["coverage_regions"] = [
                             {
                                 "region_id": a.neighborhood_id,
-                                "name": (a.neighborhood.region_name if a.neighborhood else None),
-                                "borough": (a.neighborhood.parent_region if a.neighborhood else None),
+                                "name": (getattr(a.neighborhood, "region_name", None) if a.neighborhood else None),
+                                "borough": (getattr(a.neighborhood, "parent_region", None) if a.neighborhood else None),
                                 "coverage_type": getattr(a, "coverage_type", None),
                             }
                             for a in areas
                             if a.is_active
                         ]
+                        result["coverage_region_ids"] = [a.neighborhood_id for a in areas if a.is_active]
                 except Exception:
                     pass
                 results.append(result)

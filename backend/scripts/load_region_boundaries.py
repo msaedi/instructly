@@ -1,14 +1,17 @@
 """Load region boundaries into the generic region_boundaries table.
 
-Currently supports NYC NTA polygons from NYC Open Data.
+Currently supports NYC NTA polygons from NYC Open Data, and can be
+extended via cities.yaml with --city flag.
 """
 
+import argparse
 import json
 import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 import geopandas as gpd  # type: ignore
+import yaml  # type: ignore
 from sqlalchemy import create_engine, text
 
 # Make sure 'backend' is on sys.path so `app` can be imported when run directly
@@ -16,25 +19,19 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from app.core.config import settings
 
 
-def _candidate_urls() -> list[str]:
-    # Try multiple sources; the first valid one will be used
-    return [
-        # NYC 2020 NTAs (Socrata) – JSON list with the_geom
-        "https://data.cityofnewyork.us/resource/9nt8-h7nd.geojson",
-        "https://data.cityofnewyork.us/resource/9nt8-h7nd.json",
-        # NYC Open Data NTA export (commonly used ID)
-        "https://data.cityofnewyork.us/api/geospatial/7t3b-ywvw?method=export&format=GeoJSON",
-        # Alternate ID (older references)
-        "https://data.cityofnewyork.us/api/geospatial/cpf4-rkhq?method=export&format=GeoJSON",
-        # NYC Planning Labs mirror
-        "https://raw.githubusercontent.com/NYCPlanning/labs-nyc-boundaries/master/data/geojson/ntas.geojson",
-        # Socrata resource endpoint (returns rows with geometry field)
-        "https://data.cityofnewyork.us/resource/7t3b-ywvw.geojson?$limit=100000",
-        "https://data.cityofnewyork.us/resource/cpf4-rkhq.geojson?$limit=100000",
-    ]
+def _load_city_config(city: str) -> Dict[str, Any]:
+    cfg_path = Path(__file__).parent / "cities.yaml"
+    if not cfg_path.exists():
+        raise RuntimeError(f"City configuration file not found: {cfg_path}")
+    with cfg_path.open("r") as f:
+        data = yaml.safe_load(f) or {}
+    cities = data.get("cities") or {}
+    if city not in cities:
+        raise RuntimeError(f"City '{city}' not found in config")
+    return cities[city]
 
 
-def _read_geojson_any(url: Optional[str] = None, local_path: Optional[str] = None) -> "gpd.GeoDataFrame":  # type: ignore
+def _read_geojson_any(urls: list[str], local_path: Optional[str] = None) -> "gpd.GeoDataFrame":  # type: ignore
     last_error = None
     # Prefer local file if provided
     if local_path:
@@ -47,10 +44,9 @@ def _read_geojson_any(url: Optional[str] = None, local_path: Optional[str] = Non
             raise RuntimeError("Local file loaded but contains no features")
         return gdf
 
-    urls = [url] if url else _candidate_urls()
     for url in urls:
         try:
-            print(f"Downloading NYC NTA GeoJSON… ({url})")
+            print(f"Downloading region boundaries… ({url})")
             # Handle Socrata JSON list shape when not GeoJSON FeatureCollection
             if url.endswith(".json") and not url.endswith(".geojson"):
                 import pandas as pd  # type: ignore
@@ -79,28 +75,28 @@ def _read_geojson_any(url: Optional[str] = None, local_path: Optional[str] = Non
         except Exception as e:
             last_error = e
             continue
-    raise RuntimeError(f"Failed to download NTA GeoJSON from all sources. Last error: {last_error}")
+    raise RuntimeError(f"Failed to download GeoJSON from all sources. Last error: {last_error}")
 
 
-def _normalize_nyc_columns(gdf: "gpd.GeoDataFrame") -> "gpd.GeoDataFrame":  # type: ignore
-    # Accept both uppercase/lowercase variants from different sources
-    def col(*names: str) -> Optional[str]:
+def _normalize_columns(gdf: "gpd.GeoDataFrame", fields_cfg: Dict[str, Any]) -> "gpd.GeoDataFrame":  # type: ignore
+    # Accept columns according to configured name lists
+    def col(names: list[str]) -> Optional[str]:
         for n in names:
             if n in gdf.columns:
                 return n
         return None
 
-    code_col = col("ntacode", "NTACode", "nta_code", "nta2020")
-    name_col = col("ntaname", "NTAName", "nta_name", "name", "Name")
-    boro_col = col("boroname", "BoroName", "borough", "Borough")
-    boro_code_col = col("borocode", "BoroCode")
-    cdta_col = col("cdta", "CDTA", "cdta2020")
+    code_col = col(fields_cfg.get("code", []))
+    name_col = col(fields_cfg.get("name", []))
+    parent_col = col(fields_cfg.get("parent", []))
+    boro_code_col = col(fields_cfg.get("boro_code", []))
+    cdta_col = col(fields_cfg.get("community_district", []))
 
     # Fill missing expected columns with None values
     for needed, src in {
         "region_code": code_col,
         "region_name": name_col,
-        "parent_region": boro_col,
+        "parent_region": parent_col,
     }.items():
         if src is None:
             gdf[needed] = None
@@ -130,15 +126,17 @@ def _add_ulids(df):
     return df
 
 
-def load_nyc_neighborhoods(source_url: Optional[str] = None, local_path: Optional[str] = None) -> int:
-    gdf = _read_geojson_any(source_url, local_path)
+def load_city(city: str, source_url: Optional[str] = None, local_path: Optional[str] = None) -> int:
+    cfg = _load_city_config(city)
+    sources: list[str] = [source_url] if source_url else (cfg.get("sources") or [])
+    gdf = _read_geojson_any(sources, local_path)
 
     print("Transforming to region_boundaries schema…")
-    gdf = _normalize_nyc_columns(gdf)
+    gdf = _normalize_columns(gdf, cfg.get("fields") or {})
     out = gpd.GeoDataFrame(
         {
             "id": None,  # filled below
-            "region_type": "nyc",
+            "region_type": cfg.get("region_type", city),
             "region_code": gdf["region_code"],
             "region_name": gdf["region_name"],
             "parent_region": gdf["parent_region"],
@@ -155,7 +153,8 @@ def load_nyc_neighborhoods(source_url: Optional[str] = None, local_path: Optiona
 
     # Simplify geometry for web use while keeping original shape adequate
     try:
-        out["boundary"] = out.geometry.simplify(0.0005, preserve_topology=True)
+        tol = float(cfg.get("simplify_tolerance", 0.0005))
+        out["boundary"] = out.geometry.simplify(tol, preserve_topology=True)
     except Exception:
         pass
 
@@ -170,7 +169,7 @@ def load_nyc_neighborhoods(source_url: Optional[str] = None, local_path: Optiona
             INSERT INTO region_boundaries
                 (id, region_type, region_code, region_name, parent_region, boundary, centroid, region_metadata, created_at, updated_at)
             VALUES
-                (:id, 'nyc', :rcode, :rname, :parent,
+                (:id, :rtype, :rcode, :rname, :parent,
                  ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON(:geom), 4326)),
                  ST_Centroid(ST_Multi(ST_SetSRID(ST_GeomFromGeoJSON(:geom), 4326))),
                  CAST(:meta AS JSONB), NOW(), NOW())
@@ -187,6 +186,7 @@ def load_nyc_neighborhoods(source_url: Optional[str] = None, local_path: Optiona
                 sql,
                 {
                     "id": row["id"],
+                    "rtype": row.get("region_type") or cfg.get("region_type", city),
                     "rcode": (row.get("region_code") if isinstance(row.get("region_code"), (str, int)) else None),
                     "rname": row.get("region_name"),
                     "parent": row.get("parent_region"),
@@ -195,22 +195,20 @@ def load_nyc_neighborhoods(source_url: Optional[str] = None, local_path: Optiona
                 },
             )
             inserted += 1
-    print(f"Loaded {inserted} NYC regions into region_boundaries.")
+    print(f"Loaded {inserted} {city.upper()} regions into region_boundaries.")
     return inserted
 
 
 if __name__ == "__main__":
     try:
-        # Optional CLI args: --url=<geojson_url> or --path=/absolute/or/relative/path
-        arg_url: Optional[str] = None
-        arg_path: Optional[str] = None
-        for a in sys.argv[1:]:
-            if a.startswith("--url="):
-                arg_url = a.split("=", 1)[1].strip()
-            if a.startswith("--path="):
-                arg_path = a.split("=", 1)[1].strip()
-        count = load_nyc_neighborhoods(source_url=arg_url, local_path=arg_path)
-        print(f"Success: {count} regions loaded")
+        parser = argparse.ArgumentParser(description="Load region boundaries for a city")
+        parser.add_argument("--city", default="nyc", help="City key from cities.yaml (default: nyc)")
+        parser.add_argument("--url", default=None, help="Override source URL")
+        parser.add_argument("--path", default=None, help="Load from local file path instead of URL")
+        args = parser.parse_args()
+
+        count = load_city(args.city, source_url=args.url, local_path=args.path)
+        print(f"Success: {count} regions loaded for {args.city}")
     except Exception as e:
         print(f"Error: {e}")
         sys.exit(1)

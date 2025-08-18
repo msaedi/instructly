@@ -9,7 +9,9 @@ from sqlalchemy.orm import Session
 
 from ..api.dependencies.auth import get_current_active_user
 from ..api.dependencies.services import get_db
+from ..core.ulid_helper import is_valid_ulid
 from ..database import get_db as get_session
+from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ..models.user import User
 from ..schemas.address import (
     AddressCreate,
@@ -158,6 +160,7 @@ def replace_my_service_areas(
 
 # Public helper for map: bulk coverage for instructor ids
 @router.get("/coverage/bulk", response_model=CoverageFeatureCollectionResponse)
+@rate_limit("10/minute", key_type=RateLimitKeyType.IP)
 def get_bulk_coverage_geojson(
     ids: str, service: AddressService = Depends(get_address_service)
 ) -> CoverageFeatureCollectionResponse:
@@ -171,6 +174,13 @@ def get_bulk_coverage_geojson(
         return CoverageFeatureCollectionResponse(type="FeatureCollection", features=[])
     if len(instructor_ids) > 100:
         instructor_ids = instructor_ids[:100]
+    # ULID validation
+    invalid = [i for i in instructor_ids if not is_valid_ulid(i)]
+    if invalid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid instructor ids: {', '.join(invalid[:5])}",
+        )
     geo = service.get_coverage_geojson_for_instructors(instructor_ids)
     return CoverageFeatureCollectionResponse(
         type=geo.get("type", "FeatureCollection"), features=geo.get("features", [])

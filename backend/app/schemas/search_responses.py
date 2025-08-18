@@ -61,6 +61,10 @@ class SearchResult(BaseModel):
         default=None,
         description="List of regions served with minimal fields: region_id, name, borough, coverage_type",
     )
+    coverage_region_ids: Optional[List[str]] = Field(
+        default=None,
+        description="List of region IDs served by the instructor for quick FE mapping without extra calls",
+    )
 
 
 class SearchMetadata(BaseModel):

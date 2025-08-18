@@ -39,7 +39,9 @@ from ..api.dependencies.services import (
 )
 from ..core.enums import RoleName
 from ..core.exceptions import BusinessRuleException, ValidationException
+from ..core.ulid_helper import is_valid_ulid
 from ..database import get_db
+from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ..models.user import User
 from ..schemas.account_lifecycle import AccountStatusChangeResponse, AccountStatusResponse
 from ..schemas.address_responses import CoverageFeatureCollectionResponse
@@ -262,10 +264,13 @@ async def get_instructor_profile(
 
 
 @router.get("/{instructor_id}/coverage", response_model=CoverageFeatureCollectionResponse)
+@rate_limit("30/minute", key_type=RateLimitKeyType.IP)
 async def get_instructor_coverage(
     instructor_id: str,
     address_service: AddressService = Depends(get_address_service),
 ):
+    if not is_valid_ulid(instructor_id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid instructor id")
     geo = address_service.get_coverage_geojson_for_instructors([instructor_id])
     return CoverageFeatureCollectionResponse(
         type=geo.get("type", "FeatureCollection"), features=geo.get("features", [])
