@@ -166,16 +166,167 @@ def upgrade() -> None:
     op.create_index("idx_favorites_student", "user_favorites", ["student_id"])
     op.create_index("idx_favorites_instructor", "user_favorites", ["instructor_id"])
 
+    # ======== PAYMENT TABLES ========
+    # Create stripe_customers table - Maps users to Stripe customer IDs
+    op.create_table(
+        "stripe_customers",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("user_id", sa.String(26), nullable=False),
+        sa.Column("stripe_customer_id", sa.String(255), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.Column("updated_at", sa.DateTime(timezone=True), onupdate=sa.func.now()),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("user_id", name="unique_user_stripe_customer"),
+        sa.UniqueConstraint("stripe_customer_id", name="unique_stripe_customer_id"),
+        comment="Maps users to their Stripe customer IDs",
+    )
+
+    # Create indexes for stripe_customers
+    op.create_index("idx_stripe_customers_user_id", "stripe_customers", ["user_id"])
+    op.create_index("idx_stripe_customers_stripe_customer_id", "stripe_customers", ["stripe_customer_id"])
+
+    # Create stripe_connected_accounts table - Instructor Stripe Connect accounts
+    op.create_table(
+        "stripe_connected_accounts",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("instructor_profile_id", sa.String(26), nullable=False),
+        sa.Column("stripe_account_id", sa.String(255), nullable=False),
+        sa.Column("onboarding_completed", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.Column("updated_at", sa.DateTime(timezone=True), onupdate=sa.func.now()),
+        sa.ForeignKeyConstraint(["instructor_profile_id"], ["instructor_profiles.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("instructor_profile_id", name="unique_instructor_stripe_account"),
+        sa.UniqueConstraint("stripe_account_id", name="unique_stripe_account_id"),
+        comment="Instructor Stripe Connect accounts for receiving payments",
+    )
+
+    # Create indexes for stripe_connected_accounts
+    op.create_index(
+        "idx_stripe_connected_accounts_instructor_profile_id", "stripe_connected_accounts", ["instructor_profile_id"]
+    )
+    op.create_index(
+        "idx_stripe_connected_accounts_stripe_account_id", "stripe_connected_accounts", ["stripe_account_id"]
+    )
+    op.create_index(
+        "idx_stripe_connected_accounts_onboarding_completed", "stripe_connected_accounts", ["onboarding_completed"]
+    )
+
+    # Create payment_intents table - Tracks Stripe payment intents for bookings
+    op.create_table(
+        "payment_intents",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("booking_id", sa.String(26), nullable=False),
+        sa.Column("stripe_payment_intent_id", sa.String(255), nullable=False),
+        sa.Column("amount", sa.Integer(), nullable=False, comment="Amount in cents"),
+        sa.Column("application_fee", sa.Integer(), nullable=False, comment="Platform fee in cents"),
+        sa.Column("status", sa.String(50), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.Column("updated_at", sa.DateTime(timezone=True), onupdate=sa.func.now()),
+        sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("stripe_payment_intent_id", name="unique_stripe_payment_intent_id"),
+        comment="Stripe payment intents for booking payments",
+    )
+
+    # Create indexes for payment_intents
+    op.create_index("idx_payment_intents_booking_id", "payment_intents", ["booking_id"])
+    op.create_index("idx_payment_intents_stripe_payment_intent_id", "payment_intents", ["stripe_payment_intent_id"])
+    op.create_index("idx_payment_intents_status", "payment_intents", ["status"])
+
+    # Add check constraint for payment intent status
+    op.create_check_constraint(
+        "ck_payment_intents_status",
+        "payment_intents",
+        "status IN ('requires_payment_method', 'requires_confirmation', 'requires_action', 'processing', 'requires_capture', 'canceled', 'succeeded')",
+    )
+
+    # Create payment_methods table - Stores user payment methods
+    op.create_table(
+        "payment_methods",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("user_id", sa.String(26), nullable=False),
+        sa.Column("stripe_payment_method_id", sa.String(255), nullable=False),
+        sa.Column("last4", sa.String(4), nullable=True),
+        sa.Column("brand", sa.String(50), nullable=True),
+        sa.Column("is_default", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.Column("updated_at", sa.DateTime(timezone=True), onupdate=sa.func.now()),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        comment="User payment methods (cards)",
+    )
+
+    # Create indexes for payment_methods
+    op.create_index("idx_payment_methods_user_id", "payment_methods", ["user_id"])
+    op.create_index("idx_payment_methods_is_default", "payment_methods", ["is_default"])
+
+    # Create partial unique index: only one default payment method per user
+    op.create_index(
+        "idx_payment_methods_unique_default_per_user",
+        "payment_methods",
+        ["user_id", "is_default"],
+        unique=True,
+        postgresql_where=sa.text("is_default = true"),
+    )
+
     print("Booking system tables created successfully!")
     print("- Created bookings table with self-contained design")
     print("- NO reference to availability_slots for complete layer independence")
     print("- Added time-based conflict checking index")
     print("- Created password_reset_tokens table")
+    print("- Created payment tables (stripe_customers, stripe_connected_accounts, payment_intents, payment_methods)")
 
 
 def downgrade() -> None:
     """Drop booking system tables."""
     print("Dropping booking system tables...")
+
+    # ======== DROP PAYMENT TABLES (in reverse order) ========
+    # Drop payment_methods indexes and table
+    op.drop_index("idx_payment_methods_unique_default_per_user", table_name="payment_methods")
+    op.drop_index("idx_payment_methods_is_default", table_name="payment_methods")
+    op.drop_index("idx_payment_methods_user_id", table_name="payment_methods")
+    op.drop_table("payment_methods")
+
+    # Drop payment_intents constraint, indexes and table
+    op.drop_constraint("ck_payment_intents_status", "payment_intents", type_="check")
+    op.drop_index("idx_payment_intents_status", table_name="payment_intents")
+    op.drop_index("idx_payment_intents_stripe_payment_intent_id", table_name="payment_intents")
+    op.drop_index("idx_payment_intents_booking_id", table_name="payment_intents")
+    op.drop_table("payment_intents")
+
+    # Drop stripe_connected_accounts indexes and table
+    op.drop_index("idx_stripe_connected_accounts_onboarding_completed", table_name="stripe_connected_accounts")
+    op.drop_index("idx_stripe_connected_accounts_stripe_account_id", table_name="stripe_connected_accounts")
+    op.drop_index("idx_stripe_connected_accounts_instructor_profile_id", table_name="stripe_connected_accounts")
+    op.drop_table("stripe_connected_accounts")
+
+    # Drop stripe_customers indexes and table
+    op.drop_index("idx_stripe_customers_stripe_customer_id", table_name="stripe_customers")
+    op.drop_index("idx_stripe_customers_user_id", table_name="stripe_customers")
+    op.drop_table("stripe_customers")
 
     # Drop user_favorites indexes and table (if they exist)
     try:

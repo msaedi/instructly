@@ -11,3 +11,4 @@ logs/database_audit.jsonl
 # Privacy audit output artifacts
 logs/privacy_audit_report.json
 logs/privacy_audit_report.md
+scripts/data/nyc_boundaries.geojson

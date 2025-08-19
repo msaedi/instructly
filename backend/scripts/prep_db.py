@@ -357,8 +357,17 @@ def prep_database(db_type):
                 count = cur.fetchone()[0]
         conn.close()
         if exists and count == 0:
-            if not run_command([sys.executable, "scripts/load_region_boundaries.py"], "Load region boundaries"):
-                return False
+            # For INT database, region boundaries are optional (tests work without them)
+            if db_type == "int":
+                result = run_command([sys.executable, "scripts/load_region_boundaries.py"], "Load region boundaries")
+                if not result:
+                    print(
+                        f"{YELLOW}⚠{NC} Region boundaries failed to load for INT database - continuing anyway (tests don't require them)"
+                    )
+            else:
+                # For STG and PROD, region boundaries are required
+                if not run_command([sys.executable, "scripts/load_region_boundaries.py"], "Load region boundaries"):
+                    return False
     except Exception as e:
         print(f"{YELLOW}⚠{NC} Skipping auto-load of region boundaries ({e})")
 

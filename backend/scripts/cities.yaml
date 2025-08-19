@@ -2,14 +2,17 @@ cities:
   nyc:
     region_type: nyc
     simplify_tolerance: 0.0005
+    # NOTE: Many NYC Open Data endpoints have changed/broken as of Aug 2025
+    # The script will first check for cached data in scripts/data/nyc_boundaries.geojson
+    # NYC NTA boundaries change very rarely (census updates every 10 years)
     sources:
-      - https://data.cityofnewyork.us/resource/9nt8-h7nd.geojson
+      # This JSON endpoint still works (as of Aug 2025)
       - https://data.cityofnewyork.us/resource/9nt8-h7nd.json
-      - https://data.cityofnewyork.us/api/geospatial/7t3b-ywvw?method=export&format=GeoJSON
-      - https://data.cityofnewyork.us/api/geospatial/cpf4-rkhq?method=export&format=GeoJSON
-      - https://raw.githubusercontent.com/NYCPlanning/labs-nyc-boundaries/master/data/geojson/ntas.geojson
-      - https://data.cityofnewyork.us/resource/7t3b-ywvw.geojson?$limit=100000
-      - https://data.cityofnewyork.us/resource/cpf4-rkhq.geojson?$limit=100000
+      # Broken endpoints kept for reference (return 404/500 as of Aug 2025):
+      # - https://data.cityofnewyork.us/resource/9nt8-h7nd.geojson  # Returns 500
+      # - https://data.cityofnewyork.us/api/geospatial/7t3b-ywvw?method=export&format=GeoJSON  # 404
+      # - https://data.cityofnewyork.us/api/geospatial/cpf4-rkhq?method=export&format=GeoJSON  # 404
+      # - https://raw.githubusercontent.com/NYCPlanning/labs-nyc-boundaries/master/data/geojson/ntas.geojson  # 404
     fields:
       code: [ntacode, NTACode, nta_code, nta2020]
       name: [ntaname, NTAName, nta_name, name, Name]

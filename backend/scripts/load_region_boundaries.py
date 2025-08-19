@@ -31,8 +31,27 @@ def _load_city_config(city: str) -> Dict[str, Any]:
     return cities[city]
 
 
-def _read_geojson_any(urls: list[str], local_path: Optional[str] = None) -> "gpd.GeoDataFrame":  # type: ignore
+def _read_geojson_any(urls: list[str], local_path: Optional[str] = None, force_refresh: bool = False) -> "gpd.GeoDataFrame":  # type: ignore
     last_error = None
+    cache_file = Path(__file__).parent / "data" / "nyc_boundaries.geojson"
+
+    # Check for cached NYC boundaries first (unless force_refresh is True)
+    if cache_file.exists() and not local_path and not force_refresh:
+        try:
+            # Check cache age and warn if old (but still use it)
+            import datetime
+
+            cache_age = datetime.datetime.now() - datetime.datetime.fromtimestamp(cache_file.stat().st_mtime)
+            if cache_age.days > 365:
+                print(f"⚠️  Cache is {cache_age.days} days old. Consider refreshing with --force-refresh")
+
+            print(f"Using cached NYC boundaries from {cache_file}")
+            gdf = gpd.read_file(cache_file)
+            if gdf is not None and len(gdf) > 0:
+                return gdf
+        except Exception as e:
+            print(f"Warning: Failed to load cached boundaries: {e}")
+
     # Prefer local file if provided
     if local_path:
         p = Path(local_path)
@@ -44,6 +63,8 @@ def _read_geojson_any(urls: list[str], local_path: Optional[str] = None) -> "gpd
             raise RuntimeError("Local file loaded but contains no features")
         return gdf
 
+    # Try downloading from URLs
+    successful_gdf = None
     for url in urls:
         try:
             print(f"Downloading region boundaries… ({url})")
@@ -71,11 +92,25 @@ def _read_geojson_any(urls: list[str], local_path: Optional[str] = None) -> "gpd
             else:
                 gdf = gpd.read_file(url)
             if gdf is not None and len(gdf) > 0:
-                return gdf
+                successful_gdf = gdf
+                break
         except Exception as e:
             last_error = e
             continue
-    raise RuntimeError(f"Failed to download GeoJSON from all sources. Last error: {last_error}")
+
+    if successful_gdf is None:
+        raise RuntimeError(f"Failed to download GeoJSON from all sources. Last error: {last_error}")
+
+    # Save to cache for future use
+    try:
+        cache_file.parent.mkdir(exist_ok=True)
+        print(f"💾 Saving to cache: {cache_file}")
+        successful_gdf.to_file(cache_file, driver="GeoJSON")
+        print(f"✅ Cache created successfully with {len(successful_gdf)} regions")
+    except Exception as e:
+        print(f"⚠️  Warning: Failed to save cache: {e}")
+
+    return successful_gdf
 
 
 def _normalize_columns(gdf: "gpd.GeoDataFrame", fields_cfg: Dict[str, Any]) -> "gpd.GeoDataFrame":  # type: ignore
@@ -126,10 +161,12 @@ def _add_ulids(df):
     return df
 
 
-def load_city(city: str, source_url: Optional[str] = None, local_path: Optional[str] = None) -> int:
+def load_city(
+    city: str, source_url: Optional[str] = None, local_path: Optional[str] = None, force_refresh: bool = False
+) -> int:
     cfg = _load_city_config(city)
     sources: list[str] = [source_url] if source_url else (cfg.get("sources") or [])
-    gdf = _read_geojson_any(sources, local_path)
+    gdf = _read_geojson_any(sources, local_path, force_refresh=force_refresh)
 
     print("Transforming to region_boundaries schema…")
     gdf = _normalize_columns(gdf, cfg.get("fields") or {})
@@ -205,9 +242,12 @@ if __name__ == "__main__":
         parser.add_argument("--city", default="nyc", help="City key from cities.yaml (default: nyc)")
         parser.add_argument("--url", default=None, help="Override source URL")
         parser.add_argument("--path", default=None, help="Load from local file path instead of URL")
+        parser.add_argument(
+            "--force-refresh", action="store_true", help="Force download from source even if cache exists"
+        )
         args = parser.parse_args()
 
-        count = load_city(args.city, source_url=args.url, local_path=args.path)
+        count = load_city(args.city, source_url=args.url, local_path=args.path, force_refresh=args.force_refresh)
         print(f"Success: {count} regions loaded for {args.city}")
     except Exception as e:
         print(f"Error: {e}")
