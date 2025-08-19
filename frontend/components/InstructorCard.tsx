@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Star, MapPin, Heart, CheckCircle } from 'lucide-react';
 import { Instructor, ServiceCatalogItem } from '@/types/api';
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { publicApi } from '@/features/shared/api/client';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { favoritesApi } from '@/services/api/favorites';
@@ -35,6 +36,7 @@ export default function InstructorCard({
 }: InstructorCardProps) {
   const router = useRouter();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [serviceCatalog, setServiceCatalog] = useState<ServiceCatalogItem[]>([]);
   const [isFavorited, setIsFavorited] = useState(false);
   const [isLoadingFavorite, setIsLoadingFavorite] = useState(false);
@@ -115,6 +117,8 @@ export default function InstructorCard({
         await favoritesApi.add(instructor.user_id);
         toast.success('Added to favorites!');
       }
+      // Invalidate favorites list so dashboard tab reflects updates immediately
+      queryClient.invalidateQueries({ queryKey: ['favorites'] });
     } catch (error) {
       // Revert on error
       setIsFavorited(isFavorited);

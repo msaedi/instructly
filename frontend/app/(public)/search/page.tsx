@@ -560,7 +560,7 @@ function SearchPageContent() {
                   </div>
                 )}
 
-                {filteredInstructors.length > 0 && (
+                {filteredInstructors.length > 0 && filteredInstructors.length < instructors.length && (
                   <div className="mt-4 md:mt-8 text-center text-gray-600 py-4">
                     {filteredInstructors.length === 1
                       ? "1 instructor found in this area"

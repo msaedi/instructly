@@ -87,13 +87,7 @@ const TEST_BOOKING_ID = '01K2MAY484FQGFEQVN3VKGYZ59';   // ✅ Correct
 - **Don't assume IDs are short** - Always 26 characters
 - **Don't use number type in TypeScript** - Always string
 
-### Migration Status:
-- ✅ Database: All tables migrated to ULID primary keys
-- ✅ Backend: All models and services use ULID strings
-- ✅ Frontend: All TypeScript types updated to string
-- ✅ Tests: All test data uses proper ULIDs
-
-## 🐘 CI Database Image
+## 🔧 CI Database Image
 
 **CRITICAL**: Our CI uses a custom PostgreSQL image with PostGIS + pgvector extensions.
 
@@ -108,17 +102,12 @@ const TEST_BOOKING_ID = '01K2MAY484FQGFEQVN3VKGYZ59';   // ✅ Correct
 - CI tests require both extensions for spatial features and NL search
 - Migrations will FAIL without both extensions
 
-### Maintenance
-- Image rebuilds automatically when Dockerfile changes
-- To manually rebuild: Actions → "Build CI Database Image" → Run workflow
-- Update tag in `backend-ci.yml` if creating new versions
-
 ### ⚠️ DO NOT:
 - Use random community images (security risk)
 - Remove pgvector or PostGIS from migrations
 - Change CI to use standard postgres image
 
-## 📍 Spatial Intelligence with PostGIS (v95)
+## 🗺 Spatial Intelligence with PostGIS (v95)
 
 ### Location Architecture
 - **Global Scalability**: Generic region boundaries support any city
@@ -162,7 +151,6 @@ ORDER BY similarity(name, 'query') DESC
 - Persists top-N candidates with scores
 - Admin dashboards for category trends
 - Query-level debugging and analysis
-- Supply gap identification
 
 ## 🚨 CRITICAL: Client-Side Caching with React Query
 
@@ -209,26 +197,11 @@ useEffect(() => {
 - **Availability**: `5 minutes` with background refresh
 - **Real-time data**: `1 minute`
 
-### For New Features
-1. Identify all API calls needed
-2. Use React Query from the start
-3. Include filters/params in query keys
-4. Test cache hit rate in DevTools
-5. Verify instant navigation works
-
-### Common Mistakes to Avoid
-- ❌ Rewriting entire components (use incremental approach)
-- ❌ Forgetting to include params in query keys
-- ❌ Using staleTime: 0 (defeats caching purpose)
-- ❌ Not testing cache behavior
-
 ### Testing Your Implementation
 1. Load page → Check Network tab for API calls
 2. Navigate away and back
 3. ✅ Success: No API calls (using cache)
 4. ❌ Failure: API calls made (cache not working)
-
-Remember: Every API call costs money and time. React Query saves both.
 
 ## Current Project State & Priorities
 
@@ -258,18 +231,15 @@ Remember: Every API call costs money and time. React Query saves both.
 ### Recently Completed ✅
 1. **Complete Address Management System**: Full CRUD with Google Places autocomplete (v95)
 2. **PostGIS Spatial Queries**: Region boundaries and spatial intelligence (v95)
-3. **Provider-Agnostic Geocoding**: Factory pattern for Google/Mapbox/Mock (v95)
-4. **Smart Backgrounds System**: Intelligent activity-based backgrounds with rotation (v94)
-5. **Natural Language Search Excellence**: World-class search with typo tolerance and morphology (v94)
-6. **Search Observability Pipeline**: Complete analytics for search behavior (v94)
-7. **pg_trgm Fuzzy Matching**: PostgreSQL trigram similarity with GIN indexes (v94)
-8. **ULID Migration**: All IDs are 26-character strings (v93)
-9. **Favorites System**: Students can favorite instructors (v93)
-10. **Timezone Detection**: Auto-detect from ZIP code (v93)
-11. **Database Safety System**: Three-tier protection (INT/STG/PROD)
-12. **RBAC System**: 30 permissions replacing role-based access
+3. **Natural Language Search Excellence**: World-class search with typo tolerance (v94)
+4. **ULID Migration**: All IDs are 26-character strings (v93)
+5. **Favorites System**: Students can favorite instructors (v93)
+6. **Timezone Detection**: Auto-detect from ZIP code (v93)
+7. **Database Safety System**: Three-tier protection (INT/STG/PROD)
+8. **RBAC System**: 30 permissions replacing role-based access
 
-### Key Architectural Decisions
+## Key Architectural Decisions
+
 - **NO SLOT IDs**: Time-based booking only (instructor_id, date, start_time, end_time)
 - **Layer Independence**: Bookings don't reference availability slots (Work Stream #9)
 - **Single-Table Design**: Just availability_slots table (no InstructorAvailability)
@@ -278,25 +248,10 @@ Remember: Every API call costs money and time. React Query saves both.
 - **Redis Architecture**: Single Redis instance for caching, Celery broker, and sessions
 - **Database Safety**: Three-tier protection system preventing production accidents
 - **Privacy Framework**: GDPR compliance with automated retention and user controls
-- **Race Condition Prevention**: PostgreSQL UPSERT for atomic operations
-- **NL Search Strategy**: Hybrid semantic + text similarity with pg_trgm fuzzy matching
-- **Search Observability**: Persist top-N candidates per search for analytics
-- **Smart Backgrounds**: Activity-based with CDN rotation and WebP-first strategy
-- **Spatial Architecture**: PostGIS with region boundaries for global scalability
-- **Geocoding Abstraction**: Provider-agnostic factory pattern (Google/Mapbox/Mock)
-- **Address Management**: Complete system with autocomplete and enrichment
+- **Clean Break Philosophy**: No backward compatibility during dev - edit existing migrations
 
 ### Technical Debt Details
 Frontend believes slots are database entities with IDs (WRONG). The operation pattern in useAvailabilityOperations.ts is 600+ lines that should be ~50 lines. Mental model mismatch causes 5x slower development.
-
-### Common Test Fixes
-- **Most Common Failure**: Missing specific_date field (~45 tests failing)
-  - When creating slots, use: specific_date=target_date instead of date=
-  - AvailabilitySlot.date was renamed to AvailabilitySlot.specific_date
-- **Import Errors**: BaseRepositoryService → BaseService
-- **Method Renames**:
-  - get_booked_slots_for_date → get_booked_times_for_date
-  - check_slot_availability → check_time_availability
 
 ### Critical Files & Patterns
 #### Frontend Technical Debt (3,000+ lines to remove):
@@ -318,175 +273,7 @@ Frontend believes slots are database entities with IDs (WRONG). The operation pa
 - BookingService: 8/10 (97% coverage)
 - AvailabilityService: 8/10 (63% coverage - needs work)
 
-### Recent Achievements
-- **ULID Migration Complete**: All IDs migrated from integers to 26-character ULID strings
-- **Favorites System**: Complete student favorites feature with optimistic UI updates
-- **Automatic Timezone Detection**: ZIP code-based timezone assignment at registration
-- **Database Safety System**: Three-tier protection preventing production accidents
-- **Search History Race Condition Fix**: PostgreSQL UPSERT eliminating duplicates
-- **Analytics Enhancement 100% Complete**: Privacy framework with GDPR compliance
-- **RBAC System**: 30 permissions replacing role-based access
-- **Redis Migration**: Moved from Upstash to Render, 89% reduction in operations
-- **Privacy Framework**: Complete GDPR compliance with automated retention
-- **Infrastructure Monitoring**: Redis and database dashboards operational
-- Public API complete: GET /api/public/instructors/{id}/availability
-- Repository Pattern: 100% implementation (7/7 services)
-- N+1 query fixed: 99.5% improvement in InstructorProfileRepository
-- 5 production bugs found and fixed through testing
-- Celery Integration: Scheduled tasks, async processing, monitoring with Flower
-
-## Automatic Timezone Detection
-
-Users' timezones are automatically set based on ZIP code during registration:
-- **NYC zips (100-119)** → America/New_York
-- **LA zips (900-969)** → America/Los_Angeles
-- **Chicago zips (606-608)** → America/Chicago
-- **Invalid/missing** → defaults to America/New_York
-- **No external dependencies** - uses ZIP prefix mapping
-- **Stored in database** - `users.timezone` field
-
-### Implementation:
-```python
-# backend/app/services/auth_service.py
-def _get_timezone_from_zip(self, zip_code: str) -> str:
-    """Maps ZIP code to timezone using prefix ranges"""
-    if zip_code.startswith(('100', '101', '102', '103', '104', '105', '106', '107', '108', '109', '110', '111', '112', '113', '114', '115', '116', '117', '118', '119')):
-        return "America/New_York"
-    # ... other mappings
-```
-
-## Favorites System
-
-Students can favorite/unfavorite instructors for quick access:
-
-### Features:
-- **Heart icons visible to all users** - Guests get login prompt with return URL
-- **Optimistic UI updates** - Instant feedback without waiting for server
-- **Favorite count display** - Social proof on instructor profiles
-- **Dashboard section** - Quick access to favorited instructors
-- **5-minute cache TTL** - Balance between freshness and performance
-
-### API Endpoints:
-```typescript
-POST   /api/favorites/{instructor_id}  // Add favorite
-DELETE /api/favorites/{instructor_id}  // Remove favorite
-GET    /api/favorites                  // List all favorites
-GET    /api/favorites/check/{id}       // Check if favorited
-```
-
-### Business Rules:
-- Students cannot favorite other students (only instructors)
-- Students cannot favorite themselves
-- Guests redirected to login with return URL preserved
-
-### Frontend Integration:
-```typescript
-// Heart icon with optimistic updates
-const [isSaved, setIsSaved] = useState(false);
-const [favoriteCount, setFavoriteCount] = useState(0);
-
-// Optimistic update
-setIsSaved(!isSaved);
-setFavoriteCount(prev => isSaved ? prev - 1 : prev + 1);
-```
-
-## Schema-Owned Construction Pattern
-
-**Architectural Innovation**: Schemas own their privacy transformation logic.
-
-This pattern ensures privacy is enforced consistently at the API layer, not in frontend:
-
-```python
-class InstructorInfo:
-    @classmethod
-    def from_user(cls, user):
-        """Handles privacy transformation - returns FirstName L. format"""
-        return cls(
-            first_name=user.first_name,
-            last_initial=user.last_name[0] if user.last_name else "",
-            # Never expose full last name to students
-        )
-
-class BookingResponse:
-    @classmethod
-    def from_orm(cls, booking):
-        """Uses InstructorInfo.from_user() for privacy"""
-        return cls(
-            instructor=InstructorInfo.from_user(booking.instructor.user),
-            # ... other fields
-        )
-```
-
-### Privacy Rules Implementation:
-- **Search results**: "Sarah C." not "Sarah Chen"
-- **Booking confirmations**: "Your lesson with Michael R."
-- **Chat/Messages**: Just "Sarah" (first name only)
-- **Emails**: Never expose full instructor names
-- **Public APIs**: Return `first_name` and `last_initial` only
-- **Context-Aware**: Instructors see their own full names
-
-## Clean Break Migration Philosophy
-
-When making breaking changes, we use the **Clean Break** approach:
-- **No backward compatibility** - Remove old code completely
-- **No technical debt** - Don't maintain two systems
-- **Edit existing migrations** - During development, modify existing Alembic files
-- **Zero compromise** - Do it right the first time
-
-Example: User fields migration removed `full_name` entirely, no compatibility layer.
-
-## Asset Management with Cloudflare R2
-
-All images and static assets are served via Cloudflare R2:
-- **Custom domain**: assets.instainstru.com
-- **80% bandwidth reduction** via Image Transformations
-- **Dynamic backgrounds** based on activity type
-- **Cost**: ~$10/month total
-- **No repository bloat** - Images not stored in Git
-
-Usage:
-```typescript
-// Dynamic activity-based backgrounds
-const backgroundUrl = `https://assets.instainstru.com/backgrounds/${activityType}.jpg`;
-
-// Responsive images with transformations
-const thumbnailUrl = `https://assets.instainstru.com/avatars/${userId}?width=150&quality=85`;
-```
-
-## Navigation State Management
-
-The booking flow uses a sophisticated state management system:
-- **Preserves slot selection** across navigation
-- **Handles browser back/forward** correctly
-- **Prevents race conditions** in auto-selection
-- **E2E tested** to prevent regression
-
-Key files:
-- `frontend/lib/navigation/navigationStateManager.ts`
-- `frontend/features/booking/hooks/useBookingFlow.ts`
-
-### Team Structure
-- **X-Team**: Technical implementation (you are part of this)
-- **A-Team**: UX/Design decisions (separate team, we await their input)
-
-## Current Infrastructure
-
-### Production Services (Render)
-- **API**: instructly-backend (Web Service)
-- **Redis**: instructly-redis (Private Service, $7/month)
-- **Celery Worker**: instructly-celery (Background Worker)
-- **Celery Beat**: instructly-celery-beat (Background Worker)
-- **Flower**: instructly-flower (Web Service for monitoring)
-- **Database**: Supabase PostgreSQL (external)
-
-### Key Infrastructure Updates
-- Redis handles all caching, Celery broker, and session needs
-- Celery runs analytics processing with async privacy-first design
-- All services configured with optimized settings for cost efficiency
-- Monitoring endpoints require ACCESS_MONITORING permission
-- Total infrastructure cost: $53/month (increased from $46 due to Redis)
-
-## 🛡️ Critical: Database Safety System
+## 🛡️ Database Safety System
 
 ### Three-Tier Database Architecture
 We use a **safe-by-default** three-tier database system:
@@ -521,11 +308,6 @@ db_url = settings.database_url  # ❌ OLD: Production!
 db_url = settings.database_url  # ✅ NEW: INT database!
 ```
 
-**Implementation Details**:
-- Raw database URLs are stored as `*_raw` fields (not for direct use)
-- Public `database_url` property uses `DatabaseConfig` for safety
-- Old scripts are automatically protected without code changes
-
 ### Database Commands
 
 **Primary tool**: `prep_db.py` - Does everything (migrations, seeding, embeddings)
@@ -545,110 +327,23 @@ python scripts/prep_db.py stg
 # Start services (automatically use STG)
 ./run_backend.py
 ./run_celery_worker.py
-./run_celery_beat.py
-./run_flower.py
 
 # Run tests (automatically use INT)
 pytest -v
 ```
 
-### Safety Verification
-
-**Check database safety**:
-```bash
-python scripts/check_database_safety.py
-```
-
-**See safety demonstration**:
-```bash
-python scripts/demonstrate_database_safety.py
-```
-
 ### Environment Variables
-
 - `USE_STG_DATABASE=true` - Use staging database
 - `USE_PROD_DATABASE=true` - Use production (requires confirmation)
 - `INSTAINSTRU_PRODUCTION_MODE=true` - Allow production servers to access without confirmation
 - `CI=true` - CI/CD environments can use their own DATABASE_URL
 - No flag = INT database (safest default)
 
-### Common Scenarios
-
-**Running any script** (defaults to INT):
-```bash
-python scripts/some_script.py         # Uses INT
-alembic upgrade head                  # Uses INT
-python scripts/reset_schema.py        # Uses INT (safe!)
-```
-
-**Local development** (use STG):
-```bash
-USE_STG_DATABASE=true python scripts/some_script.py
-# OR use the convenience scripts:
-./run_backend.py  # Already sets USE_STG_DATABASE=true
-```
-
-**Production operations** (requires confirmation):
-```bash
-USE_PROD_DATABASE=true alembic upgrade head
-# Will show warning and ask for "yes" confirmation
-```
-
-**Production server operations** (no confirmation needed):
-```bash
-# On Render/Vercel with both flags set:
-INSTAINSTRU_PRODUCTION_MODE=true USE_PROD_DATABASE=true
-# Automatically uses production database without confirmation
-```
-
-**CI/CD operations** (uses CI database):
-```bash
-# GitHub Actions with CI=true and DATABASE_URL set
-CI=true DATABASE_URL=postgresql://postgres:postgres@localhost/test_db
-# Uses the CI-provided database automatically
-```
-
-### Safety Features
-
-1. **Default to INT**: Any database access without explicit flags uses INT
-2. **Visual indicators**: Green [INT], Yellow [STG], Red [PROD], Blue [CI]
-3. **Audit logging**: All database operations logged to `logs/database_audit.jsonl`
-4. **Production confirmation**: Interactive "yes" required for production
-5. **Non-interactive protection**: Scripts/CI can't accidentally access production
-6. **Zero breaking changes**: Old code automatically becomes safe
-7. **Production server mode**: Authorized servers can access production without confirmation
-8. **CI/CD support**: Automatically detects CI environments and uses their databases
-9. **Environment detection**: Automatically suggests appropriate database based on context
-
-### Testing Database Safety
-
-Run the test suite to verify safety:
-```bash
-pytest tests/test_database_safety.py -v
-```
-
-### Important Files
-
-- `app/core/config.py` - Settings with safe database_url property
-- `app/core/database_config.py` - Three-tier database selection logic with CI/production support
-- `scripts/prep_db.py` - Main database management tool
-- `scripts/check_database_safety.py` - Verify safety is working
-- `tests/test_database_safety.py` - Automated safety tests
-- `.github/workflows/backend-tests.yml` - GitHub Actions configuration with CI database
-
 ## 🛡️ Defensive Measures: Preventing Architectural Regression
 
-The project has **strong defensive measures** to prevent regression of critical fixes. These automated guards ensure that the hard-won achievements in repository pattern (29% → 100%) and timezone consistency (28 fixes) are never lost.
-
-### Why These Defenses Matter
-- **Repository Pattern**: Prevents regression from TRUE 100% compliance back to violations
-- **Timezone Consistency**: Prevents reintroduction of timezone bugs that were fixed
-- **Zero-Tolerance Policy**: Commits are blocked if violations are detected
-- **CI/CD Integration**: PRs fail if defensive measures are bypassed
+The project has **strong defensive measures** to prevent regression. These automated guards ensure architectural achievements are never lost.
 
 ### Installation
-
-Pre-commit hooks are already configured. To ensure they're active:
 ```bash
 cd /path/to/instructly
 pre-commit install
@@ -657,12 +352,7 @@ pre-commit install
 ### Active Hooks
 
 #### 1. **Repository Pattern Compliance** (`check-repository-pattern`)
-**Purpose**: Ensures services only use repositories for database access, maintaining clean architecture.
-
-**What it checks**:
-- Services don't make direct `db.query()` calls
-- No direct SQLAlchemy operations in service layer
-- Proper use of repository pattern
+**Purpose**: Ensures services only use repositories for database access.
 
 **Violation patterns detected**:
 ```python
@@ -678,165 +368,125 @@ self.repository.create_booking(booking_data)
 
 **Markers for exceptions**:
 ```python
-# For legitimate database access (like BaseService transactions):
+# For legitimate database access:
 # repo-pattern-ignore: Transaction management requires direct DB
 with self.db.begin_nested():
     ...
-
-# For code that will be migrated:
-# repo-pattern-migrate: TODO: Create UserRepository
-user = self.db.query(User).filter_by(id=user_id).first()
-```
-
-**Run manually**:
-```bash
-python backend/scripts/check_repository_pattern.py
 ```
 
 #### 2. **Timezone Consistency** (`check-timezone-usage`)
 **Purpose**: Prevents timezone bugs by blocking `date.today()` in user-facing code.
 
-**What it checks**:
-- No `date.today()` in routes, services, or API code
-- Ensures timezone-aware date handling
-
-**Example violation**:
 ```python
 # ❌ This will be blocked:
 today = date.today()
-if booking_date < today:
-    raise Error("Cannot book past date")
 
 # ✅ Use timezone-aware alternative:
 from app.core.timezone_utils import get_user_today_by_id
 user_today = get_user_today_by_id(user_id, self.db)
-if booking_date < user_today:
-    raise Error("Cannot book past date")
-```
-
-**Allowed exceptions**:
-- Test files (`test_*.py`)
-- System services (cache_service.py, logging_service.py, metrics_service.py)
-- System-level operations that genuinely need server time
-
-**Run manually**:
-```bash
-python backend/scripts/check_timezone_usage.py backend/app/
 ```
 
 #### 3. **API Contract Compliance** (`api-contracts`)
 **Purpose**: Ensures all API endpoints return proper Pydantic response models.
 
-**What it checks**:
-- All routes use `response_model=` parameter
-- No raw dict/list returns
-- Consistent API responses
-
-**Run manually**:
-```bash
-backend/scripts/check_api_contracts_wrapper.sh
-```
-
-### Standard Pre-commit Hooks
-
-The project also uses standard hooks for code quality:
-- **black**: Code formatting (120 char line length)
-- **isort**: Import sorting
-- **trailing-whitespace**: Remove trailing spaces
-- **end-of-file-fixer**: Ensure files end with newline
-- **check-yaml**: Validate YAML syntax
-- **check-added-large-files**: Prevent large file commits
-
 ### Bypassing Hooks (Emergency Only)
-
-If you absolutely need to bypass hooks in an emergency:
 ```bash
 git commit --no-verify -m "Emergency fix: reason"
 ```
+⚠️ Only use for critical production fixes. Create follow-up task to fix violations.
 
-**⚠️ WARNING**: Only use this for critical production fixes. Create a follow-up task to fix any violations.
+### CI/CD Integration
+Multi-layer defense ensures no regression:
+1. **Local Development**: Pre-commit hooks block violations
+2. **Pull Request Level**: GitHub Actions runs all checks
+3. **Merge Protection**: PRs cannot merge if violations detected
 
-### Configuration
+## Features & Systems
 
-Pre-commit configuration is in `.pre-commit-config.yaml`. The hooks run on relevant files only:
-- Repository pattern: `backend/app/(services|core)/.*\.py$`
-- Timezone check: `backend/app/(routes|services|api)/.*\.py$`
-- API contracts: `backend/app/routes/.*\.py$`
+### Automatic Timezone Detection
+Users' timezones are automatically set based on ZIP code during registration:
+- **NYC zips (100-119)** → America/New_York
+- **LA zips (900-969)** → America/Los_Angeles
+- **Chicago zips (606-608)** → America/Chicago
+- **Invalid/missing** → defaults to America/New_York
 
-### CI/CD Integration - Multi-Layer Defense
+### Favorites System
+Students can favorite/unfavorite instructors:
+- **Heart icons** visible to all users
+- **Optimistic UI updates** - Instant feedback
+- **5-minute cache TTL** - Balance freshness/performance
+- **API**: POST/DELETE `/api/favorites/{instructor_id}`
 
-These defensive measures operate at multiple levels:
+### Schema-Owned Construction Pattern
+**Architectural Innovation**: Schemas own their privacy transformation logic.
 
-1. **Local Development**: Pre-commit hooks block violations before commit
-2. **Git Level**: Commits are rejected if hooks are bypassed
-3. **Pull Request Level**: GitHub Actions runs all checks on PRs
-4. **Merge Protection**: PRs cannot merge if violations are detected
+```python
+class InstructorInfo:
+    @classmethod
+    def from_user(cls, user):
+        """Handles privacy transformation - returns FirstName L. format"""
+        return cls(
+            first_name=user.first_name,
+            last_initial=user.last_name[0] if user.last_name else "",
+            # Never expose full last name to students
+        )
+```
 
-This multi-layer defense ensures:
-- **Repository Pattern**: Stays at 100% (no regression from 107 fixes)
-- **Timezone Consistency**: No reintroduction of the 28 fixed bugs
-- **API Contracts**: All endpoints maintain Pydantic response models
-- **Code Quality**: Black, isort, and other standards enforced
+### Asset Management with Cloudflare R2
+All images served via Cloudflare R2:
+- **Custom domain**: assets.instainstru.com
+- **80% bandwidth reduction** via Image Transformations
+- **Cost**: ~$10/month total
 
-The defensive measures are **permanent and non-negotiable** - they protect the architectural achievements that earned our megawatts! ⚡
+## Infrastructure
+
+### Production Services (Render)
+- **API**: instructly-backend (Web Service)
+- **Redis**: instructly-redis (Private Service, $7/month)
+- **Celery Worker**: instructly-celery (Background Worker)
+- **Celery Beat**: instructly-celery-beat (Background Worker)
+- **Flower**: instructly-flower (Web Service for monitoring)
+- **Database**: Supabase PostgreSQL (external)
+- **Total Cost**: $53/month
+
+### Key Infrastructure Updates
+- Redis handles all caching, Celery broker, and session needs
+- Celery runs analytics processing with async privacy-first design
+- Monitoring endpoints require ACCESS_MONITORING permission
 
 ## Documentation Structure
 
-Key project documentation is organized in `docs/`:
-
+Key project documentation in `docs/`:
 - **Project Overview**: `docs/project-overview/01_core_project_info.md`
 - **Architecture State**: `docs/architecture/02_architecture_state.md`
 - **Work Streams Status**: `docs/project-status/03_work-streams-status.md`
 - **System Capabilities**: `docs/project-status/04_system-capabilities.md`
 - **Frontend Cleanup Guide**: `docs/project-status/Frontend Technical Debt Cleanup Checklist - Work Stream #13.md`
 
-Always check these documents for current state before making changes.
+A-Team designs in `docs/a-team-deliverables/`:
+- **Implementation Guide**: `student-booking-implementation-guide.md`
+- **UI Components**: `missing-ui-components.md`
 
-## A-Team Design Deliverables
-
-The A-Team has delivered complete design specifications in `docs/a-team-deliverables/`:
-
-- **Implementation Guide**: `docs/a-team-deliverables/student-booking-implementation-guide.md`
-  - 6-8 week plan with all features designed
-  - References all design artifacts
-  - Technical implementation details
-
-- **UI Components**: `docs/a-team-deliverables/missing-ui-components.md`
-  - Availability calendar grid design
-  - Time selection patterns
-  - Instructor search cards
-  - Booking form specifications
-
-All designs are provided as ASCII mockups with exact measurements, interactions, and specifications. These ARE the official designs, not placeholders.
-
-When implementing any student-facing feature, ALWAYS check these documents first.
+All designs are ASCII mockups with exact specifications. These ARE the official designs.
 
 ## Development Approach: Database Migrations
 
 ### During Development Phase (No Production Data)
-**Important**: While we're in development without production data, we **modify existing Alembic migration files** instead of creating new ones. This prevents accumulation of migration files that need to be squashed later.
+**Important**: Modify existing Alembic migration files instead of creating new ones.
 
 **Workflow for Schema Changes**:
 1. **Modify existing migration files** in `backend/alembic/versions/`
 2. **Test using INT database**: `python scripts/prep_db.py int`
-3. **Reset and rebuild**: Since no production data exists, we can drop and rebuild the schema
-4. **Use prep_db.py** for all database operations (migrations, seeding, embeddings)
+3. **Reset and rebuild**: Since no production data exists
+4. **Use prep_db.py** for all database operations
 
-**DO NOT** create new migration files with `alembic revision` during development unless absolutely necessary.
-
-**When to create new migrations**:
-- Only after production launch
-- When we have real user data to preserve
-- For hotfixes that need to be applied without dropping tables
-
-This approach keeps our migration history clean and manageable.
+**DO NOT** create new migration files with `alembic revision` during development.
 
 ## Essential Commands
 
 ### Test Credentials
 - **Test User Email**: john.smith@example.com (or any seeded user)
 - **Test Password**: Test1234
-- All test users in the seeded database use this password
 
 ### Backend Development
 ```bash
@@ -850,13 +500,10 @@ pytest                           # All tests
 pytest -m unit                   # Unit tests only
 pytest -m integration            # Integration tests only
 pytest -k "test_name"           # Single test
-pytest tests/test_file.py       # Single file
-pytest -vv                      # Verbose output
 
 # Database operations (DEVELOPMENT MODE)
-python scripts/prep_db.py int   # Reset INT database with migrations + seed
-python scripts/prep_db.py stg   # Reset STG database with migrations + seed
-# DO NOT use: alembic revision -m "message" (modify existing files instead)
+python scripts/prep_db.py int   # Reset INT database
+python scripts/prep_db.py stg   # Reset STG database
 
 # Code quality
 black .                         # Format Python code
@@ -874,7 +521,7 @@ npm run lint                    # Run ESLint
 
 ### Redis & Celery Management
 ```bash
-docker-compose up -d            # Start Redis (replaced DragonflyDB)
+docker-compose up -d            # Start Redis
 docker-compose down             # Stop services
 
 # Local Celery commands
@@ -885,135 +532,43 @@ celery -A app.tasks.celery_app flower  # Monitoring UI
 
 ## High-Level Architecture
 
-### Backend Architecture
+### Backend Architecture (FastAPI)
+1. **Routes Layer**: FastAPI endpoints handling HTTP requests
+2. **Services Layer**: Business logic with dependency injection
+3. **Repositories Layer**: Data access abstraction with SQLAlchemy
+4. **Models Layer**: Database schema definitions
+5. **Schemas Layer**: Pydantic models for validation
 
-The backend follows a layered architecture pattern:
+### Frontend Architecture (Next.js 15)
+- **App Directory**: Page routing and layouts
+- **Components**: Reusable UI components
+- **Hooks**: Custom React hooks for shared logic
+- **Lib**: API client and utilities
+- **Types**: TypeScript interfaces matching backend schemas
 
-1. **Routes Layer** (`app/routes/`): FastAPI endpoints that handle HTTP requests
-   - Each router handles a specific domain (auth, users, availability, etc.)
-   - Routes delegate business logic to services
+### Key Patterns
+1. **Dependency Injection**: Services injected via FastAPI's system
+2. **Caching**: Single Redis instance for all needs
+3. **Authentication**: JWT-based with RBAC permissions
+4. **Error Handling**: Consistent responses with custom exceptions
+5. **API Standards**: ALL endpoints use Pydantic response models
+6. **Testing**: UUID-based unique data prevents conflicts
 
-2. **Services Layer** (`app/services/`): Business logic and orchestration
-   - Services use dependency injection pattern
-   - Examples: AuthService, EmailService, AvailabilityService
-   - Services coordinate between repositories and external systems
-
-3. **Repositories Layer** (`app/repositories/`): Data access abstraction
-   - All database queries are encapsulated here
-   - Uses SQLAlchemy ORM with async support
-   - Implements caching strategies with DragonflyDB
-
-4. **Models Layer** (`app/models/`): Database schema definitions
-   - SQLAlchemy models with proper relationships
-   - Key models: User, Instructor, Student, AvailabilityWindow, Booking
-
-5. **Schemas Layer** (`app/schemas/`): Request/response validation
-   - Pydantic models for API contracts
-   - Separate schemas for creation, update, and response
-
-### Frontend Architecture
-
-The frontend uses Next.js 15 App Router with:
-
-1. **App Directory**: Page routing and layouts
-2. **Components**: Reusable UI components
-3. **Hooks**: Custom React hooks for shared logic
-4. **Lib**: API client and utilities
-5. **Types**: TypeScript interfaces matching backend schemas
-
-### Key Patterns and Practices
-
-1. **Dependency Injection**: Services are injected via FastAPI's dependency system
-   ```python
-   def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
-       return AuthService(db, email_service, token_service)
-   ```
-
-2. **Caching & Infrastructure**:
-   - Single Redis instance (Render $7/month) for all needs:
-     - Application caching
-     - Celery message broker
-     - Session storage
-   - Optimized Celery config reduces operations by 89%
-   - Redis monitoring available at `/api/redis/*` endpoints
-
-3. **Authentication & Authorization**:
-   - JWT-based authentication with refresh tokens
-   - **RBAC System**: Full permission-based access control
-     - Use `require_permission(PermissionName.PERMISSION)` NOT role checks
-     - Permissions are defined in `app/core/enums.py`
-     - Example: `Depends(require_permission(PermissionName.ACCESS_MONITORING))`
-   - Roles: admin, instructor, student, guest
-   - Each role has specific permissions assigned
-
-4. **Error Handling**: Consistent error responses
-   - Custom exception classes
-   - Proper HTTP status codes
-
-5. **API Standards & Contract Testing**:
-   - **ALL endpoints MUST use Pydantic response models** - No raw dict returns
-   - **Consistent response format** across all endpoints
-   - **Automated contract testing** prevents regression
-   - **CI/CD integration** blocks PRs with violations
-   - Response models defined in `app/schemas/*_responses.py`
-   - Use `response_model=ModelName` on ALL route decorators
-   - **See**: `docs/api/api-standards-guide.md` for complete implementation guide
-
-6. **Testing Approach**:
-   - Separate test database with safety checks
-   - Fixtures for common test data
-   - Async test support with pytest-asyncio
-   - **API contract tests** ensure response model compliance
-   - **Test Isolation**: Use UUID-based unique data generation to prevent test conflicts
-     - Import from `tests.fixtures.unique_test_data` for unique emails, names, etc.
-     - Example: `unique_data.unique_email("instructor")` → `instructor.abc123@example.com`
-     - This prevents test failures when running tests together locally
-     - See `tests/fixtures/unique_test_data.py` for available generators
-
-## Important Configuration
+## Configuration
 
 ### Environment Variables
 - Backend: Copy `.env.example` to `.env`
 - Frontend: Copy `.env.local.example` to `.env.local`
 - Never commit `.env` files
 
-### Database Safety
-- Test database includes safety suffix to prevent accidental production data deletion
-- Migrations are versioned with Alembic
-- Always review migrations before applying
-
 ### API Integration
 - Frontend API client at `frontend/lib/api.ts`
 - Backend API docs available at `/docs` when running
 - CORS configured for local development
 
-## Key Documentation
-
-### New Developer Onboarding
-- **`docs/architecture/new-developer-guide.md`** - **COMPLETE architecture guide for new developers**
-- **`docs/architecture/quick-reference.md`** - **Essential patterns and commands**
-
-### Project Overview & State
-- `docs/project-overview/01_core_project_info.md` - Mission, team structure, priorities
-- `docs/architecture/02_architecture_state.md` - Current architecture
-- `docs/project-status/03_work-streams-status.md` - Active work status
-- `docs/project-status/04_system-capabilities.md` - What's working/broken
-
-### Current Priority Work
-- `docs/project-status/Frontend Technical Debt Cleanup Checklist - Work Stream #13.md` - Critical blocker
-- `docs/project-status/work-streams/Work Stream #10 - Two-Table Availability Design Removal.md` - Backend complete, frontend needs update
-
-### Architecture References
-- `docs/architecture/06_repository_pattern_architecture.md` - Repository implementation guide
-- `docs/architecture/architecture-decisions.md` - All architectural decisions
-
-When working on any feature, check these docs first for context and current state.
-
 ## Frontend Logging Standards
 
-### CRITICAL: Use Proper Logging, NOT console.log
-
-**Frontend code MUST use the centralized logger, NOT console.log**:
+**CRITICAL: Use Proper Logging, NOT console.log**
 
 ```typescript
 // ❌ WRONG - Never use console.log
@@ -1026,20 +581,6 @@ logger.info('Info message');
 logger.warn('Warning message');
 logger.error('Error message', error);
 ```
-
-**Why this matters**:
-- Production builds strip debug logs automatically
-- Centralized control via localStorage ('log-level')
-- Structured logging with context
-- Performance optimized
-- Consistent formatting
-
-**Logger features**:
-- `logger.debug()` - Development only, stripped in production
-- `logger.info()` - General information
-- `logger.warn()` - Warnings that should be addressed
-- `logger.error()` - Errors that need immediate attention
-- Second parameter accepts context object for additional data
 
 **Setting log level**:
 ```javascript
@@ -1055,19 +596,25 @@ localStorage.setItem('log-level', 'debug'); // or 'info', 'warn', 'error'
 3. Add repository methods in `backend/app/repositories/`
 4. Implement service logic in `backend/app/services/`
 5. Create API routes in `backend/app/routes/`
-6. Generate migration: `alembic revision -m "description"`
-7. Add tests in `backend/tests/`
-8. Update frontend types and API client
-9. Implement UI components
+6. Add tests in `backend/tests/`
+7. Update frontend types and API client
+8. Implement UI components
 
 ### Performance Optimization
-- Use the monitoring middleware data at `/metrics/performance`
+- Use monitoring middleware data at `/metrics/performance`
 - Profile slow queries with SQLAlchemy logging
 - Leverage caching for read-heavy operations
-- Use database indexes (already configured for common queries)
+- Database indexes already configured
 
 ### Debugging
 - Backend logs are comprehensive with proper formatting
-- Frontend console logs should be removed before committing
 - Use pytest's `-vv` flag for detailed test output
 - Check `/health` endpoint for system status
+
+## Team Structure
+- **X-Team**: Technical implementation (you are part of this)
+- **A-Team**: UX/Design decisions (separate team, we await their input)
+
+When working on any feature, ALWAYS check the documentation first for context and current state.
+
+Remember: We're building for MEGAWATTS! Quality over speed. Launch when AMAZING.

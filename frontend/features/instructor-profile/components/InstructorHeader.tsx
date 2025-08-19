@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Star, CheckCircle, Dumbbell, Music, Guitar, Heart } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +16,7 @@ interface InstructorHeaderProps {
 export function InstructorHeader({ instructor }: InstructorHeaderProps) {
   const router = useRouter();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [isSaved, setIsSaved] = useState(instructor.is_favorited || false);
   const [favoriteCount, setFavoriteCount] = useState(instructor.favorited_count || 0);
   const [isLoading, setIsLoading] = useState(false);
@@ -103,6 +105,8 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
         await favoritesApi.add(instructor.user_id);
         toast.success('Added to favorites!');
       }
+      // Invalidate favorites list so dashboard tab reflects updates immediately
+      queryClient.invalidateQueries({ queryKey: ['favorites'] });
     } catch (error) {
       // Revert on error
       setIsSaved(isSaved);

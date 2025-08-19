@@ -5,7 +5,7 @@ import { BRAND } from '@/app/config/brand';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { LogOut, Heart, User, CreditCard, Bell, Eye, EyeOff } from 'lucide-react';
+import { LogOut, Heart, User, CreditCard, Bell, Eye, EyeOff, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { queryFn } from '@/lib/react-query/api';
@@ -15,6 +15,8 @@ import { RoleName } from '@/types/enums';
 import { getUserFullName, getUserInitials } from '@/types/user';
 import { fetchAPI, fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { toast } from 'sonner';
+import { favoritesApi } from '@/services/api/favorites';
+import type { FavoritedInstructor } from '@/types/instructor';
 
 /**
  * StudentDashboard Component
@@ -81,6 +83,21 @@ function StudentDashboardContent() {
   });
 
   const isLoading = isLoadingUser;
+
+  // Favorites data (loaded lazily when the tab is active)
+  const {
+    data: favoritesData,
+    isLoading: isLoadingFavorites,
+    error: favoritesError,
+    refetch: refetchFavorites,
+  } = useQuery<{ favorites: FavoritedInstructor[]; total: number }>({
+    queryKey: ['favorites'],
+    queryFn: favoritesApi.list,
+    enabled: activeTab === 'favorites',
+    // Always refetch when navigating to the tab to avoid stale cache view
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+  });
 
   // Sync active tab with URL (?tab=...)
   useEffect(() => {
@@ -264,7 +281,7 @@ function StudentDashboardContent() {
                       router.replace(`${pathname}?${params.toString()}`);
                     }}
                     className={
-                      `w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium mb-1 transition-colors ` +
+                      `w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium mb-1 transition-colors cursor-pointer ` +
                       (isActive
                         ? 'bg-indigo-50 text-indigo-700'
                         : 'text-gray-700 hover:bg-gray-50')
@@ -329,7 +346,7 @@ function StudentDashboardContent() {
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-lg font-semibold text-gray-900">Addresses</h3>
                       <button
-                        className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+                        className="text-sm font-medium text-indigo-600 hover:text-indigo-700 cursor-pointer"
                         onClick={() => setShowAddressModal({ mode: 'create' })}
                       >
                         + Add
@@ -403,13 +420,13 @@ function StudentDashboardContent() {
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Security</h3>
                     <div className="flex flex-wrap gap-3">
                       <button
-                        className="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200"
+                        className="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200 cursor-pointer"
                         onClick={() => setShowChangePassword(true)}
                       >
                         Change Password
                       </button>
                       <button
-                        className="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200"
+                        className="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-200 cursor-pointer"
                         onClick={() => setShowTfaModal(true)}
                       >
                         {tfaStatus?.enabled ? 'Manage Two-Factor Authentication' : 'Enable Two-Factor Authentication'}
@@ -437,7 +454,7 @@ function StudentDashboardContent() {
                         value={referralEmails}
                       />
                       <button
-                        className="h-10 min-w-[120px] inline-flex items-center justify-center rounded-md bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-700"
+                        className="h-10 min-w-[120px] inline-flex items-center justify-center rounded-md bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-700 cursor-pointer"
                         onClick={async () => {
                           const emails = referralEmails
                             .split(/[\s,;]+/)
@@ -482,7 +499,7 @@ function StudentDashboardContent() {
                         value={`https://instainstru.com/ref/${(userData?.first_name || 'USER').toUpperCase().slice(0, 3)}${(userData?.id || '').slice(-3)}`}
                       />
                       <button
-                        className="h-10 min-w-[120px] inline-flex items-center justify-center rounded-md bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-700"
+                        className="h-10 min-w-[120px] inline-flex items-center justify-center rounded-md bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-700 cursor-pointer"
                         onClick={() => {
                           const link = `https://instainstru.com/ref/${(userData?.first_name || 'USER').toUpperCase().slice(0, 3)}${(userData?.id || '').slice(-3)}`;
                           navigator.clipboard.writeText(link);
@@ -503,7 +520,7 @@ function StudentDashboardContent() {
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Account Management</h3>
                     <div className="flex flex-wrap gap-3">
                       <button
-                        className="rounded-md border border-red-300 text-red-700 px-4 py-2 text-sm font-medium hover:bg-red-50"
+                        className="rounded-md border border-red-300 text-red-700 px-4 py-2 text-sm font-medium hover:bg-red-50 cursor-pointer"
                         onClick={() => setShowDelete(true)}
                       >
                         Delete Account
@@ -513,7 +530,90 @@ function StudentDashboardContent() {
                 </div>
               )}
 
-              {activeTab !== 'profile' && (
+              {activeTab === 'favorites' && (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600">Quickly access your favorite subjects and instructors</p>
+
+                  {isLoadingFavorites && (
+                    <div className="rounded-md border p-4 text-sm text-gray-600">Loading favorites…</div>
+                  )}
+
+                  {!isLoadingFavorites && favoritesError && (
+                    <div className="rounded-md border p-4 text-sm text-red-600">Failed to load favorites.</div>
+                  )}
+
+                  {!isLoadingFavorites && !favoritesError && (favoritesData?.favorites?.length || 0) === 0 && (
+                    <div className="rounded-md border p-6 text-sm text-gray-700 flex items-center justify-between">
+                      <div>No favorite instructors yet.</div>
+                      <Link href="/" className="rounded-md bg-indigo-600 px-4 py-2 text-white text-sm hover:bg-indigo-700">Find More Instructors</Link>
+                    </div>
+                  )}
+
+                  {!isLoadingFavorites && !favoritesError && (favoritesData?.favorites?.length || 0) > 0 && (
+                    <div className="grid grid-cols-1 gap-4">
+                      {favoritesData!.favorites.map((fav) => {
+                        const name = fav.profile?.user
+                          ? `${fav.profile.user.first_name} ${fav.profile.user.last_initial ? fav.profile.user.last_initial + '.' : ''}`
+                          : `${fav.first_name}${fav.last_name ? ' ' + fav.last_name.charAt(0) + '.' : ''}`;
+                        const services = fav.profile?.services || [];
+                        const uniqueServices = Array.from(new Set(services.map(s => (s.skill || '').split(' - ')[0]).filter(Boolean)));
+                        const primaryRate = services?.[0]?.hourly_rate;
+                        const primarySubject = uniqueServices[0] || null;
+                        const primaryArea = fav.profile?.areas_of_service?.[0] || null;
+                        const yearsExp = fav.profile?.years_experience || null;
+
+                        return (
+                          <div
+                            key={fav.id}
+                            className="relative rounded-md border p-4 pr-10 hover:bg-gray-50 transition-colors cursor-pointer"
+                            onClick={() => router.push(`/instructors/${fav.id}`)}
+                          >
+                            <div className="flex items-start gap-4">
+                              <div className="h-12 w-12 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-lg font-bold shrink-0">👤</div>
+                              <div>
+                                <p className="font-semibold text-gray-900">{name}</p>
+                                {(primarySubject || yearsExp) && (
+                                  <p className="mt-1 text-xs text-gray-700">
+                                    {primarySubject ? <span>{primarySubject}</span> : null}
+                                    {primarySubject && yearsExp ? <span> · </span> : null}
+                                    {yearsExp ? <span>{yearsExp} yrs experience</span> : null}
+                                  </p>
+                                )}
+                                {(primaryArea || typeof primaryRate === 'number') && (
+                                  <p className="mt-1 text-xs text-gray-600">
+                                    {primaryArea ? <span>{primaryArea}</span> : null}
+                                    {primaryArea && typeof primaryRate === 'number' ? <span> · </span> : null}
+                                    {typeof primaryRate === 'number' ? <span>${'{'}primaryRate{'}'}/hour</span> : null}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <button
+                              className="absolute top-2 right-2 p-1 text-gray-500 hover:text-gray-700 cursor-pointer"
+                              aria-label="Remove favorite"
+                              title="Remove"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                try {
+                                  await favoritesApi.remove(fav.id);
+                                  toast.success('Removed from favorites');
+                                  await refetchFavorites();
+                                } catch (e) {
+                                  toast.error('Failed to update favorite');
+                                }
+                              }}
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab !== 'profile' && activeTab !== 'favorites' && (
                 <div className="text-sm text-gray-600">
                   <p>Settings for <span className="font-medium">{tabs.find(t => t.key === activeTab)?.label}</span> will appear here.</p>
                 </div>
