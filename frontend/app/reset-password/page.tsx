@@ -95,7 +95,7 @@ function ResetPasswordForm() {
 
     try {
       logger.time('tokenVerification');
-      const response = await fetchAPI(`/auth/password-reset/verify/${token}`);
+      const response = await fetchAPI(`/api/auth/password-reset/verify/${token}`);
       const data: TokenValidationResponse = await response.json();
       logger.timeEnd('tokenVerification');
 
@@ -186,7 +186,7 @@ function ResetPasswordForm() {
         password_confirm: confirmPassword,
       };
 
-      const response = await fetchAPI('/auth/password-reset/confirm', {
+      const response = await fetchAPI('/api/auth/password-reset/confirm', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

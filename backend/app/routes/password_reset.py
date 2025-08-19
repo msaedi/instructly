@@ -29,7 +29,7 @@ from ..services.password_reset_service import PasswordResetService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/auth/password-reset", tags=["password-reset"])
+router = APIRouter(prefix="/api/auth/password-reset", tags=["password-reset"])
 
 
 @router.post("/request", response_model=PasswordResetResponse)
@@ -67,7 +67,7 @@ async def request_password_reset(
     Raises:
         HTTPException: If rate limit exceeded
     """
-    await password_reset_service.request_password_reset(email=reset_request.email)
+    password_reset_service.request_password_reset(email=reset_request.email)
 
     # Always return success to prevent email enumeration
     return PasswordResetResponse(
@@ -102,7 +102,7 @@ async def confirm_password_reset(
         HTTPException: If token is invalid, expired, already used, or rate limit exceeded
     """
     try:
-        await password_reset_service.confirm_password_reset(
+        password_reset_service.confirm_password_reset(
             token=confirm_request.token,
             new_password=confirm_request.new_password,
         )

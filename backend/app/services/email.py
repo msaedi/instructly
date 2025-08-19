@@ -134,12 +134,15 @@ class EmailService(BaseService):
             return response
 
         except Exception as e:
-            self.logger.error(f"Failed to send email to {to_email}: {str(e)}")
-            self.log_operation("email_failed", to_email=to_email, subject=subject, error=str(e))
-            raise ServiceException(f"Email sending failed: {str(e)}")
+            error_msg = str(e) if e else "Unknown error"
+            self.logger.error(f"Failed to send email to {to_email}: {error_msg}")
+            self.logger.error(f"Exception type: {type(e).__name__}")
+            self.logger.error(f"Exception details: {repr(e)}")
+            self.log_operation("email_failed", to_email=to_email, subject=subject, error=error_msg)
+            raise ServiceException(f"Email sending failed: {error_msg}")
 
     @BaseService.measure_operation("send_password_reset_email")
-    async def send_password_reset_email(self, to_email: str, reset_url: str, user_name: Optional[str] = None) -> bool:
+    def send_password_reset_email(self, to_email: str, reset_url: str, user_name: Optional[str] = None) -> bool:
         """
         Send password reset email.
 
@@ -177,7 +180,7 @@ class EmailService(BaseService):
             return False
 
     @BaseService.measure_operation("send_password_reset_confirmation")
-    async def send_password_reset_confirmation(self, to_email: str, user_name: Optional[str] = None) -> bool:
+    def send_password_reset_confirmation(self, to_email: str, user_name: Optional[str] = None) -> bool:
         """
         Send confirmation email after successful password reset.
 

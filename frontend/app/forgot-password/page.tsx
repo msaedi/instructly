@@ -93,7 +93,7 @@ export default function ForgotPasswordPage() {
         email: trimmedEmail,
       };
 
-      const response = await fetchAPI('/auth/password-reset/request', {
+      const response = await fetchAPI('/api/auth/password-reset/request', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

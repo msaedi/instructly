@@ -126,7 +126,7 @@ class Settings(BaseSettings):
 
     rate_limit_auth_per_minute: int = Field(default=5, description="Authentication attempts per minute per IP")
 
-    rate_limit_password_reset_per_hour: int = Field(default=3, description="Password reset requests per hour per email")
+    rate_limit_password_reset_per_hour: int = Field(default=5, description="Password reset requests per hour per email")
 
     rate_limit_password_reset_ip_per_hour: int = Field(
         default=10, description="Password reset requests per hour per IP"

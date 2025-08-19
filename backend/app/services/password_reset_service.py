@@ -54,7 +54,7 @@ class PasswordResetService(BaseService):
         self.token_repository = token_repository or RepositoryFactory.create_base_repository(db, PasswordResetToken)
 
     @BaseService.measure_operation("request_password_reset")
-    async def request_password_reset(self, email: str) -> bool:
+    def request_password_reset(self, email: str) -> bool:
         """
         Request a password reset for the given email.
 
@@ -83,8 +83,8 @@ class PasswordResetService(BaseService):
                     # Create reset URL
                     reset_url = f"{settings.frontend_url}/reset-password?token={token}"
 
-                    # Send email asynchronously
-                    await self.email_service.send_password_reset_email(
+                    # Send email
+                    self.email_service.send_password_reset_email(
                         to_email=user.email,
                         reset_url=reset_url,
                         user_name=user.first_name,
@@ -141,7 +141,7 @@ class PasswordResetService(BaseService):
         return (True, masked_email)
 
     @BaseService.measure_operation("confirm_password_reset")
-    async def confirm_password_reset(self, token: str, new_password: str) -> bool:
+    def confirm_password_reset(self, token: str, new_password: str) -> bool:
         """
         Complete password reset with token and new password.
 
@@ -189,7 +189,7 @@ class PasswordResetService(BaseService):
                 self.token_repository.update(reset_token.id, used=True)
 
                 # Send confirmation email
-                await self.email_service.send_password_reset_confirmation(
+                self.email_service.send_password_reset_confirmation(
                     to_email=user.email,
                     user_name=user.first_name,
                 )
