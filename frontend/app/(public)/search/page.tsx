@@ -43,6 +43,9 @@ function SearchPageContent() {
   const showCoverage = true;
   const [coverageGeoJSON, setCoverageGeoJSON] = useState<any | null>(null);
   const [showScrollIndicator, setShowScrollIndicator] = useState(true);
+  const [mapBounds, setMapBounds] = useState<any>(null);
+  const [showSearchAreaButton, setShowSearchAreaButton] = useState(false);
+  const [filteredInstructors, setFilteredInstructors] = useState<Instructor[]>([]);
 
   const RateLimitBanner = () =>
     rateLimit ? (
@@ -172,6 +175,11 @@ function SearchPageContent() {
     fetchResults(1, false);
   }, [query, category, serviceCatalogId, availableNow, fetchResults]);
 
+  // Initialize filtered instructors when instructors change
+  useEffect(() => {
+    setFilteredInstructors(instructors);
+  }, [instructors]);
+
   useEffect(() => {
     const fetchCoverage = async () => {
       try {
@@ -195,6 +203,89 @@ function SearchPageContent() {
     };
     fetchCoverage();
   }, [instructors]);
+
+  // Initialize filtered instructors when instructors change
+  useEffect(() => {
+    setFilteredInstructors(instructors);
+  }, [instructors]);
+
+  // Handle map bounds change
+  const handleMapBoundsChange = useCallback((bounds: any) => {
+    if (!bounds || !coverageGeoJSON) return;
+
+    // Check if any instructors are outside the current bounds
+    const instructorsInBounds = instructors.filter((instructor) => {
+      // Check if this instructor has any coverage in the current bounds
+      const instructorFeatures = coverageGeoJSON.features.filter((feature: any) => {
+        const instructorsList = feature.properties?.instructors || [];
+        return instructorsList.includes(instructor.user_id);
+      });
+
+      // Check if any of the instructor's features intersect with the map bounds
+      for (const feature of instructorFeatures) {
+        if (feature.geometry && feature.geometry.type === 'MultiPolygon') {
+          // Simple bounds check - if any part of the polygon is in view
+          for (const polygon of feature.geometry.coordinates) {
+            for (const ring of polygon) {
+              for (const coord of ring) {
+                const lat = coord[1];
+                const lng = coord[0];
+                if (bounds.contains([lat, lng])) {
+                  return true; // Instructor has coverage in view
+                }
+              }
+            }
+          }
+        }
+      }
+      return false;
+    });
+
+    // Show button if:
+    // 1. Some instructors would be filtered out (zoomed in)
+    // 2. OR we're currently showing a filtered view and more instructors could be shown (zoomed out)
+    const hasFilteredInstructors = instructorsInBounds.length < instructors.length;
+    const isShowingFilteredView = filteredInstructors.length < instructors.length;
+    const wouldShowDifferentResults = instructorsInBounds.length !== filteredInstructors.length;
+
+    setShowSearchAreaButton(hasFilteredInstructors || (isShowingFilteredView && wouldShowDifferentResults));
+    setMapBounds(bounds);
+  }, [instructors, filteredInstructors, coverageGeoJSON]);
+
+  // Handle search area button click
+  const handleSearchArea = useCallback(() => {
+    if (!mapBounds || !coverageGeoJSON) return;
+
+    // Filter instructors based on current map bounds
+    const instructorsInBounds = instructors.filter((instructor) => {
+      const instructorFeatures = coverageGeoJSON.features.filter((feature: any) => {
+        const instructorsList = feature.properties?.instructors || [];
+        return instructorsList.includes(instructor.user_id);
+      });
+
+      for (const feature of instructorFeatures) {
+        if (feature.geometry && feature.geometry.type === 'MultiPolygon') {
+          for (const polygon of feature.geometry.coordinates) {
+            for (const ring of polygon) {
+              for (const coord of ring) {
+                const lat = coord[1];
+                const lng = coord[0];
+                if (mapBounds.contains([lat, lng])) {
+                  return true;
+                }
+              }
+            }
+          }
+        }
+      }
+      return false;
+    });
+
+    setFilteredInstructors(instructorsInBounds);
+    setShowSearchAreaButton(false);
+    // Clear focused instructor after filtering
+    setFocusedInstructorId(null);
+  }, [instructors, mapBounds, coverageGeoJSON]);
 
   // Track stacked layout (below xl) and compute available height so the page itself doesn't scroll
   useEffect(() => {
@@ -409,7 +500,7 @@ function SearchPageContent() {
                 <p className="text-red-600">{error}</p>
                 <Link href="/" className="text-purple-700 hover:underline mt-4 inline-block">Return to Home</Link>
               </div>
-            ) : instructors.length === 0 ? (
+            ) : filteredInstructors.length === 0 ? (
               <div className="text-center py-12" data-testid="no-results">
                 <p className="text-gray-600 text-lg mb-4">No instructors found matching your search.</p>
                 <Link href="/" className="text-purple-700 hover:underline">Try a different search</Link>
@@ -417,7 +508,7 @@ function SearchPageContent() {
             ) : (
               <>
                 <div className={`flex flex-col ${isStacked ? 'gap-20' : 'gap-4 md:gap-6'}`}>
-                  {instructors.map((instructor) => {
+                  {filteredInstructors.map((instructor) => {
                     const enhancedInstructor = {
                       ...instructor,
                       rating: instructor.rating || 4.8,
@@ -469,14 +560,18 @@ function SearchPageContent() {
                   </div>
                 )}
 
-                {!hasMore && instructors.length > 0 && (
-                  <div className="mt-4 md:mt-8 text-center text-gray-600 py-4">You've reached the end of {total} results</div>
+                {filteredInstructors.length > 0 && (
+                  <div className="mt-4 md:mt-8 text-center text-gray-600 py-4">
+                    {filteredInstructors.length === 1
+                      ? "1 instructor found in this area"
+                      : `Showing ${filteredInstructors.length} instructors in this area`}
+                  </div>
                 )}
               </>
             )}
             </div>
             {/* Scroll indicator positioned above the bottom of cards container */}
-            {isStacked && instructors.length > 1 && showScrollIndicator && (
+            {isStacked && filteredInstructors.length > 1 && showScrollIndicator && (
               <div className="absolute bottom-8 left-0 right-0 flex items-center justify-center pointer-events-none z-10">
                 <div className="bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-gray-200 shadow-sm">
                   <div className="flex items-center gap-2">
@@ -501,6 +596,9 @@ function SearchPageContent() {
                 showCoverage={true}
                 highlightInstructorId={hoveredInstructorId}
                 focusInstructorId={focusedInstructorId}
+                onBoundsChange={handleMapBoundsChange}
+                showSearchAreaButton={showSearchAreaButton}
+                onSearchArea={handleSearchArea}
               />
             </div>
           </div>

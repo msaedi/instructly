@@ -16,6 +16,9 @@ interface InstructorCoverageMapProps {
   showCoverage?: boolean;
   highlightInstructorId?: string | null;
   focusInstructorId?: string | null;
+  onBoundsChange?: (bounds: L.LatLngBounds) => void;
+  showSearchAreaButton?: boolean;
+  onSearchArea?: () => void;
 }
 
 function MapReadyHandler() {
@@ -32,6 +35,9 @@ export default function InstructorCoverageMap({
   showCoverage = true,
   highlightInstructorId = null,
   focusInstructorId = null,
+  onBoundsChange,
+  showSearchAreaButton = false,
+  onSearchArea,
 }: InstructorCoverageMapProps) {
   const [fc, setFc] = useState<FeatureCollection | null>(featureCollection || null);
 
@@ -132,6 +138,14 @@ export default function InstructorCoverageMap({
 
         {/* Place custom controls top-right so they're always visible in stacked view */}
         <CustomControls />
+
+        {/* Map bounds tracker */}
+        <MapBoundsTracker onBoundsChange={onBoundsChange} />
+
+        {/* Search this area button */}
+        {showSearchAreaButton && (
+          <SearchAreaButton onSearchArea={onSearchArea} />
+        )}
       </MapContainer>
     </div>
   );
@@ -139,10 +153,11 @@ export default function InstructorCoverageMap({
 
 function FitToCoverage({ featureCollection, focusInstructorId }: { featureCollection: FeatureCollection; focusInstructorId?: string | null }) {
   const map = useMap();
+  const [hasInitiallyFit, setHasInitiallyFit] = useState(false);
 
-  // Initial fit to all coverage
+  // Initial fit to all coverage (only once)
   useEffect(() => {
-    if (!focusInstructorId) {
+    if (!hasInitiallyFit && !focusInstructorId) {
       try {
         const layer = L.geoJSON(featureCollection as any);
         const bounds = layer.getBounds();
@@ -151,11 +166,12 @@ function FitToCoverage({ featureCollection, focusInstructorId }: { featureCollec
             paddingTopLeft: [20, 20],
             paddingBottomRight: [20, 60]
           });
+          setHasInitiallyFit(true);
         }
         layer.remove();
       } catch {}
     }
-  }, [featureCollection, map, focusInstructorId]);
+  }, [featureCollection, map, focusInstructorId, hasInitiallyFit]);
 
   // Focus on specific instructor's coverage when clicked
   useEffect(() => {
@@ -186,6 +202,90 @@ function FitToCoverage({ featureCollection, focusInstructorId }: { featureCollec
       } catch {}
     }
   }, [focusInstructorId, featureCollection, map]);
+
+  return null;
+}
+
+function MapBoundsTracker({ onBoundsChange }: { onBoundsChange?: (bounds: L.LatLngBounds) => void }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!onBoundsChange) return;
+
+    const handleMoveEnd = () => {
+      const bounds = map.getBounds();
+      onBoundsChange(bounds);
+    };
+
+    map.on('moveend', handleMoveEnd);
+    map.on('zoomend', handleMoveEnd);
+
+    return () => {
+      map.off('moveend', handleMoveEnd);
+      map.off('zoomend', handleMoveEnd);
+    };
+  }, [map, onBoundsChange]);
+
+  return null;
+}
+
+function SearchAreaButton({ onSearchArea }: { onSearchArea?: () => void }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!onSearchArea) return;
+
+    const control = new L.Control({ position: 'topleft' });
+    control.onAdd = () => {
+      const container = L.DomUtil.create('div');
+      container.style.marginTop = '10px';
+      container.style.marginLeft = '10px';
+
+      const button = document.createElement('button');
+      button.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+          <span>Search this area</span>
+        </div>
+      `;
+      button.style.cssText = `
+        background: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        color: #333;
+        transition: all 0.2s;
+      `;
+
+      button.onmouseover = () => {
+        button.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+      };
+      button.onmouseout = () => {
+        button.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+      };
+
+      button.onclick = (e) => {
+        e.preventDefault();
+        onSearchArea();
+      };
+
+      container.appendChild(button);
+      L.DomEvent.disableClickPropagation(container);
+      return container;
+    };
+
+    const ctl = (control as unknown as L.Control).addTo(map);
+    return () => {
+      ctl.remove();
+    };
+  }, [map, onSearchArea]);
 
   return null;
 }
