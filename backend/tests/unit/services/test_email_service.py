@@ -81,14 +81,14 @@ class TestEmailService:
                 )
 
     @patch("resend.Emails.send")
-    async def test_send_password_reset_email(self, mock_resend_send, db, mock_cache):
+    def test_send_password_reset_email(self, mock_resend_send, db, mock_cache):
         """Test password reset email sending."""
         mock_resend_send.return_value = {"id": "test-email-id", "status": "sent"}
 
         with patch("app.core.config.settings.resend_api_key", "test-api-key"):
             service = EmailService(db, mock_cache)
 
-            result = await service.send_password_reset_email(
+            result = service.send_password_reset_email(
                 to_email="test@example.com", reset_url="https://example.com/reset?token=abc123", user_name="Test User"
             )
 

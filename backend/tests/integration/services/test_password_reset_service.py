@@ -8,7 +8,7 @@ FIXED VERSION: Updated for EmailService dependency injection
 """
 
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 import pytest
 
@@ -24,8 +24,8 @@ from tests.fixtures.unique_test_data import unique_data
 def mock_email_service():
     """Mock email service for password reset tests."""
     mock = Mock(spec=EmailService)
-    mock.send_password_reset_email = AsyncMock(return_value=True)
-    mock.send_password_reset_confirmation = AsyncMock(return_value=True)
+    mock.send_password_reset_email = Mock(return_value=True)
+    mock.send_password_reset_confirmation = Mock(return_value=True)
     return mock
 
 
@@ -67,13 +67,10 @@ def unique_test_user(db, test_password):
 class TestPasswordResetService:
     """Test password reset service functionality with real database."""
 
-    @pytest.mark.asyncio
-    async def test_request_password_reset_valid_user(
-        self, password_reset_service, unique_test_user, mock_email_service
-    ):
+    def test_request_password_reset_valid_user(self, password_reset_service, unique_test_user, mock_email_service):
         """Test password reset request for valid user."""
         # Execute
-        result = await password_reset_service.request_password_reset(unique_test_user.email)
+        result = password_reset_service.request_password_reset(unique_test_user.email)
 
         # Verify
         assert result is True
@@ -85,18 +82,16 @@ class TestPasswordResetService:
         assert email_call.kwargs["user_name"] == unique_test_user.first_name
         assert "reset_url" in email_call.kwargs
 
-    @pytest.mark.asyncio
-    async def test_request_password_reset_nonexistent_user(self, password_reset_service, mock_email_service):
+    def test_request_password_reset_nonexistent_user(self, password_reset_service, mock_email_service):
         """Test password reset for non-existent user - should still return True."""
         # Execute
-        result = await password_reset_service.request_password_reset("nonexistent@example.com")
+        result = password_reset_service.request_password_reset("nonexistent@example.com")
 
         # Verify - returns True to prevent email enumeration
         assert result is True
         mock_email_service.send_password_reset_email.assert_not_called()
 
-    @pytest.mark.asyncio
-    async def test_request_password_reset_invalidates_existing_tokens(
+    def test_request_password_reset_invalidates_existing_tokens(
         self, password_reset_service, unique_test_user, db, mock_email_service
     ):
         """Test that existing tokens are invalidated when requesting new reset."""
@@ -112,7 +107,7 @@ class TestPasswordResetService:
         db.commit()
 
         # Execute
-        await password_reset_service.request_password_reset(unique_test_user.email)
+        password_reset_service.request_password_reset(unique_test_user.email)
 
         # Verify existing tokens were invalidated
         old_tokens = (
@@ -123,8 +118,7 @@ class TestPasswordResetService:
 
         assert all(token.used for token in old_tokens)
 
-    @pytest.mark.asyncio
-    async def test_request_password_reset_email_error_handled(
+    def test_request_password_reset_email_error_handled(
         self, password_reset_service, unique_test_user, mock_email_service
     ):
         """Test that email sending errors are handled gracefully."""
@@ -132,7 +126,7 @@ class TestPasswordResetService:
         mock_email_service.send_password_reset_email.side_effect = Exception("Email service down")
 
         # Execute
-        result = await password_reset_service.request_password_reset(unique_test_user.email)
+        result = password_reset_service.request_password_reset(unique_test_user.email)
 
         # Verify - still returns True
         assert result is True
@@ -242,10 +236,7 @@ class TestPasswordResetService:
             # Cleanup
             db.rollback()
 
-    @pytest.mark.asyncio
-    async def test_confirm_password_reset_success(
-        self, password_reset_service, unique_test_user, db, mock_email_service
-    ):
+    def test_confirm_password_reset_success(self, password_reset_service, unique_test_user, db, mock_email_service):
         """Test successful password reset confirmation."""
         # Create valid token
         future_time = datetime.now(timezone.utc) + timedelta(hours=1)
@@ -257,7 +248,7 @@ class TestPasswordResetService:
 
         # Execute
         new_password = "NewSecurePassword123!"
-        result = await password_reset_service.confirm_password_reset("valid_token_123", new_password)
+        result = password_reset_service.confirm_password_reset("valid_token_123", new_password)
 
         # Verify
         assert result is True
@@ -269,17 +260,15 @@ class TestPasswordResetService:
         # Check email was sent
         mock_email_service.send_password_reset_confirmation.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_confirm_password_reset_invalid_token(self, password_reset_service):
+    def test_confirm_password_reset_invalid_token(self, password_reset_service):
         """Test password reset with invalid token."""
         # Execute & Verify
         with pytest.raises(ValidationException) as exc_info:
-            await password_reset_service.confirm_password_reset("invalid_token", "NewPassword123!")
+            password_reset_service.confirm_password_reset("invalid_token", "NewPassword123!")
 
         assert "Invalid or expired reset token" in str(exc_info.value)
 
-    @pytest.mark.asyncio
-    async def test_confirm_password_reset_used_token(self, password_reset_service, unique_test_user, db):
+    def test_confirm_password_reset_used_token(self, password_reset_service, unique_test_user, db):
         """Test password reset with already used token."""
         # Create used token
         reset_token = PasswordResetToken(
@@ -293,12 +282,11 @@ class TestPasswordResetService:
 
         # Execute & Verify
         with pytest.raises(ValidationException) as exc_info:
-            await password_reset_service.confirm_password_reset("used_token", "NewPassword123!")
+            password_reset_service.confirm_password_reset("used_token", "NewPassword123!")
 
         assert "already been used" in str(exc_info.value)
 
-    @pytest.mark.asyncio
-    async def test_confirm_password_reset_expired_token(self, password_reset_service, unique_test_user, db):
+    def test_confirm_password_reset_expired_token(self, password_reset_service, unique_test_user, db):
         """Test password reset with expired token."""
         # Create expired token
         past_time = datetime.now(timezone.utc) - timedelta(hours=1)
@@ -310,7 +298,7 @@ class TestPasswordResetService:
 
         # Execute & Verify
         with pytest.raises(ValidationException) as exc_info:
-            await password_reset_service.confirm_password_reset("expired_token", "NewPassword123!")
+            password_reset_service.confirm_password_reset("expired_token", "NewPassword123!")
 
         assert "expired" in str(exc_info.value)
 
@@ -358,8 +346,7 @@ class TestPasswordResetService:
 class TestPasswordResetSecurityScenarios:
     """Test security-specific scenarios for password reset."""
 
-    @pytest.mark.asyncio
-    async def test_concurrent_reset_requests(self, password_reset_service, unique_test_user, db, mock_email_service):
+    def test_concurrent_reset_requests(self, password_reset_service, unique_test_user, db, mock_email_service):
         """Test handling of concurrent password reset requests."""
         # Create multiple existing tokens (simulating concurrent requests)
         for i in range(5):
@@ -373,7 +360,7 @@ class TestPasswordResetSecurityScenarios:
         db.commit()
 
         # Execute new request
-        await password_reset_service.request_password_reset(unique_test_user.email)
+        password_reset_service.request_password_reset(unique_test_user.email)
 
         # Verify all previous tokens are invalidated
         old_tokens = (
@@ -405,22 +392,21 @@ class TestPasswordResetSecurityScenarios:
 
         # Confirm also raises exception
         with pytest.raises(ValidationException) as exc_info:
-            await password_reset_service.confirm_password_reset("reuse_test_token", "NewPassword123!")
+            password_reset_service.confirm_password_reset("reuse_test_token", "NewPassword123!")
         assert "already been used" in str(exc_info.value)
 
-    @pytest.mark.asyncio
-    async def test_timing_attack_prevention(self, password_reset_service, unique_test_user, mock_email_service):
+    def test_timing_attack_prevention(self, password_reset_service, unique_test_user, mock_email_service):
         """Test that response time is consistent for existing and non-existing users."""
         import time
 
         # Test with existing user
         start = time.time()
-        result1 = await password_reset_service.request_password_reset(unique_test_user.email)
+        result1 = password_reset_service.request_password_reset(unique_test_user.email)
         time1 = time.time() - start
 
         # Test with non-existing user
         start = time.time()
-        result2 = await password_reset_service.request_password_reset("notexists@example.com")
+        result2 = password_reset_service.request_password_reset("notexists@example.com")
         time2 = time.time() - start
 
         # Both should return True

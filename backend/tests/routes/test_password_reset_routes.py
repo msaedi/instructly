@@ -5,7 +5,7 @@ Tests all endpoints and error scenarios.
 FIXED: Using proper dependency injection pattern with EmailService
 """
 
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
 import pytest
 from fastapi import status
@@ -25,8 +25,8 @@ class TestPasswordResetRoutes:
     def mock_email_service(self):
         """Create mock email service."""
         mock = Mock(spec=EmailService)
-        mock.send_password_reset_email = AsyncMock(return_value=True)
-        mock.send_password_reset_confirmation = AsyncMock(return_value=True)
+        mock.send_password_reset_email = Mock(return_value=True)
+        mock.send_password_reset_confirmation = Mock(return_value=True)
         return mock
 
     @pytest.fixture
@@ -35,9 +35,9 @@ class TestPasswordResetRoutes:
         # Create real service with mocked email service
         service = PasswordResetService(db, email_service=mock_email_service)
 
-        # Mock the public methods
-        service.request_password_reset = AsyncMock(return_value=True)
-        service.confirm_password_reset = AsyncMock(return_value=True)
+        # Mock the public methods (now synchronous)
+        service.request_password_reset = Mock(return_value=True)
+        service.confirm_password_reset = Mock(return_value=True)
         service.verify_reset_token = Mock(return_value=(True, "te***@example.com"))
 
         return service
@@ -56,7 +56,7 @@ class TestPasswordResetRoutes:
     def test_request_password_reset_success(self, client_with_mock_service, mock_password_reset_service):
         """Test successful password reset request."""
         # Execute
-        response = client_with_mock_service.post("/auth/password-reset/request", json={"email": "test@example.com"})
+        response = client_with_mock_service.post("/api/auth/password-reset/request", json={"email": "test@example.com"})
 
         # Verify
         assert response.status_code == status.HTTP_200_OK
@@ -67,7 +67,7 @@ class TestPasswordResetRoutes:
     def test_request_password_reset_invalid_email(self, client):
         """Test password reset request with invalid email format."""
         # Execute
-        response = client.post("/auth/password-reset/request", json={"email": "invalid-email"})
+        response = client.post("/api/auth/password-reset/request", json={"email": "invalid-email"})
 
         # Verify
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -77,7 +77,7 @@ class TestPasswordResetRoutes:
     def test_request_password_reset_missing_email(self, client):
         """Test password reset request without email."""
         # Execute
-        response = client.post("/auth/password-reset/request", json={})
+        response = client.post("/api/auth/password-reset/request", json={})
 
         # Verify
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -86,7 +86,8 @@ class TestPasswordResetRoutes:
         """Test successful password reset confirmation."""
         # Execute
         response = client_with_mock_service.post(
-            "/auth/password-reset/confirm", json={"token": "valid_token_123", "new_password": "NewSecurePassword123!"}
+            "/api/auth/password-reset/confirm",
+            json={"token": "valid_token_123", "new_password": "NewSecurePassword123!"},
         )
 
         # Verify
@@ -100,13 +101,13 @@ class TestPasswordResetRoutes:
     def test_confirm_password_reset_invalid_token(self, client_with_mock_service, mock_password_reset_service):
         """Test password reset with invalid token."""
         # Set up the mock to raise ValidationException
-        mock_password_reset_service.confirm_password_reset = AsyncMock(
+        mock_password_reset_service.confirm_password_reset = Mock(
             side_effect=ValidationException("Invalid or expired reset token")
         )
 
         # Execute
         response = client_with_mock_service.post(
-            "/auth/password-reset/confirm", json={"token": "invalid_token", "new_password": "NewSecurePassword123!"}
+            "/api/auth/password-reset/confirm", json={"token": "invalid_token", "new_password": "NewSecurePassword123!"}
         )
 
         # Verify
@@ -117,7 +118,9 @@ class TestPasswordResetRoutes:
     def test_confirm_password_reset_weak_password(self, client):
         """Test password reset with weak password."""
         # Execute - password too short
-        response = client.post("/auth/password-reset/confirm", json={"token": "valid_token", "new_password": "weak"})
+        response = client.post(
+            "/api/auth/password-reset/confirm", json={"token": "valid_token", "new_password": "weak"}
+        )
 
         # Verify
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -126,7 +129,7 @@ class TestPasswordResetRoutes:
 
         # Execute - password without digit
         response = client.post(
-            "/auth/password-reset/confirm", json={"token": "valid_token", "new_password": "NoDigitsHere"}
+            "/api/auth/password-reset/confirm", json={"token": "valid_token", "new_password": "NoDigitsHere"}
         )
 
         # Verify
@@ -134,7 +137,7 @@ class TestPasswordResetRoutes:
 
         # Execute - password without uppercase
         response = client.post(
-            "/auth/password-reset/confirm", json={"token": "valid_token", "new_password": "nouppercase123"}
+            "/api/auth/password-reset/confirm", json={"token": "valid_token", "new_password": "nouppercase123"}
         )
 
         # Verify
@@ -143,13 +146,11 @@ class TestPasswordResetRoutes:
     def test_confirm_password_reset_server_error(self, client_with_mock_service, mock_password_reset_service):
         """Test password reset with unexpected server error."""
         # Set up mock to raise generic exception
-        mock_password_reset_service.confirm_password_reset = AsyncMock(
-            side_effect=Exception("Database connection failed")
-        )
+        mock_password_reset_service.confirm_password_reset = Mock(side_effect=Exception("Database connection failed"))
 
         # Execute
         response = client_with_mock_service.post(
-            "/auth/password-reset/confirm", json={"token": "valid_token", "new_password": "NewSecurePassword123!"}
+            "/api/auth/password-reset/confirm", json={"token": "valid_token", "new_password": "NewSecurePassword123!"}
         )
 
         # Verify
@@ -160,7 +161,7 @@ class TestPasswordResetRoutes:
     def test_verify_reset_token_valid(self, client_with_mock_service, mock_password_reset_service):
         """Test verification of valid reset token."""
         # Execute
-        response = client_with_mock_service.get("/auth/password-reset/verify/valid_token_123")
+        response = client_with_mock_service.get("/api/auth/password-reset/verify/valid_token_123")
 
         # Verify
         assert response.status_code == status.HTTP_200_OK
@@ -175,7 +176,7 @@ class TestPasswordResetRoutes:
         mock_password_reset_service.verify_reset_token = Mock(return_value=(False, None))
 
         # Execute
-        response = client_with_mock_service.get("/auth/password-reset/verify/invalid_token")
+        response = client_with_mock_service.get("/api/auth/password-reset/verify/invalid_token")
 
         # Verify
         assert response.status_code == status.HTTP_200_OK
@@ -189,7 +190,7 @@ class TestPasswordResetRoutes:
         token_with_special = "token_with-special.chars~123"
 
         # Execute
-        response = client_with_mock_service.get(f"/auth/password-reset/verify/{token_with_special}")
+        response = client_with_mock_service.get(f"/api/auth/password-reset/verify/{token_with_special}")
 
         # Verify
         assert response.status_code == status.HTTP_200_OK
@@ -201,7 +202,7 @@ class TestPasswordResetRoutes:
 
         # Execute multiple requests
         for _ in range(5):
-            response = client_with_mock_service.post("/auth/password-reset/request", json={"email": email})
+            response = client_with_mock_service.post("/api/auth/password-reset/request", json={"email": email})
             assert response.status_code == status.HTTP_200_OK
 
         # All requests should succeed
@@ -210,22 +211,22 @@ class TestPasswordResetRoutes:
     def test_confirm_password_reset_missing_fields(self, client):
         """Test confirmation with missing required fields."""
         # Missing token
-        response = client.post("/auth/password-reset/confirm", json={"new_password": "NewSecurePassword123!"})
+        response = client.post("/api/auth/password-reset/confirm", json={"new_password": "NewSecurePassword123!"})
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
         # Missing password
-        response = client.post("/auth/password-reset/confirm", json={"token": "valid_token"})
+        response = client.post("/api/auth/password-reset/confirm", json={"token": "valid_token"})
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
         # Empty payload
-        response = client.post("/auth/password-reset/confirm", json={})
+        response = client.post("/api/auth/password-reset/confirm", json={})
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_password_validation_edge_cases(self, client_with_mock_service, mock_password_reset_service):
         """Test edge cases in password validation."""
         # Test valid password (should pass validation and call service)
         response = client_with_mock_service.post(
-            "/auth/password-reset/confirm", json={"token": "valid_token", "new_password": "Valid1234"}
+            "/api/auth/password-reset/confirm", json={"token": "valid_token", "new_password": "Valid1234"}
         )
         # Should succeed with mocked service
         assert response.status_code == status.HTTP_200_OK
@@ -238,8 +239,8 @@ class TestPasswordResetIntegration:
     def mock_email_service(self):
         """Create mock email service for integration tests."""
         mock = Mock(spec=EmailService)
-        mock.send_password_reset_email = AsyncMock(return_value=True)
-        mock.send_password_reset_confirmation = AsyncMock(return_value=True)
+        mock.send_password_reset_email = Mock(return_value=True)
+        mock.send_password_reset_confirmation = Mock(return_value=True)
         return mock
 
     @pytest.mark.asyncio
@@ -254,7 +255,7 @@ class TestPasswordResetIntegration:
 
         try:
             # Step 1: Request password reset
-            response = client.post("/auth/password-reset/request", json={"email": test_student.email})
+            response = client.post("/api/auth/password-reset/request", json={"email": test_student.email})
             assert response.status_code == status.HTTP_200_OK
 
             # Step 2: Get the token from database
@@ -269,7 +270,7 @@ class TestPasswordResetIntegration:
             assert token_record.used is False
 
             # Step 3: Verify the token
-            response = client.get(f"/auth/password-reset/verify/{token_record.token}")
+            response = client.get(f"/api/auth/password-reset/verify/{token_record.token}")
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert data["valid"] is True
@@ -277,7 +278,7 @@ class TestPasswordResetIntegration:
             # Step 4: Reset password with the token
             new_password = "MyNewSecurePassword123!"
             response = client.post(
-                "/auth/password-reset/confirm", json={"token": token_record.token, "new_password": new_password}
+                "/api/auth/password-reset/confirm", json={"token": token_record.token, "new_password": new_password}
             )
             assert response.status_code == status.HTTP_200_OK
 
@@ -292,7 +293,7 @@ class TestPasswordResetIntegration:
 
             # Step 6: Verify old token cannot be reused
             response = client.post(
-                "/auth/password-reset/confirm",
+                "/api/auth/password-reset/confirm",
                 json={"token": token_record.token, "new_password": "AnotherPassword123!"},
             )
             assert response.status_code == status.HTTP_400_BAD_REQUEST
