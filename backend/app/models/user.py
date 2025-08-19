@@ -111,6 +111,10 @@ class User(Base):
     # Password reset relationships
     password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
 
+    # Payment relationships
+    stripe_customer = relationship("StripeCustomer", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    payment_methods = relationship("PaymentMethod", back_populates="user", cascade="all, delete-orphan")
+
     # Favorites relationships
     # Favorites where this user is the student (instructors they've favorited)
     student_favorites = relationship(

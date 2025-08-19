@@ -97,6 +97,14 @@ class InstructorProfile(Base):
         passive_deletes=True,  # Don't load services just to delete them
     )
 
+    # Payment relationship
+    stripe_connected_account = relationship(
+        "StripeConnectedAccount",
+        back_populates="instructor_profile",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
     def __init__(self, **kwargs):
         """Initialize instructor profile."""
         super().__init__(**kwargs)

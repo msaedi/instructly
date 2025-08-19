@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from .conflict_checker_repository import ConflictCheckerRepository
     from .instructor_profile_repository import InstructorProfileRepository
     from .message_repository import MessageRepository
+    from .payment_repository import PaymentRepository
     from .rbac_repository import RBACRepository
     from .search_event_repository import SearchEventRepository
     from .search_history_repository import SearchHistoryRepository
@@ -156,6 +157,21 @@ class RepositoryFactory:
         from .search_history_repository import SearchHistoryRepository
 
         return SearchHistoryRepository(db)
+
+    @staticmethod
+    def create_payment_repository(db: Session) -> "PaymentRepository":
+        """
+        Create repository for payment operations.
+
+        Handles Stripe payment integration including:
+        - Customer records
+        - Connected accounts
+        - Payment intents
+        - Payment methods
+        """
+        from .payment_repository import PaymentRepository
+
+        return PaymentRepository(db)
 
     @staticmethod
     def create_search_event_repository(db: Session) -> "SearchEventRepository":
