@@ -38,6 +38,7 @@ function SearchPageContent() {
   const listRef = useRef<HTMLDivElement | null>(null);
 
   const [hoveredInstructorId, setHoveredInstructorId] = useState<string | null>(null);
+  const [focusedInstructorId, setFocusedInstructorId] = useState<string | null>(null);
   // Always show coverage in all views
   const showCoverage = true;
   const [coverageGeoJSON, setCoverageGeoJSON] = useState<any | null>(null);
@@ -437,7 +438,8 @@ function SearchPageContent() {
                         key={instructor.id}
                         onMouseEnter={() => setHoveredInstructorId(instructor.user_id)}
                         onMouseLeave={() => setHoveredInstructorId(null)}
-                        className={`snap-center w-full ${isStacked ? 'h-full flex flex-col justify-center' : 'min-h-fit'}`}
+                        onClick={() => setFocusedInstructorId(instructor.user_id)}
+                        className={`snap-center w-full ${isStacked ? 'h-full flex flex-col justify-center' : 'min-h-fit'} cursor-pointer`}
                       >
                         <InstructorCard
                           instructor={enhancedInstructor}
@@ -493,7 +495,13 @@ function SearchPageContent() {
         <div className="w-full xl:w-1/3 block order-2 xl:order-2">
           <div className="px-6 xl:pl-0 xl:pr-6 pt-0 md:pt-2 pb-0 md:pb-0 h-full mt-0 xl:mt-0">
             <div className="bg-white/95 backdrop-blur-sm rounded-xl border border-gray-200 p-2 md:p-4 h-full">
-              <InstructorCoverageMap height="100%" featureCollection={coverageGeoJSON} showCoverage={true} highlightInstructorId={hoveredInstructorId} />
+              <InstructorCoverageMap
+                height="100%"
+                featureCollection={coverageGeoJSON}
+                showCoverage={true}
+                highlightInstructorId={hoveredInstructorId}
+                focusInstructorId={focusedInstructorId}
+              />
             </div>
           </div>
         </div>

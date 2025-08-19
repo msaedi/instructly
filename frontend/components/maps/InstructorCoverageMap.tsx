@@ -15,6 +15,7 @@ interface InstructorCoverageMapProps {
   height?: number | string;
   showCoverage?: boolean;
   highlightInstructorId?: string | null;
+  focusInstructorId?: string | null;
 }
 
 function MapReadyHandler() {
@@ -30,6 +31,7 @@ export default function InstructorCoverageMap({
   height = 420,
   showCoverage = true,
   highlightInstructorId = null,
+  focusInstructorId = null,
 }: InstructorCoverageMapProps) {
   const [fc, setFc] = useState<FeatureCollection | null>(featureCollection || null);
 
@@ -123,9 +125,9 @@ export default function InstructorCoverageMap({
           />
         ) : null}
 
-        {/* Fit map to coverage on data change */}
+        {/* Fit map to coverage on data change or when focusing on instructor */}
         {showCoverage && fc && fc.features?.length ? (
-          <FitToCoverage featureCollection={fc} />
+          <FitToCoverage featureCollection={fc} focusInstructorId={focusInstructorId} />
         ) : null}
 
         {/* Place custom controls top-right so they're always visible in stacked view */}
@@ -135,23 +137,56 @@ export default function InstructorCoverageMap({
   );
 }
 
-function FitToCoverage({ featureCollection }: { featureCollection: FeatureCollection }) {
+function FitToCoverage({ featureCollection, focusInstructorId }: { featureCollection: FeatureCollection; focusInstructorId?: string | null }) {
   const map = useMap();
+
+  // Initial fit to all coverage
   useEffect(() => {
-    try {
-      const layer = L.geoJSON(featureCollection as any);
-      const bounds = layer.getBounds();
-      if (bounds.isValid()) {
-        // Add padding: [top, right, bottom, left] in pixels
-        // More padding at bottom to account for controls
-        map.fitBounds(bounds, {
-          paddingTopLeft: [20, 20],
-          paddingBottomRight: [20, 60]
+    if (!focusInstructorId) {
+      try {
+        const layer = L.geoJSON(featureCollection as any);
+        const bounds = layer.getBounds();
+        if (bounds.isValid()) {
+          map.fitBounds(bounds, {
+            paddingTopLeft: [20, 20],
+            paddingBottomRight: [20, 60]
+          });
+        }
+        layer.remove();
+      } catch {}
+    }
+  }, [featureCollection, map, focusInstructorId]);
+
+  // Focus on specific instructor's coverage when clicked
+  useEffect(() => {
+    if (focusInstructorId && featureCollection) {
+      try {
+        // Filter features for the specific instructor
+        const instructorFeatures = featureCollection.features.filter((feature: any) => {
+          const instructors = feature.properties?.instructors || [];
+          return instructors.includes(focusInstructorId);
         });
-      }
-      layer.remove();
-    } catch {}
-  }, [featureCollection, map]);
+
+        if (instructorFeatures.length > 0) {
+          const instructorFC = {
+            type: 'FeatureCollection',
+            features: instructorFeatures
+          };
+          const layer = L.geoJSON(instructorFC as any);
+          const bounds = layer.getBounds();
+          if (bounds.isValid()) {
+            map.flyToBounds(bounds, {
+              paddingTopLeft: [40, 40],
+              paddingBottomRight: [40, 80],
+              duration: 0.8
+            });
+          }
+          layer.remove();
+        }
+      } catch {}
+    }
+  }, [focusInstructorId, featureCollection, map]);
+
   return null;
 }
 
