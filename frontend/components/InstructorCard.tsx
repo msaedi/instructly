@@ -23,6 +23,7 @@ interface InstructorCardProps {
   };
   onViewProfile?: () => void;
   onBookNow?: (e?: React.MouseEvent) => void;
+  compact?: boolean;
 }
 
 export default function InstructorCard({
@@ -30,6 +31,7 @@ export default function InstructorCard({
   nextAvailableSlot,
   onViewProfile,
   onBookNow,
+  compact = false,
 }: InstructorCardProps) {
   const router = useRouter();
   const { user } = useAuth();
@@ -142,25 +144,27 @@ export default function InstructorCard({
 
   return (
     <div
-      className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg transition-shadow relative"
+      className={`bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-shadow relative ${
+        compact ? 'px-4 py-4' : 'p-6'
+      }`}
       data-testid="instructor-card"
     >
-      <div className="flex gap-6">
+      <div className={`flex ${compact ? 'gap-4' : 'gap-6'}`}>
         {/* Left side - Profile Photo */}
         <div className="flex-shrink-0">
-          {/* Profile Photo - Doubled in size */}
-          <div className="w-56 h-56 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
-            <span className="text-7xl">👤</span>
+          {/* Profile Photo */}
+          <div className={`${compact ? 'w-32 h-32' : 'w-56 h-56'} bg-gray-200 rounded-full flex items-center justify-center text-gray-500`}>
+            <span className={compact ? 'text-5xl' : 'text-7xl'}>👤</span>
           </div>
 
           {/* View and review profile link */}
-          <div className="mt-3 text-center">
+          <div className={`${compact ? 'mt-2' : 'mt-3'} text-center`}>
             <button
               onClick={(e) => {
                 e.preventDefault();
                 onViewProfile?.();
               }}
-              className="text-purple-700 hover:text-purple-800 text-lg font-medium leading-tight cursor-pointer"
+              className={`text-purple-700 hover:text-purple-800 ${compact ? 'text-sm' : 'text-lg'} font-medium leading-tight cursor-pointer`}
             >
               <div>View Profile</div>
               <div>and Reviews</div>
@@ -175,23 +179,23 @@ export default function InstructorCard({
             <div className="flex-1">
               {/* Name with verification badge */}
               <div className="flex items-center">
-                <h2 className="text-3xl font-bold text-purple-700" data-testid="instructor-name">
+                <h2 className={`${compact ? 'text-xl' : 'text-3xl'} font-bold text-purple-700`} data-testid="instructor-name">
                   {instructor.user.first_name} {instructor.user.last_initial ? `${instructor.user.last_initial}.` : ''}
                 </h2>
                 {instructor.verified && (
-                  <CheckCircle className="h-7 w-7 text-purple-700 ml-2" />
+                  <CheckCircle className={`${compact ? 'h-5 w-5' : 'h-7 w-7'} text-purple-700 ml-2`} />
                 )}
               </div>
 
-              {/* Services as pills with double padding */}
-              <div className="flex gap-2 mt-3 mb-2">
+              {/* Services as pills */}
+              <div className={`flex gap-2 ${compact ? 'mt-2 mb-1' : 'mt-3 mb-2'}`}>
                 {instructor.services.map((service, idx) => {
                   const serviceName = getServiceName(service.service_catalog_id);
                   if (!serviceName) return null;
                   return (
                     <span
                       key={idx}
-                      className="px-6 py-1 bg-gray-100 text-gray-700 rounded-full text-lg font-bold"
+                      className={`${compact ? 'px-3 py-0.5 text-sm' : 'px-6 py-1 text-lg'} bg-gray-100 text-gray-700 rounded-full font-bold`}
                     >
                       {serviceName}
                     </span>
@@ -200,26 +204,28 @@ export default function InstructorCard({
               </div>
 
               {/* Rating */}
-              <div className="flex items-center gap-1 text-lg text-gray-600 mb-2">
-                <Star className="h-5 w-5 text-yellow-500 fill-current" />
+              <div className={`flex items-center gap-1 ${compact ? 'text-sm mb-1' : 'text-lg mb-2'} text-gray-600`}>
+                <Star className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-yellow-500 fill-current`} />
                 <span className="font-medium">{instructor.rating || 4.8}</span>
                 <span>·</span>
                 <span>{instructor.total_reviews || 0} reviews</span>
               </div>
 
-              {/* Experience - Moved after rating */}
-              <p className="text-lg text-gray-600 mb-2">{instructor.years_experience} years experience</p>
+              {/* Experience */}
+              {!compact && (
+                <p className="text-lg text-gray-600 mb-2">{instructor.years_experience} years experience</p>
+              )}
 
               {/* Location */}
-              <div className="flex items-center text-lg text-gray-600 mb-2">
-                <MapPin className="h-5 w-5 mr-1" />
+              <div className={`flex items-center ${compact ? 'text-sm mb-1' : 'text-lg mb-2'} text-gray-600`}>
+                <MapPin className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} mr-1`} />
                 <span>{instructor.areas_of_service.slice(0, 2).join(', ') || 'Manhattan'}</span>
               </div>
             </div>
 
             {/* Price in upper right */}
             <div className="flex items-center gap-3">
-              <p className="text-3xl font-bold text-purple-700" data-testid="instructor-price">
+              <p className={`${compact ? 'text-xl' : 'text-3xl'} font-bold text-purple-700`} data-testid="instructor-price">
                 ${instructor.services[0]?.hourly_rate || 0}/hr
               </p>
 
@@ -240,7 +246,8 @@ export default function InstructorCard({
             </div>
           </div>
 
-          {/* Bio with 5-line limit and soft yellow background */}
+          {/* Bio with 5-line limit and soft yellow background - hide in compact mode */}
+          {!compact && (
           <div className="mb-3 bg-yellow-50 p-4 rounded-lg">
             <p className={`text-gray-700 italic ${!isExpanded ? 'line-clamp-5' : ''}`}>
               "{getBio()}"
@@ -254,12 +261,13 @@ export default function InstructorCard({
               </button>
             )}
           </div>
+          )}
 
           {/* Session Duration Selection - Only show if instructor offers multiple durations */}
           {instructor.services?.[0]?.duration_options && instructor.services[0].duration_options.length > 1 && (
-            <div className="flex items-center gap-4 mb-4">
-              <p className="text-sm font-medium text-gray-700">Session duration:</p>
-              <div className="flex gap-4">
+            <div className={`flex items-center gap-2 ${compact ? 'mb-2' : 'mb-4'}`}>
+              <p className={`${compact ? 'text-xs' : 'text-sm'} font-medium text-gray-700`}>Duration:</p>
+              <div className={`flex ${compact ? 'gap-2' : 'gap-4'}`}>
                 {instructor.services[0].duration_options.map((duration, index) => {
                   const price = Math.round((instructor.services[0].hourly_rate * duration) / 60);
                   return (
@@ -269,9 +277,9 @@ export default function InstructorCard({
                         name={`duration-${instructor.user_id}`}
                         value={duration}
                         defaultChecked={index === 0}
-                        className="w-4 h-4 text-purple-700 accent-purple-700 border-gray-300 focus:ring-purple-500"
+                        className={`${compact ? 'w-3 h-3' : 'w-4 h-4'} text-purple-700 accent-purple-700 border-gray-300 focus:ring-purple-500`}
                       />
-                      <span className="ml-2 text-sm text-gray-700">{duration} min (${price})</span>
+                      <span className={`ml-1 ${compact ? 'text-xs' : 'text-sm'} text-gray-700`}>{duration} min (${price})</span>
                     </label>
                   );
                 })}
@@ -279,8 +287,8 @@ export default function InstructorCard({
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="flex gap-3">
+          {/* Action Buttons - Stack vertically in compact mode */}
+          <div className={`${compact ? 'flex flex-col gap-2' : 'flex gap-3'}`}>
             <button
               onClick={(e) => {
                 e.preventDefault();
@@ -310,7 +318,7 @@ export default function InstructorCard({
                 }
               }}
               disabled={!nextAvailableSlot}
-              className={`flex-1 text-center py-2.5 px-4 rounded-lg font-medium transition-colors ${
+              className={`flex-1 text-center ${compact ? 'py-1.5 px-3 text-sm' : 'py-2.5 px-4'} rounded-lg font-medium transition-colors ${
                 nextAvailableSlot
                   ? 'bg-purple-700 text-white hover:bg-purple-800 cursor-pointer'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
@@ -326,13 +334,14 @@ export default function InstructorCard({
                 e.preventDefault();
                 onBookNow?.(e);
               }}
-              className="flex-1 text-center bg-white text-purple-700 py-2.5 px-4 rounded-lg font-medium border-2 border-purple-700 hover:bg-purple-50 transition-colors cursor-pointer"
+              className={`flex-1 text-center bg-white text-purple-700 ${compact ? 'py-1.5 px-3 text-sm' : 'py-2.5 px-4'} rounded-lg font-medium border-2 border-purple-700 hover:bg-purple-50 transition-colors cursor-pointer`}
             >
               More options
             </button>
           </div>
 
-          {/* Reviews Section - Two columns */}
+          {/* Reviews Section - Two columns - hide in compact mode */}
+          {!compact && (
           <div className="mt-6 grid grid-cols-2 gap-4">
             <div className="bg-gray-50 p-3 rounded-lg">
               <div className="flex items-center mb-1">
@@ -362,6 +371,7 @@ export default function InstructorCard({
               <p className="text-xs text-gray-500 mt-1">- John D.</p>
             </div>
           </div>
+          )}
         </div>
       </div>
     </div>
