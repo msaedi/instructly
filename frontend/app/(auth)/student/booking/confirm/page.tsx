@@ -129,10 +129,24 @@ export default function BookingConfirmationPage() {
   // Show loading while checking authentication
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-48 mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-32"></div>
+      <div className="min-h-screen">
+        <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between max-w-full">
+            <a href="/" className="inline-block">
+              <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            </a>
+            <div className="pr-4">
+              <div className="animate-pulse">
+                <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div className="flex items-center justify-center pt-32">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-48 mb-4"></div>
+            <div className="h-4 bg-gray-200 rounded w-32"></div>
+          </div>
         </div>
       </div>
     );
@@ -234,7 +248,7 @@ export default function BookingConfirmationPage() {
                 Confirmation #{confirmationNumber}
               </p>
 
-              <div className="bg-purple-50 rounded-lg p-4 mb-8">
+              <div className="rounded-lg p-4 mb-8" style={{ backgroundColor: 'rgb(249, 247, 255)' }}>
                 <p className="text-sm text-purple-800">
                   Check your email for booking details and instructor contact information.
                 </p>

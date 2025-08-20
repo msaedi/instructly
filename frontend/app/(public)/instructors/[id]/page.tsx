@@ -17,7 +17,7 @@ import { useInstructorProfile } from '@/features/instructor-profile/hooks/useIns
 import { useSaveInstructor } from '@/features/instructor-profile/hooks/useSaveInstructor';
 import { useBookingModal } from '@/features/instructor-profile/hooks/useBookingModal';
 import { useInstructorAvailability } from '@/features/instructor-profile/hooks/useInstructorAvailability';
-import BookingModal from '@/features/student/booking/components/BookingModal';
+import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import { useRouter as useNextRouter } from 'next/navigation';
 import { calculateEndTime } from '@/features/student/booking/hooks/useCreateBooking';
 import {
@@ -30,6 +30,7 @@ import {
 import { navigationStateManager } from '@/lib/navigation/navigationStateManager';
 import { format } from 'date-fns';
 import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
+import UserProfileDropdown from '@/components/UserProfileDropdown';
 
 // Booking intent helpers
 function storeBookingIntent(bookingIntent: {
@@ -80,6 +81,7 @@ function InstructorProfileContent() {
   const nextRouter = useNextRouter();
   const instructorId = params.id as string;
   const [selectedSlot, setSelectedSlot] = useState<{ date: string; time: string; duration: number; availableDuration?: number } | null>(null);
+  const [isSlotUserSelected, setIsSlotUserSelected] = useState(false); // Track if slot was manually selected by user
   const [weekStart, setWeekStart] = useState<Date | null>(null);
   const [hasRestoredIntent, setHasRestoredIntent] = useState(false);
 
@@ -148,6 +150,22 @@ function InstructorProfileContent() {
     const selectedService = service || instructor?.services[0]; // Use provided service or default to first
     const duration = serviceDuration || 60; // Use provided duration or default
 
+    // If no slot is selected OR slot was auto-selected (not user-selected), open the booking modal
+    if (!selectedSlot || !isSlotUserSelected) {
+      if (!token) {
+        // User not authenticated - redirect to login first
+        const returnUrl = `/instructors/${instructor?.user_id}`;
+        nextRouter.push(`/login?redirect=${encodeURIComponent(returnUrl)}`);
+        return;
+      }
+      // Open booking modal for time slot selection
+      bookingModal.openBookingModal({
+        date: '', // Will be selected in modal
+        time: '', // Will be selected in modal
+        duration,
+      });
+      return;
+    }
 
     if (selectedSlot && selectedService && instructor) {
       const bookingDate = new Date(selectedSlot.date + 'T' + selectedSlot.time);
@@ -167,7 +185,7 @@ function InstructorProfileContent() {
         startTime: selectedSlot.time,
         endTime: calculateEndTime(selectedSlot.time, duration),
         duration,
-        location: instructor.areas_of_service[0] || 'NYC',
+        location: '', // Let user enter their address on confirmation page
         basePrice,
         serviceFee,
         totalAmount,
@@ -236,6 +254,7 @@ function InstructorProfileContent() {
         duration: restoredSlot.duration,
         // Don't restore availableDuration - will be recalculated below
       });
+      setIsSlotUserSelected(true); // Restored slots are considered user-selected
       setHasRestoredIntent(true);
 
       // Don't change weekStart here - keep it consistent with initial load (today)
@@ -258,7 +277,7 @@ function InstructorProfileContent() {
           time: bookingIntent.time,
           duration: bookingIntent.duration,
         });
-
+        setIsSlotUserSelected(true); // Booking intent slots are considered user-selected
         setHasRestoredIntent(true);
 
         const token = localStorage.getItem('access_token');
@@ -333,6 +352,7 @@ function InstructorProfileContent() {
             duration: 60 // Default duration
           };
           setSelectedSlot(autoSelectedSlot);
+          setIsSlotUserSelected(false); // Auto-selected slots are not user-selected
           break;
         }
       }
@@ -372,56 +392,32 @@ function InstructorProfileContent() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Mobile Header with Back and Save */}
-      <div className="sticky top-0 z-40 bg-background border-b lg:hidden">
-        <div className="flex items-center justify-between p-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.back()}
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleSave}
-            disabled={isSaveLoading}
-          >
-            <Heart className={`h-5 w-5 ${isSaved ? 'fill-current text-red-500' : ''}`} />
-          </Button>
-        </div>
-      </div>
-
-      {/* Desktop Header */}
-      <div className="hidden lg:block border-b">
-        <div className="container mx-auto px-4 py-4 max-w-6xl">
-          <div className="flex items-center">
+      {/* Header - matching search results page */}
+      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4 sticky top-0 z-50">
+        <div className="flex items-center justify-between max-w-full">
+          <div className="flex items-center gap-4">
+            <a href="/" className="inline-block">
+              <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            </a>
             <Button
               variant="ghost"
               onClick={() => router.back()}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Results
             </Button>
           </div>
+          <div className="pr-4">
+            <UserProfileDropdown />
+          </div>
         </div>
-      </div>
+      </header>
 
       <div className="container mx-auto px-4 py-6 max-w-7xl">
         {/* Mobile Layout - unchanged */}
-        <div className="lg:hidden space-y-8">
+        <div className="lg:hidden space-y-6">
           <InstructorHeader instructor={instructor} />
-
-          <section>
-            <h2 className="text-xl font-semibold mb-4">About</h2>
-            <p className="text-muted-foreground leading-relaxed">
-              {instructor.bio || 'No bio available'}
-            </p>
-          </section>
 
           <section>
             <h2 className="text-xl font-semibold mb-4">Services & Pricing</h2>
@@ -445,15 +441,91 @@ function InstructorProfileContent() {
           {/* Header with integrated Save Button */}
           <InstructorHeader instructor={instructor} />
 
+
+          {/* Services Section - Now after Bio */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <div className="flex gap-8">
+              {/* Services & Pricing - reduced width */}
+              <div className="flex-[1.4] max-w-lg">
+                <h2 className="text-lg text-gray-600 mb-4">Services & Pricing</h2>
+                <ServiceCards
+                  services={instructor.services}
+                  selectedSlot={selectedSlot}
+                  onBookService={(service, duration) => handleBookingClick(service, duration)}
+                />
+              </div>
+
+              {/* Lesson Locations */}
+              <div className="flex-[1]">
+                <h2 className="text-lg text-gray-600 mb-4">Lesson Locations</h2>
+                <div className="rounded-lg border border-purple-100 p-4" style={{ backgroundColor: 'rgb(249, 247, 255)' }}>
+                  <div className="grid grid-cols-4 gap-4">
+                    {/* Travel to you */}
+                    {instructor.areas_of_service && instructor.areas_of_service.length > 0 && (
+                      <div>
+                        <div className="text-lg font-bold mb-2">Travel to you</div>
+                        <div className="text-xs text-gray-600 space-y-0.5 ml-3">
+                          <div>• Upper West Side</div>
+                          <div>• Midtown</div>
+                          <div>• Upper East Side</div>
+                          <div>• Chelsea</div>
+                          <div>• Park Slope</div>
+                          <div>• Williamsburg</div>
+                          <div>• DUMBO</div>
+                          <div>• Long Island City</div>
+                          <div>• Astoria</div>
+                          <button className="text-purple-700 hover:text-purple-800 text-xs font-medium mt-1">
+                            See more
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* My location - example: show if instructor has a studio */}
+                    {true && ( // Replace with actual condition
+                      <div>
+                        <div className="text-lg font-bold mb-2">My location</div>
+                        <div className="text-xs text-gray-600 ml-3">
+                          <div>• Private studio in Manhattan</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Neutral location - example: show if instructor uses public spaces */}
+                    {true && ( // Replace with actual condition
+                      <div>
+                        <div className="text-lg font-bold mb-2">Neutral location</div>
+                        <div className="text-xs text-gray-600 ml-3">
+                          <div>• Parks and outdoor spaces</div>
+                          <div>• Community centers</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Online */}
+                    {true && ( // Replace with actual condition
+                      <div>
+                        <div className="text-lg font-bold mb-2">Online</div>
+                        <div className="text-xs text-gray-600 ml-3">
+                          <div>• Video call lessons available</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Three-Card Single Container */}
-          <div className="border rounded-lg bg-white overflow-hidden">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="grid grid-cols-[1fr_2fr_1fr] min-h-[400px]">
               {/* Column 1: About */}
               <div className="p-6 flex flex-col h-full" style={{ minHeight: '350px' }}>
                 <h3 className="text-lg font-semibold mb-4 pb-2 border-b -mx-6 px-6">About</h3>
-                <div className="flex flex-col flex-1">
-                  {/* Top section - Experience */}
-                  <div className="flex-shrink-0">
+                <div className="flex flex-col flex-1 justify-center">
+                  {/* Experience and Languages at top */}
+                  <div className="mb-8">
                     {instructor.years_experience > 0 && (
                       <div className="mb-4">
                         <p className="font-medium text-sm">Experience:</p>
@@ -462,26 +534,30 @@ function InstructorProfileContent() {
                         </p>
                       </div>
                     )}
+                    {/* Languages - only show if not just English */}
+                    {(() => {
+                      const languages = ['English', 'Spanish', 'French']; // Mock data - replace with instructor.languages
+                      const nonEnglishLanguages = languages.filter(lang => lang.toLowerCase() !== 'english');
+                      if (nonEnglishLanguages.length > 0) {
+                        return (
+                          <div className="mb-4">
+                            <p className="font-medium text-sm">Languages:</p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {languages.join(', ')}
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
 
-                  {/* Middle section - Languages (vertically centered, left-aligned) */}
-                  <div className="flex-1 flex items-center">
-                    <div>
-                      <p className="font-medium text-sm">Languages:</p>
-                      <p className="text-sm text-muted-foreground mt-1">English, Spanish</p>
-                    </div>
-                  </div>
-
-                  {/* Bottom section - Bio (anchored to bottom) */}
-                  <div className="flex-shrink-0 mt-auto">
-                    {instructor.bio && (
-                      <div>
-                        <p className="font-medium text-sm">Bio:</p>
-                        <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                          {instructor.bio}
-                        </p>
-                      </div>
-                    )}
+                  {/* Bio - positioned after experience */}
+                  <div>
+                    <p className="font-medium text-sm">Bio:</p>
+                    <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                      {instructor.bio || `Passionate instructor with ${instructor.years_experience || 'several'} years of experience. Dedicated to helping students achieve their goals through personalized instruction.`}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -495,6 +571,7 @@ function InstructorProfileContent() {
                   selectedSlot={selectedSlot}
                   onSelectSlot={(date: string, time: string, duration?: number, availableDuration?: number) => {
                     setSelectedSlot({ date, time, duration: duration || 60, availableDuration });
+                    setIsSlotUserSelected(true); // Mark as user-selected
                   }}
                 />
               </div>
@@ -532,18 +609,8 @@ function InstructorProfileContent() {
             </div>
           </div>
 
-          {/* Services Section - Below Three Cards */}
-          <div className="border rounded-lg bg-white p-6">
-            <h2 className="text-lg font-semibold mb-4 pb-2 border-b">Services & Pricing</h2>
-            <ServiceCards
-              services={instructor.services}
-              selectedSlot={selectedSlot}
-              onBookService={(service, duration) => handleBookingClick(service, duration)}
-            />
-          </div>
-
           {/* Reviews Section */}
-          <div className="border rounded-lg bg-white p-6">
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
             <ReviewsSection instructorId={instructor.id} />
           </div>
         </div>
@@ -556,42 +623,106 @@ function InstructorProfileContent() {
         onBook={() => handleBookingClick()}
       />
 
-      {/* Booking Modal */}
+      {/* Time Selection Modal */}
       {instructor && bookingModal.isOpen && (
-        <BookingModal
+        <TimeSelectionModal
           isOpen={bookingModal.isOpen}
           onClose={bookingModal.closeBookingModal}
-          onContinueToBooking={() => {
-            // The BookingModal handles the booking flow internally
-            // This callback is not actually used but required by the interface
-          }}
           instructor={{
-            id: instructor.id,
             user_id: instructor.user_id,
             user: instructor.user ? {
               first_name: instructor.user.first_name,
               last_initial: instructor.user.last_initial
-              // No email for privacy
             } : {
               first_name: 'Instructor',
-              last_initial: '#',
-              // No email for privacy
+              last_initial: '#'
             },
-            bio: instructor.bio,
-            areas_of_service: instructor.areas_of_service,
-            years_experience: instructor.years_experience,
             services: instructor.services.map(s => ({
               id: s.id,
               skill: s.skill || '',
               hourly_rate: s.hourly_rate,
-              duration: s.duration_options?.[0] || 60,
-              duration_options: s.duration_options || [60],
-              description: s.description || '',
-              is_active: s.is_active
+              duration_options: s.duration_options || [60]
             }))
           }}
-          selectedDate={bookingModal.selectedDate || ''}
-          selectedTime={bookingModal.selectedTime || ''}
+          preSelectedDate={bookingModal.selectedDate || ''}
+          preSelectedTime={bookingModal.selectedTime || ''}
+          onTimeSelected={(selection) => {
+            // When user selects a time, mark it as user-selected and proceed to booking
+            const newSlot = {
+              date: selection.date,
+              time: selection.time,
+              duration: selection.duration
+            };
+            setSelectedSlot(newSlot);
+            setIsSlotUserSelected(true);
+            bookingModal.closeBookingModal();
+
+            // Automatically proceed to booking confirmation page with the selected time
+            const selectedService = instructor?.services[0]; // Use first service as default
+            if (selectedService) {
+              // Create booking data directly since we have all the info
+              const token = localStorage.getItem('access_token');
+              const bookingDate = new Date(newSlot.date + 'T' + newSlot.time);
+              const hourlyRate = selectedService.hourly_rate;
+              const totalPrice = hourlyRate * (newSlot.duration / 60);
+              const basePrice = totalPrice;
+              const serviceFee = calculateServiceFee(basePrice);
+              const totalAmount = calculateTotalAmount(basePrice);
+              const bookingType = determineBookingType(bookingDate);
+
+              const paymentBookingData: BookingPayment = {
+                bookingId: '',
+                instructorId: String(instructor.user_id),
+                instructorName: instructor.user ? `${instructor.user.first_name} ${instructor.user.last_initial ? instructor.user.last_initial + '.' : ''}`.trim() : `Instructor #${instructor.user_id}`,
+                lessonType: selectedService.skill || 'Lesson',
+                date: bookingDate,
+                startTime: newSlot.time,
+                endTime: calculateEndTime(newSlot.time, newSlot.duration),
+                duration: newSlot.duration,
+                location: '', // Let user enter their address on confirmation page
+                basePrice,
+                serviceFee,
+                totalAmount,
+                bookingType,
+                paymentStatus: 'pending' as any,
+                freeCancellationUntil:
+                  bookingType === BookingType.STANDARD
+                    ? new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
+                    : undefined,
+              };
+
+              // Store booking data for payment page
+              sessionStorage.setItem('bookingData', JSON.stringify(paymentBookingData));
+              sessionStorage.setItem('serviceId', String(selectedService.id));
+
+              // Use navigation state manager to track booking flow properly
+              navigationStateManager.saveBookingFlow({
+                date: newSlot.date,
+                time: newSlot.time,
+                duration: newSlot.duration,
+                instructorId
+              }, 'profile');
+
+              if (!token) {
+                // User not authenticated - store booking intent and redirect to login
+                storeBookingIntent({
+                  instructorId: instructor.user_id,
+                  serviceId: selectedService.id,
+                  date: newSlot.date,
+                  time: newSlot.time,
+                  duration: newSlot.duration,
+                  skipModal: true,
+                });
+
+                // Redirect to login with payment page as return URL
+                const returnUrl = `/student/booking/confirm`;
+                nextRouter.replace(`/login?redirect=${encodeURIComponent(returnUrl)}`);
+              } else {
+                // User is authenticated - go directly to payment page
+                nextRouter.push('/student/booking/confirm');
+              }
+            }
+          }}
         />
       )}
     </div>

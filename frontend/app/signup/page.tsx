@@ -47,7 +47,13 @@ interface FormErrors {
  * Format phone number for display
  */
 function formatPhoneNumber(value: string): string {
-  const cleaned = value.replace(/\D/g, '');
+  let cleaned = value.replace(/\D/g, '');
+
+  // Remove leading 1 if it's 11 digits (US country code)
+  if (cleaned.length === 11 && cleaned[0] === '1') {
+    cleaned = cleaned.slice(1);
+  }
+
   if (cleaned.length <= 3) return cleaned;
   if (cleaned.length <= 6) return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3)}`;
   return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6, 10)}`;
@@ -403,14 +409,22 @@ function SignUpForm() {
       <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
         <div className="text-center mb-6">
           <Link href="/" onClick={() => logger.info('Navigating to home from signup inside box')}>
-            <h1 className="text-3xl font-bold text-indigo-400">{BRAND.name}</h1>
+            <h1 className="text-4xl font-bold text-purple-700 hover:text-purple-800 transition-colors">{BRAND.name}</h1>
           </Link>
         </div>
         <form className="space-y-6" onSubmit={handleSubmit} noValidate>
           {/* General error message */}
           {errors.general && (
-            <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4">
-              <p className="text-sm text-red-800 dark:text-red-400">{errors.general}</p>
+            <div className={`rounded-md p-4 ${
+              errors.general === 'An account with this email already exists'
+                ? 'bg-yellow-50'
+                : 'bg-red-50 dark:bg-red-900/20'
+            }`}>
+              <p className={`text-sm ${
+                errors.general === 'An account with this email already exists'
+                  ? 'text-gray-700'
+                  : 'text-red-800 dark:text-red-400'
+              }`}>{errors.general}</p>
             </div>
           )}
 
@@ -434,7 +448,7 @@ function SignUpForm() {
                   value={formData.firstName}
                   onChange={handleChange}
                   disabled={isLoading}
-                  className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-invalid={!!errors.firstName}
                   aria-describedby={errors.firstName ? 'firstName-error' : undefined}
                 />
@@ -464,7 +478,7 @@ function SignUpForm() {
                   value={formData.lastName}
                   onChange={handleChange}
                   disabled={isLoading}
-                  className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-invalid={!!errors.lastName}
                   aria-describedby={errors.lastName ? 'lastName-error' : undefined}
                 />
@@ -483,7 +497,7 @@ function SignUpForm() {
               htmlFor="email"
               className="block text-sm font-medium text-gray-700 dark:text-gray-300"
             >
-              Email address
+              Email
             </label>
             <div className="mt-1">
               <input
@@ -495,7 +509,7 @@ function SignUpForm() {
                 value={formData.email}
                 onChange={handleChange}
                 disabled={isLoading}
-                className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix"
+                className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix"
                 aria-invalid={!!errors.email}
                 aria-describedby={errors.email ? 'email-error' : undefined}
               />
@@ -528,7 +542,7 @@ function SignUpForm() {
                   value={formData.phone}
                   onChange={handleChange}
                   disabled={isLoading}
-                  className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-invalid={!!errors.phone}
                   aria-describedby={errors.phone ? 'phone-error' : undefined}
                 />
@@ -560,7 +574,7 @@ function SignUpForm() {
                   value={formData.zipCode}
                   onChange={handleChange}
                   disabled={isLoading}
-                  className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-invalid={!!errors.zipCode}
                   aria-describedby={errors.zipCode ? 'zipCode-error' : undefined}
                 />
@@ -591,7 +605,7 @@ function SignUpForm() {
                 value={formData.password}
                 onChange={handleChange}
                 disabled={isLoading}
-                className="appearance-none block w-full px-3 py-2 h-10 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix"
+                className="appearance-none block w-full px-3 py-2 h-10 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix"
                 aria-invalid={!!errors.password}
                 aria-describedby={errors.password ? 'password-error' : 'password-hint'}
               />
@@ -609,12 +623,12 @@ function SignUpForm() {
               </button>
               {errors.password && (
                 <p id="password-error" className="mt-1 text-sm text-red-600 dark:text-red-400">
-                  Password must be at least 8 characters
+                  At least 8 characters
                 </p>
               )}
               {!errors.password && (
                 <p id="password-hint" className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Password must be at least 8 characters
+                  At least 8 characters
                 </p>
               )}
             </div>
@@ -638,7 +652,7 @@ function SignUpForm() {
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 disabled={isLoading}
-                className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix"
+                className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix"
                 aria-invalid={!!errors.confirmPassword}
                 aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined}
               />
@@ -653,12 +667,26 @@ function SignUpForm() {
             </div>
           </div>
 
+          {/* Terms and Privacy Policy */}
+          <div className="text-center">
+            <p className="text-xs text-gray-600 dark:text-gray-400">
+              By clicking below and creating an account, I agree to iNSTAiNSTRU's{' '}
+              <Link href="/terms" className="text-purple-700 hover:text-purple-800 underline">
+                Terms of Service
+              </Link>{' '}
+              and{' '}
+              <Link href="/privacy" className="text-purple-700 hover:text-purple-800 underline">
+                Privacy Policy
+              </Link>
+            </p>
+          </div>
+
           {/* Submit Button */}
           <div>
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-indigo-500 dark:hover:bg-indigo-600"
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-700 hover:bg-purple-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-purple-600 dark:hover:bg-purple-700"
             >
               {isLoading ? 'Creating account...' : 'Sign up'}
             </button>
@@ -670,7 +698,7 @@ function SignUpForm() {
               Already have an account?{' '}
               <Link
                 href={`/login${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
-                className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300"
+                className="font-medium text-purple-700 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300"
                 onClick={() => logger.info('Navigating to login from signup')}
               >
                 Sign in
@@ -696,7 +724,7 @@ export default function SignUpPage() {
         <Suspense
           fallback={
             <div className="flex justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 dark:border-indigo-400" />
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-700 dark:border-purple-400" />
             </div>
           }
         >

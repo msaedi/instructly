@@ -1,9 +1,9 @@
 'use client';
 
-import React from 'react';
-import { Calendar, Clock, MapPin, AlertCircle, Zap } from 'lucide-react';
+import React, { useState } from 'react';
+import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown, ChevronUp } from 'lucide-react';
 import { BookingPayment, PaymentMethod, BookingType } from '../types';
-import { format, addHours } from 'date-fns';
+import { format } from 'date-fns';
 
 interface PaymentConfirmationProps {
   booking: BookingPayment;
@@ -22,102 +22,360 @@ export default function PaymentConfirmation({
   onConfirm,
   onBack, // eslint-disable-line @typescript-eslint/no-unused-vars
 }: PaymentConfirmationProps) {
+  const [isOnlineLesson, setIsOnlineLesson] = useState(false);
+  // Auto-collapse payment if user has a saved card
+  const hasSavedCard = !!cardLast4;
+  const [isPaymentExpanded, setIsPaymentExpanded] = useState(!hasSavedCard);
+  // Auto-collapse location if they have a saved address or it's online
+  const hasSavedLocation = booking.location && booking.location !== '';
+  const [isLocationExpanded, setIsLocationExpanded] = useState(!hasSavedLocation && !isOnlineLesson);
   const isLastMinute = booking.bookingType === BookingType.LAST_MINUTE;
   const cardCharge = booking.totalAmount - creditsUsed;
-  const chargeDate = isLastMinute ? new Date() : addHours(booking.date, -24);
 
-  const renderPaymentTimeline = () => {
-    if (isLastMinute) {
-      return (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <div className="flex items-center mb-2">
-            <Zap className="text-red-600 dark:text-red-400 mr-2" size={20} />
-            <h3 className="font-semibold text-red-900 dark:text-red-100">Last-Minute Booking</h3>
-          </div>
-          <p className="text-sm text-red-800 dark:text-red-200">
-            Your card will be charged immediately
-          </p>
-        </div>
-      );
-    }
-
-    return (
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-        <h3 className="font-semibold mb-3">When you'll be charged:</h3>
-        <div className="flex items-center justify-between text-sm">
-          <div className="text-center">
-            <p className="font-medium">Today</p>
-            <p className="text-gray-600 dark:text-gray-400">(Now)</p>
-            <p className="mt-1">↓</p>
-            <p className="bg-blue-100 dark:bg-blue-800 px-2 py-1 rounded">Hold</p>
-            <p className="text-xs mt-1">Reserve</p>
-          </div>
-          <div className="flex-1 border-t-2 border-dashed border-gray-300 dark:border-gray-600 mx-2"></div>
-          <div className="text-center">
-            <p className="font-medium">{format(chargeDate, 'MMM d')}</p>
-            <p className="text-gray-600 dark:text-gray-400">{format(chargeDate, 'h:mm a')}</p>
-            <p className="mt-1">↓</p>
-            <p className="bg-[#FFD700] px-2 py-1 rounded">Charge</p>
-            <p className="text-xs mt-1">Pay</p>
-          </div>
-          <div className="flex-1 border-t-2 border-dashed border-gray-300 dark:border-gray-600 mx-2"></div>
-          <div className="text-center">
-            <p className="font-medium">{format(booking.date, 'MMM d')}</p>
-            <p className="text-gray-600 dark:text-gray-400">{booking.startTime}</p>
-            <p className="mt-1">↓</p>
-            <p className="bg-green-100 dark:bg-green-800 px-2 py-1 rounded">Lesson</p>
-            <p className="text-xs mt-1">Complete</p>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="p-6">
       <div className="flex gap-6">
         {/* Left Column - Confirm Details - 60% width */}
-        <div className="w-3/5 bg-white dark:bg-gray-900 rounded-lg p-6 order-2 md:order-1">
-          <h3 className="font-bold text-lg mb-4">Confirm details</h3>
+        <div className="w-[60%] bg-white dark:bg-gray-900 rounded-lg p-6 order-2 md:order-1">
+          <h3 className="font-extrabold text-2xl mb-4">Confirm details</h3>
 
         {/* Payment Method */}
-        <div className="mb-6">
-          <h4 className="font-medium mb-2">Payment Method</h4>
-          {paymentMethod === PaymentMethod.CREDITS ? (
-            <p className="text-sm">Using platform credits</p>
-          ) : paymentMethod === PaymentMethod.MIXED ? (
-            <div className="text-sm space-y-1">
-              <p>Credits: ${creditsUsed.toFixed(2)}</p>
-              <p>
-                Card (•••• {cardLast4}): ${cardCharge.toFixed(2)}
-              </p>
+        <div className="mb-6 rounded-lg p-4" style={{ backgroundColor: 'rgb(249, 247, 255)' }}>
+          <div
+            className="flex items-center justify-between cursor-pointer"
+            onClick={() => setIsPaymentExpanded(!isPaymentExpanded)}
+          >
+            <div className="flex items-center gap-3">
+              <h4 className="font-bold text-xl">Payment Method</h4>
+              {!isPaymentExpanded && hasSavedCard && (
+                <span className="text-sm text-gray-600">•••• {cardLast4}</span>
+              )}
             </div>
-          ) : (
-            <p className="text-sm">
-              Card •••• {cardLast4}: ${cardCharge.toFixed(2)}
-            </p>
+            {isPaymentExpanded ? (
+              <ChevronUp className="h-5 w-5 text-gray-600" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-gray-600" />
+            )}
+          </div>
+
+          {/* Credit Card Fields */}
+          {isPaymentExpanded && (
+          <div className="space-y-3 mt-3">
+            {hasSavedCard ? (
+              <div className="bg-white p-3 rounded-lg border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">Visa ending in {cardLast4}</span>
+                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Default</span>
+                  </div>
+                  <button className="text-sm text-purple-700 hover:text-purple-800">Change</button>
+                </div>
+              </div>
+            ) : (
+              <>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Card Number
+              </label>
+              <input
+                type="text"
+                placeholder="1234 5678 9012 3456"
+                className="w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                style={{ outline: 'none' }}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Expiry Date
+                </label>
+                <input
+                  type="text"
+                  placeholder="MM/YY"
+                  className="w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                  style={{ outline: 'none' }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  CVV
+                </label>
+                <input
+                  type="text"
+                  placeholder="123"
+                  className="w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                  style={{ outline: 'none' }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Name on Card
+              </label>
+              <input
+                type="text"
+                placeholder="John Doe"
+                className="w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                style={{ outline: 'none' }}
+              />
+            </div>
+
+            {/* Billing Address */}
+            <div className="pt-3 mt-3 border-t border-gray-200">
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Billing Address
+              </label>
+
+              <div className="space-y-3">
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Address"
+                    className="w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                    style={{ outline: 'none' }}
+                  />
+                </div>
+
+                <div className="grid grid-cols-6 gap-3">
+                  <input
+                    type="text"
+                    placeholder="City"
+                    className="col-span-3 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                    style={{ outline: 'none' }}
+                  />
+
+                  <input
+                    type="text"
+                    placeholder="State"
+                    className="col-span-1 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                    style={{ outline: 'none' }}
+                  />
+
+                  <input
+                    type="text"
+                    placeholder="ZIP Code"
+                    className="col-span-2 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                    style={{ outline: 'none' }}
+                  />
+                </div>
+
+                <div>
+                  <select
+                    className="w-full p-2.5 border border-gray-200 rounded-lg text-sm text-gray-700 focus:border-purple-500 transition-colors"
+                    style={{ outline: 'none' }}
+                    defaultValue="US"
+                  >
+                    <option value="US">United States</option>
+                    <option value="CA">Canada</option>
+                    <option value="MX">Mexico</option>
+                    <option value="GB">United Kingdom</option>
+                    <option value="FR">France</option>
+                    <option value="DE">Germany</option>
+                    <option value="IT">Italy</option>
+                    <option value="ES">Spain</option>
+                    <option value="NL">Netherlands</option>
+                    <option value="BE">Belgium</option>
+                    <option value="CH">Switzerland</option>
+                    <option value="AT">Austria</option>
+                    <option value="SE">Sweden</option>
+                    <option value="NO">Norway</option>
+                    <option value="DK">Denmark</option>
+                    <option value="FI">Finland</option>
+                    <option value="PL">Poland</option>
+                    <option value="PT">Portugal</option>
+                    <option value="IE">Ireland</option>
+                    <option value="CZ">Czech Republic</option>
+                    <option value="GR">Greece</option>
+                    <option value="RO">Romania</option>
+                    <option value="HU">Hungary</option>
+                    <option value="AU">Australia</option>
+                    <option value="NZ">New Zealand</option>
+                    <option value="JP">Japan</option>
+                    <option value="KR">South Korea</option>
+                    <option value="CN">China</option>
+                    <option value="IN">India</option>
+                    <option value="SG">Singapore</option>
+                    <option value="MY">Malaysia</option>
+                    <option value="TH">Thailand</option>
+                    <option value="ID">Indonesia</option>
+                    <option value="PH">Philippines</option>
+                    <option value="VN">Vietnam</option>
+                    <option value="BR">Brazil</option>
+                    <option value="AR">Argentina</option>
+                    <option value="CL">Chile</option>
+                    <option value="CO">Colombia</option>
+                    <option value="PE">Peru</option>
+                    <option value="VE">Venezuela</option>
+                    <option value="ZA">South Africa</option>
+                    <option value="EG">Egypt</option>
+                    <option value="NG">Nigeria</option>
+                    <option value="KE">Kenya</option>
+                    <option value="MA">Morocco</option>
+                    <option value="IL">Israel</option>
+                    <option value="AE">United Arab Emirates</option>
+                    <option value="SA">Saudi Arabia</option>
+                    <option value="TR">Turkey</option>
+                    <option value="RU">Russia</option>
+                    <option value="UA">Ukraine</option>
+                    <option value="PK">Pakistan</option>
+                    <option value="BD">Bangladesh</option>
+                    <option value="LK">Sri Lanka</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center mt-3">
+              <input
+                type="checkbox"
+                id="save-card"
+                className="w-4 h-4 text-purple-700 border-gray-300 rounded focus:ring-purple-500"
+              />
+              <label htmlFor="save-card" className="ml-2 text-sm text-gray-700">
+                Save card for future payments
+              </label>
+            </div>
+
+            {/* Promo Code Section */}
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Promo Code
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Enter promo code"
+                  className="flex-1 p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 transition-colors"
+                  style={{ outline: 'none' }}
+                />
+                <button
+                  className="px-4 py-2.5 bg-purple-700 text-white rounded-lg text-sm font-medium hover:bg-purple-800 transition-colors"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+            </>
+            )}
+          </div>
+          )}
+
+          {isPaymentExpanded && (
+            <>
+            {paymentMethod === PaymentMethod.CREDITS ? (
+              <p className="text-sm mt-3">Using platform credits</p>
+            ) : paymentMethod === PaymentMethod.MIXED ? (
+              <div className="text-sm space-y-1 mt-3">
+                <p>Credits: ${creditsUsed.toFixed(2)}</p>
+                <p>
+                  Card amount: ${cardCharge.toFixed(2)}
+                </p>
+              </div>
+            ) : null}
+            </>
           )}
         </div>
 
-        {renderPaymentTimeline()}
-
-        {/* Charge Summary */}
-        <div className="mt-6 bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-          <h4 className="font-medium mb-2">
-            {isLastMinute ? 'Immediate Charge' : 'Authorization Details'}
-          </h4>
-          {isLastMinute ? (
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Your card will be charged ${cardCharge.toFixed(2)} immediately upon confirmation.
-            </p>
-          ) : (
-            <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-              <p>• ${cardCharge.toFixed(2)} will be authorized now</p>
-              <p>
-                • Charged on {format(chargeDate, 'MMM d')} at {format(chargeDate, 'h:mm a')}
-              </p>
-              <p>• Free cancellation until then</p>
+        {/* Lesson Location */}
+        <div className="mb-6 rounded-lg p-4" style={{ backgroundColor: 'rgb(249, 247, 255)' }}>
+          <div
+            className="flex items-center justify-between cursor-pointer"
+            onClick={() => setIsLocationExpanded(!isLocationExpanded)}
+          >
+            <div className="flex items-center gap-3">
+              <h4 className="font-bold text-xl">Lesson Location</h4>
+              {!isLocationExpanded && (
+                <span className="text-sm text-gray-600">
+                  {isOnlineLesson ? 'Online' : hasSavedLocation ? booking.location : ''}
+                </span>
+              )}
             </div>
+            {isLocationExpanded ? (
+              <ChevronUp className="h-5 w-5 text-gray-600" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-gray-600" />
+            )}
+          </div>
+
+          {/* Online Checkbox */}
+          {isLocationExpanded && (
+          <div className="mt-3">
+          {hasSavedLocation && !isOnlineLesson ? (
+            <div className="bg-white p-3 rounded-lg border border-gray-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-sm font-medium">{booking.location}</span>
+                  <p className="text-xs text-gray-500 mt-1">Saved address</p>
+                </div>
+                <button className="text-sm text-purple-700 hover:text-purple-800">Change</button>
+              </div>
+            </div>
+          ) : (
+            <>
+          <div className="flex items-center mb-4">
+            <input
+              type="checkbox"
+              id="online-lesson"
+              checked={isOnlineLesson}
+              onChange={(e) => setIsOnlineLesson(e.target.checked)}
+              className="w-4 h-4 text-purple-700 border-gray-300 rounded focus:ring-purple-500"
+            />
+            <label htmlFor="online-lesson" className="ml-2 text-sm font-medium text-gray-700">
+              Online
+            </label>
+          </div>
+
+          {/* Address Fields */}
+          <div className={`space-y-3 ${isOnlineLesson ? 'opacity-50' : ''}`}>
+            <input
+              type="text"
+              placeholder="Street Address"
+              disabled={isOnlineLesson}
+              className={`w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
+                isOnlineLesson ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
+              }`}
+              style={{ outline: 'none' }}
+            />
+
+            <div className="grid grid-cols-6 gap-3">
+              <input
+                type="text"
+                placeholder="City"
+                disabled={isOnlineLesson}
+                className={`col-span-3 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
+                  isOnlineLesson ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
+                }`}
+                style={{ outline: 'none' }}
+              />
+
+              <input
+                type="text"
+                placeholder="State"
+                disabled={isOnlineLesson}
+                className={`col-span-1 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
+                  isOnlineLesson ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
+                }`}
+                style={{ outline: 'none' }}
+              />
+
+              <input
+                type="text"
+                placeholder="ZIP Code"
+                disabled={isOnlineLesson}
+                className={`col-span-2 w-full p-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 transition-colors ${
+                  isOnlineLesson ? 'bg-gray-100 cursor-not-allowed' : 'focus:border-purple-500'
+                }`}
+                style={{ outline: 'none' }}
+              />
+            </div>
+          </div>
+          </>
+          )}
+          </div>
           )}
         </div>
 
@@ -125,11 +383,9 @@ export default function PaymentConfirmation({
         <div className="mt-6">
           <button
             onClick={onConfirm}
-            className="w-full py-3 bg-[#FFD700] hover:bg-[#FFC700] text-black rounded-full font-medium transition-colors"
+            className="w-full py-2.5 px-4 bg-purple-700 text-white hover:bg-purple-800 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0"
           >
-            {isLastMinute
-              ? `Pay Now - $${cardCharge.toFixed(2)}`
-              : `Reserve Lesson - $${booking.totalAmount.toFixed(2)}`}
+            Book now!
           </button>
         </div>
 
@@ -139,19 +395,24 @@ export default function PaymentConfirmation({
       </div>
 
       {/* Right Column - Booking Details - 40% width */}
-      <div className="w-2/5 bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700 order-1 md:order-2">
-        <h3 className="font-bold text-lg mb-4">Booking Your Lesson with</h3>
+      <div className="w-[40%] bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700 order-1 md:order-2">
+        <h3 className="font-bold text-xl mb-4">Booking Your Lesson with</h3>
         <div className="space-y-4">
           <div className="flex items-start">
             <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded-full mr-4"></div>
             <div>
               <h4 className="font-semibold">{booking.instructorName}</h4>
-              <p className="text-sm text-gray-600 dark:text-gray-400">★★★★★ (47 reviews)</p>
+              <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                <Star className="h-4 w-4 text-yellow-500 fill-current" />
+                <span className="font-medium">4.8</span>
+                <span>·</span>
+                <span>47 reviews</span>
+              </div>
             </div>
           </div>
 
           <div className="space-y-2">
-            <div className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">
+            <div className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-2">
               Piano Lesson
             </div>
             <div className="flex items-center text-sm">
@@ -167,8 +428,16 @@ export default function PaymentConfirmation({
             <div className="flex items-start text-sm">
               <MapPin size={16} className="mr-2 text-gray-500 mt-0.5" />
               <div>
-                <div>123 Main Street, Apt 4B</div>
-                <div>New York, NY 10001</div>
+                {isOnlineLesson ? (
+                  <div>Online</div>
+                ) : booking.location ? (
+                  <div>{booking.location}</div>
+                ) : (
+                  <>
+                    <div>123 Main Street, Apt 4B</div>
+                    <div>New York, NY 10001</div>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -176,8 +445,13 @@ export default function PaymentConfirmation({
           {/* Edit Lesson Button */}
           <div className="mt-4">
             <button
-              onClick={() => {}}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              onClick={() => {
+                // Navigate back to instructor profile to edit the lesson
+                if (booking.instructorId) {
+                  window.location.href = `/instructors/${booking.instructorId}`;
+                }
+              }}
+              className="bg-white text-purple-700 py-1.5 px-3 rounded-lg text-sm font-medium border-2 border-purple-700 hover:bg-purple-50 transition-colors"
             >
               Edit lesson
             </button>
@@ -187,7 +461,9 @@ export default function PaymentConfirmation({
           <div className="mt-4">
             <textarea
               placeholder="What should your instructor know about this session?"
-              className="w-full p-3 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+              className="w-full p-3 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:border-purple-500 resize-none transition-colors"
+              style={{ outline: 'none', boxShadow: 'none' }}
+              onFocus={(e) => e.target.style.boxShadow = 'none'}
               rows={6}
             />
           </div>
@@ -201,7 +477,7 @@ export default function PaymentConfirmation({
                 <span>${booking.basePrice.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span>Service fee (20%)</span>
+                <span>Service fee</span>
                 <span>${booking.serviceFee.toFixed(2)}</span>
               </div>
               {creditsUsed > 0 && (
@@ -220,30 +496,18 @@ export default function PaymentConfirmation({
           </div>
 
           {/* Cancellation Policy */}
-          <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 text-sm">
-            <h4 className="font-medium mb-1 flex items-center">
+          <div className="rounded-lg p-3 text-sm" style={{ backgroundColor: 'rgb(249, 247, 255)' }}>
+            <h4 className="font-medium mb-2 flex items-center">
               <AlertCircle size={16} className="mr-1" />
               Cancellation Policy
             </h4>
-            {isLastMinute ? (
-              <ul className="text-xs space-y-1 text-gray-600 dark:text-gray-400">
-                <li>• 12-24 hours: Platform credit only</li>
-                <li>• Less than 12 hours: No refund</li>
-              </ul>
-            ) : (
-              <ul className="text-xs space-y-1 text-gray-600 dark:text-gray-400">
-                <li>• Free cancellation more than 24 hours before</li>
-                <li>• 12-24 hours: Platform credit</li>
-                <li>• Less than 12 hours: No refund</li>
-              </ul>
-            )}
+            <div className="space-y-0.5 text-gray-600 dark:text-gray-400" style={{ fontSize: '11px' }}>
+              <p>More than 24 hours before your lesson: Full refund</p>
+              <p>12–24 hours before your lesson: Refund issued as platform credit</p>
+              <p>Less than 12 hours before your lesson: No refund</p>
+            </div>
           </div>
 
-          <div className="bg-[#FFFEF5] dark:bg-gray-700 rounded-lg p-3 text-sm">
-            <p className="text-gray-600 dark:text-gray-400">
-              💡 Tips accepted after lesson completion
-            </p>
-          </div>
         </div>
       </div>
       </div>

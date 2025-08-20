@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Star, CheckCircle, Dumbbell, Music, Guitar, Heart } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/features/shared/hooks/useAuth';
@@ -45,16 +44,6 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
   };
 
   const displayName = getDisplayName();
-
-  // Safe initials calculation from actual name fields
-  const getInitials = (): string => {
-    if (!instructor.user) return 'IN';
-    const firstInitial = instructor.user.first_name ? instructor.user.first_name.charAt(0).toUpperCase() : '';
-    const lastInitial = instructor.user.last_initial || '';
-    return (firstInitial + lastInitial) || 'IN';
-  };
-
-  const initials = getInitials();
 
   // Mock data for ratings - replace with real data when available
   const rating = 4.9;
@@ -128,19 +117,23 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
   };
 
   return (
-    <div className="grid grid-cols-[1fr_2fr_1fr] items-center p-6 bg-white rounded-lg border">
-      {/* Left Column - Photo */}
-      <div className="flex justify-start">
-        <Avatar className="h-20 w-20 lg:h-24 lg:w-24">
-          <AvatarFallback className="text-xl lg:text-2xl">{initials}</AvatarFallback>
-        </Avatar>
+    <div className="flex gap-6 items-start p-6 bg-white rounded-xl border border-gray-200">
+      {/* Left side - Profile Photo */}
+      <div className="flex-shrink-0">
+        <div className="w-56 h-56 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
+          <span className="text-7xl">👤</span>
+        </div>
       </div>
 
-      {/* Center Column - Info */}
-      <div className="flex flex-col items-center text-center space-y-2">
+      {/* Right side - Info */}
+      <div className="flex-1">
+        <div className="flex flex-col space-y-2">
         {/* Name with Heart Button */}
         <div className="flex items-center gap-2">
-          <h1 className="text-2xl lg:text-3xl font-bold" data-testid="instructor-profile-name">{displayName}</h1>
+          <h1 className="text-2xl lg:text-3xl font-bold text-purple-700" data-testid="instructor-profile-name">{displayName}</h1>
+          {instructor.is_verified && (
+            <CheckCircle className="h-7 w-7 text-purple-700" />
+          )}
           <div className="flex items-center gap-1">
             <button
               onClick={handleHeartClick}
@@ -171,12 +164,9 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
           <span className="text-muted-foreground">({reviewCount} reviews)</span>
         </div>
 
-        {/* Services */}
-        {formatServices() && (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            {getServiceIcon()}
-            <span>{formatServices()}</span>
-          </div>
+        {/* Experience */}
+        {instructor.years_experience && (
+          <p className="text-lg text-gray-600">{instructor.years_experience} years experience</p>
         )}
 
         {/* Background Check Badge */}
@@ -186,10 +176,15 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
             <span className="text-sm">Background Checked</span>
           </div>
         )}
+        </div>
       </div>
 
-      {/* Right Column - Empty for balance */}
-      <div></div>
+      {/* Right Column - Bio */}
+      <div className="flex-shrink-0 max-w-md">
+        <p className="text-sm text-gray-600 leading-relaxed">
+          {instructor.bio || `Passionate instructor with ${instructor.years_experience || 'several'} years of experience. Dedicated to helping students achieve their goals through personalized instruction.`}
+        </p>
+      </div>
     </div>
   );
 }

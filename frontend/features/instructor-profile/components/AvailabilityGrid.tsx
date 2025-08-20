@@ -391,7 +391,7 @@ export function AvailabilityGrid({
                             "w-8 h-8 rounded border text-xs transition-all relative",
                             isSelected
                               ? "bg-transparent border-black"
-                              : "bg-gray-50 border-gray-300 hover:bg-gray-100 hover:border-gray-400"
+                              : "border-gray-300 hover:border-gray-400"
                           )}
                           onClick={() => {
                             const slotTime = useMockData ? time : timeStr;

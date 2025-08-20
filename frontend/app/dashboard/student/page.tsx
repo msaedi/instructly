@@ -17,6 +17,7 @@ import { fetchAPI, fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { toast } from 'sonner';
 import { favoritesApi } from '@/services/api/favorites';
 import type { FavoritedInstructor } from '@/types/instructor';
+import UserProfileDropdown from '@/components/UserProfileDropdown';
 
 /**
  * StudentDashboard Component
@@ -219,7 +220,7 @@ function StudentDashboardContent() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-700"></div>
       </div>
     );
   }
@@ -230,18 +231,12 @@ function StudentDashboardContent() {
     <div className="min-h-screen bg-gray-50">
       {/* Navbar */}
       <nav className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <Link href="/" className="text-2xl font-bold text-indigo-600">
-              {BRAND.name}
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <LogOut className="h-5 w-5 mr-2" />
-              Log out
-            </button>
+        <div className="flex justify-between items-center h-16">
+          <Link href="/" className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors pl-4">
+            iNSTAiNSTRU
+          </Link>
+          <div className="pr-4">
+            <UserProfileDropdown />
           </div>
         </div>
       </nav>

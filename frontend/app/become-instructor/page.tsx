@@ -16,7 +16,6 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, ChevronLeft, ChevronRight, X, AlertCircle } from 'lucide-react';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
-import { BRAND } from '@/app/config/brand';
 import { logger } from '@/lib/logger';
 
 // Import centralized types
@@ -25,6 +24,7 @@ import { RequestStatus } from '@/types/api';
 import { getErrorMessage } from '@/types/common';
 import { useAuth, hasRole, type User } from '@/features/shared/hooks/useAuth';
 import { RoleName } from '@/types/enums';
+import UserProfileDropdown from '@/components/UserProfileDropdown';
 
 /**
  * Form data interface for instructor onboarding
@@ -410,7 +410,7 @@ export default function BecomeInstructorPage() {
               logger.info('Navigating to instructor dashboard from already-instructor page');
               router.push('/dashboard/instructor');
             }}
-            className="bg-indigo-500 text-white px-6 py-2 rounded-lg hover:bg-indigo-600 transition-colors"
+            className="bg-purple-700 text-white px-6 py-2 rounded-lg hover:bg-purple-800 transition-colors"
           >
             Go to Dashboard
           </button>
@@ -447,8 +447,21 @@ export default function BecomeInstructorPage() {
   logger.debug('Rendering onboarding form', { currentStep });
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <h1 className="text-3xl font-bold text-center mb-8 dark:text-white">Become an Instructor</h1>
+    <div className="min-h-screen">
+      {/* Header - matching other pages */}
+      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between max-w-full">
+          <a href="/" className="inline-block">
+            <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+          </a>
+          <div className="pr-4">
+            <UserProfileDropdown />
+          </div>
+        </div>
+      </header>
+
+      <div className="container mx-auto px-4 py-8 max-w-3xl">
+        <h1 className="text-3xl font-bold text-center mb-8 dark:text-white">Become an Instructor</h1>
 
       {/* Progress Bar */}
       <div
@@ -468,7 +481,7 @@ export default function BecomeInstructorPage() {
         </div>
         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
           <div
-            className="bg-indigo-500 h-2 rounded-full transition-all duration-300"
+            className="bg-purple-700 h-2 rounded-full transition-all duration-300"
             style={{ width: `${(currentStep / 2) * 100}%` }}
           ></div>
         </div>
@@ -576,7 +589,7 @@ export default function BecomeInstructorPage() {
                 <button
                   type="button"
                   onClick={addService}
-                  className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-2 bg-purple-700 text-white rounded-lg hover:bg-purple-800 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={isLoading}
                 >
                   Add Service
@@ -682,7 +695,7 @@ export default function BecomeInstructorPage() {
                       type="checkbox"
                       checked={formData.areasOfService.includes(area)}
                       onChange={() => toggleArea(area)}
-                      className="h-4 w-4 text-indigo-500 rounded border-gray-300 dark:border-gray-600"
+                      className="h-4 w-4 text-purple-700 rounded border-gray-300 dark:border-gray-600"
                       disabled={isLoading}
                     />
                     <span className="text-sm text-gray-700 dark:text-gray-300">{area}</span>
@@ -709,7 +722,7 @@ export default function BecomeInstructorPage() {
         <button
           onClick={handleNext}
           disabled={isLoading}
-          className={`flex items-center gap-2 px-6 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+          className={`flex items-center gap-2 px-6 py-2 bg-purple-700 text-white rounded-lg hover:bg-purple-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
             currentStep === 1 ? 'ml-auto' : ''
           }`}
         >
@@ -745,6 +758,7 @@ export default function BecomeInstructorPage() {
             </>
           )}
         </button>
+      </div>
       </div>
     </div>
   );

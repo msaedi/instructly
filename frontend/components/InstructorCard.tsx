@@ -19,6 +19,7 @@ interface InstructorCardProps {
   instructor: Instructor;
   nextAvailableSlot?: {
     date: string;
+
     time: string;
     displayText: string;
   };
@@ -26,7 +27,6 @@ interface InstructorCardProps {
   onBookNow?: (e?: React.MouseEvent) => void;
   compact?: boolean;
 }
-
 export default function InstructorCard({
   instructor,
   nextAvailableSlot,
@@ -306,7 +306,7 @@ export default function InstructorCard({
                     startTime: nextAvailableSlot.time,
                     endTime: calculateEndTime(nextAvailableSlot.time, instructor.services[0]?.duration_options?.[0] || 60),
                     duration: instructor.services[0]?.duration_options?.[0] || 60,
-                    location: instructor.areas_of_service?.[0] || 'Manhattan',
+                    location: '', // Leave empty to let user enter their address
                     basePrice: instructor.services[0]?.hourly_rate || 0,
                     serviceFee: Math.round((instructor.services[0]?.hourly_rate || 0) * 0.1), // 10% service fee
                     totalAmount: Math.round((instructor.services[0]?.hourly_rate || 0) * 1.1),

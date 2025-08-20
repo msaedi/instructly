@@ -49,10 +49,16 @@ export default function HomePage() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [userHasBookingHistory, setUserHasBookingHistory] = useState<boolean | null>(null);
+  const [isClient, setIsClient] = useState(false);
   const router = useRouter();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout, isLoading: isAuthLoading } = useAuth();
   const userMenuRef = useRef<HTMLDivElement>(null);
   const avatarRef = useRef<HTMLDivElement>(null);
+
+  // Set isClient to true after mount to avoid hydration issues
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Add React Query hook for fetching top services
   const { data: topServicesResponse } = useQuery({
@@ -241,129 +247,124 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen relative">
-      {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Link href="/" className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                iNSTAiNSTRU
-              </Link>
-            </div>
-            <div className="flex items-center space-x-6">
-              {isAuthenticated ? (
-                <>
-                  <Link
-                    href={
-                      hasRole(user, RoleName.STUDENT) ? '/student/lessons' : '/dashboard/instructor'
-                    }
-                    className="text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 relative"
-                  >
-                    My Lessons
-                    {user?.unread_messages_count && user.unread_messages_count > 0 && (
+      {/* Navigation - matching search results page */}
+      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between max-w-full">
+          <Link href="/" className="inline-block">
+            <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">
+              iNSTAiNSTRU
+            </h1>
+          </Link>
+          <div className="pr-4">
+            {isClient && isAuthenticated ? (
+              <div className="flex items-center gap-4">
+                <Link
+                  href={
+                    hasRole(user, RoleName.STUDENT) ? '/student/lessons' : '/dashboard/instructor'
+                  }
+                  className="text-gray-700 hover:text-purple-700 font-medium relative"
+                >
+                  My Lessons
+                  {user?.unread_messages_count && user.unread_messages_count > 0 && (
+                    <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full"></span>
+                  )}
+                </Link>
+                <Link
+                  href={
+                    hasRole(user, RoleName.STUDENT)
+                      ? '/dashboard/student'
+                      : '/dashboard/instructor'
+                  }
+                  className="text-gray-700 hover:text-purple-700 font-medium relative hidden md:inline-flex items-center"
+                >
+                  <span>My Account</span>
+                  {user?.unread_platform_messages_count &&
+                    user.unread_platform_messages_count > 0 && (
                       <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full"></span>
                     )}
-                  </Link>
-                  <div className="flex items-center space-x-6">
-                    <Link
-                      href={
-                        hasRole(user, RoleName.STUDENT)
-                          ? '/dashboard/student'
-                          : '/dashboard/instructor'
-                      }
-                      className="text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 relative hidden md:inline-flex items-center"
-                    >
-                      <span>My Account</span>
-                      {user?.unread_platform_messages_count &&
-                        user.unread_platform_messages_count > 0 && (
-                          <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full"></span>
-                        )}
-                    </Link>
-                    <div ref={avatarRef} className="relative">
-                      <div
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setShowUserMenu(!showUserMenu);
-                        }}
-                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium cursor-pointer transition-transform hover:scale-105"
-                        style={{ backgroundColor: user ? getAvatarColor(user.id) : '#ccc' }}
-                      >
-                        {user?.profile_image_url ? (
-                          <img
-                            src={user.profile_image_url}
-                            alt={`${user.first_name} ${user.last_name || ''}`}
-                            className="w-full h-full rounded-full object-cover"
-                          />
-                        ) : (
-                          getUserInitials(user)
-                        )}
-                      </div>
-
-                      {/* Dropdown Menu */}
-                      {showUserMenu && (
-                        <div
-                          ref={userMenuRef}
-                          className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50 animate-fade-in-down"
-                        >
-                          <Link
-                            href={
-                              hasRole(user, RoleName.STUDENT)
-                                ? '/dashboard/student'
-                                : '/dashboard/instructor'
-                            }
-                            className="block w-full px-4 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors md:hidden"
-                            onClick={() => setShowUserMenu(false)}
-                          >
-                            My Account
-                          </Link>
-                          <button
-                            onClick={() => {
-                              setShowPrivacyModal(true);
-                              setShowUserMenu(false);
-                            }}
-                            className="w-full px-4 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 transition-colors"
-                          >
-                            <Settings className="h-4 w-4" />
-                            <span>Privacy Settings</span>
-                          </button>
-                          <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-                          <button
-                            onClick={() => {
-                              logger.info('User logging out from dropdown menu');
-                              logout();
-                              setShowUserMenu(false);
-                            }}
-                            className="w-full px-4 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2 transition-colors"
-                          >
-                            <LogOut className="h-4 w-4" />
-                            <span>Log out</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                </Link>
+                <div ref={avatarRef} className="relative">
+                  <div
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowUserMenu(!showUserMenu);
+                    }}
+                    className="w-9 h-9 bg-purple-700 text-white rounded-full flex items-center justify-center font-semibold text-sm cursor-pointer transition-transform hover:scale-105"
+                  >
+                    {user?.profile_image_url ? (
+                      <img
+                        src={user.profile_image_url}
+                        alt={`${user.first_name} ${user.last_name || ''}`}
+                        className="w-full h-full rounded-full object-cover"
+                      />
+                    ) : (
+                      getUserInitials(user)
+                    )}
                   </div>
-                </>
-              ) : (
-                <>
-                  <Link
-                    href="/become-instructor"
-                    className="text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400"
-                  >
-                    Become an Instructor
-                  </Link>
-                  <Link
-                    href="/login"
-                    className="px-4 py-2 border border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                  >
-                    Sign up / Log in
-                  </Link>
-                </>
-              )}
-            </div>
+
+                  {/* Dropdown Menu */}
+                  {showUserMenu && (
+                    <div
+                      ref={userMenuRef}
+                      className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
+                    >
+                      <Link
+                        href={
+                          hasRole(user, RoleName.STUDENT)
+                            ? '/dashboard/student'
+                            : '/dashboard/instructor'
+                        }
+                        className="block w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors md:hidden"
+                        onClick={() => setShowUserMenu(false)}
+                      >
+                        My Account
+                      </Link>
+                      <button
+                        onClick={() => {
+                          setShowPrivacyModal(true);
+                          setShowUserMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 flex items-center space-x-2 transition-colors"
+                      >
+                        <Settings className="h-4 w-4" />
+                        <span>Privacy Settings</span>
+                      </button>
+                      <div className="border-t border-gray-200 my-1"></div>
+                      <button
+                        onClick={() => {
+                          logger.info('User logging out from dropdown menu');
+                          logout();
+                          setShowUserMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 flex items-center space-x-2 transition-colors"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        <span>Log out</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-4">
+                <Link
+                  href="/become-instructor"
+                  className="text-gray-700 hover:text-purple-700 font-medium"
+                >
+                  Become an Instructor
+                </Link>
+                <Link
+                  href="/login"
+                  className="px-4 py-2 bg-purple-700 text-white rounded-lg hover:bg-purple-800 transition-colors font-medium"
+                >
+                  Sign up / Log in
+                </Link>
+              </div>
+            )}
           </div>
         </div>
-      </nav>
+      </header>
 
       {/* Notification Bar */}
       <NotificationBar />
@@ -377,9 +378,9 @@ export default function HomePage() {
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h1 className="text-5xl font-bold text-gray-900 dark:text-gray-100 mb-8">
             <div className="leading-tight">
-              {isAuthenticated ? 'Your Next Lesson Awaits' : 'Instant learning with'}
+              {isClient && isAuthenticated ? 'Your Next Lesson Awaits' : 'Instant learning with'}
             </div>
-            {!isAuthenticated && <div className="leading-tight">iNSTAiNSTRU</div>}
+            {(!isClient || !isAuthenticated) && <div className="leading-tight">iNSTAiNSTRU</div>}
           </h1>
 
           <form onSubmit={handleSearch} className="max-w-2xl mx-auto">
@@ -392,7 +393,7 @@ export default function HomePage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={
-                  isAuthenticated ? 'What do you want to learn?' : 'Ready to learn something new?'
+                  isClient && isAuthenticated ? 'What do you want to learn?' : 'Ready to learn something new?'
                 }
                 className="w-full h-full text-base bg-transparent border-none focus:outline-none text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
                 style={{

@@ -242,7 +242,7 @@ function ResetPasswordForm() {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div
-          className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"
+          className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-700"
           role="status"
           aria-label="Verifying reset link"
         ></div>
@@ -261,7 +261,7 @@ function ResetPasswordForm() {
             className="flex justify-center mb-6"
             onClick={() => logger.info('Navigating to home from invalid token page')}
           >
-            <h1 className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">
+            <h1 className="text-4xl font-bold text-purple-700 dark:text-purple-400">
               {BRAND.name}
             </h1>
           </Link>
@@ -282,7 +282,7 @@ function ResetPasswordForm() {
 
               <Link
                 href="/forgot-password"
-                className="text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium"
+                className="text-purple-700 hover:text-purple-600 dark:text-purple-400 dark:hover:text-purple-300 font-medium"
                 onClick={() => logger.info('Navigating to forgot password from invalid token')}
               >
                 Request a new reset link
@@ -305,7 +305,7 @@ function ResetPasswordForm() {
             className="flex justify-center mb-6"
             onClick={() => logger.info('Navigating to home from reset success')}
           >
-            <h1 className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">
+            <h1 className="text-4xl font-bold text-purple-700 dark:text-purple-400">
               {BRAND.name}
             </h1>
           </Link>
@@ -330,7 +330,7 @@ function ResetPasswordForm() {
 
               <button
                 onClick={handleGoToLogin}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:ring-offset-gray-800"
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-700 hover:bg-purple-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 dark:ring-offset-gray-800"
               >
                 Go to Login
               </button>
@@ -351,7 +351,7 @@ function ResetPasswordForm() {
           className="flex justify-center mb-6"
           onClick={() => logger.info('Navigating to home from reset form')}
         >
-          <h1 className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">{BRAND.name}</h1>
+          <h1 className="text-4xl font-bold text-purple-700 dark:text-purple-400">iNSTAiNSTRU</h1>
         </Link>
 
         <h2 className="text-center text-3xl font-extrabold text-gray-900 dark:text-white">
@@ -387,7 +387,7 @@ function ResetPasswordForm() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
-                  className="appearance-none block w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="appearance-none block w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder="Enter new password"
                   aria-describedby="password-requirements"
                 />
@@ -426,7 +426,7 @@ function ResetPasswordForm() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   disabled={isLoading}
-                  className="appearance-none block w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="appearance-none block w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder="Confirm new password"
                 />
                 <button
@@ -556,7 +556,7 @@ export default function ResetPasswordPage() {
       fallback={
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
           <div
-            className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"
+            className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-700"
             role="status"
             aria-label="Loading"
           ></div>

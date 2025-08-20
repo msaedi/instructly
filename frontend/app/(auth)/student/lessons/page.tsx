@@ -11,9 +11,9 @@ import { AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { isApiError } from '@/lib/react-query/api';
-import { Breadcrumb } from '@/components/ui/breadcrumb';
 import { ChatModal } from '@/components/chat/ChatModal';
 import type { BookingListResponse, Booking } from '@/types/booking';
+import UserProfileDropdown from '@/components/UserProfileDropdown';
 
 function MyLessonsContent() {
   const router = useRouter();
@@ -72,12 +72,26 @@ function MyLessonsContent() {
   // Show loading while checking auth
   if (isAuthLoading) {
     return (
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
-        <Skeleton className="h-8 w-48 mb-8" />
-        <Skeleton className="h-12 w-full mb-8" />
-        <div className="space-y-4">
-          <Skeleton className="h-48 w-full" />
-          <Skeleton className="h-48 w-full" />
+      <div className="min-h-screen">
+        <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between max-w-full">
+            <a href="/" className="inline-block">
+              <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            </a>
+            <div className="pr-4">
+              <div className="animate-pulse">
+                <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div className="container mx-auto px-4 py-8 max-w-6xl">
+          <Skeleton className="h-8 w-48 mb-8" />
+          <Skeleton className="h-12 w-full mb-8" />
+          <div className="space-y-4">
+            <Skeleton className="h-48 w-full" />
+            <Skeleton className="h-48 w-full" />
+          </div>
         </div>
       </div>
     );
@@ -95,11 +109,21 @@ function MyLessonsContent() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      {/* Breadcrumb */}
-      <Breadcrumb items={[{ label: 'Home', href: '/' }, { label: 'My Lessons' }]} />
+    <div className="min-h-screen">
+      {/* Header - matching other pages */}
+      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between max-w-full">
+          <a href="/" className="inline-block">
+            <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+          </a>
+          <div className="pr-4">
+            <UserProfileDropdown />
+          </div>
+        </div>
+      </header>
 
-      {/* Page Header */}
+      <div className="container mx-auto px-4 py-8 max-w-6xl">
+        {/* Page Header */}
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold">My Lessons</h1>
       </div>
@@ -207,6 +231,7 @@ function MyLessonsContent() {
           lessonDate={format(new Date(`${selectedBooking.booking_date}T${selectedBooking.start_time}`), 'MMM d, yyyy')}
         />
       )}
+      </div>
     </div>
   );
 }
