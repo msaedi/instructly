@@ -273,7 +273,9 @@ class TestPaymentRoutes:
         )
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.json()["received"] is True
+        response_data = response.json()
+        assert response_data["status"] == "success"
+        assert response_data["event_type"] == "payment_intent.succeeded"
 
         # Verify the event was processed
         mock_construct_event.assert_called_once()
@@ -320,8 +322,10 @@ class TestPaymentRoutes:
 
         # Should return 200 to prevent Stripe retries
         assert response.status_code == status.HTTP_200_OK
-        assert response.json()["received"] is True
-        assert "error" in response.json()
+        response_data = response.json()
+        assert response_data["status"] == "error"
+        assert response_data["event_type"] == "unknown"
+        assert "error" in response_data["message"].lower()
 
     # ========== Response Format Tests ==========
 
