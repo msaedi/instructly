@@ -225,7 +225,15 @@ export async function getRecentSearches(
     });
 
     if (!response.ok) {
-      logger.error('Failed to fetch recent searches', new Error(`Status: ${response.status}`));
+      // Avoid noisy errors in UI; treat as recoverable
+      const level = response.status >= 500 ? 'error' : 'warn';
+      if (level === 'error') {
+        logger.error('Failed to fetch recent searches', new Error(`Status: ${response.status}`));
+      } else {
+        logger.warn('Failed to fetch recent searches (non-fatal)', {
+          status: response.status,
+        });
+      }
 
       // Fallback to sessionStorage for guests
       if (!isAuthenticated) {

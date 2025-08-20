@@ -30,18 +30,20 @@ export function RecentSearches() {
   const [searches, setSearches] = useState<DisplaySearchItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
 
   useEffect(() => {
+    if (isAuthLoading) return;
     if (isAuthenticated) {
       fetchRecentSearches();
     } else {
       loadGuestSearches();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isAuthLoading]);
 
   // Listen for storage changes for guest searches
   useEffect(() => {
+    if (isAuthLoading) return;
     if (!isAuthenticated) {
       const handleStorageChange = () => {
         loadGuestSearches();
@@ -57,10 +59,11 @@ export function RecentSearches() {
         window.removeEventListener('guestSearchUpdated', handleStorageChange);
       };
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isAuthLoading]);
 
   // Listen for authenticated search updates
   useEffect(() => {
+    if (isAuthLoading) return;
     if (isAuthenticated) {
       const handleSearchUpdate = () => {
         fetchRecentSearches();
@@ -72,7 +75,7 @@ export function RecentSearches() {
         window.removeEventListener('searchHistoryUpdated', handleSearchUpdate);
       };
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isAuthLoading]);
 
   const loadGuestSearches = async () => {
     try {

@@ -13,8 +13,7 @@ import { NotificationBar } from '@/components/NotificationBar';
 import { UpcomingLessons } from '@/components/UpcomingLessons';
 import { BookAgain } from '@/components/BookAgain';
 import { RecentSearches } from '@/components/RecentSearches';
-import { useQuery } from '@tanstack/react-query';
-import { queryKeys } from '@/lib/react-query/queryClient';
+// Removed react-query hook usage here to avoid SSR hook order differences
 import { convertApiResponse } from '@/lib/react-query/api';
 import {
   Search,
@@ -60,13 +59,9 @@ export default function HomePage() {
     setIsClient(true);
   }, []);
 
-  // Add React Query hook for fetching top services
-  const { data: topServicesResponse } = useQuery({
-    queryKey: queryKeys.services?.featured || ['services', 'featured'],
-    queryFn: () => publicApi.getTopServicesPerCategory(),
-    staleTime: 1000 * 60 * 60, // 1 hour - rarely changes
-    gcTime: 1000 * 60 * 60 * 2, // Keep for 2 hours
-  });
+  // Fetch top services on mount (client-only) to avoid SSR/client hook order issues
+
+  // Note: Do not early-return before all hooks have run; gate rendering in JSX instead
 
   const categories = [
     { icon: Music, name: 'Music', slug: 'music', subtitle: 'Instrument Voice Theory' },
@@ -95,47 +90,10 @@ export default function HomePage() {
     }
   };
 
-  // Fetch services for all categories on mount
+  // Fetch services for all categories on mount (client-only)
   useEffect(() => {
-    // If React Query has already fetched the data, use it
-    if (topServicesResponse) {
-      if (topServicesResponse.error) {
-        logger.error('API error fetching top services', new Error(topServicesResponse.error), {
-          status: topServicesResponse.status,
-        });
-        return;
-      }
-
-      if (!topServicesResponse.data) {
-        logger.error('No data received from top services endpoint');
-        return;
-      }
-
-      // Map the response to our state structure
-      const servicesMap: Record<string, TopServiceSummary[]> = {};
-
-      topServicesResponse.data.categories.forEach((category) => {
-        servicesMap[category.slug] = category.services;
-      });
-
-      setCategoryServices(servicesMap);
-
-      // Log summary
-      const totalServicesLoaded = Object.values(servicesMap).reduce(
-        (sum, services) => sum + services.length,
-        0
-      );
-      logger.info('All category services loaded with single request', {
-        categoriesLoaded: Object.keys(servicesMap).length,
-        totalServices: totalServicesLoaded,
-      });
-      return;
-    }
-
-    // Fallback to original fetching logic if React Query data not available
     const fetchCategoryServices = async () => {
       try {
-        // Fetch all categories with their top services in a single request
         const response = await publicApi.getTopServicesPerCategory();
 
         if (response.error) {
@@ -150,16 +108,13 @@ export default function HomePage() {
           return;
         }
 
-        // Map the response to our state structure
         const servicesMap: Record<string, TopServiceSummary[]> = {};
-
         response.data.categories.forEach((category) => {
           servicesMap[category.slug] = category.services;
         });
 
         setCategoryServices(servicesMap);
 
-        // Log summary
         const totalServicesLoaded = Object.values(servicesMap).reduce(
           (sum, services) => sum + services.length,
           0
@@ -174,7 +129,7 @@ export default function HomePage() {
     };
 
     fetchCategoryServices();
-  }, [topServicesResponse]);
+  }, []);
 
   // Detect touch device
   useEffect(() => {
@@ -246,7 +201,7 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="min-h-screen relative">
+    <div className="min-h-screen relative" suppressHydrationWarning>
       {/* Navigation - matching search results page */}
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
@@ -366,17 +321,17 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* Notification Bar */}
-      <NotificationBar />
+      {/* Notification Bar (client-only to avoid hydration mismatches) */}
+      {isClient && <NotificationBar />}
 
-      {/* Upcoming Lessons Section */}
-      <UpcomingLessons />
+      {/* Upcoming Lessons Section (client-only to avoid hydration mismatches) */}
+      {isClient && <UpcomingLessons />}
 
       {/* Hero Section */}
       <section className="py-16 relative" style={{ paddingTop: '60px' }}>
         <div className="relative z-10">
         <div className="max-w-4xl mx-auto px-4 text-center">
-          <h1 className="text-5xl font-bold text-gray-900 dark:text-gray-100 mb-8">
+          <h1 className="text-5xl font-bold text-gray-900 dark:text-gray-100 mb-8" suppressHydrationWarning>
             <div className="leading-tight">
               {isClient && isAuthenticated ? 'Your Next Lesson Awaits' : 'Instant learning with'}
             </div>
@@ -581,54 +536,57 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Book Again OR How It Works - Mutually exclusive based on booking history */}
-      {isAuthenticated && userHasBookingHistory === null ? (
-        // Loading state while checking booking history
-        <BookAgain onLoadComplete={(hasHistory) => setUserHasBookingHistory(hasHistory)} />
-      ) : isAuthenticated && userHasBookingHistory ? (
-        // User has booking history - show Book Again
-        <BookAgain onLoadComplete={(hasHistory) => setUserHasBookingHistory(hasHistory)} />
-      ) : (
-        // User has no booking history OR not authenticated - show How It Works
-        <section className="py-16 bg-transparent dark:bg-transparent">
-          <div className="max-w-7xl mx-auto px-4">
-            <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-gray-100 mb-12">
-              How it works
-            </h2>
-            <div className="grid grid-cols-3 gap-8">
-              <div className="text-center">
-                <div className="text-5xl font-bold text-blue-600 dark:text-blue-400 mb-4">1</div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
-                  Choose a skill
-                </h3>
-                <p className="text-gray-600 dark:text-gray-400">
-                  Browse or search from 100+ skills
-                </p>
-              </div>
-              <div className="text-center">
-                <div className="text-5xl font-bold text-blue-600 dark:text-blue-400 mb-4">2</div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
-                  Schedule an instructor
-                </h3>
-                <p className="text-gray-600 dark:text-gray-400">Pick a time that works for you</p>
-              </div>
-              <div className="text-center">
-                <div className="text-5xl font-bold text-blue-600 dark:text-blue-400 mb-4">3</div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Learn</h3>
-                <p className="text-gray-600 dark:text-gray-400">Meet in-person and level up</p>
+      {/* Book Again OR How It Works - render on client only to avoid SSR/client mismatch */}
+      {isClient && (
+        isAuthenticated && userHasBookingHistory === null ? (
+          // Loading state while checking booking history
+          <BookAgain onLoadComplete={(hasHistory) => setUserHasBookingHistory(hasHistory)} />
+        ) : isAuthenticated && userHasBookingHistory ? (
+          // User has booking history - show Book Again
+          <BookAgain onLoadComplete={(hasHistory) => setUserHasBookingHistory(hasHistory)} />
+        ) : (
+          // User has no booking history OR not authenticated - show How It Works
+          <section className="py-16 bg-transparent dark:bg-transparent">
+            <div className="max-w-7xl mx-auto px-4">
+              <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-gray-100 mb-12">
+                How it works
+              </h2>
+              <div className="grid grid-cols-3 gap-8">
+                <div className="text-center">
+                  <div className="text-5xl font-bold text-blue-600 dark:text-blue-400 mb-4">1</div>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
+                    Choose a skill
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    Browse or search from 100+ skills
+                  </p>
+                </div>
+                <div className="text-center">
+                  <div className="text-5xl font-bold text-blue-600 dark:text-blue-400 mb-4">2</div>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
+                    Schedule an instructor
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400">Pick a time that works for you</p>
+                </div>
+                <div className="text-center">
+                  <div className="text-5xl font-bold text-blue-600 dark:text-blue-400 mb-4">3</div>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Learn</h3>
+                  <p className="text-gray-600 dark:text-gray-400">Meet in-person and level up</p>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )
       )}
 
-      {/* Your Recent Searches - Only shows for authenticated users with search history */}
-      <RecentSearches />
+      {/* Your Recent Searches - Only shows for authenticated users with search history (client-only) */}
+      {isClient && <RecentSearches />}
 
-      {/* Available Now & Trending */}
-      <section className="py-16 bg-transparent dark:bg-transparent">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="grid grid-cols-2 gap-8">
+      {/* Available Now & Trending (client-only to avoid hydration mismatches) */}
+      {isClient && (
+        <section className="py-16 bg-transparent dark:bg-transparent">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="grid grid-cols-2 gap-8">
             {/* Available Now */}
             <div>
               <div className="flex items-center mb-6">
@@ -707,9 +665,10 @@ export default function HomePage() {
                 Explore Trending →
               </Link>
             </div>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Testimonials */}
       <section className="py-16 bg-transparent dark:bg-transparent">

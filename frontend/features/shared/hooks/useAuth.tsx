@@ -42,6 +42,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('access_token');
   // Initialize user from localStorage if token exists to prevent flashing
   const [user, setUser] = useState<User | null>(() => {
     if (typeof window !== 'undefined') {
@@ -105,15 +106,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Cache user data to prevent auth loss during navigation
         localStorage.setItem('cached_user', JSON.stringify(userData));
       } else if (response.status === 401) {
-        logger.warn('Invalid or expired auth token - NOT removing token on single failure');
-        // Don't immediately remove token - might be a temporary network issue
-        // Only remove token if user is already null (meaning we haven't successfully authenticated before)
-        if (!user) {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('cached_user');
-          setUser(null);
-        }
-        // If user was previously authenticated, keep them logged in
+        logger.warn('Invalid or expired auth token - clearing session');
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('cached_user');
+        setUser(null);
       } else {
         const msg = await getErrorMessage(response);
         logger.error('Failed to fetch user data', undefined, {
@@ -229,20 +225,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push(`/login?redirect=${encodedUrl}`);
   };
 
-  // Check authentication on mount only
+  // Check authentication on mount: always validate the token if present
   useEffect(() => {
-    // Only check auth if we don't already have a user
-    // This prevents unnecessary auth checks on navigation
-    if (!user) {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+    if (token) {
       checkAuth();
+    } else {
+      // Ensure we reflect logged-out state
+      setUser(null);
+      setIsLoading(false);
     }
-  }, []); // Empty dependency array - only run once on mount
+  }, []);
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        isAuthenticated: !!user,
+        isAuthenticated: !!user && hasToken,
         isLoading,
         error,
         login,

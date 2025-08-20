@@ -100,8 +100,7 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: '/favicon.ico',
-    shortcut: '/favicon-16x16.png',
-    apple: '/apple-touch-icon.png',
+    // Use only existing icons to avoid 404s
   },
   manifest: '/site.webmanifest',
 };
