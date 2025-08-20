@@ -134,7 +134,7 @@ class TestPaymentRoutes:
     def test_webhook_endpoint_no_auth(self, client: TestClient):
         """Test that webhook endpoint doesn't require authentication."""
         # Webhook should return 400 for missing signature, not 401
-        response = client.post("/api/payments/webhooks/stripe", data="test")
+        response = client.post("/api/payments/webhooks/stripe", content="test")
         assert (
             response.status_code != status.HTTP_401_UNAUTHORIZED
         ), "Webhook endpoint should not require authentication"
@@ -248,7 +248,7 @@ class TestPaymentRoutes:
         """Test webhook endpoint with missing signature."""
         response = client.post(
             "/api/payments/webhooks/stripe",
-            data='{"type": "payment_intent.succeeded"}',
+            content='{"type": "payment_intent.succeeded"}',
             headers={"Content-Type": "application/json"},
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
@@ -268,7 +268,7 @@ class TestPaymentRoutes:
 
         response = client.post(
             "/api/payments/webhooks/stripe",
-            data='{"type": "payment_intent.succeeded"}',
+            content='{"type": "payment_intent.succeeded"}',
             headers={"Content-Type": "application/json", "stripe-signature": "test_signature"},
         )
 
@@ -293,7 +293,7 @@ class TestPaymentRoutes:
 
         response = client.post(
             "/api/payments/webhooks/stripe",
-            data='{"type": "payment_intent.succeeded"}',
+            content='{"type": "payment_intent.succeeded"}',
             headers={"Content-Type": "application/json", "stripe-signature": "invalid_signature"},
         )
 
@@ -316,7 +316,7 @@ class TestPaymentRoutes:
 
         response = client.post(
             "/api/payments/webhooks/stripe",
-            data='{"type": "payment_intent.succeeded"}',
+            content='{"type": "payment_intent.succeeded"}',
             headers={"Content-Type": "application/json", "stripe-signature": "test_signature"},
         )
 
