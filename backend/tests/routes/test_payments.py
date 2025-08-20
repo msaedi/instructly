@@ -10,7 +10,7 @@ Comprehensive test suite verifying:
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -256,10 +256,14 @@ class TestPaymentRoutes:
 
     @patch("stripe.Webhook.construct_event")
     @patch("app.services.stripe_service.StripeService.handle_webhook_event")
+    @patch("app.routes.payments.settings")
     def test_webhook_with_valid_signature(
-        self, mock_handle_event, mock_construct_event, client: TestClient, db: Session
+        self, mock_settings, mock_handle_event, mock_construct_event, client: TestClient, db: Session
     ):
         """Test webhook endpoint with valid signature."""
+        # Mock webhook secrets configuration
+        mock_settings.webhook_secrets = ["whsec_test_secret"]
+
         # Mock successful signature verification
         mock_construct_event.return_value = {"type": "payment_intent.succeeded", "data": {"object": {"id": "pi_test"}}}
 
@@ -282,9 +286,13 @@ class TestPaymentRoutes:
         mock_handle_event.assert_called_once()
 
     @patch("stripe.Webhook.construct_event")
-    def test_webhook_invalid_signature(self, mock_construct_event, client: TestClient, db: Session):
+    @patch("app.routes.payments.settings")
+    def test_webhook_invalid_signature(self, mock_settings, mock_construct_event, client: TestClient, db: Session):
         """Test webhook endpoint with invalid signature."""
         import stripe
+
+        # Mock webhook secrets configuration
+        mock_settings.webhook_secrets = ["whsec_test_secret"]
 
         # Mock invalid signature error
         mock_construct_event.side_effect = stripe.error.SignatureVerificationError(
@@ -302,11 +310,15 @@ class TestPaymentRoutes:
 
     @patch("stripe.Webhook.construct_event")
     @patch("app.services.stripe_service.StripeService.handle_webhook_event")
+    @patch("app.routes.payments.settings")
     def test_webhook_processing_error_returns_200(
-        self, mock_handle_event, mock_construct_event, client: TestClient, db: Session
+        self, mock_settings, mock_handle_event, mock_construct_event, client: TestClient, db: Session
     ):
         """Test webhook returns 200 even on processing errors to prevent retries."""
         from app.core.exceptions import ServiceException
+
+        # Mock webhook secrets configuration
+        mock_settings.webhook_secrets = ["whsec_test_secret"]
 
         # Mock successful signature verification
         mock_construct_event.return_value = {"type": "payment_intent.succeeded", "data": {"object": {"id": "pi_test"}}}
@@ -475,8 +487,8 @@ class TestPaymentRoutes:
             instructor_id=instructor.id,  # Use actual instructor from fixture
             instructor_service_id=instructor_service.id,  # Use actual service
             booking_date=now.date(),
-            start_time=now.time(),
-            end_time=(now + timedelta(hours=1)).time(),  # End 1 hour later
+            start_time=time(14, 0),  # 2:00 PM
+            end_time=time(15, 0),  # 3:00 PM
             service_name="Test",
             hourly_rate=50.00,
             total_price=50.00,

@@ -7,7 +7,7 @@ and webhook handling.
 """
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
@@ -120,8 +120,8 @@ class TestStripeService:
             instructor_id=instructor_user.id,
             instructor_service_id=instructor_service.id,
             booking_date=datetime.now().date(),
-            start_time=datetime.now().time(),
-            end_time=(datetime.now() + timedelta(hours=1)).time(),
+            start_time=time(14, 0),  # 2:00 PM
+            end_time=time(15, 0),  # 3:00 PM
             service_name="Test Service",
             hourly_rate=50.00,
             total_price=50.00,
@@ -498,19 +498,27 @@ class TestStripeService:
     # ========== Webhook Handling Tests ==========
 
     @patch("stripe.Webhook.construct_event")
-    def test_verify_webhook_signature_valid(self, mock_construct, stripe_service: StripeService):
+    @patch("app.services.stripe_service.settings")
+    def test_verify_webhook_signature_valid(self, mock_settings, mock_construct, stripe_service: StripeService):
         """Test valid webhook signature verification."""
+        # Mock webhook secret configuration
+        mock_settings.stripe_webhook_secret = "whsec_test_secret"
+
         # Mock successful verification
         mock_construct.return_value = {}
 
         result = stripe_service.verify_webhook_signature(b"payload", "signature")
 
         assert result is True
-        mock_construct.assert_called_once()
+        mock_construct.assert_called_once_with(b"payload", "signature", "whsec_test_secret")
 
     @patch("stripe.Webhook.construct_event")
-    def test_verify_webhook_signature_invalid(self, mock_construct, stripe_service: StripeService):
+    @patch("app.services.stripe_service.settings")
+    def test_verify_webhook_signature_invalid(self, mock_settings, mock_construct, stripe_service: StripeService):
         """Test invalid webhook signature verification."""
+        # Mock webhook secret configuration
+        mock_settings.stripe_webhook_secret = "whsec_test_secret"
+
         # Mock signature verification error
         mock_construct.side_effect = stripe.SignatureVerificationError("Invalid", "signature")
 

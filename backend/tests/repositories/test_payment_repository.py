@@ -9,7 +9,7 @@ Verifies all payment-related database operations including:
 - Analytics calculations
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 
 import pytest
 import ulid
@@ -120,8 +120,8 @@ class TestPaymentRepository:
             instructor_id=instructor_user.id,
             instructor_service_id=instructor_service.id,  # Use real service ID
             booking_date=datetime.now().date(),
-            start_time=datetime.now().time(),
-            end_time=(datetime.now() + timedelta(hours=1)).time(),
+            start_time=time(14, 0),  # 2:00 PM
+            end_time=time(15, 0),  # 3:00 PM
             service_name="Test Service",
             hourly_rate=50.00,
             total_price=50.00,
