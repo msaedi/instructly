@@ -23,6 +23,7 @@ from .instructor import InstructorProfile
 from .message import Message, MessageNotification
 from .monitoring import AlertHistory
 from .password_reset import PasswordResetToken
+from .payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, StripeCustomer
 from .rbac import Permission, Role, RolePermission, UserPermission, UserRole
 from .region_boundary import RegionBoundary
 from .search_event import SearchEvent, SearchEventCandidate
@@ -56,6 +57,11 @@ __all__ = [
     # Booking models
     "Booking",
     "BookingStatus",
+    # Payment models
+    "PaymentIntent",
+    "PaymentMethod",
+    "StripeConnectedAccount",
+    "StripeCustomer",
     # Messaging models
     "Message",
     "MessageNotification",
