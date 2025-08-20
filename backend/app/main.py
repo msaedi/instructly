@@ -2,9 +2,10 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from sqlalchemy.orm import Session
 
 from .core.config import settings
 from .core.constants import (
@@ -16,6 +17,7 @@ from .core.constants import (
     CORS_ORIGIN_REGEX,
     SSE_PATH_PREFIX,
 )
+from .database import get_db
 from .middleware.https_redirect import create_https_redirect_middleware
 from .middleware.monitoring import MonitoringMiddleware
 from .middleware.performance import PerformanceMiddleware
@@ -39,6 +41,7 @@ from .routes import (
     metrics,
     monitoring,
     password_reset,
+    payments,
     privacy,
     prometheus,
     public,
@@ -46,6 +49,7 @@ from .routes import (
     search,
     search_history,
     services,
+    stripe_webhooks,
     two_factor_auth,
 )
 from .schemas.main_responses import HealthLiteResponse, HealthResponse, PerformanceMetricsResponse, RootResponse
@@ -199,6 +203,7 @@ app.include_router(availability_windows.router)
 app.include_router(password_reset.router)
 app.include_router(bookings.router)
 app.include_router(favorites.router)
+app.include_router(payments.router)
 app.include_router(messages.router)
 app.include_router(metrics.router)
 app.include_router(monitoring.router)
@@ -212,7 +217,27 @@ app.include_router(addresses.router)
 app.include_router(redis_monitor.router)
 app.include_router(database_monitor.router)
 app.include_router(privacy.router, prefix="/api", tags=["privacy"])
+app.include_router(stripe_webhooks.router)
 app.include_router(prometheus.router)
+
+
+# Import for Stripe webhook response model
+from app.schemas.payment_schemas import WebhookResponse
+
+
+# Redirect for Stripe webhook - handles the URL currently configured in Stripe Dashboard
+@app.post("/api/webhooks/stripe", response_model=WebhookResponse)
+async def redirect_stripe_webhook(request: Request, db: Session = Depends(get_db)) -> WebhookResponse:
+    """
+    Redirect old webhook URL to new location.
+
+    This endpoint exists for backward compatibility with webhooks configured
+    at /api/webhooks/stripe instead of /api/payments/webhooks/stripe.
+    It simply forwards the request to the correct handler.
+    """
+    from app.routes.payments import handle_stripe_webhook
+
+    return await handle_stripe_webhook(request, db)
 
 
 @app.get("/", response_model=RootResponse)

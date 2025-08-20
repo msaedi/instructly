@@ -154,6 +154,57 @@ class Settings(BaseSettings):
     google_maps_api_key: str = Field(default="", description="Google Maps API key for geocoding/places")
     mapbox_access_token: str = Field(default="", description="Mapbox access token for geocoding/search")
 
+    # Stripe Configuration
+    stripe_publishable_key: str = Field(default="", description="Stripe publishable key for frontend")
+    stripe_secret_key: SecretStr = Field(default="", description="Stripe secret key for backend API calls")
+
+    # Webhook secrets - backward compatible for both local and deployed environments
+    stripe_webhook_secret: SecretStr = Field(default="", description="Stripe webhook secret for local dev (Stripe CLI)")
+    stripe_webhook_secret_platform: SecretStr = Field(
+        default="", description="Platform events webhook secret (deployed)"
+    )
+    stripe_webhook_secret_connect: SecretStr = Field(default="", description="Connect events webhook secret (deployed)")
+
+    stripe_platform_fee_percentage: float = Field(default=15, description="Platform fee percentage (15 = 15%)")
+    stripe_currency: str = Field(default="usd", description="Default currency for payments")
+
+    @property
+    def webhook_secrets(self) -> list[str]:
+        """Build list of webhook secrets to try in order."""
+        secrets = []
+
+        # Add local dev secret if configured
+        if self.stripe_webhook_secret:
+            secret_str = (
+                self.stripe_webhook_secret.get_secret_value()
+                if hasattr(self.stripe_webhook_secret, "get_secret_value")
+                else str(self.stripe_webhook_secret)
+            )
+            if secret_str:
+                secrets.append(secret_str)
+
+        # Add platform secret if configured
+        if self.stripe_webhook_secret_platform:
+            secret_str = (
+                self.stripe_webhook_secret_platform.get_secret_value()
+                if hasattr(self.stripe_webhook_secret_platform, "get_secret_value")
+                else str(self.stripe_webhook_secret_platform)
+            )
+            if secret_str:
+                secrets.append(secret_str)
+
+        # Add connect secret if configured
+        if self.stripe_webhook_secret_connect:
+            secret_str = (
+                self.stripe_webhook_secret_connect.get_secret_value()
+                if hasattr(self.stripe_webhook_secret_connect, "get_secret_value")
+                else str(self.stripe_webhook_secret_connect)
+            )
+            if secret_str:
+                secrets.append(secret_str)
+
+        return secrets
+
     @field_validator("int_database_url_raw")
     @classmethod
     def validate_test_database(cls, v: str, info) -> str:

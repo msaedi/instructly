@@ -1,0 +1,627 @@
+"""
+Payment API Routes for InstaInstru Platform
+
+Handles Stripe Connect integration including:
+- Instructor onboarding and account management
+- Student payment method management
+- Payment processing for bookings
+- Webhook event handling
+
+Key Features:
+- Role-based access control (instructor vs student routes)
+- Comprehensive error handling
+- Audit logging for all payment operations
+- Stripe API integration through StripeService
+"""
+
+import logging
+from typing import Any, Dict, List
+
+import stripe
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy.orm import Session
+
+from ..api.dependencies.auth import get_current_active_user
+from ..core.config import settings
+from ..core.enums import RoleName
+from ..core.exceptions import ServiceException, ValidationException
+from ..database import get_db
+from ..models.user import User
+from ..schemas.payment_schemas import (
+    CheckoutResponse,
+    CreateCheckoutRequest,
+    CustomerResponse,
+    DashboardLinkResponse,
+    DeleteResponse,
+    EarningsResponse,
+    OnboardingResponse,
+    OnboardingStatusResponse,
+    PaymentErrorResponse,
+    PaymentIntentResponse,
+    PaymentMethodResponse,
+    SavePaymentMethodRequest,
+    WebhookResponse,
+)
+from ..services.base import BaseService
+from ..services.stripe_service import StripeService
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/payments", tags=["payments"])
+
+
+def get_stripe_service(db: Session = Depends(get_db)) -> StripeService:
+    """Get StripeService instance with dependency injection."""
+    return StripeService(db)
+
+
+def validate_instructor_role(user: User) -> None:
+    """Validate that user has instructor role."""
+    if not user.is_instructor:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This endpoint requires instructor role")
+
+
+def validate_student_role(user: User) -> None:
+    """Validate that user has student role."""
+    if not user.is_student:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This endpoint requires student role")
+
+
+# ========== Instructor Routes ==========
+
+
+@router.post("/connect/onboard", response_model=OnboardingResponse)
+async def start_onboarding(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    stripe_service: StripeService = Depends(get_stripe_service),
+) -> OnboardingResponse:
+    """
+    Start Stripe Connect onboarding for an instructor.
+
+    Creates a Stripe Express account and generates an onboarding link.
+    If the instructor already has an account, returns existing details.
+
+    Returns:
+        OnboardingResponse with account ID and onboarding URL
+
+    Raises:
+        HTTPException: If onboarding setup fails
+    """
+    try:
+        # Validate instructor role
+        validate_instructor_role(current_user)
+
+        # Get instructor profile
+        instructor_profile = stripe_service.instructor_repository.get_by_user_id(current_user.id)
+        if not instructor_profile:
+            logger.error(f"No instructor profile found for user {current_user.id}")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found")
+
+        # Check if account already exists
+        existing_account = stripe_service.payment_repository.get_connected_account_by_instructor_id(
+            instructor_profile.id
+        )
+
+        if existing_account:
+            # Check onboarding status
+            account_status = stripe_service.check_account_status(instructor_profile.id)
+
+            if account_status["onboarding_completed"]:
+                return OnboardingResponse(
+                    account_id=existing_account.stripe_account_id,
+                    onboarding_url="",  # No URL needed for completed onboarding
+                    already_onboarded=True,
+                )
+            else:
+                # Create new onboarding link for existing account
+                onboarding_url = stripe_service.create_account_link(
+                    instructor_profile.id,
+                    refresh_url=f"{settings.frontend_url}/instructor/onboarding/refresh",
+                    return_url=f"{settings.frontend_url}/instructor/onboarding/complete",
+                )
+
+                return OnboardingResponse(
+                    account_id=existing_account.stripe_account_id,
+                    onboarding_url=onboarding_url,
+                    already_onboarded=False,
+                )
+
+        # Create new connected account
+        connected_account = stripe_service.create_connected_account(instructor_profile.id, current_user.email)
+
+        # Create onboarding link
+        onboarding_url = stripe_service.create_account_link(
+            instructor_profile.id,
+            refresh_url=f"{settings.frontend_url}/instructor/onboarding/refresh",
+            return_url=f"{settings.frontend_url}/instructor/onboarding/complete",
+        )
+
+        logger.info(f"Started onboarding for instructor {instructor_profile.id}")
+
+        return OnboardingResponse(
+            account_id=connected_account.stripe_account_id, onboarding_url=onboarding_url, already_onboarded=False
+        )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions (like from validate_instructor_role)
+        raise
+    except ServiceException as e:
+        logger.error(f"Service error during onboarding: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error during onboarding: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to start onboarding process"
+        )
+
+
+@router.get("/connect/status", response_model=OnboardingStatusResponse)
+async def get_onboarding_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    stripe_service: StripeService = Depends(get_stripe_service),
+) -> OnboardingStatusResponse:
+    """
+    Get the onboarding status for an instructor's Stripe account.
+
+    Returns:
+        OnboardingStatusResponse with account status details
+
+    Raises:
+        HTTPException: If status check fails
+    """
+    try:
+        # Validate instructor role
+        validate_instructor_role(current_user)
+
+        # Get instructor profile
+        instructor_profile = stripe_service.instructor_repository.get_by_user_id(current_user.id)
+        if not instructor_profile:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found")
+
+        # Get account status
+        status_data = stripe_service.check_account_status(instructor_profile.id)
+
+        return OnboardingStatusResponse(
+            has_account=status_data["has_account"],
+            onboarding_completed=status_data["onboarding_completed"],
+            charges_enabled=status_data.get("can_accept_payments", False),
+            payouts_enabled=status_data.get("can_accept_payments", False),  # Simplified for now
+            details_submitted=status_data.get("details_submitted", False),
+            requirements=[],  # Could be populated from Stripe account requirements
+        )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except ServiceException as e:
+        logger.error(f"Service error checking onboarding status: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error checking onboarding status: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to check onboarding status"
+        )
+
+
+@router.get("/connect/dashboard", response_model=DashboardLinkResponse)
+async def get_dashboard_link(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    stripe_service: StripeService = Depends(get_stripe_service),
+) -> DashboardLinkResponse:
+    """
+    Get a link to the Stripe Express dashboard for an instructor.
+
+    Returns:
+        DashboardLinkResponse with dashboard URL
+
+    Raises:
+        HTTPException: If dashboard link creation fails
+    """
+    try:
+        # Validate instructor role
+        validate_instructor_role(current_user)
+
+        # Get instructor profile
+        instructor_profile = stripe_service.instructor_repository.get_by_user_id(current_user.id)
+        if not instructor_profile:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found")
+
+        # Get connected account
+        connected_account = stripe_service.payment_repository.get_connected_account_by_instructor_id(
+            instructor_profile.id
+        )
+
+        if not connected_account or not connected_account.onboarding_completed:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Onboarding must be completed before accessing dashboard",
+            )
+
+        # Create dashboard link
+        login_link = stripe.Account.create_login_link(connected_account.stripe_account_id)
+
+        logger.info(f"Created dashboard link for instructor {instructor_profile.id}")
+
+        return DashboardLinkResponse(
+            dashboard_url=login_link.url, expires_in_minutes=5  # Stripe login links expire after 5 minutes
+        )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except stripe.StripeError as e:
+        logger.error(f"Stripe error creating dashboard link: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to create dashboard link")
+    except ServiceException as e:
+        logger.error(f"Service error creating dashboard link: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error creating dashboard link: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create dashboard link")
+
+
+# ========== Student Routes ==========
+
+
+@router.post("/methods", response_model=PaymentMethodResponse)
+async def save_payment_method(
+    request: SavePaymentMethodRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    stripe_service: StripeService = Depends(get_stripe_service),
+) -> PaymentMethodResponse:
+    """
+    Save a payment method for a student.
+
+    Args:
+        request: Payment method details
+
+    Returns:
+        PaymentMethodResponse with saved payment method details
+
+    Raises:
+        HTTPException: If payment method saving fails
+    """
+    try:
+        # Validate student role
+        validate_student_role(current_user)
+
+        # Ensure user has a Stripe customer
+        customer = stripe_service.get_or_create_customer(current_user.id)
+
+        # Save payment method
+        payment_method = stripe_service.save_payment_method(
+            user_id=current_user.id, payment_method_id=request.payment_method_id, set_as_default=request.set_as_default
+        )
+
+        logger.info(f"Saved payment method for user {current_user.id}")
+
+        return PaymentMethodResponse(
+            id=payment_method.id,
+            last4=payment_method.last4 or "",
+            brand=payment_method.brand or "",
+            is_default=payment_method.is_default,
+            created_at=payment_method.created_at,
+        )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except ServiceException as e:
+        logger.error(f"Service error saving payment method: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error saving payment method: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to save payment method")
+
+
+@router.get("/methods", response_model=List[PaymentMethodResponse])
+async def list_payment_methods(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    stripe_service: StripeService = Depends(get_stripe_service),
+) -> List[PaymentMethodResponse]:
+    """
+    List all payment methods for a student.
+
+    Returns:
+        List of PaymentMethodResponse objects
+
+    Raises:
+        HTTPException: If payment method listing fails
+    """
+    try:
+        # Validate student role
+        validate_student_role(current_user)
+
+        # Get payment methods
+        payment_methods = stripe_service.get_user_payment_methods(current_user.id)
+
+        return [
+            PaymentMethodResponse(
+                id=pm.id, last4=pm.last4 or "", brand=pm.brand or "", is_default=pm.is_default, created_at=pm.created_at
+            )
+            for pm in payment_methods
+        ]
+
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except ServiceException as e:
+        logger.error(f"Service error listing payment methods: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error listing payment methods: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to list payment methods")
+
+
+@router.delete("/methods/{method_id}", response_model=DeleteResponse)
+async def delete_payment_method(
+    method_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    stripe_service: StripeService = Depends(get_stripe_service),
+) -> DeleteResponse:
+    """
+    Delete a payment method for a student.
+
+    Args:
+        method_id: Payment method ID to delete
+
+    Returns:
+        Success confirmation
+
+    Raises:
+        HTTPException: If payment method deletion fails
+    """
+    try:
+        # Validate student role
+        validate_student_role(current_user)
+
+        # Delete payment method
+        success = stripe_service.delete_payment_method(method_id, current_user.id)
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Payment method not found or not owned by user"
+            )
+
+        logger.info(f"Deleted payment method {method_id} for user {current_user.id}")
+
+        return DeleteResponse(success=True)
+
+    except HTTPException:
+        raise
+    except ServiceException as e:
+        logger.error(f"Service error deleting payment method: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error deleting payment method: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to delete payment method")
+
+
+@router.post("/checkout", response_model=CheckoutResponse)
+async def create_checkout(
+    request: CreateCheckoutRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    stripe_service: StripeService = Depends(get_stripe_service),
+) -> CheckoutResponse:
+    """
+    Create a checkout/payment for a booking.
+
+    Args:
+        request: Checkout details including booking and payment method
+
+    Returns:
+        CheckoutResponse with payment details
+
+    Raises:
+        HTTPException: If checkout creation fails
+    """
+    try:
+        # Validate student role
+        validate_student_role(current_user)
+
+        # Get booking and verify ownership
+        booking = stripe_service.booking_repository.get_by_id(request.booking_id)
+        if not booking:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Booking not found")
+
+        if booking.student_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only pay for your own bookings")
+
+        # Check booking status - should be confirmed and not yet paid
+        if booking.status not in ["CONFIRMED", "PENDING"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot process payment for booking with status: {booking.status}",
+            )
+
+        # Check if booking already has a successful payment
+        existing_payment = stripe_service.payment_repository.get_payment_by_booking_id(booking.id)
+        if existing_payment and existing_payment.status == "succeeded":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Booking has already been paid")
+
+        # Save payment method if requested
+        if request.save_payment_method:
+            stripe_service.save_payment_method(
+                user_id=current_user.id, payment_method_id=request.payment_method_id, set_as_default=False
+            )
+
+        # Process payment
+        payment_result = stripe_service.process_booking_payment(
+            booking_id=request.booking_id, payment_method_id=request.payment_method_id
+        )
+
+        # Update booking status if payment succeeded
+        if payment_result["success"] and payment_result["status"] == "succeeded":
+            booking.status = "CONFIRMED"
+            stripe_service.db.flush()
+
+        logger.info(f"Processed payment for booking {request.booking_id}")
+
+        return CheckoutResponse(
+            success=payment_result["success"],
+            payment_intent_id=payment_result["payment_intent_id"],
+            status=payment_result["status"],
+            amount=payment_result["amount"],
+            application_fee=payment_result["application_fee"],
+            client_secret=None,  # Don't expose client secret in API response
+            requires_action=payment_result["status"] in ["requires_action", "requires_confirmation"],
+        )
+
+    except HTTPException:
+        raise
+    except ServiceException as e:
+        logger.error(f"Service error creating checkout: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error creating checkout: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to process payment")
+
+
+# ========== Analytics Routes (Admin/Instructor) ==========
+
+
+@router.get("/earnings", response_model=EarningsResponse)
+async def get_instructor_earnings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    stripe_service: StripeService = Depends(get_stripe_service),
+) -> EarningsResponse:
+    """
+    Get earnings statistics for an instructor.
+
+    Returns:
+        Instructor earnings data
+
+    Raises:
+        HTTPException: If earnings calculation fails
+    """
+    try:
+        # Validate instructor role
+        validate_instructor_role(current_user)
+
+        # Get instructor profile
+        instructor_profile = stripe_service.instructor_repository.get_by_user_id(current_user.id)
+        if not instructor_profile:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found")
+
+        # Get earnings data (using instructor user ID for now)
+        earnings = stripe_service.get_instructor_earnings(current_user.id)
+
+        return EarningsResponse(
+            total_earned=earnings.get("total_earned"),
+            total_fees=earnings.get("total_fees"),
+            booking_count=earnings.get("booking_count"),
+            average_earning=earnings.get("average_earning"),
+            period_start=earnings.get("period_start"),
+            period_end=earnings.get("period_end"),
+        )
+
+    except HTTPException:
+        raise
+    except ServiceException as e:
+        logger.error(f"Service error getting earnings: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error getting earnings: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get earnings data")
+
+
+# ========== Webhook Route (No Authentication) ==========
+
+
+@router.post("/webhooks/stripe", response_model=WebhookResponse)
+async def handle_stripe_webhook(request: Request, db: Session = Depends(get_db)) -> WebhookResponse:
+    """
+    Handle Stripe webhook events from both platform and connected accounts.
+
+    Works with both local development (single secret) and deployed environments (multiple secrets).
+    Tries each configured webhook secret until one successfully verifies the signature.
+
+    Returns:
+        Success confirmation (always returns 200 to prevent Stripe retries)
+
+    Note:
+        This endpoint has no authentication as it uses webhook signature verification
+    """
+    try:
+        # Get raw body and signature
+        payload = await request.body()
+        sig_header = request.headers.get("stripe-signature")
+
+        if not sig_header:
+            logger.warning("Webhook received without signature")
+            raise HTTPException(status_code=400, detail="No signature")
+
+        # Get list of secrets to try
+        webhook_secrets = settings.webhook_secrets
+        if not webhook_secrets:
+            logger.error("No webhook secrets configured")
+            raise HTTPException(status_code=500, detail="Webhook configuration error")
+
+        # Try each configured secret until one works
+        event = None
+        last_error = None
+        secret_type = None
+
+        for i, secret in enumerate(webhook_secrets):
+            try:
+                event = stripe.Webhook.construct_event(payload, sig_header, secret)
+                # Determine which secret worked for logging
+                if i == 0 and settings.stripe_webhook_secret:
+                    secret_type = "local/CLI"
+                elif (
+                    settings.stripe_webhook_secret_platform
+                    and secret == settings.stripe_webhook_secret_platform.get_secret_value()
+                ):
+                    secret_type = "platform"
+                elif (
+                    settings.stripe_webhook_secret_connect
+                    and secret == settings.stripe_webhook_secret_connect.get_secret_value()
+                ):
+                    secret_type = "connect"
+                else:
+                    secret_type = f"secret #{i+1}"
+
+                logger.info(f"Webhook verified with {secret_type} secret for event: {event['type']}")
+                break  # Success! Stop trying other secrets
+            except stripe.error.SignatureVerificationError as e:
+                last_error = e
+                continue  # Try next secret
+
+        if not event:
+            logger.error(f"Webhook signature verification failed with all {len(webhook_secrets)} configured secrets")
+            raise HTTPException(status_code=400, detail="Invalid signature")
+
+        # Log account context for debugging
+        if "account" in event:
+            logger.info(f"Event from connected account: {event['account']}")
+        else:
+            logger.info("Event from platform account")
+
+        # Process the verified event
+        stripe_service = StripeService(db)
+        result = stripe_service.handle_webhook_event(event)  # Pass parsed event directly
+
+        logger.info(f"Webhook processed successfully: {event['type']}")
+        return WebhookResponse(
+            status="success",
+            event_type=event.get("type", "unknown"),
+            message=f"Event processed with {secret_type} secret",
+        )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions (like missing signature)
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected webhook error: {str(e)}")
+        # Return 200 to prevent Stripe retries for non-recoverable errors
+        return WebhookResponse(
+            status="error", event_type="unknown", message="Error logged - returning 200 to prevent retries"
+        )
