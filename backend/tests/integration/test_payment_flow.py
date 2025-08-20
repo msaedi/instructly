@@ -415,10 +415,14 @@ class TestPaymentIntegration:
 
         # Test 3: Webhook signature verification failure
         with patch("stripe.Webhook.construct_event") as mock_construct:
-            mock_construct.side_effect = stripe.SignatureVerificationError("Invalid signature", "sig_header")
+            with patch("app.services.stripe_service.settings") as mock_settings:
+                # Mock webhook secret configuration
+                mock_settings.stripe_webhook_secret = "whsec_test_secret"
 
-            result = stripe_service.verify_webhook_signature(b"payload", "invalid_signature")
-            assert result is False
+                mock_construct.side_effect = stripe.SignatureVerificationError("Invalid signature", "sig_header")
+
+                result = stripe_service.verify_webhook_signature(b"payload", "invalid_signature")
+                assert result is False
 
     @patch("stripe.Customer.create")
     @patch("stripe.Account.create")

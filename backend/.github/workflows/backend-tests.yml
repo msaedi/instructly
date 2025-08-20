@@ -21,6 +21,12 @@ jobs:
       CI: true  # Ensure CI environment is detected
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/instainstru_test
       REDIS_URL: redis://localhost:6379/0
+      # Dummy Stripe configuration for tests (all API calls are mocked)
+      STRIPE_PUBLISHABLE_KEY: pk_test_dummy_key_for_ci
+      STRIPE_SECRET_KEY: sk_test_dummy_key_for_ci
+      STRIPE_WEBHOOK_SECRET: whsec_dummy_secret_for_ci
+      STRIPE_PLATFORM_FEE_PERCENTAGE: 15
+      STRIPE_CURRENCY: usd
 
     services:
       postgres:
