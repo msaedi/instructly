@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { favoritesApi } from '@/services/api/favorites';
 import type { FavoritedInstructor } from '@/types/instructor';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import BillingTab from '@/components/student/BillingTab';
 
 /**
  * StudentDashboard Component
@@ -523,6 +524,10 @@ function StudentDashboardContent() {
                     </div>
                   </div>
                 </div>
+              )}
+
+              {activeTab === 'billing' && (
+                <BillingTab userId={userData?.id || ''} />
               )}
 
               {activeTab === 'favorites' && (

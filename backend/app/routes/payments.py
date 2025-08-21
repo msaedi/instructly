@@ -30,6 +30,7 @@ from ..models.user import User
 from ..schemas.payment_schemas import (
     CheckoutResponse,
     CreateCheckoutRequest,
+    CreditBalanceResponse,
     CustomerResponse,
     DashboardLinkResponse,
     DeleteResponse,
@@ -40,6 +41,7 @@ from ..schemas.payment_schemas import (
     PaymentIntentResponse,
     PaymentMethodResponse,
     SavePaymentMethodRequest,
+    TransactionHistoryItem,
     WebhookResponse,
 )
 from ..services.base import BaseService
@@ -300,7 +302,7 @@ async def save_payment_method(
         logger.info(f"Saved payment method for user {current_user.id}")
 
         return PaymentMethodResponse(
-            id=payment_method.id,
+            id=payment_method.stripe_payment_method_id,
             last4=payment_method.last4 or "",
             brand=payment_method.brand or "",
             is_default=payment_method.is_default,
@@ -342,7 +344,11 @@ async def list_payment_methods(
 
         return [
             PaymentMethodResponse(
-                id=pm.id, last4=pm.last4 or "", brand=pm.brand or "", is_default=pm.is_default, created_at=pm.created_at
+                id=pm.stripe_payment_method_id,
+                last4=pm.last4 or "",
+                brand=pm.brand or "",
+                is_default=pm.is_default,
+                created_at=pm.created_at,
             )
             for pm in payment_methods
         ]
@@ -531,6 +537,89 @@ async def get_instructor_earnings(
     except Exception as e:
         logger.error(f"Unexpected error getting earnings: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get earnings data")
+
+
+# ========== Transaction History Route ==========
+
+
+@router.get("/transactions", response_model=List[TransactionHistoryItem])
+async def get_transaction_history(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+    limit: int = 20,
+    offset: int = 0,
+) -> List[TransactionHistoryItem]:
+    """
+    Get user's transaction history
+
+    Returns list of completed payments with booking details
+    """
+    try:
+        stripe_service = StripeService(db)
+
+        # Get payment intents for this user
+        transactions = stripe_service.payment_repository.get_user_payment_history(
+            user_id=current_user.id, limit=limit, offset=offset
+        )
+
+        # Format response with booking details
+        result = []
+        for payment in transactions:
+            booking = payment.booking
+            if booking and booking.instructor_service:
+                service = booking.instructor_service.service
+                instructor = booking.instructor_service.instructor_profile.user
+
+                result.append(
+                    TransactionHistoryItem(
+                        id=payment.id,
+                        service_name=service.name if service else "Service",
+                        instructor_name=f"{instructor.first_name} {instructor.last_name[0]}."
+                        if instructor
+                        else "Instructor",
+                        booking_date=booking.booking_date.isoformat(),
+                        start_time=booking.start_time.isoformat(),
+                        end_time=booking.end_time.isoformat(),
+                        duration_minutes=booking.duration_minutes,
+                        hourly_rate=float(booking.hourly_rate),
+                        total_price=payment.amount / 100,  # Convert cents to dollars
+                        platform_fee=payment.application_fee / 100 if payment.application_fee else 0,
+                        credit_applied=0,  # TODO: Implement credits
+                        final_amount=payment.amount / 100,
+                        status=payment.status,
+                        created_at=payment.created_at.isoformat(),
+                    )
+                )
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error getting transaction history: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get transaction history"
+        )
+
+
+# ========== Credit Balance Route ==========
+
+
+@router.get("/credits", response_model=CreditBalanceResponse)
+async def get_credit_balance(
+    current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)
+) -> CreditBalanceResponse:
+    """
+    Get user's credit balance
+
+    Returns available credits and expiration
+    """
+    try:
+        # TODO: Implement credit system
+        # For now, return mock data
+        return CreditBalanceResponse(available=0.00, expires_at=None, pending=0.00)
+
+    except Exception as e:
+        logger.error(f"Error getting credit balance: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to get credit balance")
 
 
 # ========== Webhook Route (No Authentication) ==========

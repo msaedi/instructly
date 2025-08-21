@@ -24,16 +24,6 @@ interface PayoutsDashboardProps {
   instructorId: string;
 }
 
-// Mock data for demonstration (replace with real data later)
-const mockEarnings: EarningsResponse = {
-  total_earned: 4250.00,
-  total_fees: 750.00,
-  booking_count: 15,
-  average_earning: 283.33,
-  period_start: '2025-08-01',
-  period_end: '2025-08-31',
-};
-
 const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId }) => {
   const [dashboardUrl, setDashboardUrl] = useState<string | null>(null);
   const [earnings, setEarnings] = useState<EarningsResponse | null>(null);
@@ -46,10 +36,9 @@ const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId }) => 
     const loadEarnings = async () => {
       try {
         setLoading(true);
-        // For now, use mock data
-        // In production: const data = await paymentService.getEarnings();
-        setEarnings(mockEarnings);
-        logger.info('Earnings loaded', mockEarnings);
+        const data = await paymentService.getEarnings();
+        setEarnings(data);
+        logger.info('Earnings loaded', data);
       } catch (err) {
         logger.error('Error loading earnings:', err);
         setError('Failed to load earnings data');

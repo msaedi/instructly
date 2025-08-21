@@ -57,7 +57,7 @@ class StripeService(BaseService):
         self.instructor_repository = RepositoryFactory.create_instructor_profile_repository(db)
 
         # Configure Stripe API key
-        stripe.api_key = settings.stripe_secret_key
+        stripe.api_key = settings.stripe_secret_key.get_secret_value() if settings.stripe_secret_key else None
 
         # Platform fee percentage (15 means 15%, not 0.15)
         self.platform_fee_percentage = getattr(settings, "stripe_platform_fee_percentage", 15) / 100.0

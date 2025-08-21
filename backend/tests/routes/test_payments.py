@@ -11,6 +11,7 @@ Comprehensive test suite verifying:
 
 import json
 from datetime import datetime, time
+from typing import Dict
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -556,3 +557,51 @@ class TestWebhookEndpoints:
 
         # Should require signature
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+
+class TestTransactionHistory:
+    """Test cases for transaction history endpoint."""
+
+    def test_get_transaction_history_authenticated(self, client: TestClient, auth_headers_student: Dict[str, str]):
+        """Test getting transaction history as authenticated student."""
+        response = client.get("/api/payments/transactions", headers=auth_headers_student)
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert isinstance(data, list)
+
+    def test_get_transaction_history_unauthenticated(self, client: TestClient):
+        """Test getting transaction history without authentication."""
+        response = client.get("/api/payments/transactions")
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_get_transaction_history_with_pagination(self, client: TestClient, auth_headers_student: Dict[str, str]):
+        """Test getting transaction history with pagination parameters."""
+        response = client.get("/api/payments/transactions?limit=10&offset=5", headers=auth_headers_student)
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) <= 10
+
+
+class TestCreditBalance:
+    """Test cases for credit balance endpoint."""
+
+    def test_get_credit_balance_authenticated(self, client: TestClient, auth_headers_student: Dict[str, str]):
+        """Test getting credit balance as authenticated student."""
+        response = client.get("/api/payments/credits", headers=auth_headers_student)
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "available" in data
+        assert "expires_at" in data
+        assert "pending" in data
+        assert isinstance(data["available"], (int, float))
+
+    def test_get_credit_balance_unauthenticated(self, client: TestClient):
+        """Test getting credit balance without authentication."""
+        response = client.get("/api/payments/credits")
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED

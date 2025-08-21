@@ -1,4 +1,5 @@
 import { logger } from '@/lib/logger';
+import { API_URL } from '@/lib/api';
 
 export interface PaymentMethod {
   id: string;
@@ -54,13 +55,13 @@ export interface EarningsResponse {
 }
 
 class PaymentService {
-  private baseUrl = '/api/payments';
+  private baseUrl = `${API_URL}/api/payments`;
 
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('access_token');
 
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       ...options,
@@ -178,6 +179,56 @@ class PaymentService {
       logger.error('Failed to get earnings:', error);
       throw error;
     }
+  }
+
+  // Transaction History
+  async getTransactionHistory(limit = 20, offset = 0): Promise<any[]> {
+    try {
+      return await this.request<any[]>(`/transactions?limit=${limit}&offset=${offset}`);
+    } catch (error) {
+      logger.error('Failed to get transaction history:', error);
+      throw error;
+    }
+  }
+
+  // Credit Balance
+  async getCreditBalance(): Promise<{ available: number; expires_at: string | null; pending: number }> {
+    try {
+      return await this.request<{ available: number; expires_at: string | null; pending: number }>('/credits');
+    } catch (error) {
+      logger.error('Failed to get credit balance:', error);
+      throw error;
+    }
+  }
+
+  // Apply Promo Code
+  async applyPromoCode(code: string): Promise<{ success: boolean; credit_added: number }> {
+    try {
+      return await this.request<{ success: boolean; credit_added: number }>('/promo', {
+        method: 'POST',
+        body: JSON.stringify({ code }),
+      });
+    } catch (error) {
+      logger.error('Failed to apply promo code:', error);
+      throw error;
+    }
+  }
+
+  // Download Transaction History
+  async downloadTransactionHistory(): Promise<Blob> {
+    const token = localStorage.getItem('access_token');
+
+    const response = await fetch(`${this.baseUrl}/transactions/download`, {
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to download transaction history');
+    }
+
+    return response.blob();
   }
 }
 

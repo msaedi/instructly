@@ -19,6 +19,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { logger } from '@/lib/logger';
+import { paymentService } from '@/services/api/payments';
+import { API_URL } from '@/lib/api';
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
@@ -109,21 +111,10 @@ const AddCardForm: React.FC<{
       }
 
       // Save payment method to backend
-      const response = await fetch('/api/payments/methods', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({
-          payment_method_id: paymentMethod?.id,
-          set_as_default: setAsDefault,
-        }),
+      await paymentService.savePaymentMethod({
+        payment_method_id: paymentMethod?.id || '',
+        set_as_default: setAsDefault,
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to save payment method');
-      }
 
       logger.info('Payment method added successfully');
       onSuccess();
@@ -228,21 +219,15 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId }) => {
   const loadPaymentMethods = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/payments/methods', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to load payment methods');
-      }
-
-      const data = await response.json();
+      const data = await paymentService.listPaymentMethods();
       setPaymentMethods(data);
+      logger.info('Payment methods loaded', { count: data.length });
     } catch (err) {
       logger.error('Error loading payment methods:', err);
-      setError('Failed to load payment methods');
+      // Don't set error for empty list
+      if (err instanceof Error && !err.message.includes('404')) {
+        setError('Failed to load payment methods');
+      }
     } finally {
       setLoading(false);
     }
@@ -251,22 +236,7 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId }) => {
   // Set default payment method
   const setDefaultMethod = async (methodId: string) => {
     try {
-      const response = await fetch('/api/payments/methods', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({
-          payment_method_id: methodId,
-          set_as_default: true,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to set default payment method');
-      }
-
+      await paymentService.setDefaultPaymentMethod(methodId);
       logger.info('Default payment method updated');
       await loadPaymentMethods();
     } catch (err) {
@@ -282,17 +252,7 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId }) => {
     }
 
     try {
-      const response = await fetch(`/api/payments/methods/${methodId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete payment method');
-      }
-
+      await paymentService.deletePaymentMethod(methodId);
       logger.info('Payment method deleted');
       await loadPaymentMethods();
     } catch (err) {

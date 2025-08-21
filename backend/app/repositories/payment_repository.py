@@ -306,23 +306,50 @@ class PaymentRepository(BaseRepository):
             RepositoryException: If creation fails
         """
         try:
-            # If setting as default, unset other defaults first
-            if is_default:
-                self.db.query(PaymentMethod).filter(
-                    and_(PaymentMethod.user_id == user_id, PaymentMethod.is_default == True)
-                ).update({"is_default": False})
-
-            method = PaymentMethod(
-                id=str(ulid.ULID()),
-                user_id=user_id,
-                stripe_payment_method_id=stripe_payment_method_id,
-                last4=last4,
-                brand=brand,
-                is_default=is_default,
+            # Check if payment method already exists
+            existing_method = (
+                self.db.query(PaymentMethod)
+                .filter(
+                    and_(
+                        PaymentMethod.user_id == user_id,
+                        PaymentMethod.stripe_payment_method_id == stripe_payment_method_id,
+                    )
+                )
+                .first()
             )
-            self.db.add(method)
-            self.db.flush()
-            return method
+
+            if existing_method:
+                # Update existing method
+                if is_default:
+                    # Unset other defaults first
+                    self.db.query(PaymentMethod).filter(
+                        and_(PaymentMethod.user_id == user_id, PaymentMethod.is_default == True)
+                    ).update({"is_default": False})
+
+                    # Set this one as default
+                    existing_method.is_default = True
+                    self.db.flush()
+
+                return existing_method
+            else:
+                # Create new method
+                # If setting as default, unset other defaults first
+                if is_default:
+                    self.db.query(PaymentMethod).filter(
+                        and_(PaymentMethod.user_id == user_id, PaymentMethod.is_default == True)
+                    ).update({"is_default": False})
+
+                method = PaymentMethod(
+                    id=str(ulid.ULID()),
+                    user_id=user_id,
+                    stripe_payment_method_id=stripe_payment_method_id,
+                    last4=last4,
+                    brand=brand,
+                    is_default=is_default,
+                )
+                self.db.add(method)
+                self.db.flush()
+                return method
         except Exception as e:
             self.logger.error(f"Failed to save payment method: {str(e)}")
             raise RepositoryException(f"Failed to save payment method: {str(e)}")
@@ -479,3 +506,34 @@ class PaymentRepository(BaseRepository):
         except Exception as e:
             self.logger.error(f"Failed to get instructor earnings: {str(e)}")
             raise RepositoryException(f"Failed to get instructor earnings: {str(e)}")
+
+    def get_user_payment_history(self, user_id: str, limit: int = 20, offset: int = 0) -> List[PaymentIntent]:
+        """
+        Get payment history for a user (as a student).
+
+        Args:
+            user_id: User ID to get payment history for
+            limit: Maximum number of records to return
+            offset: Number of records to skip
+
+        Returns:
+            List of PaymentIntent objects with related booking data
+
+        Raises:
+            RepositoryException: If database operation fails
+        """
+        try:
+            # Query payment intents for this user through bookings
+            query = (
+                self.db.query(PaymentIntent)
+                .join(Booking, PaymentIntent.booking_id == Booking.id)
+                .filter(and_(Booking.student_id == user_id, PaymentIntent.status.in_(["succeeded", "processing"])))
+                .order_by(PaymentIntent.created_at.desc())
+                .limit(limit)
+                .offset(offset)
+            )
+
+            return query.all()
+        except Exception as e:
+            self.logger.error(f"Failed to get user payment history: {str(e)}")
+            raise RepositoryException(f"Failed to get user payment history: {str(e)}")

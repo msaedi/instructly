@@ -9,7 +9,7 @@ and payment processing.
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # ========== Request Models ==========
 
@@ -35,14 +35,13 @@ class CreateCheckoutRequest(BaseModel):
 class PaymentMethodResponse(BaseModel):
     """Response model for payment method information."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: str = Field(..., description="Payment method ID")
     last4: str = Field(..., description="Last 4 digits of card")
     brand: str = Field(..., description="Card brand (visa, mastercard, etc.)")
     is_default: bool = Field(..., description="Whether this is the default payment method")
     created_at: datetime = Field(..., description="When the payment method was added")
-
-    class Config:
-        from_attributes = True
 
 
 class OnboardingResponse(BaseModel):
@@ -86,12 +85,11 @@ class CheckoutResponse(BaseModel):
 class CustomerResponse(BaseModel):
     """Response for customer creation/retrieval."""
 
+    model_config = ConfigDict(from_attributes=True)
+
     customer_id: str = Field(..., description="Stripe customer ID")
     user_id: str = Field(..., description="Internal user ID")
     created_at: datetime = Field(..., description="When customer was created")
-
-    class Config:
-        from_attributes = True
 
 
 class PaymentIntentResponse(BaseModel):
@@ -104,8 +102,7 @@ class PaymentIntentResponse(BaseModel):
     status: str = Field(..., description="Payment intent status")
     created_at: datetime = Field(..., description="When payment intent was created")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ========== Analytics Response Models ==========
@@ -138,6 +135,36 @@ class WebhookResponse(BaseModel):
     status: str = Field(..., description="Processing status (success, ignored, error)")
     event_type: str = Field(..., description="Stripe event type")
     message: Optional[str] = Field(None, description="Additional information")
+
+
+# ========== Transaction History Response Models ==========
+
+
+class TransactionHistoryItem(BaseModel):
+    """Individual transaction in payment history."""
+
+    id: str = Field(..., description="Payment intent ID")
+    service_name: str = Field(..., description="Service name")
+    instructor_name: str = Field(..., description="Instructor name (first name + last initial)")
+    booking_date: str = Field(..., description="Date of the booking")
+    start_time: str = Field(..., description="Start time of the booking")
+    end_time: str = Field(..., description="End time of the booking")
+    duration_minutes: int = Field(..., description="Duration in minutes")
+    hourly_rate: float = Field(..., description="Hourly rate charged")
+    total_price: float = Field(..., description="Total price before fees")
+    platform_fee: float = Field(..., description="Platform fee charged")
+    credit_applied: float = Field(..., description="Credits applied to this transaction")
+    final_amount: float = Field(..., description="Final amount charged")
+    status: str = Field(..., description="Payment status")
+    created_at: str = Field(..., description="When the payment was created")
+
+
+class CreditBalanceResponse(BaseModel):
+    """Response for credit balance inquiry."""
+
+    available: float = Field(..., description="Available credit balance")
+    expires_at: Optional[str] = Field(None, description="Credit expiration date")
+    pending: float = Field(..., description="Pending credits")
 
 
 # ========== Error Response Models ==========
