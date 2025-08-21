@@ -395,23 +395,92 @@ class PaymentRepository(BaseRepository):
             self.logger.error(f"Failed to get default payment method: {str(e)}")
             raise RepositoryException(f"Failed to get default payment method: {str(e)}")
 
+    def get_payment_method_by_stripe_id(self, stripe_payment_method_id: str, user_id: str) -> Optional[PaymentMethod]:
+        """
+        Get a payment method by its Stripe ID.
+
+        Args:
+            stripe_payment_method_id: Stripe payment method ID
+            user_id: User's ID
+
+        Returns:
+            PaymentMethod if found, None otherwise
+        """
+        try:
+            return (
+                self.db.query(PaymentMethod)
+                .filter(
+                    and_(
+                        PaymentMethod.stripe_payment_method_id == stripe_payment_method_id,
+                        PaymentMethod.user_id == user_id,
+                    )
+                )
+                .first()
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to get payment method by Stripe ID: {str(e)}")
+            raise RepositoryException(f"Failed to get payment method by Stripe ID: {str(e)}")
+
+    def set_default_payment_method(self, payment_method_id: str, user_id: str) -> bool:
+        """
+        Set a payment method as default.
+
+        Args:
+            payment_method_id: Payment method ID (database ID)
+            user_id: User's ID
+
+        Returns:
+            True if updated, False if not found
+        """
+        try:
+            # First unset any existing default
+            self.db.query(PaymentMethod).filter(
+                and_(PaymentMethod.user_id == user_id, PaymentMethod.is_default == True)
+            ).update({"is_default": False})
+
+            # Set the new default
+            result = (
+                self.db.query(PaymentMethod)
+                .filter(and_(PaymentMethod.id == payment_method_id, PaymentMethod.user_id == user_id))
+                .update({"is_default": True})
+            )
+            self.db.flush()
+            return result > 0
+        except Exception as e:
+            self.logger.error(f"Failed to set default payment method: {str(e)}")
+            raise RepositoryException(f"Failed to set default payment method: {str(e)}")
+
     def delete_payment_method(self, payment_method_id: str, user_id: str) -> bool:
         """
         Delete a payment method.
 
         Args:
-            payment_method_id: Payment method ID
+            payment_method_id: Payment method ID (can be either database ID or Stripe ID)
             user_id: User's ID (for ownership verification)
 
         Returns:
             True if deleted, False if not found
         """
         try:
-            result = (
-                self.db.query(PaymentMethod)
-                .filter(and_(PaymentMethod.id == payment_method_id, PaymentMethod.user_id == user_id))
-                .delete()
-            )
+            # First check if it's a Stripe payment method ID (starts with pm_)
+            if payment_method_id.startswith("pm_"):
+                result = (
+                    self.db.query(PaymentMethod)
+                    .filter(
+                        and_(
+                            PaymentMethod.stripe_payment_method_id == payment_method_id,
+                            PaymentMethod.user_id == user_id,
+                        )
+                    )
+                    .delete()
+                )
+            else:
+                # Otherwise treat it as a database ID
+                result = (
+                    self.db.query(PaymentMethod)
+                    .filter(and_(PaymentMethod.id == payment_method_id, PaymentMethod.user_id == user_id))
+                    .delete()
+                )
             self.db.flush()
             return result > 0
         except Exception as e:
@@ -523,17 +592,18 @@ class PaymentRepository(BaseRepository):
             RepositoryException: If database operation fails
         """
         try:
-            # Query payment intents for this user through bookings
-            query = (
+            # Simple query - let the relationships load lazily within the session
+            results = (
                 self.db.query(PaymentIntent)
                 .join(Booking, PaymentIntent.booking_id == Booking.id)
                 .filter(and_(Booking.student_id == user_id, PaymentIntent.status.in_(["succeeded", "processing"])))
                 .order_by(PaymentIntent.created_at.desc())
                 .limit(limit)
                 .offset(offset)
+                .all()
             )
 
-            return query.all()
+            return results
         except Exception as e:
             self.logger.error(f"Failed to get user payment history: {str(e)}")
             raise RepositoryException(f"Failed to get user payment history: {str(e)}")

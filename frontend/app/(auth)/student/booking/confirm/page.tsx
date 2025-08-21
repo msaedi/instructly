@@ -136,9 +136,7 @@ export default function BookingConfirmationPage() {
               <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </a>
             <div className="pr-4">
-              <div className="animate-pulse">
-                <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
-              </div>
+              <div className="w-9 h-9 bg-gray-200 rounded-full animate-pulse"></div>
             </div>
           </div>
         </header>

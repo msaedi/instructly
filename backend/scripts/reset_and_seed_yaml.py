@@ -13,12 +13,14 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
 
+import json
 import random
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 
 # Add the scripts directory to Python path so imports work from anywhere
 sys.path.insert(0, str(Path(__file__).parent))
 
+import ulid
 from seed_catalog_only import seed_catalog
 from seed_yaml_loader import SeedDataLoader
 from sqlalchemy import create_engine, text
@@ -30,6 +32,7 @@ from app.core.enums import RoleName
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
+from app.models.payment import StripeConnectedAccount
 from app.models.rbac import Role
 from app.models.rbac import UserRole as UserRoleJunction
 from app.models.service_catalog import InstructorService, ServiceCatalog
@@ -46,11 +49,31 @@ class DatabaseSeeder:
         self.engine = self._create_engine()
         self.created_users = {}
         self.created_services = {}
+        self.stripe_mapping = self._load_stripe_mapping()
 
     def _create_engine(self):
         db_url = settings.get_database_url()
         # The DatabaseConfig will print which database is being used
         return create_engine(db_url)
+
+    def _load_stripe_mapping(self):
+        """Load Stripe test account mappings if file exists"""
+        mapping_file = Path(__file__).parent.parent / "config" / "stripe_test_accounts.json"
+        if mapping_file.exists():
+            try:
+                with open(mapping_file) as f:
+                    mapping = json.load(f)
+                    # Filter out the comment key
+                    if "_comment" in mapping:
+                        del mapping["_comment"]
+                    print(f"📦 Loaded Stripe account mappings for {len(mapping)} instructors")
+                    return mapping
+            except Exception as e:
+                print(f"⚠️  Could not load Stripe mappings: {e}")
+                return {}
+        else:
+            print("ℹ️  No Stripe account mapping file found (config/stripe_test_accounts.json)")
+            return {}
 
     def reset_database(self):
         """Clean test data from database"""
@@ -107,7 +130,18 @@ class DatabaseSeeder:
             result = session.execute(text("DELETE FROM search_events"))
             print(f"    Deleted {result.rowcount} search event entries")
 
-            # 4. Clean instructor profiles and users
+            # 4. Clean Stripe connected accounts
+            print("  - Cleaning Stripe connected accounts...")
+            result = session.execute(
+                text(
+                    "DELETE FROM stripe_connected_accounts WHERE instructor_profile_id IN "
+                    "(SELECT id FROM instructor_profiles WHERE user_id IN "
+                    "(SELECT id FROM users WHERE email LIKE '%@example.com'))"
+                )
+            )
+            print(f"    Deleted {result.rowcount} Stripe connected accounts")
+
+            # 5. Clean instructor profiles and users
             session.execute(
                 text(
                     "DELETE FROM instructor_profiles WHERE user_id IN (SELECT id FROM users WHERE email LIKE '%@example.com')"
@@ -263,6 +297,21 @@ class DatabaseSeeder:
                     session.flush()
                     self.created_services[f"{user.email}:{service_name}"] = service.id
                     service_count += 1
+
+                # Create Stripe connected account if mapping exists
+                if user.email in self.stripe_mapping and self.stripe_mapping[user.email]:
+                    # Don't assume onboarding status - let the app check with Stripe dynamically
+                    # This just restores the account association
+                    stripe_account = StripeConnectedAccount(
+                        id=str(ulid.ULID()),
+                        instructor_profile_id=profile.id,
+                        stripe_account_id=self.stripe_mapping[user.email],
+                        onboarding_completed=False,  # Default to false, app will check actual status with Stripe
+                        created_at=datetime.now(timezone.utc),
+                        updated_at=datetime.now(timezone.utc),
+                    )
+                    session.add(stripe_account)
+                    print(f"    💳 Linked to existing Stripe account: {self.stripe_mapping[user.email][:20]}...")
 
                 self.created_users[user.email] = user.id
                 status_info = f" [{account_status.upper()}]" if account_status != "active" else ""

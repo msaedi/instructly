@@ -680,7 +680,7 @@ export const publicApi = {
  */
 export interface CreateBookingRequest {
   instructor_id: string;
-  service_id: string;
+  instructor_service_id: string; // Changed from service_id to match backend BookingCreate schema
   booking_date: string; // ISO date string (YYYY-MM-DD)
   start_time: string; // HH:MM format
   end_time: string; // HH:MM format

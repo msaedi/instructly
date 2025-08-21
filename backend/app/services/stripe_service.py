@@ -358,8 +358,12 @@ class StripeService(BaseService):
         """
         try:
             with self.transaction():
-                # Confirm payment intent
-                stripe_intent = stripe.PaymentIntent.confirm(payment_intent_id, payment_method=payment_method_id)
+                # Confirm payment intent with return_url for redirect-based payment methods
+                stripe_intent = stripe.PaymentIntent.confirm(
+                    payment_intent_id,
+                    payment_method=payment_method_id,
+                    return_url=f"{settings.frontend_url}/student/payment/complete",
+                )
 
                 # Update payment status
                 payment_record = self.payment_repository.update_payment_status(payment_intent_id, stripe_intent.status)
@@ -463,8 +467,40 @@ class StripeService(BaseService):
         """
         try:
             with self.transaction():
-                # Get payment method details from Stripe
-                stripe_pm = stripe.PaymentMethod.retrieve(payment_method_id)
+                # Check if payment method already exists in our database
+                existing = self.payment_repository.get_payment_method_by_stripe_id(payment_method_id, user_id)
+                if existing:
+                    self.logger.info(f"Payment method {payment_method_id} already exists for user {user_id}")
+                    # If setting as default, update the existing one
+                    if set_as_default:
+                        self.payment_repository.set_default_payment_method(existing.id, user_id)
+                    return existing
+
+                # Ensure user has a Stripe customer
+                customer = self.get_or_create_customer(user_id)
+
+                # First retrieve the payment method to check its status
+                try:
+                    stripe_pm = stripe.PaymentMethod.retrieve(payment_method_id)
+
+                    # Check if already attached to a customer
+                    if stripe_pm.customer:
+                        if stripe_pm.customer != customer.stripe_customer_id:
+                            # Payment method is attached to a different customer
+                            self.logger.error(f"Payment method {payment_method_id} is attached to a different customer")
+                            raise ServiceException("This payment method is already in use by another account")
+                        # Already attached to this customer, just retrieve it
+                        self.logger.info(f"Payment method {payment_method_id} already attached to customer")
+                    else:
+                        # Not attached, so attach it
+                        stripe_pm = stripe.PaymentMethod.attach(payment_method_id, customer=customer.stripe_customer_id)
+                        self.logger.info(f"Attached payment method {payment_method_id} to customer")
+
+                except stripe.error.CardError as e:
+                    # Handle specific card errors
+                    self.logger.error(f"Card error: {str(e)}")
+                    error_message = str(e.user_message) if hasattr(e, "user_message") else str(e)
+                    raise ServiceException(error_message)
 
                 # Extract card details
                 card = stripe_pm.card
@@ -483,9 +519,14 @@ class StripeService(BaseService):
                 self.logger.info(f"Saved payment method {payment_method_id} for user {user_id}")
                 return payment_method
 
+        except ServiceException:
+            # Re-raise service exceptions
+            raise
         except stripe.StripeError as e:
             self.logger.error(f"Stripe error saving payment method: {str(e)}")
-            raise ServiceException(f"Failed to save payment method: {str(e)}")
+            # Extract user-friendly message from Stripe error
+            error_message = str(e.user_message) if hasattr(e, "user_message") else str(e)
+            raise ServiceException(f"Failed to save payment method: {error_message}")
         except Exception as e:
             self.logger.error(f"Error saving payment method: {str(e)}")
             raise ServiceException(f"Failed to save payment method: {str(e)}")
@@ -516,7 +557,7 @@ class StripeService(BaseService):
         Delete a payment method.
 
         Args:
-            payment_method_id: Payment method ID
+            payment_method_id: Payment method ID (can be database ID or Stripe ID)
             user_id: User's ID (for ownership verification)
 
         Returns:
@@ -527,11 +568,20 @@ class StripeService(BaseService):
         """
         try:
             with self.transaction():
-                # Delete from database
+                # Try to detach from Stripe if it's a Stripe payment method ID
+                if payment_method_id.startswith("pm_"):
+                    try:
+                        stripe.PaymentMethod.detach(payment_method_id)
+                        self.logger.info(f"Detached payment method {payment_method_id} from Stripe")
+                    except stripe.StripeError as e:
+                        # Log but don't fail - payment method might already be detached
+                        self.logger.warning(f"Could not detach payment method from Stripe: {str(e)}")
+
+                # Delete from database (handles both database ID and Stripe ID)
                 success = self.payment_repository.delete_payment_method(payment_method_id, user_id)
 
                 if success:
-                    self.logger.info(f"Deleted payment method {payment_method_id} for user {user_id}")
+                    self.logger.info(f"Deleted payment method {payment_method_id} from database for user {user_id}")
 
                 return success
 

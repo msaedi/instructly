@@ -14,6 +14,7 @@ import { logger } from '@/lib/logger';
 import { InstructorProfile, getInstructorDisplayName } from '@/types/instructor';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import StripeOnboarding from '@/components/instructor/StripeOnboarding';
 
 /**
  * InstructorDashboard Component
@@ -221,6 +222,12 @@ export default function InstructorDashboard() {
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back, {displayName}!</h1>
           <p className="text-gray-600">Manage your instructor profile and bookings</p>
+        </div>
+
+        {/* Payments Section */}
+        <div className="mb-8">
+          <h2 className="text-xl font-bold text-gray-900 mb-4">Payment Settings</h2>
+          <StripeOnboarding instructorId={profile.user_id} />
         </div>
 
         {/* Quick Stats */}

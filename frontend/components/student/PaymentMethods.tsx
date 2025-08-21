@@ -21,6 +21,7 @@ import { Card } from '@/components/ui/card';
 import { logger } from '@/lib/logger';
 import { paymentService } from '@/services/api/payments';
 import { API_URL } from '@/lib/api';
+import DeletePaymentMethodModal from '@/components/modals/DeletePaymentMethodModal';
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
@@ -214,6 +215,8 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId }) => {
   const [loading, setLoading] = useState(true);
   const [addingCard, setAddingCard] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [methodToDelete, setMethodToDelete] = useState<PaymentMethod | null>(null);
 
   // Load payment methods
   const loadPaymentMethods = async () => {
@@ -246,18 +249,19 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId }) => {
   };
 
   // Delete payment method
-  const deleteMethod = async (methodId: string) => {
-    if (!confirm('Are you sure you want to remove this payment method?')) {
-      return;
-    }
+  const deleteMethod = async () => {
+    if (!methodToDelete) return;
 
     try {
-      await paymentService.deletePaymentMethod(methodId);
+      await paymentService.deletePaymentMethod(methodToDelete.id);
       logger.info('Payment method deleted');
+      setDeleteModalOpen(false);
+      setMethodToDelete(null);
       await loadPaymentMethods();
     } catch (err) {
       logger.error('Error deleting payment method:', err);
       setError('Failed to delete payment method');
+      throw err; // Re-throw to let modal handle the error
     }
   };
 
@@ -364,7 +368,10 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId }) => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => deleteMethod(method.id)}
+                  onClick={() => {
+                    setMethodToDelete(method);
+                    setDeleteModalOpen(true);
+                  }}
                   className="text-red-600 hover:text-red-700"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -374,6 +381,17 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId }) => {
           ))}
         </div>
       )}
+
+      {/* Delete Payment Method Modal */}
+      <DeletePaymentMethodModal
+        paymentMethod={methodToDelete}
+        isOpen={deleteModalOpen}
+        onClose={() => {
+          setDeleteModalOpen(false);
+          setMethodToDelete(null);
+        }}
+        onConfirm={deleteMethod}
+      />
     </div>
   );
 };

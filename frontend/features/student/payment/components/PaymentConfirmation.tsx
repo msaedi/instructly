@@ -12,6 +12,9 @@ interface PaymentConfirmationProps {
   creditsUsed?: number;
   onConfirm: () => void;
   onBack: () => void;
+  onChangePaymentMethod?: () => void;
+  cardBrand?: string;
+  isDefaultCard?: boolean;
 }
 
 export default function PaymentConfirmation({
@@ -21,6 +24,9 @@ export default function PaymentConfirmation({
   creditsUsed = 0,
   onConfirm,
   onBack, // eslint-disable-line @typescript-eslint/no-unused-vars
+  onChangePaymentMethod,
+  cardBrand = 'Card',
+  isDefaultCard = false,
 }: PaymentConfirmationProps) {
   const [isOnlineLesson, setIsOnlineLesson] = useState(false);
   // Auto-collapse payment if user has a saved card
@@ -66,10 +72,22 @@ export default function PaymentConfirmation({
               <div className="bg-white p-3 rounded-lg border border-gray-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">Visa ending in {cardLast4}</span>
-                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Default</span>
+                    <span className="text-sm font-medium">{cardBrand} ending in {cardLast4}</span>
+                    {isDefaultCard && (
+                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Default</span>
+                    )}
                   </div>
-                  <button className="text-sm text-purple-700 hover:text-purple-800">Change</button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onChangePaymentMethod) {
+                        onChangePaymentMethod();
+                      }
+                    }}
+                    className="text-sm text-purple-700 hover:text-purple-800"
+                  >
+                    Change
+                  </button>
                 </div>
               </div>
             ) : (

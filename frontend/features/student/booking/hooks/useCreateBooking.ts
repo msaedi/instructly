@@ -33,7 +33,7 @@ export function useCreateBooking(): UseCreateBookingReturn {
 
     logger.info('Creating booking', {
       instructorId: data.instructor_id,
-      serviceId: data.service_id,
+      serviceId: data.instructor_service_id,
       startDate: data.booking_date,
       startTime: data.start_time,
     });

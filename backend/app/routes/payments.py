@@ -119,8 +119,8 @@ async def start_onboarding(
                 # Create new onboarding link for existing account
                 onboarding_url = stripe_service.create_account_link(
                     instructor_profile.id,
-                    refresh_url=f"{settings.frontend_url}/instructor/onboarding/refresh",
-                    return_url=f"{settings.frontend_url}/instructor/onboarding/complete",
+                    refresh_url=f"{settings.frontend_url}/dashboard/instructor?stripe_onboarding_return=true",
+                    return_url=f"{settings.frontend_url}/dashboard/instructor?stripe_onboarding_return=true",
                 )
 
                 return OnboardingResponse(
@@ -135,8 +135,8 @@ async def start_onboarding(
         # Create onboarding link
         onboarding_url = stripe_service.create_account_link(
             instructor_profile.id,
-            refresh_url=f"{settings.frontend_url}/instructor/onboarding/refresh",
-            return_url=f"{settings.frontend_url}/instructor/onboarding/complete",
+            refresh_url=f"{settings.frontend_url}/dashboard/instructor?stripe_onboarding_return=true",
+            return_url=f"{settings.frontend_url}/dashboard/instructor?stripe_onboarding_return=true",
         )
 
         logger.info(f"Started onboarding for instructor {instructor_profile.id}")
@@ -565,17 +565,30 @@ async def get_transaction_history(
         # Format response with booking details
         result = []
         for payment in transactions:
-            booking = payment.booking
-            if booking and booking.instructor_service:
-                service = booking.instructor_service.service
-                instructor = booking.instructor_service.instructor_profile.user
+            try:
+                booking = payment.booking
+                if not booking:
+                    logger.warning(f"Payment {payment.id} has no associated booking")
+                    continue
 
+                # Get instructor service and related data
+                instructor_service = booking.instructor_service
+                if not instructor_service:
+                    logger.warning(f"Booking {booking.id} has no instructor service")
+                    continue
+
+                # Get the catalog entry (the actual service details)
+                catalog_entry = instructor_service.catalog_entry
+                instructor_profile = instructor_service.instructor_profile
+                instructor = instructor_profile.user if instructor_profile else None
+
+                # Build transaction history item
                 result.append(
                     TransactionHistoryItem(
                         id=payment.id,
-                        service_name=service.name if service else "Service",
+                        service_name=catalog_entry.name if catalog_entry else "Service",
                         instructor_name=f"{instructor.first_name} {instructor.last_name[0]}."
-                        if instructor
+                        if instructor and instructor.last_name
                         else "Instructor",
                         booking_date=booking.booking_date.isoformat(),
                         start_time=booking.start_time.isoformat(),
@@ -590,6 +603,9 @@ async def get_transaction_history(
                         created_at=payment.created_at.isoformat(),
                     )
                 )
+            except Exception as e:
+                logger.error(f"Error formatting transaction {payment.id}: {str(e)}")
+                continue
 
         return result
 
