@@ -231,11 +231,17 @@ class TestPaymentIntegration:
         assert payment_record.status == "succeeded"
 
         # Verify all Stripe calls were made
+        from unittest.mock import ANY
+
         mock_customer_create.assert_called_once()
         mock_account_create.assert_called_once()
         mock_link_create.assert_called_once()
         mock_intent_create.assert_called_once()
-        mock_confirm.assert_called_once_with("pi_test123", payment_method="pm_test123")
+        mock_confirm.assert_called_once_with(
+            "pi_test123",
+            payment_method="pm_test123",
+            return_url=ANY,  # Will be settings.frontend_url + "/student/payment/complete"
+        )
 
     @patch("stripe.Customer.create")
     @patch("stripe.PaymentIntent.create")
@@ -353,24 +359,54 @@ class TestPaymentIntegration:
         )
 
         # Step 2: Add multiple payment methods
-        with patch("stripe.PaymentMethod.retrieve") as mock_retrieve:
-            # Mock first payment method
+        with patch("stripe.PaymentMethod.retrieve") as mock_retrieve, patch(
+            "stripe.PaymentMethod.attach"
+        ) as mock_attach:
+            # Mock first payment method (not attached to any customer)
             mock_pm1 = MagicMock()
             mock_pm1.card = MagicMock()
             mock_pm1.card.last4 = "4242"
             mock_pm1.card.brand = "visa"
+            mock_pm1.customer = None  # Not attached yet
             mock_retrieve.return_value = mock_pm1
+
+            # Mock attachment result
+            mock_pm1_attached = MagicMock()
+            mock_pm1_attached.card = mock_pm1.card
+            mock_pm1_attached.customer = "cus_test123"
+            mock_attach.return_value = mock_pm1_attached
 
             pm1 = stripe_service.save_payment_method(
                 user_id=student_user.id, payment_method_id="pm_test1", set_as_default=True
             )
 
-            # Mock second payment method
+            # Mock second payment method (also not attached)
             mock_pm2 = MagicMock()
             mock_pm2.card = MagicMock()
             mock_pm2.card.last4 = "0005"
             mock_pm2.card.brand = "mastercard"
-            mock_retrieve.return_value = mock_pm2
+            mock_pm2.customer = None  # Not attached yet
+
+            # When retrieving pm_test2, return the unattached mock
+            def side_effect(payment_method_id):
+                if payment_method_id == "pm_test2":
+                    return mock_pm2
+                return mock_pm1
+
+            mock_retrieve.side_effect = side_effect
+
+            # Mock attachment result for second card
+            mock_pm2_attached = MagicMock()
+            mock_pm2_attached.card = mock_pm2.card
+            mock_pm2_attached.customer = "cus_test123"
+
+            # When attaching, return the appropriate attached mock
+            def attach_side_effect(payment_method_id, customer):
+                if payment_method_id == "pm_test2":
+                    return mock_pm2_attached
+                return mock_pm1_attached
+
+            mock_attach.side_effect = attach_side_effect
 
             pm2 = stripe_service.save_payment_method(
                 user_id=student_user.id, payment_method_id="pm_test2", set_as_default=False

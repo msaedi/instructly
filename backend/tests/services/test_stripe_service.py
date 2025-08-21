@@ -382,8 +382,14 @@ class TestStripeService:
         # Confirm payment
         confirmed_payment = stripe_service.confirm_payment_intent("pi_test123", "pm_card123")
 
-        # Verify Stripe API call
-        mock_confirm.assert_called_once_with("pi_test123", payment_method="pm_card123")
+        # Verify Stripe API call - use unittest.mock.ANY for return_url since it's from settings
+        from unittest.mock import ANY
+
+        mock_confirm.assert_called_once_with(
+            "pi_test123",
+            payment_method="pm_card123",
+            return_url=ANY,  # Will be settings.frontend_url + "/student/payment/complete"
+        )
 
         # Verify status update
         assert confirmed_payment.status == "succeeded"
@@ -441,22 +447,36 @@ class TestStripeService:
 
     # ========== Payment Method Management Tests ==========
 
+    @patch("stripe.PaymentMethod.attach")
     @patch("stripe.PaymentMethod.retrieve")
-    def test_save_payment_method_success(self, mock_retrieve, stripe_service: StripeService, test_user: User):
+    def test_save_payment_method_success(
+        self, mock_retrieve, mock_attach, stripe_service: StripeService, test_user: User
+    ):
         """Test saving payment method."""
-        # Mock Stripe response
+        # Create customer first
+        stripe_service.payment_repository.create_customer_record(test_user.id, "cus_test123")
+
+        # Mock Stripe response - payment method not attached yet
         mock_pm = MagicMock()
         mock_pm.card.last4 = "4242"
         mock_pm.card.brand = "visa"
+        mock_pm.customer = None  # Not attached to any customer
         mock_retrieve.return_value = mock_pm
+
+        # Mock attachment result
+        mock_pm_attached = MagicMock()
+        mock_pm_attached.card = mock_pm.card
+        mock_pm_attached.customer = "cus_test123"
+        mock_attach.return_value = mock_pm_attached
 
         # Save payment method
         payment_method = stripe_service.save_payment_method(
             user_id=test_user.id, payment_method_id="pm_test123", set_as_default=True
         )
 
-        # Verify Stripe API call
+        # Verify Stripe API calls
         mock_retrieve.assert_called_once_with("pm_test123")
+        mock_attach.assert_called_once_with("pm_test123", customer="cus_test123")
 
         # Verify database record
         assert payment_method.user_id == test_user.id
