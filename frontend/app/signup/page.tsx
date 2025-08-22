@@ -82,7 +82,12 @@ function formatPhoneForAPI(phone: string): string {
 function SignUpForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect') || '/';
+
+  // Get the redirect parameter, but if it's the login page, use home instead
+  let redirect = searchParams.get('redirect') || '/';
+  if (redirect === '/login' || redirect.startsWith('/login?')) {
+    redirect = '/';
+  }
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -343,7 +348,9 @@ function SignUpForm() {
           status: loginResponse.status,
         });
         // Registration succeeded but login failed - redirect to login
-        router.push(`/login?redirect=${encodeURIComponent(redirect)}`);
+        // But pass the original redirect, not the login page
+        const originalRedirect = searchParams.get('redirect') || '/';
+        router.push(`/login?redirect=${encodeURIComponent(originalRedirect)}&registered=true`);
         return;
       }
 

@@ -26,7 +26,7 @@ class Settings(BaseSettings):
         description="Secret key for JWT tokens",
     )
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
+    access_token_expire_minutes: int = 720  # 12 hours
 
     # 2FA / TOTP
     totp_encryption_key: SecretStr = Field(

@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown, ChevronUp } from 'lucide-react';
 import { BookingPayment, PaymentMethod, BookingType } from '../types';
 import { format } from 'date-fns';
+import { protectedApi } from '@/features/shared/api/client';
+import { logger } from '@/lib/logger';
 
 interface PaymentConfirmationProps {
   booking: BookingPayment;
@@ -29,6 +31,16 @@ export default function PaymentConfirmation({
   isDefaultCard = false,
 }: PaymentConfirmationProps) {
   const [isOnlineLesson, setIsOnlineLesson] = useState(false);
+  const [hasConflict, setHasConflict] = useState(false);
+  const [conflictMessage, setConflictMessage] = useState<string>('');
+  const [isCheckingConflict, setIsCheckingConflict] = useState(true);
+
+  logger.info('PaymentConfirmation component rendered', {
+    booking,
+    hasConflict,
+    isCheckingConflict
+  });
+
   // Auto-collapse payment if user has a saved card
   const hasSavedCard = !!cardLast4;
   const [isPaymentExpanded, setIsPaymentExpanded] = useState(!hasSavedCard);
@@ -37,6 +49,63 @@ export default function PaymentConfirmation({
   const [isLocationExpanded, setIsLocationExpanded] = useState(!hasSavedLocation && !isOnlineLesson);
   const isLastMinute = booking.bookingType === BookingType.LAST_MINUTE;
   const cardCharge = booking.totalAmount - creditsUsed;
+
+  // Check for booking conflicts when component mounts
+  useEffect(() => {
+    const checkForConflicts = async () => {
+      try {
+        setIsCheckingConflict(true);
+        logger.info('Checking for booking conflicts...', {
+          bookingDate: booking.date,
+          bookingTime: `${booking.startTime}-${booking.endTime}`
+        });
+
+        // Get the student's existing bookings
+        const response = await protectedApi.getBookings({ upcoming: true });
+        logger.info('Fetched existing bookings', { response });
+        if (response.data) {
+          // Backend returns PaginatedResponse with items array
+          const existingBookings = response.data.items || [];
+
+          // Check if any existing booking conflicts with the new one
+          const conflict = existingBookings.find((existing: any) => {
+            // Same date
+            if (existing.booking_date !== booking.date) return false;
+
+            // Check time overlap
+            const existingStart = existing.start_time;
+            const existingEnd = existing.end_time;
+            const newStart = booking.startTime;
+            const newEnd = booking.endTime;
+
+            // Check for overlap
+            return (newStart < existingEnd && newEnd > existingStart);
+          });
+
+          if (conflict) {
+            setHasConflict(true);
+            setConflictMessage('You already have a booking scheduled at this time.');
+            logger.warn('Booking conflict detected', {
+              existingBooking: conflict,
+              newBooking: booking
+            });
+          } else {
+            logger.info('No booking conflicts found', {
+              existingBookings: existingBookings.length,
+              newBookingTime: `${booking.date} ${booking.startTime}-${booking.endTime}`
+            });
+          }
+        }
+      } catch (error) {
+        logger.error('Failed to check for booking conflicts', error as Error);
+        // Don't block booking if we can't check conflicts
+      } finally {
+        setIsCheckingConflict(false);
+      }
+    };
+
+    checkForConflicts();
+  }, []); // Run only once on mount
 
 
   return (
@@ -397,13 +466,32 @@ export default function PaymentConfirmation({
           )}
         </div>
 
+        {/* Conflict Warning */}
+        {hasConflict && !isCheckingConflict && (
+          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm text-amber-800">
+                <p className="font-medium">Scheduling Conflict</p>
+                <p>{conflictMessage}</p>
+                <p className="mt-1">Please select a different time slot to continue.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Action Button */}
         <div className="mt-6">
           <button
             onClick={onConfirm}
-            className="w-full py-2.5 px-4 bg-purple-700 text-white hover:bg-purple-800 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0"
+            disabled={hasConflict || isCheckingConflict}
+            className={`w-full py-2.5 px-4 rounded-lg font-medium transition-colors focus:outline-none focus:ring-0 ${
+              hasConflict || isCheckingConflict
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-purple-700 text-white hover:bg-purple-800'
+            }`}
           >
-            Book now!
+            {isCheckingConflict ? 'Checking availability...' : hasConflict ? 'You have a conflict at this time' : 'Book now!'}
           </button>
         </div>
 

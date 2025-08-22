@@ -198,7 +198,13 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       });
 
       if (!booking) {
-        throw new Error(bookingError || 'Failed to create booking');
+        // Use the specific error message from the booking hook
+        const errorMsg = bookingError || 'Failed to create booking';
+        logger.error('Booking creation prevented', new Error(errorMsg), {
+          bookingError,
+          bookingData
+        });
+        throw new Error(errorMsg);
       }
 
       logger.info('Booking created successfully', {
@@ -373,7 +379,11 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       {currentStep === PaymentStep.ERROR && (
         <div className="p-8 text-center">
           <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold mb-2">Payment Failed</h2>
+          <h2 className="text-2xl font-bold mb-2">
+            {localErrorMessage?.includes('booking') || bookingError?.includes('booking')
+              ? 'Booking Failed'
+              : 'Payment Failed'}
+          </h2>
           <p className="text-gray-600 dark:text-gray-400 mb-6">
             {localErrorMessage || paymentError || bookingError || 'An error occurred while processing your payment.'}
           </p>

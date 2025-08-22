@@ -743,9 +743,14 @@ export const protectedApi = {
     limit?: number;
     offset?: number;
   }) {
+    // Backend returns PaginatedResponse with items array
     return authFetch<{
-      bookings: Booking[];
+      items: Booking[];
       total: number;
+      page: number;
+      per_page: number;
+      has_next?: boolean;
+      has_prev?: boolean;
     }>(PROTECTED_ENDPOINTS.bookings.list, {
       params,
     });
