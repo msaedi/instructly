@@ -141,16 +141,21 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
               </div>
             </div>
           )}
-          <Button
-            className="w-full bg-gradient-to-r from-purple-700 to-purple-800 hover:from-purple-800 hover:to-purple-900 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:shadow-none"
-            size="sm"
-            disabled={!canBook}
-            onClick={() => onBook && onBook(selectedDuration)}
-            title={!canBook ? getUnavailableMessage() : ''}
-            data-testid={`book-service-${(service.skill || '').toLowerCase().replace(/\s+/g, '-')}`}
-          >
-            Book now!
-          </Button>
+          <div className="flex justify-center">
+            <button
+              className={`py-1.5 px-4 rounded-lg font-medium transition-colors ${
+                canBook
+                  ? 'bg-purple-700 text-white hover:bg-purple-800 cursor-pointer'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+              disabled={!canBook}
+              onClick={() => onBook && onBook(selectedDuration)}
+              title={!canBook ? getUnavailableMessage() : ''}
+              data-testid={`book-service-${(service.skill || '').toLowerCase().replace(/\s+/g, '-')}`}
+            >
+              Book now!
+            </button>
+          </div>
         </CardContent>
       </Card>
 

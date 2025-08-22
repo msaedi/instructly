@@ -117,73 +117,81 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
   };
 
   return (
-    <div className="flex gap-6 items-start p-6 bg-white rounded-xl border border-gray-200">
-      {/* Left side - Profile Photo */}
-      <div className="flex-shrink-0">
-        <div className="w-56 h-56 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
-          <span className="text-7xl">👤</span>
-        </div>
-      </div>
+    <div className="p-6 bg-white rounded-xl border border-gray-200">
+      <div className="flex gap-8">
+        {/* Left section - matching Services & Pricing width */}
+        <div className="flex-[1.4] max-w-lg">
+          <div className="flex gap-6 items-start">
+            {/* Profile Photo */}
+            <div className="flex-shrink-0">
+              <div className="w-56 h-56 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
+                <span className="text-7xl">👤</span>
+              </div>
+            </div>
 
-      {/* Right side - Info */}
-      <div className="flex-1">
-        <div className="flex flex-col space-y-2">
-        {/* Name with Heart Button */}
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl lg:text-3xl font-bold text-purple-700" data-testid="instructor-profile-name">{displayName}</h1>
-          {instructor.is_verified && (
-            <CheckCircle className="h-7 w-7 text-purple-700" />
-          )}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={handleHeartClick}
-              disabled={isLoading}
-              className="p-1 bg-transparent border-none hover:scale-110 transition-transform cursor-pointer disabled:opacity-50"
-              aria-label={user ? "Toggle favorite" : "Sign in to save"}
-              title={!user ? "Sign in to save this instructor" : isSaved ? "Remove from favorites" : "Add to favorites"}
-              style={{ background: 'transparent', border: 'none' }}
-            >
-              <Heart
-                className="h-5 w-5"
-                fill={isSaved ? '#ff0000' : 'none'}
-                color={isSaved ? '#ff0000' : '#666'}
-              />
-            </button>
-            {favoriteCount > 0 && (
-              <span className="text-sm text-muted-foreground">
-                ({favoriteCount})
-              </span>
-            )}
+            {/* Info */}
+            <div className="flex-1">
+              <div className="flex flex-col space-y-2">
+              {/* Name with Heart Button */}
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl lg:text-3xl font-bold text-purple-700" data-testid="instructor-profile-name">{displayName}</h1>
+                {instructor.is_verified && (
+                  <CheckCircle className="h-7 w-7 text-purple-700" />
+                )}
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={handleHeartClick}
+                    disabled={isLoading}
+                    className="p-1 bg-transparent border-none hover:scale-110 transition-transform cursor-pointer disabled:opacity-50"
+                    aria-label={user ? "Toggle favorite" : "Sign in to save"}
+                    title={!user ? "Sign in to save this instructor" : isSaved ? "Remove from favorites" : "Add to favorites"}
+                    style={{ background: 'transparent', border: 'none' }}
+                  >
+                    <Heart
+                      className="h-5 w-5"
+                      fill={isSaved ? '#ff0000' : 'none'}
+                      color={isSaved ? '#ff0000' : '#666'}
+                    />
+                  </button>
+                  {favoriteCount > 0 && (
+                    <span className="text-sm text-muted-foreground">
+                      ({favoriteCount})
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Rating and Reviews */}
+              <div className="flex items-center gap-2">
+                <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+                <span className="font-semibold">{rating}</span>
+                <span className="text-muted-foreground">({reviewCount} reviews)</span>
+              </div>
+
+              {/* Experience */}
+              {instructor.years_experience && (
+                <p className="text-lg text-gray-600">{instructor.years_experience} years experience</p>
+              )}
+
+              {/* Background Check Badge */}
+              {instructor.background_check_completed && (
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <span className="text-sm">Background Checked</span>
+                </div>
+              )}
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Rating and Reviews */}
-        <div className="flex items-center gap-2">
-          <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
-          <span className="font-semibold">{rating}</span>
-          <span className="text-muted-foreground">({reviewCount} reviews)</span>
+        {/* Right section - About me aligned with Lesson Locations */}
+        <div className="flex-[1]">
+          <h2 className="text-lg text-gray-600 mb-4">About me:</h2>
+          <p className="text-sm text-gray-700 leading-relaxed">
+            {instructor.bio || `Passionate instructor with ${instructor.years_experience || 'several'} years of experience. Dedicated to helping students achieve their goals through personalized instruction.`}
+          </p>
         </div>
-
-        {/* Experience */}
-        {instructor.years_experience && (
-          <p className="text-lg text-gray-600">{instructor.years_experience} years experience</p>
-        )}
-
-        {/* Background Check Badge */}
-        {instructor.background_check_completed && (
-          <div className="flex items-center gap-2">
-            <CheckCircle className="h-4 w-4 text-green-600" />
-            <span className="text-sm">Background Checked</span>
-          </div>
-        )}
-        </div>
-      </div>
-
-      {/* Right Column - Bio */}
-      <div className="flex-shrink-0 max-w-md">
-        <p className="text-sm text-gray-600 leading-relaxed">
-          {instructor.bio || `Passionate instructor with ${instructor.years_experience || 'several'} years of experience. Dedicated to helping students achieve their goals through personalized instruction.`}
-        </p>
       </div>
     </div>
   );

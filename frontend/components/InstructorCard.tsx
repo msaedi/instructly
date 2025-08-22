@@ -183,7 +183,7 @@ export default function InstructorCard({
             <div className="flex-1">
               {/* Name with verification badge */}
               <div className="flex items-center">
-                <h2 className={`${compact ? 'text-xl' : 'text-3xl'} font-bold text-purple-700`} data-testid="instructor-name">
+                <h2 className={`${compact ? 'text-xl' : 'text-3xl'} font-extrabold text-purple-700`} data-testid="instructor-name">
                   {instructor.user.first_name} {instructor.user.last_initial ? `${instructor.user.last_initial}.` : ''}
                 </h2>
                 {instructor.verified && (

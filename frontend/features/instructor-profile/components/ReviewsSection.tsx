@@ -32,7 +32,7 @@ export function ReviewsSection({ instructorId }: ReviewsSectionProps) {
   if (isLoading) {
     return (
       <section>
-        <h2 className="text-xl font-semibold mb-4">Reviews</h2>
+        <h2 className="text-lg text-gray-600 mb-4">Reviews</h2>
         <div className="space-y-4">
           {[1, 2].map((i) => (
             <Card key={i}>
@@ -52,7 +52,7 @@ export function ReviewsSection({ instructorId }: ReviewsSectionProps) {
   if (error || !data) {
     return (
       <section>
-        <h2 className="text-xl font-semibold mb-4">Reviews</h2>
+        <h2 className="text-lg text-gray-600 mb-4">Reviews</h2>
         <Card>
           <CardContent className="py-8 text-center">
             <p className="text-muted-foreground">Unable to load reviews</p>
@@ -65,7 +65,7 @@ export function ReviewsSection({ instructorId }: ReviewsSectionProps) {
   if (data.reviews.length === 0) {
     return (
       <section>
-        <h2 className="text-xl font-semibold mb-4">Reviews</h2>
+        <h2 className="text-lg text-gray-600 mb-4">Reviews</h2>
         <Card>
           <CardContent className="py-8 text-center">
             <Star className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
@@ -79,19 +79,24 @@ export function ReviewsSection({ instructorId }: ReviewsSectionProps) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4 pb-2 border-b">
-        <h3 className="text-lg font-semibold">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg text-gray-600">
           Reviews ({data.total})
-        </h3>
-        <Button variant="outline" size="sm">
+        </h2>
+        <button
+          className="bg-white text-purple-700 py-1.5 px-4 rounded-lg font-medium border-2 border-purple-700 hover:bg-purple-50 transition-colors cursor-pointer"
+        >
           Write Review
-        </Button>
+        </button>
       </div>
 
-      <div className="space-y-4">
-        {data.reviews.slice(0, 2).map((review) => (
-          <div key={review.id} className="pb-4 border-b last:border-0">
-            <div className="flex items-start gap-3 mb-2">
+      <div className="grid grid-cols-4 gap-4">
+        {data.reviews.slice(0, 4).map((review) => (
+          <div
+            key={review.id}
+            className="p-3 bg-white rounded-lg border border-gray-100"
+          >
+            <div className="flex items-start gap-3">
               <StarRating rating={review.rating} />
               <div className="flex-1">
                 <div className="flex items-baseline gap-2">
@@ -109,17 +114,16 @@ export function ReviewsSection({ instructorId }: ReviewsSectionProps) {
         ))}
       </div>
 
-      {data.total > 2 && (
-        <Button
-          variant="link"
-          className="p-0 h-auto mt-4 text-sm"
+      {data.total > 4 && (
+        <button
+          className="mt-4 text-xs text-purple-700 hover:text-purple-800 hover:underline transition-colors"
           onClick={() => {
             // TODO: Navigate to full reviews page
             console.log('See all reviews');
           }}
         >
-          See All {data.total} Reviews →
-        </Button>
+          See all {data.total} reviews
+        </button>
       )}
     </div>
   );

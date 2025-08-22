@@ -1,5 +1,4 @@
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Booking } from '@/types/booking';
 import { LessonStatus } from './LessonStatus';
 import { InstructorInfo } from './InstructorInfo';
@@ -34,15 +33,22 @@ export function LessonCard({
 
   return (
     <Card
-      className={`p-4 sm:p-6 hover:shadow-lg transition-shadow cursor-pointer ${className || ''}`}
+      className={`p-4 sm:p-6 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-shadow cursor-pointer ${className || ''}`}
       onClick={onViewDetails}
     >
       <div className="space-y-4">
         {/* Lesson Title and Status */}
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
           <div>
-            <h3 className="text-lg sm:text-xl font-semibold">{lesson.service_name}</h3>
-            {lesson.status !== 'CONFIRMED' && (
+            <div className="flex items-center gap-2">
+              <h3 className="text-2xl sm:text-3xl font-bold text-purple-700">
+                {lesson.service_name}
+              </h3>
+              {isCompleted && lesson.status === 'COMPLETED' && (
+                <LessonStatus status={lesson.status} cancelledAt={lesson.cancelled_at} />
+              )}
+            </div>
+            {lesson.status !== 'CONFIRMED' && lesson.status !== 'COMPLETED' && (
               <LessonStatus status={lesson.status} cancelledAt={lesson.cancelled_at} />
             )}
           </div>
@@ -51,7 +57,7 @@ export function LessonCard({
               e.stopPropagation();
               onViewDetails();
             }}
-            className="text-sm text-primary hover:text-primary/80 flex items-center gap-1 self-start sm:self-auto cursor-pointer"
+            className="text-sm text-purple-700 hover:text-purple-800 flex items-center gap-1 self-start sm:self-auto cursor-pointer font-medium"
           >
             See lesson details
             <ChevronRight className="h-4 w-4" />
@@ -60,17 +66,17 @@ export function LessonCard({
 
         {/* Date, Time, and Price */}
         <div className="space-y-2">
-          <div className="flex items-center gap-2 text-muted-foreground">
+          <div className="flex items-center gap-2 text-gray-600">
             <Calendar className="h-4 w-4" />
-            <span>{formattedDate}</span>
+            <span className="text-lg">{formattedDate}</span>
           </div>
-          <div className="flex items-center gap-2 text-muted-foreground">
+          <div className="flex items-center gap-2 text-gray-600">
             <Clock className="h-4 w-4" />
-            <span>{formattedTime}</span>
+            <span className="text-lg">{formattedTime}</span>
           </div>
-          <div className="flex items-center gap-2 text-muted-foreground">
+          <div className="flex items-center gap-2 text-gray-600">
             <DollarSign className="h-4 w-4" />
-            <span>
+            <span className="text-lg font-medium">
               {lesson.status === 'CANCELLED' && lesson.cancelled_at ? (
                 <>{getCancellationFeeDisplay(lesson)}</>
               ) : (
@@ -80,24 +86,8 @@ export function LessonCard({
           </div>
         </div>
 
-        {/* Action Button for Completed Lessons */}
-        {isCompleted && lesson.status === 'COMPLETED' && (
-          <div className="pt-2">
-            <Button
-              onClick={(e) => {
-                e.stopPropagation();
-                onBookAgain?.();
-              }}
-              className="w-full sm:w-auto cursor-pointer"
-              variant="default"
-            >
-              Book Again
-            </Button>
-          </div>
-        )}
-
         {/* Instructor Info */}
-        <div className="pt-4 border-t">
+        <div className="pt-4 border-t border-gray-300">
           <InstructorInfo
             instructor={lesson.instructor}
             onChat={(e) => {
@@ -108,6 +98,11 @@ export function LessonCard({
             onReview={(e) => {
               e?.stopPropagation?.();
               onReviewTip?.();
+            }}
+            showBookAgainButton={isCompleted && lesson.status === 'COMPLETED'}
+            onBookAgain={(e) => {
+              e?.stopPropagation?.();
+              onBookAgain?.();
             }}
           />
         </div>
