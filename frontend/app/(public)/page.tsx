@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { PrivacySettings } from '@/components/PrivacySettings';
 import { recordSearch } from '@/lib/searchTracking';
+import UserProfileDropdown from '@/components/UserProfileDropdown';
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -45,14 +46,11 @@ export default function HomePage() {
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [categoryServices, setCategoryServices] = useState<Record<string, TopServiceSummary[]>>({});
   const [isTouchDevice, setIsTouchDevice] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [userHasBookingHistory, setUserHasBookingHistory] = useState<boolean | null>(null);
   const [isClient, setIsClient] = useState(false);
   const router = useRouter();
   const { user, isAuthenticated, logout, isLoading: isAuthLoading } = useAuth();
-  const userMenuRef = useRef<HTMLDivElement>(null);
-  const avatarRef = useRef<HTMLDivElement>(null);
 
   // Set isClient to true after mount to avoid hydration issues
   useEffect(() => {
@@ -138,23 +136,6 @@ export default function HomePage() {
 
   // Background handled globally via GlobalBackground
 
-  // Handle clicking outside of user menu
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        userMenuRef.current &&
-        !userMenuRef.current.contains(event.target as Node) &&
-        avatarRef.current &&
-        !avatarRef.current.contains(event.target as Node)
-      ) {
-        setShowUserMenu(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   const availableNow = [
     {
       name: 'Sarah C.',
@@ -224,82 +205,7 @@ export default function HomePage() {
                     <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full"></span>
                   )}
                 </Link>
-                <Link
-                  href={
-                    hasRole(user, RoleName.STUDENT)
-                      ? '/dashboard/student'
-                      : '/dashboard/instructor'
-                  }
-                  className="text-gray-700 hover:text-purple-700 font-medium relative hidden md:inline-flex items-center"
-                >
-                  <span>My Account</span>
-                  {user?.unread_platform_messages_count &&
-                    user.unread_platform_messages_count > 0 && (
-                      <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full"></span>
-                    )}
-                </Link>
-                <div ref={avatarRef} className="relative">
-                  <div
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setShowUserMenu(!showUserMenu);
-                    }}
-                    className="w-9 h-9 bg-purple-700 text-white rounded-full flex items-center justify-center font-semibold text-sm cursor-pointer transition-transform hover:scale-105"
-                  >
-                    {user?.profile_image_url ? (
-                      <img
-                        src={user.profile_image_url}
-                        alt={`${user.first_name} ${user.last_name || ''}`}
-                        className="w-full h-full rounded-full object-cover"
-                      />
-                    ) : (
-                      getUserInitials(user)
-                    )}
-                  </div>
-
-                  {/* Dropdown Menu */}
-                  {showUserMenu && (
-                    <div
-                      ref={userMenuRef}
-                      className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
-                    >
-                      <Link
-                        href={
-                          hasRole(user, RoleName.STUDENT)
-                            ? '/dashboard/student'
-                            : '/dashboard/instructor'
-                        }
-                        className="block w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors md:hidden"
-                        onClick={() => setShowUserMenu(false)}
-                      >
-                        My Account
-                      </Link>
-                      <button
-                        onClick={() => {
-                          setShowPrivacyModal(true);
-                          setShowUserMenu(false);
-                        }}
-                        className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 flex items-center space-x-2 transition-colors"
-                      >
-                        <Settings className="h-4 w-4" />
-                        <span>Privacy Settings</span>
-                      </button>
-                      <div className="border-t border-gray-200 my-1"></div>
-                      <button
-                        onClick={() => {
-                          logger.info('User logging out from dropdown menu');
-                          logout();
-                          setShowUserMenu(false);
-                        }}
-                        className="w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-100 flex items-center space-x-2 transition-colors"
-                      >
-                        <LogOut className="h-4 w-4" />
-                        <span>Log out</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <UserProfileDropdown />
               </div>
             ) : (
               <div className="flex items-center gap-4">

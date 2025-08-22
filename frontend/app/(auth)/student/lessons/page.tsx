@@ -85,7 +85,7 @@ function MyLessonsContent() {
             </div>
           </div>
         </header>
-        <div className="container mx-auto px-4 py-8 max-w-6xl">
+        <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
           <Skeleton className="h-8 w-48 mb-8" />
           <Skeleton className="h-12 w-full mb-8" />
           <div className="space-y-4">
@@ -122,30 +122,30 @@ function MyLessonsContent() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
+      <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Page Header */}
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold">My Lessons</h1>
+        <h1 className="text-3xl font-bold text-gray-600">My Lessons</h1>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-4 mb-8 border-b">
+      <div className="flex gap-4 mb-8 border-b bg-white p-4 rounded-lg">
         <button
           onClick={() => handleTabChange('upcoming')}
-          className={`pb-4 px-2 font-medium transition-colors cursor-pointer ${
+          className={`pb-4 px-2 font-medium transition-colors cursor-pointer text-gray-600 hover:text-gray-700 ${
             activeTab === 'upcoming'
-              ? 'text-primary border-b-2 border-primary'
-              : 'text-muted-foreground hover:text-foreground'
+              ? 'border-b-2 border-gray-600'
+              : ''
           }`}
         >
           Upcoming
         </button>
         <button
           onClick={() => handleTabChange('history')}
-          className={`pb-4 px-2 font-medium transition-colors cursor-pointer ${
+          className={`pb-4 px-2 font-medium transition-colors cursor-pointer text-gray-600 hover:text-gray-700 ${
             activeTab === 'history'
-              ? 'text-primary border-b-2 border-primary'
-              : 'text-muted-foreground hover:text-foreground'
+              ? 'border-b-2 border-gray-600'
+              : ''
           }`}
         >
           History
@@ -188,7 +188,8 @@ function MyLessonsContent() {
               isCompleted={activeTab === 'history'}
               onViewDetails={() => router.push(`/student/lessons/${lesson.id}`)}
               onChat={() => handleOpenChat(lesson)}
-              className="bg-[#EDE7F6] text-gray-900"
+              onBookAgain={() => router.push(`/instructors/${lesson.instructor_id}`)}
+              onReviewTip={() => router.push(`/student/review/${lesson.id}`)}
             />
           ))
         ) : (
@@ -229,6 +230,7 @@ function MyLessonsContent() {
           otherUserName={selectedBooking.instructor.first_name || 'Instructor'}
           lessonTitle={selectedBooking.service_name}
           lessonDate={format(new Date(`${selectedBooking.booking_date}T${selectedBooking.start_time}`), 'MMM d, yyyy')}
+          isReadOnly={activeTab === 'history'}
         />
       )}
       </div>
@@ -240,7 +242,7 @@ export default function MyLessonsPage() {
   return (
     <Suspense
       fallback={
-        <div className="container mx-auto px-4 py-8 max-w-6xl">
+        <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
           <Skeleton className="h-8 w-48 mb-8" />
           <Skeleton className="h-12 w-full mb-8" />
           <div className="space-y-4">

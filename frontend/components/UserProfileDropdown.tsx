@@ -34,7 +34,7 @@ export default function UserProfileDropdown() {
       const rect = buttonRef.current.getBoundingClientRect();
       setDropdownPosition({
         top: rect.bottom + window.scrollY + 8,
-        left: rect.right - 200 + window.scrollX, // Right-aligned, 200px width
+        left: rect.right - 150 + window.scrollX, // Right-aligned, 150px width
       });
     }
   }, [isOpen]);
@@ -106,7 +106,7 @@ export default function UserProfileDropdown() {
       {isOpen && typeof window !== 'undefined' && createPortal(
         <div
           ref={dropdownRef}
-          className="bg-white rounded-lg shadow-xl border border-gray-200 py-2 w-[200px] animate-fadeIn"
+          className="bg-white rounded-lg shadow-xl border border-gray-200 py-2 w-[150px] animate-fadeIn"
           style={{
             position: 'absolute',
             top: `${dropdownPosition.top}px`,
@@ -114,14 +114,6 @@ export default function UserProfileDropdown() {
             zIndex: 10000,
           }}
         >
-          {/* User info */}
-          <div className="px-4 py-2 border-b border-gray-100">
-            <p className="text-sm font-medium text-gray-900">
-              {user.first_name} {user.last_name}
-            </p>
-            <p className="text-xs text-gray-500">{user.email}</p>
-          </div>
-
           {/* Menu items */}
           <div className="py-1">
             <button
@@ -144,7 +136,7 @@ export default function UserProfileDropdown() {
 
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-purple-700 hover:bg-purple-50 transition-colors"
             >
               <LogOut className="h-4 w-4" />
               Sign Out

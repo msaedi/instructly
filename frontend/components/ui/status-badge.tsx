@@ -15,7 +15,7 @@ export interface StatusBadgeProps {
 
 const variantStyles: Record<StatusBadgeVariant, string> = {
   success:
-    'bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800',
+    'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-800',
   cancelled:
     'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-950 dark:text-gray-300 dark:border-gray-800',
   pending:

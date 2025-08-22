@@ -30,6 +30,7 @@ interface ChatProps {
   otherUserName: string;
   className?: string;
   onClose?: () => void;
+  isReadOnly?: boolean;
 }
 
 export function Chat({
@@ -39,6 +40,7 @@ export function Chat({
   otherUserName,
   className,
   onClose,
+  isReadOnly = false,
 }: ChatProps) {
   // Config: fetched from backend to avoid drift
   const [editWindowMinutes, setEditWindowMinutes] = useState<number>(5);
@@ -277,18 +279,125 @@ export function Chat({
 
   // Quick reactions toggle per-message
   const [openReactionsForMessageId, setOpenReactionsForMessageId] = useState<string | null>(null);
+  const [processingReaction, setProcessingReaction] = useState<string | null>(null);
   const quickEmojis = ['👍', '❤️', '😊', '😮', '🎉'];
   const handleAddReaction = async (messageId: string, emoji: string) => {
     // For optimistic/temporary messages with negative IDs
     if (messageId.startsWith('-')) {
       return;
     }
+
+    // Prevent multiple simultaneous reactions GLOBALLY (not just per message)
+    if (processingReaction !== null) {
+      logger.warn(`Already processing reaction, ignoring new reaction request`);
+      return;
+    }
+
     try {
+      setProcessingReaction(messageId);
       const { messageService } = await import('@/services/messageService');
+
       // Optimistic UX: close popover immediately
       setOpenReactionsForMessageId(null);
-      await messageService.addReaction(messageId.toString(), emoji);
-    } catch {}
+
+      // Find the message to check current user's reaction
+      const message = allMessages.find(m => m.id === messageId);
+      if (!message) {
+        logger.error(`Message ${messageId} not found`);
+        return;
+      }
+
+      // Get current state
+      const myReactions = (message as any)?.my_reactions || [];
+      const localReaction = userReactions[messageId];
+      const currentReaction = localReaction !== undefined ? localReaction : myReactions[0];
+
+      logger.info(`Reaction state for message ${messageId}:`, {
+        requestedEmoji: emoji,
+        serverReactions: myReactions,
+        localReaction,
+        currentReaction
+      });
+
+      // If user is trying to add a reaction when they already have one (and it's different)
+      // Force remove the old one first
+      if (currentReaction && currentReaction !== emoji) {
+        logger.info(`User already has reaction ${currentReaction}, will replace with ${emoji}`);
+        // Update local state immediately to show the change
+        setUserReactions(prev => ({ ...prev, [messageId]: emoji }));
+
+        // Remove old reaction
+        const removed = await messageService.removeReaction(messageId, currentReaction);
+        if (!removed) {
+          logger.error(`Failed to remove old reaction ${currentReaction}`);
+          // Revert local state
+          setUserReactions(prev => ({ ...prev, [messageId]: currentReaction }));
+          return;
+        }
+
+        // Add new reaction
+        const added = await messageService.addReaction(messageId, emoji);
+        if (!added) {
+          logger.error(`Failed to add new reaction ${emoji}`);
+          // Revert to no reaction since we removed the old one
+          setUserReactions(prev => ({ ...prev, [messageId]: null }));
+          return;
+        }
+      } else if (currentReaction === emoji) {
+        // Toggle off - remove the reaction
+        logger.info(`Toggling off reaction ${emoji} from message ${messageId}`);
+        setUserReactions(prev => ({ ...prev, [messageId]: null }));
+
+        const removed = await messageService.removeReaction(messageId, emoji);
+        if (!removed) {
+          logger.error(`Failed to remove reaction ${emoji}`);
+          // Revert local state
+          setUserReactions(prev => ({ ...prev, [messageId]: emoji }));
+        }
+      } else {
+        // No current reaction, add the new one
+        logger.info(`Adding new reaction ${emoji} to message ${messageId}`);
+        setUserReactions(prev => ({ ...prev, [messageId]: emoji }));
+
+        const added = await messageService.addReaction(messageId, emoji);
+        if (!added) {
+          logger.error(`Failed to add reaction ${emoji}`);
+          // Revert local state
+          setUserReactions(prev => ({ ...prev, [messageId]: null }));
+        }
+      }
+
+      // Extra safety: if server still has multiple reactions, clean them up
+      const updatedMessage = allMessages.find(m => m.id === messageId);
+      const updatedReactions = (updatedMessage as any)?.my_reactions || [];
+      if (updatedReactions.length > 1) {
+        logger.warn(`Message still has ${updatedReactions.length} reactions after update, cleaning up extras`);
+        const keepEmoji = userReactions[messageId] || updatedReactions[0];
+        for (const extraEmoji of updatedReactions) {
+          if (extraEmoji !== keepEmoji) {
+            await messageService.removeReaction(messageId, extraEmoji);
+          }
+        }
+      }
+
+    } catch (error) {
+      logger.error('Failed to handle reaction', error);
+      // Revert optimistic update on error
+      const message = allMessages.find(m => m.id === messageId);
+      if (message) {
+        const myReactions = (message as any)?.my_reactions || [];
+        const serverReaction = myReactions[0];
+        setUserReactions(prev => ({
+          ...prev,
+          [messageId]: serverReaction || null
+        }));
+      }
+    } finally {
+      // Add a small delay before allowing new reactions to prevent race conditions
+      setTimeout(() => {
+        setProcessingReaction(null);
+      }, 200);
+    }
   };
 
   // Edit mode state
@@ -336,24 +445,96 @@ export function Chat({
     return diffMinutes <= editWindowMinutes;
   };
 
-  // Track local my-reaction toggles for highlight state (messageId -> emoji -> delta {-1, 0, 1})
-  const [reactionMyDeltas, setReactionMyDeltas] = useState<Record<string, Record<string, number>>>({});
+  // Track SINGLE reaction per message (messageId -> emoji or null)
+  // This is the source of truth for user's reactions
+  const [userReactions, setUserReactions] = useState<Record<string, string | null>>({});
+
+  // Apply reaction deltas from SSE to track real-time updates
+  useEffect(() => {
+    // Process reaction deltas to determine current user reactions
+    Object.entries(reactionDeltas).forEach(([messageId, reactions]) => {
+      // Find which reactions belong to current user based on delta changes
+      // This is a workaround since SSE doesn't tell us WHO added/removed reactions
+      // We'll rely on our local state as source of truth
+    });
+  }, [reactionDeltas]);
+
+  // Initialize userReactions from server data when messages load
+  // Also clean up any multiple reactions (enforce single emoji)
+  useEffect(() => {
+    const newReactions: Record<string, string | null> = {};
+    const cleanupMessages: Array<{messageId: string, keepEmoji: string, removeEmojis: string[]}> = [];
+
+    allMessages.forEach(message => {
+      // Only set if we don't already have a local state for this message
+      if (userReactions[message.id] === undefined) {
+        const myReactions = (message as any).my_reactions || [];
+        // Only track the FIRST reaction (enforce single emoji)
+        newReactions[message.id] = myReactions[0] || null;
+
+        // If server has multiple reactions, schedule cleanup
+        if (myReactions.length > 1) {
+          logger.warn(`Message ${message.id} has ${myReactions.length} reactions, cleaning up to keep only: ${myReactions[0]}`);
+          cleanupMessages.push({
+            messageId: message.id,
+            keepEmoji: myReactions[0],
+            removeEmojis: myReactions.slice(1)
+          });
+        }
+      }
+    });
+
+    // Only update if there are new reactions to add
+    if (Object.keys(newReactions).length > 0) {
+      setUserReactions(prev => ({
+        ...newReactions,
+        ...prev // Preserve any existing local state
+      }));
+    }
+
+    // Clean up multiple reactions on server
+    if (cleanupMessages.length > 0) {
+      (async () => {
+        const { messageService } = await import('@/services/messageService');
+        for (const cleanup of cleanupMessages) {
+          for (const emojiToRemove of cleanup.removeEmojis) {
+            try {
+              await messageService.removeReaction(cleanup.messageId, emojiToRemove);
+              logger.info(`Cleaned up extra reaction ${emojiToRemove} from message ${cleanup.messageId}`);
+            } catch (error) {
+              logger.error(`Failed to clean up reaction ${emojiToRemove}`, error);
+            }
+          }
+        }
+      })();
+    }
+  }, [allMessages.length]); // Only re-run when number of messages changes
+
   const toggleReactionLocal = (message: Message, emoji: string) => {
-    const baseMy = Array.isArray((message as any).my_reactions) && (message as any).my_reactions.includes(emoji);
-    const currentDelta = (reactionMyDeltas[message.id] || {})[emoji] || 0;
-    const current = (baseMy ? 1 : 0) + currentDelta > 0;
-    const newCurrent = current ? 0 : 1; // flip
-    const newDelta = newCurrent - (baseMy ? 1 : 0);
-    setReactionMyDeltas(prev => ({
-      ...prev,
-      [message.id]: { ...(prev[message.id] || {}), [emoji]: newDelta },
-    }));
+    setUserReactions(prev => {
+      const currentReaction = prev[message.id];
+
+      // If clicking the same emoji, remove it (toggle off)
+      if (currentReaction === emoji) {
+        return { ...prev, [message.id]: null };
+      }
+
+      // Otherwise, set this as the only reaction
+      return { ...prev, [message.id]: emoji };
+    });
   };
 
   const isEmojiMyReacted = (message: Message, emoji: string): boolean => {
-    const baseMy = Array.isArray((message as any).my_reactions) && (message as any).my_reactions.includes(emoji);
-    const currentDelta = (reactionMyDeltas[message.id] || {})[emoji] || 0;
-    return ((baseMy ? 1 : 0) + currentDelta) > 0;
+    // Check our local state for the current reaction
+    const localReaction = userReactions[message.id];
+    if (localReaction !== undefined) {
+      // If local state is set, use it (even if null)
+      return localReaction === emoji;
+    }
+
+    // Fall back to server state - only consider FIRST reaction
+    const myReactions = (message as any).my_reactions || [];
+    return myReactions.length > 0 && myReactions[0] === emoji;
   };
 
   // Format message date
@@ -512,7 +693,6 @@ export function Chat({
                   const isOwn = message.sender_id === currentUserId;
                   const showSender = index === 0 ||
                     messages[index - 1].sender_id !== message.sender_id;
-                  const nextSameSender = index < messages.length - 1 && messages[index + 1].sender_id === message.sender_id;
 
                   return (
                     <div
@@ -544,20 +724,20 @@ export function Chat({
                           className={cn(
                             'rounded-2xl px-3.5 py-2 break-words shadow-sm select-text text-[15px] leading-5 sm:text-sm',
                             isOwn
-                              ? 'bg-gradient-to-tr from-blue-600 to-blue-500 text-white ring-1 ring-blue-500/10'
+                              ? 'bg-gradient-to-tr from-purple-700 to-purple-600 text-white ring-1 ring-purple-500/10'
                               : 'bg-white text-gray-900 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-100 dark:ring-gray-700'
                           )}
                         >
                           {editingMessageId === message.id ? (
                             <div className={cn('flex items-end gap-2', isOwn ? 'text-white' : 'text-gray-900')}>
-                              <div className={cn('flex-1 rounded-md', isOwn ? 'bg-blue-500/15' : 'bg-gray-100')}>
+                              <div className={cn('flex-1 rounded-md', isOwn ? 'bg-purple-500/15' : 'bg-gray-100')}>
                                 <textarea
                                   ref={editingTextareaRef}
                                   value={editingContent}
                                   onChange={(e) => setEditingContent(e.target.value)}
                                   onInput={autosizeEditingTextarea}
                                   rows={1}
-                                  className={cn('w-full resize-none rounded-md px-2 py-1 text-[15px] leading-5 outline-none', isOwn ? 'bg-transparent text-white placeholder:text-blue-100' : 'bg-transparent text-gray-900 placeholder:text-gray-400')}
+                                  className={cn('w-full resize-none rounded-md px-2 py-1 text-[15px] leading-5 outline-none focus:ring-purple-500 focus:border-purple-500', isOwn ? 'bg-transparent text-white placeholder:text-blue-100' : 'bg-transparent text-gray-900 placeholder:text-gray-400')}
                                   style={{ overflowY: 'hidden', height: 'auto' }}
                                 />
                               </div>
@@ -612,34 +792,54 @@ export function Chat({
 
                         {/* Reaction bar (counts) */}
                         {(() => {
-                          const base = ((message as any).reactions as Record<string, number>) || {};
-                          const deltas = reactionDeltas[message.id] || {};
-                          const merged: Record<string, number> = { ...base };
-                          Object.entries(deltas).forEach(([emoji, delta]) => {
-                            merged[emoji] = Math.max(0, (merged[emoji] || 0) + (delta as number));
-                          });
-                          const entries = Object.entries(merged).filter(([, c]) => c > 0);
+                          const reactions = ((message as any).reactions as Record<string, number>) || {};
+
+                          // Build the display considering user's single reaction
+                          const displayReactions: Record<string, number> = { ...reactions };
+
+                          // Get user's current reaction (only one allowed)
+                          const localReaction = userReactions[message.id];
+                          const serverReaction = ((message as any).my_reactions || [])[0];
+
+                          // Adjust counts based on local state changes
+                          if (localReaction !== undefined && localReaction !== serverReaction) {
+                            // User changed their reaction locally
+                            if (serverReaction) {
+                              // Decrement old reaction
+                              displayReactions[serverReaction] = Math.max(0, (displayReactions[serverReaction] || 0) - 1);
+                              if (displayReactions[serverReaction] === 0) {
+                                delete displayReactions[serverReaction];
+                              }
+                            }
+                            if (localReaction) {
+                              // Increment new reaction
+                              displayReactions[localReaction] = (displayReactions[localReaction] || 0) + 1;
+                            }
+                          }
+
+                          const entries = Object.entries(displayReactions).filter(([, c]) => c > 0);
                           if (entries.length === 0) return null;
                           return (
                           <div className={cn('mt-1 flex justify-end gap-1', isOwn ? 'pr-1' : 'pl-1')}>
                             {entries.map(([emoji, count]) => {
                               const mine = isEmojiMyReacted(message, emoji);
-                              const baseMine = Array.isArray((message as any).my_reactions) && (message as any).my_reactions.includes(emoji);
-                              const mineAfterToggle = isEmojiMyReacted(message, emoji);
                               const isOwnMessage = message.sender_id === currentUserId;
                               return (
                                 <button
                                   type="button"
                                   key={emoji}
                                   onClick={async () => {
-                                    // Do not allow toggling reactions on your own message chips to increment incorrectly
-                                    if (isOwnMessage && !mineAfterToggle && baseMine === false) return;
+                                    // Don't allow reactions on own messages
+                                    if (isOwnMessage) return;
+                                    // Prevent multiple simultaneous reactions
+                                    if (processingReaction !== null) return;
                                     await handleAddReaction(message.id, emoji);
-                                    toggleReactionLocal(message, emoji);
                                   }}
+                                  disabled={isOwnMessage || processingReaction !== null}
                                   className={cn(
                                     'rounded-full px-2 py-0.5 text-xs ring-1 transition',
-                                    mine ? 'bg-blue-600 text-white ring-blue-600' : (isOwn ? 'bg-blue-50 text-blue-700 ring-blue-200' : 'bg-gray-50 text-gray-700 ring-gray-200'),
+                                    mine ? 'bg-purple-700 text-white ring-purple-700' : (isOwn ? 'bg-purple-50 text-purple-700 ring-purple-200' : 'bg-gray-50 text-gray-700 ring-gray-200'),
+                                    (isOwnMessage || processingReaction !== null) && 'cursor-default'
                                   )}
                                 >
                                   {emoji} {count}
@@ -656,25 +856,43 @@ export function Chat({
                             <button
                               type="button"
                               onClick={() => setOpenReactionsForMessageId(openReactionsForMessageId === message.id ? null : message.id)}
-                              className={cn('rounded-full px-2 py-0.5 text-xs ring-1 transition', 'bg-gray-50 text-gray-700 ring-gray-200 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700')}
+                              disabled={processingReaction !== null}
+                              className={cn(
+                                'rounded-full px-2 py-0.5 text-xs ring-1 transition',
+                                processingReaction !== null
+                                  ? 'bg-gray-100 text-gray-400 ring-gray-200 cursor-not-allowed'
+                                  : 'bg-gray-50 text-gray-700 ring-gray-200 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700'
+                              )}
                             >
                               +
                             </button>
-                            {openReactionsForMessageId === message.id && (
+                            {openReactionsForMessageId === message.id && processingReaction === null && (
                               <div className="ml-2 flex gap-1 rounded-full bg-white ring-1 ring-gray-200 shadow px-2 py-1 dark:bg-gray-900 dark:ring-gray-700">
-                                {quickEmojis.map((e) => (
-                                  <button
-                                    key={e}
-                                    onClick={async () => {
-                                      await handleAddReaction(message.id, e);
-                                      toggleReactionLocal(message, e);
-                                      setOpenReactionsForMessageId(null);
-                                    }}
-                                    className="text-xl leading-none hover:scale-110 transition"
-                                  >
-                                    {e}
-                                  </button>
-                                ))}
+                                {quickEmojis.map((e) => {
+                                  const currentReaction = userReactions[message.id] !== undefined
+                                    ? userReactions[message.id]
+                                    : ((message as any).my_reactions || [])[0];
+                                  const isCurrentReaction = currentReaction === e;
+                                  return (
+                                    <button
+                                      key={e}
+                                      onClick={async (event) => {
+                                        event.stopPropagation();
+                                        event.preventDefault();
+                                        if (processingReaction !== null) return;
+                                        await handleAddReaction(message.id, e);
+                                      }}
+                                      disabled={processingReaction !== null}
+                                      className={cn(
+                                        "text-xl leading-none transition",
+                                        processingReaction !== null ? "opacity-50 cursor-not-allowed pointer-events-none" : "hover:scale-110",
+                                        isCurrentReaction && "bg-purple-100 rounded-full px-1"
+                                      )}
+                                    >
+                                      {e}
+                                    </button>
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
@@ -706,7 +924,7 @@ export function Chat({
       {!isAtBottom && (
         <button
           onClick={() => scrollToBottom()}
-          className="absolute bottom-24 right-4 bg-blue-600 text-white rounded-full p-2 shadow-lg ring-1 ring-black/5 hover:bg-blue-700 transition dark:bg-blue-500 dark:hover:bg-blue-600"
+          className="absolute bottom-24 right-4 bg-purple-700 text-white rounded-full p-2 shadow-lg ring-1 ring-black/5 hover:bg-purple-800 transition dark:bg-purple-600 dark:hover:bg-purple-700"
         >
           <ChevronDown className="w-5 h-5" />
         </button>
@@ -714,40 +932,46 @@ export function Chat({
 
       {/* Input area */}
       <div className="border-t border-gray-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 px-3 sm:px-4 py-2 sm:py-3 dark:border-gray-800 dark:bg-gray-900/80 dark:supports-[backdrop-filter]:bg-gray-900/60">
-        {typingStatus && typingStatus.userId !== currentUserId && (
+        {typingStatus && typingStatus.userId !== currentUserId && !isReadOnly && (
           <div className="px-1 pb-1 text-xs text-gray-500 dark:text-gray-400">{otherUserName} is typing…</div>
         )}
-        <div className="flex items-end gap-2">
-          <textarea
-            ref={inputRef}
-            value={inputMessage}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a message..."
-            rows={1}
-            className="flex-1 resize-none rounded-full md:rounded-2xl border border-gray-200 bg-gray-50 px-4 py-2 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 shadow-inner dark:border-gray-700 dark:bg-gray-800 dark:placeholder:text-gray-500"
-            style={{ minHeight: '40px', maxHeight: '160px' }}
-          />
-          {/* Removed quick reaction picker next to Send to prevent accidental self-reactions */}
-          <button
-            onClick={handleSendMessage}
-            disabled={!inputMessage.trim() || sendMessage.isPending}
-            className={cn(
-              'rounded-full p-2 md:p-2.5 transition-colors shadow-sm',
-              inputMessage.trim() && !sendMessage.isPending
-                ? 'bg-blue-600 text-white hover:bg-blue-700 ring-1 ring-blue-500/20 dark:bg-blue-500 dark:hover:bg-blue-600'
-                : 'bg-gray-100 text-gray-400 ring-1 ring-gray-200 cursor-not-allowed dark:bg-gray-800 dark:text-gray-500 dark:ring-gray-700'
-            )}
-          >
-            {sendMessage.isPending ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : typingStatus && typingStatus.userId === currentUserId ? (
-              <span className="text-xs px-1">…</span>
-            ) : (
-              <Send className="w-5 h-5" />
-            )}
-          </button>
-        </div>
+        {isReadOnly ? (
+          <div className="text-center py-2 text-sm text-gray-500">
+            This lesson has ended. Chat is view-only.
+          </div>
+        ) : (
+          <div className="flex items-end gap-2">
+            <textarea
+              ref={inputRef}
+              value={inputMessage}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Type a message..."
+              rows={1}
+              className="flex-1 resize-none rounded-full md:rounded-2xl border border-gray-300 bg-gray-50 px-4 py-2 placeholder:text-gray-400 focus:outline-none focus:ring-purple-500 focus:border-purple-500 shadow-inner dark:border-gray-600 dark:bg-gray-800 dark:placeholder:text-gray-500"
+              style={{ minHeight: '40px', maxHeight: '160px' }}
+            />
+            {/* Removed quick reaction picker next to Send to prevent accidental self-reactions */}
+            <button
+              onClick={handleSendMessage}
+              disabled={!inputMessage.trim() || sendMessage.isPending}
+              className={cn(
+                'rounded-full p-2 md:p-2.5 transition-colors shadow-sm',
+                inputMessage.trim() && !sendMessage.isPending
+                  ? 'bg-purple-700 text-white hover:bg-purple-800 ring-1 ring-purple-500/20 dark:bg-purple-600 dark:hover:bg-purple-700'
+                  : 'bg-gray-100 text-gray-400 ring-1 ring-gray-200 cursor-not-allowed dark:bg-gray-800 dark:text-gray-500 dark:ring-gray-700'
+              )}
+            >
+              {sendMessage.isPending ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : typingStatus && typingStatus.userId === currentUserId ? (
+                <span className="text-xs px-1">…</span>
+              ) : (
+                <Send className="w-5 h-5" />
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

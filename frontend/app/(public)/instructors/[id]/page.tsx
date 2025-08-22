@@ -442,7 +442,7 @@ function InstructorProfileContent() {
           <InstructorHeader instructor={instructor} />
 
 
-          {/* Services Section - Now after Bio */}
+          {/* Services Section */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             <div className="flex gap-8">
               {/* Services & Pricing - reduced width */}
@@ -517,100 +517,10 @@ function InstructorProfileContent() {
             </div>
           </div>
 
-          {/* Three-Card Single Container */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="grid grid-cols-[1fr_2fr_1fr] min-h-[400px]">
-              {/* Column 1: About */}
-              <div className="p-6 flex flex-col h-full" style={{ minHeight: '350px' }}>
-                <h3 className="text-lg font-semibold mb-4 pb-2 border-b -mx-6 px-6">About</h3>
-                <div className="flex flex-col flex-1 justify-center">
-                  {/* Experience and Languages at top */}
-                  <div className="mb-8">
-                    {instructor.years_experience > 0 && (
-                      <div className="mb-4">
-                        <p className="font-medium text-sm">Experience:</p>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {instructor.years_experience} years teaching
-                        </p>
-                      </div>
-                    )}
-                    {/* Languages - only show if not just English */}
-                    {(() => {
-                      const languages = ['English', 'Spanish', 'French']; // Mock data - replace with instructor.languages
-                      const nonEnglishLanguages = languages.filter(lang => lang.toLowerCase() !== 'english');
-                      if (nonEnglishLanguages.length > 0) {
-                        return (
-                          <div className="mb-4">
-                            <p className="font-medium text-sm">Languages:</p>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {languages.join(', ')}
-                            </p>
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
-                  </div>
 
-                  {/* Bio - positioned after experience */}
-                  <div>
-                    <p className="font-medium text-sm">Bio:</p>
-                    <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-                      {instructor.bio || `Passionate instructor with ${instructor.years_experience || 'several'} years of experience. Dedicated to helping students achieve their goals through personalized instruction.`}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Column 2: Availability */}
-              <div className="p-6">
-                <AvailabilityGrid
-                  instructorId={instructor.id}
-                  weekStart={weekStart}
-                  onWeekChange={setWeekStart}
-                  selectedSlot={selectedSlot}
-                  onSelectSlot={(date: string, time: string, duration?: number, availableDuration?: number) => {
-                    setSelectedSlot({ date, time, duration: duration || 60, availableDuration });
-                    setIsSlotUserSelected(true); // Mark as user-selected
-                  }}
-                />
-              </div>
-
-              {/* Column 3: Location */}
-              <div className="p-6 flex flex-col h-full">
-                <h3 className="text-lg font-semibold mb-4 pb-2 border-b -mx-6 px-6">Location</h3>
-                <div className="flex flex-col flex-1 justify-between">
-                  <div className="space-y-3">
-                    {instructor.areas_of_service && instructor.areas_of_service.length > 0 ? (
-                      <>
-                        <div>
-                          <div className="font-medium text-sm mb-1">Manhattan</div>
-                          <div className="text-sm text-muted-foreground space-y-1 ml-4">
-                            <div>• Upper West Side</div>
-                            <div>• Midtown</div>
-                          </div>
-                        </div>
-                        <div>
-                          <div className="font-medium text-sm mb-1">Brooklyn</div>
-                          <div className="text-sm text-muted-foreground ml-4">
-                            <div>• Park Slope</div>
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="text-sm text-muted-foreground">No location specified</div>
-                    )}
-                  </div>
-                  <Button variant="outline" className="w-full" size="sm">
-                    📍 View on Map
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
 
           {/* Reviews Section */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="bg-white rounded-xl border border-gray-200 p-6" data-reviews-section>
             <ReviewsSection instructorId={instructor.id} />
           </div>
         </div>

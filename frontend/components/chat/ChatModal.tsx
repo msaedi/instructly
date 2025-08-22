@@ -24,6 +24,7 @@ interface ChatModalProps {
   otherUserName: string;
   lessonTitle?: string;
   lessonDate?: string;
+  isReadOnly?: boolean;
 }
 
 export function ChatModal({
@@ -35,6 +36,7 @@ export function ChatModal({
   otherUserName,
   lessonTitle,
   lessonDate,
+  isReadOnly = false,
 }: ChatModalProps) {
   const [isMounted, setIsMounted] = useState(false);
 
@@ -83,8 +85,8 @@ export function ChatModal({
       {/* Modal/Drawer */}
       <div
         className={cn(
-          'fixed z-50 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-2xl transition-all ring-1 ring-black/5 overflow-hidden flex h-full flex-col',
-          'dark:bg-gray-900/90 dark:supports-[backdrop-filter]:bg-gray-900/75 dark:ring-white/10 dark:shadow-xl',
+          'fixed z-50 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-2xl transition-all border border-gray-300 overflow-hidden flex h-full flex-col',
+          'dark:bg-gray-900/90 dark:supports-[backdrop-filter]:bg-gray-900/75 dark:border-gray-600 dark:shadow-xl',
           // Mobile: Full-screen drawer from bottom
           'inset-x-0 bottom-0 h-[92dvh] rounded-3xl',
           // Portrait phones: center the modal
@@ -98,9 +100,9 @@ export function ChatModal({
         aria-label="Chat"
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-4 pt-5 pb-3 sm:px-6 sm:pt-6 sm:pb-4 dark:border-gray-800 pt-[max(env(safe-area-inset-top),theme(spacing.5))]">
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 pt-5 pb-3 sm:px-6 sm:pt-6 sm:pb-4 dark:border-gray-800 pt-[max(env(safe-area-inset-top),theme(spacing.5))] bg-[#EDE7F6]">
           <div className="flex-1">
-            <h2 className="text-base sm:text-lg font-semibold text-gray-900 tracking-tight dark:text-gray-100">
+            <h2 className="text-base sm:text-lg font-bold text-gray-900 tracking-tight dark:text-gray-100">
               Chat with {otherUserName}
             </h2>
             {lessonTitle && (
@@ -128,6 +130,7 @@ export function ChatModal({
             otherUserName={otherUserName}
             className="flex-1 min-h-0"
             onClose={onClose}
+            isReadOnly={isReadOnly}
           />
         )}
       </div>

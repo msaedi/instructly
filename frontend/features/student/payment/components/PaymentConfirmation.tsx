@@ -4,7 +4,11 @@ import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown, ChevronUp } from 'lucide-react';
 import { BookingPayment, PaymentMethod, BookingType } from '../types';
 import { format } from 'date-fns';
-import { protectedApi } from '@/features/shared/api/client';
+import { protectedApi, publicApi } from '@/features/shared/api/client';
+import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
+import { useRouter } from 'next/navigation';
+import { calculateEndTime } from '@/features/student/booking/hooks/useCreateBooking';
+import { calculateServiceFee, calculateTotalAmount, determineBookingType } from '../utils/paymentCalculations';
 import { logger } from '@/lib/logger';
 
 interface PaymentConfirmationProps {
@@ -30,17 +34,20 @@ export default function PaymentConfirmation({
   cardBrand = 'Card',
   isDefaultCard = false,
 }: PaymentConfirmationProps) {
+  const router = useRouter();
   const [isOnlineLesson, setIsOnlineLesson] = useState(false);
   const [hasConflict, setHasConflict] = useState(false);
   const [conflictMessage, setConflictMessage] = useState<string>('');
   const [isCheckingConflict, setIsCheckingConflict] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [instructorServices, setInstructorServices] = useState<any[]>([]);
+  const [loadingInstructor, setLoadingInstructor] = useState(false);
 
   logger.info('PaymentConfirmation component rendered', {
     booking,
     hasConflict,
     isCheckingConflict
   });
-
   // Auto-collapse payment if user has a saved card
   const hasSavedCard = !!cardLast4;
   const [isPaymentExpanded, setIsPaymentExpanded] = useState(!hasSavedCard);
@@ -106,6 +113,31 @@ export default function PaymentConfirmation({
 
     checkForConflicts();
   }, []); // Run only once on mount
+
+  // Fetch instructor profile to get the actual service duration options
+  useEffect(() => {
+    const fetchInstructorProfile = async () => {
+      if (!booking.instructorId) return;
+
+      setLoadingInstructor(true);
+      try {
+        const response = await publicApi.getInstructorProfile(booking.instructorId);
+        if (response.data?.services) {
+          setInstructorServices(response.data.services);
+          logger.debug('Fetched instructor services', {
+            services: response.data.services,
+            instructorId: booking.instructorId
+          });
+        }
+      } catch (error) {
+        logger.error('Failed to fetch instructor profile', error);
+      } finally {
+        setLoadingInstructor(false);
+      }
+    };
+
+    fetchInstructorProfile();
+  }, [booking.instructorId]);
 
 
   return (
@@ -552,10 +584,8 @@ export default function PaymentConfirmation({
           <div className="mt-4">
             <button
               onClick={() => {
-                // Navigate back to instructor profile to edit the lesson
-                if (booking.instructorId) {
-                  window.location.href = `/instructors/${booking.instructorId}`;
-                }
+                // Open the calendar modal to reschedule
+                setIsModalOpen(true);
               }}
               className="bg-white text-purple-700 py-1.5 px-3 rounded-lg text-sm font-medium border-2 border-purple-700 hover:bg-purple-50 transition-colors"
             >
@@ -617,6 +647,66 @@ export default function PaymentConfirmation({
         </div>
       </div>
       </div>
+
+      {/* Time Selection Modal */}
+      {isModalOpen && !loadingInstructor && (
+        <TimeSelectionModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          instructor={{
+            user_id: booking.instructorId,
+            user: {
+              first_name: booking.instructorName.split(' ')[0] || 'Instructor',
+              last_initial: booking.instructorName.split(' ')[1]?.charAt(0) || ''
+            },
+            services: instructorServices.length > 0
+              ? instructorServices
+              : [{
+                  id: sessionStorage.getItem('serviceId') || '',
+                  skill: booking.lessonType,
+                  hourly_rate: booking.basePrice / (booking.duration / 60),
+                  duration_options: [30, 60, 90] // fallback to standard durations
+                }]
+          }}
+          // Don't pre-select date/time when editing - let modal default to first available
+          preSelectedDate={undefined}
+          preSelectedTime={undefined}
+          serviceId={sessionStorage.getItem('serviceId') || undefined}
+          onTimeSelected={(selection) => {
+            // Update booking data with new selection
+            const newBookingDate = new Date(selection.date + 'T' + selection.time);
+            const hourlyRate = booking.basePrice / (booking.duration / 60);
+            const totalPrice = hourlyRate * (selection.duration / 60);
+            const basePrice = totalPrice;
+            const serviceFee = calculateServiceFee(basePrice);
+            const totalAmount = calculateTotalAmount(basePrice);
+            const bookingType = determineBookingType(newBookingDate);
+
+            const updatedBookingData: BookingPayment = {
+              ...booking,
+              date: newBookingDate,
+              startTime: selection.time,
+              endTime: calculateEndTime(selection.time, selection.duration),
+              duration: selection.duration,
+              basePrice,
+              serviceFee,
+              totalAmount,
+              bookingType,
+              freeCancellationUntil:
+                bookingType === BookingType.STANDARD
+                  ? new Date(newBookingDate.getTime() - 24 * 60 * 60 * 1000)
+                  : undefined,
+            };
+
+            // Store updated booking data
+            sessionStorage.setItem('bookingData', JSON.stringify(updatedBookingData));
+
+            // Close modal and refresh the page with new data
+            setIsModalOpen(false);
+            window.location.reload();
+          }}
+        />
+      )}
     </div>
   );
 }

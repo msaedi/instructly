@@ -1,7 +1,5 @@
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Star, MessageCircle } from 'lucide-react';
-import { User } from '@/types/booking';
 
 interface InstructorInfoProps {
   instructor?: any; // Can be User or instructor with last_initial
@@ -11,6 +9,8 @@ interface InstructorInfoProps {
   onChat?: (e?: React.MouseEvent) => void;
   showReviewButton?: boolean;
   onReview?: (e?: React.MouseEvent) => void;
+  showBookAgainButton?: boolean;
+  onBookAgain?: (e?: React.MouseEvent) => void;
 }
 
 // Helper to get instructor display name with privacy (FirstName L.)
@@ -18,13 +18,6 @@ function getInstructorPrivacyName(instructor: any): string {
   const firstName = instructor.first_name || '';
   const lastInitial = instructor.last_initial || '';
   return lastInitial ? `${firstName} ${lastInitial}.` : firstName;
-}
-
-// Helper to get initials from instructor
-function getInstructorInitials(instructor: any): string {
-  const firstInitial = instructor.first_name ? instructor.first_name.charAt(0).toUpperCase() : '';
-  const lastInitialChar = instructor.last_initial || '';
-  return (firstInitial + lastInitialChar) || '??';
 }
 
 export function InstructorInfo({
@@ -35,21 +28,22 @@ export function InstructorInfo({
   onChat,
   showReviewButton,
   onReview,
+  showBookAgainButton,
+  onBookAgain,
 }: InstructorInfoProps) {
   if (!instructor) {
     return null;
   }
 
-  const initials = getInstructorInitials(instructor);
   const displayName = getInstructorPrivacyName(instructor);
 
   return (
     <div className="flex flex-col sm:flex-row items-start gap-4">
       <div className="flex items-start gap-3 flex-1">
         {/* Avatar */}
-        <Avatar className="h-10 w-10 sm:h-12 sm:w-12">
-          <AvatarFallback>{initials}</AvatarFallback>
-        </Avatar>
+        <div className="h-12 w-12 sm:h-14 sm:w-14 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
+          <span className="text-2xl">👤</span>
+        </div>
 
         {/* Instructor Details */}
         <div className="flex-1 min-w-0">
@@ -72,23 +66,38 @@ export function InstructorInfo({
 
       {/* Action Buttons */}
       <div className="flex items-center gap-2 w-full sm:w-auto">
+        {onChat && !showBookAgainButton && (
+          <Button
+            onClick={onChat}
+            className="flex-1 sm:flex-initial bg-purple-700 hover:bg-purple-800 text-white border-transparent rounded-lg py-2.5 px-6 text-base font-medium"
+          >
+            <MessageCircle className="h-5 w-5 mr-2" />
+            Chat
+          </Button>
+        )}
+        {onChat && showBookAgainButton && (
+          <Button
+            onClick={onChat}
+            className="flex-1 sm:flex-initial bg-white text-gray-400 border-2 border-gray-300 hover:bg-gray-50 rounded-lg py-2 px-4 text-sm font-medium"
+          >
+            <MessageCircle className="h-4 w-4 mr-1" />
+            Chat history
+          </Button>
+        )}
         {showReviewButton && onReview && (
           <Button
             onClick={onReview}
-            size="sm"
-            className="flex-1 sm:flex-initial bg-[#6741D9] hover:bg-[#5B4BC3] text-white border-transparent"
+            className="flex-1 sm:flex-initial bg-white text-purple-700 border-2 border-purple-700 hover:bg-purple-50 rounded-lg py-2 px-4 text-sm font-medium"
           >
             Review & tip
           </Button>
         )}
-        {onChat && (
+        {showBookAgainButton && onBookAgain && (
           <Button
-            onClick={onChat}
-            size="sm"
-            className="flex-1 sm:flex-initial bg-[#6741D9] hover:bg-[#5B4BC3] text-white border-transparent"
+            onClick={onBookAgain}
+            className="flex-1 sm:flex-initial bg-purple-700 hover:bg-purple-800 text-white border-transparent rounded-lg py-2.5 px-6 text-base font-medium"
           >
-            <MessageCircle className="h-4 w-4 mr-1" />
-            Chat
+            Book Again
           </Button>
         )}
       </div>
