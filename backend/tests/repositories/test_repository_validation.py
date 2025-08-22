@@ -708,7 +708,8 @@ class TestInstructorProfileRepositoryValidation:
         # Get or create catalog services
         category = db.query(ServiceCategory).first()
         if not category:
-            category = ServiceCategory(name="Test Category", slug="test-category")
+            category_ulid = generate_ulid()
+            category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
             db.add(category)
             db.flush()
 

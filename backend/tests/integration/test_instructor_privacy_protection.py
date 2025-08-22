@@ -49,7 +49,7 @@ class TestInstructorPrivacySchemas:
         assert not hasattr(privacy_user, "last_name")
 
     def test_booking_response_from_orm(self, db: Session, test_instructor: User, test_student: User):
-        """Test BookingResponse.from_orm() protects instructor privacy using real booking."""
+        """Test BookingResponse.from_booking() protects instructor privacy using real booking."""
         # Create a real booking using repository
         booking_repo = BookingRepository(db)
 
@@ -91,7 +91,7 @@ class TestInstructorPrivacySchemas:
         booking.instructor_service = service
 
         # Create BookingResponse
-        response = BookingResponse.from_orm(booking)
+        response = BookingResponse.from_booking(booking)
 
         # Verify instructor privacy is protected
         assert response.instructor.first_name == test_instructor.first_name
@@ -107,7 +107,7 @@ class TestInstructorPrivacySchemas:
         db.commit()
 
     def test_instructor_profile_response_from_orm(self, db: Session, test_instructor: User):
-        """Test InstructorProfileResponse.from_orm() protects privacy using real profile."""
+        """Test InstructorProfileResponse.model_validate() protects privacy using real profile."""
         # Get instructor profile using repository
         repo = InstructorProfileRepository(db)
         profile = repo.get_by_user_id(test_instructor.id)
@@ -116,7 +116,7 @@ class TestInstructorPrivacySchemas:
         # Ensure user relationship is loaded
         profile.user = test_instructor
 
-        # Create InstructorProfileResponse
+        # Create InstructorProfileResponse using from_orm
         response = InstructorProfileResponse.from_orm(profile)
 
         # Verify user privacy is protected
@@ -173,7 +173,7 @@ class TestInstructorServicePrivacy:
             for instructor in instructors:
                 # Convert to response if needed
                 if hasattr(instructor, "id"):
-                    response = InstructorProfileResponse.from_orm(instructor)
+                    response = InstructorProfileResponse.model_validate(instructor)
                     # Verify privacy
                     assert hasattr(response.user, "last_initial")
                     assert not hasattr(response.user, "last_name")
@@ -235,7 +235,7 @@ class TestBookingServicePrivacy:
                 booking.student = test_student
 
             # Convert to response
-            response = BookingResponse.from_orm(booking)
+            response = BookingResponse.from_booking(booking)
 
             # Verify instructor privacy
             assert response.instructor.first_name == test_instructor.first_name

@@ -56,7 +56,7 @@ class TestSchemaPrivacyProtection:
         assert not hasattr(privacy_user, "last_name")
 
     def test_booking_response_from_orm(self):
-        """Test BookingResponse.from_orm() protects instructor privacy."""
+        """Test BookingResponse.from_booking() protects instructor privacy."""
         # Create mock booking with instructor
         booking = MagicMock()
         booking.id = generate_ulid()
@@ -98,14 +98,20 @@ class TestSchemaPrivacyProtection:
         student.email = "john.smith@example.com"
         booking.student = student
 
-        # Mock instructor service
+        # Mock instructor service with proper attributes
+        from unittest.mock import PropertyMock
+
         service = MagicMock()
         service.id = generate_ulid()
+        service.name = "Yoga"  # ServiceInfo needs name
         service.description = "Yoga classes for all levels"
+        # Ensure attributes return strings
+        type(service).name = PropertyMock(return_value="Yoga")
+        type(service).description = PropertyMock(return_value="Yoga classes for all levels")
         booking.instructor_service = service
 
         # Create BookingResponse
-        response = BookingResponse.from_orm(booking)
+        response = BookingResponse.from_booking(booking)
 
         # Verify instructor privacy is protected
         assert response.instructor.first_name == "Michael"
@@ -117,7 +123,7 @@ class TestSchemaPrivacyProtection:
         assert response.student.last_name == "Smith"  # Students see their own full name
 
     def test_instructor_profile_response_from_orm(self):
-        """Test InstructorProfileResponse.from_orm() protects privacy."""
+        """Test InstructorProfileResponse.model_validate() protects privacy."""
         # Create mock instructor profile
         profile = MagicMock()
         profile.id = generate_ulid()
@@ -132,15 +138,25 @@ class TestSchemaPrivacyProtection:
         profile.updated_at = None
         profile.services = []
 
-        # Mock user
+        # Mock user with proper attributes
+        from unittest.mock import PropertyMock
+
         user = MagicMock()
         user.id = generate_ulid()
         user.first_name = "Sarah"
         user.last_name = "Thompson"
         user.email = "sarah.t@example.com"
+        # Ensure attributes return strings
+        type(user).last_name = PropertyMock(return_value="Thompson")
+        type(user).first_name = PropertyMock(return_value="Sarah")
+
+        # Calculate last_initial for the mock
+        user.last_initial = "T"
+        type(user).last_initial = PropertyMock(return_value="T")
+
         profile.user = user
 
-        # Create InstructorProfileResponse
+        # Create InstructorProfileResponse using from_orm
         response = InstructorProfileResponse.from_orm(profile)
 
         # Verify user privacy is protected

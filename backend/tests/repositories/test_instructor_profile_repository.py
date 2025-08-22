@@ -120,7 +120,8 @@ class TestInstructorProfileRepositoryEagerLoading:
         # Get or create catalog services
         category = db.query(ServiceCategory).first()
         if not category:
-            category = ServiceCategory(name="Test Category", slug="test-category")
+            category_ulid = generate_ulid()
+            category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
             db.add(category)
             db.flush()
 
@@ -280,7 +281,8 @@ class TestInstructorProfileRepositoryIntegration:
         # Get or create catalog service for inactive service
         category = db.query(ServiceCategory).first()
         if not category:
-            category = ServiceCategory(name="Test Category", slug="test-category")
+            category_ulid = generate_ulid()
+            category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
             db.add(category)
             db.flush()
 
@@ -367,7 +369,8 @@ class TestPerformanceImprovement:
             # Get or create catalog services
             category = db.query(ServiceCategory).first()
             if not category:
-                category = ServiceCategory(name="Test Category", slug="test-category")
+                category_ulid = generate_ulid()
+                category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
                 db.add(category)
                 db.flush()
 
@@ -501,7 +504,8 @@ class TestDiagnosticAndDebugging:
         # Get or create catalog services
         category = db.query(ServiceCategory).first()
         if not category:
-            category = ServiceCategory(name="Test Category", slug="test-category")
+            category_ulid = generate_ulid()
+            category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
             db.add(category)
             db.flush()
 
@@ -627,7 +631,8 @@ class TestDiagnosticAndDebugging:
         # Get or create catalog services
         category = db.query(ServiceCategory).first()
         if not category:
-            category = ServiceCategory(name="Test Category", slug="test-category")
+            category_ulid = generate_ulid()
+            category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
             db.add(category)
             db.flush()
 

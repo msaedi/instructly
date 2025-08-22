@@ -61,7 +61,7 @@ class TestSchemaValidation:
         """Verify AvailabilityWindowUpdate doesn't accept is_available."""
         # Try to update with legacy field (slot doesn't need to exist for schema validation)
         response = client.patch(
-            "/instructors/availability-windows/999999",  # Non-existent ID
+            "/instructors/availability/999999",  # Non-existent ID
             json={"start_time": "09:00", "end_time": "10:00", "is_available": True},  # This field shouldn't exist
             headers=auth_headers_instructor,
         )
@@ -81,9 +81,7 @@ class TestResponseFormats:
 
     def test_availability_list_has_no_legacy_fields(self, client, auth_headers_instructor):
         """Verify availability list responses are clean."""
-        response = client.get(
-            "/instructors/availability-windows/", headers=auth_headers_instructor  # With trailing slash
-        )
+        response = client.get("/instructors/availability/", headers=auth_headers_instructor)  # With trailing slash
 
         assert response.status_code == 200
         slots = response.json()

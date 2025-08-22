@@ -22,6 +22,7 @@ import logging
 from datetime import date, datetime, time, timezone
 from typing import Dict, List, Optional
 
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session, joinedload
 
 from ..core.enums import RoleName
@@ -77,7 +78,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             query = self.db.query(Booking).filter(
                 Booking.instructor_id == instructor_id,
                 Booking.booking_date == booking_date,
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                Booking.status.in_([BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
                 # Any overlap with the time range
                 Booking.start_time < end_time,
                 Booking.end_time > start_time,
@@ -119,7 +120,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             query = self.db.query(Booking).filter(
                 Booking.instructor_id == instructor_id,
                 Booking.booking_date == booking_date,
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                Booking.status.in_([BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
                 # Time overlap check
                 Booking.start_time < end_time,
                 Booking.end_time > start_time,
@@ -159,7 +160,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             query = self.db.query(Booking).filter(
                 Booking.student_id == student_id,
                 Booking.booking_date == booking_date,
-                Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                Booking.status.in_([BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
                 # Time overlap check: start_time < other_end_time AND end_time > other_start_time
                 Booking.start_time < end_time,
                 Booking.end_time > start_time,

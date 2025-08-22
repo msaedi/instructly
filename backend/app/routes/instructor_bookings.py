@@ -122,7 +122,7 @@ async def mark_lesson_complete(
 
     # Return the updated booking
     db.refresh(booking)
-    return BookingResponse.from_orm(booking)
+    return BookingResponse.from_booking(booking)
 
 
 @router.get("/pending-completion", response_model=PaginatedResponse[BookingResponse])
@@ -167,7 +167,7 @@ async def get_pending_completion_bookings(
 
     # Return paginated response
     return PaginatedResponse(
-        items=[BookingResponse.from_orm(b) for b in paginated_bookings],
+        items=[BookingResponse.from_booking(b) for b in paginated_bookings],
         total=total,
         page=page,
         per_page=per_page,
@@ -211,7 +211,7 @@ async def get_completed_bookings(
 
     # Return paginated response
     return PaginatedResponse(
-        items=[BookingResponse.from_orm(b) for b in bookings],
+        items=[BookingResponse.from_booking(b) for b in bookings],
         total=total,
         page=page,
         per_page=per_page,
@@ -275,4 +275,4 @@ async def dispute_completion(
 
     # Return the updated booking
     db.refresh(booking)
-    return BookingResponse.from_orm(booking)
+    return BookingResponse.from_booking(booking)

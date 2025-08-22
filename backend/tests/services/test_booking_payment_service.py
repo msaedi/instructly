@@ -13,10 +13,12 @@ import pytest
 import ulid
 from sqlalchemy.orm import Session
 
+from app.core.enums import RoleName
 from app.core.exceptions import NotFoundException, ValidationException
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.payment import PaymentEvent
+from app.models.rbac import Role
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.repositories.factory import RepositoryFactory
@@ -29,7 +31,19 @@ class TestBookingPaymentService:
 
     @pytest.fixture
     def student_user(self, db: Session) -> User:
-        """Create a test student user."""
+        """Create a test student user with role."""
+        # Create student role
+        student_role = db.query(Role).filter_by(name=RoleName.STUDENT).first()
+        if not student_role:
+            student_role = Role(
+                id=str(ulid.ULID()),
+                name=RoleName.STUDENT,
+                description="Student role",
+            )
+            db.add(student_role)
+            db.flush()
+
+        # Create user
         user = User(
             id=str(ulid.ULID()),
             email=f"student_{ulid.ULID()}@example.com",
@@ -37,7 +51,9 @@ class TestBookingPaymentService:
             first_name="Test",
             last_name="Student",
             zip_code="10001",
+            is_active=True,
         )
+        user.roles.append(student_role)
         db.add(user)
         db.flush()
         return user
@@ -45,6 +61,17 @@ class TestBookingPaymentService:
     @pytest.fixture
     def instructor_setup(self, db: Session) -> tuple[User, InstructorProfile, InstructorService]:
         """Create instructor with profile and service."""
+        # Create instructor role
+        instructor_role = db.query(Role).filter_by(name=RoleName.INSTRUCTOR).first()
+        if not instructor_role:
+            instructor_role = Role(
+                id=str(ulid.ULID()),
+                name=RoleName.INSTRUCTOR,
+                description="Instructor role",
+            )
+            db.add(instructor_role)
+            db.flush()
+
         # Create instructor user
         instructor = User(
             id=str(ulid.ULID()),
@@ -53,7 +80,9 @@ class TestBookingPaymentService:
             first_name="Test",
             last_name="Instructor",
             zip_code="10001",
+            is_active=True,
         )
+        instructor.roles.append(instructor_role)
         db.add(instructor)
         db.flush()
 
@@ -63,26 +92,27 @@ class TestBookingPaymentService:
             user_id=instructor.id,
             bio="Test instructor",
             years_experience=5,
-            accepts_instant_booking=True,
         )
         db.add(profile)
         db.flush()
 
         # Create service category and catalog
+        category_ulid = str(ulid.ULID())
         category = ServiceCategory(
-            id=str(ulid.ULID()),
+            id=category_ulid,
             name="Test Category",
-            slug="test-category",
+            slug=f"test-category-{category_ulid.lower()}",
             description="Test category",
         )
         db.add(category)
         db.flush()
 
+        catalog_ulid = str(ulid.ULID())
         catalog = ServiceCatalog(
-            id=str(ulid.ULID()),
+            id=catalog_ulid,
             category_id=category.id,
             name="Test Service",
-            slug="test-service",
+            slug=f"test-service-{catalog_ulid.lower()}",
             description="Test service",
         )
         db.add(catalog)
@@ -185,7 +215,9 @@ class TestBookingPaymentService:
         booking_data: BookingCreate,
     ):
         """Test that invalid duration is rejected."""
-        with pytest.raises(ValidationException, match="Invalid duration"):
+        from app.core.exceptions import BusinessRuleException
+
+        with pytest.raises(BusinessRuleException, match="Invalid duration"):
             await booking_service.create_booking_with_payment_setup(
                 student=student_user,
                 booking_data=booking_data,
@@ -301,9 +333,12 @@ class TestBookingPaymentService:
         self,
         booking_service: BookingService,
         student_user: User,
+        instructor_setup,
         db: Session,
     ):
         """Test that only booking owner can confirm payment."""
+        instructor, profile, service = instructor_setup
+
         # Create another user
         other_user = User(
             id=str(ulid.ULID()),
@@ -314,13 +349,14 @@ class TestBookingPaymentService:
             zip_code="10001",
         )
         db.add(other_user)
+        db.flush()
 
         # Create booking for the other user
         booking = Booking(
             id=str(ulid.ULID()),
             student_id=other_user.id,
-            instructor_id=str(ulid.ULID()),
-            instructor_service_id=str(ulid.ULID()),
+            instructor_id=instructor.id,
+            instructor_service_id=service.id,
             booking_date=date.today(),
             start_time=time(14, 0),
             end_time=time(15, 0),
@@ -346,15 +382,18 @@ class TestBookingPaymentService:
         self,
         booking_service: BookingService,
         student_user: User,
+        instructor_setup,
         db: Session,
     ):
         """Test that only PENDING bookings can be confirmed."""
+        instructor, profile, service = instructor_setup
+
         # Create confirmed booking
         booking = Booking(
             id=str(ulid.ULID()),
             student_id=student_user.id,
-            instructor_id=str(ulid.ULID()),
-            instructor_service_id=str(ulid.ULID()),
+            instructor_id=instructor.id,
+            instructor_service_id=service.id,
             booking_date=date.today(),
             start_time=time(14, 0),
             end_time=time(15, 0),
@@ -396,15 +435,18 @@ class TestBookingPaymentService:
         mock_save_payment,
         booking_service: BookingService,
         student_user: User,
+        instructor_setup,
         db: Session,
     ):
         """Test saving payment method during confirmation."""
+        instructor, profile, service = instructor_setup
+
         # Create booking
         booking = Booking(
             id=str(ulid.ULID()),
             student_id=student_user.id,
-            instructor_id=str(ulid.ULID()),
-            instructor_service_id=str(ulid.ULID()),
+            instructor_id=instructor.id,
+            instructor_service_id=service.id,
             booking_date=date.today() + timedelta(days=2),
             start_time=time(14, 0),
             end_time=time(15, 0),

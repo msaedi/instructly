@@ -5,7 +5,7 @@ These schemas ensure consistent response formats across all API endpoints,
 eliminating the need for defensive coding in the frontend.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Generic, List, Optional, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -58,7 +58,7 @@ class DeleteResponse(BaseModel):
 
     success: bool = Field(default=True, description="Deletion success status")
     message: str = Field(description="Human-readable deletion message")
-    deleted_at: datetime = Field(default_factory=datetime.utcnow, description="Deletion timestamp")
+    deleted_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Deletion timestamp")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -97,7 +97,7 @@ class ErrorResponse(BaseModel):
 
     error: ErrorDetail = Field(description="Error details")
     request_id: Optional[str] = Field(default=None, description="Request ID for tracking")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Error timestamp")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Error timestamp")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -136,7 +136,7 @@ class HealthCheckResponse(BaseModel):
     status: str = Field(description="Service health status", pattern="^(healthy|degraded|unhealthy)$")
     service: str = Field(default="InstaInstru API", description="Service name")
     version: str = Field(description="API version")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Check timestamp")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Check timestamp")
     checks: Dict[str, bool] = Field(description="Individual component health checks")
 
     model_config = ConfigDict(
@@ -156,7 +156,7 @@ class MetricsResponse(BaseModel):
     """Standard metrics response."""
 
     metrics: Dict[str, float] = Field(description="Metric values")
-    timestamp: datetime = Field(default_factory=datetime.utcnow, description="Metrics timestamp")
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Metrics timestamp")
     period: str = Field(description="Time period for metrics")
 
     model_config = ConfigDict(

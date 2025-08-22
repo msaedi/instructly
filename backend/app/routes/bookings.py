@@ -331,7 +331,7 @@ async def get_bookings(
                     booking_responses.append(booking)
                 else:
                     # Fresh SQLAlchemy object - use from_orm for privacy protection
-                    booking_responses.append(BookingResponse.from_orm(booking))
+                    booking_responses.append(BookingResponse.from_booking(booking))
             except Exception as e:
                 logger.error(f"Failed to process booking {getattr(booking, 'id', 'unknown')}: {e}")
                 logger.error(f"Booking type: {type(booking)}, is_dict: {isinstance(booking, dict)}")
@@ -388,12 +388,8 @@ async def create_booking(
         )
 
         # Build response with SetupIntent details
-        response = BookingCreateResponse.from_orm(booking)
-
-        # The service should have attached the setup_intent_client_secret
-        if hasattr(booking, "setup_intent_client_secret"):
-            response.setup_intent_client_secret = booking.setup_intent_client_secret
-            response.requires_payment_method = True
+        setup_intent_client_secret = getattr(booking, "setup_intent_client_secret", None)
+        response = BookingCreateResponse.from_booking(booking, setup_intent_client_secret)
 
         return response
     except DomainException as e:
@@ -434,7 +430,7 @@ async def confirm_booking_payment(
             save_payment_method=payment_data.save_payment_method,
         )
 
-        return BookingResponse.from_orm(booking)
+        return BookingResponse.from_booking(booking)
     except DomainException as e:
         handle_domain_exception(e)
 
@@ -498,7 +494,7 @@ async def get_booking_details(
         if not booking:
             raise NotFoundException("Booking not found")
 
-        return BookingResponse.from_orm(booking)
+        return BookingResponse.from_booking(booking)
     except DomainException as e:
         handle_domain_exception(e)
 
@@ -513,7 +509,7 @@ async def update_booking(
     """Update booking details (instructor only)."""
     try:
         booking = booking_service.update_booking(booking_id=booking_id, user=current_user, update_data=update_data)
-        return BookingResponse.from_orm(booking)
+        return BookingResponse.from_booking(booking)
     except DomainException as e:
         handle_domain_exception(e)
 
@@ -530,7 +526,7 @@ async def cancel_booking(
         booking = await booking_service.cancel_booking(
             booking_id=booking_id, user=current_user, reason=cancel_data.reason
         )
-        return BookingResponse.from_orm(booking)
+        return BookingResponse.from_booking(booking)
     except DomainException as e:
         handle_domain_exception(e)
 
@@ -548,6 +544,6 @@ async def complete_booking(
     """
     try:
         booking = booking_service.complete_booking(booking_id=booking_id, instructor=current_user)
-        return BookingResponse.from_orm(booking)
+        return BookingResponse.from_booking(booking)
     except DomainException as e:
         handle_domain_exception(e)

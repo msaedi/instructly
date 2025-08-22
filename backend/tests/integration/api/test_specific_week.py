@@ -78,7 +78,7 @@ def test_week_with_known_bookings(
 
     # Test the endpoint
     response = client.get(
-        "/instructors/availability-windows/week/booked-slots",
+        "/instructors/availability/week/booked-slots",
         params={"start_date": test_date.isoformat()},
         headers=auth_headers_instructor,
     )
@@ -118,7 +118,7 @@ def test_multiple_instructors_isolation(
     monday = date.today() - timedelta(days=date.today().weekday())
 
     response = client.get(
-        "/instructors/availability-windows/week/booked-slots",
+        "/instructors/availability/week/booked-slots",
         params={"start_date": monday.isoformat()},
         headers=auth_headers_instructor,  # This is for test_instructor
     )

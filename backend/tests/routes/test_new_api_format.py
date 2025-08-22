@@ -140,7 +140,7 @@ class TestAvailabilityRoutesCleanResponses:
         self, client, test_instructor_with_availability, auth_headers_instructor
     ):
         """Verify availability responses have no legacy fields."""
-        response = client.get("/instructors/availability-windows/", headers=auth_headers_instructor)
+        response = client.get("/instructors/availability/", headers=auth_headers_instructor)
 
         assert response.status_code == 200
         slots = response.json()
@@ -167,7 +167,7 @@ class TestAvailabilityRoutesCleanResponses:
     ):
         """Verify update returns clean response."""
         # First get existing slots
-        response = client.get("/instructors/availability-windows/", headers=auth_headers_instructor)
+        response = client.get("/instructors/availability/", headers=auth_headers_instructor)
 
         assert response.status_code == 200
         slots = response.json()
@@ -180,7 +180,7 @@ class TestAvailabilityRoutesCleanResponses:
 
         # Update the slot
         update_response = client.patch(
-            f"/instructors/availability-windows/{slot_id}",
+            f"/instructors/availability/{slot_id}",
             json={"start_time": "09:30", "end_time": "10:30"},
             headers=auth_headers_instructor,
         )
@@ -203,7 +203,7 @@ class TestAvailabilityRoutesCleanResponses:
     ):
         """Verify update with legacy field is rejected."""
         # Get existing slot
-        response = client.get("/instructors/availability-windows/", headers=auth_headers_instructor)
+        response = client.get("/instructors/availability/", headers=auth_headers_instructor)
 
         assert response.status_code == 200
         slots = response.json()
@@ -215,7 +215,7 @@ class TestAvailabilityRoutesCleanResponses:
 
         # Try to update with legacy field
         response = client.patch(
-            f"/instructors/availability-windows/{slot_id}",
+            f"/instructors/availability/{slot_id}",
             json={
                 "start_time": "09:00",
                 "end_time": "10:00",
@@ -306,7 +306,7 @@ def test_full_booking_flow_clean_architecture(
 
     # Step 1: Instructor adds availability
     availability_response = client.post(
-        "/instructors/availability-windows/specific-date",
+        "/instructors/availability/specific-date",
         json={"specific_date": future_date.isoformat(), "start_time": "10:00", "end_time": "12:00"},
         headers=auth_headers_instructor,
     )

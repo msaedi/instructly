@@ -25,6 +25,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.enums import RoleName
+from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
@@ -50,10 +51,14 @@ class TestCircularDependencyEdgeCases:
             # Create a second catalog service
             category = db.query(ServiceCategory).first()
             if not category:
-                category = ServiceCategory(name="Test Category", slug="test-category")
+                category_ulid = generate_ulid()
+                category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
                 db.add(category)
                 db.flush()
-            catalog_service = ServiceCatalog(name="Test Service", slug="test-service", category_id=category.id)
+            service_ulid = generate_ulid()
+            catalog_service = ServiceCatalog(
+                name="Test Service", slug=f"test-service-{service_ulid.lower()}", category_id=category.id
+            )
             db.add(catalog_service)
             db.flush()
         else:
@@ -405,11 +410,13 @@ class TestSoftDeleteEdgeCases:
         catalog_service = db.query(ServiceCatalog).filter(~ServiceCatalog.id.in_(existing_catalog_ids)).first()
 
         if not catalog_service:
-            category = ServiceCategory(name="Test Category", slug="test-category")
+            category_ulid = generate_ulid()
+            category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
             db.add(category)
             db.flush()
+            service_ulid = generate_ulid()
             catalog_service = ServiceCatalog(
-                name="Temporary Service", slug="temporary-service", category_id=category.id
+                name="Temporary Service", slug=f"temporary-service-{service_ulid.lower()}", category_id=category.id
             )
             db.add(catalog_service)
             db.flush()
@@ -505,10 +512,14 @@ class TestSoftDeleteEdgeCases:
         catalog_service = db.query(ServiceCatalog).filter(~ServiceCatalog.id.in_(existing_catalog_ids)).first()
 
         if not catalog_service:
-            category = ServiceCategory(name="Test Category", slug="test-category")
+            category_ulid = generate_ulid()
+            category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
             db.add(category)
             db.flush()
-            catalog_service = ServiceCatalog(name="Test Service", slug="test-service", category_id=category.id)
+            service_ulid = generate_ulid()
+            catalog_service = ServiceCatalog(
+                name="Test Service", slug=f"test-service-{service_ulid.lower()}", category_id=category.id
+            )
             db.add(catalog_service)
             db.flush()
 

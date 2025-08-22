@@ -47,7 +47,7 @@ The frontend has completed a fundamental architectural transformation:
 **The Missing Endpoint**:
 ```typescript
 // Frontend tries to use:
-`/instructors/availability-windows/week?start_date=${date}&instructor_id=${instructor.user_id}`
+`/instructors/availability/week?start_date=${date}&instructor_id=${instructor.user_id}`
 
 // But this requires instructor authentication!
 ```

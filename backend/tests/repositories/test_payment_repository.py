@@ -81,24 +81,26 @@ class TestPaymentRepository:
         db.flush()
 
         # Create service category and catalog item if they don't exist
+        category_ulid = str(ulid.ULID())
         category = db.query(ServiceCategory).filter_by(name="Test Category").first()
         if not category:
             category = ServiceCategory(
-                id=str(ulid.ULID()),
+                id=category_ulid,
                 name="Test Category",
-                slug="test-category",
+                slug=f"test-category-{category_ulid.lower()}",
                 description="Test category for unit tests",
             )
             db.add(category)
             db.flush()
 
+        service_ulid = str(ulid.ULID())
         catalog = db.query(ServiceCatalog).filter_by(name="Test Service").first()
         if not catalog:
             catalog = ServiceCatalog(
-                id=str(ulid.ULID()),
+                id=service_ulid,
                 category_id=category.id,
                 name="Test Service",
-                slug="test-service",
+                slug=f"test-service-{service_ulid.lower()}",
                 description="Test service for unit tests",
             )
             db.add(catalog)
@@ -715,13 +717,13 @@ class TestPaymentRepository:
 
     # ========== Platform Credit Tests (Phase 1.3) ==========
 
-    def test_create_platform_credit(self, payment_repo: PaymentRepository, test_user: User):
+    def test_create_platform_credit(self, payment_repo: PaymentRepository, test_user: User, test_booking: Booking):
         """Test creating a platform credit."""
         credit = payment_repo.create_platform_credit(
             user_id=test_user.id,
             amount_cents=5000,  # $50
             reason="12-24 hour cancellation",
-            source_booking_id=str(ulid.ULID()),
+            source_booking_id=test_booking.id,
             expires_at=datetime.now() + timedelta(days=365),
         )
 
@@ -732,7 +734,7 @@ class TestPaymentRepository:
         assert credit.used_at is None
         assert credit.is_available is True
 
-    def test_get_available_credits(self, payment_repo: PaymentRepository, test_user: User):
+    def test_get_available_credits(self, payment_repo: PaymentRepository, test_user: User, test_booking: Booking):
         """Test retrieving available credits for a user."""
         # Create multiple credits
         future_date = datetime.now() + timedelta(days=30)
@@ -757,7 +759,7 @@ class TestPaymentRepository:
         credit4 = payment_repo.create_platform_credit(
             user_id=test_user.id, amount_cents=1500, reason="Used", expires_at=future_date
         )
-        payment_repo.mark_credit_used(credit4.id, str(ulid.ULID()))
+        payment_repo.mark_credit_used(credit4.id, test_booking.id)
 
         # Get available credits
         available = payment_repo.get_available_credits(test_user.id)
@@ -785,7 +787,7 @@ class TestPaymentRepository:
         total = payment_repo.get_total_available_credits(test_user.id)
         assert total == 5000  # 2000 + 3000
 
-    def test_mark_credit_used(self, payment_repo: PaymentRepository, test_user: User):
+    def test_mark_credit_used(self, payment_repo: PaymentRepository, test_user: User, test_booking: Booking):
         """Test marking a credit as used."""
         # Create credit
         credit = payment_repo.create_platform_credit(
@@ -796,16 +798,15 @@ class TestPaymentRepository:
         assert credit.is_available is True
 
         # Mark as used
-        booking_id = str(ulid.ULID())
-        updated_credit = payment_repo.mark_credit_used(credit.id, booking_id)
+        updated_credit = payment_repo.mark_credit_used(credit.id, test_booking.id)
 
         assert updated_credit.used_at is not None
-        assert updated_credit.used_booking_id == booking_id
+        assert updated_credit.used_booking_id == test_booking.id
         assert updated_credit.is_available is False
 
         # Trying to use again should raise exception
         with pytest.raises(RepositoryException, match="already used"):
-            payment_repo.mark_credit_used(credit.id, str(ulid.ULID()))
+            payment_repo.mark_credit_used(credit.id, test_booking.id)
 
     def test_mark_nonexistent_credit_used(self, payment_repo: PaymentRepository):
         """Test marking a non-existent credit as used."""

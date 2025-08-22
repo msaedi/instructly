@@ -48,14 +48,21 @@ def test_service(db, test_instructor):
     # Get or create catalog service
     category = db.query(ServiceCategory).first()
     if not category:
-        category = ServiceCategory(name="Test Category", slug="test-category")
+        category_ulid = generate_ulid()
+        category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
         db.add(category)
         db.flush()
 
-    catalog_service = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "test-service").first()
+    service_ulid = generate_ulid()
+    catalog_service = (
+        db.query(ServiceCatalog).filter(ServiceCatalog.slug == f"test-service-{service_ulid.lower()}").first()
+    )
     if not catalog_service:
         catalog_service = ServiceCatalog(
-            name="Test Service", slug="test-service", category_id=category.id, description="Test service description"
+            name="Test Service",
+            slug=f"test-service-{service_ulid.lower()}",
+            category_id=category.id,
+            description="Test service description",
         )
         db.add(catalog_service)
         db.flush()

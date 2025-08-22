@@ -15,7 +15,7 @@ This repository handles:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import ulid
@@ -754,7 +754,7 @@ class PaymentRepository(BaseRepository):
             RepositoryException: If query fails
         """
         try:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             return (
                 self.db.query(PlatformCredit)
                 .filter(
@@ -786,7 +786,7 @@ class PaymentRepository(BaseRepository):
             RepositoryException: If query fails
         """
         try:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             result = (
                 self.db.query(func.sum(PlatformCredit.amount_cents))
                 .filter(
@@ -825,7 +825,7 @@ class PaymentRepository(BaseRepository):
             if credit.used_at:
                 raise RepositoryException(f"Platform credit {credit_id} already used")
 
-            credit.used_at = datetime.utcnow()
+            credit.used_at = datetime.now(timezone.utc)
             credit.used_booking_id = used_booking_id
             self.db.flush()
             return credit

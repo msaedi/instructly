@@ -397,9 +397,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/instructors/availability-windows/week?start_date=2025-01-20",
+              "raw": "{{base_url}}/instructors/availability/week?start_date=2025-01-20",
               "host": ["{{base_url}}"],
-              "path": ["instructors", "availability-windows", "week"],
+              "path": ["instructors", "availability", "week"],
               "query": [
                 {
                   "key": "start_date",
@@ -426,9 +426,9 @@
               "raw": "{\n  \"schedule\": [\n    {\n      \"date\": \"2025-01-20\",\n      \"start_time\": \"09:00\",\n      \"end_time\": \"12:00\"\n    },\n    {\n      \"date\": \"2025-01-20\",\n      \"start_time\": \"14:00\",\n      \"end_time\": \"17:00\"\n    },\n    {\n      \"date\": \"2025-01-22\",\n      \"start_time\": \"10:00\",\n      \"end_time\": \"15:00\"\n    },\n    {\n      \"date\": \"2025-01-24\",\n      \"start_time\": \"09:00\",\n      \"end_time\": \"12:00\"\n    }\n  ],\n  \"clear_existing\": true,\n  \"week_start\": \"2025-01-20\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/instructors/availability-windows/week",
+              "raw": "{{base_url}}/instructors/availability/week",
               "host": ["{{base_url}}"],
-              "path": ["instructors", "availability-windows", "week"]
+              "path": ["instructors", "availability", "week"]
             },
             "description": "Save availability for specific dates in a week. Setting clear_existing to true will remove existing slots before adding new ones."
           }
@@ -448,9 +448,9 @@
               "raw": "{\n  \"from_week_start\": \"2025-01-20\",\n  \"to_week_start\": \"2025-01-27\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/instructors/availability-windows/copy-week",
+              "raw": "{{base_url}}/instructors/availability/copy-week",
               "host": ["{{base_url}}"],
-              "path": ["instructors", "availability-windows", "copy-week"]
+              "path": ["instructors", "availability", "copy-week"]
             },
             "description": "Copy availability from one week to another. Both dates must be Mondays."
           }
@@ -488,9 +488,9 @@
               "raw": "{\n  \"specific_date\": \"2025-01-25\",\n  \"start_time\": \"18:00\",\n  \"end_time\": \"20:00\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/instructors/availability-windows/specific-date",
+              "raw": "{{base_url}}/instructors/availability/specific-date",
               "host": ["{{base_url}}"],
-              "path": ["instructors", "availability-windows", "specific-date"]
+              "path": ["instructors", "availability", "specific-date"]
             },
             "description": "Add availability for a single specific date."
           }
@@ -501,9 +501,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/instructors/availability-windows?start_date=2025-01-20&end_date=2025-01-31",
+              "raw": "{{base_url}}/instructors/availability?start_date=2025-01-20&end_date=2025-01-31",
               "host": ["{{base_url}}"],
-              "path": ["instructors", "availability-windows"],
+              "path": ["instructors", "availability"],
               "query": [
                 {
                   "key": "start_date",
@@ -535,9 +535,9 @@
               "raw": "{\n  \"start_time\": \"18:30\",\n  \"end_time\": \"20:30\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/instructors/availability-windows/{{slot_id}}",
+              "raw": "{{base_url}}/instructors/availability/{{slot_id}}",
               "host": ["{{base_url}}"],
-              "path": ["instructors", "availability-windows", "{{slot_id}}"]
+              "path": ["instructors", "availability", "{{slot_id}}"]
             },
             "description": "Update the times for a specific availability slot."
           }
@@ -548,9 +548,9 @@
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/instructors/availability-windows/{{slot_id}}",
+              "raw": "{{base_url}}/instructors/availability/{{slot_id}}",
               "host": ["{{base_url}}"],
-              "path": ["instructors", "availability-windows", "{{slot_id}}"]
+              "path": ["instructors", "availability", "{{slot_id}}"]
             },
             "description": "Delete a specific availability slot."
           }
@@ -561,9 +561,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/instructors/availability-windows/blackout-dates",
+              "raw": "{{base_url}}/instructors/availability/blackout-dates",
               "host": ["{{base_url}}"],
-              "path": ["instructors", "availability-windows", "blackout-dates"]
+              "path": ["instructors", "availability", "blackout-dates"]
             },
             "description": "Get instructor's blackout (vacation) dates."
           }
@@ -583,9 +583,9 @@
               "raw": "{\n  \"date\": \"2025-02-14\",\n  \"reason\": \"Valentine's Day - No lessons\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/instructors/availability-windows/blackout-dates",
+              "raw": "{{base_url}}/instructors/availability/blackout-dates",
               "host": ["{{base_url}}"],
-              "path": ["instructors", "availability-windows", "blackout-dates"]
+              "path": ["instructors", "availability", "blackout-dates"]
             },
             "description": "Add a blackout date when instructor is unavailable."
           }

@@ -2,10 +2,11 @@
 Tests for payment processing Celery tasks.
 """
 
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from unittest.mock import MagicMock, call, patch
 
 import pytest
+import stripe
 import ulid
 
 from app.models.booking import Booking, BookingStatus
@@ -21,13 +22,14 @@ from app.tasks.payment_tasks import (
 class TestPaymentTasks:
     """Test suite for payment Celery tasks."""
 
+    @patch("app.tasks.payment_tasks.stripe")
     @patch("app.tasks.payment_tasks.StripeService")
-    @patch("app.tasks.payment_tasks.get_db")
-    def test_process_scheduled_authorizations_success(self, mock_get_db, mock_stripe_service):
+    @patch("app.database.SessionLocal")
+    def test_process_scheduled_authorizations_success(self, mock_session_local, mock_stripe_service, mock_stripe):
         """Test successful processing of scheduled authorizations."""
         # Setup mock database
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_session_local.return_value = mock_db
 
         # Create mock booking that needs authorization
         booking = MagicMock(spec=Booking)
@@ -35,8 +37,13 @@ class TestPaymentTasks:
         booking.status = BookingStatus.CONFIRMED
         booking.payment_status = "scheduled"
         booking.payment_method_id = "pm_test123"
-        booking.booking_date = date.today()
-        booking.start_time = time(14, 0)  # 2 PM
+        # Set booking to be exactly 24 hours from now
+        from datetime import datetime
+
+        now = datetime.now(timezone.utc)
+        booking_datetime = now + timedelta(hours=24)
+        booking.booking_date = booking_datetime.date()
+        booking.start_time = booking_datetime.time()
         booking.total_price = 100.00
 
         # Mock query to return the booking
@@ -44,17 +51,44 @@ class TestPaymentTasks:
         mock_query.filter.return_value.all.return_value = [booking]
         mock_db.query.return_value = mock_query
 
-        # Mock Stripe service
-        mock_stripe = mock_stripe_service.return_value
+        # Mock Stripe service (not used in the actual code)
+        mock_stripe_service_instance = mock_stripe_service.return_value
+
+        # Mock stripe module PaymentIntent.create
         mock_payment_intent = MagicMock()
         mock_payment_intent.id = "pi_test123"
-        mock_stripe.create_payment_intent.return_value = mock_payment_intent
+        mock_stripe.PaymentIntent.create.return_value = mock_payment_intent
 
-        # Mock payment repository
+        # Mock repositories
         mock_payment_repo = MagicMock()
+        mock_customer = MagicMock()
+        mock_customer.stripe_customer_id = "cus_test123"
+        mock_payment_repo.get_customer_by_user_id.return_value = mock_customer
+
+        mock_connected_account = MagicMock()
+        mock_connected_account.stripe_account_id = "acct_test123"
+        mock_payment_repo.get_connected_account_by_instructor_id.return_value = mock_connected_account
+
+        mock_booking_repo = MagicMock()
+        mock_booking_repo.get_bookings_for_payment_authorization.return_value = [booking]
+
+        # Mock instructor profile repository
+        mock_instructor_profile = MagicMock()
+        mock_instructor_profile.id = "instructor_profile_id"
+
         with patch("app.tasks.payment_tasks.RepositoryFactory.get_payment_repository", return_value=mock_payment_repo):
-            # Execute task
-            result = process_scheduled_authorizations()
+            with patch(
+                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository", return_value=mock_booking_repo
+            ):
+                with patch(
+                    "app.repositories.instructor_profile_repository.InstructorProfileRepository"
+                ) as mock_instructor_repo_class:
+                    mock_instructor_repo = MagicMock()
+                    mock_instructor_repo.get_by_user_id.return_value = mock_instructor_profile
+                    mock_instructor_repo_class.return_value = mock_instructor_repo
+
+                    # Execute task
+                    result = process_scheduled_authorizations()
 
         # Verify results
         assert result["success"] == 1
@@ -70,13 +104,14 @@ class TestPaymentTasks:
         # Verify database commit
         mock_db.commit.assert_called_once()
 
+    @patch("app.tasks.payment_tasks.stripe")
     @patch("app.tasks.payment_tasks.StripeService")
-    @patch("app.tasks.payment_tasks.get_db")
-    def test_process_scheduled_authorizations_failure(self, mock_get_db, mock_stripe_service):
+    @patch("app.database.SessionLocal")
+    def test_process_scheduled_authorizations_failure(self, mock_session_local, mock_stripe_service, mock_stripe):
         """Test handling of authorization failures."""
         # Setup mock database
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_session_local.return_value = mock_db
 
         # Create mock booking
         booking = MagicMock(spec=Booking)
@@ -84,23 +119,65 @@ class TestPaymentTasks:
         booking.status = BookingStatus.CONFIRMED
         booking.payment_status = "scheduled"
         booking.payment_method_id = "pm_test123"
-        booking.booking_date = date.today()
-        booking.start_time = time(14, 0)
+        # Set booking to be exactly 24 hours from now
+        from datetime import datetime
+
+        now = datetime.now(timezone.utc)
+        booking_datetime = now + timedelta(hours=24)
+        booking.booking_date = booking_datetime.date()
+        booking.start_time = booking_datetime.time()
         booking.total_price = 100.00
 
         mock_query = MagicMock()
         mock_query.filter.return_value.all.return_value = [booking]
         mock_db.query.return_value = mock_query
 
-        # Mock Stripe service to raise exception
-        mock_stripe = mock_stripe_service.return_value
-        mock_stripe.create_payment_intent.side_effect = Exception("Card declined")
+        # Mock Stripe service (not used in the actual code)
+        mock_stripe_service_instance = mock_stripe_service.return_value
 
-        # Mock payment repository
+        # Mock stripe module PaymentIntent.create to raise card error
+        # We need to use the real stripe.error.CardError class for proper exception handling
+        mock_stripe.error.CardError = stripe.error.CardError
+        mock_stripe.PaymentIntent.create.side_effect = stripe.error.CardError(
+            message="Card declined",
+            param="payment_method",
+            code="card_declined",
+            http_body=None,
+            http_status=402,
+            json_body=None,
+            headers=None,
+        )
+
+        # Mock repositories
         mock_payment_repo = MagicMock()
+        mock_customer = MagicMock()
+        mock_customer.stripe_customer_id = "cus_test123"
+        mock_payment_repo.get_customer_by_user_id.return_value = mock_customer
+
+        mock_connected_account = MagicMock()
+        mock_connected_account.stripe_account_id = "acct_test123"
+        mock_payment_repo.get_connected_account_by_instructor_id.return_value = mock_connected_account
+
+        mock_booking_repo = MagicMock()
+        mock_booking_repo.get_bookings_for_payment_authorization.return_value = [booking]
+
+        # Mock instructor profile repository
+        mock_instructor_profile = MagicMock()
+        mock_instructor_profile.id = "instructor_profile_id"
+
         with patch("app.tasks.payment_tasks.RepositoryFactory.get_payment_repository", return_value=mock_payment_repo):
-            # Execute task
-            result = process_scheduled_authorizations()
+            with patch(
+                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository", return_value=mock_booking_repo
+            ):
+                with patch(
+                    "app.repositories.instructor_profile_repository.InstructorProfileRepository"
+                ) as mock_instructor_repo_class:
+                    mock_instructor_repo = MagicMock()
+                    mock_instructor_repo.get_by_user_id.return_value = mock_instructor_profile
+                    mock_instructor_repo_class.return_value = mock_instructor_repo
+
+                    # Execute task
+                    result = process_scheduled_authorizations()
 
         # Verify results
         assert result["success"] == 0
@@ -114,12 +191,12 @@ class TestPaymentTasks:
         event_call = mock_payment_repo.create_payment_event.call_args
         assert event_call[1]["event_type"] == "auth_failed"
 
-    @patch("app.tasks.payment_tasks.get_db")
-    def test_retry_failed_authorizations_success(self, mock_get_db):
+    @patch("app.database.SessionLocal")
+    def test_retry_failed_authorizations_success(self, mock_session_local):
         """Test successful retry of failed authorizations."""
         # Setup mock database
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_session_local.return_value = mock_db
 
         # Create mock booking with failed auth
         booking = MagicMock(spec=Booking)
@@ -127,8 +204,16 @@ class TestPaymentTasks:
         booking.status = BookingStatus.CONFIRMED
         booking.payment_status = "auth_failed"
         booking.payment_method_id = "pm_test123"
-        booking.booking_date = date.today() + timedelta(days=1)
+        # Set booking to be exactly 20 hours from now (triggers retry)
+        from datetime import datetime
+
+        now = datetime.now(timezone.utc)
+        booking_datetime = now + timedelta(hours=20)
+        booking.booking_date = booking_datetime.date()
+        booking.start_time = booking_datetime.time()
         booking.total_price = 100.00
+        booking.student_id = "student_123"
+        booking.instructor_id = "instructor_123"
 
         mock_query = MagicMock()
         mock_query.filter.return_value.all.return_value = [booking]
@@ -140,30 +225,60 @@ class TestPaymentTasks:
         mock_event.event_type = "auth_failed"
         mock_payment_repo.get_payment_events_for_booking.return_value = [mock_event]
 
-        with patch("app.tasks.payment_tasks.RepositoryFactory.get_payment_repository", return_value=mock_payment_repo):
-            with patch("app.tasks.payment_tasks.StripeService") as mock_stripe_service:
-                mock_stripe = mock_stripe_service.return_value
-                mock_payment_intent = MagicMock()
-                mock_payment_intent.id = "pi_retry123"
-                mock_stripe.create_payment_intent.return_value = mock_payment_intent
+        # Mock booking repository
+        mock_booking_repo = MagicMock()
+        mock_booking_repo.get_bookings_for_payment_retry.return_value = [booking]
 
-                # Execute task
-                result = retry_failed_authorizations()
+        # Mock customer and instructor account
+        mock_customer = MagicMock()
+        mock_customer.stripe_customer_id = "cus_test123"
+        mock_payment_repo.get_customer_by_user_id.return_value = mock_customer
+
+        mock_connected_account = MagicMock()
+        mock_connected_account.stripe_account_id = "acct_test123"
+        mock_payment_repo.get_connected_account_by_instructor_id.return_value = mock_connected_account
+
+        # Mock instructor profile
+        mock_instructor_profile = MagicMock()
+        mock_instructor_profile.id = "instructor_profile_id"
+
+        with patch("app.tasks.payment_tasks.RepositoryFactory.get_payment_repository", return_value=mock_payment_repo):
+            with patch(
+                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository", return_value=mock_booking_repo
+            ):
+                with patch(
+                    "app.repositories.instructor_profile_repository.InstructorProfileRepository"
+                ) as mock_instructor_repo_class:
+                    mock_instructor_repo = MagicMock()
+                    mock_instructor_repo.get_by_user_id.return_value = mock_instructor_profile
+                    mock_instructor_repo_class.return_value = mock_instructor_repo
+
+                    with patch("app.tasks.payment_tasks.NotificationService") as mock_notification_service:
+                        mock_notification_service.return_value = MagicMock()
+
+                        with patch("app.tasks.payment_tasks.stripe") as mock_stripe:
+                            mock_stripe.error.CardError = stripe.error.CardError
+                            mock_payment_intent = MagicMock()
+                            mock_payment_intent.id = "pi_retry123"
+                            mock_stripe.PaymentIntent.create.return_value = mock_payment_intent
+
+                            # Execute task
+                            result = retry_failed_authorizations()
 
         # Verify results
         assert result["retried"] == 1
         assert result["success"] == 1
         assert result["failed"] == 0
-        assert result["abandoned"] == 0
+        assert result["cancelled"] == 0
         assert booking.payment_intent_id == "pi_retry123"
         assert booking.payment_status == "authorized"
 
-    @patch("app.tasks.payment_tasks.get_db")
-    def test_retry_failed_authorizations_abandon(self, mock_get_db):
+    @patch("app.database.SessionLocal")
+    def test_retry_failed_authorizations_abandon(self, mock_session_local):
         """Test abandoning bookings after too many retries."""
         # Setup mock database
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_session_local.return_value = mock_db
 
         # Create mock booking
         booking = MagicMock(spec=Booking)
@@ -171,7 +286,13 @@ class TestPaymentTasks:
         booking.status = BookingStatus.CONFIRMED
         booking.payment_status = "auth_failed"
         booking.payment_method_id = "pm_test123"
-        booking.booking_date = date.today() + timedelta(days=1)
+        # Set booking to be 5 hours from now (triggers cancellation)
+        from datetime import datetime
+
+        now = datetime.now(timezone.utc)
+        booking_datetime = now + timedelta(hours=5)
+        booking.booking_date = booking_datetime.date()
+        booking.start_time = booking_datetime.time()
 
         mock_query = MagicMock()
         mock_query.filter.return_value.all.return_value = [booking]
@@ -182,13 +303,22 @@ class TestPaymentTasks:
         mock_events = [MagicMock(event_type="auth_failed") for _ in range(3)]
         mock_payment_repo.get_payment_events_for_booking.return_value = mock_events
 
+        # Mock booking repository
+        mock_booking_repo = MagicMock()
+        mock_booking_repo.get_bookings_for_payment_retry.return_value = [booking]
+
         with patch("app.tasks.payment_tasks.RepositoryFactory.get_payment_repository", return_value=mock_payment_repo):
-            # Execute task
-            result = retry_failed_authorizations()
+            with patch(
+                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository", return_value=mock_booking_repo
+            ):
+                with patch("app.tasks.payment_tasks.NotificationService") as mock_notification_service:
+                    mock_notification_service.return_value = MagicMock()
+                    # Execute task
+                    result = retry_failed_authorizations()
 
         # Verify results
         assert result["retried"] == 0
-        assert result["abandoned"] == 1
+        assert result["cancelled"] == 1
         assert booking.payment_status == "auth_abandoned"
 
         # Verify abandonment event was created
@@ -196,13 +326,14 @@ class TestPaymentTasks:
         event_call = mock_payment_repo.create_payment_event.call_args
         assert event_call[1]["event_type"] == "auth_abandoned"
 
+    @patch("app.tasks.payment_tasks.stripe")
     @patch("app.tasks.payment_tasks.StripeService")
-    @patch("app.tasks.payment_tasks.get_db")
-    def test_capture_completed_lessons(self, mock_get_db, mock_stripe_service):
+    @patch("app.database.SessionLocal")
+    def test_capture_completed_lessons(self, mock_session_local, mock_stripe_service, mock_stripe):
         """Test capturing payments for completed lessons."""
         # Setup mock database
         mock_db = MagicMock()
-        mock_get_db.return_value = iter([mock_db])
+        mock_session_local.return_value = mock_db
 
         # Create mock completed booking
         booking = MagicMock(spec=Booking)
@@ -210,22 +341,32 @@ class TestPaymentTasks:
         booking.status = BookingStatus.COMPLETED
         booking.payment_status = "authorized"
         booking.payment_intent_id = "pi_test123"
+        booking.completed_at = datetime.now(timezone.utc) - timedelta(hours=25)  # 25 hours ago
 
         mock_query = MagicMock()
         mock_query.filter.return_value.all.return_value = [booking]
         mock_db.query.return_value = mock_query
 
-        # Mock Stripe service
-        mock_stripe = mock_stripe_service.return_value
+        # Mock Stripe service (not used in the actual code)
+        mock_stripe_service_instance = mock_stripe_service.return_value
+
+        # Mock stripe module PaymentIntent.capture
         mock_captured_intent = MagicMock()
         mock_captured_intent.amount_received = 10000  # $100 in cents
-        mock_stripe.capture_payment_intent.return_value = mock_captured_intent
+        mock_stripe.PaymentIntent.capture.return_value = mock_captured_intent
 
-        # Mock payment repository
+        # Mock repositories
         mock_payment_repo = MagicMock()
+        mock_booking_repo = MagicMock()
+        mock_booking_repo.get_bookings_for_payment_capture.return_value = [booking]
+        mock_booking_repo.get_bookings_for_auto_completion.return_value = []
+
         with patch("app.tasks.payment_tasks.RepositoryFactory.get_payment_repository", return_value=mock_payment_repo):
-            # Execute task
-            result = capture_completed_lessons()
+            with patch(
+                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository", return_value=mock_booking_repo
+            ):
+                # Execute task
+                result = capture_completed_lessons()
 
         # Verify results
         assert result["captured"] == 1
@@ -233,7 +374,7 @@ class TestPaymentTasks:
         assert booking.payment_status == "captured"
 
         # Verify capture was called
-        mock_stripe.capture_payment_intent.assert_called_once_with("pi_test123")
+        mock_stripe.PaymentIntent.capture.assert_called_once_with("pi_test123")
 
         # Verify capture event was created
         mock_payment_repo.create_payment_event.assert_called_once()
@@ -247,27 +388,28 @@ class TestPaymentTasks:
         mock_db = MagicMock()
         mock_get_db.return_value = iter([mock_db])
 
-        # Mock no overdue bookings
-        mock_query = MagicMock()
-        mock_query.filter.return_value.count.return_value = 0
-        mock_db.query.return_value = mock_query
-
-        # Mock recent authorization event
+        # Mock repositories
         mock_payment_repo = MagicMock()
-        with patch("app.tasks.payment_tasks.RepositoryFactory.get_payment_repository", return_value=mock_payment_repo):
-            # Mock recent event
-            mock_event = MagicMock()
-            mock_event.created_at = datetime.utcnow() - timedelta(minutes=30)
-            mock_query_event = MagicMock()
-            mock_query_event.filter.return_value.order_by.return_value.first.return_value = mock_event
-            mock_db.query.side_effect = [mock_query, mock_query_event]
+        mock_booking_repo = MagicMock()
+        mock_booking_repo.get_bookings_for_payment_authorization.return_value = []  # No overdue bookings
 
-            # Execute task
-            result = check_authorization_health()
+        with patch("app.tasks.payment_tasks.RepositoryFactory.get_payment_repository", return_value=mock_payment_repo):
+            with patch(
+                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository", return_value=mock_booking_repo
+            ):
+                # Mock recent event
+                mock_event = MagicMock()
+                mock_event.created_at = datetime.now(timezone.utc) - timedelta(minutes=30)
+                mock_query = MagicMock()
+                mock_query.filter.return_value.order_by.return_value.first.return_value = mock_event
+                mock_db.query.return_value = mock_query
+
+                # Execute task
+                result = check_authorization_health()
 
         # Verify results
         assert result["healthy"] is True
-        assert result["overdue_authorizations"] == 0
+        assert result["overdue_count"] == 0
         assert result["minutes_since_last_auth"] <= 31
 
     @patch("app.tasks.payment_tasks.get_db")
@@ -277,22 +419,32 @@ class TestPaymentTasks:
         mock_db = MagicMock()
         mock_get_db.return_value = iter([mock_db])
 
-        # Mock many overdue bookings
-        mock_query = MagicMock()
-        mock_query.filter.return_value.count.return_value = 10
-        mock_db.query.return_value = mock_query
+        # Mock many overdue bookings (health check now counts bookings, not uses count())
+        overdue_bookings = [MagicMock(spec=Booking) for _ in range(10)]
+        for i, booking in enumerate(overdue_bookings):
+            booking.id = f"booking_{i}"
+            booking.booking_date = date.today()
+            booking.start_time = time(14, 0)
+            booking.payment_status = "scheduled"
 
-        # Mock no recent authorization events
+        # Mock repositories
         mock_payment_repo = MagicMock()
-        with patch("app.tasks.payment_tasks.RepositoryFactory.get_payment_repository", return_value=mock_payment_repo):
-            mock_query_event = MagicMock()
-            mock_query_event.filter.return_value.order_by.return_value.first.return_value = None
-            mock_db.query.side_effect = [mock_query, mock_query_event]
+        mock_booking_repo = MagicMock()
+        mock_booking_repo.get_bookings_for_payment_authorization.return_value = overdue_bookings
 
-            # Execute task
-            result = check_authorization_health()
+        with patch("app.tasks.payment_tasks.RepositoryFactory.get_payment_repository", return_value=mock_payment_repo):
+            with patch(
+                "app.tasks.payment_tasks.RepositoryFactory.get_booking_repository", return_value=mock_booking_repo
+            ):
+                # Mock query for last auth event
+                mock_query = MagicMock()
+                mock_query.filter.return_value.order_by.return_value.first.return_value = None
+                mock_db.query.return_value = mock_query
+
+                # Execute task
+                result = check_authorization_health()
 
         # Verify results
         assert result["healthy"] is False
-        assert result["overdue_authorizations"] == 10
+        assert result["overdue_count"] == 10
         assert result["minutes_since_last_auth"] is None

@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from app.core.ulid_helper import generate_ulid
 from app.database import Base
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
@@ -128,7 +129,8 @@ class TestInstructorProfileRepositoryFiltering:
         catalog_services = test_db.query(ServiceCatalog).all()
         if not catalog_services:
             # Create minimal catalog if empty
-            category = ServiceCategory(name="Test Category", slug="test-category")
+            category_ulid = generate_ulid()
+            category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
             test_db.add(category)
             test_db.flush()
 

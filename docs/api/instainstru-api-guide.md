@@ -281,6 +281,66 @@ Verify if a reset token is valid.
 }
 ```
 
+### Account Management Endpoints
+
+#### POST /api/account/suspend
+Temporarily suspend the authenticated user's account.
+
+**Authentication**: Required
+
+**Response (200)**:
+```json
+{
+  "message": "Account suspended successfully",
+  "suspended_until": "2025-02-22T15:00:00Z"
+}
+```
+
+---
+
+#### POST /api/account/deactivate
+Permanently deactivate the authenticated user's account.
+
+**Authentication**: Required
+
+**Response (200)**:
+```json
+{
+  "message": "Account deactivated successfully"
+}
+```
+
+---
+
+#### POST /api/account/reactivate
+Reactivate a suspended or deactivated account.
+
+**Authentication**: Required
+
+**Response (200)**:
+```json
+{
+  "message": "Account reactivated successfully"
+}
+```
+
+**Response (400)**: Account cannot be reactivated
+
+---
+
+#### GET /api/account/status
+Check current account status.
+
+**Authentication**: Required
+
+**Response (200)**:
+```json
+{
+  "status": "active",  // or "suspended", "deactivated"
+  "suspended_until": null  // ISO datetime if suspended
+}
+```
+
 ### Instructor Endpoints
 
 #### GET /instructors/
@@ -512,7 +572,7 @@ Get specific instructor's profile by user ID.
 
 ### Availability Management Endpoints
 
-#### GET /instructors/availability-windows/week
+#### GET /instructors/availability/week
 Get availability for a specific week.
 
 **Authentication**: Required (instructor only)
@@ -544,7 +604,7 @@ Get availability for a specific week.
 
 ---
 
-#### POST /instructors/availability-windows/week
+#### POST /instructors/availability/week
 Save availability for specific dates in a week.
 
 **Authentication**: Required (instructor only)
@@ -573,7 +633,7 @@ Save availability for specific dates in a week.
 
 ---
 
-#### POST /instructors/availability-windows/copy-week
+#### POST /instructors/availability/copy-week
 Copy availability from one week to another.
 
 **Authentication**: Required (instructor only)
@@ -590,7 +650,7 @@ Copy availability from one week to another.
 
 ---
 
-#### POST /instructors/availability-windows/apply-to-date-range
+#### POST /instructors/availability/apply-to-date-range
 Apply a week's pattern to a date range.
 
 **Authentication**: Required (instructor only)
@@ -608,7 +668,7 @@ Apply a week's pattern to a date range.
 
 ---
 
-#### POST /instructors/availability-windows/specific-date
+#### POST /instructors/availability/specific-date
 Add availability for a single date.
 
 **Authentication**: Required (instructor only)
@@ -635,7 +695,7 @@ Add availability for a single date.
 
 ---
 
-#### GET /instructors/availability-windows/
+#### GET /instructors/availability/
 Get all availability with optional date filtering.
 
 **Authentication**: Required (instructor only)
@@ -648,7 +708,7 @@ Get all availability with optional date filtering.
 
 ---
 
-#### PATCH /instructors/availability-windows/{window_id}
+#### PATCH /instructors/availability/{window_id}
 Update a specific time slot.
 
 **Authentication**: Required (instructor only)
@@ -665,7 +725,7 @@ Update a specific time slot.
 
 ---
 
-#### DELETE /instructors/availability-windows/{window_id}
+#### DELETE /instructors/availability/{window_id}
 Delete a specific time slot.
 
 **Authentication**: Required (instructor only)
@@ -679,7 +739,7 @@ Delete a specific time slot.
 
 ---
 
-#### GET /instructors/availability-windows/blackout-dates
+#### GET /instructors/availability/blackout-dates
 Get instructor's blackout (vacation) dates.
 
 **Authentication**: Required (instructor only)
@@ -699,7 +759,7 @@ Get instructor's blackout (vacation) dates.
 
 ---
 
-#### POST /instructors/availability-windows/blackout-dates
+#### POST /instructors/availability/blackout-dates
 Add a blackout date.
 
 **Authentication**: Required (instructor only)
@@ -716,7 +776,7 @@ Add a blackout date.
 
 ---
 
-#### DELETE /instructors/availability-windows/blackout-dates/{id}
+#### DELETE /instructors/availability/blackout-dates/{id}
 Remove a blackout date.
 
 **Authentication**: Required (instructor only)
@@ -727,6 +787,82 @@ Remove a blackout date.
   "message": "Blackout date deleted"
 }
 ```
+
+### Instructor Booking Management Endpoints
+
+#### GET /instructors/bookings/pending-completion
+Get lessons awaiting completion by instructor.
+
+**Authentication**: Required (instructor only)
+
+**Response (200)**:
+```json
+[
+  {
+    "id": "01K2GY3VEVJWKZDVH5HMNXEVRD",
+    "booking_date": "2025-01-25",
+    "start_time": "10:00:00",
+    "end_time": "11:00:00",
+    "status": "confirmed",
+    "student": {
+      "first_name": "John",
+      "last_initial": "S"
+    },
+    "service": {
+      "name": "Piano Lessons",
+      "duration_minutes": 60
+    }
+  }
+]
+```
+
+---
+
+#### GET /instructors/bookings/completed
+Get instructor's completed lessons history.
+
+**Authentication**: Required (instructor only)
+
+**Query Parameters**:
+- `page`: Page number (default: 1)
+- `per_page`: Items per page (default: 20, max: 100)
+
+**Response (200)**: Paginated list of completed bookings
+
+---
+
+#### POST /instructors/bookings/{booking_id}/complete
+Mark a lesson as completed by instructor (triggers 24hr payment capture).
+
+**Authentication**: Required (instructor only)
+
+**Response (200)**: Updated booking with COMPLETED status
+
+**Response (422)**: Cannot complete (wrong status, not your booking, lesson hasn't ended)
+
+---
+
+#### POST /instructors/bookings/{booking_id}/dispute
+Dispute a lesson completion status.
+
+**Authentication**: Required (instructor only)
+
+**Request Body**:
+```json
+{
+  "reason": "Student marked as complete but didn't show up"
+}
+```
+
+**Response (200)**:
+```json
+{
+  "message": "Dispute filed successfully",
+  "dispute_id": "01K2GY3VEVJWKZDVH5HMNXEVRD"
+}
+```
+
+---
 
 ### Booking Endpoints
 
@@ -924,9 +1060,11 @@ Cancel a booking.
 ---
 
 #### POST /bookings/{booking_id}/complete
-Mark booking as completed (instructor only).
+Mark booking as completed.
 
-**Authentication**: Required (instructor only)
+**Authentication**: Required (COMPLETE_BOOKINGS permission)
+
+**Note**: For instructor-specific completion, use `/instructors/bookings/{booking_id}/complete`
 
 **Response (200)**: Updated booking with COMPLETED status
 
@@ -1563,7 +1701,7 @@ const token = 'your_instructor_token';
 
 // 2. Get current week availability
 const weekResponse = await fetch(
-  'https://api.instainstru.com/instructors/availability-windows/week?start_date=2025-01-20',
+  'https://api.instainstru.com/instructors/availability/week?start_date=2025-01-20',
   {
     headers: { 'Authorization': `Bearer ${token}` }
   }
@@ -1572,7 +1710,7 @@ const weekAvailability = await weekResponse.json();
 
 // 3. Update availability for the week
 const updateResponse = await fetch(
-  'https://api.instainstru.com/instructors/availability-windows/week',
+  'https://api.instainstru.com/instructors/availability/week',
   {
     method: 'POST',
     headers: {
@@ -1593,7 +1731,7 @@ const updateResponse = await fetch(
 
 // 4. Copy this week's schedule to next week
 const copyResponse = await fetch(
-  'https://api.instainstru.com/instructors/availability-windows/copy-week',
+  'https://api.instainstru.com/instructors/availability/copy-week',
   {
     method: 'POST',
     headers: {

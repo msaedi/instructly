@@ -21,6 +21,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.core.enums import RoleName
+from app.core.ulid_helper import generate_ulid
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.service_catalog import InstructorService as Service
@@ -160,16 +161,22 @@ class TestSoftDeleteServices:
         # Get or create a catalog service for the test
         category = db.query(ServiceCategory).first()
         if not category:
-            category = ServiceCategory(name="Test Category", slug="test-category")
+            category_ulid = generate_ulid()
+            category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
             db.add(category)
             db.flush()
 
         # Check if the catalog service already exists
-        temp_catalog = db.query(ServiceCatalog).filter(ServiceCatalog.slug == "test-temporary-service").first()
+        temp_ulid = generate_ulid()
+        temp_catalog = (
+            db.query(ServiceCatalog)
+            .filter(ServiceCatalog.slug == f"test-temporary-service-{temp_ulid.lower()}")
+            .first()
+        )
         if not temp_catalog:
             temp_catalog = ServiceCatalog(
                 name="Test Temporary Service",
-                slug="test-temporary-service",
+                slug=f"test-temporary-service-{temp_ulid.lower()}",
                 category_id=category.id,
                 description="This will be deleted",
             )
@@ -217,13 +224,15 @@ class TestSoftDeleteServices:
             # Get or create another catalog service
             category = db.query(ServiceCategory).first()
             if not category:
-                category = ServiceCategory(name="Test Category", slug="test-category")
+                category_ulid = generate_ulid()
+                category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
                 db.add(category)
                 db.flush()
 
+            service_ulid = generate_ulid()
             new_catalog = ServiceCatalog(
                 name="Additional Service",
-                slug="additional-service",
+                slug=f"additional-service-{service_ulid.lower()}",
                 category_id=category.id,
                 description="Additional service for testing",
             )

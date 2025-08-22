@@ -16,7 +16,7 @@ curl -X POST "http://localhost:8000/metrics/cache/reset-stats" \
 echo -e "\n⚡ Performance Test Results:\n"
 
 echo "1️⃣ First request (cache MISS):"
-time curl -s "http://localhost:8000/instructors/availability-windows/week?start_date=2025-06-16" \
+time curl -s "http://localhost:8000/instructors/availability/week?start_date=2025-06-16" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Accept-Encoding: gzip" \
   -o /dev/null -w "   Response time: %{time_total}s\n   Compressed size: %{size_download} bytes\n   HTTP status: %{http_code}\n"
@@ -24,7 +24,7 @@ time curl -s "http://localhost:8000/instructors/availability-windows/week?start_
 echo -e "\n2️⃣ Cache HIT performance (10 requests):"
 total_time=0
 for i in {1..10}; do
-  response_time=$(curl -s "http://localhost:8000/instructors/availability-windows/week?start_date=2025-06-16" \
+  response_time=$(curl -s "http://localhost:8000/instructors/availability/week?start_date=2025-06-16" \
     -H "Authorization: Bearer $TOKEN" \
     -H "Accept-Encoding: gzip" \
     -o /dev/null -w "%{time_total}")

@@ -206,28 +206,97 @@ TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_eng
 
 
 def _ensure_rbac_roles():
-    """Ensure RBAC roles exist in the test database."""
-    from app.models.rbac import Role
+    """Ensure RBAC roles and permissions exist in the test database."""
+    from app.core.enums import PermissionName
+    from app.models.rbac import Permission, Role, RolePermission
 
     session = TestSessionLocal()
     try:
-        # Check if roles already exist
-        existing_roles = session.query(Role).count()
-        if existing_roles > 0:
+        # Check if permissions are already set up
+        existing_permissions = session.query(Permission).count()
+        if existing_permissions > 0:
+            # Already seeded, just return
             return
 
-        # Create standard roles
-        roles = [
-            Role(name=RoleName.ADMIN, description="Administrator with full access"),
-            Role(name=RoleName.INSTRUCTOR, description="Instructor who can manage their profile and availability"),
-            Role(name=RoleName.STUDENT, description="Student who can book lessons"),
-        ]
+        # Get or create standard roles
+        roles = {}
+        for role_name in [RoleName.ADMIN, RoleName.INSTRUCTOR, RoleName.STUDENT]:
+            role = session.query(Role).filter_by(name=role_name).first()
+            if not role:
+                if role_name == RoleName.ADMIN:
+                    role = Role(name=RoleName.ADMIN, description="Administrator with full access")
+                elif role_name == RoleName.INSTRUCTOR:
+                    role = Role(
+                        name=RoleName.INSTRUCTOR, description="Instructor who can manage their profile and availability"
+                    )
+                else:  # STUDENT
+                    role = Role(name=RoleName.STUDENT, description="Student who can book lessons")
+                session.add(role)
+                session.flush()
+            roles[role_name] = role
 
-        for role in roles:
-            session.add(role)
+        # Create all permissions
+        permissions = {}
+        for perm_name in PermissionName:
+            perm = Permission(
+                name=perm_name.value, description=f"Permission for {perm_name.value.replace('_', ' ')}", resource="*"
+            )
+            session.add(perm)
+            permissions[perm_name.value] = perm
+
+        session.flush()  # Get IDs
+
+        # Assign permissions to roles
+        # Admin gets everything
+        admin_role = roles[RoleName.ADMIN]
+        for perm in permissions.values():
+            session.add(RolePermission(role_id=admin_role.id, permission_id=perm.id))
+
+        # Student permissions
+        student_role = roles[RoleName.STUDENT]
+        student_perms = [
+            PermissionName.MANAGE_OWN_PROFILE,
+            PermissionName.VIEW_OWN_BOOKINGS,
+            PermissionName.VIEW_OWN_SEARCH_HISTORY,
+            PermissionName.CHANGE_OWN_PASSWORD,
+            PermissionName.DELETE_OWN_ACCOUNT,
+            PermissionName.VIEW_INSTRUCTORS,
+            PermissionName.VIEW_INSTRUCTOR_AVAILABILITY,
+            PermissionName.CREATE_BOOKINGS,
+            PermissionName.CANCEL_OWN_BOOKINGS,
+            PermissionName.VIEW_BOOKING_DETAILS,
+            PermissionName.SEND_MESSAGES,
+            PermissionName.VIEW_MESSAGES,
+        ]
+        for perm_name in student_perms:
+            perm = permissions[perm_name.value]
+            session.add(RolePermission(role_id=student_role.id, permission_id=perm.id))
+
+        # Instructor permissions
+        instructor_role = roles[RoleName.INSTRUCTOR]
+        instructor_perms = [
+            PermissionName.MANAGE_OWN_PROFILE,
+            PermissionName.VIEW_OWN_BOOKINGS,
+            PermissionName.VIEW_OWN_SEARCH_HISTORY,
+            PermissionName.CHANGE_OWN_PASSWORD,
+            PermissionName.DELETE_OWN_ACCOUNT,
+            PermissionName.MANAGE_INSTRUCTOR_PROFILE,
+            PermissionName.MANAGE_SERVICES,
+            PermissionName.MANAGE_AVAILABILITY,
+            PermissionName.VIEW_INCOMING_BOOKINGS,
+            PermissionName.COMPLETE_BOOKINGS,
+            PermissionName.CANCEL_STUDENT_BOOKINGS,
+            PermissionName.VIEW_OWN_INSTRUCTOR_ANALYTICS,
+            PermissionName.SUSPEND_OWN_INSTRUCTOR_ACCOUNT,
+            PermissionName.SEND_MESSAGES,
+            PermissionName.VIEW_MESSAGES,
+        ]
+        for perm_name in instructor_perms:
+            perm = permissions[perm_name.value]
+            session.add(RolePermission(role_id=instructor_role.id, permission_id=perm.id))
 
         session.commit()
-        print(f"✅ Created {len(roles)} RBAC roles")
+        print(f"✅ Created {len(roles)} RBAC roles with permissions")
     except Exception as e:
         print(f"❌ Error creating RBAC roles: {e}")
         session.rollback()

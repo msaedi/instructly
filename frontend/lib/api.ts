@@ -34,7 +34,7 @@ export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000
  *
  * @example
  * ```ts
- * const response = await fetchWithAuth('/instructors/profile', {
+ * const response = await fetchWithAuth('/instructors/me', {
  *   method: 'PUT',
  *   headers: { 'Content-Type': 'application/json' },
  *   body: JSON.stringify(profileData)
@@ -187,21 +187,21 @@ export const API_ENDPOINTS = {
 
   // Instructor endpoints
   INSTRUCTORS: '/instructors',
-  INSTRUCTOR_PROFILE: '/instructors/profile',
+  INSTRUCTOR_PROFILE: '/instructors/me',
 
   // Availability Management endpoints
-  INSTRUCTOR_AVAILABILITY_WEEKLY: '/instructors/availability-windows/weekly',
-  INSTRUCTOR_AVAILABILITY_PRESET: '/instructors/availability-windows/preset',
-  INSTRUCTOR_AVAILABILITY_SPECIFIC: '/instructors/availability-windows/specific-date',
-  INSTRUCTOR_BLACKOUT_DATES: '/instructors/availability-windows/blackout-dates',
+  INSTRUCTOR_AVAILABILITY_WEEKLY: '/instructors/availability/weekly',
+  INSTRUCTOR_AVAILABILITY_PRESET: '/instructors/availability/preset',
+  INSTRUCTOR_AVAILABILITY_SPECIFIC: '/instructors/availability/specific-date',
+  INSTRUCTOR_BLACKOUT_DATES: '/instructors/availability/blackout-dates',
 
   // Week-specific availability endpoints
-  INSTRUCTOR_AVAILABILITY_WEEK: '/instructors/availability-windows/week',
-  INSTRUCTOR_AVAILABILITY_COPY_WEEK: '/instructors/availability-windows/copy-week',
-  INSTRUCTOR_AVAILABILITY_APPLY_RANGE: '/instructors/availability-windows/apply-to-date-range',
-  INSTRUCTOR_AVAILABILITY_BULK_UPDATE: '/instructors/availability-windows/bulk-update',
-  INSTRUCTOR_AVAILABILITY: '/instructors/availability-windows/',
-  INSTRUCTOR_AVAILABILITY_VALIDATE: '/instructors/availability-windows/week/validate-changes',
+  INSTRUCTOR_AVAILABILITY_WEEK: '/instructors/availability/week',
+  INSTRUCTOR_AVAILABILITY_COPY_WEEK: '/instructors/availability/copy-week',
+  INSTRUCTOR_AVAILABILITY_APPLY_RANGE: '/instructors/availability/apply-to-date-range',
+  INSTRUCTOR_AVAILABILITY_BULK_UPDATE: '/instructors/availability/bulk-update',
+  INSTRUCTOR_AVAILABILITY: '/instructors/availability/',
+  INSTRUCTOR_AVAILABILITY_VALIDATE: '/instructors/availability/week/validate-changes',
 
   // Student availability checking
   CHECK_AVAILABILITY: '/api/availability/slots',

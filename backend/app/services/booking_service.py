@@ -108,7 +108,7 @@ class BookingService(BaseService):
 
         # 2. Validate selected duration
         if selected_duration not in service.duration_options:
-            raise ValidationException(
+            raise BusinessRuleException(
                 f"Invalid duration {selected_duration}. Available options: {service.duration_options}"
             )
 
@@ -170,7 +170,7 @@ class BookingService(BaseService):
 
         # 2. Validate selected duration
         if selected_duration not in service.duration_options:
-            raise ValidationException(
+            raise BusinessRuleException(
                 f"Invalid duration {selected_duration}. Available options: {service.duration_options}"
             )
 
@@ -186,7 +186,7 @@ class BookingService(BaseService):
         # 5. Create booking with PENDING status initially
         with self.transaction():
             booking = await self._create_booking_record(
-                student, booking_data, service, selected_duration, instructor_profile
+                student, booking_data, service, instructor_profile, selected_duration
             )
 
             # Override status to PENDING until payment confirmed
@@ -233,7 +233,7 @@ class BookingService(BaseService):
 
             # Transaction handles flush/commit automatically
 
-        self.log_success("create_booking_with_payment_setup", booking_id=booking.id)
+        self.log_operation("create_booking_with_payment_setup_completed", booking_id=booking.id)
         return booking
 
     @BaseService.measure_operation("confirm_booking_payment")
@@ -335,7 +335,9 @@ class BookingService(BaseService):
 
             # Transaction handles flush/commit automatically
 
-        self.log_success("confirm_booking_payment", booking_id=booking.id, payment_status=booking.payment_status)
+        self.log_operation(
+            "confirm_booking_payment_completed", booking_id=booking.id, payment_status=booking.payment_status
+        )
         return booking
 
     @BaseService.measure_operation("find_booking_opportunities")

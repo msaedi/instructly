@@ -15,13 +15,13 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.database import get_db
-from app.core.exceptions import PaymentException
+from app.database import get_db
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.payment import PaymentEvent, StripeCustomer
 from app.repositories.factory import RepositoryFactory
 from app.services.notification_service import NotificationService
+from app.services.stripe_service import StripeService
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +42,10 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
     Returns:
         Dict with success/failure counts and details
     """
+    from app.database import SessionLocal
+
+    db = SessionLocal()
     try:
-        db = next(get_db())
         payment_repo = RepositoryFactory.get_payment_repository(db)
         booking_repo = RepositoryFactory.get_booking_repository(db)
 
@@ -64,7 +66,8 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
 
         for booking in bookings_to_authorize:
             # Calculate exact time until lesson
-            booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+            # Make booking_datetime timezone-aware (assuming UTC for booking times)
+            booking_datetime = datetime.combine(booking.booking_date, booking.start_time, tzinfo=timezone.utc)
             hours_until_lesson = (booking_datetime - now).total_seconds() / 3600
 
             # Only process if in the 23.5-24.5 hour window
@@ -78,9 +81,9 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
                     raise Exception(f"No Stripe customer for student {booking.student_id}")
 
                 # Get instructor's Stripe account
-                from ..repositories.instructor_repository import InstructorRepository
+                from app.repositories.instructor_profile_repository import InstructorProfileRepository
 
-                instructor_repo = InstructorRepository(db)
+                instructor_repo = InstructorProfileRepository(db)
                 instructor_profile = instructor_repo.get_by_user_id(booking.instructor_id)
                 instructor_account = payment_repo.get_connected_account_by_instructor_id(
                     instructor_profile.id if instructor_profile else None
@@ -185,9 +188,12 @@ def retry_failed_authorizations(self) -> Dict[str, Any]:
     Returns:
         Dict with retry results
     """
+    from app.database import SessionLocal
+
+    db = SessionLocal()
     try:
-        db = next(get_db())
         payment_repo = RepositoryFactory.get_payment_repository(db)
+        booking_repo = RepositoryFactory.get_booking_repository(db)
         notification_service = NotificationService(db)
 
         now = datetime.now(timezone.utc)
@@ -206,7 +212,7 @@ def retry_failed_authorizations(self) -> Dict[str, Any]:
 
         for booking in bookings_to_retry:
             # Calculate hours until lesson
-            booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+            booking_datetime = datetime.combine(booking.booking_date, booking.start_time, tzinfo=timezone.utc)
             hours_until_lesson = (booking_datetime - now).total_seconds() / 3600
 
             # Skip if lesson already happened
@@ -260,7 +266,7 @@ def retry_failed_authorizations(self) -> Dict[str, Any]:
 
                 results["retried"] += 1
 
-            elif hours_until_lesson in range(17, 23):  # T-18hr, T-20hr, T-22hr windows
+            elif 17 <= hours_until_lesson < 23:  # T-18hr, T-20hr, T-22hr windows
                 # Silent retry at specific windows
                 retry_windows = [18, 20, 22]
                 should_retry = any(abs(hours_until_lesson - window) < 0.5 for window in retry_windows)
@@ -342,9 +348,9 @@ def attempt_authorization_retry(booking: Booking, payment_repo: Any, db: Session
             raise Exception(f"No Stripe customer for student {booking.student_id}")
 
         # Get instructor's Stripe account
-        from ..repositories.instructor_repository import InstructorRepository
+        from app.repositories.instructor_profile_repository import InstructorProfileRepository
 
-        instructor_repo = InstructorRepository(db)
+        instructor_repo = InstructorProfileRepository(db)
         instructor_profile = instructor_repo.get_by_user_id(booking.instructor_id)
         instructor_account = payment_repo.get_connected_account_by_instructor_id(
             instructor_profile.id if instructor_profile else None
@@ -427,9 +433,12 @@ def capture_completed_lessons(self) -> Dict[str, Any]:
     Returns:
         Dict with capture results
     """
+    from app.database import SessionLocal
+
+    db = SessionLocal()
     try:
-        db = next(get_db())
         payment_repo = RepositoryFactory.get_payment_repository(db)
+        booking_repo = RepositoryFactory.get_booking_repository(db)
         now = datetime.now(timezone.utc)
 
         results = {
@@ -462,7 +471,7 @@ def capture_completed_lessons(self) -> Dict[str, Any]:
         # Filter to only bookings where lesson ended >24hr ago
         bookings_to_auto_complete = []
         for booking in all_confirmed_bookings:
-            lesson_end = datetime.combine(booking.booking_date, booking.end_time)
+            lesson_end = datetime.combine(booking.booking_date, booking.end_time, tzinfo=timezone.utc)
             if lesson_end <= auto_complete_cutoff:
                 bookings_to_auto_complete.append(booking)
 
@@ -476,7 +485,9 @@ def capture_completed_lessons(self) -> Dict[str, Any]:
                 event_type="auto_completed",
                 event_data={
                     "reason": "No instructor confirmation within 24hr",
-                    "lesson_end": datetime.combine(booking.booking_date, booking.end_time).isoformat(),
+                    "lesson_end": datetime.combine(
+                        booking.booking_date, booking.end_time, tzinfo=timezone.utc
+                    ).isoformat(),
                     "auto_completed_at": now.isoformat(),
                 },
             )
@@ -677,9 +688,9 @@ def create_new_authorization_and_capture(booking: Booking, payment_repo: Any, db
             raise Exception(f"No Stripe customer for student {booking.student_id}")
 
         # Get instructor's Stripe account
-        from ..repositories.instructor_repository import InstructorRepository
+        from app.repositories.instructor_profile_repository import InstructorProfileRepository
 
-        instructor_repo = InstructorRepository(db)
+        instructor_repo = InstructorProfileRepository(db)
         instructor_profile = instructor_repo.get_by_user_id(booking.instructor_id)
         instructor_account = payment_repo.get_connected_account_by_instructor_id(
             instructor_profile.id if instructor_profile else None
@@ -766,7 +777,7 @@ def capture_late_cancellation(self, booking_id: str) -> Dict[str, Any]:
 
         # Verify this is a late cancellation
         now = datetime.now(timezone.utc)
-        lesson_datetime = datetime.combine(booking.booking_date, booking.start_time)
+        lesson_datetime = datetime.combine(booking.booking_date, booking.start_time, tzinfo=timezone.utc)
         hours_until_lesson = (lesson_datetime - now).total_seconds() / 3600
 
         if hours_until_lesson >= 12:
@@ -880,7 +891,7 @@ def check_authorization_health() -> Dict[str, Any]:
         scheduled_bookings = booking_repo.get_bookings_for_payment_authorization()
 
         for booking in scheduled_bookings:
-            booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+            booking_datetime = datetime.combine(booking.booking_date, booking.start_time, tzinfo=timezone.utc)
             hours_until_lesson = (booking_datetime - now).total_seconds() / 3600
 
             if hours_until_lesson < 24:  # Should have been authorized

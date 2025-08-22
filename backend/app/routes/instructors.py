@@ -100,7 +100,7 @@ async def get_all_instructors(
 
     # Apply privacy protection to each instructor profile
     privacy_protected_instructors = [
-        InstructorProfileResponse.from_orm(instructor)
+        InstructorProfileResponse.model_validate(instructor)
         if hasattr(instructor, "id")
         else instructor  # If already dict/processed, pass through
         for instructor in instructors

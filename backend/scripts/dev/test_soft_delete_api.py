@@ -30,7 +30,7 @@ def test_soft_delete():
 
     # 2. Get current profile
     print("\n2. Getting current profile...")
-    profile_response = requests.get(f"{BASE_URL}/instructors/profile", headers=headers)
+    profile_response = requests.get(f"{BASE_URL}/instructors/me", headers=headers)
 
     if profile_response.status_code != 200:
         print(f"❌ Failed to get profile: {profile_response.text}")
@@ -45,7 +45,7 @@ def test_soft_delete():
         "services": [{"skill": "Piano", "hourly_rate": 75, "description": "Classical and jazz piano lessons"}]
     }
 
-    update_response = requests.put(f"{BASE_URL}/instructors/profile", headers=headers, json=update_data)
+    update_response = requests.put(f"{BASE_URL}/instructors/me", headers=headers, json=update_data)
 
     if update_response.status_code != 200:
         print(f"❌ Update failed: {update_response.text}")
@@ -65,7 +65,7 @@ def test_soft_delete():
         "services": [{"skill": "Piano", "hourly_rate": 75}, {"skill": "Music Theory", "hourly_rate": 70}]
     }
 
-    reactivate_response = requests.put(f"{BASE_URL}/instructors/profile", headers=headers, json=reactivate_data)
+    reactivate_response = requests.put(f"{BASE_URL}/instructors/me", headers=headers, json=reactivate_data)
 
     if reactivate_response.status_code == 200:
         final_profile = reactivate_response.json()

@@ -24,10 +24,14 @@ tags:
     description: Authentication endpoints
   - name: password-reset
     description: Password reset functionality
+  - name: account
+    description: Account management operations
   - name: instructors
     description: Instructor profile management
-  - name: availability-windows
+  - name: availability
     description: Instructor availability management
+  - name: instructor-bookings
+    description: Instructor booking management
   - name: bookings
     description: Booking operations
   - name: public
@@ -224,6 +228,97 @@ paths:
         '429':
           $ref: '#/components/responses/RateLimitExceeded'
 
+  # Account Management
+  /api/account/suspend:
+    post:
+      tags:
+        - account
+      summary: Suspend account
+      description: Temporarily suspend the authenticated user's account
+      operationId: suspendAccount
+      responses:
+        '200':
+          description: Account suspended successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  suspended_until:
+                    type: string
+                    format: date-time
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/account/deactivate:
+    post:
+      tags:
+        - account
+      summary: Deactivate account
+      description: Permanently deactivate the authenticated user's account
+      operationId: deactivateAccount
+      responses:
+        '200':
+          description: Account deactivated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/account/reactivate:
+    post:
+      tags:
+        - account
+      summary: Reactivate account
+      description: Reactivate a suspended or deactivated account
+      operationId: reactivateAccount
+      responses:
+        '200':
+          description: Account reactivated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/account/status:
+    get:
+      tags:
+        - account
+      summary: Check account status
+      description: Get current account status (active, suspended, deactivated)
+      operationId: getAccountStatus
+      responses:
+        '200':
+          description: Account status information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [active, suspended, deactivated]
+                  suspended_until:
+                    type: string
+                    format: date-time
+                    nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   # Instructors
   /instructors/:
     get:
@@ -366,10 +461,10 @@ paths:
           $ref: '#/components/responses/NotFound'
 
   # Availability Management
-  /instructors/availability-windows/week:
+  /instructors/availability/week:
     get:
       tags:
-        - availability-windows
+        - availability
       summary: Get week availability
       description: Get availability for a specific week
       operationId: getWeekAvailability
@@ -397,7 +492,7 @@ paths:
 
     post:
       tags:
-        - availability-windows
+        - availability
       summary: Save week availability
       description: Save availability for specific dates in a week
       operationId: saveWeekAvailability
@@ -422,10 +517,10 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /instructors/availability-windows/copy-week:
+  /instructors/availability/copy-week:
     post:
       tags:
-        - availability-windows
+        - availability
       summary: Copy week availability
       description: Copy availability from one week to another
       operationId: copyWeek
@@ -452,10 +547,10 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /instructors/availability-windows/specific-date:
+  /instructors/availability/specific-date:
     post:
       tags:
-        - availability-windows
+        - availability
       summary: Add specific date availability
       description: Add availability for a single date
       operationId: addSpecificDate
@@ -477,10 +572,10 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /instructors/availability-windows/:
+  /instructors/availability/:
     get:
       tags:
-        - availability-windows
+        - availability
       summary: Get all availability
       description: Get all availability with optional date filtering
       operationId: getAllAvailability
@@ -509,10 +604,10 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /instructors/availability-windows/{window_id}:
+  /instructors/availability/{window_id}:
     patch:
       tags:
-        - availability-windows
+        - availability
       summary: Update availability slot
       description: Update a specific time slot
       operationId: updateSlot
@@ -545,7 +640,7 @@ paths:
 
     delete:
       tags:
-        - availability-windows
+        - availability
       summary: Delete availability slot
       description: Delete a specific time slot
       operationId: deleteSlot
@@ -571,10 +666,10 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /instructors/availability-windows/blackout-dates:
+  /instructors/availability/blackout-dates:
     get:
       tags:
-        - availability-windows
+        - availability
       summary: Get blackout dates
       description: Get instructor's blackout (vacation) dates
       operationId: getBlackoutDates
@@ -592,7 +687,7 @@ paths:
 
     post:
       tags:
-        - availability-windows
+        - availability
       summary: Add blackout date
       description: Add a blackout date (vacation/unavailable)
       operationId: addBlackoutDate
@@ -614,10 +709,10 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /instructors/availability-windows/blackout-dates/{id}:
+  /instructors/availability/blackout-dates/{id}:
     delete:
       tags:
-        - availability-windows
+        - availability
       summary: Delete blackout date
       description: Remove a blackout date
       operationId: deleteBlackoutDate
@@ -638,6 +733,122 @@ paths:
                 properties:
                   message:
                     type: string
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Instructor Bookings Management
+  /instructors/bookings/pending-completion:
+    get:
+      tags:
+        - instructor-bookings
+      summary: Get pending lessons
+      description: Get lessons awaiting completion by instructor
+      operationId: getPendingLessons
+      responses:
+        '200':
+          description: List of pending lessons
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /instructors/bookings/completed:
+    get:
+      tags:
+        - instructor-bookings
+      summary: Get completed lessons
+      description: Get instructor's completed lessons history
+      operationId: getCompletedLessons
+      responses:
+        '200':
+          description: List of completed lessons
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BookingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /instructors/bookings/{booking_id}/complete:
+    post:
+      tags:
+        - instructor-bookings
+      summary: Complete lesson
+      description: Mark a lesson as completed by instructor
+      operationId: completeLessonByInstructor
+      parameters:
+        - in: path
+          name: booking_id
+          required: true
+          schema:
+            type: string
+          description: Booking ID to complete
+      responses:
+        '200':
+          description: Lesson marked as completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /instructors/bookings/{booking_id}/dispute:
+    post:
+      tags:
+        - instructor-bookings
+      summary: Dispute completion
+      description: Dispute a lesson completion status
+      operationId: disputeCompletion
+      parameters:
+        - in: path
+          name: booking_id
+          required: true
+          schema:
+            type: string
+          description: Booking ID to dispute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Reason for dispute
+              required:
+                - reason
+      responses:
+        '200':
+          description: Dispute filed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  dispute_id:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':

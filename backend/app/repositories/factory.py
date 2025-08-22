@@ -90,6 +90,11 @@ class RepositoryFactory:
         return BookingRepository(db)
 
     @staticmethod
+    def get_booking_repository(db: Session) -> "BookingRepository":
+        """Alias for create_booking_repository for backward compatibility."""
+        return RepositoryFactory.create_booking_repository(db)
+
+    @staticmethod
     def create_week_operation_repository(db: Session) -> "WeekOperationRepository":
         """Create repository for week operation queries."""
         from .week_operation_repository import WeekOperationRepository
@@ -172,6 +177,11 @@ class RepositoryFactory:
         from .payment_repository import PaymentRepository
 
         return PaymentRepository(db)
+
+    @staticmethod
+    def get_payment_repository(db: Session) -> "PaymentRepository":
+        """Alias for create_payment_repository for backward compatibility."""
+        return RepositoryFactory.create_payment_repository(db)
 
     @staticmethod
     def create_search_event_repository(db: Session) -> "SearchEventRepository":

@@ -17,6 +17,7 @@ from sqlalchemy import DateTime, and_, func
 from sqlalchemy.orm import Session
 
 from app.core.enums import RoleName
+from app.core.ulid_helper import generate_ulid
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.service_catalog import InstructorService as Service
@@ -60,14 +61,18 @@ def test_service(db, test_instructor):
     # Get or create catalog service
     catalog_service = db.query(ServiceCatalog).first()
     if not catalog_service:
-        category = ServiceCategory(name="Test Category", slug="test-category")
+        category_ulid = generate_ulid()
+        category = ServiceCategory(name="Test Category", slug=f"test-category-{category_ulid.lower()}")
         db.add(category)
         db.flush()
         # RBAC: Assign role
         from app.services.permission_service import PermissionService
 
         permission_service = PermissionService(db)
-        catalog_service = ServiceCatalog(name="Test Service", slug="test-service", category_id=category.id)
+        service_ulid = generate_ulid()
+        catalog_service = ServiceCatalog(
+            name="Test Service", slug=f"test-service-{service_ulid.lower()}", category_id=category.id
+        )
         db.add(catalog_service)
         db.flush()
         # RBAC: Assign role
@@ -234,12 +239,13 @@ class TestBookingRepositoryConcurrency:
         db.commit()
 
         # Test conflict detection with different status filters
-        # Only CONFIRMED and COMPLETED should be considered conflicts
+        # PENDING, CONFIRMED and COMPLETED should be considered conflicts (payment flow fix)
         active_conflicts = repository.get_bookings_by_time_range(
             test_instructor.id, booking_date, time(9, 0), time(17, 0)
         )
 
-        active_statuses = {BookingStatus.CONFIRMED, BookingStatus.COMPLETED}
+        # With payment flow, PENDING bookings must also be considered for conflicts
+        active_statuses = {BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED}
         assert len(active_conflicts) == len(active_statuses)
         assert all(b.status in active_statuses for b in active_conflicts)
 

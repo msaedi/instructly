@@ -86,7 +86,7 @@ def test_booked_slots_endpoint(
 
     # Now test the endpoint
     response = client.get(
-        "/instructors/availability-windows/week/booked-slots",
+        "/instructors/availability/week/booked-slots",
         params={"start_date": monday.isoformat()},
         headers=auth_headers_instructor,
     )
@@ -136,7 +136,7 @@ def test_booked_slots_endpoint_empty_week(
     future_monday = date.today() + timedelta(days=365)
 
     response = client.get(
-        "/instructors/availability-windows/week/booked-slots",
+        "/instructors/availability/week/booked-slots",
         params={"start_date": future_monday.isoformat()},
         headers=auth_headers_instructor,
     )

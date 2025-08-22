@@ -251,6 +251,53 @@ class BookingResponse(BookingBase):
     instructor: InstructorInfo  # Privacy-aware: only has last_initial
     instructor_service: ServiceInfo
 
+    @classmethod
+    def from_booking(cls, booking) -> "BookingResponse":
+        """
+        Create BookingResponse from Booking ORM model.
+        Handles privacy transformation automatically.
+        """
+        # Build the response with proper privacy protection
+        response_data = {
+            # Base fields from BookingBase
+            "id": booking.id,
+            "student_id": booking.student_id,
+            "instructor_id": booking.instructor_id,
+            "instructor_service_id": booking.instructor_service_id,
+            # Booking details
+            "booking_date": booking.booking_date,
+            "start_time": booking.start_time,
+            "end_time": booking.end_time,
+            "service_name": booking.service_name,
+            "hourly_rate": booking.hourly_rate,
+            "total_price": booking.total_price,
+            "duration_minutes": booking.duration_minutes,
+            "status": booking.status,
+            # Location
+            "service_area": booking.service_area,
+            "meeting_location": booking.meeting_location,
+            "location_type": booking.location_type,
+            # Notes
+            "student_note": booking.student_note,
+            "instructor_note": booking.instructor_note,
+            # Timestamps
+            "created_at": booking.created_at,
+            "confirmed_at": booking.confirmed_at,
+            "completed_at": booking.completed_at,
+            "cancelled_at": booking.cancelled_at,
+            # Cancellation info
+            "cancelled_by_id": booking.cancelled_by_id,
+            "cancellation_reason": booking.cancellation_reason,
+            # Privacy-protected nested objects
+            "student": StudentInfo.model_validate(booking.student) if booking.student else None,
+            "instructor": InstructorInfo.from_user(booking.instructor) if booking.instructor else None,
+            "instructor_service": ServiceInfo.model_validate(booking.instructor_service)
+            if booking.instructor_service
+            else None,
+        }
+
+        return cls(**response_data)
+
 
 class BookingCreateResponse(BookingResponse):
     """
@@ -279,56 +326,62 @@ class BookingCreateResponse(BookingResponse):
         return self.booking_date > user_today and self.status == BookingStatus.CONFIRMED
 
     @classmethod
-    def from_orm(cls, booking) -> "BookingResponse":
+    def from_booking(cls, booking, setup_intent_client_secret: Optional[str] = None) -> "BookingCreateResponse":
         """
-        Create BookingResponse from Booking ORM model.
-        Handles privacy transformation automatically.
+        Create BookingCreateResponse from Booking ORM model.
+        Inherits privacy protection from parent and adds payment setup fields.
         """
-        # Build the response with proper privacy protection
-        return cls(
+        # Use the parent's from_booking method to build base response
+        response_data = {
             # Base fields from BookingBase
-            id=booking.id,
-            student_id=booking.student_id,
-            instructor_id=booking.instructor_id,
-            instructor_service_id=booking.instructor_service_id,
+            "id": booking.id,
+            "student_id": booking.student_id,
+            "instructor_id": booking.instructor_id,
+            "instructor_service_id": booking.instructor_service_id,
             # Booking details
-            booking_date=booking.booking_date,
-            start_time=booking.start_time,
-            end_time=booking.end_time,
-            service_name=booking.service_name,
-            hourly_rate=booking.hourly_rate,
-            total_price=booking.total_price,
-            duration_minutes=booking.duration_minutes,
-            status=booking.status,
+            "booking_date": booking.booking_date,
+            "start_time": booking.start_time,
+            "end_time": booking.end_time,
+            "service_name": booking.service_name,
+            "hourly_rate": booking.hourly_rate,
+            "total_price": booking.total_price,
+            "duration_minutes": booking.duration_minutes,
+            "status": booking.status,
             # Location
-            service_area=booking.service_area,
-            meeting_location=booking.meeting_location,
-            location_type=booking.location_type,
+            "service_area": booking.service_area,
+            "meeting_location": booking.meeting_location,
+            "location_type": booking.location_type,
             # Notes
-            student_note=booking.student_note,
-            instructor_note=booking.instructor_note,
+            "student_note": booking.student_note,
+            "instructor_note": booking.instructor_note,
             # Timestamps
-            created_at=booking.created_at,
-            confirmed_at=booking.confirmed_at,
-            completed_at=booking.completed_at,
-            cancelled_at=booking.cancelled_at,
+            "created_at": booking.created_at,
+            "confirmed_at": booking.confirmed_at,
+            "completed_at": booking.completed_at,
+            "cancelled_at": booking.cancelled_at,
             # Cancellation info
-            cancelled_by_id=booking.cancelled_by_id,
-            cancellation_reason=booking.cancellation_reason,
+            "cancelled_by_id": booking.cancelled_by_id,
+            "cancellation_reason": booking.cancellation_reason,
             # Related objects with privacy protection
-            instructor=InstructorInfo.from_user(booking.instructor),
-            student=StudentInfo(
+            "instructor": InstructorInfo.from_user(booking.instructor),
+            "student": StudentInfo(
                 id=booking.student.id,
                 first_name=booking.student.first_name,
                 last_name=booking.student.last_name,
                 email=booking.student.email,
             ),
-            instructor_service=ServiceInfo(
+            "instructor_service": ServiceInfo(
                 id=booking.instructor_service.id if booking.instructor_service else booking.instructor_service_id,
                 name=booking.service_name,  # Use denormalized name
                 description=booking.instructor_service.description if booking.instructor_service else None,
             ),
-        )
+            # Payment setup fields
+            "setup_intent_client_secret": setup_intent_client_secret
+            or getattr(booking, "setup_intent_client_secret", None),
+            "requires_payment_method": True,
+        }
+
+        return cls(**response_data)
 
 
 class BookingListResponse(StandardizedModel):

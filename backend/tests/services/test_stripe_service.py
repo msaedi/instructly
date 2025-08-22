@@ -74,24 +74,26 @@ class TestStripeService:
         db.flush()
 
         # Create service category and catalog item if they don't exist
-        category = db.query(ServiceCategory).filter_by(slug="test-category").first()
+        category_ulid = str(ulid.ULID())
+        category = db.query(ServiceCategory).filter_by(slug=f"test-category-{category_ulid.lower()}").first()
         if not category:
             category = ServiceCategory(
-                id=str(ulid.ULID()),
+                id=category_ulid,
                 name="Test Category",
-                slug="test-category",
+                slug=f"test-category-{category_ulid.lower()}",
                 description="Test category for unit tests",
             )
             db.add(category)
             db.flush()
 
-        catalog = db.query(ServiceCatalog).filter_by(slug="test-service").first()
+        service_ulid = str(ulid.ULID())
+        catalog = db.query(ServiceCatalog).filter_by(slug=f"test-service-{service_ulid.lower()}").first()
         if not catalog:
             catalog = ServiceCatalog(
-                id=str(ulid.ULID()),
+                id=service_ulid,
                 category_id=category.id,
                 name="Test Service",
-                slug="test-service",
+                slug=f"test-service-{service_ulid.lower()}",
                 description="Test service for unit tests",
             )
             db.add(catalog)
