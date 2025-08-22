@@ -20,8 +20,41 @@ import time
 from datetime import datetime
 from typing import Optional
 
+
+# Auto-install dependencies if needed
+def ensure_dependencies():
+    """Ensure required dependencies are installed."""
+    dependencies = {"requests": "requests", "sseclient": "sseclient-py"}
+
+    missing = []
+    for module_name, package_name in dependencies.items():
+        try:
+            __import__(module_name)
+        except ImportError:
+            missing.append(package_name)
+
+    if missing:
+        print(f"⚠️ Missing dependencies: {', '.join(missing)}. Installing...")
+        import subprocess
+
+        for package in missing:
+            print(f"  Installing {package}...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+        print("✅ Dependencies installed successfully!\n")
+
+        # Re-import to make them available
+        for module_name in dependencies.keys():
+            globals()[module_name] = __import__(module_name)
+
+    return True
+
+
+# Ensure dependencies before importing
+if __name__ == "__main__":
+    ensure_dependencies()
+
 import requests
-import sseclient  # You may need to: pip install sseclient-py
+import sseclient
 
 # API Configuration with environment selection
 # Usage:
@@ -505,16 +538,6 @@ def interactive_chat_test():
 
 
 if __name__ == "__main__":
-    # Check if sseclient is installed
-    try:
-        import sseclient
-    except ImportError:
-        print("⚠️ sseclient-py not installed. Installing...")
-        import subprocess
-
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "sseclient-py"])
-        import sseclient
-
     try:
         interactive_chat_test()
     except KeyboardInterrupt:
