@@ -499,3 +499,64 @@ class DetailedHealthCheckResponse(BaseModel):
             }
         }
     )
+
+
+class PaymentHealthResponse(BaseModel):
+    """Payment system health monitoring response."""
+
+    status: str = Field(description="Payment system health status (healthy/warning/critical)")
+    timestamp: str = Field(description="Health check timestamp")
+    payment_stats: Dict[str, int] = Field(description="Payment status counts")
+    recent_events: Dict[str, int] = Field(description="Recent payment event counts")
+    overdue_authorizations: int = Field(description="Number of overdue authorizations")
+    minutes_since_last_auth: Optional[int] = Field(default=None, description="Minutes since last successful auth")
+    alerts: List[str] = Field(description="Current payment system alerts")
+    metrics: Dict[str, int] = Field(description="Payment metrics breakdown")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "status": "healthy",
+                "timestamp": "2025-01-20T10:30:00.123456",
+                "payment_stats": {
+                    "pending_payment_method": 5,
+                    "scheduled": 12,
+                    "authorized": 25,
+                    "captured": 150,
+                    "auth_failed": 2,
+                },
+                "recent_events": {"auth_succeeded": 15, "auth_failed": 2, "payment_captured": 8},
+                "overdue_authorizations": 0,
+                "minutes_since_last_auth": 45,
+                "alerts": [],
+                "metrics": {
+                    "pending": 5,
+                    "scheduled": 12,
+                    "authorized": 25,
+                    "captured": 150,
+                    "failed": 2,
+                    "abandoned": 0,
+                },
+            }
+        }
+    )
+
+
+class PaymentHealthCheckTriggerResponse(BaseModel):
+    """Response for manually triggered payment health check."""
+
+    status: str = Field(description="Trigger status")
+    task_id: str = Field(description="Celery task ID")
+    message: str = Field(description="Status message")
+    timestamp: str = Field(description="Trigger timestamp")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "status": "triggered",
+                "task_id": "a1b2c3d4-e5f6-7g8h-9i0j-k1l2m3n4o5p6",
+                "message": "Health check task has been queued",
+                "timestamp": "2025-01-20T10:30:00.123456",
+            }
+        }
+    )

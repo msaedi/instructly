@@ -27,6 +27,7 @@ from .middleware.prometheus_middleware import PrometheusMiddleware
 from .middleware.rate_limiter_asgi import RateLimitMiddlewareASGI
 from .middleware.timing_asgi import TimingMiddlewareASGI
 from .routes import (
+    account_management,
     addresses,
     alerts,
     analytics,
@@ -36,6 +37,7 @@ from .routes import (
     codebase_metrics,
     database_monitor,
     favorites,
+    instructor_bookings,
     instructors,
     messages,
     metrics,
@@ -198,6 +200,8 @@ app.add_middleware(SSEAwareGZipMiddleware, minimum_size=500)
 app.include_router(auth.router)
 app.include_router(two_factor_auth.router)
 app.include_router(instructors.router)
+app.include_router(instructor_bookings.router)
+app.include_router(account_management.router)
 app.include_router(services.router)
 app.include_router(availability_windows.router)
 app.include_router(password_reset.router)

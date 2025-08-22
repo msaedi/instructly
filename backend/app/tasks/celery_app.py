@@ -109,6 +109,7 @@ def create_celery_app() -> Celery:
         "app.tasks.notifications.*": {"queue": "notifications"},
         "app.tasks.analytics.*": {"queue": "analytics"},
         "app.tasks.cleanup.*": {"queue": "maintenance"},
+        "app.tasks.payment_tasks.*": {"queue": "payments"},  # Critical payment tasks
     }
 
     # Set up task autodiscovery (namespace package)
@@ -120,6 +121,7 @@ def create_celery_app() -> Celery:
         from app.tasks import analytics as _analytics  # noqa: F401
         from app.tasks import codebase_metrics as _codebase_metrics  # noqa: F401
         from app.tasks import monitoring_tasks as _monitoring_tasks  # noqa: F401
+        from app.tasks import payment_tasks as _payment_tasks  # noqa: F401
         from app.tasks import privacy_audit_task as _privacy_audit_task  # noqa: F401
         from app.tasks import privacy_tasks as _privacy_tasks  # noqa: F401
         from app.tasks import search_analytics as _search_analytics  # noqa: F401

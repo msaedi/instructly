@@ -134,6 +134,210 @@ class BookingService(BaseService):
 
         return booking
 
+    @BaseService.measure_operation("create_booking_with_payment_setup")
+    async def create_booking_with_payment_setup(
+        self, student: User, booking_data: BookingCreate, selected_duration: int
+    ) -> Booking:
+        """
+        Create a booking with payment setup (Phase 2.1).
+
+        Similar to create_booking but:
+        1. Sets status to 'PENDING' initially
+        2. Creates Stripe SetupIntent for card collection
+        3. Returns booking with setup_intent_client_secret attached
+
+        Args:
+            student: The student creating the booking
+            booking_data: Booking creation data
+            selected_duration: Selected duration in minutes
+
+        Returns:
+            Booking with setup_intent_client_secret attached
+        """
+        import stripe
+
+        from ..services.stripe_service import StripeService
+
+        self.log_operation(
+            "create_booking_with_payment_setup",
+            student_id=student.id,
+            instructor_id=booking_data.instructor_id,
+            date=booking_data.booking_date,
+        )
+
+        # 1. Validate and load required data
+        service, instructor_profile = await self._validate_booking_prerequisites(student, booking_data)
+
+        # 2. Validate selected duration
+        if selected_duration not in service.duration_options:
+            raise ValidationException(
+                f"Invalid duration {selected_duration}. Available options: {service.duration_options}"
+            )
+
+        # 3. Calculate end time
+        start_datetime = datetime.combine(booking_data.booking_date, booking_data.start_time)
+        end_datetime = start_datetime + timedelta(minutes=selected_duration)
+        calculated_end_time = end_datetime.time()
+        booking_data.end_time = calculated_end_time
+
+        # 4. Check conflicts and apply business rules
+        await self._check_conflicts_and_rules(booking_data, service, instructor_profile, student)
+
+        # 5. Create booking with PENDING status initially
+        with self.transaction():
+            booking = await self._create_booking_record(
+                student, booking_data, service, selected_duration, instructor_profile
+            )
+
+            # Override status to PENDING until payment confirmed
+            booking.status = BookingStatus.PENDING
+            booking.payment_status = "pending_payment_method"
+
+            # 6. Create Stripe SetupIntent
+            stripe_service = StripeService(self.db)
+
+            # Ensure customer exists in Stripe
+            stripe_customer = stripe_service.get_or_create_customer(student.id)
+
+            # Create SetupIntent with booking metadata
+            setup_intent = stripe.SetupIntent.create(
+                customer=stripe_customer.stripe_customer_id,
+                payment_method_types=["card"],
+                usage="off_session",  # Will be used for future off-session payments
+                metadata={
+                    "booking_id": booking.id,
+                    "student_id": student.id,
+                    "instructor_id": booking_data.instructor_id,
+                    "amount_cents": int(booking.total_price * 100),
+                },
+            )
+
+            # Store setup intent ID
+            booking.payment_intent_id = setup_intent.id
+
+            # Attach client_secret to booking for response
+            booking.setup_intent_client_secret = setup_intent.client_secret
+
+            # Create payment event using repository
+            from ..repositories.payment_repository import PaymentRepository
+
+            payment_repo = PaymentRepository(self.db)
+            payment_repo.create_payment_event(
+                booking_id=booking.id,
+                event_type="setup_intent_created",
+                event_data={
+                    "setup_intent_id": setup_intent.id,
+                    "status": setup_intent.status,
+                },
+            )
+
+            # Transaction handles flush/commit automatically
+
+        self.log_success("create_booking_with_payment_setup", booking_id=booking.id)
+        return booking
+
+    @BaseService.measure_operation("confirm_booking_payment")
+    async def confirm_booking_payment(
+        self, booking_id: str, student: User, payment_method_id: str, save_payment_method: bool = False
+    ) -> Booking:
+        """
+        Confirm payment method for a booking (Phase 2.1 & 2.2).
+
+        1. Validates booking ownership
+        2. Saves payment method to booking
+        3. Schedules authorization based on lesson timing
+        4. Updates status from PENDING to CONFIRMED
+
+        Args:
+            booking_id: The booking to confirm
+            student: The student confirming payment
+            payment_method_id: Stripe payment method ID
+            save_payment_method: Whether to save for future use
+
+        Returns:
+            Updated booking with confirmed status
+        """
+        from datetime import datetime
+
+        from ..repositories.payment_repository import PaymentRepository
+
+        self.log_operation("confirm_booking_payment", booking_id=booking_id, student_id=student.id)
+
+        # Get booking and validate ownership
+        booking = self.repository.get_by_id(booking_id)
+        if not booking:
+            raise NotFoundException(f"Booking {booking_id} not found")
+
+        if booking.student_id != student.id:
+            raise ValidationException("You can only confirm payment for your own bookings")
+
+        if booking.status != BookingStatus.PENDING:
+            raise ValidationException(f"Cannot confirm payment for booking with status {booking.status}")
+
+        with self.transaction():
+            # Save payment method
+            booking.payment_method_id = payment_method_id
+            booking.payment_status = "payment_method_saved"
+
+            # Save payment method for future use if requested
+            if save_payment_method:
+                from ..services.stripe_service import StripeService
+
+                stripe_service = StripeService(self.db)
+                stripe_service.save_payment_method(
+                    user_id=student.id, payment_method_id=payment_method_id, set_as_default=False
+                )
+
+            # Phase 2.2: Schedule authorization based on lesson timing
+            booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+            now = datetime.now()
+            hours_until_lesson = (booking_datetime - now).total_seconds() / 3600
+
+            if hours_until_lesson <= 24:
+                # Lesson is within 24 hours - authorize immediately
+                booking.payment_status = "authorizing"
+
+                # Create auth event using repository
+                payment_repo = PaymentRepository(self.db)
+                payment_repo.create_payment_event(
+                    booking_id=booking.id,
+                    event_type="auth_immediate",
+                    event_data={
+                        "payment_method_id": payment_method_id,
+                        "hours_until_lesson": hours_until_lesson,
+                        "scheduled_for": "immediate",
+                    },
+                )
+
+                # TODO: Call authorization job immediately
+                # This will be implemented in Phase 3
+
+            else:
+                # Lesson is >24 hours away - schedule authorization
+                auth_time = booking_datetime - timedelta(hours=24)
+                booking.payment_status = "scheduled"
+
+                # Create scheduled event using repository
+                payment_repo = PaymentRepository(self.db)
+                payment_repo.create_payment_event(
+                    booking_id=booking.id,
+                    event_type="auth_scheduled",
+                    event_data={
+                        "payment_method_id": payment_method_id,
+                        "scheduled_for": auth_time.isoformat(),
+                        "hours_until_lesson": hours_until_lesson,
+                    },
+                )
+
+            # Update booking status to CONFIRMED
+            booking.status = BookingStatus.CONFIRMED
+            booking.confirmed_at = datetime.now()
+
+            # Transaction handles flush/commit automatically
+
+        self.log_success("confirm_booking_payment", booking_id=booking.id, payment_status=booking.payment_status)
+        return booking
+
     @BaseService.measure_operation("find_booking_opportunities")
     async def find_booking_opportunities(
         self,

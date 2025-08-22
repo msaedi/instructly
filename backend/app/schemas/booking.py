@@ -108,6 +108,19 @@ class BookingCreate(BaseModel):
         return self
 
 
+class BookingConfirmPayment(BaseModel):
+    """
+    Confirm payment method for a booking after SetupIntent completion.
+
+    Used in the two-step booking flow:
+    1. Create booking (returns SetupIntent client_secret)
+    2. Confirm payment (this schema) after card details collected
+    """
+
+    payment_method_id: str = Field(..., description="Stripe payment method ID from completed SetupIntent")
+    save_payment_method: bool = Field(False, description="Whether to save this payment method for future use")
+
+
 class BookingUpdate(BaseModel):
     """
     Schema for updating booking details.
@@ -237,6 +250,19 @@ class BookingResponse(BookingBase):
     student: StudentInfo  # Students see their own full info
     instructor: InstructorInfo  # Privacy-aware: only has last_initial
     instructor_service: ServiceInfo
+
+
+class BookingCreateResponse(BookingResponse):
+    """
+    Response after creating a booking with payment setup.
+
+    Includes SetupIntent client_secret for collecting payment method.
+    """
+
+    setup_intent_client_secret: Optional[str] = Field(
+        None, description="Stripe SetupIntent client_secret for collecting payment method"
+    )
+    requires_payment_method: bool = Field(True, description="Whether payment method is required before confirmation")
 
     @property
     def is_cancellable(self) -> bool:

@@ -91,7 +91,7 @@ from ..services.week_operation_service import WeekOperationService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/instructors/availability-windows", tags=["availability-windows"])
+router = APIRouter(prefix="/instructors/availability", tags=["availability"])
 
 
 def verify_instructor(current_user: User) -> User:

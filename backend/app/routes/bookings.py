@@ -52,7 +52,9 @@ from ..schemas.booking import (
     AvailabilityCheckRequest,
     AvailabilityCheckResponse,
     BookingCancel,
+    BookingConfirmPayment,
     BookingCreate,
+    BookingCreateResponse,
     BookingResponse,
     BookingStatsResponse,
     BookingUpdate,
@@ -351,20 +353,26 @@ async def get_bookings(
         handle_domain_exception(e)
 
 
-@router.post("/", response_model=BookingResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=BookingCreateResponse, status_code=status.HTTP_201_CREATED)
 @rate_limit(
     f"{settings.rate_limit_booking_per_minute}/minute",
     key_type=RateLimitKeyType.USER,
     error_message="Too many booking attempts. Please wait a moment and try again.",
 )
 async def create_booking(
-    request: Request,  # ADD THIS for rate limiting
+    request: Request,  # Required for rate limiting
     booking_data: BookingCreate,
     current_user: User = Depends(get_current_active_user),
     booking_service: BookingService = Depends(get_booking_service),
 ):
     """
-    Create an instant booking with time-based information.
+    Create a booking with payment setup (Phase 2.1).
+
+    Two-step flow:
+    1. Creates booking with 'pending_payment' status
+    2. Returns SetupIntent client_secret for card collection
+    3. Frontend collects card details
+    4. Call /bookings/{id}/confirm-payment to complete
 
     CLEAN ARCHITECTURE: Uses instructor_id, date, and time range.
     No slot references. Bookings are self-contained.
@@ -372,21 +380,63 @@ async def create_booking(
     Rate limited per user to prevent booking spam.
     """
     try:
-        # The schema now enforces the correct format with extra='forbid'
-        # BookingCreate has: instructor_id, service_id, booking_date, start_time, selected_duration, etc.
-        # Extract selected_duration from booking_data
         selected_duration = booking_data.selected_duration
 
-        booking = await booking_service.create_booking(
+        # Create booking with pending_payment status
+        booking = await booking_service.create_booking_with_payment_setup(
             student=current_user, booking_data=booking_data, selected_duration=selected_duration
         )
 
-        return BookingResponse.from_orm(booking)
+        # Build response with SetupIntent details
+        response = BookingCreateResponse.from_orm(booking)
+
+        # The service should have attached the setup_intent_client_secret
+        if hasattr(booking, "setup_intent_client_secret"):
+            response.setup_intent_client_secret = booking.setup_intent_client_secret
+            response.requires_payment_method = True
+
+        return response
     except DomainException as e:
         handle_domain_exception(e)
 
 
 # 3. Finally: routes with path parameters
+
+
+@router.post("/{booking_id}/confirm-payment", response_model=BookingResponse)
+async def confirm_booking_payment(
+    booking_id: str,
+    payment_data: BookingConfirmPayment,
+    current_user: User = Depends(get_current_active_user),
+    booking_service: BookingService = Depends(get_booking_service),
+):
+    """
+    Confirm payment method for a booking (Phase 2.1).
+
+    Called after frontend collects card details via SetupIntent.
+    This completes the booking creation flow:
+    1. Saves payment method to booking
+    2. Schedules authorization based on lesson timing
+    3. Updates booking status from 'pending_payment' to 'confirmed'
+
+    Args:
+        booking_id: The booking to confirm payment for
+        payment_data: Payment method ID and save preference
+
+    Returns:
+        Updated BookingResponse with confirmed status
+    """
+    try:
+        booking = await booking_service.confirm_booking_payment(
+            booking_id=booking_id,
+            student=current_user,
+            payment_method_id=payment_data.payment_method_id,
+            save_payment_method=payment_data.save_payment_method,
+        )
+
+        return BookingResponse.from_orm(booking)
+    except DomainException as e:
+        handle_domain_exception(e)
 
 
 @router.get("/{booking_id}/preview", response_model=BookingPreviewResponse)

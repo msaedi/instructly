@@ -24,7 +24,14 @@ from sqlalchemy.orm import Session
 
 from ..core.exceptions import RepositoryException
 from ..models.booking import Booking
-from ..models.payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, StripeCustomer
+from ..models.payment import (
+    PaymentEvent,
+    PaymentIntent,
+    PaymentMethod,
+    PlatformCredit,
+    StripeConnectedAccount,
+    StripeCustomer,
+)
 from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
@@ -607,3 +614,223 @@ class PaymentRepository(BaseRepository):
         except Exception as e:
             self.logger.error(f"Failed to get user payment history: {str(e)}")
             raise RepositoryException(f"Failed to get user payment history: {str(e)}")
+
+    # ========== Payment Events (Phase 1.1) ==========
+
+    def create_payment_event(
+        self, booking_id: str, event_type: str, event_data: Optional[Dict[str, Any]] = None
+    ) -> PaymentEvent:
+        """
+        Create a payment event for tracking payment state changes.
+
+        Args:
+            booking_id: The booking this event relates to
+            event_type: Type of event (e.g., 'auth_scheduled', 'auth_succeeded')
+            event_data: Optional JSON data for the event
+
+        Returns:
+            Created PaymentEvent object
+
+        Raises:
+            RepositoryException: If creation fails
+        """
+        try:
+            event = PaymentEvent(
+                id=str(ulid.ULID()),
+                booking_id=booking_id,
+                event_type=event_type,
+                event_data=event_data or {},
+            )
+            self.db.add(event)
+            self.db.flush()
+            return event
+        except Exception as e:
+            self.logger.error(f"Failed to create payment event: {str(e)}")
+            raise RepositoryException(f"Failed to create payment event: {str(e)}")
+
+    def get_payment_events_for_booking(self, booking_id: str) -> List[PaymentEvent]:
+        """
+        Get all payment events for a booking.
+
+        Args:
+            booking_id: The booking ID
+
+        Returns:
+            List of PaymentEvent objects ordered by creation time
+
+        Raises:
+            RepositoryException: If query fails
+        """
+        try:
+            return (
+                self.db.query(PaymentEvent)
+                .filter(PaymentEvent.booking_id == booking_id)
+                .order_by(PaymentEvent.created_at.asc())
+                .all()
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to get payment events: {str(e)}")
+            raise RepositoryException(f"Failed to get payment events: {str(e)}")
+
+    def get_latest_payment_event(self, booking_id: str, event_type: Optional[str] = None) -> Optional[PaymentEvent]:
+        """
+        Get the latest payment event for a booking.
+
+        Args:
+            booking_id: The booking ID
+            event_type: Optional specific event type to filter
+
+        Returns:
+            Latest PaymentEvent or None
+
+        Raises:
+            RepositoryException: If query fails
+        """
+        try:
+            query = self.db.query(PaymentEvent).filter(PaymentEvent.booking_id == booking_id)
+
+            if event_type:
+                query = query.filter(PaymentEvent.event_type == event_type)
+
+            # Use ID for ordering since ULIDs are time-ordered and have better resolution
+            return query.order_by(PaymentEvent.id.desc()).first()
+        except Exception as e:
+            self.logger.error(f"Failed to get latest payment event: {str(e)}")
+            raise RepositoryException(f"Failed to get latest payment event: {str(e)}")
+
+    # ========== Platform Credits (Phase 1.3) ==========
+
+    def create_platform_credit(
+        self,
+        user_id: str,
+        amount_cents: int,
+        reason: str,
+        source_booking_id: Optional[str] = None,
+        expires_at: Optional[datetime] = None,
+    ) -> PlatformCredit:
+        """
+        Create a platform credit for a user.
+
+        Args:
+            user_id: User to credit
+            amount_cents: Amount in cents
+            reason: Reason for the credit
+            source_booking_id: Optional booking that generated this credit
+            expires_at: Optional expiration date
+
+        Returns:
+            Created PlatformCredit object
+
+        Raises:
+            RepositoryException: If creation fails
+        """
+        try:
+            credit = PlatformCredit(
+                id=str(ulid.ULID()),
+                user_id=user_id,
+                amount_cents=amount_cents,
+                reason=reason,
+                source_booking_id=source_booking_id,
+                expires_at=expires_at,
+            )
+            self.db.add(credit)
+            self.db.flush()
+            return credit
+        except Exception as e:
+            self.logger.error(f"Failed to create platform credit: {str(e)}")
+            raise RepositoryException(f"Failed to create platform credit: {str(e)}")
+
+    def get_available_credits(self, user_id: str) -> List[PlatformCredit]:
+        """
+        Get all available (unused, unexpired) credits for a user.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            List of available PlatformCredit objects
+
+        Raises:
+            RepositoryException: If query fails
+        """
+        try:
+            now = datetime.utcnow()
+            return (
+                self.db.query(PlatformCredit)
+                .filter(
+                    and_(
+                        PlatformCredit.user_id == user_id,
+                        PlatformCredit.used_at.is_(None),
+                        # Either no expiration or not expired yet
+                        (PlatformCredit.expires_at.is_(None) | (PlatformCredit.expires_at > now)),
+                    )
+                )
+                .order_by(PlatformCredit.expires_at.asc().nullslast())  # Use expiring credits first
+                .all()
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to get available credits: {str(e)}")
+            raise RepositoryException(f"Failed to get available credits: {str(e)}")
+
+    def get_total_available_credits(self, user_id: str) -> int:
+        """
+        Get total available credit amount for a user in cents.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            Total available credits in cents
+
+        Raises:
+            RepositoryException: If query fails
+        """
+        try:
+            now = datetime.utcnow()
+            result = (
+                self.db.query(func.sum(PlatformCredit.amount_cents))
+                .filter(
+                    and_(
+                        PlatformCredit.user_id == user_id,
+                        PlatformCredit.used_at.is_(None),
+                        (PlatformCredit.expires_at.is_(None) | (PlatformCredit.expires_at > now)),
+                    )
+                )
+                .scalar()
+            )
+            return result or 0
+        except Exception as e:
+            self.logger.error(f"Failed to get total available credits: {str(e)}")
+            raise RepositoryException(f"Failed to get total available credits: {str(e)}")
+
+    def mark_credit_used(self, credit_id: str, used_booking_id: str) -> PlatformCredit:
+        """
+        Mark a platform credit as used.
+
+        Args:
+            credit_id: Credit ID to mark as used
+            used_booking_id: Booking where credit was used
+
+        Returns:
+            Updated PlatformCredit object
+
+        Raises:
+            RepositoryException: If update fails
+        """
+        try:
+            credit = self.db.query(PlatformCredit).filter(PlatformCredit.id == credit_id).first()
+            if not credit:
+                raise RepositoryException(f"Platform credit {credit_id} not found")
+
+            if credit.used_at:
+                raise RepositoryException(f"Platform credit {credit_id} already used")
+
+            credit.used_at = datetime.utcnow()
+            credit.used_booking_id = used_booking_id
+            self.db.flush()
+            return credit
+        except RepositoryException:
+            raise
+        except Exception as e:
+            self.logger.error(f"Failed to mark credit as used: {str(e)}")
+            raise RepositoryException(f"Failed to mark credit as used: {str(e)}")

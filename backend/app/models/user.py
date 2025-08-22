@@ -114,6 +114,7 @@ class User(Base):
     # Payment relationships
     stripe_customer = relationship("StripeCustomer", back_populates="user", uselist=False, cascade="all, delete-orphan")
     payment_methods = relationship("PaymentMethod", back_populates="user", cascade="all, delete-orphan")
+    platform_credits = relationship("PlatformCredit", back_populates="user", cascade="all, delete-orphan")
 
     # Favorites relationships
     # Favorites where this user is the student (instructors they've favorited)

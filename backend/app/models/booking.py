@@ -93,6 +93,11 @@ class Booking(Base):
     cancelled_by_id = Column(String(26), ForeignKey("users.id"), nullable=True)
     cancellation_reason = Column(Text, nullable=True)
 
+    # Payment fields (Phase 1.2)
+    payment_method_id = Column(String(255), nullable=True, comment="Stripe payment method ID")
+    payment_intent_id = Column(String(255), nullable=True, comment="Current Stripe payment intent")
+    payment_status = Column(String(50), nullable=True, comment="Computed from latest events")
+
     # Relationships
     student = relationship("User", foreign_keys=[student_id], backref="student_bookings")
     instructor = relationship("User", foreign_keys=[instructor_id], backref="instructor_bookings")
@@ -101,6 +106,13 @@ class Booking(Base):
     messages = relationship("Message", back_populates="booking", cascade="all, delete-orphan")
     payment_intent = relationship(
         "PaymentIntent", back_populates="booking", uselist=False, cascade="all, delete-orphan"
+    )
+    payment_events = relationship("PaymentEvent", back_populates="booking", cascade="all, delete-orphan")
+    generated_credits = relationship(
+        "PlatformCredit", foreign_keys="PlatformCredit.source_booking_id", back_populates="source_booking"
+    )
+    used_credits = relationship(
+        "PlatformCredit", foreign_keys="PlatformCredit.used_booking_id", back_populates="used_booking"
     )
 
     # Data integrity constraints

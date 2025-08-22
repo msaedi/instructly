@@ -1,0 +1,941 @@
+"""
+Celery tasks for payment processing.
+
+Handles scheduled authorizations, retries, captures, and payouts.
+Implements proper retry timing windows based on lesson time.
+"""
+
+import logging
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
+
+import stripe
+from celery import shared_task
+from sqlalchemy import and_, or_
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.core.database import get_db
+from app.core.exceptions import PaymentException
+from app.models.booking import Booking, BookingStatus
+from app.models.instructor import InstructorProfile
+from app.models.payment import PaymentEvent, StripeCustomer
+from app.repositories.factory import RepositoryFactory
+from app.services.notification_service import NotificationService
+
+logger = logging.getLogger(__name__)
+
+# Configure Stripe
+stripe.api_key = settings.stripe_secret_key.get_secret_value() if settings.stripe_secret_key else None
+STRIPE_CURRENCY = settings.stripe_currency if hasattr(settings, "stripe_currency") else "usd"
+PLATFORM_FEE_PERCENTAGE = 0.15  # 15% platform fee
+
+
+@shared_task(bind=True, max_retries=3)
+def process_scheduled_authorizations(self) -> Dict[str, Any]:
+    """
+    Process scheduled payment authorizations.
+
+    Runs every 30 minutes to authorize payments for bookings
+    that are approaching their 24-hour pre-authorization window.
+
+    Returns:
+        Dict with success/failure counts and details
+    """
+    try:
+        db = next(get_db())
+        payment_repo = RepositoryFactory.get_payment_repository(db)
+        booking_repo = RepositoryFactory.get_booking_repository(db)
+
+        # Find bookings that need authorization (T-24 hours)
+        now = datetime.now(timezone.utc)
+        auth_window_start = now + timedelta(hours=23, minutes=30)  # 23.5 hours
+        auth_window_end = now + timedelta(hours=24, minutes=30)  # 24.5 hours
+
+        # Get bookings that need authorization
+        bookings_to_authorize = booking_repo.get_bookings_for_payment_authorization()
+
+        results = {
+            "success": 0,
+            "failed": 0,
+            "failures": [],
+            "processed_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        for booking in bookings_to_authorize:
+            # Calculate exact time until lesson
+            booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+            hours_until_lesson = (booking_datetime - now).total_seconds() / 3600
+
+            # Only process if in the 23.5-24.5 hour window
+            if not (23.5 <= hours_until_lesson <= 24.5):
+                continue
+
+            try:
+                # Get student's Stripe customer
+                student_customer = payment_repo.get_customer_by_user_id(booking.student_id)
+                if not student_customer:
+                    raise Exception(f"No Stripe customer for student {booking.student_id}")
+
+                # Get instructor's Stripe account
+                from ..repositories.instructor_repository import InstructorRepository
+
+                instructor_repo = InstructorRepository(db)
+                instructor_profile = instructor_repo.get_by_user_id(booking.instructor_id)
+                instructor_account = payment_repo.get_connected_account_by_instructor_id(
+                    instructor_profile.id if instructor_profile else None
+                )
+
+                if not instructor_account or not instructor_account.stripe_account_id:
+                    raise Exception(f"No Stripe account for instructor {booking.instructor_id}")
+
+                # Create PaymentIntent with manual capture (authorization only)
+                amount_cents = int(booking.total_price * 100)
+                application_fee = int(amount_cents * PLATFORM_FEE_PERCENTAGE)
+
+                payment_intent = stripe.PaymentIntent.create(
+                    amount=amount_cents,
+                    currency=STRIPE_CURRENCY,
+                    customer=student_customer.stripe_customer_id,
+                    payment_method=booking.payment_method_id,
+                    capture_method="manual",  # CRITICAL: Don't capture yet
+                    confirm=True,  # Authorize immediately
+                    transfer_data={"destination": instructor_account.stripe_account_id},
+                    application_fee_amount=application_fee,
+                    metadata={
+                        "booking_id": booking.id,
+                        "student_id": booking.student_id,
+                        "instructor_id": booking.instructor_id,
+                        "lesson_datetime": booking_datetime.isoformat(),
+                    },
+                )
+
+                # Update booking with payment intent
+                booking.payment_intent_id = payment_intent.id
+                booking.payment_status = "authorized"
+
+                # Record success event
+                payment_repo.create_payment_event(
+                    booking_id=booking.id,
+                    event_type="auth_succeeded",
+                    event_data={
+                        "payment_intent_id": payment_intent.id,
+                        "amount_cents": amount_cents,
+                        "application_fee_cents": application_fee,
+                        "authorized_at": datetime.now(timezone.utc).isoformat(),
+                        "hours_before_lesson": round(hours_until_lesson, 1),
+                    },
+                )
+
+                results["success"] += 1
+                logger.info(f"Successfully authorized payment for booking {booking.id}")
+
+            except stripe.error.CardError as e:
+                # Card was declined
+                handle_authorization_failure(booking, payment_repo, str(e), "card_declined", hours_until_lesson)
+                results["failed"] += 1
+                results["failures"].append(
+                    {
+                        "booking_id": booking.id,
+                        "error": str(e),
+                        "type": "card_declined",
+                    }
+                )
+
+            except Exception as e:
+                # Other error
+                handle_authorization_failure(booking, payment_repo, str(e), "system_error", hours_until_lesson)
+                results["failed"] += 1
+                results["failures"].append(
+                    {
+                        "booking_id": booking.id,
+                        "error": str(e),
+                        "type": "system_error",
+                    }
+                )
+
+        db.commit()
+
+        # Log results
+        if results["failed"] > 0:
+            logger.warning(f"Authorization job completed with {results['failed']} failures")
+
+        logger.info(f"Authorization job completed: {results['success']} success, {results['failed']} failed")
+        return results
+
+    except Exception as exc:
+        logger.error(f"Authorization job failed: {exc}")
+        raise self.retry(exc=exc, countdown=300)  # Retry in 5 minutes
+    finally:
+        db.close()
+
+
+@shared_task(bind=True, max_retries=5)
+def retry_failed_authorizations(self) -> Dict[str, Any]:
+    """
+    Retry failed payment authorizations at specific time windows.
+
+    Retry windows:
+    - T-22hr: First retry
+    - T-20hr: Second retry
+    - T-18hr: Third retry
+    - T-12hr: Final warning email + retry
+    - T-6hr: Cancel booking if still failing
+
+    Returns:
+        Dict with retry results
+    """
+    try:
+        db = next(get_db())
+        payment_repo = RepositoryFactory.get_payment_repository(db)
+        notification_service = NotificationService(db)
+
+        now = datetime.now(timezone.utc)
+
+        # Find bookings with failed auth
+        bookings_to_retry = booking_repo.get_bookings_for_payment_retry()
+
+        results = {
+            "retried": 0,
+            "success": 0,
+            "failed": 0,
+            "cancelled": 0,
+            "warnings_sent": 0,
+            "processed_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        for booking in bookings_to_retry:
+            # Calculate hours until lesson
+            booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+            hours_until_lesson = (booking_datetime - now).total_seconds() / 3600
+
+            # Skip if lesson already happened
+            if hours_until_lesson < 0:
+                continue
+
+            # Determine action based on time until lesson
+            if hours_until_lesson <= 6:
+                # Too late - cancel the booking
+                booking.status = BookingStatus.CANCELLED
+                booking.payment_status = "auth_abandoned"
+                booking.cancelled_at = now
+                booking.cancellation_reason = "Payment authorization failed after multiple attempts"
+
+                payment_repo.create_payment_event(
+                    booking_id=booking.id,
+                    event_type="auth_abandoned",
+                    event_data={
+                        "reason": "T-6hr cancellation",
+                        "hours_until_lesson": round(hours_until_lesson, 1),
+                        "cancelled_at": now.isoformat(),
+                    },
+                )
+
+                # Send cancellation notification
+                notification_service.send_booking_cancelled_payment_failed(booking)
+                results["cancelled"] += 1
+                logger.info(f"Cancelled booking {booking.id} due to payment failure (T-{hours_until_lesson:.1f}hr)")
+
+            elif hours_until_lesson <= 12:
+                # T-12hr: Send final warning and retry
+                if not has_event_type(payment_repo, booking.id, "final_warning_sent"):
+                    # Send final warning email
+                    notification_service.send_final_payment_warning(booking, hours_until_lesson)
+
+                    payment_repo.create_payment_event(
+                        booking_id=booking.id,
+                        event_type="final_warning_sent",
+                        event_data={
+                            "hours_until_lesson": round(hours_until_lesson, 1),
+                            "sent_at": now.isoformat(),
+                        },
+                    )
+                    results["warnings_sent"] += 1
+
+                # Attempt retry
+                if attempt_authorization_retry(booking, payment_repo, db, hours_until_lesson):
+                    results["success"] += 1
+                else:
+                    results["failed"] += 1
+
+                results["retried"] += 1
+
+            elif hours_until_lesson in range(17, 23):  # T-18hr, T-20hr, T-22hr windows
+                # Silent retry at specific windows
+                retry_windows = [18, 20, 22]
+                should_retry = any(abs(hours_until_lesson - window) < 0.5 for window in retry_windows)
+
+                if should_retry:
+                    # Check if we already retried at this window
+                    recent_events = payment_repo.get_payment_events_for_booking(booking.id)
+                    recent_retry_times = [
+                        e.created_at
+                        for e in recent_events
+                        if e.event_type in ["auth_retry_attempted", "auth_retry_succeeded"]
+                        and (now - e.created_at).total_seconds() < 3600  # Within last hour
+                    ]
+
+                    if not recent_retry_times:  # Haven't retried recently
+                        if attempt_authorization_retry(booking, payment_repo, db, hours_until_lesson):
+                            results["success"] += 1
+                        else:
+                            results["failed"] += 1
+                        results["retried"] += 1
+
+        db.commit()
+
+        logger.info(
+            f"Retry job completed: {results['retried']} attempted, "
+            f"{results['success']} success, {results['failed']} failed, "
+            f"{results['cancelled']} cancelled, {results['warnings_sent']} warnings sent"
+        )
+        return results
+
+    except Exception as exc:
+        logger.error(f"Retry job failed: {exc}")
+        raise self.retry(exc=exc, countdown=600)  # Retry in 10 minutes
+    finally:
+        db.close()
+
+
+def handle_authorization_failure(
+    booking: Booking, payment_repo: Any, error: str, error_type: str, hours_until_lesson: float
+) -> None:
+    """Handle authorization failure by updating status and recording event."""
+    booking.payment_status = "auth_failed"
+
+    payment_repo.create_payment_event(
+        booking_id=booking.id,
+        event_type="auth_failed",
+        event_data={
+            "error": error,
+            "error_type": error_type,
+            "hours_until_lesson": round(hours_until_lesson, 1),
+            "failed_at": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
+    logger.error(f"Failed to authorize payment for booking {booking.id}: {error}")
+
+
+def attempt_authorization_retry(booking: Booking, payment_repo: Any, db: Session, hours_until_lesson: float) -> bool:
+    """
+    Attempt to retry authorization for a booking.
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Record retry attempt
+        payment_repo.create_payment_event(
+            booking_id=booking.id,
+            event_type="auth_retry_attempted",
+            event_data={
+                "hours_until_lesson": round(hours_until_lesson, 1),
+                "attempted_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+
+        # Get student's Stripe customer
+        student_customer = payment_repo.get_customer_by_user_id(booking.student_id)
+        if not student_customer:
+            raise Exception(f"No Stripe customer for student {booking.student_id}")
+
+        # Get instructor's Stripe account
+        from ..repositories.instructor_repository import InstructorRepository
+
+        instructor_repo = InstructorRepository(db)
+        instructor_profile = instructor_repo.get_by_user_id(booking.instructor_id)
+        instructor_account = payment_repo.get_connected_account_by_instructor_id(
+            instructor_profile.id if instructor_profile else None
+        )
+
+        if not instructor_account:
+            raise Exception(f"No Stripe account for instructor {booking.instructor_id}")
+
+        # Create new PaymentIntent
+        amount_cents = int(booking.total_price * 100)
+        application_fee = int(amount_cents * PLATFORM_FEE_PERCENTAGE)
+
+        payment_intent = stripe.PaymentIntent.create(
+            amount=amount_cents,
+            currency=STRIPE_CURRENCY,
+            customer=student_customer.stripe_customer_id,
+            payment_method=booking.payment_method_id,
+            capture_method="manual",
+            confirm=True,
+            transfer_data={"destination": instructor_account.stripe_account_id},
+            application_fee_amount=application_fee,
+            metadata={
+                "booking_id": booking.id,
+                "retry": "true",
+                "hours_until_lesson": str(round(hours_until_lesson, 1)),
+            },
+        )
+
+        # Update booking
+        booking.payment_intent_id = payment_intent.id
+        booking.payment_status = "authorized"
+
+        # Record success
+        payment_repo.create_payment_event(
+            booking_id=booking.id,
+            event_type="auth_retry_succeeded",
+            event_data={
+                "payment_intent_id": payment_intent.id,
+                "hours_until_lesson": round(hours_until_lesson, 1),
+                "succeeded_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+
+        logger.info(f"Successfully retried authorization for booking {booking.id} (T-{hours_until_lesson:.1f}hr)")
+        return True
+
+    except Exception as e:
+        # Record failure
+        payment_repo.create_payment_event(
+            booking_id=booking.id,
+            event_type="auth_retry_failed",
+            event_data={
+                "error": str(e),
+                "hours_until_lesson": round(hours_until_lesson, 1),
+                "failed_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+
+        booking.payment_status = "auth_retry_failed"
+        logger.error(f"Retry failed for booking {booking.id}: {e}")
+        return False
+
+
+def has_event_type(payment_repo: Any, booking_id: str, event_type: str) -> bool:
+    """Check if a booking has a specific event type in its history."""
+    events = payment_repo.get_payment_events_for_booking(booking_id)
+    return any(e.event_type == event_type for e in events)
+
+
+@shared_task(bind=True, max_retries=3)
+def capture_completed_lessons(self) -> Dict[str, Any]:
+    """
+    Capture payments for completed lessons.
+
+    Runs hourly to:
+    1. Capture payments 24hr after instructor marks complete
+    2. Auto-complete and capture lessons not marked complete within 24hr of end
+    3. Handle expired authorizations (>7 days old)
+
+    Returns:
+        Dict with capture results
+    """
+    try:
+        db = next(get_db())
+        payment_repo = RepositoryFactory.get_payment_repository(db)
+        now = datetime.now(timezone.utc)
+
+        results = {
+            "captured": 0,
+            "failed": 0,
+            "auto_completed": 0,
+            "expired_handled": 0,
+            "processed_at": now.isoformat(),
+        }
+
+        # 1. Find bookings ready for capture (24hr after instructor marked complete)
+        all_completed_bookings = booking_repo.get_bookings_for_payment_capture()
+        bookings_to_capture = [
+            booking
+            for booking in all_completed_bookings
+            if booking.completed_at and booking.completed_at <= now - timedelta(hours=24)
+        ]
+
+        for booking in bookings_to_capture:
+            capture_result = attempt_payment_capture(booking, payment_repo, "instructor_completed")
+            if capture_result["success"]:
+                results["captured"] += 1
+            else:
+                results["failed"] += 1
+
+        # 2. Auto-complete lessons not marked complete within 24hr of end
+        auto_complete_cutoff = now - timedelta(hours=24)
+        all_confirmed_bookings = booking_repo.get_bookings_for_auto_completion()
+
+        # Filter to only bookings where lesson ended >24hr ago
+        bookings_to_auto_complete = []
+        for booking in all_confirmed_bookings:
+            lesson_end = datetime.combine(booking.booking_date, booking.end_time)
+            if lesson_end <= auto_complete_cutoff:
+                bookings_to_auto_complete.append(booking)
+
+        for booking in bookings_to_auto_complete:
+            # Auto-complete the booking
+            booking.status = BookingStatus.COMPLETED
+            booking.completed_at = now
+
+            payment_repo.create_payment_event(
+                booking_id=booking.id,
+                event_type="auto_completed",
+                event_data={
+                    "reason": "No instructor confirmation within 24hr",
+                    "lesson_end": datetime.combine(booking.booking_date, booking.end_time).isoformat(),
+                    "auto_completed_at": now.isoformat(),
+                },
+            )
+
+            # Attempt capture
+            capture_result = attempt_payment_capture(booking, payment_repo, "auto_completed")
+            if capture_result["success"]:
+                results["captured"] += 1
+            else:
+                results["failed"] += 1
+
+            results["auto_completed"] += 1
+
+        # 3. Handle expired authorizations (>7 days old)
+        seven_days_ago = now - timedelta(days=7)
+        bookings_with_expired_auth = booking_repo.get_bookings_with_expired_auth()
+
+        for booking in bookings_with_expired_auth:
+            # Check when authorization was created
+            auth_events = payment_repo.get_payment_events_for_booking(booking.id)
+            auth_event = next(
+                (e for e in auth_events if e.event_type in ["auth_succeeded", "auth_retry_succeeded"]), None
+            )
+
+            if auth_event and auth_event.created_at <= seven_days_ago:
+                # Authorization is expired, need to handle it
+                if booking.status == BookingStatus.COMPLETED:
+                    # Try to capture anyway (might fail)
+                    capture_result = attempt_payment_capture(booking, payment_repo, "expired_auth")
+                    if not capture_result["success"]:
+                        # Create new authorization and capture
+                        new_auth_result = create_new_authorization_and_capture(booking, payment_repo, db)
+                        if new_auth_result["success"]:
+                            results["captured"] += 1
+                        else:
+                            results["failed"] += 1
+                else:
+                    # Mark as expired, will need manual intervention
+                    booking.payment_status = "auth_expired"
+                    payment_repo.create_payment_event(
+                        booking_id=booking.id,
+                        event_type="auth_expired",
+                        event_data={
+                            "payment_intent_id": booking.payment_intent_id,
+                            "expired_at": now.isoformat(),
+                            "auth_created_at": auth_event.created_at.isoformat(),
+                        },
+                    )
+
+                results["expired_handled"] += 1
+
+        db.commit()
+
+        logger.info(
+            f"Capture job completed: {results['captured']} captured, "
+            f"{results['failed']} failed, {results['auto_completed']} auto-completed, "
+            f"{results['expired_handled']} expired handled"
+        )
+        return results
+
+    except Exception as exc:
+        logger.error(f"Capture job failed: {exc}")
+        raise self.retry(exc=exc, countdown=300)  # Retry in 5 minutes
+    finally:
+        db.close()
+
+
+def attempt_payment_capture(booking: Booking, payment_repo: Any, capture_reason: str) -> Dict[str, bool]:
+    """
+    Attempt to capture a payment for a booking.
+
+    Handles various error cases:
+    - Already captured
+    - Authorization expired
+    - Authorization cancelled
+    - Insufficient funds
+
+    Returns:
+        Dict with success status and error details
+    """
+    try:
+        # Check if already captured
+        if booking.payment_status == "captured":
+            logger.info(f"Payment already captured for booking {booking.id}")
+            return {"success": True, "already_captured": True}
+
+        # Exclude cancelled bookings that were already captured
+        if booking.status == BookingStatus.CANCELLED and booking.payment_status == "captured":
+            logger.info(f"Skipping cancelled booking {booking.id} - already captured")
+            return {"success": True, "skipped": True}
+
+        # Attempt capture
+        captured_intent = stripe.PaymentIntent.capture(booking.payment_intent_id)
+
+        booking.payment_status = "captured"
+
+        payment_repo.create_payment_event(
+            booking_id=booking.id,
+            event_type="payment_captured",
+            event_data={
+                "payment_intent_id": booking.payment_intent_id,
+                "amount_captured_cents": captured_intent.amount_received,
+                "capture_reason": capture_reason,
+                "captured_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+
+        logger.info(f"Successfully captured payment for booking {booking.id} (reason: {capture_reason})")
+        return {"success": True}
+
+    except stripe.error.InvalidRequestError as e:
+        error_code = e.code if hasattr(e, "code") else None
+
+        if "already been captured" in str(e).lower():
+            # Already captured - update our records
+            booking.payment_status = "captured"
+            payment_repo.create_payment_event(
+                booking_id=booking.id,
+                event_type="capture_already_done",
+                event_data={
+                    "payment_intent_id": booking.payment_intent_id,
+                    "error": str(e),
+                },
+            )
+            return {"success": True, "already_captured": True}
+
+        elif "expired" in str(e).lower() or error_code == "payment_intent_unexpected_state":
+            # Authorization expired
+            payment_repo.create_payment_event(
+                booking_id=booking.id,
+                event_type="capture_failed_expired",
+                event_data={
+                    "payment_intent_id": booking.payment_intent_id,
+                    "error": str(e),
+                    "capture_reason": capture_reason,
+                },
+            )
+            booking.payment_status = "auth_expired"
+            return {"success": False, "expired": True}
+
+        else:
+            # Other invalid request error
+            payment_repo.create_payment_event(
+                booking_id=booking.id,
+                event_type="capture_failed",
+                event_data={
+                    "payment_intent_id": booking.payment_intent_id,
+                    "error": str(e),
+                    "error_code": error_code,
+                    "capture_reason": capture_reason,
+                },
+            )
+            return {"success": False, "error": str(e)}
+
+    except stripe.error.CardError as e:
+        # Insufficient funds or card issue at capture time
+        payment_repo.create_payment_event(
+            booking_id=booking.id,
+            event_type="capture_failed_card",
+            event_data={
+                "payment_intent_id": booking.payment_intent_id,
+                "error": str(e),
+                "error_code": e.code if hasattr(e, "code") else None,
+                "capture_reason": capture_reason,
+            },
+        )
+        booking.payment_status = "capture_failed"
+        return {"success": False, "card_error": True}
+
+    except Exception as e:
+        # Unexpected error
+        payment_repo.create_payment_event(
+            booking_id=booking.id,
+            event_type="capture_failed",
+            event_data={
+                "payment_intent_id": booking.payment_intent_id,
+                "error": str(e),
+                "capture_reason": capture_reason,
+            },
+        )
+        logger.error(f"Failed to capture payment for booking {booking.id}: {e}")
+        return {"success": False, "error": str(e)}
+
+
+def create_new_authorization_and_capture(booking: Booking, payment_repo: Any, db: Session) -> Dict[str, bool]:
+    """
+    Create a new authorization and immediately capture for expired authorizations.
+
+    Used when the original authorization has expired but we still need to charge.
+
+    Returns:
+        Dict with success status
+    """
+    try:
+        # Get student's Stripe customer
+        student_customer = payment_repo.get_customer_by_user_id(booking.student_id)
+        if not student_customer:
+            raise Exception(f"No Stripe customer for student {booking.student_id}")
+
+        # Get instructor's Stripe account
+        from ..repositories.instructor_repository import InstructorRepository
+
+        instructor_repo = InstructorRepository(db)
+        instructor_profile = instructor_repo.get_by_user_id(booking.instructor_id)
+        instructor_account = payment_repo.get_connected_account_by_instructor_id(
+            instructor_profile.id if instructor_profile else None
+        )
+
+        if not instructor_account:
+            raise Exception(f"No Stripe account for instructor {booking.instructor_id}")
+
+        # Create new PaymentIntent with immediate capture
+        amount_cents = int(booking.total_price * 100)
+        application_fee = int(amount_cents * PLATFORM_FEE_PERCENTAGE)
+
+        payment_intent = stripe.PaymentIntent.create(
+            amount=amount_cents,
+            currency=STRIPE_CURRENCY,
+            customer=student_customer.stripe_customer_id,
+            payment_method=booking.payment_method_id,
+            capture_method="automatic",  # Immediate capture
+            confirm=True,
+            transfer_data={"destination": instructor_account.stripe_account_id},
+            application_fee_amount=application_fee,
+            metadata={
+                "booking_id": booking.id,
+                "type": "expired_reauth",
+                "original_intent": booking.payment_intent_id,
+            },
+        )
+
+        # Update booking
+        booking.payment_intent_id = payment_intent.id
+        booking.payment_status = "captured"
+
+        payment_repo.create_payment_event(
+            booking_id=booking.id,
+            event_type="reauth_and_capture_success",
+            event_data={
+                "new_payment_intent_id": payment_intent.id,
+                "original_payment_intent_id": booking.payment_intent_id,
+                "amount_captured_cents": amount_cents,
+                "captured_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+
+        logger.info(f"Successfully created new auth and captured for booking {booking.id}")
+        return {"success": True}
+
+    except Exception as e:
+        payment_repo.create_payment_event(
+            booking_id=booking.id,
+            event_type="reauth_and_capture_failed",
+            event_data={
+                "error": str(e),
+                "original_payment_intent_id": booking.payment_intent_id,
+            },
+        )
+        logger.error(f"Failed to reauth and capture for booking {booking.id}: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@shared_task(bind=True, max_retries=3)
+def capture_late_cancellation(self, booking_id: str) -> Dict[str, Any]:
+    """
+    Immediately capture payment for late cancellations (<12hr before lesson).
+
+    Called when a booking is cancelled within 12 hours of the lesson.
+    Student is charged the full amount as per cancellation policy.
+
+    Args:
+        booking_id: The booking ID to capture payment for
+
+    Returns:
+        Dict with capture result
+    """
+    try:
+        db = next(get_db())
+        payment_repo = RepositoryFactory.get_payment_repository(db)
+
+        # Get the booking
+        booking_repo = RepositoryFactory.get_booking_repository(db)
+        booking = booking_repo.get_by_id(booking_id)
+        if not booking:
+            logger.error(f"Booking {booking_id} not found for late cancellation capture")
+            return {"success": False, "error": "Booking not found"}
+
+        # Verify this is a late cancellation
+        now = datetime.now(timezone.utc)
+        lesson_datetime = datetime.combine(booking.booking_date, booking.start_time)
+        hours_until_lesson = (lesson_datetime - now).total_seconds() / 3600
+
+        if hours_until_lesson >= 12:
+            logger.warning(f"Booking {booking_id} cancelled with {hours_until_lesson:.1f}hr notice - no charge")
+            return {"success": False, "error": "Not a late cancellation"}
+
+        # Check if payment is already captured
+        if booking.payment_status == "captured":
+            logger.info(f"Payment already captured for booking {booking_id}")
+            return {"success": True, "already_captured": True}
+
+        # Ensure we have an authorization to capture
+        if not booking.payment_intent_id:
+            logger.error(f"No payment intent for booking {booking_id}")
+            return {"success": False, "error": "No payment intent"}
+
+        # Attempt immediate capture
+        try:
+            captured_intent = stripe.PaymentIntent.capture(booking.payment_intent_id)
+
+            booking.payment_status = "captured"
+
+            payment_repo.create_payment_event(
+                booking_id=booking.id,
+                event_type="late_cancellation_captured",
+                event_data={
+                    "payment_intent_id": booking.payment_intent_id,
+                    "amount_captured_cents": captured_intent.amount_received,
+                    "hours_before_lesson": round(hours_until_lesson, 1),
+                    "captured_at": now.isoformat(),
+                    "cancellation_policy": "Full charge for <12hr cancellation",
+                },
+            )
+
+            db.commit()
+
+            logger.info(
+                f"Successfully captured late cancellation for booking {booking_id} "
+                f"({hours_until_lesson:.1f}hr before lesson)"
+            )
+            return {
+                "success": True,
+                "amount_captured": captured_intent.amount_received,
+                "hours_before_lesson": round(hours_until_lesson, 1),
+            }
+
+        except stripe.error.InvalidRequestError as e:
+            if "already been captured" in str(e).lower():
+                # Already captured
+                booking.payment_status = "captured"
+                db.commit()
+                return {"success": True, "already_captured": True}
+            else:
+                # Log the error
+                payment_repo.create_payment_event(
+                    booking_id=booking.id,
+                    event_type="late_cancellation_capture_failed",
+                    event_data={
+                        "error": str(e),
+                        "payment_intent_id": booking.payment_intent_id,
+                        "hours_before_lesson": round(hours_until_lesson, 1),
+                    },
+                )
+                db.commit()
+                logger.error(f"Failed to capture late cancellation for {booking_id}: {e}")
+                return {"success": False, "error": str(e)}
+
+        except Exception as e:
+            payment_repo.create_payment_event(
+                booking_id=booking.id,
+                event_type="late_cancellation_capture_failed",
+                event_data={
+                    "error": str(e),
+                    "payment_intent_id": booking.payment_intent_id,
+                    "hours_before_lesson": round(hours_until_lesson, 1),
+                },
+            )
+            db.commit()
+            logger.error(f"Failed to capture late cancellation for {booking_id}: {e}")
+            return {"success": False, "error": str(e)}
+
+    except Exception as exc:
+        logger.error(f"Late cancellation capture task failed for {booking_id}: {exc}")
+        raise self.retry(exc=exc, countdown=60)  # Retry in 1 minute
+    finally:
+        db.close()
+
+
+@shared_task
+def check_authorization_health() -> Dict[str, Any]:
+    """
+    Health check for authorization system.
+
+    Runs every 15 minutes to ensure the authorization system is healthy.
+    Acts as a dead man's switch - alerts if jobs aren't running.
+
+    Returns:
+        Health status dict
+    """
+    try:
+        db = next(get_db())
+        payment_repo = RepositoryFactory.get_payment_repository(db)
+
+        now = datetime.now(timezone.utc)
+
+        # Check for bookings that should have been authorized but weren't
+        # These are bookings less than 24 hours away that are still "scheduled"
+        overdue_bookings = []
+        booking_repo = RepositoryFactory.get_booking_repository(db)
+
+        scheduled_bookings = booking_repo.get_bookings_for_payment_authorization()
+
+        for booking in scheduled_bookings:
+            booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
+            hours_until_lesson = (booking_datetime - now).total_seconds() / 3600
+
+            if hours_until_lesson < 24:  # Should have been authorized
+                overdue_bookings.append(
+                    {
+                        "booking_id": booking.id,
+                        "hours_until_lesson": round(hours_until_lesson, 1),
+                    }
+                )
+
+        # Check last successful authorization
+        # Note: This is a simplified approach - in a full implementation,
+        # we'd add a method to payment_repo to get latest events across all bookings
+        last_auth_event = None
+        try:
+            # repo-pattern-ignore: Health check needs cross-booking event query
+            last_auth_event = (
+                db.query(PaymentEvent)
+                .filter(PaymentEvent.event_type.in_(["auth_succeeded", "auth_retry_succeeded"]))
+                .order_by(PaymentEvent.created_at.desc())
+                .first()
+            )
+        except Exception:
+            pass  # If this fails, we'll just report no recent auth
+
+        minutes_since_last_auth = None
+        if last_auth_event:
+            time_diff = now - last_auth_event.created_at
+            minutes_since_last_auth = int(time_diff.total_seconds() / 60)
+
+        health_status = {
+            "healthy": True,
+            "overdue_count": len(overdue_bookings),
+            "overdue_bookings": overdue_bookings[:10],  # Limit to 10 for response size
+            "minutes_since_last_auth": minutes_since_last_auth,
+            "checked_at": now.isoformat(),
+        }
+
+        # Alert if system appears unhealthy
+        if len(overdue_bookings) > 5:
+            health_status["healthy"] = False
+            logger.error(f"ALERT: {len(overdue_bookings)} bookings are overdue for authorization")
+
+        if minutes_since_last_auth and minutes_since_last_auth > 120:  # 2 hours
+            health_status["healthy"] = False
+            logger.warning(f"No successful authorizations in {minutes_since_last_auth} minutes")
+
+        return health_status
+
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return {
+            "healthy": False,
+            "error": str(e),
+            "checked_at": datetime.now(timezone.utc).isoformat(),
+        }
+    finally:
+        db.close()

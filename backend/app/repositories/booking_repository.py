@@ -878,6 +878,157 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             self.logger.error(f"Error getting bookings by date range and status: {str(e)}")
             return []
 
+    def get_bookings_for_payment_authorization(self) -> List[Booking]:
+        """
+        Get bookings that need payment authorization.
+
+        Returns bookings that are:
+        - Status: CONFIRMED
+        - Payment status: scheduled
+        - Have payment method ID
+        """
+        try:
+            return (
+                self.db.query(Booking)
+                .filter(
+                    and_(
+                        Booking.status == BookingStatus.CONFIRMED,
+                        Booking.payment_status == "scheduled",
+                        Booking.payment_method_id.isnot(None),
+                    )
+                )
+                .all()
+            )
+        except Exception as e:
+            self.logger.error(f"Error getting bookings for payment authorization: {str(e)}")
+            raise RepositoryException(f"Failed to get bookings for payment authorization: {str(e)}")
+
+    def get_bookings_for_payment_retry(self) -> List[Booking]:
+        """
+        Get bookings that need payment retry.
+
+        Returns bookings that are:
+        - Status: CONFIRMED
+        - Payment status: auth_failed or auth_retry_failed
+        - Have payment method ID
+        """
+        try:
+            return (
+                self.db.query(Booking)
+                .filter(
+                    and_(
+                        Booking.status == BookingStatus.CONFIRMED,
+                        Booking.payment_status.in_(["auth_failed", "auth_retry_failed"]),
+                        Booking.payment_method_id.isnot(None),
+                    )
+                )
+                .all()
+            )
+        except Exception as e:
+            self.logger.error(f"Error getting bookings for payment retry: {str(e)}")
+            raise RepositoryException(f"Failed to get bookings for payment retry: {str(e)}")
+
+    def get_bookings_for_payment_capture(self) -> List[Booking]:
+        """
+        Get bookings that are ready for payment capture.
+
+        Returns bookings that are:
+        - Status: COMPLETED
+        - Payment status: authorized
+        - Have payment intent ID
+        - Have completed_at timestamp
+        """
+        try:
+            return (
+                self.db.query(Booking)
+                .filter(
+                    and_(
+                        Booking.status == BookingStatus.COMPLETED,
+                        Booking.payment_status == "authorized",
+                        Booking.payment_intent_id.isnot(None),
+                        Booking.completed_at.isnot(None),
+                    )
+                )
+                .all()
+            )
+        except Exception as e:
+            self.logger.error(f"Error getting bookings for payment capture: {str(e)}")
+            raise RepositoryException(f"Failed to get bookings for payment capture: {str(e)}")
+
+    def get_bookings_for_auto_completion(self) -> List[Booking]:
+        """
+        Get bookings that need auto-completion.
+
+        Returns bookings that are:
+        - Status: CONFIRMED
+        - Payment status: authorized
+        - Have payment intent ID
+        """
+        try:
+            return (
+                self.db.query(Booking)
+                .filter(
+                    and_(
+                        Booking.status == BookingStatus.CONFIRMED,
+                        Booking.payment_status == "authorized",
+                        Booking.payment_intent_id.isnot(None),
+                    )
+                )
+                .all()
+            )
+        except Exception as e:
+            self.logger.error(f"Error getting bookings for auto completion: {str(e)}")
+            raise RepositoryException(f"Failed to get bookings for auto completion: {str(e)}")
+
+    def get_bookings_with_expired_auth(self) -> List[Booking]:
+        """
+        Get bookings with potentially expired authorization.
+
+        Returns bookings that are:
+        - Payment status: authorized
+        - Have payment intent ID
+        """
+        try:
+            return (
+                self.db.query(Booking)
+                .filter(
+                    and_(
+                        Booking.payment_status == "authorized",
+                        Booking.payment_intent_id.isnot(None),
+                    )
+                )
+                .all()
+            )
+        except Exception as e:
+            self.logger.error(f"Error getting bookings with expired auth: {str(e)}")
+            raise RepositoryException(f"Failed to get bookings with expired auth: {str(e)}")
+
+    def count_overdue_authorizations(self, current_date: date) -> int:
+        """
+        Count bookings that are overdue for authorization.
+
+        Args:
+            current_date: Current date to compare against
+
+        Returns:
+            Count of overdue bookings
+        """
+        try:
+            return (
+                self.db.query(Booking)
+                .filter(
+                    and_(
+                        Booking.status == BookingStatus.CONFIRMED,
+                        Booking.payment_status == "scheduled",
+                        Booking.booking_date <= current_date,
+                    )
+                )
+                .count()
+            )
+        except Exception as e:
+            self.logger.error(f"Error counting overdue authorizations: {str(e)}")
+            raise RepositoryException(f"Failed to count overdue authorizations: {str(e)}")
+
     # Additional Repository Methods (from BaseRepository)
     # The following are inherited from BaseRepository:
     # - create(**kwargs) -> Booking

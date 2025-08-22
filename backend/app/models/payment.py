@@ -3,14 +3,15 @@ Payment models for Stripe integration.
 
 This module defines the payment-related models for InstaInstru's
 Stripe Connect integration, including customer records, connected accounts,
-payment intents, and payment methods.
+payment intents, payment methods, payment events, and platform credits.
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import ulid
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -110,3 +111,84 @@ class PaymentMethod(Base):
 
     def __repr__(self) -> str:
         return f"<PaymentMethod(user_id={self.user_id}, last4={self.last4}, default={self.is_default})>"
+
+
+class PaymentEvent(Base):
+    """Track all payment state changes for bookings."""
+
+    __tablename__ = "payment_events"
+
+    id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
+    booking_id: Mapped[str] = mapped_column(String(26), ForeignKey("bookings.id", ondelete="CASCADE"), nullable=False)
+    event_type: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        comment="Types: card_saved, auth_scheduled, auth_attempted, auth_succeeded, auth_failed, "
+        "capture_scheduled, captured, capture_failed, payout_scheduled, paid_out",
+    )
+    event_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSON, nullable=True, comment="Store stripe IDs, amounts, error messages"
+    )
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    booking: Mapped["Booking"] = relationship("Booking", back_populates="payment_events")
+
+    def __repr__(self) -> str:
+        return f"<PaymentEvent(booking_id={self.booking_id}, type={self.event_type})>"
+
+
+class PlatformCredit(Base):
+    """Platform credits for 12-24 hour cancellations."""
+
+    __tablename__ = "platform_credits"
+
+    id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
+    user_id: Mapped[str] = mapped_column(String(26), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    amount_cents: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="Amount in cents to avoid float precision issues"
+    )
+    reason: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_booking_id: Mapped[Optional[str]] = mapped_column(
+        String(26),
+        ForeignKey("bookings.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="Booking that generated this credit",
+    )
+    used_booking_id: Mapped[Optional[str]] = mapped_column(
+        String(26),
+        ForeignKey("bookings.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="Booking where credit was used",
+    )
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    user: Mapped["User"] = relationship("User", back_populates="platform_credits")
+    source_booking: Mapped[Optional["Booking"]] = relationship(
+        "Booking", foreign_keys=[source_booking_id], back_populates="generated_credits"
+    )
+    used_booking: Mapped[Optional["Booking"]] = relationship(
+        "Booking", foreign_keys=[used_booking_id], back_populates="used_credits"
+    )
+
+    @property
+    def is_expired(self) -> bool:
+        """Check if the credit has expired."""
+        if not self.expires_at:
+            return False
+        return datetime.now(self.expires_at.tzinfo) > self.expires_at
+
+    @property
+    def is_available(self) -> bool:
+        """Check if the credit is available for use."""
+        return self.used_at is None and not self.is_expired
+
+    def __repr__(self) -> str:
+        return f"<PlatformCredit(user_id={self.user_id}, amount={self.amount_cents}, available={self.is_available})>"

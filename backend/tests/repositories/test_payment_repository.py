@@ -18,7 +18,14 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import RepositoryException
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.payment import PaymentIntent, PaymentMethod, StripeConnectedAccount, StripeCustomer
+from app.models.payment import (
+    PaymentEvent,
+    PaymentIntent,
+    PaymentMethod,
+    PlatformCredit,
+    StripeConnectedAccount,
+    StripeCustomer,
+)
 from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
 from app.models.user import User
 from app.repositories.factory import RepositoryFactory
@@ -360,8 +367,8 @@ class TestPaymentRepository:
                 instructor_id=test_booking.instructor_id,
                 instructor_service_id=test_booking.instructor_service_id,  # Use the same service ID
                 booking_date=datetime.now().date(),
-                start_time=datetime.now().time(),
-                end_time=(datetime.now() + timedelta(hours=1)).time(),
+                start_time=time(14, 0),  # 2 PM
+                end_time=time(15, 0),  # 3 PM
                 service_name="Test Service",
                 hourly_rate=50.00,
                 total_price=50.00,
@@ -430,8 +437,8 @@ class TestPaymentRepository:
                 instructor_id=instructor_user.id,
                 instructor_service_id=instructor_service.id,  # Use real service ID
                 booking_date=datetime.now().date(),
-                start_time=datetime.now().time(),
-                end_time=(datetime.now() + timedelta(hours=1)).time(),
+                start_time=time(14, 0),  # 2 PM
+                end_time=time(15, 0),  # 3 PM
                 service_name="Test Service",
                 hourly_rate=50.00,
                 total_price=50.00,
@@ -457,3 +464,350 @@ class TestPaymentRepository:
         with pytest.raises(RepositoryException):
             # Invalid user_id should cause foreign key constraint violation
             payment_repo.create_customer_record("invalid_user_id", f"cus_{ulid.ULID()}")
+
+    # ========== Payment Event Tests (Phase 1.1) ==========
+
+    def test_create_payment_event(self, payment_repo: PaymentRepository, db: Session, test_user: User):
+        """Test creating a payment event."""
+        # Create instructor profile and service first
+        from app.models.instructor import InstructorProfile
+        from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+
+        # Create category and catalog with unique slugs
+        category_id = str(ulid.ULID())
+        category = ServiceCategory(
+            id=category_id,
+            name="Test Category",
+            slug=f"test-category-{category_id[:8]}",
+            description="Test",
+        )
+        db.add(category)
+
+        catalog_id = str(ulid.ULID())
+        catalog = ServiceCatalog(
+            id=catalog_id,
+            category_id=category.id,
+            name="Test Service",
+            slug=f"test-service-{catalog_id[:8]}",
+            description="Test",
+        )
+        db.add(catalog)
+
+        # Create instructor profile
+        profile = InstructorProfile(
+            id=str(ulid.ULID()),
+            user_id=test_user.id,
+            bio="Test",
+            years_experience=1,
+        )
+        db.add(profile)
+
+        # Create instructor service
+        service = InstructorService(
+            id=str(ulid.ULID()),
+            instructor_profile_id=profile.id,
+            service_catalog_id=catalog.id,
+            hourly_rate=50.00,
+            duration_options=[60],
+            is_active=True,
+        )
+        db.add(service)
+        db.flush()
+
+        # Create a booking first
+        booking = Booking(
+            id=str(ulid.ULID()),
+            student_id=test_user.id,
+            instructor_id=test_user.id,  # Using same user for simplicity
+            instructor_service_id=service.id,
+            booking_date=datetime.now().date(),
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+            service_name="Test Service",
+            hourly_rate=50.00,
+            total_price=50.00,
+            duration_minutes=60,
+            status=BookingStatus.PENDING,
+        )
+        db.add(booking)
+        db.flush()
+
+        # Create payment event
+        event = payment_repo.create_payment_event(
+            booking_id=booking.id,
+            event_type="setup_intent_created",
+            event_data={"setup_intent_id": "seti_test123", "status": "requires_payment_method"},
+        )
+
+        assert event.id is not None
+        assert event.booking_id == booking.id
+        assert event.event_type == "setup_intent_created"
+        assert event.event_data["setup_intent_id"] == "seti_test123"
+        assert event.created_at is not None
+
+    def test_get_payment_events_for_booking(self, payment_repo: PaymentRepository, db: Session, test_user: User):
+        """Test retrieving all payment events for a booking."""
+        # Create instructor profile and service first
+        from app.models.instructor import InstructorProfile
+        from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+
+        # Create category and catalog with unique slugs
+        category_id = str(ulid.ULID())
+        category = ServiceCategory(
+            id=category_id,
+            name="Test Category",
+            slug=f"test-category-{category_id[:8]}",
+            description="Test",
+        )
+        db.add(category)
+
+        catalog_id = str(ulid.ULID())
+        catalog = ServiceCatalog(
+            id=catalog_id,
+            category_id=category.id,
+            name="Test Service",
+            slug=f"test-service-{catalog_id[:8]}",
+            description="Test",
+        )
+        db.add(catalog)
+
+        # Create instructor profile
+        profile = InstructorProfile(
+            id=str(ulid.ULID()),
+            user_id=test_user.id,
+            bio="Test",
+            years_experience=1,
+        )
+        db.add(profile)
+
+        # Create instructor service
+        service = InstructorService(
+            id=str(ulid.ULID()),
+            instructor_profile_id=profile.id,
+            service_catalog_id=catalog.id,
+            hourly_rate=50.00,
+            duration_options=[60],
+            is_active=True,
+        )
+        db.add(service)
+        db.flush()
+
+        # Create a booking
+        booking = Booking(
+            id=str(ulid.ULID()),
+            student_id=test_user.id,
+            instructor_id=test_user.id,
+            instructor_service_id=service.id,
+            booking_date=datetime.now().date(),
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+            service_name="Test Service",
+            hourly_rate=50.00,
+            total_price=50.00,
+            duration_minutes=60,
+            status=BookingStatus.PENDING,
+        )
+        db.add(booking)
+        db.flush()
+
+        # Create multiple events
+        events_data = [
+            ("setup_intent_created", {"setup_intent_id": "seti_123"}),
+            ("auth_scheduled", {"scheduled_for": "2024-01-01T10:00:00"}),
+            ("auth_succeeded", {"payment_intent_id": "pi_123"}),
+        ]
+
+        for event_type, event_data in events_data:
+            payment_repo.create_payment_event(booking.id, event_type, event_data)
+
+        # Retrieve events
+        events = payment_repo.get_payment_events_for_booking(booking.id)
+
+        assert len(events) == 3
+        assert events[0].event_type == "setup_intent_created"  # Ordered by creation time
+        assert events[1].event_type == "auth_scheduled"
+        assert events[2].event_type == "auth_succeeded"
+
+    def test_get_latest_payment_event(self, payment_repo: PaymentRepository, db: Session, test_user: User):
+        """Test retrieving the latest payment event."""
+        # Create instructor profile and service first
+        from app.models.instructor import InstructorProfile
+        from app.models.service_catalog import InstructorService, ServiceCatalog, ServiceCategory
+
+        # Create category and catalog with unique slugs
+        category_id = str(ulid.ULID())
+        category = ServiceCategory(
+            id=category_id,
+            name="Test Category",
+            slug=f"test-category-{category_id[:8]}",
+            description="Test",
+        )
+        db.add(category)
+
+        catalog_id = str(ulid.ULID())
+        catalog = ServiceCatalog(
+            id=catalog_id,
+            category_id=category.id,
+            name="Test Service",
+            slug=f"test-service-{catalog_id[:8]}",
+            description="Test",
+        )
+        db.add(catalog)
+
+        # Create instructor profile
+        profile = InstructorProfile(
+            id=str(ulid.ULID()),
+            user_id=test_user.id,
+            bio="Test",
+            years_experience=1,
+        )
+        db.add(profile)
+
+        # Create instructor service
+        service = InstructorService(
+            id=str(ulid.ULID()),
+            instructor_profile_id=profile.id,
+            service_catalog_id=catalog.id,
+            hourly_rate=50.00,
+            duration_options=[60],
+            is_active=True,
+        )
+        db.add(service)
+        db.flush()
+
+        # Create a booking
+        booking = Booking(
+            id=str(ulid.ULID()),
+            student_id=test_user.id,
+            instructor_id=test_user.id,
+            instructor_service_id=service.id,
+            booking_date=datetime.now().date(),
+            start_time=time(10, 0),
+            end_time=time(11, 0),
+            service_name="Test Service",
+            hourly_rate=50.00,
+            total_price=50.00,
+            duration_minutes=60,
+            status=BookingStatus.PENDING,
+        )
+        db.add(booking)
+        db.flush()
+
+        # Create events with small delays to ensure order
+        event1 = payment_repo.create_payment_event(booking.id, "setup_intent_created", {"step": 1})
+        db.commit()
+        event2 = payment_repo.create_payment_event(booking.id, "auth_scheduled", {"step": 2})
+        db.commit()
+        latest_event = payment_repo.create_payment_event(booking.id, "auth_succeeded", {"step": 3})
+        db.commit()
+
+        # Get latest event
+        result = payment_repo.get_latest_payment_event(booking.id)
+        assert result is not None
+        assert result.id == latest_event.id  # Verify we get the most recent event
+        assert result.event_type == "auth_succeeded"
+        assert result.event_data["step"] == 3
+
+        # Get latest event of specific type
+        result = payment_repo.get_latest_payment_event(booking.id, event_type="auth_scheduled")
+        assert result.event_type == "auth_scheduled"
+        assert result.event_data["step"] == 2
+
+    # ========== Platform Credit Tests (Phase 1.3) ==========
+
+    def test_create_platform_credit(self, payment_repo: PaymentRepository, test_user: User):
+        """Test creating a platform credit."""
+        credit = payment_repo.create_platform_credit(
+            user_id=test_user.id,
+            amount_cents=5000,  # $50
+            reason="12-24 hour cancellation",
+            source_booking_id=str(ulid.ULID()),
+            expires_at=datetime.now() + timedelta(days=365),
+        )
+
+        assert credit.id is not None
+        assert credit.user_id == test_user.id
+        assert credit.amount_cents == 5000
+        assert credit.reason == "12-24 hour cancellation"
+        assert credit.used_at is None
+        assert credit.is_available is True
+
+    def test_get_available_credits(self, payment_repo: PaymentRepository, test_user: User):
+        """Test retrieving available credits for a user."""
+        # Create multiple credits
+        future_date = datetime.now() + timedelta(days=30)
+        past_date = datetime.now() - timedelta(days=1)
+
+        # Available credit
+        credit1 = payment_repo.create_platform_credit(
+            user_id=test_user.id, amount_cents=2000, reason="Credit 1", expires_at=future_date
+        )
+
+        # Another available credit (no expiration)
+        credit2 = payment_repo.create_platform_credit(
+            user_id=test_user.id, amount_cents=3000, reason="Credit 2", expires_at=None
+        )
+
+        # Expired credit (should not be returned)
+        credit3 = payment_repo.create_platform_credit(
+            user_id=test_user.id, amount_cents=1000, reason="Expired", expires_at=past_date
+        )
+
+        # Used credit (should not be returned)
+        credit4 = payment_repo.create_platform_credit(
+            user_id=test_user.id, amount_cents=1500, reason="Used", expires_at=future_date
+        )
+        payment_repo.mark_credit_used(credit4.id, str(ulid.ULID()))
+
+        # Get available credits
+        available = payment_repo.get_available_credits(test_user.id)
+
+        assert len(available) == 2
+        # Should be ordered by expiration (soonest first, then no expiration)
+        assert available[0].id == credit1.id
+        assert available[1].id == credit2.id
+
+    def test_get_total_available_credits(self, payment_repo: PaymentRepository, test_user: User):
+        """Test calculating total available credits."""
+        future_date = datetime.now() + timedelta(days=30)
+
+        # Create credits
+        payment_repo.create_platform_credit(
+            user_id=test_user.id, amount_cents=2000, reason="Credit 1", expires_at=future_date
+        )
+        payment_repo.create_platform_credit(user_id=test_user.id, amount_cents=3000, reason="Credit 2", expires_at=None)
+
+        # This should not be counted (expired)
+        payment_repo.create_platform_credit(
+            user_id=test_user.id, amount_cents=1000, reason="Expired", expires_at=datetime.now() - timedelta(days=1)
+        )
+
+        total = payment_repo.get_total_available_credits(test_user.id)
+        assert total == 5000  # 2000 + 3000
+
+    def test_mark_credit_used(self, payment_repo: PaymentRepository, test_user: User):
+        """Test marking a credit as used."""
+        # Create credit
+        credit = payment_repo.create_platform_credit(
+            user_id=test_user.id, amount_cents=2000, reason="Test credit", expires_at=None
+        )
+
+        assert credit.used_at is None
+        assert credit.is_available is True
+
+        # Mark as used
+        booking_id = str(ulid.ULID())
+        updated_credit = payment_repo.mark_credit_used(credit.id, booking_id)
+
+        assert updated_credit.used_at is not None
+        assert updated_credit.used_booking_id == booking_id
+        assert updated_credit.is_available is False
+
+        # Trying to use again should raise exception
+        with pytest.raises(RepositoryException, match="already used"):
+            payment_repo.mark_credit_used(credit.id, str(ulid.ULID()))
+
+    def test_mark_nonexistent_credit_used(self, payment_repo: PaymentRepository):
+        """Test marking a non-existent credit as used."""
+        with pytest.raises(RepositoryException, match="not found"):
+            payment_repo.mark_credit_used(str(ulid.ULID()), str(ulid.ULID()))

@@ -140,6 +140,47 @@ CELERYBEAT_SCHEDULE = {
         },
         # Note: Calculate hourly search metrics and engagement
     },
+    # ==================== PAYMENT PROCESSING TASKS ====================
+    # Process scheduled authorizations - runs every 30 minutes
+    "process-scheduled-authorizations": {
+        "task": "app.tasks.payment_tasks.process_scheduled_authorizations",
+        "schedule": crontab(minute="*/30"),  # Every 30 minutes
+        "options": {
+            "queue": "payments",
+            "priority": 9,  # High priority - critical for payment processing
+        },
+        # Note: Authorize payments for bookings approaching 24-hour window
+    },
+    # Retry failed authorizations - runs every 2 hours
+    "retry-failed-authorizations": {
+        "task": "app.tasks.payment_tasks.retry_failed_authorizations",
+        "schedule": crontab(minute=0, hour="*/2"),  # Every 2 hours
+        "options": {
+            "queue": "payments",
+            "priority": 8,
+        },
+        # Note: Retry failed payment authorizations with exponential backoff
+    },
+    # Capture completed lessons - runs every hour
+    "capture-completed-lessons": {
+        "task": "app.tasks.payment_tasks.capture_completed_lessons",
+        "schedule": crontab(minute=0),  # Every hour
+        "options": {
+            "queue": "payments",
+            "priority": 7,
+        },
+        # Note: Capture pre-authorized payments for completed lessons
+    },
+    # Payment system health check - runs every 15 minutes
+    "payment-health-check": {
+        "task": "app.tasks.payment_tasks.check_authorization_health",
+        "schedule": crontab(minute="*/15"),  # Every 15 minutes
+        "options": {
+            "queue": "payments",
+            "priority": 10,  # Highest priority - monitoring critical
+        },
+        # Note: Dead man's switch - alerts if payment jobs aren't running
+    },
     # Generate search insights - runs daily at 4 AM
     "generate-search-insights": {
         "task": "app.tasks.search_analytics.generate_search_insights",

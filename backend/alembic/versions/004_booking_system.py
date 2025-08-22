@@ -75,6 +75,10 @@ def upgrade() -> None:
         # Cancellation details
         sa.Column("cancelled_by_id", sa.String(26), nullable=True),
         sa.Column("cancellation_reason", sa.Text(), nullable=True),
+        # Payment fields (Phase 1.2)
+        sa.Column("payment_method_id", sa.String(255), nullable=True, comment="Stripe payment method ID"),
+        sa.Column("payment_intent_id", sa.String(255), nullable=True, comment="Current Stripe payment intent"),
+        sa.Column("payment_status", sa.String(50), nullable=True, comment="Computed from latest events"),
         # Foreign keys
         sa.ForeignKeyConstraint(["student_id"], ["users.id"]),
         sa.ForeignKeyConstraint(["instructor_id"], ["users.id"]),
@@ -291,12 +295,81 @@ def upgrade() -> None:
         postgresql_where=sa.text("is_default = true"),
     )
 
+    # Create payment_events table (Phase 1.1)
+    op.create_table(
+        "payment_events",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("booking_id", sa.String(26), nullable=False),
+        sa.Column(
+            "event_type",
+            sa.String(50),
+            nullable=False,
+            comment="Types: card_saved, auth_scheduled, auth_attempted, auth_succeeded, auth_failed, capture_scheduled, captured, capture_failed, payout_scheduled, paid_out",
+        ),
+        sa.Column("event_data", sa.JSON(), nullable=True, comment="Store stripe IDs, amounts, error messages"),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        comment="Track all payment state changes for bookings",
+    )
+
+    # Create indexes for payment_events
+    op.create_index("idx_payment_events_booking_id", "payment_events", ["booking_id"])
+    op.create_index("idx_payment_events_event_type", "payment_events", ["event_type"])
+    op.create_index("idx_payment_events_created_at", "payment_events", ["created_at"])
+
+    # Create platform_credits table (Phase 1.3)
+    op.create_table(
+        "platform_credits",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("user_id", sa.String(26), nullable=False),
+        sa.Column(
+            "amount_cents", sa.Integer(), nullable=False, comment="Amount in cents to avoid float precision issues"
+        ),
+        sa.Column("reason", sa.String(255), nullable=False),
+        sa.Column("source_booking_id", sa.String(26), nullable=True, comment="Booking that generated this credit"),
+        sa.Column("used_booking_id", sa.String(26), nullable=True, comment="Booking where credit was used"),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("used_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["source_booking_id"], ["bookings.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["used_booking_id"], ["bookings.id"], ondelete="SET NULL"),
+        sa.PrimaryKeyConstraint("id"),
+        comment="Platform credits for 12-24 hour cancellations",
+    )
+
+    # Create indexes for platform_credits
+    op.create_index("idx_platform_credits_user_id", "platform_credits", ["user_id"])
+    op.create_index("idx_platform_credits_source_booking_id", "platform_credits", ["source_booking_id"])
+    op.create_index("idx_platform_credits_used_booking_id", "platform_credits", ["used_booking_id"])
+    op.create_index("idx_platform_credits_expires_at", "platform_credits", ["expires_at"])
+    # Index for finding unused credits
+    op.create_index(
+        "idx_platform_credits_unused",
+        "platform_credits",
+        ["user_id", "expires_at"],
+        postgresql_where=sa.text("used_at IS NULL"),
+    )
+
     print("Booking system tables created successfully!")
-    print("- Created bookings table with self-contained design")
+    print("- Created bookings table with self-contained design + payment fields")
     print("- NO reference to availability_slots for complete layer independence")
     print("- Added time-based conflict checking index")
     print("- Created password_reset_tokens table")
     print("- Created payment tables (stripe_customers, stripe_connected_accounts, payment_intents, payment_methods)")
+    print("- Created payment_events table for event-based payment tracking")
+    print("- Created platform_credits table for 12-24 hour cancellation credits")
 
 
 def downgrade() -> None:
@@ -304,6 +377,20 @@ def downgrade() -> None:
     print("Dropping booking system tables...")
 
     # ======== DROP PAYMENT TABLES (in reverse order) ========
+    # Drop platform_credits indexes and table
+    op.drop_index("idx_platform_credits_unused", table_name="platform_credits")
+    op.drop_index("idx_platform_credits_expires_at", table_name="platform_credits")
+    op.drop_index("idx_platform_credits_used_booking_id", table_name="platform_credits")
+    op.drop_index("idx_platform_credits_source_booking_id", table_name="platform_credits")
+    op.drop_index("idx_platform_credits_user_id", table_name="platform_credits")
+    op.drop_table("platform_credits")
+
+    # Drop payment_events indexes and table
+    op.drop_index("idx_payment_events_created_at", table_name="payment_events")
+    op.drop_index("idx_payment_events_event_type", table_name="payment_events")
+    op.drop_index("idx_payment_events_booking_id", table_name="payment_events")
+    op.drop_table("payment_events")
+
     # Drop payment_methods indexes and table
     op.drop_index("idx_payment_methods_unique_default_per_user", table_name="payment_methods")
     op.drop_index("idx_payment_methods_is_default", table_name="payment_methods")

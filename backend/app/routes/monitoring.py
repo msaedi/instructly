@@ -22,6 +22,8 @@ from ..schemas.monitoring_responses import (
     AlertAcknowledgeResponse,
     ExtendedCacheStats,
     MonitoringDashboardResponse,
+    PaymentHealthCheckTriggerResponse,
+    PaymentHealthResponse,
     SlowQueriesResponse,
     SlowRequestsResponse,
 )
@@ -207,3 +209,146 @@ def _generate_recommendations(performance: Dict[str, Any], cache_health: Dict[st
         )
 
     return recommendations
+
+
+# ==================== Payment System Monitoring ====================
+
+
+@router.get("/payment-health", response_model=PaymentHealthResponse)
+async def get_payment_system_health(
+    db: Session = Depends(get_db), _: None = Depends(verify_monitoring_api_key)
+) -> PaymentHealthResponse:
+    """
+    Get payment system health metrics.
+
+    Returns metrics about:
+    - Pending authorizations
+    - Failed authorizations
+    - Recent processing activity
+    - System alerts
+
+    Requires monitoring API key in production.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import and_, func
+
+    from app.models.booking import Booking, BookingStatus
+    from app.models.payment import PaymentEvent
+    from app.repositories.factory import RepositoryFactory
+
+    payment_repo = RepositoryFactory.get_payment_repository(db)
+    now = datetime.now(timezone.utc)
+
+    # Count bookings by payment status
+    payment_stats = (
+        db.query(Booking.payment_status, func.count(Booking.id).label("count"))
+        .filter(Booking.status == BookingStatus.CONFIRMED, Booking.booking_date >= now.date())
+        .group_by(Booking.payment_status)
+        .all()
+    )
+
+    stats_dict = {stat.payment_status: stat.count for stat in payment_stats if stat.payment_status}
+
+    # Count recent events
+    recent_events = (
+        db.query(PaymentEvent.event_type, func.count(PaymentEvent.id).label("count"))
+        .filter(PaymentEvent.created_at >= now - timedelta(hours=24))
+        .group_by(PaymentEvent.event_type)
+        .all()
+    )
+
+    events_dict = {event.event_type: event.count for event in recent_events}
+
+    # Find overdue authorizations
+    overdue_bookings = (
+        db.query(Booking)
+        .filter(
+            and_(
+                Booking.status == BookingStatus.CONFIRMED,
+                Booking.payment_status == "scheduled",
+                Booking.booking_date <= now.date(),
+            )
+        )
+        .count()
+    )
+
+    # Get last successful authorization
+    last_auth = (
+        db.query(PaymentEvent)
+        .filter(PaymentEvent.event_type.in_(["auth_succeeded", "auth_retry_succeeded"]))
+        .order_by(PaymentEvent.created_at.desc())
+        .first()
+    )
+
+    minutes_since_auth = None
+    if last_auth:
+        time_diff = now - last_auth.created_at
+        minutes_since_auth = int(time_diff.total_seconds() / 60)
+
+    # Determine health status
+    health_status = "healthy"
+    alerts = []
+
+    if overdue_bookings > 5:
+        health_status = "warning"
+        alerts.append(f"{overdue_bookings} bookings overdue for authorization")
+
+    if overdue_bookings > 10:
+        health_status = "critical"
+
+    if minutes_since_auth and minutes_since_auth > 120:
+        if health_status == "healthy":
+            health_status = "warning"
+        alerts.append(f"No successful authorizations in {minutes_since_auth} minutes")
+
+    failed_auth_count = stats_dict.get("auth_failed", 0)
+    if failed_auth_count > 5:
+        alerts.append(f"{failed_auth_count} bookings with failed authorization")
+
+    return PaymentHealthResponse(
+        status=health_status,
+        timestamp=now.isoformat(),
+        payment_stats=stats_dict,
+        recent_events=events_dict,
+        overdue_authorizations=overdue_bookings,
+        minutes_since_last_auth=minutes_since_auth,
+        alerts=alerts,
+        metrics={
+            "pending": stats_dict.get("pending_payment_method", 0),
+            "scheduled": stats_dict.get("scheduled", 0),
+            "authorized": stats_dict.get("authorized", 0),
+            "captured": stats_dict.get("captured", 0),
+            "failed": failed_auth_count,
+            "abandoned": stats_dict.get("auth_abandoned", 0),
+        },
+    )
+
+
+@router.post("/trigger-payment-health-check", response_model=PaymentHealthCheckTriggerResponse)
+async def trigger_payment_health_check(
+    _: None = Depends(verify_monitoring_api_key),
+) -> PaymentHealthCheckTriggerResponse:
+    """
+    Manually trigger a payment system health check.
+
+    This will run the health check task immediately and return the results.
+
+    Requires monitoring API key in production.
+    """
+    from datetime import datetime
+
+    try:
+        from app.tasks.payment_tasks import check_authorization_health
+
+        # Trigger the task asynchronously
+        task = check_authorization_health.delay()
+
+        return PaymentHealthCheckTriggerResponse(
+            status="triggered",
+            task_id=task.id,
+            message="Health check task has been queued",
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to trigger health check: {str(e)}")
