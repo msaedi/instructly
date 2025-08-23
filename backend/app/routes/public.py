@@ -236,19 +236,19 @@ async def get_instructor_public_availability(
         total_available_slots = 0
         earliest_available_date = None
 
-        # Get all availability slots in the date range
-        all_slots = availability_service.repository.get_week_availability(instructor_id, start_date, end_date)
-
         # Get blackout dates
         blackout_dates = availability_service.get_blackout_dates(instructor_id)
         blackout_date_set = {b.date for b in blackout_dates}
+
+        # Compute merged and booked-subtracted intervals via service
+        computed = availability_service.compute_public_availability(instructor_id, start_date, end_date)
 
         # Process each date in the range
         current_date = start_date
         while current_date <= end_date:
             date_str = current_date.isoformat()
 
-            # Check if this is a blackout date
+            # Check blackout
             if current_date in blackout_date_set:
                 availability_by_date[date_str] = PublicDayAvailability(
                     date=date_str, available_slots=[], is_blackout=True
@@ -256,48 +256,18 @@ async def get_instructor_public_availability(
                 current_date += timedelta(days=1)
                 continue
 
-            # Get slots for this date
-            date_slots = [s for s in all_slots if s.specific_date == current_date]
+            intervals = computed.get(date_str, [])
+            available_slots = [
+                PublicTimeSlot(start_time=st.strftime("%H:%M"), end_time=en.strftime("%H:%M")) for st, en in intervals
+            ]
 
-            if date_slots:
-                # Get booked times for this date
-                booked_bookings = conflict_checker.repository.get_bookings_for_date(instructor_id, current_date)
+            total_available_slots += len(available_slots)
+            if available_slots and not earliest_available_date:
+                earliest_available_date = date_str
 
-                # Convert to time format
-                booked_times = []
-                for booking in booked_bookings:
-                    booked_times.append({"start_time": booking.start_time, "end_time": booking.end_time})
-
-                # Filter out booked slots
-                available_slots = []
-                for slot in date_slots:
-                    # Check if this slot overlaps with any booking
-                    is_booked = False
-                    for booked in booked_times:
-                        # Check for overlap using the times directly
-                        if slot.start_time < booked["end_time"] and slot.end_time > booked["start_time"]:
-                            is_booked = True
-                            break
-
-                    if not is_booked:
-                        available_slots.append(
-                            PublicTimeSlot(
-                                start_time=slot.start_time.strftime("%H:%M"), end_time=slot.end_time.strftime("%H:%M")
-                            )
-                        )
-                        total_available_slots += 1
-
-                        if not earliest_available_date:
-                            earliest_available_date = date_str
-
-                availability_by_date[date_str] = PublicDayAvailability(
-                    date=date_str, available_slots=available_slots, is_blackout=False
-                )
-            else:
-                # No slots for this date
-                availability_by_date[date_str] = PublicDayAvailability(
-                    date=date_str, available_slots=[], is_blackout=False
-                )
+            availability_by_date[date_str] = PublicDayAvailability(
+                date=date_str, available_slots=available_slots, is_blackout=False
+            )
 
             current_date += timedelta(days=1)
 

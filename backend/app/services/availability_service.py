@@ -598,6 +598,84 @@ class AvailabilityService(BaseService):
                 logger.error(f"Error deleting blackout date: {e}")
                 raise
 
+    @BaseService.measure_operation("compute_public_availability")
+    def compute_public_availability(
+        self, instructor_id: str, start_date: date, end_date: date
+    ) -> Dict[str, List[Tuple[time, time]]]:
+        """
+        Compute per-date availability intervals merged and with booked times subtracted.
+
+        Returns dict: { 'YYYY-MM-DD': [(start_time, end_time), ...] }
+        """
+        # Fetch availability windows
+        slots = self.repository.get_week_availability(instructor_id, start_date, end_date)
+
+        # Group by date
+        by_date: Dict[date, List[Tuple[time, time]]] = {}
+        for s in slots:
+            by_date.setdefault(s.specific_date, []).append((s.start_time, s.end_time))
+
+        # Helpers
+        from datetime import time as dtime
+
+        def merge_intervals(intervals: List[Tuple[time, time]]) -> List[Tuple[time, time]]:
+            if not intervals:
+                return []
+            mins = sorted([(a.hour * 60 + a.minute, b.hour * 60 + b.minute) for a, b in intervals], key=lambda x: x[0])
+            merged = []
+            cs, ce = mins[0]
+            for s, e in mins[1:]:
+                if s <= ce:
+                    ce = max(ce, e)
+                else:
+                    merged.append((cs, ce))
+                    cs, ce = s, e
+            merged.append((cs, ce))
+            return [(dtime(m // 60, m % 60), dtime(n // 60, n % 60)) for m, n in merged]
+
+        def subtract(bases: List[Tuple[time, time]], cuts: List[Tuple[time, time]]) -> List[Tuple[time, time]]:
+            if not bases:
+                return []
+            if not cuts:
+                return merge_intervals(bases)
+
+            def tmin(t: time) -> int:
+                return t.hour * 60 + t.minute
+
+            cutm = [(tmin(a), tmin(b)) for a, b in merge_intervals(cuts)]
+            out = []
+            for bs, be in bases:
+                segs = [(tmin(bs), tmin(be))]
+                for cs, ce in cutm:
+                    new = []
+                    for s, e in segs:
+                        if e <= cs or s >= ce:
+                            new.append((s, e))
+                        else:
+                            if s < cs:
+                                new.append((s, max(s, cs)))
+                            if e > ce:
+                                new.append((min(e, ce), e))
+                    segs = [p for p in new if p[1] > p[0]]
+                    if not segs:
+                        break
+                for s, e in segs:
+                    out.append((dtime(s // 60, s % 60), dtime(e // 60, e % 60)))
+            return merge_intervals(out)
+
+        # Build result
+        result: Dict[str, List[Tuple[time, time]]] = {}
+        cur = start_date
+        while cur <= end_date:
+            bases = merge_intervals(by_date.get(cur, []))
+            booked = [
+                (b.start_time, b.end_time) for b in self.conflict_repository.get_bookings_for_date(instructor_id, cur)
+            ]
+            remaining = subtract(bases, booked)
+            result[cur.isoformat()] = remaining
+            cur += timedelta(days=1)
+        return result
+
     # Private helper methods
 
     def _calculate_week_dates(self, monday: date) -> List[date]:
