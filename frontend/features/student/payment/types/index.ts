@@ -63,6 +63,8 @@ export interface BookingPayment {
 export interface CreditBalance {
   totalAmount: number;
   credits: Credit[];
+  // Optional: earliest expiration across available credits (ISO string)
+  earliestExpiry?: string | null;
 }
 
 export interface Credit {
@@ -97,6 +99,6 @@ export const DEFAULT_TIP_OPTIONS: TipOption[] = [
 
 export const TRANSACTION_LIMITS = {
   MAX_TRANSACTION: 1000, // $1,000 max per transaction
-  CREDIT_EXPIRY_MONTHS: 6,
+  CREDIT_EXPIRY_MONTHS: 12,
   SERVICE_FEE_PERCENTAGE: 20,
 };

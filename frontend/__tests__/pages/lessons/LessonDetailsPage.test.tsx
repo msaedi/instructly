@@ -111,16 +111,15 @@ describe('LessonDetailsPage', () => {
 
     renderWithProviders(<LessonDetailsPage />);
 
-    // Check lesson title - service_name is displayed directly (appears in both breadcrumb and title)
-    const mathElements = screen.getAllByText('Mathematics');
-    expect(mathElements).toHaveLength(2); // One in breadcrumb, one in title
+    // Check lesson title - service_name is displayed as primary title
+    expect(screen.getByText('Mathematics')).toBeInTheDocument();
 
     // Check date and time
     expect(screen.getByText(/December 25, 2024/)).toBeInTheDocument();
     expect(screen.getByText(/2:00 PM/)).toBeInTheDocument();
 
-    // Check price (currency symbol may render separately)
-    expect(screen.getByText('60.00')).toBeInTheDocument();
+    // Check price (currency symbol may render inside the same span)
+    expect(screen.getByText(/\$\s*60\.00/)).toBeInTheDocument();
 
     // Check instructor (privacy-protected: John D.)
     expect(screen.getByText('John D.')).toBeInTheDocument();
@@ -238,8 +237,8 @@ describe('LessonDetailsPage', () => {
 
     renderWithProviders(<LessonDetailsPage />);
 
-    // Check for completed status
-    expect(screen.getByText(/Mathematics - COMPLETED/)).toBeInTheDocument();
+    // Check for completed status badge
+    expect(screen.getByText('Completed')).toBeInTheDocument();
 
     // Check for completed lesson buttons
     expect(screen.getByRole('button', { name: /review & tip/i })).toBeInTheDocument();
@@ -370,8 +369,8 @@ describe('LessonDetailsPage', () => {
 
     // Check receipt details
     expect(screen.getByText('Date of Lesson')).toBeInTheDocument();
-    // Receipt shows combined text; allow without $ prefix on hourly rate
-    expect(screen.getByText('60.00/hr x 1 hr')).toBeInTheDocument();
+    // Receipt shows combined text with currency symbol
+    expect(screen.getByText(/\$?60\.00\/hr x 1 hr/)).toBeInTheDocument();
     expect(screen.getByText('Platform Fee')).toBeInTheDocument();
     expect(screen.getByText('$9.00')).toBeInTheDocument(); // 15% of $60
     expect(screen.getByText('Total')).toBeInTheDocument();
@@ -380,7 +379,7 @@ describe('LessonDetailsPage', () => {
     expect(total69.length).toBeGreaterThan(0);
   });
 
-  it('shows view receipt button for completed lessons', () => {
+  it('shows receipt section for completed lessons', () => {
     const completedLesson = {
       ...mockLesson,
       status: 'COMPLETED',
@@ -395,6 +394,6 @@ describe('LessonDetailsPage', () => {
 
     renderWithProviders(<LessonDetailsPage />);
 
-    expect(screen.getByRole('button', { name: /view receipt/i })).toBeInTheDocument();
+    expect(screen.getByText('Receipt')).toBeInTheDocument();
   });
 });

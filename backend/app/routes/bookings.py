@@ -55,6 +55,7 @@ from ..schemas.booking import (
     BookingConfirmPayment,
     BookingCreate,
     BookingCreateResponse,
+    BookingPaymentMethodUpdate,
     BookingResponse,
     BookingStatsResponse,
     BookingUpdate,
@@ -172,6 +173,32 @@ async def get_upcoming_bookings(
             has_next=False,  # Single page for dashboard widget
             has_prev=False,
         )
+    except DomainException as e:
+        handle_domain_exception(e)
+
+
+@router.patch("/{booking_id}/payment-method", response_model=BookingResponse)
+async def update_booking_payment_method(
+    booking_id: str,
+    payment_data: BookingPaymentMethodUpdate,
+    current_user: User = Depends(get_current_active_user),
+    booking_service: BookingService = Depends(get_booking_service),
+):
+    """
+    Update booking payment method and retry authorization immediately.
+
+    - Verifies ownership (student)
+    - Saves payment method (optional set_as_default)
+    - Retries authorization off-session (immediate if <24h)
+    """
+    try:
+        booking = await booking_service.confirm_booking_payment(
+            booking_id=booking_id,
+            student=current_user,
+            payment_method_id=payment_data.payment_method_id,
+            save_payment_method=payment_data.set_as_default,
+        )
+        return BookingResponse.from_booking(booking)
     except DomainException as e:
         handle_domain_exception(e)
 

@@ -454,18 +454,18 @@ describe('MyLessonsPage', () => {
 
     renderWithProviders(<MyLessonsPage />);
 
-    // Check upcoming tab is active
+    // Check upcoming tab is active (new styles use gray emphasis)
     const upcomingTab = screen.getByText('Upcoming');
-    expect(upcomingTab).toHaveClass('text-primary');
-    expect(upcomingTab).toHaveClass('border-primary');
+    expect(upcomingTab).toHaveClass('text-gray-600');
+    expect(upcomingTab).toHaveClass('border-gray-600');
 
     // Switch to history
     const historyTab = screen.getByText('History');
     fireEvent.click(historyTab);
 
     await waitFor(() => {
-      expect(historyTab).toHaveClass('text-primary');
-      expect(historyTab).toHaveClass('border-primary');
+      expect(historyTab).toHaveClass('text-gray-600');
+      expect(historyTab).toHaveClass('border-gray-600');
       expect(upcomingTab).not.toHaveClass('text-primary');
       expect(upcomingTab).not.toHaveClass('border-primary');
     });

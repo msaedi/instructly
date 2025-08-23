@@ -21,15 +21,18 @@ if __name__ == "__main__":
     print("🚀 Starting Celery worker with STAGING database...")
     print("📊 This preserves your local development data between test runs")
     print(
-        "🔄 Worker configuration: concurrency=2, max-tasks-per-child=100, queues=analytics,celery,privacy,maintenance,email,notifications"
+        "🔄 Worker configuration: concurrency=2, max-tasks-per-child=100, queues=analytics,celery,privacy,maintenance,email,notifications,payments"
     )
     print("")
 
     # Run Celery worker with the same settings as the user's command
-    queues = os.getenv(
-        "CELERY_QUEUES",
-        "analytics,celery,privacy,maintenance,email,notifications",
+    # Allow both CELERY_QUEUE and CELERY_QUEUES; prefer CELERY_QUEUES if provided
+    queues = (
+        os.getenv("CELERY_QUEUES")
+        or os.getenv("CELERY_QUEUE")
+        or "analytics,celery,privacy,maintenance,email,notifications,payments"
     )
+    print(f"📦 Consuming queues: {queues}")
 
     cmd = [
         sys.executable,

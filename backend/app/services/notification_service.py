@@ -404,6 +404,54 @@ class NotificationService(BaseService):
         self.logger.info(f"Student confirmation email sent for booking {booking.id}")
         return True
 
+    @BaseService.measure_operation("send_final_payment_warning")
+    def send_final_payment_warning(self, booking: Booking, hours_until_lesson: float) -> bool:
+        """
+        Send an urgent T-24 authorization failure email asking the student to update their card.
+
+        This is a synchronous helper used by background tasks. Uses a dedicated template if present,
+        otherwise falls back to a simple rendered string to avoid hard failures in test/dev.
+        """
+        try:
+            subject = "Action required: Update your payment method for your upcoming lesson"
+
+            # Try a dedicated template first
+            template_name = "email/payment/t24_update_card.html"
+            context = {
+                "booking": booking,
+                "hours_until_lesson": round(hours_until_lesson, 1),
+                "update_payment_url": f"{self.frontend_url}/student/payments",  # generic payments page
+            }
+
+            html_content = None
+            try:
+                # Prefer a specific template if available
+                if self.template_service.template_exists(template_name):
+                    html_content = self.template_service.render_template(template_name, context)
+            except Exception:
+                html_content = None
+
+            # Fallback minimal content
+            if not html_content:
+                fallback = (
+                    "<p>We couldn't authorize your payment for your upcoming lesson. "
+                    "Please update your card on file to avoid cancellation.</p>"
+                    f"<p>Lesson: {booking.service_name} on {booking.booking_date} at {booking.start_time}</p>"
+                    f"<p><a href='{self.frontend_url}/student/payments'>Update payment method</a></p>"
+                )
+                html_content = self.template_service.render_string(fallback, context)
+
+            self.email_service.send_email(
+                to_email=booking.student.email,
+                subject=subject,
+                html_content=html_content,
+            )
+            self.logger.info(f"Sent T-24 payment warning to student for booking {booking.id}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to send T-24 payment warning for booking {booking.id}: {e}")
+            return False
+
     @retry(max_attempts=3, backoff_seconds=1.0)
     async def _send_instructor_booking_notification(self, booking: Booking) -> bool:
         """Send new booking notification to instructor using template."""

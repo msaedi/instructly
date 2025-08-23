@@ -362,6 +362,34 @@ def upgrade() -> None:
         postgresql_where=sa.text("used_at IS NULL"),
     )
 
+    # Create instructor_payout_events table (analytics)
+    op.create_table(
+        "instructor_payout_events",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("instructor_profile_id", sa.String(26), nullable=False),
+        sa.Column("stripe_account_id", sa.String(255), nullable=False),
+        sa.Column("payout_id", sa.String(255), nullable=False),
+        sa.Column("amount_cents", sa.Integer(), nullable=True),
+        sa.Column("status", sa.String(50), nullable=True),
+        sa.Column("arrival_date", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("failure_code", sa.String(100), nullable=True),
+        sa.Column("failure_message", sa.String(255), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.ForeignKeyConstraint(["instructor_profile_id"], ["instructor_profiles.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        comment="Persist payout webhook analytics for instructors",
+    )
+    op.create_index(
+        "idx_instructor_payout_events_instructor_profile_id",
+        "instructor_payout_events",
+        ["instructor_profile_id"],
+    )
+    op.create_index(
+        "idx_instructor_payout_events_payout_id",
+        "instructor_payout_events",
+        ["payout_id"],
+    )
+
     print("Booking system tables created successfully!")
     print("- Created bookings table with self-contained design + payment fields")
     print("- NO reference to availability_slots for complete layer independence")

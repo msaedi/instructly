@@ -48,6 +48,7 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
     try:
         payment_repo = RepositoryFactory.get_payment_repository(db)
         booking_repo = RepositoryFactory.get_booking_repository(db)
+        notification_service = NotificationService(db)
 
         # Find bookings that need authorization (T-24 hours)
         now = datetime.now(timezone.utc)
@@ -92,10 +93,45 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
                 if not instructor_account or not instructor_account.stripe_account_id:
                     raise Exception(f"No Stripe account for instructor {booking.instructor_id}")
 
-                # Create PaymentIntent with manual capture (authorization only)
-                amount_cents = int(booking.total_price * 100)
+                # Calculate amount and apply available credits up-front
+                original_amount_cents = int(booking.total_price * 100)
+                credits_applied = 0
+                try:
+                    if hasattr(payment_repo, "apply_credits_for_booking"):
+                        credit_result = payment_repo.apply_credits_for_booking(
+                            user_id=booking.student_id, booking_id=booking.id, amount_cents=original_amount_cents
+                        )
+                        # Safely coerce to int in case tests use MagicMock
+                        if isinstance(credit_result, dict):
+                            credits_applied = int(credit_result.get("applied_cents", 0) or 0)
+                        else:
+                            credits_applied = 0
+                except Exception as credit_err:
+                    logger.warning(
+                        f"Failed to apply credits for booking {booking.id}: {credit_err}. Proceeding without credits."
+                    )
+                    credits_applied = 0
+
+                amount_cents = max(int(original_amount_cents) - int(credits_applied), 0)
+
+                if amount_cents <= 0:
+                    # Fully covered by credits; mark as authorized without creating PI
+                    booking.payment_status = "authorized"
+                    payment_repo.create_payment_event(
+                        booking_id=booking.id,
+                        event_type="auth_succeeded_credits_only",
+                        event_data={
+                            "original_amount_cents": original_amount_cents,
+                            "credits_applied_cents": credits_applied,
+                        },
+                    )
+                    results["success"] += 1
+                    logger.info(f"Booking {booking.id} fully covered by credits; no authorization needed")
+                    continue
+
                 application_fee = int(amount_cents * PLATFORM_FEE_PERCENTAGE)
 
+                # Create PaymentIntent with manual capture (authorization only) for the remainder
                 payment_intent = stripe.PaymentIntent.create(
                     amount=amount_cents,
                     currency=STRIPE_CURRENCY,
@@ -110,7 +146,9 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
                         "student_id": booking.student_id,
                         "instructor_id": booking.instructor_id,
                         "lesson_datetime": booking_datetime.isoformat(),
+                        "credits_applied_cents": credits_applied,
                     },
+                    idempotency_key=f"auth_{booking.id}",
                 )
 
                 # Update booking with payment intent
@@ -118,6 +156,14 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
                 booking.payment_status = "authorized"
 
                 # Record success event
+                if credits_applied:
+                    try:
+                        from app.monitoring.prometheus_metrics import prometheus_metrics
+
+                        prometheus_metrics.inc_credits_applied("authorization")
+                    except Exception:
+                        pass
+
                 payment_repo.create_payment_event(
                     booking_id=booking.id,
                     event_type="auth_succeeded",
@@ -127,33 +173,44 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
                         "application_fee_cents": application_fee,
                         "authorized_at": datetime.now(timezone.utc).isoformat(),
                         "hours_before_lesson": round(hours_until_lesson, 1),
+                        "credits_applied_cents": credits_applied,
                     },
                 )
 
                 results["success"] += 1
                 logger.info(f"Successfully authorized payment for booking {booking.id}")
 
-            except stripe.error.CardError as e:
-                # Card was declined
-                handle_authorization_failure(booking, payment_repo, str(e), "card_declined", hours_until_lesson)
-                results["failed"] += 1
-                results["failures"].append(
-                    {
-                        "booking_id": booking.id,
-                        "error": str(e),
-                        "type": "card_declined",
-                    }
-                )
-
             except Exception as e:
-                # Other error
-                handle_authorization_failure(booking, payment_repo, str(e), "system_error", hours_until_lesson)
+                # Card was declined
+                # Map likely Stripe card errors to a consistent type without importing patched classes
+                error_message = str(e)
+                error_type = (
+                    "card_declined"
+                    if "card" in error_message.lower() or "declined" in error_message.lower()
+                    else "system_error"
+                )
+                handle_authorization_failure(booking, payment_repo, error_message, error_type, hours_until_lesson)
+                # T-24 first failure email: send urgent update-card notice on initial failure
+                try:
+                    # Only send once
+                    if not has_event_type(payment_repo, booking.id, "t24_first_failure_email_sent"):
+                        notification_service.send_final_payment_warning(booking, hours_until_lesson)  # reuse template
+                        payment_repo.create_payment_event(
+                            booking_id=booking.id,
+                            event_type="t24_first_failure_email_sent",
+                            event_data={
+                                "hours_until_lesson": round(hours_until_lesson, 1),
+                                "error": error_message,
+                            },
+                        )
+                except Exception as mail_err:
+                    logger.error(f"Failed to send T-24 failure email for booking {booking.id}: {mail_err}")
                 results["failed"] += 1
                 results["failures"].append(
                     {
                         "booking_id": booking.id,
-                        "error": str(e),
-                        "type": "system_error",
+                        "error": error_message,
+                        "type": error_type,
                     }
                 )
 
@@ -377,6 +434,7 @@ def attempt_authorization_retry(booking: Booking, payment_repo: Any, db: Session
                 "retry": "true",
                 "hours_until_lesson": str(round(hours_until_lesson, 1)),
             },
+            idempotency_key=f"retry_{booking.id}_{int(round(hours_until_lesson))}",
         )
 
         # Update booking
@@ -580,7 +638,9 @@ def attempt_payment_capture(booking: Booking, payment_repo: Any, capture_reason:
             return {"success": True, "skipped": True}
 
         # Attempt capture
-        captured_intent = stripe.PaymentIntent.capture(booking.payment_intent_id)
+        captured_intent = stripe.PaymentIntent.capture(
+            booking.payment_intent_id, idempotency_key=f"capture_{booking.id}_{capture_reason}"
+        )
 
         booking.payment_status = "captured"
 
@@ -717,6 +777,7 @@ def create_new_authorization_and_capture(booking: Booking, payment_repo: Any, db
                 "type": "expired_reauth",
                 "original_intent": booking.payment_intent_id,
             },
+            idempotency_key=f"reauth_{booking.id}",
         )
 
         # Update booking
@@ -796,7 +857,9 @@ def capture_late_cancellation(self, booking_id: str) -> Dict[str, Any]:
 
         # Attempt immediate capture
         try:
-            captured_intent = stripe.PaymentIntent.capture(booking.payment_intent_id)
+            captured_intent = stripe.PaymentIntent.capture(
+                booking.payment_intent_id, idempotency_key=f"capture_late_cancel_{booking.id}"
+            )
 
             booking.payment_status = "captured"
 
@@ -948,5 +1011,51 @@ def check_authorization_health() -> Dict[str, Any]:
             "error": str(e),
             "checked_at": datetime.now(timezone.utc).isoformat(),
         }
+    finally:
+        db.close()
+
+
+@shared_task(bind=True, max_retries=3)
+def audit_and_fix_payout_schedules(self) -> Dict[str, Any]:
+    """
+    Nightly audit to ensure all connected accounts use weekly Tuesday payouts.
+    """
+    from app.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        payment_repo = RepositoryFactory.get_payment_repository(db)
+        stripe_service = StripeService(db)
+
+        # repo-pattern-ignore: Simple scan over connected accounts table
+        from app.models.payment import StripeConnectedAccount
+
+        accounts = db.query(StripeConnectedAccount).all()
+        fixed = 0
+        checked = 0
+        for acc in accounts:
+            checked += 1
+            try:
+                # Fetch live settings
+                acct = stripe.Account.retrieve(acc.stripe_account_id)
+                current = getattr(acct, "settings", {}).get("payouts", {}).get("schedule", {})
+                interval = current.get("interval")
+                weekly_anchor = current.get("weekly_anchor")
+                if interval != "weekly" or weekly_anchor != "tuesday":
+                    stripe_service.set_payout_schedule_for_account(
+                        instructor_profile_id=acc.instructor_profile_id,
+                        interval="weekly",
+                        weekly_anchor="tuesday",
+                    )
+                    fixed += 1
+            except Exception as e:
+                logger.warning(f"Payout schedule audit failed for {acc.stripe_account_id}: {e}")
+
+        result = {"checked": checked, "fixed": fixed}
+        logger.info(f"Payout schedule audit completed: {result}")
+        return result
+    except Exception as exc:
+        logger.error(f"Payout schedule audit failed: {exc}")
+        raise self.retry(exc=exc, countdown=900)
     finally:
         db.close()

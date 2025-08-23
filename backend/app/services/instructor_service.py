@@ -10,7 +10,7 @@ Now tracks timing for all instructor operations to earn those MEGAWATTS! ⚡
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set
 
 from sqlalchemy.orm import Session
@@ -900,7 +900,7 @@ class InstructorService(BaseService):
                 "services_per_category": limit,
                 "total_categories": len(categories),
                 "cached_for_seconds": 3600,  # 1 hour
-                "updated_at": datetime.now().isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
             },
         }
 
@@ -978,7 +978,7 @@ class InstructorService(BaseService):
             "metadata": {
                 "total_categories": len(categories),
                 "cached_for_seconds": 300,  # 5 minutes
-                "updated_at": datetime.now().isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
             },
         }
 

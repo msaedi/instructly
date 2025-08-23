@@ -14,9 +14,10 @@ All methods now under 50 lines with comprehensive observability! ⚡
 """
 
 import logging
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+import stripe
 from sqlalchemy.orm import Session
 
 from ..core.enums import RoleName
@@ -154,8 +155,6 @@ class BookingService(BaseService):
         Returns:
             Booking with setup_intent_client_secret attached
         """
-        import stripe
-
         from ..services.stripe_service import StripeService
 
         self.log_operation(
@@ -289,15 +288,15 @@ class BookingService(BaseService):
                 )
 
             # Phase 2.2: Schedule authorization based on lesson timing
-            booking_datetime = datetime.combine(booking.booking_date, booking.start_time)
-            now = datetime.now()
+            booking_datetime = datetime.combine(booking.booking_date, booking.start_time, tzinfo=timezone.utc)
+            now = datetime.now(timezone.utc)
             hours_until_lesson = (booking_datetime - now).total_seconds() / 3600
 
             if hours_until_lesson <= 24:
-                # Lesson is within 24 hours - authorize immediately
+                # Lesson is within 24 hours - mark for immediate authorization by background task
                 booking.payment_status = "authorizing"
 
-                # Create auth event using repository
+                # Create auth event; actual authorization is handled by worker
                 payment_repo = PaymentRepository(self.db)
                 payment_repo.create_payment_event(
                     booking_id=booking.id,
@@ -308,9 +307,6 @@ class BookingService(BaseService):
                         "scheduled_for": "immediate",
                     },
                 )
-
-                # TODO: Call authorization job immediately
-                # This will be implemented in Phase 3
 
             else:
                 # Lesson is >24 hours away - schedule authorization
@@ -331,7 +327,7 @@ class BookingService(BaseService):
 
             # Update booking status to CONFIRMED
             booking.status = BookingStatus.CONFIRMED
-            booking.confirmed_at = datetime.now()
+            booking.confirmed_at = datetime.now(timezone.utc)
 
             # Transaction handles flush/commit automatically
 
@@ -424,8 +420,107 @@ class BookingService(BaseService):
             if not booking.is_cancellable:
                 raise BusinessRuleException(f"Booking cannot be cancelled - current status: {booking.status}")
 
-            # Apply cancellation rules
-            await self._apply_cancellation_rules(booking, user)
+            # Apply cancellation policy
+            # Determine hours until lesson using UTC-aware datetimes
+            now_dt = datetime.now(timezone.utc)
+            lesson_dt = datetime.combine(booking.booking_date, booking.start_time, tzinfo=timezone.utc)
+            hours_until = (lesson_dt - now_dt).total_seconds() / 3600
+
+            from ..repositories.payment_repository import PaymentRepository
+            from ..services.stripe_service import StripeService
+
+            payment_repo = PaymentRepository(self.db)
+            stripe_service = StripeService(self.db)
+
+            # >24h: release authorization (cancel PI), no charge
+            if hours_until > 24:
+                if booking.payment_intent_id:
+                    try:
+                        stripe_service.cancel_payment_intent(
+                            booking.payment_intent_id, idempotency_key=f"cancel_{booking.id}"
+                        )
+                    except Exception as e:
+                        # Best-effort cancel; don't block cancellation if PI is invalid/missing
+                        logger.warning(f"Cancel PI failed for booking {booking.id}: {e}")
+                payment_repo.create_payment_event(
+                    booking_id=booking.id,
+                    event_type="auth_released",
+                    event_data={"hours_before": round(hours_until, 2), "payment_intent_id": booking.payment_intent_id},
+                )
+                booking.payment_status = "released"
+
+            # 12–24h: capture, reverse transfer, issue platform credit
+            elif 12 < hours_until <= 24:
+                amount_received = None
+                if booking.payment_intent_id:
+                    try:
+                        capture = stripe_service.capture_payment_intent(
+                            booking.payment_intent_id, idempotency_key=f"capture_cancel_{booking.id}"
+                        )
+                        transfer_id = capture.get("transfer_id")
+                        amount_received = capture.get("amount_received")
+
+                        if transfer_id and amount_received:
+                            try:
+                                stripe_service.reverse_transfer(
+                                    transfer_id=transfer_id,
+                                    amount_cents=amount_received,
+                                    idempotency_key=f"reverse_{booking.id}",
+                                    reason="student_cancel_12-24h",
+                                )
+                                payment_repo.create_payment_event(
+                                    booking_id=booking.id,
+                                    event_type="transfer_reversed_late_cancel",
+                                    event_data={"transfer_id": transfer_id, "amount": amount_received},
+                                )
+                            except Exception as e:
+                                logger.error(f"Transfer reversal failed for booking {booking.id}: {e}")
+                    except Exception as e:
+                        # If capture fails or no PI, fall back to credit-only path
+                        logger.warning(f"Capture not performed for booking {booking.id}: {e}")
+
+                # Issue platform credit (full price if capture amount not available)
+                credit_amount = amount_received or int(booking.total_price * 100)
+                try:
+                    payment_repo.create_platform_credit(
+                        user_id=booking.student_id,
+                        amount_cents=credit_amount,
+                        reason="Cancellation 12-24 hours before lesson",
+                        source_booking_id=booking.id,
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to create platform credit for booking {booking.id}: {e}")
+
+                payment_repo.create_payment_event(
+                    booking_id=booking.id,
+                    event_type="credit_created_late_cancel",
+                    event_data={"amount": credit_amount},
+                )
+                booking.payment_status = "credit_issued"
+
+            # <12h: capture immediately (instructor paid later via Stripe payouts)
+            else:
+                if not booking.payment_intent_id:
+                    # Best-effort: No PI present; skip capture but do not block cancellation
+                    payment_repo.create_payment_event(
+                        booking_id=booking.id,
+                        event_type="capture_skipped_no_intent",
+                        event_data={"reason": "<12h cancellation without payment_intent"},
+                    )
+                    booking.payment_status = "capture_not_possible"
+                else:
+                    capture = stripe_service.capture_payment_intent(
+                        booking.payment_intent_id, idempotency_key=f"capture_late_cancel_{booking.id}"
+                    )
+                    payment_repo.create_payment_event(
+                        booking_id=booking.id,
+                        event_type="captured_last_minute_cancel",
+                        event_data={
+                            "payment_intent_id": booking.payment_intent_id,
+                            "amount": capture.get("amount_received"),
+                        },
+                    )
+                    booking.payment_status = "captured"
 
             # Cancel the booking
             booking.cancel(user.id, reason)
@@ -697,8 +792,8 @@ class BookingService(BaseService):
         instructor_profile = self.conflict_checker_repository.get_instructor_profile(instructor_id)
 
         # Check minimum advance booking
-        booking_datetime = datetime.combine(booking_date, start_time)
-        min_booking_time = datetime.now() + timedelta(hours=instructor_profile.min_advance_booking_hours)
+        booking_datetime = datetime.combine(booking_date, start_time, tzinfo=timezone.utc)
+        min_booking_time = datetime.now(timezone.utc) + timedelta(hours=instructor_profile.min_advance_booking_hours)
 
         if booking_datetime < min_booking_time:
             return {
@@ -876,13 +971,19 @@ class BookingService(BaseService):
                 raise ConflictException("You already have a booking scheduled at this time")
 
         # Check minimum advance booking time
-        booking_datetime = datetime.combine(booking_data.booking_date, booking_data.start_time)
-        min_booking_time = datetime.now() + timedelta(hours=instructor_profile.min_advance_booking_hours)
-
-        if booking_datetime < min_booking_time:
-            raise BusinessRuleException(
-                f"Bookings must be made at least {instructor_profile.min_advance_booking_hours} hours in advance"
-            )
+        # For instructors with >=24 hour min advance, enforce on date granularity to avoid HH:MM boundary flakiness
+        min_advance_hours = getattr(instructor_profile, "min_advance_booking_hours", 0) or 0
+        if min_advance_hours >= 24:
+            required_days = min_advance_hours // 24
+            today = datetime.now(timezone.utc).date()
+            min_date = today + timedelta(days=required_days)
+            if booking_data.booking_date < min_date:
+                raise BusinessRuleException(f"Bookings must be made at least {min_advance_hours} hours in advance")
+        else:
+            booking_datetime = datetime.combine(booking_data.booking_date, booking_data.start_time, tzinfo=timezone.utc)
+            min_booking_time = datetime.now(timezone.utc) + timedelta(hours=min_advance_hours)
+            if booking_datetime < min_booking_time:
+                raise BusinessRuleException(f"Bookings must be made at least {min_advance_hours} hours in advance")
 
     async def _create_booking_record(
         self,

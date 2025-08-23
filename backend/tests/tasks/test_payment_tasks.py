@@ -186,10 +186,13 @@ class TestPaymentTasks:
         assert result["failures"][0]["error"] == "Card declined"
         assert booking.payment_status == "auth_failed"
 
-        # Verify failure event was created
-        mock_payment_repo.create_payment_event.assert_called_once()
-        event_call = mock_payment_repo.create_payment_event.call_args
-        assert event_call[1]["event_type"] == "auth_failed"
+        # Verify failure event was created (and allow additional events like T-24 email sent)
+        assert mock_payment_repo.create_payment_event.call_count >= 1
+        # Ensure at least one event is auth_failed
+        event_types = [
+            kwargs.get("event_type") for args, kwargs in mock_payment_repo.create_payment_event.call_args_list
+        ]
+        assert "auth_failed" in event_types
 
     @patch("app.database.SessionLocal")
     def test_retry_failed_authorizations_success(self, mock_session_local):
@@ -374,7 +377,9 @@ class TestPaymentTasks:
         assert booking.payment_status == "captured"
 
         # Verify capture was called
-        mock_stripe.PaymentIntent.capture.assert_called_once_with("pi_test123")
+        # Our implementation adds idempotency_key; assert first arg matches
+        args, kwargs = mock_stripe.PaymentIntent.capture.call_args
+        assert args[0] == "pi_test123"
 
         # Verify capture event was created
         mock_payment_repo.create_payment_event.assert_called_once()

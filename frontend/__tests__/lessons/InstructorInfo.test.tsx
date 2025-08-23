@@ -40,10 +40,10 @@ describe('InstructorInfo', () => {
     expect(screen.getByText('250 lessons completed')).toBeInTheDocument();
   });
 
-  it('renders avatar with correct initials', () => {
+  it('renders avatar placeholder icon', () => {
     render(<InstructorInfo instructor={mockInstructor} onChat={mockOnChat} />);
-
-    expect(screen.getByText('JS')).toBeInTheDocument(); // Jane S
+    // New UI uses an avatar icon instead of initials
+    expect(screen.getByText('👤')).toBeInTheDocument();
   });
 
   it('calls onChat when chat button is clicked', () => {
@@ -74,7 +74,7 @@ describe('InstructorInfo', () => {
     expect(screen.getByText('1 lessons completed')).toBeInTheDocument();
   });
 
-  it('shows correct avatar initials for complex names', () => {
+  it('shows privacy-safe name for complex names', () => {
     const longNameInstructor = {
       ...mockInstructor,
       first_name: 'Alexandra',
@@ -86,8 +86,8 @@ describe('InstructorInfo', () => {
     expect(
       screen.getByText('Alexandra M.')
     ).toBeInTheDocument();
-    // The component now shows initials from first_name and last_initial
-    expect(screen.getByText('AM')).toBeInTheDocument();
+    // Avatar uses icon now, not initials
+    expect(screen.getByText('👤')).toBeInTheDocument();
   });
 
   it('shows review and tip button for completed lessons', () => {

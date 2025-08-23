@@ -19,7 +19,9 @@ from typing import Any, Dict, List
 
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from ..api.dependencies.auth import get_current_active_user
 from ..core.config import settings
@@ -27,6 +29,7 @@ from ..core.enums import RoleName
 from ..core.exceptions import ServiceException, ValidationException
 from ..database import get_db
 from ..models.user import User
+from ..monitoring.prometheus_metrics import prometheus_metrics
 from ..schemas.payment_schemas import (
     CheckoutResponse,
     CreateCheckoutRequest,
@@ -107,7 +110,7 @@ async def start_onboarding(
 
         if existing_account:
             # Check onboarding status
-            account_status = stripe_service.check_account_status(instructor_profile.id)
+            account_status = await run_in_threadpool(stripe_service.check_account_status, instructor_profile.id)
 
             if account_status["onboarding_completed"]:
                 return OnboardingResponse(
@@ -183,7 +186,7 @@ async def get_onboarding_status(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found")
 
         # Get account status
-        status_data = stripe_service.check_account_status(instructor_profile.id)
+        status_data = await run_in_threadpool(stripe_service.check_account_status, instructor_profile.id)
 
         return OnboardingStatusResponse(
             has_account=status_data["has_account"],
@@ -205,6 +208,50 @@ async def get_onboarding_status(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to check onboarding status"
         )
+
+
+class PayoutScheduleResponse(BaseModel):
+    ok: bool
+    account_id: str | None = None
+    settings: Dict[str, Any] | None = None
+
+
+@router.post("/connect/payout-schedule", response_model=PayoutScheduleResponse)
+async def set_payout_schedule(
+    interval: str = "weekly",
+    weekly_anchor: str = "tuesday",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    stripe_service: StripeService = Depends(get_stripe_service),
+):
+    """
+    Set payout schedule for the current instructor's connected account.
+
+    Default: weekly on Tuesday. Valid anchors: monday..sunday.
+    """
+    try:
+        validate_instructor_role(current_user)
+
+        # Get instructor profile
+        instructor_profile = stripe_service.instructor_repository.get_by_user_id(current_user.id)
+        if not instructor_profile:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found")
+
+        result = await run_in_threadpool(
+            stripe_service.set_payout_schedule_for_account,
+            instructor_profile.id,
+            interval,
+            weekly_anchor,
+        )
+        return PayoutScheduleResponse(ok=True, account_id=result.get("account_id"), settings=result.get("settings"))
+    except HTTPException:
+        raise
+    except ServiceException as e:
+        logger.error(f"Error setting payout schedule: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error setting payout schedule: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to set payout schedule")
 
 
 @router.get("/connect/dashboard", response_model=DashboardLinkResponse)
@@ -243,7 +290,7 @@ async def get_dashboard_link(
             )
 
         # Create dashboard link
-        login_link = stripe.Account.create_login_link(connected_account.stripe_account_id)
+        login_link = await run_in_threadpool(stripe.Account.create_login_link, connected_account.stripe_account_id)
 
         logger.info(f"Created dashboard link for instructor {instructor_profile.id}")
 
@@ -263,6 +310,61 @@ async def get_dashboard_link(
     except Exception as e:
         logger.error(f"Unexpected error creating dashboard link: {str(e)}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create dashboard link")
+
+
+class InstantPayoutResponse(BaseModel):
+    ok: bool
+    payout_id: str | None = None
+    status: str | None = None
+
+
+@router.post("/connect/instant-payout", response_model=InstantPayoutResponse)
+async def request_instant_payout(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    stripe_service: StripeService = Depends(get_stripe_service),
+):
+    """
+    Trigger an instant payout for an instructor's connected account.
+
+    Uses Stripe's instant payout capability (account eligibility required). This does NOT aggregate platform funds; it
+    triggers Stripe to pay out the instructor's available balance instantly. We record a metric for adoption.
+    """
+    try:
+        validate_instructor_role(current_user)
+
+        # Resolve connected account
+        instructor_profile = stripe_service.instructor_repository.get_by_user_id(current_user.id)
+        if not instructor_profile:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instructor profile not found")
+
+        connected = stripe_service.payment_repository.get_connected_account_by_instructor_id(instructor_profile.id)
+        if not connected or not connected.onboarding_completed:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Onboarding incomplete")
+
+        # Create a payout with method='instant' on the connected account
+        # Note: Requires Stripe account eligibility and sufficient balance
+        payout = await run_in_threadpool(
+            stripe.Payout.create,
+            amount=0,  # 0 means Stripe will pay out the maximum available (supported in test mode)
+            currency=settings.stripe_currency or "usd",
+            method="instant",
+            stripe_account=connected.stripe_account_id,
+        )
+
+        prometheus_metrics.inc_instant_payout_request("success")
+        return InstantPayoutResponse(ok=True, payout_id=payout.id, status=payout.status)
+    except HTTPException:
+        prometheus_metrics.inc_instant_payout_request("error")
+        raise
+    except stripe.StripeError as e:
+        logger.error(f"Stripe error requesting instant payout: {str(e)}")
+        prometheus_metrics.inc_instant_payout_request("error")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Instant payout failed")
+    except Exception as e:
+        logger.error(f"Unexpected error requesting instant payout: {str(e)}")
+        prometheus_metrics.inc_instant_payout_request("error")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Instant payout failed")
 
 
 # ========== Student Routes ==========
@@ -459,8 +561,10 @@ async def create_checkout(
             )
 
         # Process payment
-        payment_result = stripe_service.process_booking_payment(
-            booking_id=request.booking_id, payment_method_id=request.payment_method_id
+        payment_result = await run_in_threadpool(
+            stripe_service.process_booking_payment,
+            request.booking_id,
+            request.payment_method_id,
         )
 
         # Update booking status if payment succeeded
@@ -470,13 +574,24 @@ async def create_checkout(
 
         logger.info(f"Processed payment for booking {request.booking_id}")
 
+        # If the Stripe service indicates 3DS is required, surface client_secret
+        client_secret = (
+            payment_result.get("client_secret")
+            if payment_result.get("status")
+            in [
+                "requires_action",
+                "requires_confirmation",
+            ]
+            else None
+        )
+
         return CheckoutResponse(
             success=payment_result["success"],
             payment_intent_id=payment_result["payment_intent_id"],
             status=payment_result["status"],
             amount=payment_result["amount"],
             application_fee=payment_result["application_fee"],
-            client_secret=None,  # Don't expose client secret in API response
+            client_secret=client_secret,
             requires_action=payment_result["status"] in ["requires_action", "requires_confirmation"],
         )
 
@@ -582,7 +697,31 @@ async def get_transaction_history(
                 instructor_profile = instructor_service.instructor_profile
                 instructor = instructor_profile.user if instructor_profile else None
 
+                # Determine credits applied from payment events
+                credit_applied_cents = 0
+                try:
+                    events = stripe_service.payment_repository.get_payment_events_for_booking(booking.id)
+                    # Prefer explicit credits_applied event
+                    for ev in events:
+                        if ev.event_type == "credits_applied":
+                            data = ev.event_data or {}
+                            credit_applied_cents = int(data.get("applied_cents", 0) or 0)
+                    # Fallback: full credit authorization event
+                    if credit_applied_cents == 0:
+                        for ev in events:
+                            if ev.event_type == "auth_succeeded_credits_only":
+                                data = ev.event_data or {}
+                                credit_applied_cents = int(
+                                    data.get("credits_applied_cents", data.get("original_amount_cents", 0)) or 0
+                                )
+                except Exception:
+                    credit_applied_cents = 0
+
                 # Build transaction history item
+                # Final charged amount: payment.amount (cents) is what the student was charged
+                # total_price = lesson price (from booking)
+                # platform_fee = application_fee (from payment record)
+                # credit_applied = credits applied prior to charge
                 result.append(
                     TransactionHistoryItem(
                         id=payment.id,
@@ -595,10 +734,10 @@ async def get_transaction_history(
                         end_time=booking.end_time.isoformat(),
                         duration_minutes=booking.duration_minutes,
                         hourly_rate=float(booking.hourly_rate),
-                        total_price=payment.amount / 100,  # Convert cents to dollars
-                        platform_fee=payment.application_fee / 100 if payment.application_fee else 0,
-                        credit_applied=0,  # TODO: Implement credits
-                        final_amount=payment.amount / 100,
+                        total_price=round(float(booking.total_price), 2),
+                        platform_fee=round((payment.application_fee or 0) / 100, 2),
+                        credit_applied=credit_applied_cents / 100,
+                        final_amount=round((payment.amount or 0) / 100, 2),
                         status=payment.status,
                         created_at=payment.created_at.isoformat(),
                     )
@@ -629,9 +768,27 @@ async def get_credit_balance(
     Returns available credits and expiration
     """
     try:
-        # TODO: Implement credit system
-        # For now, return mock data
-        return CreditBalanceResponse(available=0.00, expires_at=None, pending=0.00)
+        stripe_service = StripeService(db)
+        payment_repo = stripe_service.payment_repository
+
+        # Total available credits in cents
+        total_cents = payment_repo.get_total_available_credits(current_user.id)
+
+        # Earliest expiration among available credits (if any)
+        earliest_exp: str | None = None
+        try:
+            credits = payment_repo.get_available_credits(current_user.id)
+            expiries = [c.expires_at for c in credits if getattr(c, "expires_at", None) is not None]
+            if expiries:
+                earliest_exp = min(expiries).isoformat()
+        except Exception:
+            earliest_exp = None
+
+        return CreditBalanceResponse(
+            available=float(total_cents) / 100.0,
+            expires_at=earliest_exp,
+            pending=0.0,
+        )
 
     except Exception as e:
         logger.error(f"Error getting credit balance: {str(e)}")

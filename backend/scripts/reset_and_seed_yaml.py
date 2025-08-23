@@ -32,7 +32,7 @@ from app.core.enums import RoleName
 from app.models.availability import AvailabilitySlot
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
-from app.models.payment import StripeConnectedAccount
+from app.models.payment import PlatformCredit, StripeConnectedAccount
 from app.models.rbac import Role
 from app.models.rbac import UserRole as UserRoleJunction
 from app.models.service_catalog import InstructorService, ServiceCatalog
@@ -169,6 +169,7 @@ class DatabaseSeeder:
         self.create_availability()
         self.create_coverage_areas()
         self.create_bookings()
+        self.create_sample_platform_credits()
         self.print_summary()
         print("✅ Database seeding complete!")
 
@@ -795,11 +796,51 @@ class DatabaseSeeder:
                 .count()
             )
 
+            # Count platform credits for visibility
+            credits_count = session.query(PlatformCredit).count()
+
             print("\n📊 Summary:")
             print(f"  Students: {student_count}")
             print(f"  Instructors: {instructor_count}")
             print(f"  Services: {service_count}")
             print(f"  Bookings: {booking_count}")
+            print(f"  Platform Credits: {credits_count}")
+
+    def create_sample_platform_credits(self):
+        """Create sample platform credits for specific test users."""
+        from datetime import timedelta
+
+        from sqlalchemy.orm import Session as ORMSession
+
+        with Session(self.engine) as session:
+            # Find Emma Johnson
+            emma = session.query(User).filter(User.email == "emma.johnson@example.com").first()
+            if not emma:
+                print("  ⚠️  Emma Johnson not found; skipping platform credit seeding")
+                return
+
+            now = datetime.now(timezone.utc)
+
+            # $20 credit expiring in 30 days
+            c1 = PlatformCredit(
+                user_id=emma.id,
+                amount_cents=2000,
+                reason="seed: test credit",
+                expires_at=now + timedelta(days=30),
+            )
+            session.add(c1)
+
+            # $25 credit expiring in 90 days
+            c2 = PlatformCredit(
+                user_id=emma.id,
+                amount_cents=2500,
+                reason="seed: test credit",
+                expires_at=now + timedelta(days=90),
+            )
+            session.add(c2)
+
+            session.commit()
+            print("✅ Seeded platform credits for emma.johnson@example.com: $20 (30d), $25 (90d)")
 
 
 if __name__ == "__main__":

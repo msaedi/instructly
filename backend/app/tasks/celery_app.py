@@ -103,6 +103,10 @@ def create_celery_app() -> Celery:
 
     celery_app.conf.update(base_config)
 
+    # Force import of payment task modules so tasks are registered even if autodiscovery fails
+    # This complements autodiscover and avoids "unregistered task" errors on some runners
+    celery_app.conf.imports = tuple(set((celery_app.conf.imports or ())) | {"app.tasks.payment_tasks"})
+
     # Configure task routing if needed
     celery_app.conf.task_routes = {
         "app.tasks.email.*": {"queue": "email"},

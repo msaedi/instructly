@@ -56,6 +56,7 @@ export default function PaymentConfirmation({
   const [isLocationExpanded, setIsLocationExpanded] = useState(!hasSavedLocation && !isOnlineLesson);
   const isLastMinute = booking.bookingType === BookingType.LAST_MINUTE;
   const cardCharge = booking.totalAmount - creditsUsed;
+  const totalAfterCredits = Math.max(0, booking.totalAmount - creditsUsed);
 
   // Check for booking conflicts when component mounts
   useEffect(() => {
@@ -625,7 +626,7 @@ export default function PaymentConfirmation({
               <div className="border-t border-gray-300 pt-2 mt-2">
                 <div className="flex justify-between font-bold text-base">
                   <span>Total Rate</span>
-                  <span>${booking.totalAmount.toFixed(2)}</span>
+                  <span>${totalAfterCredits.toFixed(2)}</span>
                 </div>
               </div>
             </div>

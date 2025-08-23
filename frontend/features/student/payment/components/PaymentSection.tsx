@@ -39,6 +39,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     totalAmount: 0,
     credits: [],
   });
+  const [autoAppliedCredits, setAutoAppliedCredits] = useState(false);
   const [isLoadingPaymentMethods, setIsLoadingPaymentMethods] = useState(true);
 
   // Track selected card ID separately for payment processing
@@ -110,6 +111,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
         setUserCredits({
           totalAmount: balance.available || 0,
           credits: [], // Credits detail not implemented yet
+          earliestExpiry: balance.expires_at || null,
         });
 
         logger.info('Successfully loaded payment data', {
@@ -142,6 +144,24 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
     fetchPaymentData();
   }, []);
+
+  // Auto-apply available credits by default on confirmation step
+  useEffect(() => {
+    const hasCredits = (userCredits?.totalAmount || 0) > 0;
+    if (!hasCredits || autoAppliedCredits) return;
+
+    // Determine a card to use if needed
+    const defaultCard = userCards.find(c => c.isDefault) || userCards[0];
+    const effectiveCardId = selectedCardId || defaultCard?.id;
+
+    if (!effectiveCardId) return; // No card yet
+
+    const amountToApply = Math.min(userCredits.totalAmount || 0, updatedBookingData.totalAmount);
+    if (amountToApply <= 0) return;
+
+    selectPaymentMethod(PaymentMethod.MIXED, effectiveCardId, amountToApply);
+    setAutoAppliedCredits(true);
+  }, [userCredits, userCards, selectedCardId, updatedBookingData.totalAmount]);
 
   // Track if user manually went back to change payment method
   const [userChangingPayment, setUserChangingPayment] = useState(false);
@@ -232,12 +252,12 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
           // Check if payment requires additional action (3D Secure, etc.)
           if (checkoutResult.requires_action && checkoutResult.client_secret) {
-            // TODO: Handle 3D Secure authentication with Stripe Elements
-            logger.warn('Payment requires additional authentication', {
-              paymentIntentId: checkoutResult.payment_intent_id,
-            });
-            // For now, we'll treat this as an error
-            throw new Error('Payment requires additional authentication. Please try a different card.');
+            // Surface requires_action to the caller/UI; a Stripe Elements flow should confirm this PI.
+            // Here we return a specific error to trigger the 3DS UI upstream.
+            const err = new Error('requires_action');
+            (err as any).client_secret = checkoutResult.client_secret;
+            (err as any).payment_intent_id = checkoutResult.payment_intent_id;
+            throw err;
           }
 
           if (checkoutResult.status !== 'succeeded' && checkoutResult.status !== 'processing') {
@@ -262,7 +282,14 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
         }
 
         // Provide better error messages for specific failures
-        const errorMessage = paymentError?.message || 'Payment failed';
+        let errorMessage = paymentError?.message || 'Payment failed';
+        // If requires_action, instruct UI to perform 3DS confirmation
+        if (errorMessage === 'requires_action' && paymentError?.client_secret) {
+          setLocalErrorMessage('Additional authentication required to complete your payment.');
+          goToStep(PaymentStep.ERROR);
+          // The page embedding PaymentSection can detect this message and call stripe.confirmCardPayment
+          throw new Error('3ds_required');
+        }
         if (errorMessage.includes('Instructor payment account not set up')) {
           throw new Error('This instructor is not yet set up to receive payments. Please try booking with another instructor or contact support.');
         }

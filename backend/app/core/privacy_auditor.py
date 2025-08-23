@@ -19,7 +19,7 @@ import sys
 import time
 import traceback
 from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -74,7 +74,7 @@ class Violation:
     severity: ViolationSeverity
     field_path: str = ""  # JSON path to the violating field
     example_value: Any = None
-    timestamp: datetime = field(default_factory=datetime.now)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     context: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -100,7 +100,7 @@ class AuditResult:
     violations: List[Violation]
     endpoints_tested: List[EndpointTest]
     execution_time: float
-    timestamp: datetime = field(default_factory=datetime.now)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     coverage: Dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -470,7 +470,7 @@ class PrivacyAuditor:
                 "passed": total_endpoints - len(self.violations),
                 "failed": len(self.violations) if self.violations else 0,
                 "execution_time": f"{execution_time:.2f}s",
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
             violations=self.violations,
             endpoints_tested=endpoints,
@@ -504,7 +504,7 @@ class PrivacyAuditor:
 
         elif format == "markdown":
             report = ["# Privacy Audit Report\n"]
-            report.append(f"**Date**: {result.timestamp.strftime('%Y-%m-%d %H:%M:%S')}\n")
+            report.append(f"**Date**: {result.timestamp.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}\n")
             report.append(f"**Execution Time**: {result.execution_time:.2f}s\n")
             report.append("\n## Summary\n")
             report.append(f"- Total Endpoints Tested: {result.summary['total_endpoints']}\n")

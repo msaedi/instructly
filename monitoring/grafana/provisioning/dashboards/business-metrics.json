@@ -520,6 +520,70 @@
       "title": "Dashboard Guide",
       "type": "text"
     }
+    ,
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
+      "id": 8,
+      "options": {
+        "legend": { "showLegend": true, "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "editorMode": "code",
+          "expr": "rate(instainstru_credits_applied_total[5m]) * 60",
+          "legendFormat": "credits applied/min",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "editorMode": "code",
+          "expr": "sum by (source) (increase(instainstru_credits_applied_total[24h]))",
+          "legendFormat": "{{source}} (24h)",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Credits Applied",
+      "type": "timeseries"
+    }
+    ,
+    {
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
+      "id": 9,
+      "options": {
+        "legend": { "showLegend": true, "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "pluginVersion": "10.0.0",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "editorMode": "code",
+          "expr": "sum by (status) (rate(instainstru_instant_payout_requests_total[5m]) * 60)",
+          "legendFormat": "{{status}}/min",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "editorMode": "code",
+          "expr": "sum(increase(instainstru_instant_payout_requests_total{status=\"error\"}[1h]))",
+          "legendFormat": "errors last hour",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Instant Payout Requests",
+      "type": "timeseries"
+    }
   ],
   "refresh": "30s",
   "schemaVersion": 38,

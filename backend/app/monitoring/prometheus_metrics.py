@@ -6,6 +6,7 @@ This module provides Prometheus-compatible metrics by leveraging existing
 and best practices for metric types.
 """
 
+import time
 from collections import defaultdict
 from typing import Dict, Optional
 
@@ -56,12 +57,33 @@ errors_total = Counter(
     "instainstru_errors_total", "Total number of errors", ["service", "operation", "error_type"], registry=REGISTRY
 )
 
+# Domain-specific custom counters
+credits_applied_total = Counter(
+    "instainstru_credits_applied_total",
+    "Total number of times credits were applied",
+    ["source"],  # e.g., authorization, cancellation
+    registry=REGISTRY,
+)
+
+instant_payout_requests_total = Counter(
+    "instainstru_instant_payout_requests_total",
+    "Count of instant payout requests",
+    ["status"],  # success | error
+    registry=REGISTRY,
+)
+
 # Storage for tracking active operations
 active_operations: Dict[str, int] = defaultdict(int)
 
 
 class PrometheusMetrics:
     """Manages Prometheus metrics collection and exposure."""
+
+    # Simple micro-cache to speed up repeated scrapes within a short window
+    _cache_data: Optional[bytes] = None
+    _cache_ts: float = 0.0
+    _cache_ttl_seconds: float = 0.2  # 200ms micro-cache
+    _dirty_since_last_scrape: bool = True
 
     @staticmethod
     def record_http_request(method: str, endpoint: str, duration: float, status_code: int) -> None:
@@ -70,6 +92,8 @@ class PrometheusMetrics:
 
         http_request_duration_seconds.labels(**labels).observe(duration)
         http_requests_total.labels(**labels).inc()
+        # Mark cache as dirty so next scrape doesn't serve stale data
+        PrometheusMetrics._dirty_since_last_scrape = True
 
     @staticmethod
     def track_http_request_start(method: str, endpoint: str) -> None:
@@ -104,6 +128,7 @@ class PrometheusMetrics:
         # Record error if applicable
         if status == "error" and error_type:
             errors_total.labels(service=service, operation=operation, error_type=error_type).inc()
+        PrometheusMetrics._dirty_since_last_scrape = True
 
     @staticmethod
     def get_metrics() -> bytes:
@@ -113,12 +138,38 @@ class PrometheusMetrics:
         Returns:
             Metrics data in Prometheus text format
         """
-        return generate_latest(REGISTRY)
+        now = time.perf_counter()
+        # Serve cached payload if within TTL and nothing changed since last scrape
+        if (
+            PrometheusMetrics._cache_data is not None
+            and (now - PrometheusMetrics._cache_ts) < PrometheusMetrics._cache_ttl_seconds
+            and not PrometheusMetrics._dirty_since_last_scrape
+        ):
+            return PrometheusMetrics._cache_data
+
+        data = generate_latest(REGISTRY)
+        PrometheusMetrics._cache_data = data
+        PrometheusMetrics._cache_ts = now
+        PrometheusMetrics._dirty_since_last_scrape = False
+        return data
 
     @staticmethod
     def get_content_type() -> str:
         """Get the content type for Prometheus metrics."""
         return CONTENT_TYPE_LATEST
+
+    # Domain helpers
+    @staticmethod
+    def inc_credits_applied(source: str = "authorization") -> None:
+        """Increment credits applied counter."""
+        credits_applied_total.labels(source=source).inc()
+        PrometheusMetrics._dirty_since_last_scrape = True
+
+    @staticmethod
+    def inc_instant_payout_request(status: str) -> None:
+        """Increment instant payout request counter with given status label."""
+        instant_payout_requests_total.labels(status=status).inc()
+        PrometheusMetrics._dirty_since_last_scrape = True
 
 
 # Singleton instance

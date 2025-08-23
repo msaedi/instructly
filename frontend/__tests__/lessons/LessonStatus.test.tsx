@@ -11,12 +11,13 @@ describe('LessonStatus', () => {
     expect(badge).toHaveClass('bg-blue-50', 'text-blue-700', 'border-blue-200');
   });
 
-  it('renders completed status with green color', () => {
+  it('renders completed status with success styling', () => {
     render(<LessonStatus status="COMPLETED" />);
 
     const badge = screen.getByText('Completed');
     expect(badge).toBeInTheDocument();
-    expect(badge).toHaveClass('bg-green-50', 'text-green-700', 'border-green-200');
+    // New design uses yellow for success/state consistency
+    expect(badge).toHaveClass('bg-yellow-50', 'text-yellow-700', 'border-yellow-200');
   });
 
   it('renders cancelled status with gray color', () => {

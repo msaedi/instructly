@@ -227,7 +227,9 @@ export default function PaymentMethodSelection({
               )}
 
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                Credits expire 6 months after issue date
+                {credits.earliestExpiry
+                  ? `Earliest credit expiry: ${new Date(credits.earliestExpiry).toLocaleDateString()}`
+                  : 'Credits expire 12 months after issue date'}
               </p>
             </div>
           )}

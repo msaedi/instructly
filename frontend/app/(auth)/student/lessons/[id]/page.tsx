@@ -280,6 +280,9 @@ export default function LessonDetailsPage() {
                   <span>Paid</span>
                   <span>${(lesson.total_price * 1.15).toFixed(2)}</span>
                 </div>
+                <p className="text-xs text-gray-500 pt-2">
+                  For cancellations between 12–24 hours before a lesson, you’ll be charged and receive a platform credit for the amount.
+                </p>
               </div>
             </div>
           </>

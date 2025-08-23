@@ -15,7 +15,7 @@ This repository handles:
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 import ulid
@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from ..core.exceptions import RepositoryException
 from ..models.booking import Booking
 from ..models.payment import (
+    InstructorPayoutEvent,
     PaymentEvent,
     PaymentIntent,
     PaymentMethod,
@@ -288,6 +289,51 @@ class PaymentRepository(BaseRepository):
         except Exception as e:
             self.logger.error(f"Failed to get payment by booking ID: {str(e)}")
             raise RepositoryException(f"Failed to get payment by booking ID: {str(e)}")
+
+    # ========== Payout Events (Analytics) ==========
+
+    def record_payout_event(
+        self,
+        *,
+        instructor_profile_id: str,
+        stripe_account_id: str,
+        payout_id: str,
+        amount_cents: Optional[int],
+        status: Optional[str],
+        arrival_date: Optional[datetime],
+        failure_code: Optional[str] = None,
+        failure_message: Optional[str] = None,
+    ) -> InstructorPayoutEvent:
+        """Persist a payout event for instructor analytics."""
+        try:
+            evt = InstructorPayoutEvent(
+                instructor_profile_id=instructor_profile_id,
+                stripe_account_id=stripe_account_id,
+                payout_id=payout_id,
+                amount_cents=amount_cents,
+                status=status,
+                arrival_date=arrival_date,
+                failure_code=failure_code,
+                failure_message=failure_message,
+            )
+            self.db.add(evt)
+            self.db.flush()
+            return evt
+        except Exception as e:
+            self.logger.error(f"Failed to record payout event: {str(e)}")
+            raise RepositoryException(f"Failed to record payout event: {str(e)}")
+
+    # Helper to resolve Stripe account to instructor profile via connected account record
+    def get_connected_account_by_stripe_id(self, stripe_account_id: str):
+        try:
+            return (
+                self.db.query(StripeConnectedAccount)
+                .filter(StripeConnectedAccount.stripe_account_id == stripe_account_id)
+                .first()
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to get connected account by stripe id: {str(e)}")
+            raise RepositoryException(f"Failed to get connected account by stripe id: {str(e)}")
 
     # ========== Payment Method Management ==========
 
@@ -641,6 +687,11 @@ class PaymentRepository(BaseRepository):
                 event_type=event_type,
                 event_data=event_data or {},
             )
+            # Ensure high-resolution timestamp to make ordering deterministic in tight loops
+            try:
+                event.created_at = datetime.now(timezone.utc)
+            except Exception:
+                pass
             self.db.add(event)
             self.db.flush()
             return event
@@ -692,8 +743,8 @@ class PaymentRepository(BaseRepository):
             if event_type:
                 query = query.filter(PaymentEvent.event_type == event_type)
 
-            # Use ID for ordering since ULIDs are time-ordered and have better resolution
-            return query.order_by(PaymentEvent.id.desc()).first()
+            # Order by timestamp primarily; tie-breaker by ULID to ensure stability
+            return (query.order_by(PaymentEvent.created_at.desc(), PaymentEvent.id.desc())).first()
         except Exception as e:
             self.logger.error(f"Failed to get latest payment event: {str(e)}")
             raise RepositoryException(f"Failed to get latest payment event: {str(e)}")
@@ -725,6 +776,9 @@ class PaymentRepository(BaseRepository):
             RepositoryException: If creation fails
         """
         try:
+            # Default expiry: 1 year if not provided
+            if expires_at is None:
+                expires_at = datetime.now(timezone.utc) + timedelta(days=365)
             credit = PlatformCredit(
                 id=str(ulid.ULID()),
                 user_id=user_id,
@@ -739,6 +793,88 @@ class PaymentRepository(BaseRepository):
         except Exception as e:
             self.logger.error(f"Failed to create platform credit: {str(e)}")
             raise RepositoryException(f"Failed to create platform credit: {str(e)}")
+
+    def apply_credits_for_booking(self, *, user_id: str, booking_id: str, amount_cents: int) -> Dict[str, Any]:
+        """
+        Consume available platform credits to offset an amount for a booking.
+
+        - Uses earliest expiring credits first
+        - Marks used credits; if a credit exceeds remaining amount, creates a remainder credit
+        - Emits per-credit and summary payment events
+
+        Returns a dict with applied amount and credit IDs used.
+        """
+        try:
+            if amount_cents <= 0:
+                return {"applied_cents": 0, "used_credit_ids": [], "remainder_credit_id": None}
+
+            available = self.get_available_credits(user_id)
+            remaining = amount_cents
+            applied_total = 0
+            used_ids: List[str] = []
+            remainder_credit_id: Optional[str] = None
+
+            for credit in available:
+                if remaining <= 0:
+                    break
+
+                use_amount = min(credit.amount_cents, remaining)
+
+                # Mark credit used
+                credit.used_at = datetime.now(timezone.utc)
+                credit.used_booking_id = booking_id
+                self.db.flush()
+                used_ids.append(credit.id)
+
+                # Create remainder credit if needed
+                if credit.amount_cents > use_amount:
+                    remainder = PlatformCredit(
+                        id=str(ulid.ULID()),
+                        user_id=user_id,
+                        amount_cents=credit.amount_cents - use_amount,
+                        reason=f"Remainder of {credit.id}",
+                        source_booking_id=credit.source_booking_id,
+                        expires_at=credit.expires_at,
+                    )
+                    self.db.add(remainder)
+                    self.db.flush()
+                    remainder_credit_id = remainder.id
+
+                # Per-credit usage event
+                self.create_payment_event(
+                    booking_id=booking_id,
+                    event_type="credit_used",
+                    event_data={
+                        "credit_id": credit.id,
+                        "used_cents": use_amount,
+                        "original_credit_cents": credit.amount_cents,
+                        "remainder_credit_id": remainder_credit_id,
+                    },
+                )
+
+                applied_total += use_amount
+                remaining -= use_amount
+
+            if applied_total > 0:
+                self.create_payment_event(
+                    booking_id=booking_id,
+                    event_type="credits_applied",
+                    event_data={
+                        "applied_cents": applied_total,
+                        "requested_cents": amount_cents,
+                        "used_credit_ids": used_ids,
+                        "remaining_to_charge_cents": max(amount_cents - applied_total, 0),
+                    },
+                )
+
+            return {
+                "applied_cents": applied_total,
+                "used_credit_ids": used_ids,
+                "remainder_credit_id": remainder_credit_id,
+            }
+        except Exception as e:
+            self.logger.error(f"Failed to apply credits for booking {booking_id}: {str(e)}")
+            raise RepositoryException(f"Failed to apply credits: {str(e)}")
 
     def get_available_credits(self, user_id: str) -> List[PlatformCredit]:
         """

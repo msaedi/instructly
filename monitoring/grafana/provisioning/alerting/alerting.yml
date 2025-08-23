@@ -275,3 +275,111 @@ groups:
         labels:
           severity: warning
           team: backend
+
+  - name: InstaInstru Local Alerts
+    folder: InstaInstru Dashboards
+    interval: 1m
+    rules:
+      # Credits application activity unexpectedly drops to zero
+      - uid: credits-applied-zero
+        title: Credits Applied = 0 (5m)
+        condition: B
+        data:
+          - refId: A
+            queryType: ""
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus-uid
+            model:
+              expr: sum(rate(instainstru_credits_applied_total[5m]))
+              interval: ""
+              refId: A
+          - refId: B
+            queryType: ""
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: eq
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              hide: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: classic_conditions
+        noDataState: NoData
+        execErrState: OK
+        for: 5m
+        annotations:
+          description: "No credits applied over the last 5 minutes"
+          summary: "Credits application inactive"
+        labels:
+          severity: info
+
+      # Instant payout errors detected
+      - uid: instant-payout-errors
+        title: Instant Payout Errors (> 0 in 15m)
+        condition: B
+        data:
+          - refId: A
+            queryType: ""
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: prometheus-uid
+            model:
+              expr: increase(instainstru_instant_payout_requests_total{status="error"}[15m])
+              interval: ""
+              refId: A
+          - refId: B
+            queryType: ""
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              hide: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: classic_conditions
+        noDataState: NoData
+        execErrState: OK
+        for: 1m
+        annotations:
+          description: "Instant payout errors occurred in the last 15 minutes"
+          summary: "Instant payout error"
+        labels:
+          severity: warning

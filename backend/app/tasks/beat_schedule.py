@@ -181,6 +181,16 @@ CELERYBEAT_SCHEDULE = {
         },
         # Note: Dead man's switch - alerts if payment jobs aren't running
     },
+    # Nightly payout schedule audit - ensures all accounts are on weekly Tuesday
+    "payout-schedule-audit": {
+        "task": "app.tasks.payment_tasks.audit_and_fix_payout_schedules",
+        "schedule": crontab(minute=0, hour=3),  # 3 AM UTC nightly
+        "options": {
+            "queue": "payments",
+            "priority": 5,
+        },
+        # Note: Calls StripeService.set_payout_schedule_for_account for any mismatches
+    },
     # Generate search insights - runs daily at 4 AM
     "generate-search-insights": {
         "task": "app.tasks.search_analytics.generate_search_insights",

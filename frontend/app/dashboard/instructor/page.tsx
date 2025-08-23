@@ -350,6 +350,25 @@ export default function InstructorDashboard() {
             <Trash2 className="h-5 w-5 mr-2" />
             Delete Instructor Profile
           </button>
+          <button
+            onClick={async () => {
+              try {
+                const res = await fetchWithAuth('/api/payments/connect/instant-payout', { method: 'POST' });
+                if (!res.ok) {
+                  const err = await res.json().catch(() => ({} as any));
+                  alert(`Instant payout failed: ${err.detail || res.statusText}`);
+                  return;
+                }
+                const data = await res.json();
+                alert(`Instant payout requested: ${data.payout_id || 'OK'}`);
+              } catch (e) {
+                alert('Instant payout request error');
+              }
+            }}
+            className="flex items-center px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            Request Instant Payout
+          </button>
         </div>
       </div>
 

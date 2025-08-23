@@ -384,6 +384,15 @@ class BookingCreateResponse(BookingResponse):
         return cls(**response_data)
 
 
+class BookingPaymentMethodUpdate(BaseModel):
+    """
+    Request to update a booking's payment method, with optional default flag.
+    """
+
+    payment_method_id: str = Field(..., description="Stripe payment method ID")
+    set_as_default: bool = Field(False, description="Whether to save as default for the student")
+
+
 class BookingListResponse(StandardizedModel):
     """Response for booking list endpoints."""
 

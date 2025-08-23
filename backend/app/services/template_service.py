@@ -14,7 +14,7 @@ FIXED IN THIS VERSION:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -182,7 +182,7 @@ class TemplateService(BaseService):
         # Build the context
         context = {
             "brand_name": BRAND_NAME,
-            "current_year": datetime.now().year,
+            "current_year": datetime.now(timezone.utc).year,
             "frontend_url": settings.frontend_url,
             "support_email": settings.from_email,
         }

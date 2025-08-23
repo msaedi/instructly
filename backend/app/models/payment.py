@@ -6,7 +6,7 @@ Stripe Connect integration, including customer records, connected accounts,
 payment intents, payment methods, payment events, and platform credits.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import ulid
@@ -183,7 +183,10 @@ class PlatformCredit(Base):
         """Check if the credit has expired."""
         if not self.expires_at:
             return False
-        return datetime.now(self.expires_at.tzinfo) > self.expires_at
+        # Always compare using timezone-aware UTC now to avoid naive/aware mismatches
+        if self.expires_at.tzinfo is None:
+            return datetime.now(timezone.utc) > self.expires_at.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc).astimezone(self.expires_at.tzinfo) > self.expires_at
 
     @property
     def is_available(self) -> bool:
@@ -192,3 +195,27 @@ class PlatformCredit(Base):
 
     def __repr__(self) -> str:
         return f"<PlatformCredit(user_id={self.user_id}, amount={self.amount_cents}, available={self.is_available})>"
+
+
+class InstructorPayoutEvent(Base):
+    """Persist payout-related events per instructor for analytics/auditing."""
+
+    __tablename__ = "instructor_payout_events"
+
+    id: Mapped[str] = mapped_column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
+    instructor_profile_id: Mapped[str] = mapped_column(
+        String(26), ForeignKey("instructor_profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    stripe_account_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    payout_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    amount_cents: Mapped[int] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(50), nullable=True)
+    arrival_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    failure_code: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    failure_message: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    def __repr__(self) -> str:
+        return (
+            f"<InstructorPayoutEvent(instructor_profile_id={self.instructor_profile_id}, payout_id={self.payout_id})>"
+        )

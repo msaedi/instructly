@@ -203,10 +203,12 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
                 {formatCurrency(creditBalance.available)}
               </p>
               <p className="text-sm text-green-700">Available balance</p>
-              {creditBalance.expires_at && (
+              {creditBalance.expires_at ? (
                 <p className="text-xs text-green-600">
-                  Expires: {formatDate(creditBalance.expires_at)}
+                  Earliest expiry: {formatDate(creditBalance.expires_at)}
                 </p>
+              ) : (
+                <p className="text-xs text-green-600">No expiry on current credits</p>
               )}
               <p className="text-xs text-gray-600 mt-3">
                 *Credits are automatically applied at checkout
@@ -305,13 +307,11 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
 
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">
-                      {formatCurrency(transaction.hourly_rate)}/hr × {transaction.duration_minutes / 60} hr
-                    </span>
+                    <span className="text-gray-600">Lesson ({transaction.duration_minutes} min)</span>
                     <span className="font-medium">{formatCurrency(transaction.total_price)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Platform Fee</span>
+                    <span className="text-gray-600">Service fee</span>
                     <span>{formatCurrency(transaction.platform_fee)}</span>
                   </div>
                   {transaction.credit_applied > 0 && (

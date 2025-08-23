@@ -324,8 +324,12 @@ class TestBookingPaymentService:
         assert scheduled_event.event_data["payment_method_id"] == "pm_test456"
 
         # Verify scheduled time is ~24 hours before lesson
-        scheduled_time = datetime.fromisoformat(scheduled_event.event_data["scheduled_for"])
-        lesson_time = datetime.combine(future_date, time(14, 0))
+        from datetime import timezone
+
+        scheduled_time = datetime.fromisoformat(scheduled_event.event_data["scheduled_for"]).replace(
+            tzinfo=timezone.utc
+        )
+        lesson_time = datetime.combine(future_date, time(14, 0), tzinfo=timezone.utc)
         time_diff = lesson_time - scheduled_time
         assert 23.5 * 3600 < time_diff.total_seconds() < 24.5 * 3600  # Within 30 min of 24 hours
 
