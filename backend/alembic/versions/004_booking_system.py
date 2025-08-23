@@ -405,6 +405,11 @@ def downgrade() -> None:
     print("Dropping booking system tables...")
 
     # ======== DROP PAYMENT TABLES (in reverse order) ========
+    # Drop instructor_payout_events indexes and table first (due to FK to instructor_profiles)
+    op.drop_index("idx_instructor_payout_events_payout_id", table_name="instructor_payout_events")
+    op.drop_index("idx_instructor_payout_events_instructor_profile_id", table_name="instructor_payout_events")
+    op.drop_table("instructor_payout_events")
+
     # Drop platform_credits indexes and table
     op.drop_index("idx_platform_credits_unused", table_name="platform_credits")
     op.drop_index("idx_platform_credits_expires_at", table_name="platform_credits")
