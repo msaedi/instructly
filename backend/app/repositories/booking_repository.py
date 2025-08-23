@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..core.enums import RoleName
 from ..core.exceptions import NotFoundException, RepositoryException
-from ..core.timezone_utils import get_user_today_by_id
+from ..core.timezone_utils import get_user_now_by_id, get_user_today_by_id
 from ..models.booking import Booking, BookingStatus
 from .base_repository import BaseRepository
 from .cached_repository_mixin import CachedRepositoryMixin, cached_method
@@ -363,8 +363,24 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
             # Handle upcoming_only filter
             if upcoming_only:
-                today = get_user_today_by_id(student_id, self.db)
-                query = query.filter(Booking.booking_date >= today, Booking.status == BookingStatus.CONFIRMED)
+                from sqlalchemy import and_, or_
+
+                # Get user's current datetime in their timezone
+                user_now = get_user_now_by_id(student_id, self.db)
+                today = user_now.date()
+                current_time = user_now.time()
+
+                # Filter for truly upcoming bookings (considering both date and time)
+                query = query.filter(
+                    or_(
+                        Booking.booking_date > today,  # Future dates
+                        and_(
+                            Booking.booking_date == today,  # Today
+                            Booking.start_time > current_time.isoformat(),  # But after current time
+                        ),
+                    ),
+                    Booking.status == BookingStatus.CONFIRMED,
+                )
 
             # Handle exclude_future_confirmed (for History tab - past bookings + cancelled)
             elif exclude_future_confirmed:
@@ -372,14 +388,23 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 # Exclude: future confirmed bookings
                 from sqlalchemy import and_, or_
 
-                today = get_user_today_by_id(student_id, self.db)
+                # Get user's current datetime in their timezone
+                user_now = get_user_now_by_id(student_id, self.db)
+                today = user_now.date()
+                current_time = user_now.time()
+
                 query = query.filter(
                     or_(
-                        # Past bookings (any status)
+                        # Past dates (any status)
                         Booking.booking_date < today,
-                        # Future bookings that are NOT confirmed
+                        # Today's past bookings (any status)
+                        and_(Booking.booking_date == today, Booking.start_time <= current_time.isoformat()),
+                        # Future bookings that are NOT confirmed (cancelled/no-show)
                         and_(
-                            Booking.booking_date >= today,
+                            or_(
+                                Booking.booking_date > today,
+                                and_(Booking.booking_date == today, Booking.start_time > current_time.isoformat()),
+                            ),
                             Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
                         ),
                     )
@@ -388,8 +413,20 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             # Handle include_past_confirmed (for BookAgain - only completed past bookings)
             elif include_past_confirmed:
                 # Only past bookings with COMPLETED status
-                today = get_user_today_by_id(student_id, self.db)
-                query = query.filter(Booking.booking_date < today, Booking.status == BookingStatus.COMPLETED)
+                from sqlalchemy import and_, or_
+
+                # Get student's current datetime in their timezone
+                user_now = get_user_now_by_id(student_id, self.db)
+                today = user_now.date()
+                current_time = user_now.time()
+
+                query = query.filter(
+                    or_(
+                        Booking.booking_date < today,
+                        and_(Booking.booking_date == today, Booking.start_time <= current_time.isoformat()),
+                    ),
+                    Booking.status == BookingStatus.COMPLETED,
+                )
 
             # For upcoming lessons, show nearest first (ASC). For history, show latest first (DESC)
             if upcoming_only:
@@ -444,8 +481,24 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
 
             # Handle upcoming_only filter
             if upcoming_only:
-                today = get_user_today_by_id(instructor_id, self.db)
-                query = query.filter(Booking.booking_date >= today, Booking.status == BookingStatus.CONFIRMED)
+                from sqlalchemy import and_, or_
+
+                # Get instructor's current datetime in their timezone
+                user_now = get_user_now_by_id(instructor_id, self.db)
+                today = user_now.date()
+                current_time = user_now.time()
+
+                # Filter for truly upcoming bookings (considering both date and time)
+                query = query.filter(
+                    or_(
+                        Booking.booking_date > today,  # Future dates
+                        and_(
+                            Booking.booking_date == today,  # Today
+                            Booking.start_time > current_time.isoformat(),  # But after current time
+                        ),
+                    ),
+                    Booking.status == BookingStatus.CONFIRMED,
+                )
 
             # Handle exclude_future_confirmed (for History tab - past bookings + cancelled)
             elif exclude_future_confirmed:
@@ -453,15 +506,23 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                 # Exclude: future confirmed bookings
                 from sqlalchemy import and_, or_
 
-                today = get_user_today_by_id(instructor_id, self.db)
+                # Get instructor's current datetime in their timezone
+                user_now = get_user_now_by_id(instructor_id, self.db)
+                today = user_now.date()
+                current_time = user_now.time()
 
                 query = query.filter(
                     or_(
-                        # Past bookings (any status)
+                        # Past dates (any status)
                         Booking.booking_date < today,
-                        # Future bookings that are NOT confirmed
+                        # Today's past bookings (any status)
+                        and_(Booking.booking_date == today, Booking.start_time <= current_time.isoformat()),
+                        # Future bookings that are NOT confirmed (cancelled/no-show)
                         and_(
-                            Booking.booking_date >= today,
+                            or_(
+                                Booking.booking_date > today,
+                                and_(Booking.booking_date == today, Booking.start_time > current_time.isoformat()),
+                            ),
                             Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
                         ),
                     )
@@ -470,8 +531,20 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
             # Handle include_past_confirmed (for BookAgain - only completed past bookings)
             elif include_past_confirmed:
                 # Only past bookings with COMPLETED status
-                today = get_user_today_by_id(instructor_id, self.db)
-                query = query.filter(Booking.booking_date < today, Booking.status == BookingStatus.COMPLETED)
+                from sqlalchemy import and_, or_
+
+                # Get instructor's current datetime in their timezone
+                user_now = get_user_now_by_id(instructor_id, self.db)
+                today = user_now.date()
+                current_time = user_now.time()
+
+                query = query.filter(
+                    or_(
+                        Booking.booking_date < today,
+                        and_(Booking.booking_date == today, Booking.start_time <= current_time.isoformat()),
+                    ),
+                    Booking.status == BookingStatus.COMPLETED,
+                )
 
             # For upcoming lessons, show nearest first (ASC). For history, show latest first (DESC)
             if upcoming_only:

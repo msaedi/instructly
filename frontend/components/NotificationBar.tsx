@@ -114,18 +114,17 @@ export function NotificationBar() {
   };
 
   return (
-    <div className="bg-[#FFF8DC] dark:bg-yellow-900/20 border-b border-yellow-200 dark:border-yellow-800 animate-slide-down">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between py-2">
-          <div className="flex items-center space-x-2">
-            {getIcon()}
-            <p className="text-sm text-gray-800 dark:text-gray-200">
+    <div className="bg-gray-50 dark:bg-gray-900/20 animate-slide-down">
+      <div className="w-full">
+        <div className="flex items-center justify-between py-2 px-8">
+          <div className="flex items-center pl-4">
+            <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
               {currentNotification.message}
             </p>
           </div>
           <button
             onClick={handleDismiss}
-            className="p-1 rounded-full hover:bg-yellow-100 dark:hover:bg-yellow-800/30 transition-colors"
+            className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-800/30 transition-colors mr-4"
             aria-label="Dismiss notification"
           >
             <X className="h-4 w-4 text-gray-600 dark:text-gray-400" />

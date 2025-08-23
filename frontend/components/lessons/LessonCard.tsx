@@ -44,13 +44,19 @@ export function LessonCard({
               <h3 className="text-2xl sm:text-3xl font-bold text-purple-700">
                 {lesson.service_name}
               </h3>
-              {isCompleted && lesson.status === 'COMPLETED' && (
-                <LessonStatus status={lesson.status} cancelledAt={lesson.cancelled_at} />
+              {/* Show completed badge for completed lessons or past confirmed lessons */}
+              {(lesson.status === 'COMPLETED' || (isCompleted && lesson.status === 'CONFIRMED')) && (
+                <LessonStatus status="COMPLETED" cancelledAt={lesson.cancelled_at} />
+              )}
+              {/* Show cancelled badge inline for cancelled lessons */}
+              {lesson.status === 'CANCELLED' && (
+                <LessonStatus status="CANCELLED" cancelledAt={lesson.cancelled_at} />
+              )}
+              {/* Show no-show badge inline for no-show lessons */}
+              {lesson.status === 'NO_SHOW' && (
+                <LessonStatus status="NO_SHOW" cancelledAt={lesson.cancelled_at} />
               )}
             </div>
-            {lesson.status !== 'CONFIRMED' && lesson.status !== 'COMPLETED' && (
-              <LessonStatus status={lesson.status} cancelledAt={lesson.cancelled_at} />
-            )}
           </div>
           <button
             onClick={(e) => {
@@ -94,12 +100,12 @@ export function LessonCard({
               e?.stopPropagation?.();
               onChat?.();
             }}
-            showReviewButton={isCompleted && lesson.status === 'COMPLETED'}
+            showReviewButton={isCompleted && (lesson.status === 'COMPLETED' || lesson.status === 'CONFIRMED')}
             onReview={(e) => {
               e?.stopPropagation?.();
               onReviewTip?.();
             }}
-            showBookAgainButton={isCompleted && lesson.status === 'COMPLETED'}
+            showBookAgainButton={(isCompleted && (lesson.status === 'COMPLETED' || lesson.status === 'CONFIRMED')) || lesson.status === 'CANCELLED'}
             onBookAgain={(e) => {
               e?.stopPropagation?.();
               onBookAgain?.();

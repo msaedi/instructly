@@ -74,7 +74,9 @@ export default function UserProfileDropdown() {
   // Don't render until mounted to avoid hydration mismatch
   if (!isMounted || isLoading) {
     return (
-      <div className="w-9 h-9 bg-gray-200 rounded-full animate-pulse" />
+      <div className="animate-pulse">
+        <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+      </div>
     );
   }
 

@@ -15,6 +15,7 @@ import { BookAgain } from '@/components/BookAgain';
 import { RecentSearches } from '@/components/RecentSearches';
 // Removed react-query hook usage here to avoid SSR hook order differences
 import { convertApiResponse } from '@/lib/react-query/api';
+import { getActivityBackground } from '@/lib/services/assetService';
 import {
   Search,
   Zap,
@@ -42,7 +43,7 @@ import UserProfileDropdown from '@/components/UserProfileDropdown';
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('sports-fitness');
+  const [selectedCategory, setSelectedCategory] = useState<string>('arts');
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [categoryServices, setCategoryServices] = useState<Record<string, TopServiceSummary[]>>({});
   const [isTouchDevice, setIsTouchDevice] = useState(false);
@@ -62,12 +63,12 @@ export default function HomePage() {
   // Note: Do not early-return before all hooks have run; gate rendering in JSX instead
 
   const categories = [
-    { icon: Music, name: 'Music', slug: 'music', subtitle: 'Instrument Voice Theory' },
-    { icon: BookOpen, name: 'Tutoring', slug: 'tutoring', subtitle: 'Academic STEM Tech' },
-    { icon: Dumbbell, name: 'Sports & Fitness', slug: 'sports-fitness', subtitle: '' },
-    { icon: Globe, name: 'Language', slug: 'language', subtitle: '' },
     { icon: Palette, name: 'Arts', slug: 'arts', subtitle: 'Performing Visual Applied' },
-    { icon: Baby, name: 'Kids', slug: 'kids', subtitle: 'Infant Toddler Preteen' },
+    { icon: Dumbbell, name: 'Sports & Fitness', slug: 'sports-fitness', subtitle: '' },
+    { icon: BookOpen, name: 'Tutoring', slug: 'tutoring', subtitle: 'Academic STEM Tech' },
+    { icon: Globe, name: 'Language', slug: 'language', subtitle: '' },
+    { icon: Music, name: 'Music', slug: 'music', subtitle: 'Instrument Voice Theory' },
+    { icon: Baby, name: 'Kids', slug: 'kids', subtitle: '' },
     { icon: Sparkles, name: 'Hidden Gems', slug: 'hidden-gems', subtitle: '' },
   ];
 
@@ -235,18 +236,58 @@ export default function HomePage() {
 
       {/* Hero Section */}
       <section className="py-16 relative" style={{ paddingTop: '60px' }}>
+        {/* Small background image positioned to the left */}
+        {isClient && (
+          <div
+            className="absolute left-10 top-1/2 -translate-y-1/6"
+            style={{
+              width: '400px',
+              height: '400px',
+              backgroundImage: `url('${getActivityBackground('home', 'desktop')}')`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+              opacity: 0.7,
+              filter: 'blur(0px)',
+            }}
+            aria-hidden="true"
+          />
+        )}
+
+        {/* Small background image positioned to the right - different image */}
+        {isClient && (
+          <div
+            className="absolute -right-10 top-0"
+            style={{
+              width: '400px',
+              height: '400px',
+              backgroundImage: `url('${getActivityBackground('music', 'desktop')}')`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+              opacity: 0.7,
+              filter: 'blur(0px)',
+            }}
+            aria-hidden="true"
+          />
+        )}
+
         <div className="relative z-10">
         <div className="max-w-4xl mx-auto px-4 text-center">
-          <h1 className="text-5xl font-bold text-gray-900 dark:text-gray-100 mb-8" suppressHydrationWarning>
+          <h1 className="text-5xl font-bold mb-8" suppressHydrationWarning>
             <div className="leading-tight">
-              {isClient && isAuthenticated ? 'Your Next Lesson Awaits' : 'Instant learning with'}
+              {isClient && isAuthenticated ? (
+                <span className="text-purple-700">Your Next Lesson Awaits</span>
+              ) : (
+                <span className="text-gray-900 dark:text-gray-100">Instant learning with</span>
+              )}
             </div>
-            {(!isClient || !isAuthenticated) && <div className="leading-tight">iNSTAiNSTRU</div>}
+            {(!isClient || !isAuthenticated) && <div className="leading-tight text-gray-900 dark:text-gray-100">iNSTAiNSTRU</div>}
           </h1>
 
           <form onSubmit={handleSearch} className="max-w-2xl mx-auto">
             <div
-              className="relative border border-[#E5E5E5] dark:border-gray-600 rounded-full focus-within:border-[#0066CC] dark:focus-within:border-blue-400 bg-white dark:bg-gray-700 overflow-hidden"
+              className="relative border border-[#E5E5E5] dark:border-gray-600 rounded-full focus-within:border-purple-700 dark:focus-within:border-purple-400 bg-white dark:bg-gray-700 overflow-hidden"
               style={{ width: '720px', height: '64px', margin: '0 auto' }}
             >
               <input
@@ -290,7 +331,7 @@ export default function HomePage() {
       </section>
 
       {/* Categories */}
-      <section className="py-6 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+      <section className="py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-2xl mx-auto">
           <div className="flex justify-center items-start space-x-10 ml-15">
             {categories.map((category) => {
@@ -459,7 +500,7 @@ export default function HomePage() {
               </h2>
               <div className="grid grid-cols-3 gap-8">
                 <div className="text-center">
-                  <div className="text-5xl font-bold text-blue-600 dark:text-blue-400 mb-4">1</div>
+                  <div className="text-5xl font-bold text-purple-700 dark:text-purple-400 mb-4">1</div>
                   <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
                     Choose a skill
                   </h3>
@@ -468,14 +509,14 @@ export default function HomePage() {
                   </p>
                 </div>
                 <div className="text-center">
-                  <div className="text-5xl font-bold text-blue-600 dark:text-blue-400 mb-4">2</div>
+                  <div className="text-5xl font-bold text-purple-700 dark:text-purple-400 mb-4">2</div>
                   <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
                     Schedule an instructor
                   </h3>
                   <p className="text-gray-600 dark:text-gray-400">Pick a time that works for you</p>
                 </div>
                 <div className="text-center">
-                  <div className="text-5xl font-bold text-blue-600 dark:text-blue-400 mb-4">3</div>
+                  <div className="text-5xl font-bold text-purple-700 dark:text-purple-400 mb-4">3</div>
                   <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">Learn</h3>
                   <p className="text-gray-600 dark:text-gray-400">Meet in-person and level up</p>
                 </div>
@@ -496,7 +537,7 @@ export default function HomePage() {
             {/* Available Now */}
             <div>
               <div className="flex items-center mb-6">
-                <Zap className="h-6 w-6 text-yellow-500 mr-2" />
+                <Zap className="h-6 w-6 text-[#FFD700] mr-2" />
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                   Available Right Now
                 </h2>
@@ -515,7 +556,7 @@ export default function HomePage() {
                       <span className="mx-2">•</span>
                       <span>${instructor.rate}/hr</span>
                       <span className="mx-2">•</span>
-                      <Star className="h-4 w-4 text-yellow-500 inline mr-1" />
+                      <Star className="h-4 w-4 text-[#FFD700] inline mr-1" />
                       <span>{instructor.rating}</span>
                     </div>
                     <div className="flex items-center text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -525,7 +566,7 @@ export default function HomePage() {
                       <Clock className="h-4 w-4 mr-1" />
                       <span>Next: {instructor.nextAvailable}</span>
                     </div>
-                    <button className="mt-3 w-full bg-[#FFD700] hover:bg-[#FFC700] text-black py-2 rounded-lg transition-colors duration-200">
+                    <button className="mt-3 w-full bg-purple-700 hover:bg-purple-800 text-white py-2 rounded-lg transition-colors duration-200 font-medium">
                       Book Now
                     </button>
                   </div>
@@ -533,7 +574,7 @@ export default function HomePage() {
               </div>
               <Link
                 href="/search?available_now=true"
-                className="text-blue-600 dark:text-blue-400 hover:underline mt-4 inline-block"
+                className="text-purple-700 dark:text-purple-400 hover:underline mt-4 inline-block"
               >
                 View All Available →
               </Link>
@@ -566,7 +607,7 @@ export default function HomePage() {
               </div>
               <Link
                 href="/trending"
-                className="text-blue-600 dark:text-blue-400 hover:underline mt-4 inline-block"
+                className="text-purple-700 dark:text-purple-400 hover:underline mt-4 inline-block"
               >
                 Explore Trending →
               </Link>
@@ -591,7 +632,7 @@ export default function HomePage() {
                 <p className="text-gray-600 dark:text-gray-400">- {testimonial.author}</p>
                 <div className="flex mt-2">
                   {[...Array(testimonial.rating)].map((_, i) => (
-                    <Star key={i} className="h-5 w-5 text-yellow-500 fill-current" />
+                    <Star key={i} className="h-5 w-5 text-[#FFD700] fill-current" />
                   ))}
                 </div>
               </div>
@@ -613,21 +654,21 @@ export default function HomePage() {
               <p className="text-gray-600 dark:text-gray-400 text-sm">Background checked</p>
             </div>
             <div className="text-center">
-              <Zap className="h-12 w-12 text-yellow-500 dark:text-yellow-400 mx-auto mb-4" />
+              <Zap className="h-12 w-12 text-[#FFD700] mx-auto mb-4" />
               <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">
                 Instant booking
               </h3>
               <p className="text-gray-600 dark:text-gray-400 text-sm">Book in under 30 seconds</p>
             </div>
             <div className="text-center">
-              <DollarSign className="h-12 w-12 text-blue-600 dark:text-blue-400 mx-auto mb-4" />
+              <DollarSign className="h-12 w-12 text-purple-700 dark:text-purple-400 mx-auto mb-4" />
               <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">Fair pricing</h3>
               <p className="text-gray-600 dark:text-gray-400 text-sm">
                 No hidden fees or surprises
               </p>
             </div>
             <div className="text-center">
-              <Shield className="h-12 w-12 text-blue-600 dark:text-blue-400 mx-auto mb-4" />
+              <Shield className="h-12 w-12 text-purple-700 dark:text-purple-400 mx-auto mb-4" />
               <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">
                 Secure payment
               </h3>
@@ -647,7 +688,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/categories"
-                    className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-purple-700 dark:hover:text-purple-400"
                   >
                     All Categories
                   </Link>
@@ -655,7 +696,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/how-it-works"
-                    className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-purple-700 dark:hover:text-purple-400"
                   >
                     How it Works
                   </Link>
@@ -663,7 +704,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/areas"
-                    className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-purple-700 dark:hover:text-purple-400"
                   >
                     NYC Areas
                   </Link>
@@ -676,7 +717,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/help"
-                    className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-purple-700 dark:hover:text-purple-400"
                   >
                     Help Center
                   </Link>
@@ -684,7 +725,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/trust-safety"
-                    className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-purple-700 dark:hover:text-purple-400"
                   >
                     Trust & Safety
                   </Link>
@@ -692,7 +733,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/contact"
-                    className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-purple-700 dark:hover:text-purple-400"
                   >
                     Contact Us
                   </Link>
@@ -705,7 +746,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/about"
-                    className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-purple-700 dark:hover:text-purple-400"
                   >
                     About Us
                   </Link>
@@ -713,7 +754,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/careers"
-                    className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-purple-700 dark:hover:text-purple-400"
                   >
                     Careers
                   </Link>
@@ -721,7 +762,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/press"
-                    className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-purple-700 dark:hover:text-purple-400"
                   >
                     Press
                   </Link>
@@ -729,7 +770,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/terms"
-                    className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-purple-700 dark:hover:text-purple-400"
                   >
                     Terms
                   </Link>
@@ -737,7 +778,7 @@ export default function HomePage() {
                 <li>
                   <Link
                     href="/privacy"
-                    className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                    className="text-gray-600 dark:text-gray-400 hover:text-purple-700 dark:hover:text-purple-400"
                   >
                     Privacy
                   </Link>
@@ -763,19 +804,19 @@ export default function HomePage() {
             <div className="flex space-x-4">
               <Link
                 href="#"
-                className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                className="text-purple-700 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300"
               >
                 Facebook
               </Link>
               <Link
                 href="#"
-                className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                className="text-purple-700 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300"
               >
                 Twitter
               </Link>
               <Link
                 href="#"
-                className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                className="text-purple-700 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300"
               >
                 Instagram
               </Link>

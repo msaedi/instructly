@@ -24,6 +24,18 @@ export default function LessonDetailsPage() {
   const lessonId = params.id as string;
   const { isAuthenticated, isLoading: isAuthLoading, redirectToLogin, user } = useAuth();
 
+  // Preserve the tab parameter from sessionStorage
+  const [fromTab] = useState(() => {
+    // Check if we have a stored tab in sessionStorage
+    if (typeof window !== 'undefined') {
+      const storedTab = sessionStorage.getItem('lessonsTab');
+      if (storedTab === 'history' || storedTab === 'upcoming') {
+        return storedTab;
+      }
+    }
+    return 'upcoming';
+  });
+
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
@@ -76,7 +88,7 @@ export default function LessonDetailsPage() {
           <Card className="p-8 text-center bg-white rounded-xl border border-gray-200">
             <p className="text-lg text-gray-600 mb-4">Unable to load lesson details</p>
             <Button
-              onClick={() => router.push('/student/lessons')}
+              onClick={() => router.push(`/student/lessons?tab=${fromTab}`)}
               className="bg-purple-700 hover:bg-purple-800 text-white"
             >
               Back to My Lessons
@@ -88,10 +100,25 @@ export default function LessonDetailsPage() {
   }
 
   const lessonDateTime = new Date(`${lesson.booking_date}T${lesson.start_time}`);
-  const isUpcoming = lesson.status === 'CONFIRMED';
-  const isCompleted = lesson.status === 'COMPLETED';
+  const now = new Date();
+  const isPastLesson = lessonDateTime < now;
+  const isUpcoming = lesson.status === 'CONFIRMED' && !isPastLesson;
+  const isCompleted = lesson.status === 'COMPLETED' || (lesson.status === 'CONFIRMED' && isPastLesson);
+  const isCancelled = lesson.status === 'CANCELLED';
 
-  const formattedDate = format(lessonDateTime, 'EEEE, MMMM d, yyyy');
+  // Check if lesson is within 12 hours (cannot reschedule)
+  const hoursUntilLesson = (lessonDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+  const canReschedule = isUpcoming && hoursUntilLesson >= 12;
+
+  // Check if cancelled within 12 hours (full charge)
+  let wasCancelledLate = false;
+  if (lesson.status === 'CANCELLED' && lesson.cancelled_at) {
+    const cancelledDate = new Date(lesson.cancelled_at);
+    const hoursBeforeLessonWhenCancelled = (lessonDateTime.getTime() - cancelledDate.getTime()) / (1000 * 60 * 60);
+    wasCancelledLate = hoursBeforeLessonWhenCancelled < 12;
+  }
+
+  const formattedDate = format(lessonDateTime, 'EEE MMM d');
   const formattedTime = format(lessonDateTime, 'h:mm a');
 
   return (
@@ -110,15 +137,14 @@ export default function LessonDetailsPage() {
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Back Button */}
-        <div className="mb-6">
-          <Button
-            variant="ghost"
-            onClick={() => router.push('/student/lessons')}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-700"
+        <div className="mb-6 bg-white rounded-lg border border-gray-200 px-3 py-0.5">
+          <button
+            onClick={() => router.push(`/student/lessons?tab=${fromTab}`)}
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-700 py-1 px-2 rounded transition-colors cursor-pointer"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to My Lessons
-          </Button>
+          </button>
         </div>
 
         {/* Main Content */}
@@ -147,7 +173,7 @@ export default function LessonDetailsPage() {
           </div>
           <div className="flex items-center gap-3">
             <DollarSign className="h-5 w-5 text-gray-500" />
-            <span className="text-lg text-gray-700">${lesson.total_price.toFixed(2)}</span>
+            <span className="text-lg text-gray-700">{lesson.total_price.toFixed(2)}</span>
           </div>
         </div>
 
@@ -182,6 +208,23 @@ export default function LessonDetailsPage() {
               </Button>
             </div>
           )}
+          {isCancelled && (
+            <div className="flex flex-wrap gap-3">
+              <Button
+                onClick={() => router.push(`/instructors/${lesson.instructor_id}`)}
+                className="bg-purple-700 hover:bg-purple-800 text-white border-transparent rounded-lg py-2.5 px-6 text-sm font-medium"
+              >
+                Book Again
+              </Button>
+              <Button
+                onClick={() => setShowChatModal(true)}
+                className="bg-white text-gray-400 border-2 border-gray-300 hover:bg-gray-50 rounded-lg py-2.5 px-6 text-sm font-medium"
+              >
+                <MessageCircle className="h-4 w-4 mr-1" />
+                Chat history
+              </Button>
+            </div>
+          )}
         </div>
 
         <Separator />
@@ -197,7 +240,7 @@ export default function LessonDetailsPage() {
               {lesson.meeting_location ? (
                 <>
                   <p className="text-gray-500">{lesson.meeting_location}</p>
-                  {isUpcoming && (
+                  {isUpcoming && lesson.meeting_location.toLowerCase() !== 'online' && (
                     <Button
                       variant="link"
                       className="px-0 h-auto text-purple-700 hover:text-purple-800"
@@ -231,27 +274,39 @@ export default function LessonDetailsPage() {
             <Separator className="my-8" />
             <div>
               <h2 className="text-xl font-semibold mb-4 text-gray-700">Manage Booking</h2>
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  onClick={() => setShowRescheduleModal(true)}
-                  className="flex-1 sm:flex-initial bg-purple-700 hover:bg-purple-800 text-white border-transparent rounded-lg py-2.5 px-6 text-sm font-medium"
-                >
-                  Reschedule lesson
-                </Button>
-                <Button
-                  onClick={() => setShowCancelModal(true)}
-                  variant="outline"
-                  className="flex-1 sm:flex-initial bg-white text-red-600 border-2 border-red-600 hover:bg-red-50 rounded-lg py-2.5 px-6 text-sm font-medium"
-                >
-                  Cancel lesson
-                </Button>
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    onClick={() => setShowRescheduleModal(true)}
+                    disabled={!canReschedule}
+                    className={`flex-1 sm:flex-initial rounded-lg py-2.5 px-6 text-sm font-medium ${
+                      canReschedule
+                        ? 'bg-purple-700 hover:bg-purple-800 text-white border-transparent'
+                        : 'bg-gray-200 text-gray-400 cursor-not-allowed border-transparent'
+                    }`}
+                  >
+                    Reschedule lesson
+                  </Button>
+                  <Button
+                    onClick={() => setShowCancelModal(true)}
+                    variant="outline"
+                    className="flex-1 sm:flex-initial bg-white text-purple-700 border-2 border-purple-700 hover:bg-purple-50 rounded-lg py-2.5 px-6 text-sm font-medium"
+                  >
+                    Cancel lesson
+                  </Button>
+                </div>
+                {!canReschedule && hoursUntilLesson < 12 && (
+                  <p className="text-sm text-gray-500">
+                    Cannot reschedule within 12 hours of lesson start time
+                  </p>
+                )}
               </div>
             </div>
           </>
         )}
 
-        {/* Receipt Section for Completed */}
-        {isCompleted && (
+        {/* Receipt Section for Completed or Late Cancellation */}
+        {(isCompleted || wasCancelledLate) && (
           <>
             <Separator className="my-8" />
             <div>
@@ -280,9 +335,16 @@ export default function LessonDetailsPage() {
                   <span>Paid</span>
                   <span>${(lesson.total_price * 1.15).toFixed(2)}</span>
                 </div>
-                <p className="text-xs text-gray-500 pt-2">
-                  For cancellations between 12–24 hours before a lesson, you’ll be charged and receive a platform credit for the amount.
-                </p>
+                {wasCancelledLate && (
+                  <p className="text-xs text-gray-500 pt-2">
+                    This lesson was cancelled less than 12 hours before the scheduled time and was charged in full.
+                  </p>
+                )}
+                {isCompleted && (
+                  <p className="text-xs text-gray-500 pt-2">
+                    For cancellations between 12–24 hours before a lesson, you'll be charged and receive a platform credit for the amount.
+                  </p>
+                )}
               </div>
             </div>
           </>
@@ -316,7 +378,7 @@ export default function LessonDetailsPage() {
                 otherUserName={lesson.instructor.first_name || 'Instructor'}
                 lessonTitle={lesson.service_name}
                 lessonDate={format(new Date(`${lesson.booking_date}T${lesson.start_time}`), 'MMM d, yyyy')}
-                isReadOnly={isCompleted}
+                isReadOnly={isCompleted || isCancelled}
               />
             )}
           </>

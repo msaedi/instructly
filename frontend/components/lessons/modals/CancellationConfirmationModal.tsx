@@ -50,9 +50,8 @@ export function CancellationConfirmationModal({
                 onClose();
                 router.push('/student/lessons');
               }}
-              className="px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90
-                       focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary
-                       transition-all duration-150 font-medium cursor-pointer"
+              className="px-6 py-3 bg-[#FFD700] text-black rounded-lg hover:bg-[#FFC700]
+                       transition-colors font-medium cursor-pointer"
             >
               Done
             </button>
@@ -69,7 +68,7 @@ export function CancellationConfirmationModal({
           <p className="text-lg font-medium text-gray-900">Cancellation confirmed</p>
 
           {/* Lesson Details */}
-          <div className="bg-gray-50 rounded-lg p-4 text-left space-y-2">
+          <div className="bg-purple-100 rounded-lg p-4 text-left space-y-2">
             <p className="text-sm">
               <span className="font-medium">Lesson:</span> {lesson.service_name} with{' '}
               {lesson.instructor
@@ -106,7 +105,7 @@ export function CancellationConfirmationModal({
             Questions?{' '}
             <button
               onClick={() => console.log('Contact support')}
-              className="text-primary hover:underline cursor-pointer"
+              className="text-purple-700 hover:underline cursor-pointer"
             >
               Contact support
             </button>
@@ -124,14 +123,13 @@ export function CancellationConfirmationModal({
       title="Confirm Cancellation"
       size="md"
       footer={
-        <div className="flex gap-3 justify-end">
+        <div className="flex gap-3">
           <button
             type="button"
             onClick={onClose}
             disabled={cancelLesson.isPending}
-            className="px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg
-                     hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2
-                     focus:ring-gray-500 transition-all duration-150 font-medium
+            className="flex-1 py-3 px-4 bg-white text-black border-2 border-[#FFD700] rounded-lg
+                     hover:bg-[#FFD700]/10 transition-colors font-medium
                      disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             Keep Lesson
@@ -139,9 +137,8 @@ export function CancellationConfirmationModal({
           <button
             onClick={handleConfirmCancellation}
             disabled={cancelLesson.isPending}
-            className="px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700
-                     focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500
-                     transition-all duration-150 font-medium disabled:opacity-50
+            className="flex-1 py-3 px-4 bg-[#FFD700] text-black rounded-lg hover:bg-[#FFC700]
+                     transition-colors font-medium disabled:opacity-50
                      disabled:cursor-not-allowed cursor-pointer"
           >
             {cancelLesson.isPending ? 'Cancelling...' : 'Confirm Cancellation'}
@@ -151,15 +148,15 @@ export function CancellationConfirmationModal({
     >
       <div className="space-y-4">
         {/* Final Warning */}
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-sm text-red-900 font-medium mb-2">
+        <div className="bg-purple-100 rounded-lg p-4">
+          <p className="text-sm text-gray-700 font-medium mb-2">
             Are you sure you want to cancel this lesson?
           </p>
-          <p className="text-sm text-red-700">This action cannot be undone.</p>
+          <p className="text-sm text-gray-600">This action cannot be undone.</p>
         </div>
 
         {/* Lesson Summary */}
-        <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+        <div className="rounded-lg p-4 space-y-2 border border-gray-200">
           <p className="text-sm">
             <span className="font-medium">Lesson:</span> {lesson.service_name}
           </p>

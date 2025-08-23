@@ -52,6 +52,10 @@ function MyLessonsContent() {
   // Update URL when tab changes
   const handleTabChange = (tab: 'upcoming' | 'history') => {
     setActiveTab(tab);
+    // Store the tab in sessionStorage for navigation back from details
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('lessonsTab', tab);
+    }
     router.push(`/student/lessons?tab=${tab}`, { scroll: false });
   };
 
@@ -79,9 +83,7 @@ function MyLessonsContent() {
               <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </a>
             <div className="pr-4">
-              <div className="animate-pulse">
-                <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
-              </div>
+              <UserProfileDropdown />
             </div>
           </div>
         </header>
@@ -181,17 +183,23 @@ function MyLessonsContent() {
           </>
         ) : lessons && lessons.length > 0 ? (
           // Lesson cards
-          lessons.map((lesson) => (
-            <LessonCard
-              key={lesson.id}
-              lesson={lesson}
-              isCompleted={activeTab === 'history'}
-              onViewDetails={() => router.push(`/student/lessons/${lesson.id}`)}
-              onChat={() => handleOpenChat(lesson)}
-              onBookAgain={() => router.push(`/instructors/${lesson.instructor_id}`)}
-              onReviewTip={() => router.push(`/student/review/${lesson.id}`)}
-            />
-          ))
+          lessons.map((lesson) => {
+            // Check if lesson is in the past (for lessons that haven't been marked COMPLETED yet)
+            const lessonDateTime = new Date(`${lesson.booking_date}T${lesson.start_time}`);
+            const isPastLesson = lessonDateTime < new Date();
+
+            return (
+              <LessonCard
+                key={lesson.id}
+                lesson={lesson}
+                isCompleted={lesson.status === 'COMPLETED' || (lesson.status === 'CONFIRMED' && isPastLesson)}
+                onViewDetails={() => router.push(`/student/lessons/${lesson.id}`)}
+                onChat={() => handleOpenChat(lesson)}
+                onBookAgain={() => router.push(`/instructors/${lesson.instructor_id}`)}
+                onReviewTip={() => router.push(`/student/review/${lesson.id}`)}
+              />
+            );
+          })
         ) : (
           // Empty state
           <div className="text-center py-12">

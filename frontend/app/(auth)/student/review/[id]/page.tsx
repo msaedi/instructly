@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { isApiError } from '@/lib/react-query/api';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
-import { ArrowLeft, Star, Heart } from 'lucide-react';
+import { ArrowLeft, Star, Heart, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function ReviewPage() {
@@ -24,6 +24,9 @@ export default function ReviewPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [addToFavorites, setAddToFavorites] = useState(false);
   const [hasExistingReview, setHasExistingReview] = useState(false);
+  const [selectedTip, setSelectedTip] = useState<number | null>(null);
+  const [customTip, setCustomTip] = useState('');
+  const [showCustomTip, setShowCustomTip] = useState(false);
 
   const { data: lesson, isLoading, error } = useLessonDetails(lessonId);
 
@@ -119,12 +122,14 @@ export default function ReviewPage() {
     setIsSubmitting(true);
     try {
       // TODO: Implement API call to submit review
+      const tipAmount = showCustomTip ? parseFloat(customTip) : selectedTip;
       console.log('Submitting review:', {
         lessonId,
         rating,
         review,
         instructorId: lesson.instructor_id,
-        addToFavorites: rating > 3 ? addToFavorites : false
+        addToFavorites: rating > 3 ? addToFavorites : false,
+        tip: tipAmount || 0
       });
 
       // If user wants to add to favorites and rating > 3
@@ -264,6 +269,81 @@ export default function ReviewPage() {
             <p className="text-xs text-gray-500 mt-1 text-right">
               {review.length}/500 characters
             </p>
+          </div>
+
+          {/* Tipping Section */}
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Want to thank {instructorName} for a job well done?
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Tips go directly to {instructorFirstName} and are optional.
+            </p>
+
+            <div className="space-y-3">
+              {/* Quick-select tip buttons */}
+              <div className="flex flex-wrap gap-2">
+                {[5, 10, 20].map((amount) => (
+                  <button
+                    key={amount}
+                    onClick={() => {
+                      setSelectedTip(amount);
+                      setShowCustomTip(false);
+                      setCustomTip('');
+                    }}
+                    className={`px-6 py-2.5 rounded-lg font-medium transition-colors ${
+                      selectedTip === amount && !showCustomTip
+                        ? 'bg-purple-700 text-white'
+                        : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-purple-400'
+                    }`}
+                  >
+                    ${amount}
+                  </button>
+                ))}
+                <button
+                  onClick={() => {
+                    setShowCustomTip(true);
+                    setSelectedTip(null);
+                  }}
+                  className={`px-6 py-2.5 rounded-lg font-medium transition-colors ${
+                    showCustomTip
+                      ? 'bg-purple-700 text-white'
+                      : 'bg-white text-gray-700 border-2 border-gray-300 hover:border-purple-400'
+                  }`}
+                >
+                  Other
+                </button>
+              </div>
+
+              {/* Custom tip input */}
+              {showCustomTip && (
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1 max-w-xs">
+                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+                    <input
+                      type="number"
+                      value={customTip}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === '' || (parseFloat(value) >= 0 && parseFloat(value) <= 999)) {
+                          setCustomTip(value);
+                        }
+                      }}
+                      placeholder="Enter amount"
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      min="0"
+                      max="999"
+                      step="1"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Transparency note */}
+              <p className="text-xs text-gray-500 italic">
+                100% of your tip goes to {instructorFirstName}.
+              </p>
+            </div>
           </div>
 
           {/* Add to Favorites Section - Only show when rating is 4 or 5 stars */}

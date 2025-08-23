@@ -387,7 +387,21 @@ function SearchPageContent() {
 
                 const firstSlot = day.available_slots[0];
                 const date = new Date(d);
+
+                // Skip if the date is in the past
+                const now = new Date();
+                now.setHours(0, 0, 0, 0);
+                if (date < now) continue;
+
                 const [hours, minutes] = firstSlot.start_time.split(':').map(Number);
+
+                // If it's today, check if the time has already passed
+                if (date.toDateString() === now.toDateString()) {
+                  const currentTime = new Date();
+                  const slotTime = new Date();
+                  slotTime.setHours(hours, minutes, 0, 0);
+                  if (slotTime <= currentTime) continue;
+                }
                 const dateStr = date.toLocaleDateString('en-US', {
                   weekday: 'short',
                   month: 'short',

@@ -3,31 +3,31 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { CancelWarningModal } from '@/components/lessons/modals/CancelWarningModal';
 import { Booking } from '@/types/booking';
 
-// Mock the functions from useMyLessons
+// Mock the useMyLessons hook
 jest.mock('@/hooks/useMyLessons', () => ({
-  calculateCancellationFee: jest.fn((booking: Booking) => {
-    const now = new Date();
-    const lessonDateTime = new Date(`${booking.booking_date}T${booking.start_time}`);
-    const hoursUntil = (lessonDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+  calculateCancellationFee: jest.fn(() => ({
+    fee: 0,
+    percentage: 0,
+    hoursUntil: 72
+  }))
+}));
 
-    if (hoursUntil > 24) {
-      return { fee: 0, percentage: 0, hoursUntil };
-    } else if (hoursUntil > 12) {
-      return { fee: booking.total_price * 0.5, percentage: 50, hoursUntil };
-    } else {
-      return { fee: booking.total_price, percentage: 100, hoursUntil };
-    }
-  }),
-  useCancelLesson: jest.fn(() => ({
-    mutate: jest.fn(),
-    mutateAsync: jest.fn().mockResolvedValue({}),
-    isPending: false,
-  })),
+// Mock the CancellationReasonModal component
+jest.mock('@/components/lessons/modals/CancellationReasonModal', () => ({
+  CancellationReasonModal: ({ isOpen, onClose }: any) => {
+    if (!isOpen) return null;
+    return (
+      <div data-testid="cancellation-reason-modal">
+        Cancellation Reason Modal
+        <button onClick={onClose}>Close</button>
+      </div>
+    );
+  }
 }));
 
 describe('CancelWarningModal', () => {
   const mockBooking: Booking = {
-    id: 1,
+    id: '01K2MAY484FQGFEQVN3VKGYZ58',
     booking_date: '2025-12-25',
     start_time: '14:00:00',
     end_time: '15:00:00',
@@ -35,11 +35,11 @@ describe('CancelWarningModal', () => {
     total_price: 60,
     hourly_rate: 60,
     duration_minutes: 60,
-    instructor_id: 1,
-    student_id: 1,
-    service_id: 1,
+    instructor_id: '01K2MAY484FQGFEQVN3VKGYZ59',
+    student_id: '01K2MAY484FQGFEQVN3VKGYZ60',
+    service_id: '01K2MAY484FQGFEQVN3VKGYZ61',
     instructor: {
-      id: 1,
+      id: '01K2MAY484FQGFEQVN3VKGYZ59',
       first_name: 'John',
       last_initial: 'D',
     },
@@ -64,8 +64,7 @@ describe('CancelWarningModal', () => {
     );
 
     // Check that the modal title is shown
-    const modalTitle = screen.getAllByText('Cancel lesson')[0];
-    expect(modalTitle).toBeInTheDocument();
+    expect(screen.getByText('Cancel my lesson')).toBeInTheDocument();
   });
 
   it('does not render modal when isOpen is false', () => {
@@ -78,7 +77,7 @@ describe('CancelWarningModal', () => {
       />
     );
 
-    expect(screen.queryByText('Cancel Lesson?')).not.toBeInTheDocument();
+    expect(screen.queryByText('Cancel my lesson')).not.toBeInTheDocument();
   });
 
   it('shows cancellation fee information', () => {
@@ -91,8 +90,8 @@ describe('CancelWarningModal', () => {
       />
     );
 
-    expect(screen.getByText(/Cancellation fee:/)).toBeInTheDocument();
-    expect(screen.getByText(/\$0\.00/)).toBeInTheDocument(); // Free cancellation (>24 hours)
+    // Modal should show time-based message
+    expect(screen.getByText(/Time until lesson:/)).toBeInTheDocument();
   });
 
   it('shows warning for late cancellation', () => {
@@ -109,10 +108,11 @@ describe('CancelWarningModal', () => {
       />
     );
 
-    expect(screen.getByText(/\$30\.00/)).toBeInTheDocument();
+    // Shows time until lesson (18 hours = > 12 hours)
+    expect(screen.getByText('> 12 hours')).toBeInTheDocument();
   });
 
-  it('calls onClose when Keep lesson button is clicked', () => {
+  it('calls onClose when Keep My Lesson button is clicked', () => {
     render(
       <CancelWarningModal
         isOpen={true}
@@ -122,14 +122,18 @@ describe('CancelWarningModal', () => {
       />
     );
 
-    // The modal has no 'Keep lesson' button, clicking the close button (X) instead
-    const closeButton = screen.getByLabelText(/Close modal/i);
-    fireEvent.click(closeButton);
+    // The modal has a 'Keep My Lesson' button
+    const keepButton = screen.getByRole('button', { name: /Keep My Lesson/i });
+    fireEvent.click(keepButton);
 
     expect(mockOnClose).toHaveBeenCalledTimes(1);
   });
 
-  it('calls onReschedule when Reschedule instead button is clicked', () => {
+  it('calls onReschedule when Reschedule button is clicked', () => {
+    // Mock >12 hours until lesson to show reschedule option
+    const calculateCancellationFee = require('@/hooks/useMyLessons').calculateCancellationFee;
+    calculateCancellationFee.mockReturnValue({ fee: 0, percentage: 0, hoursUntil: 24 });
+
     render(
       <CancelWarningModal
         isOpen={true}
@@ -139,13 +143,18 @@ describe('CancelWarningModal', () => {
       />
     );
 
-    const rescheduleButton = screen.getByRole('button', { name: /reschedule lesson/i });
+    // First click Continue to open the reason modal
+    const continueButton = screen.getByRole('button', { name: /Continue/i });
+    fireEvent.click(continueButton);
+
+    // Now the Reschedule button should be visible in the reason modal
+    const rescheduleButton = screen.getByRole('button', { name: /Reschedule/i });
     fireEvent.click(rescheduleButton);
 
     expect(mockOnReschedule).toHaveBeenCalledTimes(1);
   });
 
-  it('opens cancellation reason modal when Cancel lesson button is clicked', () => {
+  it('opens cancellation reason modal when Continue button is clicked', () => {
     render(
       <CancelWarningModal
         isOpen={true}
@@ -155,13 +164,11 @@ describe('CancelWarningModal', () => {
       />
     );
 
-    const cancelButton = screen.getByRole('button', { name: /cancel lesson/i });
+    const cancelButton = screen.getByRole('button', { name: /Continue/i });
     fireEvent.click(cancelButton);
 
     // Should transition to showing cancellation reason modal
-    // The CancellationReasonModal should be shown, but it needs to be mocked
-    // For now, just check that the button was clicked
-    expect(cancelButton).toBeTruthy();
+    expect(screen.getByTestId('cancellation-reason-modal')).toBeInTheDocument();
   });
 
   it('shows cancellation policy information', () => {
@@ -174,8 +181,7 @@ describe('CancelWarningModal', () => {
       />
     );
 
-    expect(screen.getByText('Cancellation Policy')).toBeInTheDocument();
-    expect(screen.getByText(/More than 24 hours: No fee/)).toBeInTheDocument();
+    expect(screen.getByText(/See full cancellation policy/)).toBeInTheDocument();
   });
 
   it('shows no fee message for free cancellation', () => {
@@ -192,9 +198,8 @@ describe('CancelWarningModal', () => {
       />
     );
 
-    // When cancellation is >24 hours before, fee is $0.00
-    expect(screen.getByText(/\$0\.00/)).toBeInTheDocument();
-    expect(screen.getByText(/\(0% of lesson price\)/)).toBeInTheDocument();
+    // When cancellation is >24 hours before, shows appropriate message (120 hours = > 24 hours)
+    expect(screen.getByText('> 24 hours')).toBeInTheDocument();
   });
 
   it('shows 50% fee for late cancellation', () => {
@@ -210,13 +215,13 @@ describe('CancelWarningModal', () => {
       />
     );
 
-    expect(screen.getByText(/\$30\.00/)).toBeInTheDocument();
-    expect(screen.getByText(/\(50% of lesson price\)/)).toBeInTheDocument();
+    // Shows partial charge warning for late cancellation (18 hours = > 12 hours)
+    expect(screen.getByText('> 12 hours')).toBeInTheDocument();
   });
 
   it('shows 100% fee for very late cancellation', () => {
     const calculateCancellationFee = require('@/hooks/useMyLessons').calculateCancellationFee;
-    calculateCancellationFee.mockReturnValue({ fee: 60, percentage: 100, hoursUntil: 6 }); // 100% fee
+    calculateCancellationFee.mockReturnValue({ fee: 60, percentage: 100, hoursUntil: 8 }); // 100% fee
 
     render(
       <CancelWarningModal
@@ -227,8 +232,8 @@ describe('CancelWarningModal', () => {
       />
     );
 
-    expect(screen.getByText(/\$60\.00/)).toBeInTheDocument();
-    expect(screen.getByText(/\(100% of lesson price\)/)).toBeInTheDocument();
+    // Shows full charge warning for very late cancellation (8 hours = < 12 hours)
+    expect(screen.getByText('< 12 hours')).toBeInTheDocument();
   });
 
   it('displays lesson details in the modal', () => {
@@ -241,8 +246,7 @@ describe('CancelWarningModal', () => {
       />
     );
 
-    // The modal shows the lesson date/time
     expect(screen.getByText(/Thursday, December 25/)).toBeInTheDocument();
-    expect(screen.getByText(/2:00 pm/i)).toBeInTheDocument();
+    expect(screen.getByText(/2:00 PM/)).toBeInTheDocument();
   });
 });

@@ -82,7 +82,8 @@ export default function GlobalBackground({ overrides, activity }: Props): React.
 
       if (!resolvedUrl) {
         if (pathname === '/' || pathname === '') {
-          resolvedUrl = getActivityBackground('home', viewport);
+          // Skip background for home page - it has its own hero background
+          resolvedUrl = null;
         } else if (pathname.startsWith('/login') || pathname.startsWith('/signup')) {
           resolvedUrl = getAuthBackground('default', viewport) || getActivityBackground('home', viewport);
         } else {
