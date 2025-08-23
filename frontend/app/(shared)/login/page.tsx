@@ -272,7 +272,7 @@ function LoginForm() {
  * @example
  * ```tsx
  * // Access directly via /login
- * // Or with redirect: /login?redirect=/dashboard/instructor
+ * // Or with redirect: /login?redirect=/instructor/dashboard
  * ```
  */
 export default function Login() {

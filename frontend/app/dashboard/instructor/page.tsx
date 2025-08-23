@@ -6,10 +6,10 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
-import { Edit, Calendar, ExternalLink, LogOut, Trash2 } from 'lucide-react';
+import { Edit, Calendar, ExternalLink, LogOut, Trash2, CheckCircle2, XCircle } from 'lucide-react';
 import EditProfileModal from '@/components/modals/EditProfileModal';
 import DeleteProfileModal from '@/components/modals/DeleteProfileModal';
-import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
+import { fetchWithAuth, API_ENDPOINTS, getConnectStatus } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import { InstructorProfile, getInstructorDisplayName } from '@/types/instructor';
 import { useAuth } from '@/features/shared/hooks/useAuth';
@@ -45,6 +45,7 @@ export default function InstructorDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [connectStatus, setConnectStatus] = useState<any>(null);
 
   /**
    * Fetch instructor profile data
@@ -100,6 +101,14 @@ export default function InstructorDashboard() {
   useEffect(() => {
     logger.info('Instructor dashboard loaded');
     fetchProfile();
+    (async () => {
+      try {
+        const s = await getConnectStatus();
+        setConnectStatus(s);
+      } catch (e) {
+        logger.warn('Failed to load connect status');
+      }
+    })();
   }, [router]);
 
   /**
@@ -220,14 +229,59 @@ export default function InstructorDashboard() {
 
         {/* Welcome Section */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back, {displayName}!</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back, {displayName}! (Legacy)</h1>
           <p className="text-gray-600">Manage your instructor profile and bookings</p>
         </div>
 
-        {/* Payments Section */}
+        {/* Onboarding Checklist */}
         <div className="mb-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Payment Settings</h2>
-          <StripeOnboarding instructorId={profile.user_id} />
+          <h2 className="text-xl font-bold text-gray-900 mb-4">Onboarding (Legacy)</h2>
+          <div className="bg-white rounded-lg shadow-sm p-6 space-y-4">
+            <ChecklistRow
+              label="Stripe Connect onboarding"
+              ok={!!connectStatus?.onboarding_completed}
+              action={<StripeOnboarding instructorId={profile.user_id} />}
+            />
+            <ChecklistRow
+              label="ID verification (Stripe Identity)"
+              ok={false}
+              action={
+                <Link href="/instructor/onboarding/step-4" className="text-purple-700 hover:underline">
+                  Start verification
+                </Link>
+              }
+            />
+            <ChecklistRow
+              label="Background check uploaded"
+              ok={false}
+              action={
+                <Link href="/instructor/onboarding/step-4" className="text-purple-700 hover:underline">
+                  Upload document
+                </Link>
+              }
+            />
+            <ChecklistRow
+              label="Skills & pricing set"
+              ok={(profile.services || []).length > 0}
+              action={
+                <Link href="/instructor/onboarding/step-3" className="text-purple-700 hover:underline">
+                  Edit skills
+                </Link>
+              }
+            />
+            <div className="pt-2">
+              <button
+                className="px-5 py-2.5 rounded-lg text-white bg-purple-700 hover:bg-purple-800 disabled:opacity-50"
+                disabled={!(connectStatus?.onboarding_completed && (profile.services || []).length > 0)}
+                onClick={() => alert('Please use the new dashboard at /instructor/dashboard')}
+              >
+                Go live
+              </button>
+              <p className="text-sm text-gray-500 mt-2">
+                You can continue setting up from here. Going live requires payments enabled and at least one service.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Quick Stats */}
@@ -252,7 +306,7 @@ export default function InstructorDashboard() {
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <Link
-            href="/dashboard/instructor/availability"
+            href="/instructor/availability"
             className="block p-6 bg-white rounded-lg shadow hover:shadow-lg transition-shadow"
             onClick={() => logger.debug('Navigating to availability management')}
           >
@@ -387,6 +441,30 @@ export default function InstructorDashboard() {
           onSuccess={handleProfileDelete}
         />
       )}
+    </div>
+  );
+}
+
+function ChecklistRow({
+  label,
+  ok,
+  action,
+}: {
+  label: string;
+  ok: boolean;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between border border-gray-100 rounded-md px-4 py-3">
+      <div className="flex items-center gap-2">
+        {ok ? (
+          <CheckCircle2 className="w-5 h-5 text-green-600" />
+        ) : (
+          <XCircle className="w-5 h-5 text-gray-300" />
+        )}
+        <span className="text-gray-800">{label}</span>
+      </div>
+      <div>{action}</div>
     </div>
   );
 }

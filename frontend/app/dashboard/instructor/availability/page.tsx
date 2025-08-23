@@ -19,7 +19,7 @@
  * - Mobile-responsive design
  *
  * @component
- * @module pages/dashboard/instructor/availability
+ * @module pages/instructor/availability (legacy location)
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
@@ -440,7 +440,7 @@ export default function AvailabilityPage(): React.ReactElement {
     <div className="max-w-7xl mx-auto px-4 py-8">
       {/* Back to Dashboard Link */}
       <Link
-        href="/dashboard/instructor"
+        href="/instructor/dashboard"
         className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4"
       >
         <ArrowLeft className="w-4 h-4 mr-2" />
@@ -544,7 +544,7 @@ export default function AvailabilityPage(): React.ReactElement {
           bookingId={selectedBookingId}
           onClose={closeBookingPreview}
           onViewFullDetails={() => {
-            router.push(`/dashboard/instructor/bookings/${selectedBookingId}`);
+            router.push(`/instructor/bookings/${selectedBookingId}`);
           }}
         />
       )}

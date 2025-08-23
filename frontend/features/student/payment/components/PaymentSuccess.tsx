@@ -77,7 +77,7 @@ export default function PaymentSuccess({
                 Book First Lesson
               </Link>
               <Link
-                href="/dashboard/student/credits"
+                href="/student/dashboard/credits"
                 className="block w-full py-3 border border-gray-300 dark:border-gray-600 rounded-full font-medium transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
               >
                 View All Credits

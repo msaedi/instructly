@@ -124,7 +124,7 @@ function ErrorFallback({ error, resetErrorBoundary }: ErrorFallbackProps) {
  *   return (
  *     <QueryErrorBoundary>
  *       <Routes>
- *         <Route path="/dashboard" element={<Dashboard />} />
+ *         <Route path="/student/dashboard" element={<Dashboard />} />
  *       </Routes>
  *     </QueryErrorBoundary>
  *   );

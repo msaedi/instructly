@@ -167,7 +167,7 @@ export function UpcomingLessons() {
                   href={
                     hasRole(user, RoleName.STUDENT)
                       ? `/student/lessons/${booking.id}`
-                      : `/dashboard/instructor/bookings/${booking.id}`
+                      : `/instructor/bookings/${booking.id}`
                   }
                   className="text-sm text-purple-700 hover:text-purple-800 flex items-center gap-1 font-medium"
                 >

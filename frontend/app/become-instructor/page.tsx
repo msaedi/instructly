@@ -359,7 +359,7 @@ export default function BecomeInstructorPage() {
         // Redirect after showing success
         setTimeout(() => {
           logger.info('Redirecting to instructor dashboard');
-          router.push('/dashboard/instructor');
+          router.push('/instructor/dashboard');
         }, 2000);
       } catch (error) {
         const errorMessage = getErrorMessage(error);
@@ -408,7 +408,7 @@ export default function BecomeInstructorPage() {
           <button
             onClick={() => {
               logger.info('Navigating to instructor dashboard from already-instructor page');
-              router.push('/dashboard/instructor');
+              router.push('/instructor/dashboard');
             }}
             className="bg-purple-700 text-white px-6 py-2 rounded-lg hover:bg-purple-800 transition-colors"
           >

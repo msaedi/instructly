@@ -186,7 +186,7 @@ export default function Home() {
               {mounted && isLoggedIn ? (
                 <>
                   <Link
-                    href="/dashboard"
+                    href="/student/dashboard"
                     className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
                     onClick={() => logger.debug('Navigating to dashboard from home')}
                   >

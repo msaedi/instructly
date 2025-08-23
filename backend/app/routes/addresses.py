@@ -36,6 +36,76 @@ def get_address_service(db: Session = Depends(get_session)) -> AddressService:
     return AddressService(db)
 
 
+# --- Utility: NYC ZIP validation (approximate, robust without external calls) ---
+def _nyc_zip_to_borough(zip5: str) -> str | None:
+    """Return NYC borough name if ZIP is a known NYC ZIP, else None.
+
+    Uses commonly recognized USPS ZIP ranges:
+    - Manhattan: 10001–10292, 10499
+    - Bronx: 10451–10475
+    - Brooklyn: 11201–11256
+    - Queens: 11004–11005, 11101–11109, 11351–11385, 11411–11499, 11691–11697
+    - Staten Island: 10301–10314
+    """
+    try:
+        z = int(zip5)
+    except Exception:
+        return None
+
+    # Manhattan
+    if (10001 <= z <= 10292) or z == 10499:
+        return "Manhattan"
+    # Staten Island
+    if 10301 <= z <= 10314:
+        return "Staten Island"
+    # Bronx
+    if 10451 <= z <= 10475:
+        return "Bronx"
+    # Brooklyn
+    if 11201 <= z <= 11256:
+        return "Brooklyn"
+    # Queens
+    if z in (11004, 11005):
+        return "Queens"
+    if 11101 <= z <= 11109:
+        return "Queens"
+    if 11351 <= z <= 11385:
+        return "Queens"
+    if 11411 <= z <= 11499:
+        return "Queens"
+    if 11691 <= z <= 11697:
+        return "Queens"
+    return None
+
+
+class NYCZipCheckResponse(BaseModel):
+    is_nyc: bool
+    borough: str | None = None
+
+
+@router.get("/zip/is-nyc", response_model=NYCZipCheckResponse)
+def is_nyc_zip(zip: str) -> NYCZipCheckResponse:
+    """Lightweight NYC ZIP check.
+
+    Args:
+        zip: Five-digit ZIP code.
+
+    Returns:
+        { "is_nyc": bool, "borough": Optional[str] }
+
+    Notes:
+        - This endpoint is deterministic and does not require geocoding APIs.
+        - It is sufficient for onboarding gating; deeper enrichment occurs when
+          we create an address with lat/lng.
+    """
+    zip5 = (zip or "").strip()
+    if len(zip5) != 5 or not zip5.isdigit():
+        return NYCZipCheckResponse(is_nyc=False, borough=None)
+
+    borough = _nyc_zip_to_borough(zip5)
+    return NYCZipCheckResponse(is_nyc=bool(borough), borough=borough)
+
+
 @router.get("/me", response_model=AddressListResponse)
 def list_my_addresses(
     current_user=Depends(get_current_active_user),

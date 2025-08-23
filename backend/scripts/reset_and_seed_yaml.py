@@ -278,6 +278,34 @@ class DatabaseSeeder:
                         print(f"  ⚠️  Service '{service_name}' not found in catalog, skipping")
                         continue
 
+                    # Normalize age_groups to allowed values: 'kids' and 'adults' only
+                    raw_groups = service_data.get("age_groups") or []
+                    normalized_groups = []
+                    for g in raw_groups:
+                        v = str(g).strip().lower()
+                        if v == "both":
+                            for val in ("kids", "adults"):
+                                if val not in normalized_groups:
+                                    normalized_groups.append(val)
+                            continue
+                        if v in {"kids", "children", "child", "teen", "teens", "youth"}:
+                            if "kids" not in normalized_groups:
+                                normalized_groups.append("kids")
+                            continue
+                        if v in {"adult", "adults"}:
+                            if "adults" not in normalized_groups:
+                                normalized_groups.append("adults")
+                            continue
+                        # drop unknown values
+                    # Ensure ~20% of seeded services include kids for testing, if not already
+                    try:
+                        import random as _random
+
+                        if ("kids" not in normalized_groups) and (_random.random() < 0.20):
+                            normalized_groups.append("kids")
+                    except Exception:
+                        pass
+
                     # Create instructor service linked to catalog
                     service = InstructorService(
                         instructor_profile_id=profile.id,
@@ -289,7 +317,7 @@ class DatabaseSeeder:
                         requirements=service_data.get("requirements"),
                         equipment_required=service_data.get("equipment_required"),
                         levels_taught=service_data.get("levels_taught"),
-                        age_groups=service_data.get("age_groups"),
+                        age_groups=normalized_groups or None,
                         location_types=service_data.get("location_types"),
                         max_distance_miles=service_data.get("max_distance_miles"),
                         is_active=True,

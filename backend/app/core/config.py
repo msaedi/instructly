@@ -168,6 +168,16 @@ class Settings(BaseSettings):
     stripe_platform_fee_percentage: float = Field(default=15, description="Platform fee percentage (15 = 15%)")
     stripe_currency: str = Field(default="usd", description="Default currency for payments")
 
+    # Cloudflare R2 (S3-compatible) configuration for asset uploads
+    r2_account_id: str = Field(default="", description="Cloudflare R2 Account ID")
+    r2_access_key_id: str = Field(default="", description="R2 access key ID")
+    r2_secret_access_key: SecretStr = Field(default="", description="R2 secret access key")
+    r2_bucket_name: str = Field(default="", description="R2 bucket name")
+    r2_public_base_url: str = Field(
+        default="https://assets.instainstru.com",
+        description="Base URL for publicly served assets (if applicable)",
+    )
+
     @property
     def webhook_secrets(self) -> list[str]:
         """Build list of webhook secrets to try in order."""

@@ -245,7 +245,7 @@ function LoginForm() {
       });
 
       // Success! Redirect to dashboard
-      router.push('/dashboard');
+      router.push('/student/dashboard');
     } catch (error) {
       // Error is handled by the hook
       console.error('Login failed:', error);

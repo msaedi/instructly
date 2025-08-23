@@ -67,6 +67,10 @@ class ServiceBase(StandardizedModel):
     service_catalog_id: str = Field(..., description="ID of the service from catalog")
     hourly_rate: Money = Field(..., gt=0, le=1000, description="Hourly rate in USD")  # Changed from float
     description: Optional[str] = Field(None, max_length=500)
+    age_groups: Optional[List[str]] = Field(
+        default=None,
+        description="Age groups this service is offered to. Allowed: 'kids', 'adults'. Use both for both.",
+    )
     duration_options: List[int] = Field(
         default=[60],
         description="Available duration options for this service in minutes",
@@ -82,6 +86,34 @@ class ServiceBase(StandardizedModel):
             if not MIN_SESSION_DURATION <= duration <= MAX_SESSION_DURATION:
                 raise ValueError(f"Duration must be between {MIN_SESSION_DURATION} and {MAX_SESSION_DURATION} minutes")
         return v
+
+    @field_validator("age_groups")
+    def validate_age_groups(cls, v):
+        """Normalize and validate age groups.
+
+        Accepts ['kids'], ['adults'], or ['kids','adults'].
+        Collapses duplicates and ignores casing. Raises if unknown values provided.
+        """
+        if v is None:
+            return v
+        allowed = {"kids", "adults"}
+        normalized: List[str] = []
+        for item in v:
+            value = str(item).strip().lower()
+            if value == "both":
+                normalized.extend(["kids", "adults"])
+            elif value in allowed:
+                normalized.append(value)
+            else:
+                raise ValueError("age_groups must be one or more of: 'kids', 'adults'")
+        # De-duplicate while preserving order
+        seen = set()
+        deduped = []
+        for item in normalized:
+            if item not in seen:
+                seen.add(item)
+                deduped.append(item)
+        return deduped
 
 
 class ServiceCreate(ServiceBase):

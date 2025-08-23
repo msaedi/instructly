@@ -50,7 +50,7 @@ interface LoginResponse {
  *   const handleSubmit = async (email, password) => {
  *     try {
  *       await login({ email, password });
- *       router.push('/dashboard');
+ *       router.push('/student/dashboard');
  *     } catch (error) {
  *       showError(error.message);
  *     }

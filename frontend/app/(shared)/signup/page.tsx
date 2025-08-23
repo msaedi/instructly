@@ -1,4 +1,3 @@
-// frontend/app/signup/page.tsx
 'use client';
 
 /**
@@ -317,22 +316,22 @@ function SignUpForm() {
       // Auto-login after successful registration
       // Use new endpoint if we have a guest session (already converted during registration)
       logger.time('auto-login');
-      const loginEndpoint = guestSessionId
+      const loginEndpoint = getGuestSessionId()
         ? `${API_URL}/auth/login-with-session`
         : `${API_URL}${API_ENDPOINTS.LOGIN}`;
 
-      const loginBody = guestSessionId
+      const loginBody = getGuestSessionId()
         ? JSON.stringify({
             email: formData.email,
             password: formData.password,
-            guest_session_id: guestSessionId,
+            guest_session_id: getGuestSessionId(),
           })
         : new URLSearchParams({
             username: formData.email,
             password: formData.password,
           });
 
-      const loginHeaders = guestSessionId
+      const loginHeaders = getGuestSessionId()
         ? { 'Content-Type': 'application/json' }
         : { 'Content-Type': 'application/x-www-form-urlencoded' };
 
@@ -357,12 +356,6 @@ function SignUpForm() {
       const authData: AuthResponse = await loginResponse.json();
       localStorage.setItem('access_token', authData.access_token);
 
-      // Clear guest session after successful registration and login
-      if (guestSessionId) {
-        sessionStorage.removeItem('guest_session_id');
-        logger.info('Guest session cleared after registration');
-      }
-
       logger.info('Auto-login successful, fetching user data');
 
       // Fetch user data to determine redirect
@@ -377,12 +370,12 @@ function SignUpForm() {
         logger.info('User data fetched, redirecting based on role', {
           userId: userData.id,
           roles: userData.roles,
-          redirectTo: hasRole(userData, RoleName.INSTRUCTOR) ? '/dashboard/instructor' : redirect,
+          redirectTo: hasRole(userData, RoleName.INSTRUCTOR) ? '/instructor/dashboard' : redirect,
         });
 
         // Redirect based on role
         if (hasRole(userData, RoleName.INSTRUCTOR)) {
-          router.push('/dashboard/instructor');
+          router.push('/instructor/dashboard');
         } else {
           router.push(redirect);
         }
@@ -439,92 +432,29 @@ function SignUpForm() {
           <div className="grid grid-cols-2 gap-4">
             {/* First Name Field */}
             <div>
-              <label
-                htmlFor="firstName"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-              >
-                First Name
-              </label>
+              <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">First Name</label>
               <div className="mt-1">
-                <input
-                  id="firstName"
-                  name="firstName"
-                  type="text"
-                  autoComplete="given-name"
-                  required
-                  value={formData.firstName}
-                  onChange={handleChange}
-                  disabled={isLoading}
-                  className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  aria-invalid={!!errors.firstName}
-                  aria-describedby={errors.firstName ? 'firstName-error' : undefined}
-                />
-                {errors.firstName && (
-                  <p id="firstName-error" className="mt-1 text-sm text-red-600 dark:text-red-400">
-                    {errors.firstName}
-                  </p>
-                )}
+                <input id="firstName" name="firstName" type="text" autoComplete="given-name" required value={formData.firstName} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed" aria-invalid={!!errors.firstName} aria-describedby={errors.firstName ? 'firstName-error' : undefined} />
+                {errors.firstName && (<p id="firstName-error" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.firstName}</p>)}
               </div>
             </div>
 
             {/* Last Name Field */}
             <div>
-              <label
-                htmlFor="lastName"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-              >
-                Last Name
-              </label>
+              <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Last Name</label>
               <div className="mt-1">
-                <input
-                  id="lastName"
-                  name="lastName"
-                  type="text"
-                  autoComplete="family-name"
-                  required
-                  value={formData.lastName}
-                  onChange={handleChange}
-                  disabled={isLoading}
-                  className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  aria-invalid={!!errors.lastName}
-                  aria-describedby={errors.lastName ? 'lastName-error' : undefined}
-                />
-                {errors.lastName && (
-                  <p id="lastName-error" className="mt-1 text-sm text-red-600 dark:text-red-400">
-                    {errors.lastName}
-                  </p>
-                )}
+                <input id="lastName" name="lastName" type="text" autoComplete="family-name" required value={formData.lastName} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed" aria-invalid={!!errors.lastName} aria-describedby={errors.lastName ? 'lastName-error' : undefined} />
+                {errors.lastName && (<p id="lastName-error" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.lastName}</p>)}
               </div>
             </div>
           </div>
 
           {/* Email Field */}
           <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-            >
-              Email
-            </label>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
             <div className="mt-1">
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={formData.email}
-                onChange={handleChange}
-                disabled={isLoading}
-                className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix"
-                aria-invalid={!!errors.email}
-                aria-describedby={errors.email ? 'email-error' : undefined}
-              />
-              {errors.email && (
-                <p id="email-error" className="mt-1 text-sm text-red-600 dark:text-red-400">
-                  {errors.email}
-                </p>
-              )}
+              <input id="email" name="email" type="email" autoComplete="email" required value={formData.email} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.email} aria-describedby={errors.email ? 'email-error' : undefined} />
+              {errors.email && (<p id="email-error" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.email}</p>)}
             </div>
           </div>
 
@@ -532,63 +462,20 @@ function SignUpForm() {
           <div className="grid grid-cols-2 gap-4">
             {/* Phone Field */}
             <div>
-              <label
-                htmlFor="phone"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-              >
-                Phone Number
-              </label>
+              <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Phone Number</label>
               <div className="mt-1">
-                <input
-                  id="phone"
-                  name="phone"
-                  type="tel"
-                  autoComplete="tel"
-                  required
-                  placeholder="(555) 555-5555"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  disabled={isLoading}
-                  className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  aria-invalid={!!errors.phone}
-                  aria-describedby={errors.phone ? 'phone-error' : undefined}
-                />
-                {errors.phone && (
-                  <p id="phone-error" className="mt-1 text-sm text-red-600 dark:text-red-400">
-                    {errors.phone}
-                  </p>
-                )}
+                <input id="phone" name="phone" type="tel" autoComplete="tel" required placeholder="(555) 555-5555" value={formData.phone} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed" aria-invalid={!!errors.phone} aria-describedby={errors.phone ? 'phone-error' : undefined} />
+                {errors.phone && (<p id="phone-error" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.phone}</p>)}
               </div>
             </div>
 
             {/* Zip Code Field */}
             <div>
-              <label
-                htmlFor="zipCode"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-              >
-                Zip Code
-              </label>
+              <label htmlFor="zipCode" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Zip Code</label>
               <div className="mt-1">
-                <input
-                  id="zipCode"
-                  name="zipCode"
-                  type="text"
-                  autoComplete="postal-code"
-                  required
-                  placeholder="10001"
-                  maxLength={5}
-                  value={formData.zipCode}
-                  onChange={handleChange}
-                  disabled={isLoading}
-                  className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                  aria-invalid={!!errors.zipCode}
-                  aria-describedby={errors.zipCode ? 'zipCode-error' : undefined}
-                />
+                <input id="zipCode" name="zipCode" type="text" autoComplete="postal-code" required placeholder="10001" maxLength={5} value={formData.zipCode} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed" aria-invalid={!!errors.zipCode} aria-describedby={errors.zipCode ? 'zipCode-error' : undefined} />
                 {errors.zipCode && (
-                  <p id="zipCode-error" className="mt-1 text-sm text-red-600 dark:text-red-400">
-                    {errors.zipCode}
-                  </p>
+                  <p id="zipCode-error" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.zipCode}</p>
                 )}
               </div>
             </div>
@@ -596,81 +483,21 @@ function SignUpForm() {
 
           {/* Password Field */}
           <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-            >
-              Password
-            </label>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
             <div className="mt-1 relative">
-              <input
-                id="password"
-                name="password"
-                type={showPassword ? 'text' : 'password'}
-                autoComplete="new-password"
-                required
-                value={formData.password}
-                onChange={handleChange}
-                disabled={isLoading}
-                className="appearance-none block w-full px-3 py-2 h-10 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix"
-                aria-invalid={!!errors.password}
-                aria-describedby={errors.password ? 'password-error' : 'password-hint'}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-0 top-1/2 -translate-y-1/2 -mt-2.5 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                disabled={isLoading}
-              >
-                {showPassword ? (
-                  <EyeOff className="h-5 w-5" aria-hidden="true" />
-                ) : (
-                  <Eye className="h-5 w-5" aria-hidden="true" />
-                )}
-              </button>
-              {errors.password && (
-                <p id="password-error" className="mt-1 text-sm text-red-600 dark:text-red-400">
-                  At least 8 characters
-                </p>
-              )}
-              {!errors.password && (
-                <p id="password-hint" className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  At least 8 characters
-                </p>
-              )}
+              <input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" required value={formData.password} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.password} aria-describedby={errors.password ? 'password-error' : 'password-hint'} />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-0 top-1/2 -translate-y-1/2 -mt-2.5 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300" disabled={isLoading}>{showPassword ? (<EyeOff className="h-5 w-5" aria-hidden="true" />) : (<Eye className="h-5 w-5" aria-hidden="true" />)}</button>
+              {errors.password && (<p id="password-error" className="mt-1 text-sm text-red-600 dark:text-red-400">At least 8 characters</p>)}
+              {!errors.password && (<p id="password-hint" className="mt-1 text-sm text-gray-500 dark:text-gray-400">At least 8 characters</p>)}
             </div>
           </div>
 
           {/* Confirm Password Field */}
           <div>
-            <label
-              htmlFor="confirmPassword"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-            >
-              Confirm Password
-            </label>
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Confirm Password</label>
             <div className="mt-1">
-              <input
-                id="confirmPassword"
-                name="confirmPassword"
-                type={showPassword ? 'text' : 'password'}
-                autoComplete="new-password"
-                required
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                disabled={isLoading}
-                className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix"
-                aria-invalid={!!errors.confirmPassword}
-                aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined}
-              />
-              {errors.confirmPassword && (
-                <p
-                  id="confirmPassword-error"
-                  className="mt-1 text-sm text-red-600 dark:text-red-400"
-                >
-                  {errors.confirmPassword}
-                </p>
-              )}
+              <input id="confirmPassword" name="confirmPassword" type={showPassword ? 'text' : 'password'} autoComplete="new-password" required value={formData.confirmPassword} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.confirmPassword} aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined} />
+              {errors.confirmPassword && (<p id="confirmPassword-error" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.confirmPassword}</p>)}
             </div>
           </div>
 
@@ -678,38 +505,22 @@ function SignUpForm() {
           <div className="text-center">
             <p className="text-xs text-gray-600 dark:text-gray-400">
               By clicking below and creating an account, I agree to iNSTAiNSTRU's{' '}
-              <Link href="/terms" className="text-purple-700 hover:text-purple-800 underline">
-                Terms of Service
-              </Link>{' '}
+              <Link href="/terms" className="text-purple-700 hover:text-purple-800 underline">Terms of Service</Link>{' '}
               and{' '}
-              <Link href="/privacy" className="text-purple-700 hover:text-purple-800 underline">
-                Privacy Policy
-              </Link>
+              <Link href="/privacy" className="text-purple-700 hover:text-purple-800 underline">Privacy Policy</Link>
             </p>
           </div>
 
           {/* Submit Button */}
           <div>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-700 hover:bg-purple-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-purple-600 dark:hover:bg-purple-700"
-            >
-              {isLoading ? 'Creating account...' : 'Sign up'}
-            </button>
+            <button type="submit" disabled={isLoading} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-700 hover:bg-purple-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-purple-600 dark:hover:bg-purple-700">{isLoading ? 'Creating account...' : 'Sign up'}</button>
           </div>
 
           {/* Login Link */}
           <div className="text-center">
             <span className="text-sm text-gray-600 dark:text-gray-400">
               Already have an account?{' '}
-              <Link
-                href={`/login${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
-                className="font-medium text-purple-700 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300"
-                onClick={() => logger.info('Navigating to login from signup')}
-              >
-                Sign in
-              </Link>
+              <Link href={`/login${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`} className="font-medium text-purple-700 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300" onClick={() => logger.info('Navigating to login from signup')}>Sign in</Link>
             </span>
           </div>
         </form>
@@ -728,13 +539,7 @@ export default function SignUpPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
-        <Suspense
-          fallback={
-            <div className="flex justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-700 dark:border-purple-400" />
-            </div>
-          }
-        >
+        <Suspense fallback={<div className="flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-700 dark:border-purple-400" /></div>}>
           <SignUpForm />
         </Suspense>
       </div>

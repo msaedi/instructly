@@ -197,7 +197,7 @@ export default function HomePage() {
               <div className="flex items-center gap-4">
                 <Link
                   href={
-                    hasRole(user, RoleName.STUDENT) ? '/student/lessons' : '/dashboard/instructor'
+                    hasRole(user, RoleName.STUDENT) ? '/student/lessons' : '/instructor/dashboard'
                   }
                   className="text-gray-700 hover:text-purple-700 font-medium relative"
                 >

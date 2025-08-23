@@ -71,7 +71,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
                 .filter(
                     Booking.instructor_id == instructor_id,
                     Booking.booking_date == check_date,
-                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                    Booking.status.in_([BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
                 )
             )
 
@@ -103,7 +103,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
                 .filter(
                     Booking.instructor_id == instructor_id,
                     Booking.booking_date == target_date,
-                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                    Booking.status.in_([BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
                 )
                 .order_by(Booking.start_time)
                 .all()
@@ -132,7 +132,7 @@ class ConflictCheckerRepository(BaseRepository[Booking]):
                 .filter(
                     Booking.instructor_id == instructor_id,
                     Booking.booking_date.in_(week_dates),
-                    Booking.status.in_([BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
+                    Booking.status.in_([BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED]),
                 )
                 .order_by(Booking.booking_date, Booking.start_time)
                 .all()

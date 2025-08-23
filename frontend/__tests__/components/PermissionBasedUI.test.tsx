@@ -92,7 +92,7 @@ const NavigationMenu = () => (
 
     {/* Instructor menu */}
     <PermissionGate permission={PermissionName.MANAGE_INSTRUCTOR_PROFILE}>
-      <a data-testid="instructor-dashboard-link" href="/dashboard/instructor">
+      <a data-testid="instructor-dashboard-link" href="/instructor/dashboard">
         Instructor Dashboard
       </a>
     </PermissionGate>

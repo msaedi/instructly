@@ -210,6 +210,44 @@ async def get_onboarding_status(
         )
 
 
+# ========== Stripe Identity ==========
+
+
+class IdentitySessionResponse(BaseModel):
+    verification_session_id: str
+    client_secret: str
+
+
+@router.post("/identity/session", response_model=IdentitySessionResponse)
+async def create_identity_session(
+    request: Request,
+    current_user: User = Depends(get_current_active_user),
+    stripe_service: StripeService = Depends(get_stripe_service),
+):
+    """Create a Stripe Identity verification session for the current user."""
+    try:
+        validate_instructor_role(current_user)
+
+        # Use frontend URL with a return flag back to onboarding
+        from app.core.config import settings
+
+        return_url = f"{settings.frontend_url}/dashboard/instructor?identity_return=true"
+        result = stripe_service.create_identity_verification_session(user_id=current_user.id, return_url=return_url)
+        return IdentitySessionResponse(
+            verification_session_id=result["verification_session_id"], client_secret=result["client_secret"]
+        )
+    except HTTPException:
+        raise
+    except ServiceException as e:
+        logger.error(f"Service error creating identity session: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error creating identity session: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create identity session"
+        )
+
+
 class PayoutScheduleResponse(BaseModel):
     ok: bool
     account_id: str | None = None

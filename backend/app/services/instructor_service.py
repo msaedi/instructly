@@ -494,6 +494,7 @@ class InstructorService(BaseService):
                     "name": service.catalog_entry.name if service.catalog_entry else "Unknown Service",
                     "hourly_rate": service.hourly_rate,
                     "description": service.description,
+                    "age_groups": service.age_groups,
                     "duration_options": service.duration_options,
                     "is_active": service.is_active,
                 }

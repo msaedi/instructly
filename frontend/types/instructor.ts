@@ -132,6 +132,9 @@ export interface InstructorService {
   /** Whether this service is currently active */
   is_active?: boolean;
 
+  /** Age groups this service is offered to (e.g., 'kids', 'adults') */
+  age_groups?: string[];
+
   /** Instructor ID (ULID string, when not nested) */
   instructor_id?: string;
 }

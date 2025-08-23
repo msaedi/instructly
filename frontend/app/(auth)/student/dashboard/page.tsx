@@ -37,7 +37,7 @@ import BillingTab from '@/components/student/BillingTab';
  * @example
  * ```tsx
  * // This is a page component, typically accessed via routing
- * // Route: /dashboard/student
+ * // Route: /student/dashboard
  * ```
  */
 // Disable prerendering; this page depends on searchParams and auth session
@@ -123,7 +123,7 @@ function StudentDashboardContent() {
         userId: userData.id,
         roles: userData.roles,
       });
-      router.push('/dashboard/instructor');
+      router.push('/instructor/dashboard');
     }
   }, [userData, userError, isLoadingUser, router]);
 

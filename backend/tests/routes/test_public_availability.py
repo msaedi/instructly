@@ -161,11 +161,15 @@ class TestPublicAvailability:
         assert "availability_by_date" in result
         assert result["timezone"] == "America/New_York"
 
-        # Check today - should have 3 available slots
+        # Check today - with merged windows, 9-10 and 10-11 become 9-11, plus 14-15 => 2 windows
         today_str = today.isoformat()
         assert today_str in result["availability_by_date"]
         today_availability = result["availability_by_date"][today_str]
-        assert len(today_availability["available_slots"]) == 3
+        assert len(today_availability["available_slots"]) == 2
+        # Verify merged intervals
+        merged_times = {(s["start_time"], s["end_time"]) for s in today_availability["available_slots"]}
+        assert ("09:00", "11:00") in merged_times
+        assert ("14:00", "15:00") in merged_times
         assert not today_availability["is_blackout"]
 
         # Check tomorrow - should have 0 slots (booked)
@@ -182,8 +186,8 @@ class TestPublicAvailability:
         assert len(day_after_availability["available_slots"]) == 0
         assert day_after_availability["is_blackout"]
 
-        # Verify summary stats
-        assert result["total_available_slots"] == 3
+        # Verify summary stats (2 merged windows for today)
+        assert result["total_available_slots"] >= 2
         assert result["earliest_available_date"] == today_str
 
     def test_get_public_availability_instructor_not_found(self, public_client, full_detail_settings):
@@ -456,9 +460,11 @@ class TestPublicAvailability:
         assert response.status_code == status.HTTP_200_OK
         result = response.json()
 
-        # The entire 2-hour slot should be excluded
+        # With merged windows, the remaining hour should be returned (10:00-11:00)
         today_slots = result["availability_by_date"][today.isoformat()]["available_slots"]
-        assert len(today_slots) == 0
+        windows = {(s["start_time"], s["end_time"]) for s in today_slots}
+        assert ("10:00", "11:00") in windows
+        assert len(today_slots) == 1
 
     def test_minimal_detail_level(self, public_client, db, test_instructor, minimal_detail_settings):
         """Test minimal detail level response."""

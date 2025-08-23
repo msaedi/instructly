@@ -188,6 +188,11 @@ export const API_ENDPOINTS = {
   // Instructor endpoints
   INSTRUCTORS: '/instructors',
   INSTRUCTOR_PROFILE: '/instructors/me',
+  // Onboarding helpers
+  NYC_ZIP_CHECK: '/api/addresses/zip/is-nyc',
+  STRIPE_IDENTITY_SESSION: '/api/payments/identity/session',
+  R2_SIGNED_UPLOAD: '/api/uploads/r2/signed-url',
+  CONNECT_STATUS: '/api/payments/connect/status',
 
   // Availability Management endpoints
   INSTRUCTOR_AVAILABILITY_WEEKLY: '/instructors/availability/weekly',
@@ -358,6 +363,47 @@ export async function getUpcomingBookings(limit: number = 5): Promise<UpcomingBo
     logger.error('Upcoming bookings fetch error', error);
     throw error;
   }
+}
+
+// ========== Onboarding helper API calls ==========
+
+export async function checkIsNYCZip(zip: string): Promise<{ is_nyc: boolean; borough?: string }> {
+  const res = await fetchAPI(`${API_ENDPOINTS.NYC_ZIP_CHECK}?zip=${encodeURIComponent(zip)}`);
+  if (!res.ok) throw new Error('ZIP check failed');
+  return res.json();
+}
+
+export async function createStripeIdentitySession(): Promise<{ verification_session_id: string; client_secret: string }>{
+  const res = await fetchWithAuth(API_ENDPOINTS.STRIPE_IDENTITY_SESSION, { method: 'POST' });
+  if (!res.ok) throw new Error(await getErrorMessage(res));
+  return res.json();
+}
+
+export async function createSignedUpload(params: {
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  purpose: 'background_check';
+}): Promise<{ upload_url: string; object_key: string; public_url?: string; headers: Record<string, string> }>{
+  const res = await fetchWithAuth(API_ENDPOINTS.R2_SIGNED_UPLOAD, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) throw new Error(await getErrorMessage(res));
+  return res.json();
+}
+
+export async function getConnectStatus(): Promise<{
+  has_account: boolean;
+  onboarding_completed: boolean;
+  charges_enabled: boolean;
+  payouts_enabled: boolean;
+  details_submitted: boolean;
+}> {
+  const res = await fetchWithAuth(API_ENDPOINTS.CONNECT_STATUS);
+  if (!res.ok) throw new Error(await getErrorMessage(res));
+  return res.json();
 }
 
 /**

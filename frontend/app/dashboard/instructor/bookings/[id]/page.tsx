@@ -1,4 +1,4 @@
-// frontend/app/dashboard/instructor/bookings/[id]/page.tsx
+// frontend/app/(legacy)/dashboard/instructor/bookings/[id]/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -111,7 +111,7 @@ export default function BookingDetailsPage() {
         <div className="text-center">
           <p className="text-red-600 mb-4">{error || 'Booking not found'}</p>
           <Link
-            href="/dashboard/instructor/availability"
+            href="/instructor/availability"
             className="inline-flex items-center text-blue-600 hover:text-blue-800"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -126,7 +126,7 @@ export default function BookingDetailsPage() {
     <div className="max-w-4xl mx-auto px-4 py-8">
       {/* Back Navigation */}
       <Link
-        href="/dashboard/instructor/availability"
+        href="/instructor/availability"
         className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-6"
       >
         <ArrowLeft className="w-4 h-4 mr-2" />

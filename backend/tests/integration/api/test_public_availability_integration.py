@@ -137,17 +137,12 @@ class TestPublicAvailabilityIntegration:
         assert response.status_code == 200
         result = response.json()
 
-        # Should see the 3 afternoon slots (but may also include the original 9-17 slot)
+        # PENDING bookings should hold the slot. After booking 09:00-10:00,
+        # availability should begin at 10:00 and extend to 17:00 once afternoon slots are added.
         available_slots = result["availability_by_date"][tomorrow_str]["available_slots"]
-
-        # KNOWN ISSUE: The system currently returns overlapping slots (the original 9-17
-        # plus the new 14-15, 15-16, 16-17 slots) instead of deduplicating them.
-        # This is a pre-existing bug in the availability system.
-        assert len(available_slots) >= 3, f"Expected at least 3 slots, got {len(available_slots)}"
-
-        # Find the afternoon slots (14:00-17:00)
-        afternoon_slots = [s for s in available_slots if s["start_time"] >= "14:00"]
-        assert len(afternoon_slots) >= 3, f"Expected at least 3 afternoon slots, got {len(afternoon_slots)}"
+        windows = {(s["start_time"], s["end_time"]) for s in available_slots}
+        assert ("10:00", "17:00") in windows
+        assert len(available_slots) == 1
 
     @pytest.mark.asyncio
     async def test_blackout_date_integration(
@@ -308,10 +303,9 @@ class TestPublicAvailabilityIntegration:
         assert response.status_code == 200
         result = response.json()
 
-        # Verify all slots are returned up to the configured limit
-        # The endpoint will cap at public_availability_days even if more are requested
-        expected_slots = days_to_create * 8  # 8 slots per day
-        assert result["total_available_slots"] == expected_slots
+        # Verify windows are returned. With 8 contiguous hours per day, we expect 1 merged window per day
+        expected_windows = days_to_create * 1
+        assert result["total_available_slots"] == expected_windows
 
         # Performance check - should be reasonably fast even with many slots
         assert request_time < 1.0, f"Initial request too slow: {request_time:.3f}s"

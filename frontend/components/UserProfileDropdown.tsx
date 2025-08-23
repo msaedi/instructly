@@ -119,7 +119,7 @@ export default function UserProfileDropdown() {
           {/* Menu items */}
           <div className="py-1">
             <button
-              onClick={() => handleNavigation('/dashboard/student')}
+              onClick={() => handleNavigation('/student/dashboard')}
               className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
               <User className="h-4 w-4" />
