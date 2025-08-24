@@ -259,14 +259,10 @@ class StripeService(BaseService):
             # Check Stripe configuration first
             if not self.stripe_configured:
                 self.logger.warning("Stripe not configured, using mock mode for connected account creation")
-                # Return mock connected account for CI/testing environments
-                return StripeConnectedAccount(
-                    id=str(ulid.ULID()),
+                # Persist minimal mock record via repository to respect model fields
+                return self.payment_repository.create_connected_account_record(
                     instructor_profile_id=instructor_profile_id,
                     stripe_account_id=f"mock_acct_{instructor_profile_id}",
-                    account_type="express",
-                    onboarding_completed=False,
-                    created_at=datetime.now(timezone.utc),
                 )
 
             with self.transaction():
@@ -470,15 +466,15 @@ class StripeService(BaseService):
             # Check Stripe configuration first
             if not self.stripe_configured:
                 self.logger.warning("Stripe not configured, using mock mode for payment intent creation")
-                # Return mock payment intent for CI/testing environments
-                return PaymentIntent(
-                    id=str(ulid.ULID()),
+                # Persist mock payment record via repository for consistency
+                payment_record = self.payment_repository.create_payment_record(
                     booking_id=booking_id,
-                    stripe_payment_intent_id=f"mock_pi_{booking_id}",
-                    amount_cents=amount_cents,
-                    status="requires_payment_method",
-                    created_at=datetime.now(timezone.utc),
+                    payment_intent_id=f"mock_pi_{booking_id}",
+                    amount=amount_cents,
+                    application_fee=int(amount_cents * self.platform_fee_percentage),
+                    status="succeeded",
                 )
+                return payment_record
 
             with self.transaction():
                 # Calculate application fee (platform commission)

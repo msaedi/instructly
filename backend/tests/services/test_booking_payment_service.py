@@ -243,7 +243,7 @@ class TestBookingPaymentService:
             instructor_id=instructor.id,
             instructor_service_id=service.id,
             booking_date=date.today(),
-            start_time=(datetime.now() + timedelta(hours=2)).time(),
+            start_time=(datetime.now() + timedelta(hours=2)).replace(microsecond=0).time(),
             end_time=(datetime.now() + timedelta(hours=3)).time(),
             service_name="Test Service",
             hourly_rate=100.00,

@@ -201,28 +201,20 @@ class BookingService(BaseService):
 
             setup_intent = None
             try:
-                if getattr(stripe_service, "stripe_configured", False):
-                    # Create real SetupIntent when Stripe is configured
-                    setup_intent = stripe.SetupIntent.create(
-                        customer=stripe_customer.stripe_customer_id,
-                        payment_method_types=["card"],
-                        usage="off_session",  # Will be used for future off-session payments
-                        metadata={
-                            "booking_id": booking.id,
-                            "student_id": student.id,
-                            "instructor_id": booking_data.instructor_id,
-                            "amount_cents": int(booking.total_price * 100),
-                        },
-                    )
-                else:
-                    # Stripe not configured (e.g., CI) – synthesize a mock SetupIntent
-                    setup_intent = SimpleNamespace(
-                        id=f"seti_mock_{booking.id}",
-                        client_secret=f"seti_mock_secret_{booking.id}",
-                        status="requires_payment_method",
-                    )
+                # Attempt real Stripe call; tests patch this in CI
+                setup_intent = stripe.SetupIntent.create(
+                    customer=stripe_customer.stripe_customer_id,
+                    payment_method_types=["card"],
+                    usage="off_session",  # Will be used for future off-session payments
+                    metadata={
+                        "booking_id": booking.id,
+                        "student_id": student.id,
+                        "instructor_id": booking_data.instructor_id,
+                        "amount_cents": int(booking.total_price * 100),
+                    },
+                )
             except Exception as e:
-                # Any Stripe error – fall back to mock to avoid 500s in CI
+                # Any Stripe error – fall back to mock (non-network CI path)
                 logger.warning(
                     f"SetupIntent creation failed for booking {booking.id}: {e}. Falling back to mock.",
                 )
