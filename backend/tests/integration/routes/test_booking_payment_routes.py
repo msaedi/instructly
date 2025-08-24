@@ -263,15 +263,15 @@ class TestBookingPaymentRoutes:
         """Test confirming payment for booking within 24 hours."""
         instructor, profile, service = instructor_setup
 
-        # Create pending booking for 2 hours from now
+        # Create pending booking for 2 hours from now (ensure end_time > start_time same-day)
         booking = Booking(
             id=str(ulid.ULID()),
             student_id=student_user.id,
             instructor_id=instructor.id,
             instructor_service_id=service.id,
             booking_date=date.today(),
-            start_time=(datetime.now() + timedelta(hours=2)).time(),
-            end_time=(datetime.now() + timedelta(hours=3)).time(),
+            start_time=(datetime.now() + timedelta(hours=2)).replace(microsecond=0).time(),
+            end_time=(datetime.now() + timedelta(hours=3)).replace(microsecond=0).time(),
             service_name="Test Service",
             hourly_rate=100.00,
             total_price=100.00,

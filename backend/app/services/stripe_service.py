@@ -167,17 +167,6 @@ class StripeService(BaseService):
             ServiceException: If customer creation fails
         """
         try:
-            # Check Stripe configuration first
-            if not self.stripe_configured:
-                self.logger.warning("Stripe not configured, using mock mode for customer creation")
-                # Return mock customer for CI/testing environments
-                return StripeCustomer(
-                    id=str(ulid.ULID()),
-                    user_id=user_id,
-                    stripe_customer_id=f"mock_cust_{user_id}",
-                    created_at=datetime.now(timezone.utc),
-                )
-
             with self.transaction():
                 # Check if customer already exists
                 existing_customer = self.payment_repository.get_customer_by_user_id(user_id)
@@ -256,15 +245,6 @@ class StripeService(BaseService):
             ServiceException: If account creation fails
         """
         try:
-            # Check Stripe configuration first
-            if not self.stripe_configured:
-                self.logger.warning("Stripe not configured, using mock mode for connected account creation")
-                # Persist minimal mock record via repository to respect model fields
-                return self.payment_repository.create_connected_account_record(
-                    instructor_profile_id=instructor_profile_id,
-                    stripe_account_id=f"mock_acct_{instructor_profile_id}",
-                )
-
             with self.transaction():
                 # Create account
                 stripe_account = stripe.Account.create(
@@ -463,19 +443,6 @@ class StripeService(BaseService):
             ServiceException: If PaymentIntent creation fails
         """
         try:
-            # Check Stripe configuration first
-            if not self.stripe_configured:
-                self.logger.warning("Stripe not configured, using mock mode for payment intent creation")
-                # Persist mock payment record via repository for consistency
-                payment_record = self.payment_repository.create_payment_record(
-                    booking_id=booking_id,
-                    payment_intent_id=f"mock_pi_{booking_id}",
-                    amount=amount_cents,
-                    application_fee=int(amount_cents * self.platform_fee_percentage),
-                    status="succeeded",
-                )
-                return payment_record
-
             with self.transaction():
                 # Calculate application fee (platform commission)
                 application_fee_cents = int(amount_cents * self.platform_fee_percentage)
@@ -753,16 +720,6 @@ class StripeService(BaseService):
             ServiceException: If payment processing fails
         """
         try:
-            # Check Stripe configuration first
-            if not self.stripe_configured:
-                self.logger.warning("Stripe not configured, using mock mode for payment processing")
-                # Get booking details for mock response
-                with self.transaction():
-                    booking = self.booking_repository.get_by_id(booking_id)
-                    if not booking:
-                        raise ServiceException(f"Booking {booking_id} not found")
-                    return self._mock_payment_response(booking_id, int(booking.total_price * 100))
-
             with self.transaction():
                 # Get booking details
                 booking = self.booking_repository.get_by_id(booking_id)
