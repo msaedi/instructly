@@ -344,6 +344,7 @@ export async function setupAllMocks(page: Page, context: any = null) {
               description: 'Professional piano lessons',
               duration_options: [30, 60, 90],
             },
+            link: `/instructors/${TEST_ULIDS.instructor8}`,
             match_score: 0.95,
             availability_summary: 'Available this week',
             rating: 4.9,
@@ -438,14 +439,18 @@ export async function setupAllMocks(page: Page, context: any = null) {
                             instructorId === '8';
     // keep silent
 
-    // Use FIXED dates for consistent testing - full week
-    const wed = new Date('2025-08-13');
-    const thu = new Date('2025-08-14');
-    const fri = new Date('2025-08-15');
-    const sat = new Date('2025-08-16');
-    const sun = new Date('2025-08-17');
-    const mon = new Date('2025-08-18');
-    const tue = new Date('2025-08-19');
+    // Use dynamic future dates for stability relative to today
+    const base = new Date();
+    base.setHours(0,0,0,0);
+    const addDaysDyn = (offset: number) => {
+      const d = new Date(base);
+      d.setDate(base.getDate() + offset);
+      return d;
+    };
+    const thu = addDaysDyn(1);
+    const fri = addDaysDyn(2);
+    const mon = addDaysDyn(5);
+    const tue = addDaysDyn(6);
 
     const formatDate = (date: Date) => date.toISOString().split('T')[0];
 
@@ -466,8 +471,8 @@ export async function setupAllMocks(page: Page, context: any = null) {
           [formatDate(thu)]: {
             date: formatDate(thu),
             available_slots: [
-              { start_time: '10:00', end_time: '11:00' },
-              { start_time: '14:00', end_time: '15:00' },
+              { start_time: '10:00:00', end_time: '11:00:00' },
+              { start_time: '14:00:00', end_time: '15:00:00' },
             ],
             is_blackout: false,
           },
@@ -475,9 +480,9 @@ export async function setupAllMocks(page: Page, context: any = null) {
           [formatDate(fri)]: {
             date: formatDate(fri),
             available_slots: [
-              { start_time: '09:00', end_time: '10:00' },
-              { start_time: '14:00', end_time: '15:00' },
-              { start_time: '17:00', end_time: '18:00' },
+              { start_time: '09:00:00', end_time: '10:00:00' },
+              { start_time: '14:00:00', end_time: '15:00:00' },
+              { start_time: '17:00:00', end_time: '18:00:00' },
             ],
             is_blackout: false,
           },
@@ -485,11 +490,11 @@ export async function setupAllMocks(page: Page, context: any = null) {
           [formatDate(mon)]: {
             date: formatDate(mon),
             available_slots: [
-              { start_time: '08:00', end_time: '09:00' },
-              { start_time: '09:00', end_time: '10:00' },
-              { start_time: '10:00', end_time: '11:00' },
-              { start_time: '14:00', end_time: '15:00' },
-              { start_time: '17:00', end_time: '18:00' },
+              { start_time: '08:00:00', end_time: '09:00:00' },
+              { start_time: '09:00:00', end_time: '10:00:00' },
+              { start_time: '10:00:00', end_time: '11:00:00' },
+              { start_time: '14:00:00', end_time: '15:00:00' },
+              { start_time: '17:00:00', end_time: '18:00:00' },
             ],
             is_blackout: false,
           },
@@ -497,10 +502,10 @@ export async function setupAllMocks(page: Page, context: any = null) {
           [formatDate(tue)]: {
             date: formatDate(tue),
             available_slots: [
-              { start_time: '06:00', end_time: '07:00' },
-              { start_time: '08:00', end_time: '09:00' },
-              { start_time: '11:00', end_time: '12:00' },
-              { start_time: '17:00', end_time: '18:00' },
+              { start_time: '06:00:00', end_time: '07:00:00' },
+              { start_time: '08:00:00', end_time: '09:00:00' },
+              { start_time: '11:00:00', end_time: '12:00:00' },
+              { start_time: '17:00:00', end_time: '18:00:00' },
             ],
             is_blackout: false,
           },
@@ -513,11 +518,18 @@ export async function setupAllMocks(page: Page, context: any = null) {
   await routeContext.route('**/instructors/*/availability**', async (route: Route) => {
     const url = route.request().url();
     console.log('Mock intercepting availability (fallback):', url);
-    // Forward to the same handler body by fulfilling with the same fixed data
-    const thu = new Date('2025-08-14');
-    const fri = new Date('2025-08-15');
-    const mon = new Date('2025-08-18');
-    const tue = new Date('2025-08-19');
+    // Dynamic dates matching the handler above
+    const base = new Date();
+    base.setHours(0,0,0,0);
+    const addDaysDyn = (offset: number) => {
+      const d = new Date(base);
+      d.setDate(base.getDate() + offset);
+      return d;
+    };
+    const thu = addDaysDyn(1);
+    const fri = addDaysDyn(2);
+    const mon = addDaysDyn(5);
+    const tue = addDaysDyn(6);
     const formatDate = (date: Date) => date.toISOString().split('T')[0];
     await route.fulfill({
       status: 200,
@@ -531,26 +543,26 @@ export async function setupAllMocks(page: Page, context: any = null) {
         instructor_last_initial: 'C',
         availability_by_date: {
           [formatDate(thu)]: { date: formatDate(thu), available_slots: [
-            { start_time: '10:00', end_time: '11:00' },
-            { start_time: '14:00', end_time: '15:00' },
+            { start_time: '10:00:00', end_time: '11:00:00' },
+            { start_time: '14:00:00', end_time: '15:00:00' },
           ], is_blackout: false },
           [formatDate(fri)]: { date: formatDate(fri), available_slots: [
-            { start_time: '09:00', end_time: '10:00' },
-            { start_time: '14:00', end_time: '15:00' },
-            { start_time: '17:00', end_time: '18:00' },
+            { start_time: '09:00:00', end_time: '10:00:00' },
+            { start_time: '14:00:00', end_time: '15:00:00' },
+            { start_time: '17:00:00', end_time: '18:00:00' },
           ], is_blackout: false },
           [formatDate(mon)]: { date: formatDate(mon), available_slots: [
-            { start_time: '08:00', end_time: '09:00' },
-            { start_time: '09:00', end_time: '10:00' },
-            { start_time: '10:00', end_time: '11:00' },
-            { start_time: '14:00', end_time: '15:00' },
-            { start_time: '17:00', end_time: '18:00' },
+            { start_time: '08:00:00', end_time: '09:00:00' },
+            { start_time: '09:00:00', end_time: '10:00:00' },
+            { start_time: '10:00:00', end_time: '11:00:00' },
+            { start_time: '14:00:00', end_time: '15:00:00' },
+            { start_time: '17:00:00', end_time: '18:00:00' },
           ], is_blackout: false },
           [formatDate(tue)]: { date: formatDate(tue), available_slots: [
-            { start_time: '06:00', end_time: '07:00' },
-            { start_time: '08:00', end_time: '09:00' },
-            { start_time: '11:00', end_time: '12:00' },
-            { start_time: '17:00', end_time: '18:00' },
+            { start_time: '06:00:00', end_time: '07:00:00' },
+            { start_time: '08:00:00', end_time: '09:00:00' },
+            { start_time: '11:00:00', end_time: '12:00:00' },
+            { start_time: '17:00:00', end_time: '18:00:00' },
           ], is_blackout: false },
         },
       }),
@@ -639,6 +651,53 @@ export async function setupAllMocks(page: Page, context: any = null) {
       return;
     }
 
+    // Mock payments endpoints to prevent 401s in tests
+    if (url.includes('/api/payments/methods')) {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify([
+            { id: 'card_test_1', last4: '4242', brand: 'visa', is_default: true, created_at: new Date().toISOString() },
+          ]),
+        });
+        return;
+      }
+      if (route.request().method() === 'POST') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ id: 'card_test_new', last4: '4242', brand: 'visa', is_default: false, created_at: new Date().toISOString() }),
+        });
+        return;
+      }
+    }
+    if (url.includes('/api/payments/credits')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ available: 0, expires_at: null, pending: 0 }),
+      });
+      return;
+    }
+
+    if (url.includes('/api/payments/checkout')) {
+      if (route.request().method() === 'POST') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            payment_intent_id: 'pi_test_123',
+            status: 'succeeded',
+            amount: 7200,
+            application_fee: 0
+          }),
+        });
+        return;
+      }
+    }
+
     if (url.includes('/search-history/interaction')) {
       // Mock search interaction tracking
       await route.fulfill({
@@ -658,6 +717,56 @@ export async function setupAllMocks(page: Page, context: any = null) {
     } else {
       await route.continue();
     }
+  });
+
+  // Mock booking creation to allow confirmation step to proceed
+  await routeContext.route('**/bookings**', async (route: Route) => {
+    const req = route.request();
+    if (req.method() === 'POST') {
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'BK_TEST_1',
+          status: 'confirmed',
+          instructor_id: TEST_ULIDS.instructor8,
+          student_id: TEST_ULIDS.user1,
+          booking_date: new Date().toISOString().split('T')[0],
+          start_time: '10:00',
+          end_time: '11:00',
+          total_price: 72,
+        }),
+      });
+      return;
+    }
+    if (req.method() === 'POST' && req.url().includes('/cancel')) {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+      return;
+    }
+    await route.continue();
+  });
+
+  // Also register page-level booking route to ensure interception regardless of context routing
+  await page.route('**/bookings*', async (route: Route) => {
+    const req = route.request();
+    if (req.method() === 'POST') {
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'BK_TEST_2',
+          status: 'confirmed',
+          instructor_id: TEST_ULIDS.instructor8,
+          student_id: TEST_ULIDS.user1,
+          booking_date: new Date().toISOString().split('T')[0],
+          start_time: '10:00',
+          end_time: '11:00',
+          total_price: 72,
+        }),
+      });
+      return;
+    }
+    await route.continue();
   });
 
   // Set up route handler for services endpoints
@@ -714,10 +823,17 @@ export async function setupAllMocks(page: Page, context: any = null) {
     const idMatch = currentUrl.match(/instructors\/([^\/\?]+)/i);
     const instructorId = idMatch ? idMatch[1] : TEST_ULIDS.instructor8;
 
-    const thu = new Date('2025-08-14');
-    const fri = new Date('2025-08-15');
-    const mon = new Date('2025-08-18');
-    const tue = new Date('2025-08-19');
+    const base = new Date();
+    base.setHours(0,0,0,0);
+    const addDaysDyn = (offset: number) => {
+      const d = new Date(base);
+      d.setDate(base.getDate() + offset);
+      return d;
+    };
+    const thu = addDaysDyn(1);
+    const fri = addDaysDyn(2);
+    const mon = addDaysDyn(5);
+    const tue = addDaysDyn(6);
     const formatDate = (date: Date) => date.toISOString().split('T')[0];
 
     await route.fulfill({
@@ -757,10 +873,17 @@ export async function setupAllMocks(page: Page, context: any = null) {
   });
 
   await routeContext.route('**/instructors/*/availability**', async (route: Route) => {
-    const thu = new Date('2025-08-14');
-    const fri = new Date('2025-08-15');
-    const mon = new Date('2025-08-18');
-    const tue = new Date('2025-08-19');
+    const base = new Date();
+    base.setHours(0,0,0,0);
+    const addDaysDyn = (offset: number) => {
+      const d = new Date(base);
+      d.setDate(base.getDate() + offset);
+      return d;
+    };
+    const thu = addDaysDyn(1);
+    const fri = addDaysDyn(2);
+    const mon = addDaysDyn(5);
+    const tue = addDaysDyn(6);
     const formatDate = (date: Date) => date.toISOString().split('T')[0];
     await route.fulfill({
       status: 200,

@@ -33,7 +33,7 @@ export function useInstructorAvailability(instructorId: string, startDate?: stri
   const now = new Date();
   const todayStr = format(now, 'yyyy-MM-dd');
 
-  // If startDate is provided and it's in the past, use today instead
+  // Clamp past dates to today for production UX clarity (tests should mock future dates)
   let actualStartDate = startDate || todayStr;
   if (startDate && new Date(startDate) < new Date(todayStr)) {
     actualStartDate = todayStr;

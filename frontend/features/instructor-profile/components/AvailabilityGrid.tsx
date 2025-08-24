@@ -180,6 +180,25 @@ export function AvailabilityGrid({
     setTimeout(updateScrollIndicators, 100);
   }, [activeTimeSlots]);
 
+  // Align the visible week to the earliest available date if current range has no data
+  useEffect(() => {
+    if (!onWeekChange || !data?.availability_by_date) return;
+    const availableDates = Object.keys(data.availability_by_date);
+    if (availableDates.length === 0) return;
+
+    const hasAnyInRange = weekDays.some((d) => {
+      const key = format(d, 'yyyy-MM-dd');
+      return Boolean((data as any).availability_by_date?.[key]);
+    });
+
+    if (!hasAnyInRange) {
+      const earliest = availableDates.sort()[0];
+      const [y, m, d] = earliest.split('-').map(Number);
+      const earliestDate = new Date(y, (m || 1) - 1, d || 1);
+      onWeekChange(earliestDate);
+    }
+  }, [data, onWeekChange, weekDays]);
+
   // Handle loading and no weekStart cases
   if (!weekStart || isLoading) {
     return (
@@ -401,6 +420,8 @@ export function AvailabilityGrid({
                           aria-label={`Select ${dayName} at ${time}`}
                           data-testid={`time-slot-${dayName}-${time}`}
                           data-available="true"
+                          data-date={dateStr}
+                          data-time={useMockData ? time : timeStr}
                         >
                           {isSelected && (
                             <span className="absolute inset-0 flex items-center justify-center">

@@ -26,8 +26,9 @@ test.describe('Basic Search Flow', () => {
   test('can click on category links', async ({ page }) => {
     await page.goto('/');
 
-    // Click on a specific service link instead (e.g., Personal Training)
-    const serviceLink = page.getByRole('link', { name: /Personal Training/i });
+    // Click any service pill from top-per-category
+    const serviceLink = page.locator('a[href^="/search?service_catalog_id="]').first();
+    await serviceLink.waitFor({ state: 'visible', timeout: 10000 });
     await serviceLink.click();
 
     // Verify we're on the search page with service filter (ULID format)

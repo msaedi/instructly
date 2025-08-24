@@ -169,6 +169,7 @@ export default function InstructorCard({
                 onViewProfile?.();
               }}
               className={`text-purple-700 hover:text-purple-800 ${compact ? 'text-sm' : 'text-lg'} font-medium leading-tight cursor-pointer`}
+              data-testid="instructor-link"
             >
               <div>View Profile</div>
               <div>and Reviews</div>

@@ -134,7 +134,7 @@ function InstructorProfileContent() {
   }, [instructor, setActivity]);
   // IMPORTANT: Use the canonical instructor.id (user_id ULID) when available to avoid duplicate queries
   // Defer availability fetch until canonical id is known to avoid duplicate requests
-  const availabilityInstructorId = instructor?.id || '';
+  const availabilityInstructorId = instructor?.user_id || '';
   const { data: availability } = useInstructorAvailability(
     availabilityInstructorId,
     weekStart ? format(weekStart, 'yyyy-MM-dd') : undefined
@@ -239,6 +239,23 @@ function InstructorProfileContent() {
     today.setHours(0, 0, 0, 0);
     setWeekStart(today);
   }, [instructorId]);
+
+  // If availability returns dates outside current weekStart window, align to earliest available
+  useEffect(() => {
+    if (!availability || !availability.availability_by_date || !weekStart) return;
+    const dates = Object.keys(availability.availability_by_date).sort();
+    if (dates.length === 0) return;
+    const earliest = dates[0];
+    const [y, m, d] = earliest.split('-').map(Number);
+    const earliestDate = new Date(y, (m || 1) - 1, d || 1);
+
+    // If earliest available is after current week window end, shift weekStart to earliest
+    const windowEnd = new Date(weekStart);
+    windowEnd.setDate(weekStart.getDate() + 6);
+    if (earliestDate > windowEnd) {
+      setWeekStart(earliestDate);
+    }
+  }, [availability, weekStart]);
 
   // Check for stored selected slot ONLY when returning from payment/auth pages
   useEffect(() => {
@@ -430,7 +447,7 @@ function InstructorProfileContent() {
 
           <section>
             <h2 className="text-xl font-semibold mb-4">Availability This Week</h2>
-            <AvailabilityCalendar instructorId={instructor.id} />
+            <AvailabilityCalendar instructorId={instructor.user_id} />
           </section>
 
           <ReviewsSection instructorId={instructor.id} />
@@ -517,8 +534,19 @@ function InstructorProfileContent() {
             </div>
           </div>
 
-
-
+          {/* Availability Grid - Desktop only */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <AvailabilityGrid
+              instructorId={availabilityInstructorId}
+              weekStart={weekStart}
+              onWeekChange={(d) => setWeekStart(d)}
+              selectedSlot={selectedSlot}
+              onSelectSlot={(date, time, duration, availableDuration) => {
+                setSelectedSlot({ date, time, duration: duration || 60, availableDuration });
+                setIsSlotUserSelected(true);
+              }}
+            />
+          </div>
           {/* Reviews Section */}
           <div className="bg-white rounded-xl border border-gray-200 p-6" data-reviews-section>
             <ReviewsSection instructorId={instructor.id} />

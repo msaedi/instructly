@@ -90,6 +90,8 @@ export function AvailabilityCalendar({ instructorId, onSelectSlot }: Availabilit
                       variant="outline"
                       size="sm"
                       className="text-xs"
+                      aria-label={`Select ${dateStr} at ${slot.start_time}`}
+                      data-testid={`time-slot-${dateStr}-${slot.start_time}`}
                       onClick={() => {
                         if (onSelectSlot) {
                           onSelectSlot(dateStr, slot.start_time);
