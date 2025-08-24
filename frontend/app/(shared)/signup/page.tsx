@@ -25,7 +25,7 @@ import { getGuestSessionId } from '@/lib/searchTracking';
 import type { RegisterRequest, AuthResponse } from '@/types/user';
 import { RequestStatus } from '@/types/api';
 import { getErrorMessage } from '@/types/common';
-import { hasRole, type User } from '@/features/shared/hooks/useAuth';
+import { hasRole, useAuth, type User } from '@/features/shared/hooks/useAuth';
 import { RoleName } from '@/types/enums';
 
 /**
@@ -81,6 +81,7 @@ function formatPhoneForAPI(phone: string): string {
 function SignUpForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { checkAuth } = useAuth();
 
   // Get the redirect parameter, but if it's the login page, use home instead
   let redirect = searchParams.get('redirect') || '/';
@@ -356,7 +357,7 @@ function SignUpForm() {
       const authData: AuthResponse = await loginResponse.json();
       localStorage.setItem('access_token', authData.access_token);
 
-      logger.info('Auto-login successful, fetching user data');
+      logger.info('Auto-login successful, fetching user data and updating auth context');
 
       // Fetch user data to determine redirect
       const userResponse = await fetch(`${API_URL}${API_ENDPOINTS.ME}`, {
@@ -372,11 +373,13 @@ function SignUpForm() {
           roles: userData.roles,
           redirectTo: hasRole(userData, RoleName.INSTRUCTOR) ? '/instructor/dashboard' : redirect,
         });
-
+        // Ensure AuthProvider state is up-to-date before hitting gated routes
+        await checkAuth();
         // Redirect based on role
         router.push(redirect || (hasRole(userData, RoleName.INSTRUCTOR) ? '/instructor/onboarding/welcome' : '/'));
       } else {
         logger.warn('Failed to fetch user data after login, using default redirect');
+        await checkAuth();
         router.push(redirect);
       }
 
