@@ -236,15 +236,16 @@ class TestBookingPaymentService:
         """Test confirming payment for a booking within 24 hours."""
         instructor, profile, service = instructor_setup
 
-        # Create a booking for 2 hours from now (immediate auth needed)
+        # Create a booking from a future base to avoid midnight rollover (immediate auth needed)
+        base = (datetime.now() + timedelta(hours=26)).replace(microsecond=0)
         booking = Booking(
             id=str(ulid.ULID()),
             student_id=student_user.id,
             instructor_id=instructor.id,
             instructor_service_id=service.id,
-            booking_date=date.today(),
-            start_time=(datetime.now() + timedelta(hours=2)).replace(microsecond=0).time(),
-            end_time=(datetime.now() + timedelta(hours=3)).time(),
+            booking_date=base.date(),
+            start_time=base.time(),
+            end_time=(base + timedelta(hours=1)).time(),
             service_name="Test Service",
             hourly_rate=100.00,
             total_price=100.00,
