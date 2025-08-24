@@ -316,3 +316,37 @@ class TestAllServicesWithInstructorsEndpoint:
 
         # Verify service was called
         assert mock_instructor_service.get_all_services_with_instructors.call_count >= 1
+
+
+class TestKidsAvailableServicesEndpoint:
+    """Test suite for the /services/catalog/kids-available endpoint"""
+
+    @pytest.fixture
+    def mock_instructor_service(self):
+        return Mock()
+
+    @pytest.fixture
+    def test_client(self, mock_instructor_service):
+        app.dependency_overrides[get_instructor_service] = lambda: mock_instructor_service
+        client = TestClient(app)
+        yield client
+        app.dependency_overrides.clear()
+
+    def test_kids_available_success(self, test_client, mock_instructor_service):
+        mock_instructor_service.get_kids_available_services.return_value = [
+            {"id": "svc1", "name": "Piano", "slug": "piano"},
+            {"id": "svc2", "name": "Guitar", "slug": "guitar"},
+        ]
+
+        resp = test_client.get("/services/catalog/kids-available")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data, list)
+        assert {"id", "name", "slug"}.issubset(set(data[0].keys()))
+        assert len(data) == 2
+
+    def test_kids_available_empty(self, test_client, mock_instructor_service):
+        mock_instructor_service.get_kids_available_services.return_value = []
+        resp = test_client.get("/services/catalog/kids-available")
+        assert resp.status_code == 200
+        assert resp.json() == []

@@ -15,8 +15,9 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 
-from sqlalchemy import or_, text
+from sqlalchemy import distinct, or_, text
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.sql import func
 
 from ..models.service_catalog import InstructorService, ServiceAnalytics, ServiceCatalog
 from .base_repository import BaseRepository
@@ -314,6 +315,38 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
         )
 
         return count or 0
+
+    def get_services_available_for_kids_minimal(self) -> List[Dict]:
+        """
+        Return minimal info for catalog services that have at least one active instructor
+        whose age_groups includes 'kids'.
+
+        Returns:
+            List of dicts: {"id", "name", "slug"}
+        """
+        try:
+            # Join instructor services to catalog and filter by kids-capable
+            query = (
+                self.db.query(
+                    distinct(ServiceCatalog.id).label("id"),
+                    ServiceCatalog.name.label("name"),
+                    ServiceCatalog.slug.label("slug"),
+                )
+                .join(InstructorService, InstructorService.service_catalog_id == ServiceCatalog.id)
+                .filter(InstructorService.is_active == True)
+            )
+
+            # Postgres: use array_position for membership; fallback: LIKE for JSON/text storage
+            if hasattr(self.db.bind, "dialect") and self.db.bind.dialect.name == "postgresql":
+                query = query.filter(func.array_position(InstructorService.age_groups, "kids").isnot(None))
+            else:
+                query = query.filter(InstructorService.age_groups.like('%"kids"%'))
+
+            rows = query.all()
+            return [{"id": r.id, "name": r.name, "slug": r.slug} for r in rows]
+        except Exception as e:
+            logger.error(f"Error fetching kids-available services: {str(e)}")
+            return []
 
 
 class ServiceAnalyticsRepository(BaseRepository[ServiceAnalytics]):

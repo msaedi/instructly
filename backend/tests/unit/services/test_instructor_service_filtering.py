@@ -95,7 +95,13 @@ class TestInstructorServiceFiltering:
 
         # Assert
         mock_profile_repository.find_by_filters.assert_called_once_with(
-            search=None, service_catalog_id=None, min_price=None, max_price=None, skip=0, limit=100
+            search=None,
+            service_catalog_id=None,
+            min_price=None,
+            max_price=None,
+            age_group=None,
+            skip=0,
+            limit=100,
         )
         assert len(result["instructors"]) == 2
         assert result["metadata"]["filters_applied"] == {}
@@ -115,7 +121,13 @@ class TestInstructorServiceFiltering:
 
         # Assert
         mock_profile_repository.find_by_filters.assert_called_once_with(
-            search="piano", service_catalog_id=None, min_price=None, max_price=None, skip=0, limit=100
+            search="piano",
+            service_catalog_id=None,
+            min_price=None,
+            max_price=None,
+            age_group=None,
+            skip=0,
+            limit=100,
         )
         assert len(result["instructors"]) == 1
         assert result["metadata"]["filters_applied"] == {"search": "piano"}
@@ -133,7 +145,13 @@ class TestInstructorServiceFiltering:
 
         # Assert
         mock_profile_repository.find_by_filters.assert_called_once_with(
-            search=None, service_catalog_id=3, min_price=None, max_price=None, skip=0, limit=100
+            search=None,
+            service_catalog_id=3,
+            min_price=None,
+            max_price=None,
+            age_group=None,
+            skip=0,
+            limit=100,
         )
         assert len(result["instructors"]) == 1
         assert result["metadata"]["filters_applied"] == {"service_catalog_id": 3}
@@ -151,7 +169,13 @@ class TestInstructorServiceFiltering:
 
         # Assert
         mock_profile_repository.find_by_filters.assert_called_once_with(
-            search=None, service_catalog_id=None, min_price=70.0, max_price=90.0, skip=0, limit=100
+            search=None,
+            service_catalog_id=None,
+            min_price=70.0,
+            max_price=90.0,
+            age_group=None,
+            skip=0,
+            limit=100,
         )
         assert len(result["instructors"]) == 1
         assert result["metadata"]["filters_applied"] == {"min_price": 70.0, "max_price": 90.0}
@@ -176,6 +200,7 @@ class TestInstructorServiceFiltering:
             service_catalog_id=service_catalog_id,
             min_price=50.0,
             max_price=100.0,
+            age_group=None,
             skip=0,
             limit=100,
         )
@@ -200,7 +225,13 @@ class TestInstructorServiceFiltering:
 
         # Assert
         mock_profile_repository.find_by_filters.assert_called_once_with(
-            search=None, service_catalog_id=None, min_price=None, max_price=None, skip=10, limit=5
+            search=None,
+            service_catalog_id=None,
+            min_price=None,
+            max_price=None,
+            age_group=None,
+            skip=10,
+            limit=5,
         )
         assert result["metadata"]["pagination"]["skip"] == 10
         assert result["metadata"]["pagination"]["limit"] == 5
@@ -295,3 +326,20 @@ class TestInstructorServiceFiltering:
         # Test with zero prices
         result = instructor_service.get_instructors_filtered(min_price=0.0, max_price=0.0)
         assert result["metadata"]["filters_applied"] == {"min_price": 0.0, "max_price": 0.0}
+
+    def test_age_group_filter_passed_to_repository(self, instructor_service, mock_profile_repository):
+        """Test that age_group is threaded to repository and appears in metadata."""
+        mock_profile_repository.find_by_filters.return_value = []
+
+        result = instructor_service.get_instructors_filtered(age_group="kids")
+
+        mock_profile_repository.find_by_filters.assert_called_once_with(
+            search=None,
+            service_catalog_id=None,
+            min_price=None,
+            max_price=None,
+            age_group="kids",
+            skip=0,
+            limit=100,
+        )
+        assert result["metadata"]["filters_applied"] == {"age_group": "kids"}

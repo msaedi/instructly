@@ -213,6 +213,7 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
         service_catalog_id: Optional[str] = None,
         min_price: Optional[float] = None,
         max_price: Optional[float] = None,
+        age_group: Optional[str] = None,
         skip: int = 0,
         limit: int = 100,
     ) -> List[InstructorProfile]:
@@ -283,6 +284,15 @@ class InstructorProfileRepository(BaseRepository[InstructorProfile]):
 
             if max_price is not None:
                 query = query.filter(Service.hourly_rate <= max_price)
+
+            # Apply age group filter if provided
+            if age_group:
+                # Use PostgreSQL array_position for reliable membership check on arrays
+                if hasattr(self.db.bind, "dialect") and self.db.bind.dialect.name == "postgresql":
+                    query = query.filter(func.array_position(Service.age_groups, age_group).isnot(None))
+                else:
+                    like_pattern = f'%"{age_group}"%'
+                    query = query.filter(Service.age_groups.like(like_pattern))
 
             # Ensure we only get active services and active instructors
             query = query.filter(Service.is_active == True)

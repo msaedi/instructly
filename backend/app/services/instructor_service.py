@@ -15,6 +15,7 @@ from typing import Dict, List, Optional, Set
 
 import anyio
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import func
 
 from ..core.enums import RoleName
 from ..core.exceptions import BusinessRuleException, NotFoundException
@@ -128,6 +129,7 @@ class InstructorService(BaseService):
         service_catalog_id: Optional[str] = None,
         min_price: Optional[float] = None,
         max_price: Optional[float] = None,
+        age_group: Optional[str] = None,
         skip: int = 0,
         limit: int = 100,
     ) -> Dict:
@@ -155,8 +157,15 @@ class InstructorService(BaseService):
             "search": search is not None,
             "service_catalog": service_catalog_id is not None,
             "price_range": min_price is not None or max_price is not None,
+            "age_group": age_group is not None,
             "filters_count": sum(
-                [search is not None, service_catalog_id is not None, min_price is not None, max_price is not None]
+                [
+                    search is not None,
+                    service_catalog_id is not None,
+                    min_price is not None,
+                    max_price is not None,
+                    age_group is not None,
+                ]
             ),
         }
 
@@ -175,6 +184,7 @@ class InstructorService(BaseService):
             service_catalog_id=service_catalog_id,
             min_price=min_price,
             max_price=max_price,
+            age_group=age_group,
             skip=skip,
             limit=limit,
         )
@@ -199,6 +209,8 @@ class InstructorService(BaseService):
             applied_filters["min_price"] = min_price
         if max_price is not None:
             applied_filters["max_price"] = max_price
+        if age_group is not None:
+            applied_filters["age_group"] = age_group
 
         metadata = {
             "filters_applied": applied_filters,
@@ -1126,6 +1138,27 @@ class InstructorService(BaseService):
         if self.cache_service:
             self.cache_service.set(cache_key, result, ttl=300)
             logger.debug(f"Cached all {total_services} services with instructor data for 5 minutes")
+
+        return result
+
+    @BaseService.measure_operation("get_kids_available_services")
+    def get_kids_available_services(self) -> List[Dict]:
+        """
+        Return catalog services that have at least one active instructor offering to kids.
+
+        Uses a short-lived cache (5 minutes) similar to catalog endpoints.
+        """
+        cache_key = "catalog:kids-available"
+        if self.cache_service:
+            cached = self.cache_service.get(cache_key)
+            if cached:
+                return cached
+
+        # Delegate to repository per repository pattern
+        result = self.catalog_repository.get_services_available_for_kids_minimal()
+
+        if self.cache_service:
+            self.cache_service.set(cache_key, result, ttl=300)
 
         return result
 

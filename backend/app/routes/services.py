@@ -17,6 +17,7 @@ from ..api.dependencies.auth import get_current_active_user
 from ..api.dependencies.services import get_instructor_service
 from ..models.user import User
 from ..schemas.service_catalog import (
+    CatalogServiceMinimalResponse,
     CatalogServiceResponse,
     CategoryResponse,
     InstructorServiceCreate,
@@ -143,3 +144,15 @@ async def get_all_services_with_instructors(
         Dictionary with categories and their services, including active instructor counts
     """
     return instructor_service.get_all_services_with_instructors()
+
+
+@router.get("/catalog/kids-available", response_model=List[CatalogServiceMinimalResponse])
+async def get_kids_available_services(
+    instructor_service: InstructorService = Depends(get_instructor_service),
+):
+    """
+    Return catalog services that have at least one active instructor who teaches kids.
+
+    Minimal payload: id, name, slug. Cached for 5 minutes.
+    """
+    return instructor_service.get_kids_available_services()

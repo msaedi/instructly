@@ -39,6 +39,16 @@ class CatalogServiceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class CatalogServiceMinimalResponse(BaseModel):
+    """Minimal catalog service response for pills/lists."""
+
+    id: str
+    name: str
+    slug: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class InstructorServiceCreate(BaseModel):
     """Create instructor service from catalog."""
 

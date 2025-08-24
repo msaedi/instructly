@@ -35,6 +35,10 @@ class InstructorFilterParams(BaseModel):
     service_catalog_id: Optional[str] = Field(None, description="Filter by specific service catalog ID")
     min_price: Optional[float] = Field(None, ge=0, le=1000, description="Minimum hourly rate filter")
     max_price: Optional[float] = Field(None, ge=0, le=1000, description="Maximum hourly rate filter")
+    age_group: Optional[str] = Field(
+        None,
+        description="Age group filter. Allowed: 'kids' or 'adults'. If omitted, no age filter is applied.",
+    )
 
     @field_validator("max_price")
     def validate_price_range(cls, v, values):
@@ -51,6 +55,18 @@ class InstructorFilterParams(BaseModel):
         if v is not None:
             return v.strip()
         return v
+
+    @field_validator("age_group")
+    def validate_age_group(cls, v):
+        if v is None:
+            return v
+        vv = str(v).strip().lower()
+        if vv == "both":
+            # Treat 'both' as no filter
+            return None
+        if vv not in {"kids", "adults"}:
+            raise ValueError("age_group must be one of: 'kids', 'adults'")
+        return vv
 
 
 class ServiceBase(StandardizedModel):

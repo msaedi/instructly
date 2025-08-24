@@ -61,6 +61,7 @@ async def get_all_instructors(
     service_catalog_id: str = Query(..., description="Service catalog ID (required)"),
     min_price: float = Query(None, ge=0, le=1000, description="Minimum hourly rate"),
     max_price: float = Query(None, ge=0, le=1000, description="Maximum hourly rate"),
+    age_group: str = Query(None, description="Filter by age group: 'kids' or 'adults'"),
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     instructor_service: InstructorService = Depends(get_instructor_service),
@@ -80,7 +81,7 @@ async def get_all_instructors(
     # Validate filter parameters using the schema
     try:
         filters = InstructorFilterParams(
-            service_catalog_id=service_catalog_id, min_price=min_price, max_price=max_price
+            service_catalog_id=service_catalog_id, min_price=min_price, max_price=max_price, age_group=age_group
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -91,6 +92,7 @@ async def get_all_instructors(
         service_catalog_id=filters.service_catalog_id,
         min_price=filters.min_price,
         max_price=filters.max_price,
+        age_group=filters.age_group,
         skip=skip,
         limit=per_page,
     )

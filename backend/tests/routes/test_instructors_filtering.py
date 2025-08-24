@@ -194,6 +194,37 @@ class TestInstructorsFilteringAPI:
         assert "items" in data
         assert "total" in data
 
+    def test_age_group_filter_kids(self, client, sample_instructors, db: Session):
+        """Test age_group=kids filters instructors to those with kids-capable services."""
+        service_catalog = db.query(ServiceCatalog).first()
+        assert service_catalog is not None
+
+        # Manually tag one instructor's service as kids-capable
+        svc = (
+            db.query(Service)
+            .filter(Service.service_catalog_id == service_catalog.id)
+            .filter(Service.is_active == True)
+            .first()
+        )
+        if not svc:
+            pytest.skip("No active service found for test setup")
+        svc.age_groups = ["kids"]
+        db.commit()
+
+        # With kids filter we should get at least that instructor
+        resp = client.get(f"/instructors/?service_catalog_id={service_catalog.id}&age_group=kids")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "items" in data
+        # Can't guarantee count across random seeds, but at least one should match
+        assert len(data["items"]) >= 1
+
+    def test_age_group_filter_validation(self, client, sample_instructors, db: Session):
+        service_catalog = db.query(ServiceCatalog).first()
+        resp = client.get(f"/instructors/?service_catalog_id={service_catalog.id}&age_group=unknown")
+        # Pydantic validation error
+        assert resp.status_code in (400, 422)
+
     def test_pagination_parameters(self, client, sample_instructors, db: Session):
         """Test page and per_page parameters."""
         # Get a service catalog ID
