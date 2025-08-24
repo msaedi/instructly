@@ -314,6 +314,11 @@ class DatabaseSeeder:
                                 normalized_groups.append("adults")
                             continue
                         # drop unknown values
+
+                    # Default to 'adults' to match frontend behavior when unspecified
+                    if not normalized_groups:
+                        normalized_groups = ["adults"]
+
                     # Ensure ~20% of seeded services include kids for testing, if not already
                     try:
                         import random as _random
