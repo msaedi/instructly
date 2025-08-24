@@ -17,7 +17,7 @@ jest.mock('@/hooks/useMyLessons', () => ({
 
 describe('LessonCard', () => {
   const mockBooking: Booking = {
-    id: 1,
+    id: '1',
     booking_date: '2024-12-25',
     start_time: '14:00:00',
     end_time: '15:00:00',
@@ -28,23 +28,21 @@ describe('LessonCard', () => {
     location_type: 'student_home',
     meeting_location: '123 Main St, NYC',
     student_note: 'Looking forward to the lesson!',
-    instructor_note: null,
-    cancellation_reason: null,
-    cancelled_at: null,
-    cancelled_by: null,
-    instructor_id: 1,
-    student_id: 1,
-    service_id: 1,
+    instructor_note: undefined,
+    cancellation_reason: undefined,
+    cancelled_at: undefined,
+    cancelled_by: undefined,
+    instructor_id: '1',
+    student_id: '1',
+    instructor_service_id: '1',
+    service: { id: '1' } as any,
     service_name: 'Mathematics',
     created_at: '2024-12-01T10:00:00Z',
     updated_at: '2024-12-01T10:00:00Z',
     instructor: {
-      id: 1,
-      email: 'john@example.com',
+      id: '1',
       first_name: 'John',
       last_initial: 'D',
-      role: 'INSTRUCTOR',
-      created_at: '2024-01-01T00:00:00Z',
     },
   };
 
@@ -102,6 +100,7 @@ describe('LessonCard', () => {
       status: 'CANCELLED' as const,
       cancellation_reason: 'Student request',
       cancelled_at: '2024-12-24T10:00:00Z',
+      cancelled_by: 'STUDENT' as const,
     };
 
     render(

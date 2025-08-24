@@ -75,7 +75,7 @@ describe('MyLessonsPage', () => {
         service_name: 'Mathematics',
         instructor_id: 1,
         student_id: 1,
-        service_id: 1,
+        service: { id: 1 },
         created_at: '2024-12-01T10:00:00Z',
         updated_at: '2024-12-01T10:00:00Z',
         instructor: {
@@ -96,7 +96,7 @@ describe('MyLessonsPage', () => {
         service_name: 'Physics',
         instructor_id: 2,
         student_id: 1,
-        service_id: 2,
+        service: { id: 2 },
         created_at: '2024-12-01T10:00:00Z',
         updated_at: '2024-12-01T10:00:00Z',
         instructor: {
@@ -127,7 +127,7 @@ describe('MyLessonsPage', () => {
         service_name: 'Mathematics',
         instructor_id: 1,
         student_id: 1,
-        service_id: 1,
+        service: { id: 1 },
         created_at: '2024-12-01T10:00:00Z',
         updated_at: '2024-12-01T10:00:00Z',
         instructor: {
@@ -148,7 +148,7 @@ describe('MyLessonsPage', () => {
         service_name: 'Chemistry',
         instructor_id: 2,
         student_id: 1,
-        service_id: 3,
+        service: { id: 3 },
         created_at: '2024-12-01T10:00:00Z',
         updated_at: '2024-12-01T10:00:00Z',
         cancellation_reason: 'Student request',

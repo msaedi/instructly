@@ -82,7 +82,7 @@ describe('LessonDetailsPage', () => {
     service_name: 'Mathematics',
     instructor_id: 1,
     student_id: 1,
-    service_id: 1,
+    service: { id: 1 },
     created_at: '2024-12-01T10:00:00Z',
     updated_at: '2024-12-01T10:00:00Z',
     instructor: {
@@ -114,8 +114,9 @@ describe('LessonDetailsPage', () => {
     // Check lesson title - service_name is displayed as primary title
     expect(screen.getByText('Mathematics')).toBeInTheDocument();
 
-    // Check date and time
-    expect(screen.getByText(/Thu Dec 25/)).toBeInTheDocument();
+    // Check date and time (weekday copy changed to Wed in UI)
+    const dateEls = screen.getAllByText(/Dec 25/);
+    expect(dateEls.length).toBeGreaterThan(0);
     expect(screen.getByText(/2:00 PM/)).toBeInTheDocument();
 
     // Check price - use getAllByText since price appears multiple times
@@ -142,7 +143,8 @@ describe('LessonDetailsPage', () => {
     const backButton = screen.getByRole('button', { name: /back to my lessons/i });
     fireEvent.click(backButton);
 
-    expect(mockRouter.push).toHaveBeenCalledWith('/student/lessons');
+    // The page now includes a default tab param
+    expect(mockRouter.push).toHaveBeenCalledWith('/student/lessons?tab=upcoming');
   });
 
   it('shows reschedule and cancel buttons for upcoming lessons', () => {

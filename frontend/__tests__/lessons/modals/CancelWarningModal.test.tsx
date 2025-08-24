@@ -14,11 +14,12 @@ jest.mock('@/hooks/useMyLessons', () => ({
 
 // Mock the CancellationReasonModal component
 jest.mock('@/components/lessons/modals/CancellationReasonModal', () => ({
-  CancellationReasonModal: ({ isOpen, onClose }: any) => {
+  CancellationReasonModal: ({ isOpen, onClose, onReschedule }: any) => {
     if (!isOpen) return null;
     return (
       <div data-testid="cancellation-reason-modal">
         Cancellation Reason Modal
+        <button onClick={onReschedule}>Reschedule instead</button>
         <button onClick={onClose}>Close</button>
       </div>
     );
@@ -37,7 +38,7 @@ describe('CancelWarningModal', () => {
     duration_minutes: 60,
     instructor_id: '01K2MAY484FQGFEQVN3VKGYZ59',
     student_id: '01K2MAY484FQGFEQVN3VKGYZ60',
-    service_id: '01K2MAY484FQGFEQVN3VKGYZ61',
+    service: { id: '01K2MAY484FQGFEQVN3VKGYZ61' } as any,
     instructor: {
       id: '01K2MAY484FQGFEQVN3VKGYZ59',
       first_name: 'John',
@@ -129,7 +130,7 @@ describe('CancelWarningModal', () => {
     expect(mockOnClose).toHaveBeenCalledTimes(1);
   });
 
-  it('calls onReschedule when Reschedule button is clicked', () => {
+  it('calls onReschedule when Continue then Reschedule is clicked', () => {
     // Mock >12 hours until lesson to show reschedule option
     const calculateCancellationFee = require('@/hooks/useMyLessons').calculateCancellationFee;
     calculateCancellationFee.mockReturnValue({ fee: 0, percentage: 0, hoursUntil: 24 });
@@ -147,9 +148,10 @@ describe('CancelWarningModal', () => {
     const continueButton = screen.getByRole('button', { name: /Continue/i });
     fireEvent.click(continueButton);
 
-    // Now the Reschedule button should be visible in the reason modal
-    const rescheduleButton = screen.getByRole('button', { name: /Reschedule/i });
-    fireEvent.click(rescheduleButton);
+    // In the simplified mocked reason modal, click the provided Reschedule handler
+    // Our mock shows a "Reschedule instead" button
+    const reschedule = screen.getByText(/Reschedule instead/i);
+    fireEvent.click(reschedule);
 
     expect(mockOnReschedule).toHaveBeenCalledTimes(1);
   });
