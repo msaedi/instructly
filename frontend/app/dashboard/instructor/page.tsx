@@ -1,5 +1,6 @@
 // frontend/app/dashboard/instructor/page.tsx
 'use client';
+// LEGACY-ONLY: This is the legacy instructor dashboard. Phoenix routes live under (auth)/instructor/*.
 
 import { BRAND } from '@/app/config/brand';
 import { useState, useEffect } from 'react';

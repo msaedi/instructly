@@ -1,5 +1,6 @@
 // frontend/app/dashboard/page.tsx
 'use client';
+// LEGACY-ONLY: Legacy dashboard entry. New Phoenix pages should not import from here.
 
 /**
  * Dashboard Router Page

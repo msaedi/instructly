@@ -14,11 +14,29 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { BookedSlotPreview } from '@/types/booking';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
-import {
-  isSlotBooked as checkSlotBooked,
-  getBookingForSlot as findBookingForSlot,
-  createBookedHoursMap,
-} from '@/legacy-patterns/slotHelpers';
+// Local lightweight helpers to avoid legacy-patterns dependency
+function createBookedHoursMapLocal(booked: BookedSlotPreview[]): Map<string, true> {
+  const map = new Map<string, true>();
+  for (const b of booked) {
+    // Mark each covered hour within the booking range
+    const startHour = parseInt(String(b.start_time).split(':')[0]);
+    const endHour = parseInt(String(b.end_time).split(':')[0]);
+    for (let h = startHour; h < endHour; h++) {
+      map.set(`${b.date}-${h}`, true);
+    }
+  }
+  return map;
+}
+
+function findBookingForSlotLocal(date: string, hour: number, booked: BookedSlotPreview[]): BookedSlotPreview | null {
+  for (const b of booked) {
+    if (b.date !== date) continue;
+    const sh = parseInt(String(b.start_time).split(':')[0]);
+    const eh = parseInt(String(b.end_time).split(':')[0]);
+    if (hour >= sh && hour < eh) return b;
+  }
+  return null;
+}
 import { logger } from '@/lib/logger';
 
 /**
@@ -115,7 +133,7 @@ export function useBookedSlots(
    * Create optimized lookup map for booked hours
    */
   const bookedHoursMap = useMemo(() => {
-    return createBookedHoursMap(bookedSlots);
+    return createBookedHoursMapLocal(bookedSlots);
   }, [bookedSlots]);
 
   /**
@@ -198,7 +216,7 @@ export function useBookedSlots(
    */
   const getBookingForSlot = useCallback(
     (date: string, hour: number): BookedSlotPreview | null => {
-      return findBookingForSlot(date, hour, bookedSlots);
+      return findBookingForSlotLocal(date, hour, bookedSlots);
     },
     [bookedSlots]
   );

@@ -127,18 +127,27 @@ function LoginForm() {
           router.push(redirect);
           return;
         }
-        // Probe instructor profile; if exists and is_live => dashboard, else status
-        const me = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-        if (me.ok) {
-          const prof = await me.json();
-          const next = prof?.is_live ? '/instructor/dashboard' : '/instructor/onboarding/status';
-          router.push(next);
+        // Determine role first
+        const meUserRes = await fetchWithAuth(API_ENDPOINTS.ME);
+        const meUser = meUserRes.ok ? await meUserRes.json() : null;
+        const isInstructor = Array.isArray(meUser?.roles) && meUser.roles.includes('instructor');
+
+        if (isInstructor) {
+          // Probe instructor profile; if exists and is_live => dashboard, else status
+          const me = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
+          if (me.ok) {
+            const prof = await me.json();
+            const next = prof?.is_live ? '/instructor/dashboard' : '/instructor/onboarding/status';
+            router.push(next);
+          } else {
+            router.push('/instructor/onboarding/status');
+          }
         } else {
-          // No profile or not instructor
-          router.push('/instructor/onboarding/status');
+          // Student (or non-instructor) default landing
+          router.push('/student/dashboard');
         }
       } catch {
-        router.push('/instructor/onboarding/status');
+        router.push('/student/dashboard');
       }
     } catch (error) {
       logger.error('Login network error', error);
@@ -187,16 +196,23 @@ function LoginForm() {
           router.push(redirect);
           return;
         }
-        const me = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-        if (me.ok) {
-          const prof = await me.json();
-          const next = prof?.is_live ? '/instructor/dashboard' : '/instructor/onboarding/status';
-          router.push(next);
+        const meUserRes = await fetchWithAuth(API_ENDPOINTS.ME);
+        const meUser = meUserRes.ok ? await meUserRes.json() : null;
+        const isInstructor = Array.isArray(meUser?.roles) && meUser.roles.includes('instructor');
+        if (isInstructor) {
+          const me = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
+          if (me.ok) {
+            const prof = await me.json();
+            const next = prof?.is_live ? '/instructor/dashboard' : '/instructor/onboarding/status';
+            router.push(next);
+          } else {
+            router.push('/instructor/onboarding/status');
+          }
         } else {
-          router.push('/instructor/onboarding/status');
+          router.push('/student/dashboard');
         }
       } catch {
-        router.push('/instructor/onboarding/status');
+        router.push('/student/dashboard');
       }
     } catch (err) {
       logger.error('2FA verification error', err);

@@ -42,7 +42,7 @@ import logging
 from datetime import date, timedelta
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from ..api.dependencies.auth import get_current_active_user
 from ..api.dependencies.services import (
@@ -105,6 +105,7 @@ def verify_instructor(current_user: User) -> User:
 
 @router.get("/week", response_model=Dict[str, List[TimeRange]])
 async def get_week_availability(
+    response: Response,
     start_date: date = Query(..., description="Monday of the week"),
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
@@ -117,8 +118,20 @@ async def get_week_availability(
     verify_instructor(current_user)
 
     try:
-        # Return map of date -> [ { start_time, end_time } ]
-        return availability_service.get_week_availability(instructor_id=current_user.id, start_date=start_date)
+        week_map = availability_service.get_week_availability(instructor_id=current_user.id, start_date=start_date)
+        # Compute version and attach as header
+        version = availability_service.compute_week_version(current_user.id, start_date, start_date + timedelta(days=6))
+        response.headers["ETag"] = version
+        # Compute Last-Modified from server data for cross-tab consistency
+        last_mod = availability_service.get_week_last_modified(
+            current_user.id, start_date, start_date + timedelta(days=6)
+        )
+        if last_mod:
+            # RFC 1123 format via http-date: use strftime with GMT
+            response.headers["Last-Modified"] = last_mod.astimezone(tz=None).strftime("%a, %d %b %Y %H:%M:%S GMT")
+        # Allow browsers to read ETag and Last-Modified via CORS
+        response.headers["Access-Control-Expose-Headers"] = "ETag, Last-Modified"
+        return week_map
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:
@@ -129,6 +142,7 @@ async def get_week_availability(
 @router.post("/week", response_model=WeekAvailabilityUpdateResponse)
 async def save_week_availability(
     week_data: WeekSpecificScheduleCreate,
+    response: Response,
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
     cache_service: CacheService = Depends(get_cache_service_dep),
@@ -145,8 +159,61 @@ async def save_week_availability(
         if not availability_service.cache_service and cache_service:
             availability_service.cache_service = cache_service
 
-        result = await availability_service.save_week_availability(instructor_id=current_user.id, week_data=week_data)
-        return result
+        # Compute week start/end (Monday..Sunday)
+        from datetime import date as _date
+        from datetime import timedelta as _timedelta
+
+        from fastapi import Depends
+        from sqlalchemy.orm import Session
+
+        from app.core.timezone_utils import get_user_today_by_id
+
+        if week_data.week_start:
+            monday = week_data.week_start
+        else:
+            # Derive from the earliest schedule date
+            dates = []
+            for item in week_data.schedule:
+                try:
+                    dates.append(_date.fromisoformat(str(item["date"])))
+                except Exception:
+                    continue
+            # Use user's timezone-aware 'today' when deriving default week
+            monday = min(dates) if dates else get_user_today_by_id(current_user.id, availability_service.db)
+            monday = monday - _timedelta(days=monday.weekday())
+        week_end = monday + _timedelta(days=6)
+
+        # Get pre-save summary
+        pre_summary = availability_service.get_availability_summary(current_user.id, monday, week_end)
+        pre_total = sum(pre_summary.values())
+
+        await availability_service.save_week_availability(instructor_id=current_user.id, week_data=week_data)
+
+        # Get post-save summary
+        post_summary = availability_service.get_availability_summary(current_user.id, monday, week_end)
+        post_total = sum(post_summary.values())
+
+        created = max(0, post_total - pre_total)
+        deleted = max(0, pre_total - post_total)
+        updated = 0  # Not tracked precisely in this endpoint
+
+        # Compute and attach new version
+        new_version = availability_service.compute_week_version(current_user.id, monday, week_end)
+        response.headers["ETag"] = new_version
+        # Compute and attach Last-Modified after save
+        last_mod = availability_service.get_week_last_modified(current_user.id, monday, week_end)
+        if last_mod:
+            response.headers["Last-Modified"] = last_mod.astimezone(tz=None).strftime("%a, %d %b %Y %H:%M:%S GMT")
+        response.headers["Access-Control-Expose-Headers"] = "ETag, Last-Modified"
+
+        return WeekAvailabilityUpdateResponse(
+            message="Saved weekly availability",
+            week_start=monday,
+            week_end=week_end,
+            windows_created=created,
+            windows_updated=updated,
+            windows_deleted=deleted,
+        )
 
     except DomainException as e:
         raise e.to_http_exception()

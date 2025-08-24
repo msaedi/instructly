@@ -7,7 +7,7 @@ This service handles all availability-related business logic.
 """
 
 import logging
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, TypedDict
 
 from sqlalchemy.orm import Session
@@ -151,6 +151,65 @@ class AvailabilityService(BaseService):
         except RepositoryException as e:
             logger.error(f"Error getting availability summary: {e}")
             return {}
+
+    @BaseService.measure_operation("compute_week_version")
+    def compute_week_version(self, instructor_id: str, start_date: date, end_date: date) -> str:
+        """Compute a robust week version/etag by hashing slot contents.
+
+        Includes every slot's date/start/end to detect any change beyond counts.
+        Fallbacks to a simple count hash if repository errors occur.
+        """
+        try:
+            slots = self.repository.get_week_availability(instructor_id, start_date, end_date)
+            # Collect normalized strings for deterministic hashing
+            parts = []
+            for s in slots:
+                parts.append(f"{s.specific_date.isoformat()}|{s.start_time.isoformat()}|{s.end_time.isoformat()}")
+            parts.sort()
+            key = f"{start_date.isoformat()}:{end_date.isoformat()}::" + "#".join(parts)
+        except Exception:
+            # Fallback to summary counts if slot fetch fails
+            summary = self.get_availability_summary(instructor_id, start_date, end_date)
+            total = sum(summary.values())
+            key = f"{start_date.isoformat()}:{end_date.isoformat()}:{total}"
+
+        try:
+            import hashlib
+
+            return hashlib.sha1(key.encode("utf-8")).hexdigest()
+        except Exception:
+            return key
+
+    @BaseService.measure_operation("get_week_last_modified")
+    def get_week_last_modified(self, instructor_id: str, start_date: date, end_date: date) -> Optional[datetime]:
+        """Compute a server-sourced last-modified timestamp for a week's availability.
+
+        Uses the max of slot.updated_at and slot.created_at across all slots in the week.
+        Returns None if no slots are present for the week.
+        """
+        try:
+            slots = self.repository.get_week_availability(instructor_id, start_date, end_date)
+        except RepositoryException as e:
+            logger.error(f"Error computing last-modified for week availability: {e}")
+            return None
+
+        if not slots:
+            return None
+
+        latest: Optional[datetime] = None
+        for s in slots:
+            # Some rows may not have updated_at set; fall back to created_at
+            candidates = [getattr(s, "updated_at", None), getattr(s, "created_at", None)]
+            for dt in candidates:
+                if dt is None:
+                    continue
+                # Ensure timezone-aware in UTC for header stability
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                if latest is None or dt > latest:
+                    latest = dt
+
+        return latest
 
     @BaseService.measure_operation("get_week_availability")
     def get_week_availability(self, instructor_id: str, start_date: date) -> Dict[str, List[TimeSlotResponse]]:
@@ -333,7 +392,11 @@ class AvailabilityService(BaseService):
         return monday, week_dates, schedule_by_date
 
     def _prepare_slots_for_creation(
-        self, instructor_id: str, week_dates: List[date], schedule_by_date: Dict[date, List[ProcessedSlot]]
+        self,
+        instructor_id: str,
+        week_dates: List[date],
+        schedule_by_date: Dict[date, List[ProcessedSlot]],
+        ignore_existing: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         Convert time slots to database-ready format.
@@ -357,13 +420,18 @@ class AvailabilityService(BaseService):
             if week_date in schedule_by_date:
                 # Prepare slots for bulk creation
                 for slot in schedule_by_date[week_date]:
-                    # Check if slot already exists
-                    if not self.repository.slot_exists(
-                        instructor_id,
-                        target_date=week_date,
-                        start_time=slot["start_time"],
-                        end_time=slot["end_time"],
-                    ):
+                    if ignore_existing:
+                        should_create = True
+                    else:
+                        # Check if slot already exists prior to creation
+                        should_create = not self.repository.slot_exists(
+                            instructor_id,
+                            target_date=week_date,
+                            start_time=slot["start_time"],
+                            end_time=slot["end_time"],
+                        )
+
+                    if should_create:
                         slots_to_create.append(
                             {
                                 "instructor_id": instructor_id,
@@ -399,9 +467,14 @@ class AvailabilityService(BaseService):
         """
         try:
             with self.transaction():
-                # If clearing existing, delete all slots for the week
+                # If clearing existing, delete only slots for TODAY and future within this week
                 if week_data.clear_existing:
-                    deleted_count = self.repository.delete_slots_by_dates(instructor_id, week_dates)
+                    instructor_today = get_user_today_by_id(instructor_id, self.db)
+                    future_or_today_dates = [d for d in week_dates if d >= instructor_today]
+                    if future_or_today_dates:
+                        deleted_count = self.repository.delete_slots_by_dates(instructor_id, future_or_today_dates)
+                    else:
+                        deleted_count = 0
                     logger.info(f"Deleted {deleted_count} existing slots for instructor {instructor_id}")
 
                 # Bulk create all slots at once
@@ -485,8 +558,24 @@ class AvailabilityService(BaseService):
         # 1. Validate and parse
         monday, week_dates, schedule_by_date = self._validate_and_parse_week_data(week_data, instructor_id)
 
+        # Optional optimistic concurrency check
+        try:
+            if week_data.version:
+                expected = self.compute_week_version(instructor_id, monday, monday + timedelta(days=6))
+                if week_data.version != expected:
+                    raise ConflictException("Week has changed; please refresh and retry")
+        except ConflictException:
+            raise
+        except Exception as _e:
+            logger.debug(f"Version check skipped: {_e}")
+
         # 2. Prepare slots for creation
-        slots_to_create = self._prepare_slots_for_creation(instructor_id, week_dates, schedule_by_date)
+        slots_to_create = self._prepare_slots_for_creation(
+            instructor_id,
+            week_dates,
+            schedule_by_date,
+            ignore_existing=bool(week_data.clear_existing),
+        )
 
         # 3. Save to database
         slot_count = await self._save_week_slots_transaction(instructor_id, week_data, week_dates, slots_to_create)

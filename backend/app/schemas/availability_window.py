@@ -132,6 +132,10 @@ class WeekSpecificScheduleCreate(BaseModel):
         None,
         description="Optional Monday date. If not provided, inferred from schedule dates",
     )
+    version: Optional[str] = Field(
+        None,
+        description="Optional optimistic concurrency token (ETag) for this week",
+    )
 
     @field_validator("week_start")
     @classmethod

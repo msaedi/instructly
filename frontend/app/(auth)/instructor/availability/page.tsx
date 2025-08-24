@@ -2,8 +2,7 @@
 
 import WeekNavigator from '@/components/availability/WeekNavigator';
 import InteractiveGrid from '@/components/availability/InteractiveGrid';
-import { useWeekSchedule } from '@/hooks/availability/useWeekSchedule';
-import { useAvailabilityOperations } from '@/legacy-patterns/useAvailabilityOperations';
+import { useAvailability } from '@/hooks/availability/useAvailability';
 import { useBookedSlots } from '@/hooks/availability/useBookedSlots';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -18,14 +17,18 @@ export default function InstructorAvailabilityPage() {
     savedWeekSchedule,
     hasUnsavedChanges,
     isLoading,
-    existingSlots,
     weekDates,
+    currentWeekDisplay,
     navigateWeek,
     setWeekSchedule,
     setMessage,
     message,
     refreshSchedule,
-  } = useWeekSchedule();
+    version,
+    lastModified,
+    saveWeek,
+    applyToFutureWeeks,
+  } = useAvailability();
 
   const days = weekDates;
   const [activeDay, setActiveDay] = useState(0);
@@ -34,6 +37,9 @@ export default function InstructorAvailabilityPage() {
   const [isMobile, setIsMobile] = useState(false);
   const [startHour, setStartHour] = useState<number>(AVAILABILITY_CONSTANTS.DEFAULT_START_HOUR);
   const [endHour, setEndHour] = useState<number>(AVAILABILITY_CONSTANTS.DEFAULT_END_HOUR);
+  const [showConflictModal, setShowConflictModal] = useState(false);
+  const [lastUpdatedLocal, setLastUpdatedLocal] = useState<string | null>(null);
+  const [modalFocusTrap, setModalFocusTrap] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const mq = () => window.matchMedia('(max-width: 640px)').matches;
@@ -56,25 +62,50 @@ export default function InstructorAvailabilityPage() {
     }
   }, [currentWeekStart, isLoading, fetchBookedSlots]);
 
-  const {
-    isSaving,
-    saveWeekSchedule,
-    applyToFutureWeeks,
-  } = useAvailabilityOperations({
-    weekSchedule,
-    savedWeekSchedule,
-    currentWeekStart,
-    existingSlots,
-    bookedSlots,
-    weekDates,
-    onSaveSuccess: async () => {
-      await refreshSchedule();
-      await refreshBookings(currentWeekStart);
-      setSaveInfo('Saved');
-      setTimeout(() => setSaveInfo(null), 2000);
-    },
-    onScheduleUpdate: (newSchedule) => setWeekSchedule(newSchedule),
-  });
+  const isSaving = false;
+
+  // Update a user-friendly local timestamp from Last-Modified (server) or version fallback
+  useEffect(() => {
+    if (lastModified) {
+      // Let browser parse and render in local timezone
+      const d = new Date(lastModified);
+      if (!isNaN(d.getTime())) setLastUpdatedLocal(d.toLocaleString());
+      else setLastUpdatedLocal(new Date().toLocaleString());
+    } else if (version) {
+      setLastUpdatedLocal(new Date().toLocaleString());
+    }
+  }, [lastModified, version]);
+
+  // Handle ESC to close modal when open
+  useEffect(() => {
+    if (!showConflictModal) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowConflictModal(false);
+      if (e.key === 'Tab' && modalFocusTrap) {
+        // Simple focus trap: keep focus within modal
+        const focusable = modalFocusTrap.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (!first || !last) return;
+        const active = document.activeElement as HTMLElement | null;
+        if (e.shiftKey) {
+          if (active === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (active === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [showConflictModal, modalFocusTrap]);
 
   const updateSlot = (date: string, start: string, end: string) => {
     setWeekSchedule((prev) => {
@@ -121,6 +152,7 @@ export default function InstructorAvailabilityPage() {
     <div className="max-w-5xl mx-auto p-6">
       <h1 className="text-2xl font-semibold text-[#6A0DAD]">Availability</h1>
       <p className="text-gray-600 mt-1">Set the times you’re available to teach.</p>
+      <p className="text-xs text-gray-500 mt-1">Last updated: <span className="font-mono">{lastUpdatedLocal || '—'}</span></p>
 
       {header}
 
@@ -143,12 +175,19 @@ export default function InstructorAvailabilityPage() {
         <button
           disabled={isSaving || !hasUnsavedChanges}
           onClick={async () => {
-            const result = await saveWeekSchedule({ skipValidation: false });
+            const result = await saveWeek({ clearExisting: true });
             if (!result.success) {
-              toast.error(result.message || 'Failed to save');
+              if (result.code === 409) {
+                setShowConflictModal(true);
+              } else {
+                toast.error(result.message || 'Failed to save');
+              }
               return;
             }
             toast.success('Availability saved');
+            setLastUpdatedLocal(new Date().toLocaleString());
+            setSaveInfo('Saved');
+            setTimeout(() => setSaveInfo(null), 2000);
           }}
           className={`px-4 py-2 rounded-md text-white ${hasUnsavedChanges ? 'bg-[#6A0DAD] hover:bg-[#5a0c94]' : 'bg-gray-300 cursor-not-allowed'}`}
         >
@@ -205,6 +244,38 @@ export default function InstructorAvailabilityPage() {
           </select>
         </div>
       </div>
+
+      {showConflictModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="conflict-title" aria-describedby="conflict-desc">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setShowConflictModal(false)}></div>
+          <div
+            className="relative bg-white rounded-lg shadow-xl p-6 w-full max-w-sm"
+            ref={setModalFocusTrap}
+          >
+            <h3 id="conflict-title" className="text-lg font-semibold text-gray-900">Schedule changed</h3>
+            <p id="conflict-desc" className="text-sm text-gray-600 mt-2">This week was updated in another tab or device. Refresh to load the latest snapshot?</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                className="px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+                onClick={() => setShowConflictModal(false)}
+                autoFocus
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 text-sm rounded-md bg-[#6A0DAD] text-white hover:bg-[#5a0c94]"
+                onClick={async () => {
+                  setShowConflictModal(false);
+                  await refreshSchedule();
+                  toast.info('Week reloaded');
+                }}
+              >
+                Refresh
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mobile day chips */}
       {isMobile && (

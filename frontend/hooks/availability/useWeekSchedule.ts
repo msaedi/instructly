@@ -63,6 +63,10 @@ export interface UseWeekScheduleReturn {
   isDateInPast: (dateStr: string) => boolean;
   /** Format current week for display */
   currentWeekDisplay: string;
+  /** ETag/version for optimistic concurrency */
+  version?: string;
+  /** Server-sourced Last-Modified header for the week */
+  lastModified?: string;
 }
 
 /**
@@ -106,6 +110,8 @@ export function useWeekSchedule(
   const [existingSlots, setExistingSlots] = useState<ExistingSlot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<AvailabilityMessage | null>(null);
+  const [version, setVersion] = useState<string | undefined>(undefined);
+  const [lastModified, setLastModified] = useState<string | undefined>(undefined);
 
   // Computed values
   const weekDates = useMemo(() => {
@@ -240,6 +246,10 @@ export function useWeekSchedule(
       }
 
       const data = await response.json();
+      const etag = response.headers.get('ETag') || undefined;
+      const lm = response.headers.get('Last-Modified') || undefined;
+      setVersion(etag || undefined);
+      setLastModified(lm || undefined);
 
       // Set data directly - API is standardized
       const cleanedData: WeekSchedule = {};
@@ -339,5 +349,7 @@ export function useWeekSchedule(
     refreshSchedule,
     isDateInPast,
     currentWeekDisplay,
+    version,
+    lastModified,
   };
 }

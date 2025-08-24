@@ -1,4 +1,6 @@
 // frontend/app/dashboard/instructor/availability/page.tsx
+// LEGACY-ONLY: This file is part of the pre-Phoenix dashboard. Do not import from new Phoenix routes.
+// Kept for backward compatibility and historical reference. New work should live under (auth)/instructor/*.
 'use client';
 
 /**
