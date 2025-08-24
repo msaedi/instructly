@@ -83,6 +83,19 @@ export default function InstructorDashboardNew() {
     })();
   }, [router]);
 
+  // Gate access until cleared to go live
+  useEffect(() => {
+    if (!profile || connectStatus == null) return;
+    const skillsOk = (profile.skills_configured === true) || (Array.isArray(profile.services) && profile.services.length > 0);
+    const identityOk = Boolean(profile.identity_verified_at || profile.identity_verification_session_id);
+    const connectOk = Boolean(connectStatus && connectStatus.onboarding_completed);
+    const ready = skillsOk && identityOk && connectOk;
+    if (!ready) {
+      logger.info('Redirecting to onboarding status - prerequisites not complete');
+      router.replace('/instructor/onboarding/status');
+    }
+  }, [profile, connectStatus, router]);
+
   const handleLogout = () => {
     logger.info('Instructor logging out');
     logout();
@@ -95,8 +108,9 @@ export default function InstructorDashboardNew() {
   };
 
   const handleProfileDelete = () => {
-    logger.info('Instructor profile deleted, redirecting to student dashboard');
-    router.push('/dashboard/student');
+    logger.info('Instructor profile deleted, logging out and redirecting home');
+    logout();
+    router.push('/');
   };
 
   const handleViewPublicProfile = () => {
@@ -132,9 +146,9 @@ export default function InstructorDashboardNew() {
             <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
             <p className="text-gray-600 mb-6">{error}</p>
             <Link
-              href="/become-instructor"
+              href="/signup?redirect=%2Finstructor%2Fonboarding%2Fstep-2"
               className="inline-block px-6 py-2 bg-purple-700 text-white rounded-md hover:bg-purple-800 transition-colors"
-              onClick={() => logger.debug('Navigating to become-instructor from error state')}
+              onClick={() => logger.debug('Navigating to signup with redirect to step-2 from error state')}
             >
               Complete Profile Setup
             </Link>
@@ -180,16 +194,61 @@ export default function InstructorDashboardNew() {
         </Link>
 
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back, {displayName}!</h1>
-          <p className="text-gray-600">Manage your instructor profile and bookings</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back, {profile.user?.first_name || 'Instructor'}!</h1>
+          <p className="text-gray-600">Manage your instructor profile and payouts</p>
         </div>
 
-        <div className="mb-8">
+        <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Stripe Status Card */}
           <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Onboarding</h2>
-            <p className="text-gray-600 text-sm mb-3">View your onboarding progress and finish steps.</p>
-            <Link href="/instructor/onboarding/status" className="text-purple-700 hover:underline">
-              Open onboarding status →
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Stripe Account Status</h2>
+            <p className="text-gray-600 text-sm mb-4">Your Stripe account setup status.</p>
+            <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-green-900">
+                <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Charges enabled</div>
+                <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Payouts enabled</div>
+                <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Details verified</div>
+                <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Ready for payments</div>
+              </div>
+            </div>
+            <div className="mt-4">
+              <button
+                onClick={async () => {
+                  try { const s = await getConnectStatus(); setConnectStatus(s); } catch {}
+                }}
+                className="inline-flex items-center px-3 py-2 text-sm rounded-md border border-gray-300 bg-white hover:bg-gray-50"
+              >
+                <ExternalLink className="w-4 h-4 mr-2 rotate-90" /> Refresh Status
+              </button>
+            </div>
+          </div>
+
+          {/* Stripe Payouts Link */}
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Stripe Payouts</h2>
+            <p className="text-gray-600 text-sm mb-3">Access your Stripe Express dashboard to view payouts and account settings.</p>
+            <Link
+              href="#"
+              onClick={async (e) => {
+                e.preventDefault();
+                try {
+                  const resp = await getConnectStatus();
+                  if (resp?.onboarding_completed) {
+                    const dl = await fetchWithAuth('/api/payments/connect/dashboard');
+                    if (dl.ok) {
+                      const data = await dl.json();
+                      window.open(data.dashboard_url, '_blank');
+                    }
+                  } else {
+                    alert('Your Stripe onboarding is not completed yet.');
+                  }
+                } catch {
+                  alert('Unable to open Stripe dashboard right now.');
+                }
+              }}
+              className="text-purple-700 hover:underline"
+            >
+              Open payouts dashboard →
             </Link>
           </div>
         </div>

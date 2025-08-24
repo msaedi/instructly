@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { loadStripe } from '@stripe/stripe-js';
 import { createStripeIdentitySession, createSignedUpload, getConnectStatus } from '@/lib/api';
 import { logger } from '@/lib/logger';
 
@@ -34,9 +35,24 @@ export default function Step4Verification() {
       setIdentityLoading(true);
       setError(null);
       const session = await createStripeIdentitySession();
-      // Redirect to Stripe Identity modal URL via client JS SDK is preferred;
-      // for now we use the client_secret with hosted flow fallback
-      // If you later include Stripe Identity JS, swap this redirect with open() method.
+      // Prefer Stripe.js modal to avoid brittle hosted-link flows
+      try {
+        const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+        if (publishableKey) {
+          const stripe = await loadStripe(publishableKey);
+          if (!stripe) throw new Error('Failed to load Stripe.js');
+          const result = await stripe.verifyIdentity(session.client_secret);
+          if (result?.error) {
+            setError(result.error.message || 'Verification could not be started');
+            return;
+          }
+          // On completion or dismissal, take user to status
+          window.location.href = '/instructor/onboarding/status?identity_return=true';
+          return;
+        }
+      } catch (e) {
+        // Fallback to hosted link
+      }
       window.location.href = `https://verify.stripe.com/start/${session.client_secret}`;
     } catch (e) {
       logger.error('Identity start failed', e);
@@ -121,9 +137,9 @@ export default function Step4Verification() {
       <div className="mt-8">
         <button
           className="px-5 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:bg-[#5c0a9a] shadow-sm"
-          onClick={() => (window.location.href = '/instructor/dashboard')}
+          onClick={() => (window.location.href = '/instructor/onboarding/status')}
         >
-          Continue to dashboard
+          Continue
         </button>
       </div>
     </div>

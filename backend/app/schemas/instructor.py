@@ -67,9 +67,22 @@ class ServiceBase(StandardizedModel):
     service_catalog_id: str = Field(..., description="ID of the service from catalog")
     hourly_rate: Money = Field(..., gt=0, le=1000, description="Hourly rate in USD")  # Changed from float
     description: Optional[str] = Field(None, max_length=500)
+    requirements: Optional[str] = Field(None, max_length=500)
     age_groups: Optional[List[str]] = Field(
         default=None,
         description="Age groups this service is offered to. Allowed: 'kids', 'adults'. Use both for both.",
+    )
+    levels_taught: Optional[List[str]] = Field(
+        default=None,
+        description="Levels taught. Allowed: 'beginner', 'intermediate', 'advanced'",
+    )
+    equipment_required: Optional[List[str]] = Field(
+        default=None,
+        description="List of equipment required (strings)",
+    )
+    location_types: Optional[List[str]] = Field(
+        default=None,
+        description="Where lessons are offered. Allowed: 'in-person', 'online'",
     )
     duration_options: List[int] = Field(
         default=[60],
@@ -114,6 +127,42 @@ class ServiceBase(StandardizedModel):
                 seen.add(item)
                 deduped.append(item)
         return deduped
+
+    @field_validator("levels_taught")
+    def validate_levels_taught(cls, v):
+        """Normalize and validate levels_taught.
+
+        Allowed values: beginner, intermediate, advanced.
+        """
+        if v is None:
+            return v
+        allowed = {"beginner", "intermediate", "advanced"}
+        normalized: List[str] = []
+        for item in v:
+            value = str(item).strip().lower()
+            if value not in allowed:
+                raise ValueError("levels_taught must be any of: 'beginner', 'intermediate', 'advanced'")
+            if value not in normalized:
+                normalized.append(value)
+        return normalized
+
+    @field_validator("location_types")
+    def validate_location_types(cls, v):
+        """Normalize and validate location types.
+
+        Allowed values: in-person, online.
+        """
+        if v is None:
+            return v
+        allowed = {"in-person", "online"}
+        normalized: List[str] = []
+        for item in v:
+            value = str(item).strip().lower()
+            if value not in allowed:
+                raise ValueError("location_types must be one or more of: 'in-person', 'online'")
+            if value not in normalized:
+                normalized.append(value)
+        return normalized
 
 
 class ServiceCreate(ServiceBase):
@@ -290,6 +339,14 @@ class InstructorProfileResponse(InstructorProfileBase):
     services: List[ServiceResponse]
     is_favorited: Optional[bool] = Field(None, description="Whether the current user has favorited this instructor")
     favorited_count: int = Field(0, description="Number of students who favorited this instructor")
+    # Onboarding status fields
+    skills_configured: bool = Field(default=False, description="Whether skills/pricing were configured at least once")
+    identity_verified_at: Optional[datetime] = Field(default=None)
+    identity_verification_session_id: Optional[str] = Field(default=None)
+    background_check_object_key: Optional[str] = Field(default=None)
+    background_check_uploaded_at: Optional[datetime] = Field(default=None)
+    onboarding_completed_at: Optional[datetime] = Field(default=None)
+    is_live: bool = Field(default=False)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -316,6 +373,11 @@ class InstructorProfileResponse(InstructorProfileBase):
             buffer_time_minutes=instructor_profile.buffer_time_minutes,
             user=UserBasicPrivacy.from_user(instructor_profile.user),
             services=instructor_profile.services if hasattr(instructor_profile, "services") else [],
+            skills_configured=getattr(instructor_profile, "skills_configured", False),
+            identity_verified_at=getattr(instructor_profile, "identity_verified_at", None),
+            background_check_uploaded_at=getattr(instructor_profile, "background_check_uploaded_at", None),
+            onboarding_completed_at=getattr(instructor_profile, "onboarding_completed_at", None),
+            is_live=getattr(instructor_profile, "is_live", False),
         )
 
     @field_validator("areas_of_service", mode="before")

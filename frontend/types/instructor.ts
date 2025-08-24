@@ -100,6 +100,15 @@ export interface InstructorProfile {
 
   /** Date when instructor joined */
   created_at?: string;
+
+  // Onboarding status fields
+  skills_configured?: boolean;
+  identity_verified_at?: string | null;
+  identity_verification_session_id?: string | null;
+  background_check_object_key?: string | null;
+  background_check_uploaded_at?: string | null;
+  onboarding_completed_at?: string | null;
+  is_live?: boolean;
 }
 
 /**

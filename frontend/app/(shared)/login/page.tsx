@@ -121,7 +121,25 @@ function LoginForm() {
       // No 2FA: complete login using existing flow
       localStorage.setItem('access_token', data.access_token);
       await checkAuth();
-      router.push(redirect);
+      // Decide post-login route: respect explicit redirect; otherwise route instructors by live status
+      try {
+        if (redirect && redirect !== '/' && !redirect.startsWith('/login')) {
+          router.push(redirect);
+          return;
+        }
+        // Probe instructor profile; if exists and is_live => dashboard, else status
+        const me = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
+        if (me.ok) {
+          const prof = await me.json();
+          const next = prof?.is_live ? '/instructor/dashboard' : '/instructor/onboarding/status';
+          router.push(next);
+        } else {
+          // No profile or not instructor
+          router.push('/instructor/onboarding/status');
+        }
+      } catch {
+        router.push('/instructor/onboarding/status');
+      }
     } catch (error) {
       logger.error('Login network error', error);
       setErrors({ password: 'Network error. Please check your connection and try again.' });
@@ -163,7 +181,23 @@ function LoginForm() {
       localStorage.setItem('access_token', data.access_token);
       if (trustThisBrowser) localStorage.setItem('tfa_trusted', 'true');
       await checkAuth();
-      router.push(redirect);
+      // Decide post-login route after 2FA
+      try {
+        if (redirect && redirect !== '/' && !redirect.startsWith('/login')) {
+          router.push(redirect);
+          return;
+        }
+        const me = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
+        if (me.ok) {
+          const prof = await me.json();
+          const next = prof?.is_live ? '/instructor/dashboard' : '/instructor/onboarding/status';
+          router.push(next);
+        } else {
+          router.push('/instructor/onboarding/status');
+        }
+      } catch {
+        router.push('/instructor/onboarding/status');
+      }
     } catch (err) {
       logger.error('2FA verification error', err);
       setErrors({ twofa: 'Network error verifying code' });

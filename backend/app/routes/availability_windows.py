@@ -39,8 +39,8 @@ Router Endpoints:
 """
 
 import logging
-from datetime import date
-from typing import List, Optional
+from datetime import date, timedelta
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -77,6 +77,7 @@ from ..schemas.availability_window import (
     BulkUpdateResponse,
     CopyWeekRequest,
     SpecificDateAvailabilityCreate,
+    TimeRange,
     ValidateWeekRequest,
     WeekSpecificScheduleCreate,
     WeekValidationResponse,
@@ -102,7 +103,7 @@ def verify_instructor(current_user: User) -> User:
     return current_user
 
 
-@router.get("/week", response_model=WeekAvailabilityResponse)
+@router.get("/week", response_model=Dict[str, List[TimeRange]])
 async def get_week_availability(
     start_date: date = Query(..., description="Monday of the week"),
     current_user: User = Depends(get_current_active_user),
@@ -116,6 +117,7 @@ async def get_week_availability(
     verify_instructor(current_user)
 
     try:
+        # Return map of date -> [ { start_time, end_time } ]
         return availability_service.get_week_availability(instructor_id=current_user.id, start_date=start_date)
     except DomainException as e:
         raise e.to_http_exception()
@@ -200,7 +202,19 @@ async def apply_to_date_range(
             start_date=apply_data.start_date,
             end_date=apply_data.end_date,
         )
-        return result
+        # Map service result to response schema
+        # Compute weeks_applied as ceiling of days/7 over the inclusive date range
+        days = (apply_data.end_date - apply_data.start_date).days + 1
+        weeks_applied = (days + 6) // 7
+        windows_created = int(result.get("slots_created", 0))
+
+        return ApplyToDateRangeResponse(
+            message=result.get("message", "Successfully applied schedule"),
+            start_date=apply_data.start_date,
+            end_date=apply_data.end_date,
+            weeks_applied=weeks_applied,
+            windows_created=windows_created,
+        )
     except DomainException as e:
         raise e.to_http_exception()
     except Exception as e:

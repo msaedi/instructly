@@ -137,6 +137,44 @@ class StripeService(BaseService):
             self.logger.error(f"Error creating identity session: {str(e)}")
             raise ServiceException("Failed to start identity verification")
 
+    @BaseService.measure_operation("stripe_get_latest_identity_status")
+    def get_latest_identity_status(self, user_id: str) -> Dict[str, Any]:
+        """Return latest Stripe Identity verification status for a user.
+
+        Uses session metadata.user_id to find the most recent session.
+        """
+        try:
+            self._check_stripe_configured()
+            # Fetch recent sessions and filter by our metadata
+            # Run list call with bounded timeout via stripe client defaults
+            sessions = stripe.identity.VerificationSession.list(limit=20)  # type: ignore[attr-defined]
+            latest = None
+            for s in sessions.get("data", []):
+                try:
+                    meta = getattr(s, "metadata", {}) or {}
+                    if str(meta.get("user_id")) == str(user_id):
+                        if latest is None or getattr(s, "created", 0) > getattr(latest, "created", 0):
+                            latest = s
+                except Exception:
+                    continue
+
+            if not latest:
+                return {"status": "not_found"}
+
+            return {
+                "status": getattr(latest, "status", "unknown"),
+                "id": getattr(latest, "id", None),
+                "created": getattr(latest, "created", None),
+            }
+        except stripe.StripeError as e:
+            self.logger.error(f"Stripe error getting identity status: {str(e)}")
+            raise ServiceException(f"Failed to get identity status: {str(e)}")
+        except Exception as e:
+            if isinstance(e, ServiceException):
+                raise
+            self.logger.error(f"Error getting identity status: {str(e)}")
+            raise ServiceException("Failed to get identity status")
+
     def _mock_payment_response(self, booking_id: str, amount_cents: int) -> Dict[str, Any]:
         """Return a mock payment response for testing/CI when Stripe is not configured."""
         return {
@@ -1047,6 +1085,10 @@ class StripeService(BaseService):
                 success = self._handle_payout_webhook(event)
                 return {"success": success, "event_type": event_type}
 
+            elif event_type.startswith("identity.verification_session."):
+                success = self._handle_identity_webhook(event)
+                return {"success": success, "event_type": event_type}
+
             else:
                 self.logger.info(f"Unhandled webhook event type: {event_type}")
                 return {"success": True, "event_type": event_type, "handled": False}
@@ -1343,6 +1385,58 @@ class StripeService(BaseService):
             return False
         except Exception as e:
             self.logger.error(f"Error handling payout webhook: {str(e)}")
+            return False
+
+    def _handle_identity_webhook(self, event: Dict[str, Any]) -> bool:
+        """Handle Stripe Identity verification session events to persist verification status."""
+        try:
+            evt_type = event.get("type", "")
+            obj = event.get("data", {}).get("object", {})
+            verification_status = obj.get("status")
+
+            # Locate our user via metadata.user_id
+            meta = obj.get("metadata") or {}
+            user_id = meta.get("user_id")
+            if not user_id:
+                # Not our session; ignore
+                return True
+
+            # Find instructor profile by user_id
+            profile = self.instructor_repository.get_by_user_id(user_id)
+            if not profile:
+                # User exists but no profile yet; ignore graciously
+                return True
+
+            # On verified, mark identity_verified_at and store session id
+            if verification_status == "verified":
+                try:
+                    from datetime import datetime
+                    from datetime import timezone as _tz
+
+                    self.instructor_repository.update(
+                        profile.id,
+                        identity_verified_at=datetime.now(_tz.utc),
+                        identity_verification_session_id=obj.get("id"),
+                    )
+                except Exception as e:
+                    self.logger.error(f"Failed updating identity verification on profile {profile.id}: {e}")
+                    return False
+                return True
+
+            # For other terminal statuses, we can store the session id for audit
+            if verification_status in {"requires_input", "canceled", "processing"}:
+                try:
+                    self.instructor_repository.update(
+                        profile.id,
+                        identity_verification_session_id=obj.get("id"),
+                    )
+                except Exception:
+                    pass
+                return True
+
+            return True
+        except Exception as e:
+            self.logger.error(f"Error handling identity webhook: {str(e)}")
             return False
 
     # ========== Analytics and Reporting ==========

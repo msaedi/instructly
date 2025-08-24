@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { User, Calendar, LogOut, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { createPortal } from 'react-dom';
+import { RoleName } from '@/types/enums';
 
 export default function UserProfileDropdown() {
   const { user, logout, isLoading } = useAuth();
@@ -118,23 +119,28 @@ export default function UserProfileDropdown() {
         >
           {/* Menu items */}
           <div className="py-1">
-            <button
-              onClick={() => handleNavigation('/student/dashboard')}
-              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              <User className="h-4 w-4" />
-              My Account
-            </button>
+            {/* For instructors, hide student-only items */}
+            {!(user?.roles || []).includes(RoleName.INSTRUCTOR) && (
+              <>
+                <button
+                  onClick={() => handleNavigation('/student/dashboard')}
+                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <User className="h-4 w-4" />
+                  My Account
+                </button>
 
-            <button
-              onClick={() => handleNavigation('/student/lessons')}
-              className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              <Calendar className="h-4 w-4" />
-              My Lessons
-            </button>
+                <button
+                  onClick={() => handleNavigation('/student/lessons')}
+                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <Calendar className="h-4 w-4" />
+                  My Lessons
+                </button>
 
-            <hr className="my-1 border-gray-100" />
+                <hr className="my-1 border-gray-100" />
+              </>
+            )}
 
             <button
               onClick={handleLogout}

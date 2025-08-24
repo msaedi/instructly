@@ -13,6 +13,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set
 
+import anyio
 from sqlalchemy.orm import Session
 
 from ..core.enums import RoleName
@@ -25,6 +26,7 @@ from ..repositories.factory import RepositoryFactory
 from ..schemas.instructor import InstructorProfileCreate, InstructorProfileUpdate, ServiceCreate
 from .base import BaseService
 from .cache_service import CacheService
+from .geocoding.factory import create_geocoding_provider
 
 logger = logging.getLogger(__name__)
 
@@ -300,6 +302,60 @@ class InstructorService(BaseService):
         with self.transaction():
             # Update basic fields
             basic_updates = update_data.model_dump(exclude={"services"}, exclude_unset=True)
+
+            # If services are being updated but bio/areas are still empty, set smart defaults
+            if update_data.services is not None:
+                missing_bio = not getattr(profile, "bio", None) or not str(profile.bio).strip()
+                missing_areas = (
+                    not getattr(profile, "areas_of_service", None) or not str(profile.areas_of_service).strip()
+                )
+                if "bio" not in basic_updates and missing_bio:
+                    # Generate a bio like: "John is a New York-based yoga, tennis, and painting instructor."
+                    try:
+                        user = self.user_repository.get_by_id(user_id)
+                        first_name = getattr(user, "first_name", "") or ""
+                        # Determine city from zip via geocoding
+                        city = "New York"
+                        try:
+                            if getattr(user, "zip_code", None):
+                                provider = create_geocoding_provider()
+                                geocoded = anyio.run(provider.geocode, user.zip_code)
+                                if geocoded and getattr(geocoded, "city", None):
+                                    city = geocoded.city
+                        except Exception:
+                            pass
+
+                        # Resolve skill names from catalog ids
+                        skill_names: List[str] = []
+                        try:
+                            for svc in update_data.services or []:
+                                cs = self.catalog_repository.get_by_id(svc.service_catalog_id)
+                                if cs and getattr(cs, "name", None):
+                                    # Use lowercase for natural phrasing (e.g., 'yoga')
+                                    skill_names.append(str(cs.name).strip().lower())
+                        except Exception:
+                            pass
+
+                        def _oxford_join(items: List[str]) -> str:
+                            if not items:
+                                return ""
+                            if len(items) == 1:
+                                return items[0]
+                            if len(items) == 2:
+                                return f"{items[0]} and {items[1]}"
+                            return ", ".join(items[:-1]) + f", and {items[-1]}"
+
+                        skills_phrase = _oxford_join(skill_names)
+                        if skills_phrase:
+                            basic_updates["bio"] = f"{first_name} is a {city}-based {skills_phrase} instructor."
+                        else:
+                            basic_updates["bio"] = f"{first_name} is a {city}-based instructor."
+                    except Exception:
+                        # Last-resort fallback
+                        basic_updates["bio"] = "Experienced instructor"
+
+                if "areas_of_service" not in basic_updates and missing_areas:
+                    basic_updates["areas_of_service"] = "Manhattan"
             if basic_updates:
                 self.profile_repository.update(profile.id, **basic_updates)
 
@@ -477,6 +533,12 @@ class InstructorService(BaseService):
             "years_experience": profile.years_experience,
             "min_advance_booking_hours": profile.min_advance_booking_hours,
             "buffer_time_minutes": profile.buffer_time_minutes,
+            # Onboarding status
+            "skills_configured": getattr(profile, "skills_configured", False),
+            "identity_verified_at": getattr(profile, "identity_verified_at", None),
+            "background_check_uploaded_at": getattr(profile, "background_check_uploaded_at", None),
+            "onboarding_completed_at": getattr(profile, "onboarding_completed_at", None),
+            "is_live": getattr(profile, "is_live", False),
             "created_at": profile.created_at,
             "updated_at": profile.updated_at,
             "user": {

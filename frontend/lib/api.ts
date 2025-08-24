@@ -191,6 +191,7 @@ export const API_ENDPOINTS = {
   // Onboarding helpers
   NYC_ZIP_CHECK: '/api/addresses/zip/is-nyc',
   STRIPE_IDENTITY_SESSION: '/api/payments/identity/session',
+  STRIPE_IDENTITY_REFRESH: '/api/payments/identity/refresh',
   R2_SIGNED_UPLOAD: '/api/uploads/r2/signed-url',
   CONNECT_STATUS: '/api/payments/connect/status',
 

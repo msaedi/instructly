@@ -252,13 +252,30 @@ class DatabaseSeeder:
 
                 # Create instructor profile
                 profile_data = instructor_data.get("profile", {})
+                # Determine seeded onboarding status
+                _has_services = len(profile_data.get("services", [])) > 0
+                _is_active_account = account_status == "active"
+                _now = datetime.now(timezone.utc)
+
+                # Use values as-is from YAML (backend enforces validation at runtime)
+                _bio = profile_data.get("bio", "").strip()
+                _areas_list = profile_data.get("areas", [])
+
                 profile = InstructorProfile(
                     user_id=user.id,
-                    bio=profile_data.get("bio", ""),
+                    bio=_bio,
                     years_experience=profile_data.get("years_experience", 1),
-                    areas_of_service=", ".join(profile_data.get("areas", [])),
+                    areas_of_service=", ".join(_areas_list),
                     min_advance_booking_hours=2,
                     buffer_time_minutes=0,
+                    # Onboarding defaults for seeded instructors
+                    skills_configured=_has_services,
+                    identity_verified_at=_now,
+                    identity_verification_session_id=None,
+                    background_check_object_key=None,
+                    background_check_uploaded_at=None,
+                    onboarding_completed_at=_now,
+                    is_live=_is_active_account,
                 )
                 session.add(profile)
                 session.flush()
@@ -335,9 +352,9 @@ class DatabaseSeeder:
                         id=str(ulid.ULID()),
                         instructor_profile_id=profile.id,
                         stripe_account_id=self.stripe_mapping[user.email],
-                        onboarding_completed=False,  # Default to false, app will check actual status with Stripe
-                        created_at=datetime.now(timezone.utc),
-                        updated_at=datetime.now(timezone.utc),
+                        onboarding_completed=True,
+                        created_at=_now,
+                        updated_at=_now,
                     )
                     session.add(stripe_account)
                     print(f"    💳 Linked to existing Stripe account: {self.stripe_mapping[user.email][:20]}...")

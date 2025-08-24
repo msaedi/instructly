@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { publicApi } from '@/features/shared/api/client';
-import { fetchWithAuth, API_ENDPOINTS, getErrorMessage } from '@/lib/api';
+import { fetchWithAuth, API_ENDPOINTS, getErrorMessage, isNetworkError } from '@/lib/api';
+import { useAuth } from '@/features/shared/hooks/useAuth';
 import type { CatalogService, ServiceCategory } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 
@@ -20,7 +22,10 @@ type SelectedService = {
   location_types: Array<'in-person' | 'online'>;
 };
 
-export default function Step3SkillsPricing() {
+function Step3SkillsPricingInner() {
+  const searchParams = useSearchParams();
+  const redirectParam = searchParams?.get('redirect') || null;
+  const { user, isAuthenticated } = useAuth();
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [servicesByCategory, setServicesByCategory] = useState<Record<string, CatalogService[]>>({});
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -56,38 +61,7 @@ export default function Step3SkillsPricing() {
           }
           setServicesByCategory(map);
         }
-        // Load existing instructor profile to prefill selected services
-        try {
-          const meRes = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-          if (meRes.ok) {
-            const me = await meRes.json();
-            const mapped: SelectedService[] = (me.services || []).map((svc: any) => ({
-              catalog_service_id: svc.service_catalog_id,
-              name: svc.name || '',
-              hourly_rate: String(svc.hourly_rate ?? ''),
-              ageGroup:
-                Array.isArray(svc.age_groups) && svc.age_groups.length === 2
-                  ? 'both'
-                  : (svc.age_groups || []).includes('kids')
-                  ? 'kids'
-                  : 'adults',
-              description: svc.description || '',
-              equipment: Array.isArray(svc.equipment_required) ? svc.equipment_required.join(', ') : '',
-              levels_taught:
-                Array.isArray(svc.levels_taught) && svc.levels_taught.length
-                  ? svc.levels_taught
-                  : ['beginner', 'intermediate', 'advanced'],
-              duration_options: Array.isArray(svc.duration_options) && svc.duration_options.length ? svc.duration_options : [60],
-              location_types:
-                Array.isArray(svc.location_types) && svc.location_types.length
-                  ? svc.location_types
-                  : ['in-person'],
-            }));
-            if (mapped.length) setSelected(mapped);
-          }
-        } catch (e) {
-          // ignore profile load errors; user may not be an instructor yet
-        }
+        // Catalog loaded; prefill handled in a separate guarded effect below
       } catch (e) {
         logger.error('Failed loading catalog', e);
         setError('Failed to load services');
@@ -97,6 +71,52 @@ export default function Step3SkillsPricing() {
     };
     void load();
   }, []);
+
+  // Guarded prefill: only attempt when authenticated and user has instructor role
+  useEffect(() => {
+    const shouldPrefill =
+      !!isAuthenticated && !!user && Array.isArray(user.roles) && user.roles.some((r: any) => String(r).toLowerCase() === 'instructor');
+    if (!shouldPrefill) return;
+
+    let cancelled = false;
+    const prefill = async () => {
+      try {
+        const meRes = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
+        if (!meRes.ok) return; // silently ignore 401/403/404
+        const me = await meRes.json();
+        const mapped: SelectedService[] = (me.services || []).map((svc: any) => ({
+          catalog_service_id: svc.service_catalog_id,
+          name: svc.name || '',
+          hourly_rate: String(svc.hourly_rate ?? ''),
+          ageGroup:
+            Array.isArray(svc.age_groups) && svc.age_groups.length === 2
+              ? 'both'
+              : (svc.age_groups || []).includes('kids')
+              ? 'kids'
+              : 'adults',
+          description: svc.description || '',
+          equipment: Array.isArray(svc.equipment_required) ? svc.equipment_required.join(', ') : '',
+          levels_taught:
+            Array.isArray(svc.levels_taught) && svc.levels_taught.length
+              ? svc.levels_taught
+              : ['beginner', 'intermediate', 'advanced'],
+          duration_options: Array.isArray(svc.duration_options) && svc.duration_options.length ? svc.duration_options : [60],
+          location_types:
+            Array.isArray(svc.location_types) && svc.location_types.length
+              ? svc.location_types
+              : ['in-person'],
+        }));
+        if (!cancelled && mapped.length) setSelected(mapped);
+      } catch {
+        // Swallow network errors to keep onboarding clean
+      }
+    };
+
+    void prefill();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, user]);
 
   const addService = (svc: CatalogService) => {
     if (selected.some((s) => s.catalog_service_id === svc.id)) return;
@@ -129,6 +149,12 @@ export default function Step3SkillsPricing() {
     try {
       setSaving(true);
       setError(null);
+      const nextUrl = redirectParam || '/instructor/onboarding/verification';
+      // If no skills selected, skip saving and go to verification step
+      if (selected.length === 0) {
+        window.location.href = nextUrl;
+        return;
+      }
       // PUT /instructors/me with services array
       const payload = {
         services: selected
@@ -156,13 +182,25 @@ export default function Step3SkillsPricing() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        setError(await getErrorMessage(res));
+        // If profile not ready yet or any server error, proceed to verification and try later
+        try {
+          // Best effort to log error but keep user moving forward
+          const msg = await getErrorMessage(res);
+          // eslint-disable-next-line no-console
+          console.warn('Save services failed, moving to verification:', msg);
+        } catch {}
+        window.location.href = nextUrl;
         return;
       }
       // Navigate to next step
-      window.location.href = '/instructor/onboarding/step-4';
+      window.location.href = nextUrl;
     } catch (e) {
       logger.error('Save services failed', e);
+      if (isNetworkError(e)) {
+        // Likely CORS/network hiccup; continue onboarding and retry later
+        window.location.href = redirectParam || '/instructor/onboarding/verification';
+        return;
+      }
       setError('Failed to save');
     } finally {
       setSaving(false);
@@ -449,5 +487,13 @@ export default function Step3SkillsPricing() {
         </button>
       </div>
     </div>
+  );
+}
+
+export default function Step3SkillsPricing() {
+  return (
+    <Suspense fallback={<div className="p-8">Loading…</div>}>
+      <Step3SkillsPricingInner />
+    </Suspense>
   );
 }

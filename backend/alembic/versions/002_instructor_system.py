@@ -54,6 +54,14 @@ def upgrade() -> None:
         ),
         sa.Column("min_advance_booking_hours", sa.Integer(), nullable=False, server_default="2"),
         sa.Column("buffer_time_minutes", sa.Integer(), nullable=False, server_default="0"),
+        # Onboarding status fields
+        sa.Column("skills_configured", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("identity_verified_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("identity_verification_session_id", sa.String(255), nullable=True),
+        sa.Column("background_check_object_key", sa.String(512), nullable=True),
+        sa.Column("background_check_uploaded_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("onboarding_completed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("is_live", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -79,6 +87,12 @@ def upgrade() -> None:
     # Create indexes for instructor_profiles
     op.create_index("ix_instructor_profiles_id", "instructor_profiles", ["id"])
     op.create_index("idx_instructor_profiles_user_id", "instructor_profiles", ["user_id"])
+    op.create_index("idx_instructor_profiles_is_live", "instructor_profiles", ["is_live"])
+    op.create_index(
+        "idx_instructor_profiles_identity_verified_at",
+        "instructor_profiles",
+        ["identity_verified_at"],
+    )
 
     # Add check constraint for non-negative years of experience
     op.create_check_constraint(
@@ -406,6 +420,9 @@ def downgrade() -> None:
 
     # Drop instructor_profiles constraint, indexes and table
     op.drop_constraint("check_years_experience_non_negative", "instructor_profiles", type_="check")
+    # Drop indexes added in upgrade
+    op.drop_index("idx_instructor_profiles_identity_verified_at", table_name="instructor_profiles")
+    op.drop_index("idx_instructor_profiles_is_live", table_name="instructor_profiles")
     op.drop_index("idx_instructor_profiles_user_id", table_name="instructor_profiles")
     op.drop_index("ix_instructor_profiles_id", table_name="instructor_profiles")
     op.drop_table("instructor_profiles")

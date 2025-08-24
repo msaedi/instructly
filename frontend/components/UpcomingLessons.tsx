@@ -182,7 +182,7 @@ export function UpcomingLessons() {
         {bookings.length > 2 && (
           <div className="mt-4 text-center">
             <Link
-              href={`/dashboard/${getPrimaryRole(user) || RoleName.STUDENT}/bookings`}
+              href={hasRole(user, RoleName.STUDENT) ? '/student/lessons' : '/instructor/dashboard'}
               className="text-blue-600 dark:text-blue-400 hover:underline"
             >
               View all {bookings.length} upcoming lessons →

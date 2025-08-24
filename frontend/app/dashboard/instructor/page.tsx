@@ -246,7 +246,7 @@ export default function InstructorDashboard() {
               label="ID verification (Stripe Identity)"
               ok={false}
               action={
-                <Link href="/instructor/onboarding/step-4" className="text-purple-700 hover:underline">
+                <Link href="/instructor/onboarding/verification" className="text-purple-700 hover:underline">
                   Start verification
                 </Link>
               }
@@ -255,7 +255,7 @@ export default function InstructorDashboard() {
               label="Background check uploaded"
               ok={false}
               action={
-                <Link href="/instructor/onboarding/step-4" className="text-purple-700 hover:underline">
+                <Link href="/instructor/onboarding/verification" className="text-purple-700 hover:underline">
                   Upload document
                 </Link>
               }
@@ -264,7 +264,7 @@ export default function InstructorDashboard() {
               label="Skills & pricing set"
               ok={(profile.services || []).length > 0}
               action={
-                <Link href="/instructor/onboarding/step-3" className="text-purple-700 hover:underline">
+                <Link href="/instructor/onboarding/skill-selection?redirect=%2Fdashboard%2Finstructor" className="text-purple-700 hover:underline">
                   Edit skills
                 </Link>
               }

@@ -153,6 +153,17 @@ class PaymentService {
     }
   }
 
+  async startOnboardingWithReturn(return_to: string): Promise<OnboardingResponse> {
+    try {
+      return await this.request<OnboardingResponse>(`/connect/onboard${return_to ? `?return_to=${encodeURIComponent(return_to)}` : ''}`, {
+        method: 'POST',
+      });
+    } catch (error) {
+      logger.error('Failed to start onboarding with return:', error);
+      throw error;
+    }
+  }
+
   async getOnboardingStatus(): Promise<OnboardingStatusResponse> {
     try {
       return await this.request<OnboardingStatusResponse>('/connect/status');

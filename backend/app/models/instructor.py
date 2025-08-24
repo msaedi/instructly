@@ -12,7 +12,7 @@ import logging
 from typing import TYPE_CHECKING, List, Optional, Set
 
 import ulid
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -76,6 +76,15 @@ class InstructorProfile(Base):
     # Booking preferences
     min_advance_booking_hours = Column(Integer, nullable=False, default=24)
     buffer_time_minutes = Column(Integer, nullable=False, default=0)
+
+    # Onboarding status fields
+    skills_configured = Column(Boolean, nullable=False, default=False)
+    identity_verified_at = Column(DateTime(timezone=True), nullable=True)
+    identity_verification_session_id = Column(String(255), nullable=True)
+    background_check_object_key = Column(String(512), nullable=True)
+    background_check_uploaded_at = Column(DateTime(timezone=True), nullable=True)
+    onboarding_completed_at = Column(DateTime(timezone=True), nullable=True)
+    is_live = Column(Boolean, nullable=False, default=False)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())

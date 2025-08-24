@@ -40,6 +40,7 @@ import {
 import { PrivacySettings } from '@/components/PrivacySettings';
 import { recordSearch } from '@/lib/searchTracking';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import { fetchWithAuth } from '@/lib/api';
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -50,8 +51,10 @@ export default function HomePage() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [userHasBookingHistory, setUserHasBookingHistory] = useState<boolean | null>(null);
   const [isClient, setIsClient] = useState(false);
+  const [isInstructorLive, setIsInstructorLive] = useState<boolean | null>(null);
   const router = useRouter();
   const { user, isAuthenticated, logout, isLoading: isAuthLoading } = useAuth();
+  const isInstructor = isAuthenticated && hasRole(user, RoleName.INSTRUCTOR);
 
   // Set isClient to true after mount to avoid hydration issues
   useEffect(() => {
@@ -91,6 +94,25 @@ export default function HomePage() {
 
   // Fetch services for all categories on mount (client-only)
   useEffect(() => {
+    // Probe instructor live status for nav label/link
+    const probeInstructorStatus = async () => {
+      try {
+        if (isAuthenticated && hasRole(user, RoleName.INSTRUCTOR)) {
+          const res = await fetchWithAuth('/instructors/me');
+          if (res.ok) {
+            const prof = await res.json();
+            setIsInstructorLive(!!prof?.is_live);
+          } else if (res.status === 401 || res.status === 404) {
+            setIsInstructorLive(false);
+          }
+        }
+      } catch {
+        // ignore – nav will default to Finish Onboarding
+      }
+    };
+
+    probeInstructorStatus();
+
     const fetchCategoryServices = async () => {
       try {
         const response = await publicApi.getTopServicesPerCategory();
@@ -128,7 +150,7 @@ export default function HomePage() {
     };
 
     fetchCategoryServices();
-  }, []);
+  }, [isClient, isAuthenticated, user]);
 
   // Detect touch device
   useEffect(() => {
@@ -197,11 +219,19 @@ export default function HomePage() {
               <div className="flex items-center gap-4">
                 <Link
                   href={
-                    hasRole(user, RoleName.STUDENT) ? '/student/lessons' : '/instructor/dashboard'
+                    hasRole(user, RoleName.STUDENT)
+                      ? '/student/lessons'
+                      : isInstructorLive
+                        ? '/instructor/dashboard'
+                        : '/instructor/onboarding/status'
                   }
                   className="text-gray-700 hover:text-purple-700 font-medium relative"
                 >
-                  My Lessons
+                  {hasRole(user, RoleName.STUDENT)
+                    ? 'My Lessons'
+                    : isInstructorLive
+                      ? 'My Dashboard'
+                      : 'Finish Onboarding'}
                   {user?.unread_messages_count && user.unread_messages_count > 0 && (
                     <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full"></span>
                   )}
@@ -211,7 +241,7 @@ export default function HomePage() {
             ) : (
               <div className="flex items-center gap-4">
                 <Link
-                  href="/become-instructor"
+                  href="/signup?role=instructor&redirect=%2Finstructor%2Fonboarding%2Fwelcome"
                   className="text-gray-700 hover:text-purple-700 font-medium"
                 >
                   Become an Instructor
@@ -231,8 +261,8 @@ export default function HomePage() {
       {/* Notification Bar (client-only to avoid hydration mismatches) */}
       {isClient && <NotificationBar />}
 
-      {/* Upcoming Lessons Section (client-only to avoid hydration mismatches) */}
-      {isClient && <UpcomingLessons />}
+      {/* Upcoming Lessons: hide for instructors */}
+      {isClient && (!isInstructor) && <UpcomingLessons />}
 
       {/* Hero Section */}
       <section className="py-16 relative" style={{ paddingTop: '60px' }}>
@@ -486,11 +516,13 @@ export default function HomePage() {
       {/* Book Again OR How It Works - render on client only to avoid SSR/client mismatch */}
       {isClient && (
         isAuthenticated && userHasBookingHistory === null ? (
-          // Loading state while checking booking history
-          <BookAgain onLoadComplete={(hasHistory) => setUserHasBookingHistory(hasHistory)} />
+          !isInstructor && (
+            <BookAgain onLoadComplete={(hasHistory) => setUserHasBookingHistory(hasHistory)} />
+          )
         ) : isAuthenticated && userHasBookingHistory ? (
-          // User has booking history - show Book Again
-          <BookAgain onLoadComplete={(hasHistory) => setUserHasBookingHistory(hasHistory)} />
+          !isInstructor && (
+            <BookAgain onLoadComplete={(hasHistory) => setUserHasBookingHistory(hasHistory)} />
+          )
         ) : (
           // User has no booking history OR not authenticated - show How It Works
           <section className="py-16 bg-transparent dark:bg-transparent">

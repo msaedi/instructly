@@ -241,7 +241,7 @@ function SignUpForm() {
         phone: formatPhoneForAPI(formData.phone),
         zip_code: formData.zipCode.trim(),
         password: formData.password,
-        role: RoleName.STUDENT,
+        role: (searchParams.get('role') as any) === 'instructor' ? RoleName.INSTRUCTOR : RoleName.STUDENT,
         ...(guestSessionId && { guest_session_id: guestSessionId }),
       };
 
@@ -374,11 +374,7 @@ function SignUpForm() {
         });
 
         // Redirect based on role
-        if (hasRole(userData, RoleName.INSTRUCTOR)) {
-          router.push('/instructor/dashboard');
-        } else {
-          router.push(redirect);
-        }
+        router.push(redirect || (hasRole(userData, RoleName.INSTRUCTOR) ? '/instructor/onboarding/welcome' : '/'));
       } else {
         logger.warn('Failed to fetch user data after login, using default redirect');
         router.push(redirect);

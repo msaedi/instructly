@@ -1958,5 +1958,103 @@
         }
       }
     }
+  },
+  {
+    "timestamp": "2025-08-24T03:52:46.861098",
+    "total_lines": 161786,
+    "total_files": 800,
+    "backend_lines": 110654,
+    "frontend_lines": 51132,
+    "git_commits": 675,
+    "categories": {
+      "backend": {
+        "Scripts": {
+          "files": 152,
+          "lines": 19854
+        },
+        "Alembic": {
+          "files": 34,
+          "lines": 4259
+        },
+        "Tasks/Celery": {
+          "files": 17,
+          "lines": 3269
+        },
+        "Core/Config": {
+          "files": 13,
+          "lines": 2132
+        },
+        "Repositories": {
+          "files": 31,
+          "lines": 10468
+        },
+        "Models": {
+          "files": 20,
+          "lines": 2674
+        },
+        "Schemas": {
+          "files": 39,
+          "lines": 3971
+        },
+        "Routes/APIs": {
+          "files": 55,
+          "lines": 13977
+        },
+        "Services": {
+          "files": 87,
+          "lines": 26765
+        },
+        "Unit Tests": {
+          "files": 20,
+          "lines": 5716
+        },
+        "Integration Tests": {
+          "files": 64,
+          "lines": 19836
+        },
+        "Route Tests": {
+          "files": 25,
+          "lines": 6029
+        }
+      },
+      "frontend": {
+        "Types": {
+          "files": 9,
+          "lines": 2641
+        },
+        "Utils": {
+          "files": 5,
+          "lines": 306
+        },
+        "Hooks": {
+          "files": 33,
+          "lines": 5633
+        },
+        "API/Lib": {
+          "files": 22,
+          "lines": 5277
+        },
+        "Pages": {
+          "files": 51,
+          "lines": 12762
+        },
+        "Features": {
+          "files": 44,
+          "lines": 8799
+        },
+        "Unit Tests": {
+          "files": 16,
+          "lines": 4241
+        },
+        "E2E Tests": {
+          "files": 15,
+          "lines": 3056
+        },
+        "Components": {
+          "files": 92,
+          "lines": 17962
+        }
+      }
+    }
   }
 ]

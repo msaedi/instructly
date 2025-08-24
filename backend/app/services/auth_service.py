@@ -119,13 +119,49 @@ class AuthService(BaseService):
                 # repo-pattern-ignore: Refresh after create belongs in service layer
                 self.db.refresh(user)
 
-                # If registering as instructor, create empty profile
+                # If registering as instructor, create profile with safe defaults
                 if role_name == RoleName.INSTRUCTOR:
+                    # Derive initial service area (prefer neighborhood) and city for bio
+                    service_area_guess = "Manhattan"  # areas_of_service: neighborhood/city for filtering
+                    city_guess = "New York"  # bio should use city, not borough
+                    try:
+                        if zip_code:
+                            import anyio
+
+                            from app.repositories.region_boundary_repository import RegionBoundaryRepository
+                            from app.services.geocoding.factory import create_geocoding_provider
+
+                            provider = create_geocoding_provider()
+                            geocoded = anyio.run(provider.geocode, zip_code)
+                            if geocoded:
+                                # City for bio if available
+                                if getattr(geocoded, "city", None):
+                                    city_guess = geocoded.city
+
+                                # Neighborhood/region name for areas_of_service if available
+                                rb_repo = RegionBoundaryRepository(self.db)
+                                region = rb_repo.find_region_by_point(
+                                    lat=float(geocoded.latitude), lng=float(geocoded.longitude), region_type="nyc"
+                                )
+                                if region and region.get("region_name"):
+                                    service_area_guess = region["region_name"]
+                                elif getattr(geocoded, "city", None):
+                                    # Fallback to city when neighborhood unavailable
+                                    service_area_guess = geocoded.city
+                    except Exception as _e:
+                        self.logger.debug(f"ZIP→neighborhood/city lookup failed: {str(_e)}")
+
+                    # Build a friendly default bio using first name and city
+                    first_name = getattr(user, "first_name", "") or ""
+                    default_bio = f"{first_name} is a {city_guess}-based instructor."
+
                     instructor_profile = self.instructor_repository.create(
                         user_id=user.id,
-                        bio="",
+                        # Provide defaults that satisfy response schema validation
+                        bio=default_bio,
                         years_experience=0,
-                        areas_of_service="",
+                        # Store as comma-separated string; schema will normalize to list
+                        areas_of_service=service_area_guess,
                         min_advance_booking_hours=1,
                         buffer_time_minutes=15,
                     )

@@ -15,6 +15,7 @@ Key Features:
 """
 
 import logging
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 import stripe
@@ -80,6 +81,7 @@ async def start_onboarding(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     stripe_service: StripeService = Depends(get_stripe_service),
+    return_to: str | None = None,
 ) -> OnboardingResponse:
     """
     Start Stripe Connect onboarding for an instructor.
@@ -120,10 +122,17 @@ async def start_onboarding(
                 )
             else:
                 # Create new onboarding link for existing account
-                onboarding_url = stripe_service.create_account_link(
+                # Determine return URLs based on optional return_to
+                safe_path = (
+                    return_to
+                    if return_to and return_to.startswith("/")
+                    else "/instructor/dashboard?stripe_onboarding_return=true"
+                )
+                onboarding_url = await run_in_threadpool(
+                    stripe_service.create_account_link,
                     instructor_profile.id,
-                    refresh_url=f"{settings.frontend_url}/dashboard/instructor?stripe_onboarding_return=true",
-                    return_url=f"{settings.frontend_url}/dashboard/instructor?stripe_onboarding_return=true",
+                    f"{settings.frontend_url}{safe_path}",
+                    f"{settings.frontend_url}{safe_path}",
                 )
 
                 return OnboardingResponse(
@@ -133,13 +142,21 @@ async def start_onboarding(
                 )
 
         # Create new connected account
-        connected_account = stripe_service.create_connected_account(instructor_profile.id, current_user.email)
+        connected_account = await run_in_threadpool(
+            stripe_service.create_connected_account, instructor_profile.id, current_user.email
+        )
 
         # Create onboarding link
-        onboarding_url = stripe_service.create_account_link(
+        safe_path = (
+            return_to
+            if return_to and return_to.startswith("/")
+            else "/instructor/dashboard?stripe_onboarding_return=true"
+        )
+        onboarding_url = await run_in_threadpool(
+            stripe_service.create_account_link,
             instructor_profile.id,
-            refresh_url=f"{settings.frontend_url}/dashboard/instructor?stripe_onboarding_return=true",
-            return_url=f"{settings.frontend_url}/dashboard/instructor?stripe_onboarding_return=true",
+            f"{settings.frontend_url}{safe_path}",
+            f"{settings.frontend_url}{safe_path}",
         )
 
         logger.info(f"Started onboarding for instructor {instructor_profile.id}")
@@ -188,13 +205,22 @@ async def get_onboarding_status(
         # Get account status
         status_data = await run_in_threadpool(stripe_service.check_account_status, instructor_profile.id)
 
+        # Also reflect identity status from our DB to avoid blocking on Stripe calls
+        try:
+            profile = stripe_service.instructor_repository.get_by_user_id(current_user.id)
+            if not getattr(profile, "identity_verified_at", None):
+                status_data.setdefault("requirements_extra", []).append("identity_status:pending")
+        except Exception:
+            # If repo lookup fails, skip requirement hint
+            pass
+
         return OnboardingStatusResponse(
             has_account=status_data["has_account"],
             onboarding_completed=status_data["onboarding_completed"],
             charges_enabled=status_data.get("can_accept_payments", False),
             payouts_enabled=status_data.get("can_accept_payments", False),  # Simplified for now
             details_submitted=status_data.get("details_submitted", False),
-            requirements=[],  # Could be populated from Stripe account requirements
+            requirements=status_data.get("requirements_extra", []),
         )
 
     except HTTPException:
@@ -231,8 +257,11 @@ async def create_identity_session(
         # Use frontend URL with a return flag back to onboarding
         from app.core.config import settings
 
-        return_url = f"{settings.frontend_url}/dashboard/instructor?identity_return=true"
-        result = stripe_service.create_identity_verification_session(user_id=current_user.id, return_url=return_url)
+        # Redirect back to onboarding status page in the new Phoenix structure
+        return_url = f"{settings.frontend_url}/instructor/onboarding/status?identity_return=true"
+        result = await run_in_threadpool(
+            stripe_service.create_identity_verification_session, user_id=current_user.id, return_url=return_url
+        )
         return IdentitySessionResponse(
             verification_session_id=result["verification_session_id"], client_secret=result["client_secret"]
         )
@@ -245,6 +274,52 @@ async def create_identity_session(
         logger.error(f"Unexpected error creating identity session: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create identity session"
+        )
+
+
+class IdentityRefreshResponse(BaseModel):
+    status: str
+    verified: bool
+
+
+@router.post("/identity/refresh", response_model=IdentityRefreshResponse)
+async def refresh_identity_status(
+    current_user: User = Depends(get_current_active_user),
+    stripe_service: StripeService = Depends(get_stripe_service),
+):
+    """Fetch latest Stripe Identity status and persist verification on success.
+
+    This avoids blocking general status calls and lets the UI trigger a one-off refresh
+    right after the modal/hosted flow returns.
+    """
+    try:
+        validate_instructor_role(current_user)
+
+        status_data = await run_in_threadpool(stripe_service.get_latest_identity_status, current_user.id)
+        status_value = status_data.get("status") or "unknown"
+
+        if status_value == "verified":
+            # Persist verification timestamp and session id
+            try:
+                profile = stripe_service.instructor_repository.get_by_user_id(current_user.id)
+                if profile:
+                    stripe_service.instructor_repository.update(
+                        profile.id,
+                        identity_verified_at=datetime.now(timezone.utc),
+                        identity_verification_session_id=status_data.get("id"),
+                    )
+            except Exception as e:
+                logger.error(f"Failed to persist identity verification for user {current_user.id}: {e}")
+                # Still return verified=true since Stripe says verified
+            return IdentityRefreshResponse(status=status_value, verified=True)
+
+        return IdentityRefreshResponse(status=status_value, verified=False)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error refreshing identity status: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to refresh identity status"
         )
 
 
