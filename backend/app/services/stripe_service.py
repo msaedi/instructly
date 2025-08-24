@@ -221,14 +221,28 @@ class StripeService(BaseService):
                     self.logger.info(f"Created Stripe customer {stripe_customer.id} for user {user_id}")
                     return customer_record
                 except Exception as e:
-                    # If Stripe isn't configured and no patch is in place, fall back to mock
+                    # If Stripe isn't configured, decide between mock fallback and raising
                     if not self.stripe_configured:
-                        self.logger.warning(
-                            f"Stripe not configured or call failed ({e}); using mock customer for user {user_id}"
-                        )
-                        return self.payment_repository.create_customer_record(
-                            user_id=user_id, stripe_customer_id=f"mock_cust_{user_id}"
-                        )
+                        msg = str(e)
+                        auth_error = False
+                        try:
+                            # AuthenticationError indicates missing/invalid API key
+                            auth_error = isinstance(e, stripe.error.AuthenticationError)  # type: ignore[attr-defined]
+                        except Exception:
+                            auth_error = False
+
+                        if auth_error or "No API key" in msg or "api key" in msg.lower():
+                            self.logger.warning(
+                                f"Stripe not configured (auth error); using mock customer for user {user_id}"
+                            )
+                            return self.payment_repository.create_customer_record(
+                                user_id=user_id, stripe_customer_id=f"mock_cust_{user_id}"
+                            )
+
+                        # For other errors (e.g., tests patching to raise API Error), surface as ServiceException
+                        self.logger.error(f"Stripe customer creation failed: {msg}")
+                        raise ServiceException(f"Failed to create Stripe customer: {msg}")
+
                     # If configured, bubble up as a service error
                     raise
 

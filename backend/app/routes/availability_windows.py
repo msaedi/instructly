@@ -64,7 +64,6 @@ from ..schemas.availability_responses import (
     CopyWeekResponse,
     DeleteBlackoutResponse,
     DeleteWindowResponse,
-    WeekAvailabilityResponse,
     WeekAvailabilityUpdateResponse,
 )
 from ..schemas.availability_window import (

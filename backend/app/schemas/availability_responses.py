@@ -8,15 +8,6 @@ from pydantic import BaseModel, Field
 from .availability_window import AvailabilityWindowResponse, BlackoutDateResponse
 
 
-class WeekAvailabilityResponse(BaseModel):
-    """Response for getting weekly availability."""
-
-    week_start: date
-    week_end: date
-    availability_windows: List[AvailabilityWindowResponse]
-    blackout_dates: List[BlackoutDateResponse]
-
-
 class WeekAvailabilityUpdateResponse(BaseModel):
     """Response for updating weekly availability."""
 
