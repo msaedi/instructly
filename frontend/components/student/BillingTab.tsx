@@ -2,16 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  CreditCard,
-  Plus,
   Download,
   Loader2,
-  AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { logger } from '@/lib/logger';
-import { paymentService, type PaymentMethod } from '@/services/api/payments';
+import { paymentService } from '@/services/api/payments';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import PaymentMethods from '@/components/student/PaymentMethods';
@@ -42,35 +38,14 @@ interface CreditBalance {
 }
 
 const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [creditBalance, setCreditBalance] = useState<CreditBalance | null>(null);
   const [promoCode, setPromoCode] = useState('');
-  const [isLoadingPaymentMethods, setIsLoadingPaymentMethods] = useState(true);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(true);
   const [isLoadingCredits, setIsLoadingCredits] = useState(true);
   const [isApplyingPromo, setIsApplyingPromo] = useState(false);
   const [showMoreTransactions, setShowMoreTransactions] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  // Load payment methods
-  useEffect(() => {
-    const loadPaymentMethods = async () => {
-      try {
-        setIsLoadingPaymentMethods(true);
-        const methods = await paymentService.listPaymentMethods();
-        setPaymentMethods(methods);
-        logger.info('Payment methods loaded', { count: methods.length });
-      } catch (err) {
-        logger.error('Error loading payment methods:', err);
-        setError('Failed to load payment methods');
-      } finally {
-        setIsLoadingPaymentMethods(false);
-      }
-    };
-
-    loadPaymentMethods();
-  }, [userId]);
 
   // Load transactions from real API
   useEffect(() => {
@@ -119,7 +94,13 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
   // Apply promo code
   const handleApplyPromoCode = async () => {
     if (!promoCode.trim()) {
-      toast.error('Please enter a promo code');
+      toast.error('Please enter a promo code', {
+        style: {
+          background: '#fbbf24',
+          color: '#000000',
+          border: 'none',
+        },
+      });
       return;
     }
 
@@ -127,7 +108,14 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
       setIsApplyingPromo(true);
       const result = await paymentService.applyPromoCode(promoCode);
 
-      toast.success(`Promo code applied! $${result.credit_added} added to your balance.`);
+      toast.success(`Promo code applied! $${result.credit_added} added to your balance.`, {
+        style: {
+          background: '#6b21a8',
+          color: 'white',
+          border: 'none',
+          boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -2px rgba(124, 58, 237, 0.05)',
+        },
+      });
       setPromoCode('');
 
       // Refresh credit balance
@@ -135,7 +123,13 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
       setCreditBalance(newBalance);
     } catch (err) {
       logger.error('Error applying promo code:', err);
-      toast.error('Invalid or expired promo code');
+      toast.error('Invalid or expired promo code', {
+        style: {
+          background: '#fbbf24',
+          color: '#000000',
+          border: 'none',
+        },
+      });
     } finally {
       setIsApplyingPromo(false);
     }
@@ -144,7 +138,36 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
   // Download transaction history
   const handleDownloadHistory = async () => {
     try {
-      const blob = await paymentService.downloadTransactionHistory();
+      // Check if there are transactions to download
+      if (transactions.length === 0) {
+        toast.info('No transactions to download', {
+          style: {
+            background: '#6b21a8',
+            color: 'white',
+            border: 'none',
+            boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -2px rgba(124, 58, 237, 0.05)',
+          },
+        });
+        return;
+      }
+
+      // For now, create a CSV from the existing transaction data
+      const csvContent = [
+        ['Date', 'Service', 'Instructor', 'Duration (min)', 'Total Price', 'Platform Fee', 'Credit Applied', 'Final Amount', 'Status'],
+        ...transactions.map(t => [
+          format(new Date(t.booking_date), 'yyyy-MM-dd'),
+          t.service_name,
+          t.instructor_name,
+          t.duration_minutes,
+          t.total_price,
+          t.platform_fee,
+          t.credit_applied,
+          t.final_amount,
+          t.status
+        ])
+      ].map(row => row.join(',')).join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -152,10 +175,24 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
       a.click();
       URL.revokeObjectURL(url);
 
-      toast.success('Transaction history downloaded');
+      toast.success('Transaction history downloaded', {
+        style: {
+          background: '#6b21a8',
+          color: 'white',
+          border: 'none',
+          boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -2px rgba(124, 58, 237, 0.05)',
+        },
+      });
     } catch (err) {
       logger.error('Error downloading history:', err);
-      toast.error('Failed to download transaction history');
+      toast.info('Download feature coming soon!', {
+        style: {
+          background: '#6b21a8',
+          color: 'white',
+          border: 'none',
+          boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -2px rgba(124, 58, 237, 0.05)',
+        },
+      });
     }
   };
 
@@ -184,41 +221,41 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
         <PaymentMethods userId={userId} />
       </div>
 
-      <div className="h-px bg-gray-200" />
+      <div className="border-b border-gray-200" />
 
       {/* Credit Balance Section */}
       <div>
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Credit Balance</h3>
 
         {isLoadingCredits ? (
-          <Card className="p-6">
+          <div className="rounded-xl border border-gray-200 p-6">
             <div className="flex justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
             </div>
-          </Card>
+          </div>
         ) : creditBalance ? (
-          <Card className="p-6 bg-green-50 border-green-200">
+          <div className="rounded-xl border border-gray-200 p-6 bg-purple-50">
             <div className="space-y-2">
-              <p className="text-2xl font-bold text-green-900">
+              <p className="text-2xl font-bold text-purple-700">
                 {formatCurrency(creditBalance.available)}
               </p>
-              <p className="text-sm text-green-700">Available balance</p>
+              <p className="text-sm text-purple-600">Available balance</p>
               {creditBalance.expires_at ? (
-                <p className="text-xs text-green-600">
+                <p className="text-xs text-purple-500">
                   Earliest expiry: {formatDate(creditBalance.expires_at)}
                 </p>
               ) : (
-                <p className="text-xs text-green-600">No expiry on current credits</p>
+                <p className="text-xs text-purple-500">No expiry on current credits</p>
               )}
               <p className="text-xs text-gray-600 mt-3">
                 *Credits are automatically applied at checkout
               </p>
             </div>
-          </Card>
+          </div>
         ) : (
-          <Card className="p-6">
+          <div className="rounded-xl border border-gray-200 p-6">
             <p className="text-gray-500">No credits available</p>
-          </Card>
+          </div>
         )}
 
         {/* Promo Code Input */}
@@ -232,7 +269,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
               value={promoCode}
               onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
               placeholder="Enter code"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/25 focus:border-purple-500"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   handleApplyPromoCode();
@@ -242,6 +279,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
             <Button
               onClick={handleApplyPromoCode}
               disabled={isApplyingPromo || !promoCode.trim()}
+              className="bg-purple-700 hover:bg-purple-800 text-white"
             >
               {isApplyingPromo ? (
                 <>
@@ -259,15 +297,22 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
         <div className="mt-4">
           <Button
             variant="outline"
-            onClick={() => toast.info('Credit packages coming soon!')}
-            className="w-full sm:w-auto"
+            onClick={() => toast.info('Credit packages coming soon!', {
+              style: {
+                background: '#6b21a8',
+                color: 'white',
+                border: 'none',
+                boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -2px rgba(124, 58, 237, 0.05)',
+              },
+            })}
+            className="w-full sm:w-auto border-purple-700 text-purple-700 hover:bg-purple-50"
           >
             Purchase Credit Package
           </Button>
         </div>
       </div>
 
-      <div className="h-px bg-gray-200" />
+      <div className="border-b border-gray-200" />
 
       {/* Transaction History Section */}
       <div>
@@ -277,6 +322,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
             variant="ghost"
             size="sm"
             onClick={handleDownloadHistory}
+            className="text-purple-700 hover:text-purple-800 hover:bg-purple-50"
           >
             <Download className="h-4 w-4 mr-2" />
             Download History
@@ -284,19 +330,19 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
         </div>
 
         {isLoadingTransactions ? (
-          <Card className="p-6">
+          <div className="rounded-xl border border-gray-200 p-6">
             <div className="flex justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
             </div>
-          </Card>
+          </div>
         ) : transactions.length === 0 ? (
-          <Card className="p-6">
+          <div className="rounded-xl border border-gray-200 p-6">
             <p className="text-gray-500 text-center">No transactions yet</p>
-          </Card>
+          </div>
         ) : (
           <div className="space-y-4">
             {transactions.slice(0, showMoreTransactions ? undefined : 5).map((transaction) => (
-              <Card key={transaction.id} className="p-6">
+              <div key={transaction.id} className="rounded-xl border border-gray-200 p-6">
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h4 className="font-semibold text-gray-900">{transaction.service_name}</h4>
@@ -327,7 +373,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
                     </div>
                   </div>
                 </div>
-              </Card>
+              </div>
             ))}
 
             {transactions.length > 5 && !showMoreTransactions && (
@@ -343,13 +389,6 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
           </div>
         )}
       </div>
-
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start space-x-2">
-          <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
-      )}
     </div>
   );
 };

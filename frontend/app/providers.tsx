@@ -32,7 +32,9 @@ export function Providers({ children }: { children: ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <AppInitializer>{children}</AppInitializer>
-        <Toaster position="top-right" richColors />
+        <Toaster
+          position="top-right"
+        />
       </AuthProvider>
       {/* React Query DevTools - Only visible in development */}
       <ReactQueryDevtools initialIsOpen={false} />

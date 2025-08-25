@@ -495,3 +495,25 @@ html {
     -webkit-text-fill-color: #f9fafb !important;
   }
 }
+
+/* Purple highlighting for time input fields */
+.time-input-purple::-webkit-datetime-edit-hour-field:focus,
+.time-input-purple::-webkit-datetime-edit-minute-field:focus,
+.time-input-purple::-webkit-datetime-edit-ampm-field:focus,
+.time-input-purple::-webkit-datetime-edit-meridiem-field:focus,
+.time-input-purple::-webkit-datetime-edit-text:focus {
+  background-color: rgb(233, 213, 255) !important;
+  color: rgb(88, 28, 135) !important;
+  border-radius: 4px !important;
+  outline: none !important;
+}
+
+/* Firefox time input purple highlighting */
+.time-input-purple:focus-within {
+  accent-color: rgb(107, 33, 168);
+}
+
+/* For browsers that support color-scheme */
+.time-input-purple {
+  color-scheme: light;
+}

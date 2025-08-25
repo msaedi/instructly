@@ -100,8 +100,16 @@ export default function UserProfileDropdown() {
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 hover:bg-gray-100 rounded-full pr-2 pl-1 py-1 transition-colors"
       >
-        <div className="w-9 h-9 bg-purple-700 text-white rounded-full flex items-center justify-center font-semibold text-sm">
-          {getInitials()}
+        <div className="w-9 h-9 bg-purple-700 rounded-full flex items-center justify-center font-semibold text-sm text-white">
+          {(user as any)?.profile_photo_url ? (
+            <img
+              src={(user as any).profile_photo_url}
+              alt="Profile"
+              className="w-full h-full object-cover rounded-full"
+            />
+          ) : (
+            getInitials()
+          )}
         </div>
         <ChevronDown className={`h-4 w-4 text-gray-600 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
