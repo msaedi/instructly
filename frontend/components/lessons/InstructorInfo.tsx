@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Star, MessageCircle } from 'lucide-react';
+import { UserAvatar } from '@/components/user/UserAvatar';
 
 interface InstructorInfoProps {
   instructor?: any; // Can be User or instructor with last_initial
@@ -41,9 +42,18 @@ export function InstructorInfo({
     <div className="flex flex-col sm:flex-row items-start gap-4">
       <div className="flex items-start gap-3 flex-1">
         {/* Avatar */}
-        <div className="h-12 w-12 sm:h-14 sm:w-14 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
-          <span className="text-2xl">👤</span>
-        </div>
+        <UserAvatar
+          user={{
+            id: String(instructor.id),
+            first_name: instructor.first_name,
+            last_name: instructor.last_name,
+            email: instructor.email,
+            has_profile_picture: instructor.has_profile_picture,
+            profile_picture_version: instructor.profile_picture_version,
+          }}
+          size={56}
+          className="h-12 w-12 sm:h-14 sm:w-14"
+        />
 
         {/* Instructor Details */}
         <div className="flex-1 min-w-0">

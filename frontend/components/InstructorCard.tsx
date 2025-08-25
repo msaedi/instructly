@@ -3,6 +3,7 @@
 
 import { useRouter } from 'next/navigation';
 import { Star, MapPin, Heart, CheckCircle } from 'lucide-react';
+import { UserAvatar } from '@/components/user/UserAvatar';
 import { Instructor, ServiceCatalogItem } from '@/types/api';
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -157,9 +158,18 @@ export default function InstructorCard({
         {/* Left side - Profile Photo */}
         <div className="flex-shrink-0">
           {/* Profile Photo */}
-          <div className={`${compact ? 'w-32 h-32' : 'w-56 h-56'} bg-gray-200 rounded-full flex items-center justify-center text-gray-500`}>
-            <span className={compact ? 'text-5xl' : 'text-7xl'}>👤</span>
-          </div>
+          <UserAvatar
+            user={{
+              id: instructor.user_id,
+              first_name: instructor.user.first_name,
+              last_name: undefined,
+              email: undefined,
+              has_profile_picture: (instructor.user as any).has_profile_picture,
+              profile_picture_version: (instructor.user as any).profile_picture_version,
+            }}
+            size={compact ? 128 : 224}
+            className={`${compact ? 'w-32 h-32' : 'w-56 h-56'}`}
+          />
 
           {/* View and review profile link */}
           <div className={`${compact ? 'mt-2' : 'mt-3'} text-center`}>

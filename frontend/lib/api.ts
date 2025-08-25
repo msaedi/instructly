@@ -193,6 +193,8 @@ export const API_ENDPOINTS = {
   STRIPE_IDENTITY_SESSION: '/api/payments/identity/session',
   STRIPE_IDENTITY_REFRESH: '/api/payments/identity/refresh',
   R2_SIGNED_UPLOAD: '/api/uploads/r2/signed-url',
+  PROFILE_PICTURE_FINALIZE: '/api/users/me/profile-picture',
+  PROFILE_PICTURE_URL: (userId: string) => `/api/users/${userId}/profile-picture-url`,
   CONNECT_STATUS: '/api/payments/connect/status',
 
   // Availability Management endpoints
@@ -384,13 +386,30 @@ export async function createSignedUpload(params: {
   filename: string;
   content_type: string;
   size_bytes: number;
-  purpose: 'background_check';
+  purpose: 'background_check' | 'profile_picture';
 }): Promise<{ upload_url: string; object_key: string; public_url?: string; headers: Record<string, string> }>{
   const res = await fetchWithAuth(API_ENDPOINTS.R2_SIGNED_UPLOAD, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
   });
+  if (!res.ok) throw new Error(await getErrorMessage(res));
+  return res.json();
+}
+
+export async function finalizeProfilePicture(object_key: string): Promise<{ success: boolean; message: string }>{
+  const res = await fetchWithAuth(API_ENDPOINTS.PROFILE_PICTURE_FINALIZE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ object_key }),
+  });
+  if (!res.ok) throw new Error(await getErrorMessage(res));
+  return res.json();
+}
+
+export async function getProfilePictureUrl(userId: string, variant: 'original' | 'display' | 'thumb' = 'display'):
+  Promise<{ success: boolean; message: string; data: { url: string; expires_at: string } }>{
+  const res = await fetchWithAuth(`${API_ENDPOINTS.PROFILE_PICTURE_URL(userId)}?variant=${variant}`);
   if (!res.ok) throw new Error(await getErrorMessage(res));
   return res.json();
 }

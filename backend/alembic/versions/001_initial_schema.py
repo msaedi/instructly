@@ -79,6 +79,10 @@ def upgrade() -> None:
             nullable=False,
             server_default="America/New_York",
         ),
+        # Profile picture metadata (added in initial migration to avoid future migrations)
+        sa.Column("profile_picture_key", sa.String(255), nullable=True),
+        sa.Column("profile_picture_uploaded_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("profile_picture_version", sa.Integer(), nullable=False, server_default="0"),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),

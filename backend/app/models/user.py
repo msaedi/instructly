@@ -15,7 +15,7 @@ import logging
 from typing import TYPE_CHECKING
 
 import ulid
-from sqlalchemy import JSON, Boolean, Column, DateTime, String
+from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -80,6 +80,10 @@ class User(Base):
     # Check constraint in migration ensures valid values
     account_status = Column(String(20), nullable=False, default="active")
     timezone = Column(String(50), nullable=False, default="America/New_York")
+    # Profile picture metadata (versioned, private storage)
+    profile_picture_key = Column(String(255), nullable=True)
+    profile_picture_uploaded_at = Column(DateTime(timezone=True), nullable=True)
+    profile_picture_version = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -200,6 +204,11 @@ class User(Base):
     def can_login(self):
         """Check if the user can login (active or suspended, but not deactivated)."""
         return self.account_status in ["active", "suspended"]
+
+    @property
+    def has_profile_picture(self) -> bool:
+        """Whether the user has an uploaded profile picture."""
+        return bool(self.profile_picture_key) and (self.profile_picture_version or 0) > 0
 
     def can_change_status_to(self, new_status: str) -> bool:
         """

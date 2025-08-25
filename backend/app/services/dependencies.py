@@ -16,6 +16,7 @@ from .account_lifecycle_service import AccountLifecycleService
 from .booking_service import BookingService
 from .cache_service import CacheService, get_cache_service
 from .notification_service import NotificationService
+from .personal_asset_service import PersonalAssetService
 from .template_service import TemplateService
 
 
@@ -78,6 +79,15 @@ def get_account_lifecycle_service(
         account_service: AccountLifecycleService = Depends(get_account_lifecycle_service)
     """
     return AccountLifecycleService(db, cache)
+
+
+def get_personal_asset_service(
+    db: Session = Depends(get_db),
+) -> PersonalAssetService:
+    """
+    Dependency for PersonalAssetService.
+    """
+    return PersonalAssetService(db)
 
 
 # Example of how to use in a route:

@@ -88,6 +88,9 @@ class UserResponse(StandardizedModel):  # Changed from UserBase
     timezone: str = "America/New_York"
     roles: List[str] = []  # List of role names
     permissions: List[str] = []  # List of permission names
+    # Profile picture metadata (expose minimal info for clients)
+    profile_picture_version: Optional[int] = 0
+    has_profile_picture: Optional[bool] = False
 
     model_config = ConfigDict(from_attributes=True)
 

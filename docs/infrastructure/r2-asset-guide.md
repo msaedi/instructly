@@ -182,3 +182,34 @@ node scripts/test-r2.js
 3. **Test on slow connections** to ensure blur-up works
 4. **Keep originals** in `assets/` (gitignored) for re-processing
 5. **Update manifest** after bulk uploads for tracking
+
+## Monitoring (Profile Picture URL Cache)
+
+- Prometheus counters exposed by the backend:
+  - `instainstru_profile_pic_url_cache_hits_total{variant="display|thumb|original"}`
+  - `instainstru_profile_pic_url_cache_misses_total{variant="display|thumb|original"}`
+- Grafana dashboard JSON: `monitoring/grafana/dashboards/profile_picture_cache.json`
+  - Panels: per-variant hit rate, hits/misses time-series, overall hit rate.
+  - Suggested alert: hit rate < 0.6 for 10m.
+
+## Runbook
+
+### Rotate a user’s profile picture
+1. Ask the user to upload a new photo (recommended).
+2. Or admin-driven: delete current variants via API:
+   - `DELETE /api/users/me/profile-picture` (as the user) or an admin endpoint.
+   - User re-uploads. Version increments; URLs change with `v{version}`.
+3. Confirm by calling `/auth/me` to see `profile_picture_version` updated.
+
+### Invalidate stale presigned URLs
+- Presigned GETs are cached in Redis for ~45 minutes using key `profile_pic_url:{userId}:{variant}:v{version}`.
+- To force refresh for one user:
+  - Delete keys matching `profile_pic_url:{userId}:*` in Redis (CacheService supports delete-pattern).
+  - Next request regenerates a new presigned URL and repopulates the cache.
+- To blanket-flush all profile pic URLs (rare):
+  - Delete keys matching `profile_pic_url:*`.
+
+### CORS/Upload issues checklist
+- Ensure bucket CORS allows `PUT,GET` from `http://localhost:3000` and production origins.
+- Verify env vars in `backend/.env`: `r2_account_id`, `r2_access_key_id`, `r2_secret_access_key`, `r2_bucket_name`.
+- For asset upload script: set uppercase equivalents in `scripts/.env`.

@@ -199,6 +199,22 @@ class UserRepository(BaseRepository[User]):
             self.db.rollback()
             return None
 
+    def clear_profile_picture(self, user_id: str) -> bool:
+        """Clear profile picture metadata for a user."""
+        try:
+            user = self.get_by_id(user_id)
+            if not user:
+                return False
+            user.profile_picture_key = None
+            user.profile_picture_uploaded_at = None
+            user.profile_picture_version = 0
+            self.db.commit()
+            return True
+        except Exception as e:
+            self.logger.error(f"Error clearing user profile picture {user_id}: {str(e)}")
+            self.db.rollback()
+            return False
+
     def update_password(self, user_id: str, hashed_password: str) -> bool:
         """
         Update only the user's hashed password.

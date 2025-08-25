@@ -5,6 +5,8 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Heart, User, CreditCard, Bell, Eye, EyeOff, X, Camera, Award, Zap, Star, BookOpen, Calendar, Target, Globe, Lock, CheckCircle } from 'lucide-react';
+import { ProfilePictureUpload } from '@/components/user/ProfilePictureUpload';
+import { UserAvatar } from '@/components/user/UserAvatar';
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { queryFn } from '@/lib/react-query/api';
@@ -436,84 +438,28 @@ function StudentDashboardContent() {
                     </div>
                     <div className="flex items-start gap-5">
                       <div className="relative group">
-                        {/* Profile photo container - always white background */}
-                        <div
-                          className="h-36 w-36 rounded-full flex items-center justify-center shrink-0"
-                          style={{
-                            backgroundColor: '#ffffff',
-                            border: '2px solid #d1d5db',
-                            position: 'relative'
-                          }}
-                        >
-                          {/* Check if we have a valid photo URL */}
-                          {(profilePhoto && profilePhoto.length > 0) ||
-                           ((userData as any)?.profile_photo_url &&
-                            (userData as any).profile_photo_url.length > 0 &&
-                            (userData as any).profile_photo_url !== 'null' &&
-                            (userData as any).profile_photo_url !== 'undefined') ? (
-                            <img
-                              src={profilePhoto || (userData as any).profile_photo_url}
-                              alt="Profile"
-                              className="w-full h-full object-cover rounded-full"
-                              onError={(e) => {
-                                // Hide broken images and show camera icon instead
-                                const imgElement = e.target as HTMLImageElement;
-                                imgElement.style.display = 'none';
-                                const parent = imgElement.parentElement;
-                                if (parent && !parent.querySelector('.camera-icon')) {
-                                  const cameraDiv = document.createElement('div');
-                                  cameraDiv.className = 'camera-icon';
-                                  cameraDiv.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>';
-                                  parent.appendChild(cameraDiv);
-                                }
-                              }}
-                            />
-                          ) : (
-                            <Camera className="h-14 w-14" style={{ color: '#9ca3af' }} />
-                          )}
-                        </div>
-
-                        {/* Upload overlay - clickable area */}
-                        <button
-                          onClick={() => {
-                            console.log('Profile photo click - current state:', {
-                              profilePhoto,
-                              userPhotoUrl: (userData as any)?.profile_photo_url
-                            });
-                            fileInputRef.current?.click();
-                          }}
-                          disabled={uploadingPhoto}
-                          className="absolute inset-0 rounded-full flex items-center justify-center transition-all cursor-pointer"
-                          style={{
-                            backgroundColor: 'transparent'
-                          }}
-                          title="Click to update profile photo"
-                        >
-                          {/* Only show overlay camera when hovering over existing photo */}
-                          {((profilePhoto && profilePhoto.length > 0) ||
-                            ((userData as any)?.profile_photo_url &&
-                             (userData as any).profile_photo_url.length > 0 &&
-                             (userData as any).profile_photo_url !== 'null')) && (
-                            <div className="absolute inset-0 rounded-full bg-black bg-opacity-0 group-hover:bg-opacity-40 flex items-center justify-center transition-all">
-                              <Camera className={`h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity ${uploadingPhoto ? 'animate-pulse' : ''}`} />
-                            </div>
-                          )}
-                        </button>
-
-                        {/* Hidden file input */}
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept="image/*"
-                          onChange={handlePhotoUpload}
-                          className="hidden"
-                        />
-
-                        {/* Upload indicator */}
-                        {uploadingPhoto && (
-                          <div className="absolute inset-0 rounded-full bg-black bg-opacity-50 flex items-center justify-center">
-                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                          </div>
+                        {((userData as any).has_profile_picture) ? (
+                          <ProfilePictureUpload
+                            size={144}
+                            ariaLabel="Change profile picture"
+                            onCompleted={() => { setProfilePhoto(null); refetchUserData(); }}
+                            trigger={
+                              <UserAvatar
+                                user={{
+                                  id: userData.id,
+                                  first_name: userData.first_name,
+                                  last_name: userData.last_name,
+                                  email: userData.email,
+                                  has_profile_picture: (userData as any).has_profile_picture,
+                                  profile_picture_version: (userData as any).profile_picture_version,
+                                }}
+                                size={144}
+                                className="cursor-pointer"
+                              />
+                            }
+                          />
+                        ) : (
+                          <ProfilePictureUpload size={144} onCompleted={() => { setProfilePhoto(null); refetchUserData(); }} />
                         )}
                       </div>
                       <div className="space-y-1.5 text-sm text-gray-700">
@@ -957,7 +903,18 @@ function StudentDashboardContent() {
                             onClick={() => router.push(`/instructors/${fav.id}`)}
                           >
                             <div className="flex items-start gap-4">
-                              <div className="h-12 w-12 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-lg font-bold shrink-0">👤</div>
+                              <UserAvatar
+                                user={{
+                                  id: fav.id,
+                                  first_name: fav.first_name || fav.profile?.user?.first_name,
+                                  last_name: fav.last_name || undefined,
+                                  email: fav.email || undefined,
+                                  has_profile_picture: (fav as any).has_profile_picture || (fav.profile?.user as any)?.has_profile_picture,
+                                  profile_picture_version: (fav as any).profile_picture_version || (fav.profile?.user as any)?.profile_picture_version,
+                                }}
+                                size={48}
+                                className="h-12 w-12"
+                              />
                               <div>
                                 <p className="font-semibold text-gray-900">{name}</p>
                                 {(primarySubject || yearsExp) && (

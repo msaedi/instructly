@@ -333,6 +333,9 @@ async def read_users_me(
             zip_code=user.zip_code,
             is_active=user.is_active,
             timezone=user.timezone,
+            # Include profile picture metadata so clients can react to updates
+            profile_picture_version=user.profile_picture_version or 0,
+            has_profile_picture=user.has_profile_picture,
             roles=roles,
             permissions=list(permissions),
         )

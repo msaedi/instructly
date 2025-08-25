@@ -1,0 +1,54 @@
+{
+  "title": "Profile Picture URL Cache",
+  "timezone": "browser",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Hit Rate (display)",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "expr": "sum(rate(instainstru_profile_pic_url_cache_hits_total{variant=\"display\"}[5m])) / (sum(rate(instainstru_profile_pic_url_cache_hits_total{variant=\"display\"}[5m])) + sum(rate(instainstru_profile_pic_url_cache_misses_total{variant=\"display\"}[5m])))",
+          "legendFormat": "display"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "colorMode": "value" }
+    },
+    {
+      "type": "stat",
+      "title": "Hit Rate (thumb)",
+      "gridPos": { "x": 8, "y": 0, "w": 8, "h": 6 },
+      "targets": [
+        {
+          "expr": "sum(rate(instainstru_profile_pic_url_cache_hits_total{variant=\"thumb\"}[5m])) / (sum(rate(instainstru_profile_pic_url_cache_hits_total{variant=\"thumb\"}[5m])) + sum(rate(instainstru_profile_pic_url_cache_misses_total{variant=\"thumb\"}[5m])))",
+          "legendFormat": "thumb"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "colorMode": "value" }
+    },
+    {
+      "type": "timeseries",
+      "title": "Hits/Misses by variant",
+      "gridPos": { "x": 0, "y": 6, "w": 24, "h": 10 },
+      "targets": [
+        { "expr": "sum by(variant)(rate(instainstru_profile_pic_url_cache_hits_total[5m]))", "legendFormat": "hits {{variant}}" },
+        { "expr": "sum by(variant)(rate(instainstru_profile_pic_url_cache_misses_total[5m]))", "legendFormat": "misses {{variant}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Hit Rate",
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 10 },
+      "targets": [
+        {
+          "expr": "sum by(variant)(rate(instainstru_profile_pic_url_cache_hits_total[5m])) / (sum by(variant)(rate(instainstru_profile_pic_url_cache_hits_total[5m])) + sum by(variant)(rate(instainstru_profile_pic_url_cache_misses_total[5m])))",
+          "legendFormat": "{{variant}}"
+        }
+      ]
+    }
+  ],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "schemaVersion": 39,
+  "version": 1
+}

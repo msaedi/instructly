@@ -40,10 +40,10 @@ describe('InstructorInfo', () => {
     expect(screen.getByText('250 lessons completed')).toBeInTheDocument();
   });
 
-  it('renders avatar placeholder icon', () => {
+  it('renders avatar fallback initials when no photo', () => {
     render(<InstructorInfo instructor={mockInstructor} onChat={mockOnChat} />);
-    // New UI uses an avatar icon instead of initials
-    expect(screen.getByText('👤')).toBeInTheDocument();
+    // UserAvatar fallback shows initials based on first name when no last name/initial passed through
+    expect(screen.getByText('J')).toBeInTheDocument();
   });
 
   it('calls onChat when chat button is clicked', () => {
@@ -83,11 +83,9 @@ describe('InstructorInfo', () => {
 
     render(<InstructorInfo instructor={longNameInstructor} onChat={mockOnChat} />);
 
-    expect(
-      screen.getByText('Alexandra M.')
-    ).toBeInTheDocument();
-    // Avatar uses icon now, not initials
-    expect(screen.getByText('👤')).toBeInTheDocument();
+    expect(screen.getByText('Alexandra M.')).toBeInTheDocument();
+    // Fallback initials are based on first name here
+    expect(screen.getByText('A')).toBeInTheDocument();
   });
 
   it('shows review and tip button for completed lessons', () => {

@@ -117,13 +117,20 @@ describe('RescheduleModal', () => {
     jest.clearAllMocks();
   });
 
-  it('renders modal when isOpen is true', () => {
+  it('renders modal when isOpen is true', async () => {
     renderWithProviders(
       <RescheduleModal isOpen={true} onClose={mockOnClose} lesson={mockBooking} />
     );
 
-    const headings = screen.getAllByText('Need to reschedule?');
-    expect(headings.length).toBeGreaterThan(0);
+    await waitFor(() => {
+      const headings = screen.getAllByText('Need to reschedule?');
+      expect(headings.length).toBeGreaterThan(0);
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
+    });
+
     const intros = screen.getAllByText(/Choose a new lesson date & time below\./);
     expect(intros.length).toBeGreaterThan(0);
   });
@@ -136,10 +143,14 @@ describe('RescheduleModal', () => {
     expect(screen.queryByText('Need to reschedule?')).not.toBeInTheDocument();
   });
 
-  it('calls onClose when X button is clicked', () => {
+  it('calls onClose when X button is clicked', async () => {
     renderWithProviders(
       <RescheduleModal isOpen={true} onClose={mockOnClose} lesson={mockBooking} />
     );
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Need to reschedule?').length).toBeGreaterThan(0);
+    });
 
     // Look for the X button (close button)
     const closeButtons = screen.getAllByRole('button');
@@ -156,14 +167,15 @@ describe('RescheduleModal', () => {
       <RescheduleModal isOpen={true} onClose={mockOnClose} lesson={mockBooking} />
     );
 
-    // Check that calendar is displayed with current month
+    // Wait for loading to finish
     await waitFor(() => {
-      const currentMonth = format(new Date(), 'MMMM yyyy');
-      const monthEls = screen.getAllByText(currentMonth);
-      expect(monthEls.length).toBeGreaterThan(0);
+      expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
     });
 
-    // Day labels may vary by rendering variant; month presence is sufficient here.
+    // Check that calendar is displayed with current month
+    const currentMonth = format(new Date(), 'MMMM yyyy');
+    const monthEls = screen.getAllByText(currentMonth);
+    expect(monthEls.length).toBeGreaterThan(0);
   });
 
   it('allows selecting a date', async () => {
@@ -172,23 +184,22 @@ describe('RescheduleModal', () => {
     );
 
     // Wait for calendar to load and find tomorrow's date
+    await waitFor(() => {
+      expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
+    });
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowDay = format(tomorrow, 'd');
 
-    await waitFor(() => {
-      const dayEls = screen.getAllByText(tomorrowDay);
-      expect(dayEls.length).toBeGreaterThan(0);
-    });
-
-    // Click on tomorrow's date (pick a non-disabled element if present)
-    const dayEls = screen.getAllByText(tomorrowDay) as HTMLElement[];
-    const clickable = dayEls.find((el) => !(el as HTMLButtonElement).disabled);
-    fireEvent.click(clickable || dayEls[0]);
+    const dayEls = await screen.findAllByText(tomorrowDay);
+    const clickable = (dayEls as any[]).find((el: any) => !(el as HTMLButtonElement).disabled);
+    fireEvent.click((clickable as any) || dayEls[0]);
 
     // Confirm should be enabled after auto-selecting first time
-    const confirmButtons = await screen.findAllByRole('button', { name: /select and continue/i });
-    expect(confirmButtons[0]).not.toBeDisabled();
+    await waitFor(() => {
+      const confirmButtons = screen.getAllByRole('button', { name: /select and continue/i });
+      expect(confirmButtons[0]).not.toBeDisabled();
+    });
   });
 
   it('allows selecting a time slot', async () => {
@@ -201,14 +212,18 @@ describe('RescheduleModal', () => {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowDay = format(tomorrow, 'd');
 
-    // Wait for calendar to load and click tomorrow's date
+    await waitFor(() => {
+      expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
+    });
     const dayButtons = await screen.findAllByText(tomorrowDay);
     const clickable = (dayButtons as any[]).find((el: any) => !el.disabled);
     fireEvent.click((clickable as any) || dayButtons[0]);
 
     // Auto-selected time should enable confirm
-    const confirmButtons = await screen.findAllByRole('button', { name: /select and continue/i });
-    expect(confirmButtons[0]).not.toBeDisabled();
+    await waitFor(() => {
+      const confirmButtons = screen.getAllByRole('button', { name: /select and continue/i });
+      expect(confirmButtons[0]).not.toBeDisabled();
+    });
   });
 
   it('disables confirm button when no time slot is selected', () => {

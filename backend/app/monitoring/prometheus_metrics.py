@@ -57,6 +57,21 @@ errors_total = Counter(
     "instainstru_errors_total", "Total number of errors", ["service", "operation", "error_type"], registry=REGISTRY
 )
 
+# Cache metrics for personal assets
+profile_pic_url_cache_hits_total = Counter(
+    "instainstru_profile_pic_url_cache_hits_total",
+    "Total number of cache hits for profile picture URL generation",
+    ["variant"],
+    registry=REGISTRY,
+)
+
+profile_pic_url_cache_misses_total = Counter(
+    "instainstru_profile_pic_url_cache_misses_total",
+    "Total number of cache misses for profile picture URL generation",
+    ["variant"],
+    registry=REGISTRY,
+)
+
 # Domain-specific custom counters
 credits_applied_total = Counter(
     "instainstru_credits_applied_total",

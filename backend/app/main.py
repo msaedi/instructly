@@ -54,6 +54,7 @@ from .routes import (
     stripe_webhooks,
     two_factor_auth,
     uploads,
+    users_profile_picture,
 )
 from .schemas.main_responses import HealthLiteResponse, HealthResponse, PerformanceMetricsResponse, RootResponse
 from .services.template_registry import TemplateRegistry
@@ -225,6 +226,7 @@ app.include_router(privacy.router, prefix="/api", tags=["privacy"])
 app.include_router(stripe_webhooks.router)
 app.include_router(prometheus.router)
 app.include_router(uploads.router)
+app.include_router(users_profile_picture.router)
 
 # Identity + uploads: new endpoints are included via existing payments router and addresses router
 

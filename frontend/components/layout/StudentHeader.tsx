@@ -8,6 +8,7 @@ import { BRAND } from '@/app/config/brand';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { getUserDisplayName, getUserInitials, getUserFullName } from '@/types/user';
+import { UserAvatar } from '@/components/user/UserAvatar';
 
 export function StudentHeader() {
   const router = useRouter();
@@ -94,13 +95,13 @@ export function StudentHeader() {
               onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
               className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100 transition-colors"
             >
-              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                {isMounted && user ? (
-                  <span className="text-sm font-medium text-primary">{getUserInitials(user)}</span>
-                ) : (
+              {isMounted && user ? (
+                <UserAvatar user={user as any} size={32} />
+              ) : (
+                <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
                   <User className="h-4 w-4 text-primary" />
-                )}
-              </div>
+                </div>
+              )}
               <span className="hidden md:block">
                 {isMounted && user ? getUserDisplayName(user) : 'Account'}
               </span>

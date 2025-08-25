@@ -16,7 +16,11 @@ from sqlalchemy.orm import Session
 from ..api.dependencies.auth import get_current_active_user
 from ..core.config import settings
 from ..database import get_db
+from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ..models.user import User
+from ..schemas.base_responses import SuccessResponse
+from ..services.dependencies import get_personal_asset_service
+from ..services.personal_asset_service import PersonalAssetService
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +31,7 @@ class CreateSignedUploadRequest(BaseModel):
     filename: str = Field(..., description="Original file name, used for extension validation")
     content_type: str = Field(..., description="Browser-reported MIME type")
     size_bytes: int = Field(..., ge=1, le=10 * 1024 * 1024, description="Max 10MB")
-    purpose: Literal["background_check"]
+    purpose: Literal["background_check", "profile_picture"]
 
 
 class SignedUploadResponse(BaseModel):
@@ -49,10 +53,12 @@ def _validate_background_check_file(filename: str, content_type: str) -> None:
 
 
 @router.post("/r2/signed-url", response_model=SignedUploadResponse)
+@rate_limit("1/minute", key_type=RateLimitKeyType.USER, error_message="Too many upload attempts. Please wait a minute.")
 def create_signed_upload(
     payload: CreateSignedUploadRequest,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
+    asset_service: PersonalAssetService = Depends(get_personal_asset_service),
 ):
     """Create a short-lived signed PUT URL for uploading files to R2.
 
@@ -60,88 +66,20 @@ def create_signed_upload(
     """
     if payload.purpose == "background_check":
         _validate_background_check_file(payload.filename, payload.content_type)
+    elif payload.purpose == "profile_picture":
+        # Lightweight allowlist; full validation occurs on finalize
+        if payload.content_type not in {"image/png", "image/jpeg"}:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid content type")
 
     # Ensure R2 configured
     if not settings.r2_bucket_name or not settings.r2_access_key_id or not settings.r2_secret_access_key:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Uploads not configured")
 
-    # Build object key
-    user_prefix = current_user.id
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    ext = payload.filename.split(".")[-1].lower()
-    object_key = f"uploads/{payload.purpose}/{user_prefix}/{ts}.{ext}"
+    # Build object key using service helper (keeps structure consistent)
+    object_key = asset_service.initiate_upload_key(payload.purpose, current_user.id, payload.filename)
 
-    # Cloudflare R2 S3 endpoint format: https://<account-id>.r2.cloudflarestorage.com/<bucket>/<key>
-    host = f"{settings.r2_account_id}.r2.cloudflarestorage.com"
-    canonical_uri = f"/{settings.r2_bucket_name}/{object_key}"
-    region = "auto"  # R2 uses "auto" region for SigV4
-    service = "s3"
-    algorithm = "AWS4-HMAC-SHA256"
-
-    # Expiration: 5 minutes
-    expires = 300
-    now = datetime.now(timezone.utc)
-    amz_date = now.strftime("%Y%m%dT%H%M%SZ")
-    datestamp = now.strftime("%Y%m%d")
-
-    # Canonical request for presigned URL (query auth)
-    signed_headers = "host"
-    credential_scope = f"{datestamp}/{region}/{service}/aws4_request"
-    params = {
-        "X-Amz-Algorithm": algorithm,
-        "X-Amz-Credential": f"{settings.r2_access_key_id}/{credential_scope}",
-        "X-Amz-Date": amz_date,
-        "X-Amz-Expires": str(expires),
-        "X-Amz-SignedHeaders": signed_headers,
-        "X-Amz-Content-Sha256": "UNSIGNED-PAYLOAD",
-        "content-type": payload.content_type,
-    }
-
-    # Build canonical query string
-    def qs(d: dict[str, str]) -> str:
-        # Build canonical query string: sorted keys, URL-encoded values
-        from urllib.parse import quote
-
-        parts: list[str] = []
-        for k in sorted(d.keys()):
-            parts.append(f"{quote(k, safe='-_.~')}={quote(str(d[k]), safe='-_.~')}")
-        return "&".join(parts)
-
-    canonical_querystring = qs(params)
-    canonical_headers = f"host:{host}\n"
-    canonical_request = "\n".join(
-        [
-            "PUT",
-            canonical_uri,
-            canonical_querystring,
-            canonical_headers,
-            signed_headers,
-            "UNSIGNED-PAYLOAD",
-        ]
-    )
-
-    # String to sign
-    def _hmac(key: bytes, msg: str) -> bytes:
-        return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
-
-    string_to_sign = "\n".join(
-        [
-            algorithm,
-            amz_date,
-            credential_scope,
-            hashlib.sha256(canonical_request.encode("utf-8")).hexdigest(),
-        ]
-    )
-
-    k_date = _hmac(("AWS4" + settings.r2_secret_access_key.get_secret_value()).encode("utf-8"), datestamp)
-    k_region = _hmac(k_date, region)
-    k_service = _hmac(k_region, service)
-    k_signing = _hmac(k_service, "aws4_request")
-    signature = hmac.new(k_signing, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
-
-    # Final URL
-    signed_qs = canonical_querystring + f"&X-Amz-Signature={signature}"
-    upload_url = f"https://{host}{canonical_uri}?{signed_qs}"
+    # Generate presigned PUT via client
+    pre = asset_service.storage.generate_presigned_put(object_key, payload.content_type)
 
     public_url = None
     try:
@@ -151,9 +89,36 @@ def create_signed_upload(
         public_url = None
 
     return SignedUploadResponse(
-        upload_url=upload_url,
+        upload_url=pre.url,
         object_key=object_key,
         public_url=public_url,
-        headers={"Content-Type": payload.content_type},
-        expires_at=(datetime.now(timezone.utc).replace(microsecond=0).isoformat()),
+        headers=pre.headers,
+        expires_at=pre.expires_at,
     )
+
+
+class FinalizeProfilePictureRequest(BaseModel):
+    object_key: str = Field(..., description="Temporary upload object key from signed PUT")
+
+
+@router.post("/r2/finalize/profile-picture", response_model=SuccessResponse)
+@rate_limit(
+    "1/minute",
+    key_type=RateLimitKeyType.USER,
+    error_message="You're updating your picture too frequently. Please wait a minute.",
+)
+def finalize_profile_picture(
+    payload: FinalizeProfilePictureRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+    asset_service: PersonalAssetService = Depends(get_personal_asset_service),
+):
+    """Finalize a previously uploaded profile picture: validate, process, version, store."""
+    try:
+        asset_service.finalize_profile_picture(current_user, payload.object_key)
+        return SuccessResponse(success=True, message="Profile picture updated", data=None)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Finalize profile picture failed for user={current_user.id}: {e}")
+        raise HTTPException(status_code=400, detail=str(e))

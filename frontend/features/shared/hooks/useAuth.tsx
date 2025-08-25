@@ -25,6 +25,8 @@ export interface User {
   unread_messages_count?: number;
   unread_platform_messages_count?: number;
   credits_balance?: number;
+  profile_picture_version?: number;
+  has_profile_picture?: boolean;
 }
 
 interface AuthContextType {

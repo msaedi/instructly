@@ -10,14 +10,18 @@ jest.mock('next/navigation', () => ({
   useParams: jest.fn(),
 }));
 
-// Mock the auth hook
-jest.mock('@/features/shared/hooks/useAuth', () => ({
-  useAuth: jest.fn(() => ({
-    isAuthenticated: true,
-    isLoading: false,
-    redirectToLogin: jest.fn(),
-  })),
-}));
+// Mock the auth hook but keep named helpers (getUserInitials, getAvatarColor)
+jest.mock('@/features/shared/hooks/useAuth', () => {
+  const actual = jest.requireActual('@/features/shared/hooks/useAuth');
+  return {
+    ...actual,
+    useAuth: jest.fn(() => ({
+      isAuthenticated: true,
+      isLoading: false,
+      redirectToLogin: jest.fn(),
+    })),
+  };
+});
 
 // Mock the lesson hooks
 jest.mock('@/hooks/useMyLessons', () => ({

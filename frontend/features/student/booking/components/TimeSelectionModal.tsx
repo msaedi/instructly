@@ -1032,9 +1032,7 @@ export default function TimeSelectionModal({
 
           {/* Instructor Name */}
           <div className="px-4 pt-4 pb-2 flex items-center gap-2">
-            <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
-              <span className="text-sm">👤</span>
-            </div>
+            <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200" />
             <p className="text-base font-bold text-black">
               {getInstructorDisplayName()}'s availability
             </p>
@@ -1137,9 +1135,7 @@ export default function TimeSelectionModal({
 
             {/* Instructor Name */}
             <div className="px-8 pt-2 pb-6 flex items-center gap-2">
-              <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">
-                <span className="text-sm">👤</span>
-              </div>
+              <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200" />
               <p className="text-base font-bold text-black">
                 {getInstructorDisplayName()}'s availability
               </p>
