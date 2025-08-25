@@ -58,6 +58,7 @@ function SearchPageContent() {
   const category = searchParams.get('category') || '';
   const serviceCatalogId = searchParams.get('service_catalog_id') || '';
   const availableNow = searchParams.get('available_now') === 'true';
+  const ageGroup = searchParams.get('age_group') || '';
 
   useEffect(() => {
     // reset page and list when search params change
@@ -137,10 +138,11 @@ function SearchPageContent() {
           setHasMore(false);
         }
       } else if (serviceCatalogId) {
-        const apiParams = {
+        const apiParams: any = {
           service_catalog_id: serviceCatalogId,
           page: pageNum,
           per_page: 20,
+          ...(ageGroup ? { age_group: ageGroup } : {}),
         };
         response = await publicApi.searchInstructors(apiParams);
         if (response.error) {
@@ -169,7 +171,7 @@ function SearchPageContent() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [query, category, serviceCatalogId, availableNow]);
+  }, [query, category, serviceCatalogId, availableNow, ageGroup]);
 
   useEffect(() => {
     fetchResults(1, false);
@@ -504,6 +506,13 @@ function SearchPageContent() {
             <div ref={listRef} className={`overflow-y-auto px-6 py-2 md:py-6 h-full max-h-full xl:h-[calc(100vh-15rem)] ${isStacked ? 'snap-y snap-mandatory' : ''} overscroll-contain scrollbar-hide`} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
               {/* Rate limit banner */}
               <RateLimitBanner />
+
+            {/* Kids banner */}
+            {ageGroup === 'kids' && (
+              <div className="mb-3 rounded-md bg-blue-50 border border-blue-200 text-blue-900 px-3 py-2 text-sm">
+                Showing instructors who teach kids
+              </div>
+            )}
 
             {loading ? (
               <div className="flex justify-center items-center h-64">

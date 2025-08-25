@@ -18,6 +18,7 @@ class CategoryResponse(BaseModel):
     slug: str
     description: Optional[str] = None
     display_order: int
+    icon_name: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

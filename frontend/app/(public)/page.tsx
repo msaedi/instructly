@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 // import removed; background handled globally
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { publicApi, type TopServiceSummary } from '@/features/shared/api/client';
+import { publicApi, type TopServiceSummary, type ServiceCategory } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import { useAuth, getUserInitials, getAvatarColor, hasRole } from '@/features/shared/hooks/useAuth';
 import { RoleName, SearchType } from '@/types/enums';
@@ -47,6 +47,8 @@ export default function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('arts');
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [categoryServices, setCategoryServices] = useState<Record<string, TopServiceSummary[]>>({});
+  const [kidsServices, setKidsServices] = useState<Array<{ id: string; name: string; slug: string }>>([]);
+  const [categoriesFromDb, setCategoriesFromDb] = useState<ServiceCategory[]>([]);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [userHasBookingHistory, setUserHasBookingHistory] = useState<boolean | null>(null);
@@ -61,19 +63,62 @@ export default function HomePage() {
     setIsClient(true);
   }, []);
 
+  // Restore previously selected category when returning from search/services
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const saved = sessionStorage.getItem('homeSelectedCategory');
+    if (saved) {
+      // Validate against known categories
+      const valid = ['arts', 'sports-fitness', 'tutoring', 'language', 'music', 'kids', 'hidden-gems'];
+      if (valid.includes(saved)) {
+        setSelectedCategory(saved);
+        setHoveredCategory(null);
+      }
+    }
+  }, [isClient]);
+
   // Fetch top services on mount (client-only) to avoid SSR/client hook order issues
 
   // Note: Do not early-return before all hooks have run; gate rendering in JSX instead
 
-  const categories = [
-    { icon: Palette, name: 'Arts', slug: 'arts', subtitle: 'Performing Visual Applied' },
-    { icon: Dumbbell, name: 'Sports & Fitness', slug: 'sports-fitness', subtitle: '' },
-    { icon: BookOpen, name: 'Tutoring', slug: 'tutoring', subtitle: 'Academic STEM Tech' },
-    { icon: Globe, name: 'Language', slug: 'language', subtitle: '' },
-    { icon: Music, name: 'Music', slug: 'music', subtitle: 'Instrument Voice Theory' },
-    { icon: Baby, name: 'Kids', slug: 'kids', subtitle: '' },
-    { icon: Sparkles, name: 'Hidden Gems', slug: 'hidden-gems', subtitle: '' },
-  ];
+  // Map backend icon_name/slug to Lucide icon components
+  const ICON_MAP: Record<string, any> = {
+    'palette': Palette,
+    'arts': Palette,
+    'dumbbell': Dumbbell,
+    'sports-fitness': Dumbbell,
+    'book-open': BookOpen,
+    'book': BookOpen,
+    'tutoring': BookOpen,
+    'globe': Globe,
+    'language': Globe,
+    'music': Music,
+    'music-note': Music,
+    'baby': Baby,
+    'child': Baby,
+    'kids': Baby,
+    'sparkles': Sparkles,
+    'hidden-gems': Sparkles,
+  };
+
+  const categories = (categoriesFromDb && categoriesFromDb.length > 0)
+    ? [...categoriesFromDb]
+        .sort((a, b) => (a.display_order ?? 999) - (b.display_order ?? 999))
+        .map((c) => ({
+          icon: ICON_MAP[c.icon_name || c.slug] || Sparkles,
+          name: c.name,
+          slug: c.slug,
+          subtitle: c.slug === 'kids' ? '' : (c.subtitle || ''),
+        }))
+    : [
+        { icon: Palette, name: 'Arts', slug: 'arts', subtitle: 'Performing Visual Applied' },
+        { icon: Dumbbell, name: 'Sports & Fitness', slug: 'sports-fitness', subtitle: '' },
+        { icon: BookOpen, name: 'Tutoring', slug: 'tutoring', subtitle: 'Academic STEM Tech' },
+        { icon: Globe, name: 'Language', slug: 'language', subtitle: '' },
+        { icon: Music, name: 'Music', slug: 'music', subtitle: 'Instrument Voice Theory' },
+        { icon: Baby, name: 'Kids', slug: 'kids', subtitle: '' },
+        { icon: Sparkles, name: 'Hidden Gems', slug: 'hidden-gems', subtitle: '' },
+      ];
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,7 +195,32 @@ export default function HomePage() {
     };
 
     fetchCategoryServices();
+    // Fetch kids-available services for Kids category pills
+    const fetchKids = async () => {
+      try {
+        const res = await publicApi.getKidsAvailableServices();
+        if (res.data) setKidsServices(res.data);
+      } catch (e) {
+        // non-fatal
+      }
+    };
+    fetchKids();
   }, [isClient, isAuthenticated, user]);
+
+  // Fetch categories from API for homepage (DB-driven icons/names/subtitles)
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await publicApi.getServiceCategories();
+        if (res.data) {
+          setCategoriesFromDb(res.data);
+        }
+      } catch (e) {
+        // non-fatal; fallback to hardcoded list
+      }
+    };
+    fetchCategories();
+  }, []);
 
   // Detect touch device
   useEffect(() => {
@@ -375,6 +445,11 @@ export default function HomePage() {
                     // Clear hover on click to prevent stuck hover states
                     setHoveredCategory(null);
 
+                    // Persist selection so Back restores it
+                    if (typeof window !== 'undefined') {
+                      sessionStorage.setItem('homeSelectedCategory', category.slug);
+                    }
+
                     // Record search for category selection
                     await recordSearch(
                       {
@@ -434,7 +509,7 @@ export default function HomePage() {
           <div className="flex flex-wrap justify-center gap-2 min-h-[48px] items-center">
             {(() => {
               const activeCategory = hoveredCategory || selectedCategory;
-              const services = categoryServices[activeCategory] || [];
+              const services = activeCategory === 'kids' ? kidsServices : (categoryServices[activeCategory] || []);
 
               if (services.length === 0) {
                 return (
@@ -452,10 +527,14 @@ export default function HomePage() {
 
               // Add service pills
               servicesToShow.forEach((service, index) => {
+                const href =
+                  activeCategory === 'kids'
+                    ? `/search?service_catalog_id=${service.id}&age_group=kids&from=home`
+                    : `/search?service_catalog_id=${service.id}&from=home`;
                 pills.push(
                   <Link
                     key={service.id}
-                    href={`/search?service_catalog_id=${service.id}&from=home`}
+                    href={href}
                     onClick={async () => {
                       // Track navigation source as backup
                       if (typeof window !== 'undefined') {
@@ -464,6 +543,9 @@ export default function HomePage() {
                           navigationFrom: '/',
                           serviceId: service.id,
                         });
+
+                        // Persist current category so Back restores it
+                        sessionStorage.setItem('homeSelectedCategory', activeCategory);
                       }
 
                       // Don't track here - let the search page track with correct results count

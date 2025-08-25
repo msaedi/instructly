@@ -1,7 +1,7 @@
 // frontend/app/(public)/services/page.tsx
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { Search, Music, BookOpen, Dumbbell, Globe, Palette, Baby, Sparkles } from 'lucide-react';
 import { publicApi, type CatalogService, type ServiceCategory } from '@/features/shared/api/client';
@@ -81,11 +81,25 @@ export default function AllServicesPage() {
   `;
 
   const [categoriesWithServices, setCategoriesWithServices] = useState<CategoryWithServices[]>([]);
+  const [kidsServices, setKidsServices] = useState<Array<{ id: string; name: string; slug: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [visibleServices, setVisibleServices] = useState<Record<string, number>>({});
   const categoryRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const { isAuthenticated } = useAuth();
+
+  // Load kids-available services independently so they show regardless of which data path loads
+  useEffect(() => {
+    const fetchKids = async () => {
+      try {
+        const res = await publicApi.getKidsAvailableServices();
+        if (res.data) setKidsServices(res.data);
+      } catch (e) {
+        // non-fatal
+      }
+    };
+    fetchKids();
+  }, []);
 
   // Add React Query hook for fetching services
   const {
@@ -161,7 +175,6 @@ export default function AllServicesPage() {
           };
         }
       );
-
       setCategoriesWithServices(categories);
 
       // Initialize visible services count for each category
@@ -255,6 +268,34 @@ export default function AllServicesPage() {
 
     fetchServices();
   }, [servicesResponse, queryError]);
+
+  // Derive display categories with kids services injected at render-time to avoid race conditions
+  const displayCategories = useMemo(() => {
+    const clone = categoriesWithServices.map((c) => ({ ...c, services: [...c.services] }));
+    const kidsCat = clone.find((c) => c.slug === 'kids');
+    if (kidsCat && kidsServices.length) {
+      const existingIds = new Set(kidsCat.services.map((s) => s.id));
+      const injected = kidsServices
+        .filter((ks) => !existingIds.has(ks.id))
+        .map((ks) => ({
+          id: ks.id,
+          category_id: kidsCat.id,
+          name: ks.name,
+          slug: ks.slug,
+          description: '',
+          search_terms: [],
+          display_order: 0,
+          online_capable: true,
+          requires_certification: false,
+          is_active: true,
+          instructor_count: 1,
+          actual_min_price: undefined,
+          actual_max_price: undefined,
+        } as any));
+      kidsCat.services = [...injected, ...kidsCat.services];
+    }
+    return clone;
+  }, [categoriesWithServices, kidsServices]);
 
   // Set up intersection observer for progressive loading
   useEffect(() => {
@@ -395,6 +436,8 @@ export default function AllServicesPage() {
     );
   };
 
+  // (No separate Kids column; we render kidsServices inside the existing Kids category below)
+
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: customGridStyle }} />
@@ -427,7 +470,7 @@ export default function AllServicesPage() {
         {/* 7-Column Grid */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="services-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-7 gap-4 items-start">
-            {categoriesWithServices.map((category) => (
+            {displayCategories.map((category) => (
               <div
                 key={category.slug}
                 ref={(el) => {

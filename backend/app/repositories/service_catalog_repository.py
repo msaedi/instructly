@@ -19,7 +19,9 @@ from sqlalchemy import distinct, or_, text
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.sql import func
 
+from ..models.instructor import InstructorProfile
 from ..models.service_catalog import InstructorService, ServiceAnalytics, ServiceCatalog
+from ..models.user import User
 from .base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
@@ -333,7 +335,10 @@ class ServiceCatalogRepository(BaseRepository[ServiceCatalog]):
                     ServiceCatalog.slug.label("slug"),
                 )
                 .join(InstructorService, InstructorService.service_catalog_id == ServiceCatalog.id)
+                .join(InstructorProfile, InstructorService.instructor_profile_id == InstructorProfile.id)
+                .join(User, InstructorProfile.user_id == User.id)
                 .filter(InstructorService.is_active == True)
+                .filter(User.account_status == "active")
             )
 
             # Postgres: use array_position for membership; fallback: LIKE for JSON/text storage

@@ -644,9 +644,11 @@ class InstructorService(BaseService):
             {
                 "id": cat.id,
                 "name": cat.name,
+                "subtitle": getattr(cat, "subtitle", None),
                 "slug": cat.slug,
                 "description": cat.description,
                 "display_order": cat.display_order,
+                "icon_name": getattr(cat, "icon_name", None),
             }
             for cat in sorted(categories, key=lambda x: x.display_order)
         ]

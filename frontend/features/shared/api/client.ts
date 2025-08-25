@@ -673,6 +673,14 @@ export const publicApi = {
       };
     }>('/services/catalog/all-with-instructors');
   },
+
+  /**
+   * Get services that have at least one kids-capable instructor
+   * Returns minimal entries for pills: { id, name, slug }
+   */
+  async getKidsAvailableServices() {
+    return cleanFetch<Array<{ id: string; name: string; slug: string }>>('/services/catalog/kids-available');
+  },
 };
 
 /**
