@@ -17,7 +17,12 @@ export default function InstructorAuthLayout({ children }: { children: React.Rea
       return;
     }
     const roles = Array.isArray(user?.roles) ? user!.roles : [];
+    const isAdmin = roles.includes('admin');
     const isInstructor = roles.includes('instructor');
+    if (isAdmin) {
+      router.replace('/admin/analytics/codebase');
+      return;
+    }
     if (!isInstructor) {
       // Authenticated but not an instructor: route to student area
       router.replace('/student/dashboard');
@@ -27,8 +32,9 @@ export default function InstructorAuthLayout({ children }: { children: React.Rea
   if (isLoading) return null;
   // While redirecting, avoid flashing
   const roles = Array.isArray(user?.roles) ? user!.roles : [];
+  const isAdmin = roles.includes('admin');
   const isInstructor = roles.includes('instructor');
-  if (!isAuthenticated || !isInstructor) return null;
+  if (!isAuthenticated || isAdmin || !isInstructor) return null;
 
   return <>{children}</>;
 }

@@ -16,6 +16,7 @@ export function StudentHeader() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const [isMounted, setIsMounted] = useState(false);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -27,6 +28,11 @@ export function StudentHeader() {
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Ensure client-only data (like auth user) does not cause SSR/client mismatch
+  useEffect(() => {
+    setIsMounted(true);
   }, []);
 
   const handleLogout = () => {
@@ -89,16 +95,14 @@ export function StudentHeader() {
               className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100 transition-colors"
             >
               <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                {user ? (
-                  <span className="text-sm font-medium text-primary">
-                    {getUserInitials(user)}
-                  </span>
+                {isMounted && user ? (
+                  <span className="text-sm font-medium text-primary">{getUserInitials(user)}</span>
                 ) : (
                   <User className="h-4 w-4 text-primary" />
                 )}
               </div>
               <span className="hidden md:block">
-                {user ? getUserDisplayName(user) : 'Account'}
+                {isMounted && user ? getUserDisplayName(user) : 'Account'}
               </span>
               <ChevronDown
                 className={cn('h-4 w-4 transition-transform', isUserMenuOpen && 'rotate-180')}
@@ -110,9 +114,9 @@ export function StudentHeader() {
               <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1">
                 <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                    {user ? getUserFullName(user) : 'User'}
+                    {isMounted && user ? getUserFullName(user) : 'User'}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{user?.email}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{isMounted && user ? user.email : ''}</p>
                 </div>
 
                 <Link

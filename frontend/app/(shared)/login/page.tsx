@@ -130,9 +130,13 @@ function LoginForm() {
         // Determine role first
         const meUserRes = await fetchWithAuth(API_ENDPOINTS.ME);
         const meUser = meUserRes.ok ? await meUserRes.json() : null;
-        const isInstructor = Array.isArray(meUser?.roles) && meUser.roles.includes('instructor');
+        const roles = Array.isArray(meUser?.roles) ? meUser.roles : [];
+        const isAdmin = roles.includes('admin');
+        const isInstructor = roles.includes('instructor');
 
-        if (isInstructor) {
+        if (isAdmin) {
+          router.push('/admin/analytics/codebase');
+        } else if (isInstructor) {
           // Probe instructor profile; if exists and is_live => dashboard, else status
           const me = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
           if (me.ok) {
@@ -198,8 +202,12 @@ function LoginForm() {
         }
         const meUserRes = await fetchWithAuth(API_ENDPOINTS.ME);
         const meUser = meUserRes.ok ? await meUserRes.json() : null;
-        const isInstructor = Array.isArray(meUser?.roles) && meUser.roles.includes('instructor');
-        if (isInstructor) {
+        const roles = Array.isArray(meUser?.roles) ? meUser.roles : [];
+        const isAdmin = roles.includes('admin');
+        const isInstructor = roles.includes('instructor');
+        if (isAdmin) {
+          router.push('/admin/analytics/codebase');
+        } else if (isInstructor) {
           const me = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
           if (me.ok) {
             const prof = await me.json();

@@ -18,7 +18,13 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
       return;
     }
     const roles = Array.isArray(user?.roles) ? user!.roles : [];
-    const isStudent = roles.includes('student') || !roles.includes('instructor');
+    const isAdmin = roles.includes('admin');
+    const isInstructor = roles.includes('instructor');
+    const isStudent = roles.includes('student') || (!isInstructor && !isAdmin);
+    if (isAdmin) {
+      router.replace('/admin/analytics/codebase');
+      return;
+    }
     if (!isStudent) {
       // Authenticated instructor should not be in student-only layout
       router.replace('/instructor/dashboard');
