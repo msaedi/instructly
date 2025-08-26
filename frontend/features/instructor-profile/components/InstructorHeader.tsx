@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Star, CheckCircle, Dumbbell, Music, Guitar, Heart } from 'lucide-react';
+import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
 import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/features/shared/hooks/useAuth';
@@ -45,9 +46,9 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
 
   const displayName = getDisplayName();
 
-  // Mock data for ratings - replace with real data when available
-  const rating = 4.9;
-  const reviewCount = 127;
+  const { data: ratingsData } = useInstructorRatingsQuery(instructor.user_id);
+  const reviewCount = ratingsData?.overall?.total_reviews;
+  const rating = (reviewCount ?? 0) >= 3 ? ratingsData?.overall?.rating : undefined;
 
   // Get primary service for icon display
   const primaryService = instructor.services?.[0]?.skill?.toLowerCase() || '';
@@ -164,11 +165,19 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
               </div>
 
               {/* Rating and Reviews */}
-              <div className="flex items-center gap-2">
-                <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
-                <span className="font-semibold">{rating}</span>
-                <span className="text-muted-foreground">({reviewCount} reviews)</span>
-              </div>
+              {typeof rating === 'number' && typeof reviewCount === 'number' && (
+                <div className="flex items-center gap-2">
+                  <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+                  <span className="font-semibold">{rating}</span>
+                  <button
+                    onClick={() => router.push(`/instructors/${instructor.user_id}/reviews`)}
+                    className="text-muted-foreground underline-offset-2 hover:underline cursor-pointer"
+                    aria-label="See all reviews"
+                  >
+                    ({reviewCount} reviews)
+                  </button>
+                </div>
+              )}
 
               {/* Experience */}
               {instructor.years_experience && (

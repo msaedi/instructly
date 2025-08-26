@@ -50,7 +50,14 @@ export function UserAvatar({ user, size = 40, className, variant = 'thumb' }: Pr
       {url ? (
         <AvatarImage src={url} alt="Avatar" />
       ) : (
-        <AvatarFallback style={{ backgroundColor: color }}>{initials}</AvatarFallback>
+        <AvatarFallback className="bg-transparent p-0">
+          <div
+            className="bg-gray-200 rounded-full flex items-center justify-center text-gray-500"
+            style={{ width: size, height: size }}
+          >
+            <span className="text-2xl">👤</span>
+          </div>
+        </AvatarFallback>
       )}
     </Avatar>
   );

@@ -35,6 +35,7 @@ from app.models.instructor import InstructorProfile
 from app.models.payment import PlatformCredit, StripeConnectedAccount
 from app.models.rbac import Role
 from app.models.rbac import UserRole as UserRoleJunction
+from app.models.review import Review, ReviewStatus
 from app.models.service_catalog import InstructorService, ServiceCatalog
 from app.models.user import User
 from app.repositories.address_repository import InstructorServiceAreaRepository
@@ -170,6 +171,7 @@ class DatabaseSeeder:
         self.create_coverage_areas()
         self.create_bookings()
         self.create_sample_platform_credits()
+        self.create_reviews()
         self.print_summary()
         print("✅ Database seeding complete!")
 
@@ -812,6 +814,151 @@ class DatabaseSeeder:
         session.commit()
         if completed_count > 0:
             print(f"  🎯 Created {completed_count} completed bookings for active students (Book Again testing)")
+
+    def create_reviews(self):
+        """Create 3 published reviews per active instructor to enable ratings display."""
+        with Session(self.engine) as session:
+            try:
+                instructor_role = session.query(Role).filter_by(name=RoleName.INSTRUCTOR).first()
+                student_role = session.query(Role).filter_by(name=RoleName.STUDENT).first()
+                if not instructor_role or not student_role:
+                    print("  ⚠️  Roles not found; skipping review seeding")
+                    return
+
+                # Active instructors seeded from YAML
+                active_instructors = (
+                    session.query(User)
+                    .join(UserRoleJunction)
+                    .filter(
+                        UserRoleJunction.role_id == instructor_role.id,
+                        User.email.like("%@example.com"),
+                        User.account_status == "active",
+                    )
+                    .all()
+                )
+
+                total_reviews_created = 0
+
+                for instructor in active_instructors:
+                    # Gather completed bookings for this instructor
+                    completed_bookings = (
+                        session.query(Booking)
+                        .filter(
+                            Booking.instructor_id == instructor.id,
+                            Booking.status == BookingStatus.COMPLETED,
+                        )
+                        .order_by(Booking.booking_date.desc())
+                        .all()
+                    )
+
+                    # Ensure at least 3 completed bookings exist by synthesizing if needed
+                    while len(completed_bookings) < 3:
+                        services = (
+                            session.query(InstructorService)
+                            .join(InstructorProfile)
+                            .filter(InstructorProfile.user_id == instructor.id)
+                            .all()
+                        )
+                        if not services:
+                            break
+
+                        # Pick a random active student
+                        student = (
+                            session.query(User)
+                            .join(UserRoleJunction)
+                            .filter(
+                                UserRoleJunction.role_id == student_role.id,
+                                User.email.like("%@example.com"),
+                                User.account_status == "active",
+                            )
+                            .first()
+                        )
+                        if not student:
+                            break
+
+                        service = random.choice(services)
+                        duration = random.choice(service.duration_options)
+                        days_ago = random.randint(7, 56)
+                        booking_date = date.today() - timedelta(days=days_ago)
+                        hour = random.randint(10, 17)
+                        start_time = time(hour, 0)
+                        end_time = (datetime.combine(date.today(), start_time) + timedelta(minutes=duration)).time()
+
+                        # Create a completed booking in the past
+                        new_booking = Booking(
+                            student_id=student.id,
+                            instructor_id=instructor.id,
+                            instructor_service_id=service.id,
+                            booking_date=booking_date,
+                            start_time=start_time,
+                            end_time=end_time,
+                            status=BookingStatus.COMPLETED,
+                            location_type="neutral",
+                            meeting_location="In-person",
+                            service_name=service.catalog_entry.name if service.catalog_entry else "Service",
+                            service_area=(
+                                instructor.instructor_profile.areas_of_service
+                                if instructor.instructor_profile
+                                else None
+                            ),
+                            hourly_rate=service.hourly_rate,
+                            total_price=service.hourly_rate * (duration / 60),
+                            duration_minutes=duration,
+                            student_note="Seeded completed booking for reviews",
+                            completed_at=datetime.now(timezone.utc) - timedelta(days=days_ago - 1),
+                        )
+                        session.add(new_booking)
+                        session.flush()
+                        completed_bookings.append(new_booking)
+
+                    # Create up to 3 reviews on completed bookings
+                    for booking in completed_bookings[:3]:
+                        # Skip if a review already exists
+                        exists = session.query(Review).filter(Review.booking_id == booking.id).first()
+                        if exists:
+                            continue
+
+                        # Rating distribution biased toward 4-5
+                        rating_value = random.choices([5, 4, 3], weights=[60, 30, 10])[0]
+                        sample_texts = [
+                            "Great lesson, very helpful and patient.",
+                            "Clear explanations and good pace.",
+                            "Enjoyable session; learned a lot.",
+                            "Professional and friendly instructor.",
+                            "Challenging but rewarding lesson.",
+                        ]
+                        review_text = random.choice(sample_texts)
+
+                        completed_at = booking.completed_at
+                        if not completed_at:
+                            # Derive completion timestamp from booking date/time
+                            base_dt = datetime.combine(
+                                booking.booking_date or date.today(),
+                                (booking.end_time or booking.start_time or time(23, 0)),
+                            )
+                            completed_at = base_dt.replace(tzinfo=timezone.utc)
+                        elif completed_at.tzinfo is None:
+                            completed_at = completed_at.replace(tzinfo=timezone.utc)
+
+                        review = Review(
+                            booking_id=booking.id,
+                            student_id=booking.student_id,
+                            instructor_id=booking.instructor_id,
+                            instructor_service_id=booking.instructor_service_id,
+                            rating=rating_value,
+                            review_text=review_text,
+                            status=ReviewStatus.PUBLISHED,
+                            is_verified=True,
+                            booking_completed_at=completed_at,
+                        )
+                        session.add(review)
+                        total_reviews_created += 1
+
+                session.commit()
+                print(f"✅ Seeded {total_reviews_created} reviews for active instructors")
+            except Exception as e:
+                session.rollback()
+                print(f"  ⚠️  Skipped review seeding due to error: {e}")
 
     def print_summary(self):
         """Print summary of created data"""

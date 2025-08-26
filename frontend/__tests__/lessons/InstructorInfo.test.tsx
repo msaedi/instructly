@@ -40,10 +40,10 @@ describe('InstructorInfo', () => {
     expect(screen.getByText('250 lessons completed')).toBeInTheDocument();
   });
 
-  it('renders avatar fallback initials when no photo', () => {
+  it('renders avatar fallback glyph when no photo', () => {
     render(<InstructorInfo instructor={mockInstructor} onChat={mockOnChat} />);
-    // UserAvatar fallback shows initials based on first name when no last name/initial passed through
-    expect(screen.getByText('J')).toBeInTheDocument();
+    // UserAvatar fallback shows glyph when no profile picture
+    expect(screen.getByText('👤')).toBeInTheDocument();
   });
 
   it('calls onChat when chat button is clicked', () => {
@@ -61,11 +61,11 @@ describe('InstructorInfo', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('uses default values when rating info not provided', () => {
+  it('hides rating when rating info not provided', () => {
     render(<InstructorInfo instructor={mockInstructor} onChat={mockOnChat} />);
 
-    expect(screen.getByText('4.9')).toBeInTheDocument(); // default rating
-    expect(screen.getByText('(0 reviews)')).toBeInTheDocument(); // default review count
+    expect(screen.queryByText('4.9')).not.toBeInTheDocument(); // no default rating
+    expect(screen.queryByText('(0 reviews)')).not.toBeInTheDocument(); // no default review count
   });
 
   it('handles single lesson count correctly', () => {
@@ -84,8 +84,8 @@ describe('InstructorInfo', () => {
     render(<InstructorInfo instructor={longNameInstructor} onChat={mockOnChat} />);
 
     expect(screen.getByText('Alexandra M.')).toBeInTheDocument();
-    // Fallback initials are based on first name here
-    expect(screen.getByText('A')).toBeInTheDocument();
+    // Fallback glyph is shown when no profile pic
+    expect(screen.getByText('👤')).toBeInTheDocument();
   });
 
   it('shows review and tip button for completed lessons', () => {
@@ -128,7 +128,7 @@ describe('InstructorInfo', () => {
     render(<InstructorInfo instructor={mockInstructor} onChat={mockOnChatWithEvent} />);
 
     const chatButton = screen.getByRole('button', { name: /chat/i });
-    fireEvent.click(chatButton, mockEvent);
+    fireEvent.click(chatButton, mockEvent as any);
 
     expect(mockOnChatWithEvent).toHaveBeenCalled();
   });
@@ -145,7 +145,8 @@ describe('InstructorInfo', () => {
 
     // Should render with defaults and no buttons (privacy-protected: Jane S.)
     expect(screen.getByText('Jane S.')).toBeInTheDocument();
-    expect(screen.getByText('4.9')).toBeInTheDocument();
+    // No default rating rendered
+    expect(screen.queryByText('4.9')).not.toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 });

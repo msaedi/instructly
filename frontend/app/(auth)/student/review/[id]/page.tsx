@@ -11,12 +11,16 @@ import { isApiError } from '@/lib/react-query/api';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { ArrowLeft, Star, Heart, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
+import { getStripe } from '@/features/student/payment/utils/stripe';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/react-query/queryClient';
 
 export default function ReviewPage() {
   const params = useParams();
   const router = useRouter();
   const lessonId = params.id as string;
   const { isAuthenticated, isLoading: isAuthLoading, redirectToLogin } = useAuth();
+  const queryClient = useQueryClient();
 
   const [rating, setRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
@@ -46,21 +50,17 @@ export default function ReviewPage() {
 
   // Check if review already exists
   useEffect(() => {
-    if (lesson && lesson.id) {
-      // TODO: Check if review already exists for this lesson
-      // For now, we'll check if lesson has a review_submitted flag or similar
-      // This would need to be implemented in the backend
-      const checkExistingReview = async () => {
-        try {
-          // Simulating check - in real implementation, check lesson.has_review or make API call
-          const hasReview = (lesson as any).has_review || false;
-          setHasExistingReview(hasReview);
-        } catch (error) {
-          console.error('Failed to check existing review:', error);
-        }
-      };
-      checkExistingReview();
-    }
+    if (!lesson?.id) return;
+    const checkExistingReview = async () => {
+      try {
+        const { reviewsApi } = await import('@/services/api/reviews');
+        const r = await reviewsApi.getByBooking(lesson.id);
+        setHasExistingReview(!!r);
+      } catch (error) {
+        console.error('Failed to check existing review:', error);
+      }
+    };
+    checkExistingReview();
   }, [lesson]);
 
   // Show loading while checking auth
@@ -102,12 +102,11 @@ export default function ReviewPage() {
     );
   }
 
-  // Get instructor name with privacy
+  // Get instructor name (first name only, no initials on this page)
   const getInstructorName = () => {
     if (!lesson.instructor) return 'your instructor';
     const firstName = lesson.instructor.first_name || '';
-    const lastInitial = lesson.instructor.last_initial || '';
-    return lastInitial ? `${firstName} ${lastInitial}.` : firstName;
+    return firstName || 'your instructor';
   };
 
   const instructorName = getInstructorName();
@@ -121,16 +120,27 @@ export default function ReviewPage() {
 
     setIsSubmitting(true);
     try {
-      // TODO: Implement API call to submit review
+      const { reviewsApi } = await import('@/services/api/reviews');
       const tipAmount = showCustomTip ? parseFloat(customTip) : selectedTip;
-      console.log('Submitting review:', {
-        lessonId,
+      const res = await reviewsApi.submit({
+        booking_id: lessonId,
         rating,
-        review,
-        instructorId: lesson.instructor_id,
-        addToFavorites: rating > 3 ? addToFavorites : false,
-        tip: tipAmount || 0
+        review_text: review ? review : undefined,
+        tip_amount_cents: tipAmount ? Math.round((tipAmount as number) * 100) : undefined,
       });
+
+      // If a tip PI is created, confirm it on the client
+      if (res.tip_client_secret) {
+        const stripe = await getStripe();
+        if (stripe) {
+          const { error: stripeError } = await stripe.confirmCardPayment(res.tip_client_secret);
+          if (stripeError) {
+            toast.error(stripeError.message || 'Tip payment failed');
+          } else {
+            toast.success('Tip processed successfully');
+          }
+        }
+      }
 
       // If user wants to add to favorites and rating > 3
       if (rating > 3 && addToFavorites) {
@@ -145,12 +155,16 @@ export default function ReviewPage() {
 
       toast.success('Review submitted successfully!');
 
-      // Redirect back to lessons after short delay
-      setTimeout(() => {
-        router.push('/student/lessons?tab=history');
-      }, 1500);
-    } catch (error) {
-      toast.error('Failed to submit review. Please try again.');
+      // Invalidate lessons caches so History reflects Reviewed status immediately
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.history() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+
+      // Redirect back to lessons (history tab)
+      router.push('/student/lessons?tab=history');
+    } catch (error: any) {
+      const message = typeof error?.message === 'string' ? error.message : 'Failed to submit review. Please try again.';
+      toast.error(message);
       setIsSubmitting(false);
     }
   };
@@ -213,14 +227,14 @@ export default function ReviewPage() {
               <div className="text-center mb-8">
                 <h1 className="text-2xl font-bold text-gray-900 mb-3">We value your feedback</h1>
                 <p className="text-gray-600">
-                  Your review helps {instructorName} and future clients. It will appear on {instructorFirstName}'s public profile.
+                  Your review helps {instructorFirstName} and future clients. It will appear on {instructorFirstName}'s public profile.
                 </p>
               </div>
 
           {/* Rating Section */}
           <div className="mb-8">
             <h2 className="text-lg font-semibold text-gray-900 text-center mb-4">
-              How was your experience with {instructorName}?
+              How was your experience with {instructorFirstName}?
             </h2>
             <div className="flex justify-center gap-2">
               {[1, 2, 3, 4, 5].map((star) => (
@@ -274,7 +288,7 @@ export default function ReviewPage() {
           {/* Tipping Section */}
           <div className="mb-8">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Want to thank {instructorName} for a job well done?
+              Want to thank {instructorFirstName} for a job well done?
             </h3>
             <p className="text-sm text-gray-600 mb-4">
               Tips go directly to {instructorFirstName} and are optional.
@@ -360,7 +374,7 @@ export default function ReviewPage() {
                   <div className="flex items-center gap-2 mb-1">
                     <Heart className="h-5 w-5 text-purple-600" />
                     <h3 className="font-semibold text-gray-900">
-                      Add {instructorName} to My Favorite Instructors
+                      Add {instructorFirstName} to My Favorite Instructors
                     </h3>
                   </div>
                   <p className="text-sm text-gray-600">
@@ -409,19 +423,13 @@ function ReviewPageLoading() {
         </div>
       </header>
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
-        <div className="flex items-center mb-6">
-          <Skeleton className="h-10 w-32" />
-        </div>
-        <Card className="p-6 sm:p-8 bg-white rounded-xl border border-gray-200 max-w-3xl mx-auto">
-          <Skeleton className="h-8 w-64 mx-auto mb-4" />
-          <Skeleton className="h-6 w-full max-w-md mx-auto mb-8" />
-          <div className="flex justify-center gap-2 mb-8">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <Skeleton key={star} className="h-10 w-10" />
-            ))}
+        <Card className="p-8">
+          <div className="space-y-4">
+            <div className="h-6 w-48 bg-gray-200 rounded"></div>
+            <div className="h-10 w-32 bg-gray-200 rounded"></div>
+            <div className="h-24 w-full bg-gray-200 rounded"></div>
+            <div className="h-8 w-48 bg-gray-200 rounded"></div>
           </div>
-          <Skeleton className="h-32 w-full mb-4" />
-          <Skeleton className="h-10 w-32 mx-auto" />
         </Card>
       </div>
     </div>

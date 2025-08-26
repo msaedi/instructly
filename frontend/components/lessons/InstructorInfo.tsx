@@ -10,6 +10,7 @@ interface InstructorInfoProps {
   onChat?: (e?: React.MouseEvent) => void;
   showReviewButton?: boolean;
   onReview?: (e?: React.MouseEvent) => void;
+  reviewed?: boolean;
   showBookAgainButton?: boolean;
   onBookAgain?: (e?: React.MouseEvent) => void;
 }
@@ -23,12 +24,13 @@ function getInstructorPrivacyName(instructor: any): string {
 
 export function InstructorInfo({
   instructor,
-  rating = 4.9,
-  reviewCount = 0,
+  rating,
+  reviewCount,
   lessonsCompleted = 0,
   onChat,
   showReviewButton,
   onReview,
+  reviewed,
   showBookAgainButton,
   onBookAgain,
 }: InstructorInfoProps) {
@@ -59,11 +61,24 @@ export function InstructorInfo({
         <div className="flex-1 min-w-0">
           <p className="font-medium text-foreground">{displayName}</p>
           <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
-            <div className="flex items-center gap-1">
-              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-              <span>{rating.toFixed(1)}</span>
-              <span>({reviewCount} reviews)</span>
-            </div>
+            {typeof rating === 'number' && typeof reviewCount === 'number' && (
+              <div className="flex items-center gap-1">
+                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                <span>{rating.toFixed(1)}</span>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (instructor?.id) {
+                      window.location.href = `/instructors/${instructor.id}/reviews`;
+                    }
+                  }}
+                  className="underline-offset-2 hover:underline cursor-pointer"
+                  aria-label="See all reviews"
+                >
+                  ({reviewCount} reviews)
+                </button>
+              </div>
+            )}
             {lessonsCompleted > 0 && (
               <div className="flex items-center gap-1">
                 <span>✓</span>
@@ -94,13 +109,19 @@ export function InstructorInfo({
             Chat history
           </Button>
         )}
-        {showReviewButton && onReview && (
-          <Button
-            onClick={onReview}
-            className="flex-1 sm:flex-initial bg-white text-purple-700 border-2 border-purple-700 hover:bg-purple-50 rounded-lg py-2 px-4 text-sm font-medium"
-          >
-            Review & tip
-          </Button>
+        {reviewed ? (
+          <span className="flex-1 sm:flex-initial bg-gray-100 text-gray-600 border-2 border-gray-300 rounded-lg py-2 px-4 text-sm font-medium cursor-default">
+            Reviewed
+          </span>
+        ) : (
+          showReviewButton && onReview && (
+            <Button
+              onClick={onReview}
+              className="flex-1 sm:flex-initial bg-white text-purple-700 border-2 border-purple-700 hover:bg-purple-50 rounded-lg py-2 px-4 text-sm font-medium"
+            >
+              Review & tip
+            </Button>
+          )
         )}
         {showBookAgainButton && onBookAgain && (
           <Button

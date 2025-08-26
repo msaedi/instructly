@@ -54,7 +54,13 @@ describe('LessonCard', () => {
 
   it('renders lesson card with correct information', () => {
     render(
-      <LessonCard lesson={mockBooking} isCompleted={false} onViewDetails={mockOnViewDetails} />
+      <LessonCard
+        lesson={mockBooking}
+        isCompleted={false}
+        onViewDetails={mockOnViewDetails}
+        suppressFetchRating
+        suppressFetchReviewed
+      />
     );
 
     // Check instructor name
@@ -73,7 +79,13 @@ describe('LessonCard', () => {
 
   it('shows no badge for upcoming confirmed lessons', () => {
     render(
-      <LessonCard lesson={mockBooking} isCompleted={false} onViewDetails={mockOnViewDetails} />
+      <LessonCard
+        lesson={mockBooking}
+        isCompleted={false}
+        onViewDetails={mockOnViewDetails}
+        suppressFetchRating
+        suppressFetchReviewed
+      />
     );
 
     // Confirmed lessons don't show a status badge
@@ -87,7 +99,13 @@ describe('LessonCard', () => {
     };
 
     render(
-      <LessonCard lesson={completedBooking} isCompleted={true} onViewDetails={mockOnViewDetails} />
+      <LessonCard
+        lesson={completedBooking}
+        isCompleted={true}
+        onViewDetails={mockOnViewDetails}
+        suppressFetchRating
+        suppressFetchReviewed
+      />
     );
 
     // The formatLessonStatus function is mocked to return the status
@@ -104,7 +122,13 @@ describe('LessonCard', () => {
     };
 
     render(
-      <LessonCard lesson={cancelledBooking} isCompleted={true} onViewDetails={mockOnViewDetails} />
+      <LessonCard
+        lesson={cancelledBooking}
+        isCompleted={true}
+        onViewDetails={mockOnViewDetails}
+        suppressFetchRating
+        suppressFetchReviewed
+      />
     );
 
     // The formatLessonStatus function is mocked
@@ -113,7 +137,13 @@ describe('LessonCard', () => {
 
   it('calls onViewDetails when card is clicked', () => {
     render(
-      <LessonCard lesson={mockBooking} isCompleted={false} onViewDetails={mockOnViewDetails} />
+      <LessonCard
+        lesson={mockBooking}
+        isCompleted={false}
+        onViewDetails={mockOnViewDetails}
+        suppressFetchRating
+        suppressFetchReviewed
+      />
     );
 
     // Click on the card container
@@ -125,7 +155,13 @@ describe('LessonCard', () => {
 
   it('applies cursor-pointer class to card', () => {
     const { container } = render(
-      <LessonCard lesson={mockBooking} isCompleted={false} onViewDetails={mockOnViewDetails} />
+      <LessonCard
+        lesson={mockBooking}
+        isCompleted={false}
+        onViewDetails={mockOnViewDetails}
+        suppressFetchRating
+        suppressFetchReviewed
+      />
     );
 
     const card = container.querySelector('.cursor-pointer');
@@ -143,6 +179,8 @@ describe('LessonCard', () => {
         lesson={bookingWithoutInstructor as any}
         isCompleted={false}
         onViewDetails={mockOnViewDetails}
+        suppressFetchRating
+        suppressFetchReviewed
       />
     );
 
@@ -164,6 +202,8 @@ describe('LessonCard', () => {
         isCompleted={true}
         onViewDetails={mockOnViewDetails}
         onBookAgain={mockOnBookAgain}
+        suppressFetchRating
+        suppressFetchReviewed
       />
     );
 
@@ -182,7 +222,13 @@ describe('LessonCard', () => {
     };
 
     render(
-      <LessonCard lesson={morningBooking} isCompleted={false} onViewDetails={mockOnViewDetails} />
+      <LessonCard
+        lesson={morningBooking}
+        isCompleted={false}
+        onViewDetails={mockOnViewDetails}
+        suppressFetchRating
+        suppressFetchReviewed
+      />
     );
 
     expect(screen.getByText(/9:30am/)).toBeInTheDocument();
@@ -196,7 +242,13 @@ describe('LessonCard', () => {
     };
 
     render(
-      <LessonCard lesson={cancelledBooking} isCompleted={true} onViewDetails={mockOnViewDetails} />
+      <LessonCard
+        lesson={cancelledBooking}
+        isCompleted={true}
+        onViewDetails={mockOnViewDetails}
+        suppressFetchRating
+        suppressFetchReviewed
+      />
     );
 
     // Should show no charge for cancellation >24 hours before
@@ -205,7 +257,13 @@ describe('LessonCard', () => {
 
   it('shows See lesson details link', () => {
     render(
-      <LessonCard lesson={mockBooking} isCompleted={false} onViewDetails={mockOnViewDetails} />
+      <LessonCard
+        lesson={mockBooking}
+        isCompleted={false}
+        onViewDetails={mockOnViewDetails}
+        suppressFetchRating
+        suppressFetchReviewed
+      />
     );
 
     expect(screen.getByText('See lesson details')).toBeInTheDocument();
@@ -225,6 +283,8 @@ describe('LessonCard', () => {
         isCompleted={true}
         onViewDetails={mockOnViewDetails}
         onBookAgain={mockOnBookAgain}
+        suppressFetchRating
+        suppressFetchReviewed
       />
     );
 

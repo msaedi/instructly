@@ -1115,3 +1115,18 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
     # - find_one_by(**kwargs) -> Optional[Booking]
     # - bulk_create(entities: List[Dict]) -> List[Booking]
     # - bulk_update(updates: List[Dict]) -> int
+
+    # --------- Security helpers ---------
+    def filter_owned_booking_ids(self, booking_ids: List[str], student_id: str) -> List[str]:
+        """Return subset of booking_ids that are owned by the given student.
+
+        Uses a single IN query for efficiency.
+        """
+        if not booking_ids:
+            return []
+        try:
+            rows = self.db.query(Booking.id).filter(Booking.id.in_(booking_ids), Booking.student_id == student_id).all()
+            return [r[0] if isinstance(r, tuple) else r.id for r in rows]
+        except Exception as e:
+            self.logger.error(f"Error filtering owned booking ids: {e}")
+            return []

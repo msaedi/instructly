@@ -399,6 +399,78 @@ def upgrade() -> None:
     print("- Created payment_events table for event-based payment tracking")
     print("- Created platform_credits table for 12-24 hour cancellation credits")
 
+    # ======== REVIEWS TABLES (added pre-launch; safe to include here) ========
+    op.create_table(
+        "reviews",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("booking_id", sa.String(26), nullable=False),
+        sa.Column("student_id", sa.String(26), nullable=False),
+        sa.Column("instructor_id", sa.String(26), nullable=False),
+        sa.Column("instructor_service_id", sa.String(26), nullable=False),
+        sa.Column("rating", sa.Integer(), nullable=False),
+        sa.Column("review_text", sa.Text(), nullable=True),
+        sa.Column("status", sa.String(20), nullable=False, server_default="published"),
+        sa.Column("is_verified", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("booking_completed_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(["booking_id"], ["bookings.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["student_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["instructor_id"], ["users.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["instructor_service_id"], ["instructor_services.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("booking_id", name="uq_reviews_booking"),
+    )
+
+    # Constraints and indexes for reviews
+    op.create_check_constraint("ck_reviews_rating_range", "reviews", "rating >= 1 AND rating <= 5")
+    op.create_check_constraint(
+        "ck_reviews_text_length",
+        "reviews",
+        "(review_text IS NULL) OR (length(review_text) <= 500)",
+    )
+    op.create_index("idx_reviews_instructor", "reviews", ["instructor_id"])
+    op.create_index("idx_reviews_instructor_service", "reviews", ["instructor_id", "instructor_service_id"])
+    op.create_index("idx_reviews_created_at", "reviews", ["created_at"])
+
+    # review_responses
+    op.create_table(
+        "review_responses",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("review_id", sa.String(26), nullable=False),
+        sa.Column("instructor_id", sa.String(26), nullable=False),
+        sa.Column("response_text", sa.Text(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.ForeignKeyConstraint(["review_id"], ["reviews.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["instructor_id"], ["users.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("review_id", name="uq_review_responses_review"),
+    )
+    op.create_check_constraint(
+        "ck_review_responses_text_length",
+        "review_responses",
+        "(response_text IS NULL) OR (length(response_text) <= 500)",
+    )
+    op.create_index("idx_review_responses_review", "review_responses", ["review_id"])
+
+    # review_tips
+    op.create_table(
+        "review_tips",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("review_id", sa.String(26), nullable=False),
+        sa.Column("amount_cents", sa.Integer(), nullable=False),
+        sa.Column("stripe_payment_intent_id", sa.String(255), nullable=True),
+        sa.Column("status", sa.String(20), nullable=False, server_default="pending"),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("processed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(["review_id"], ["reviews.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("review_id", name="uq_review_tips_review"),
+    )
+    op.create_check_constraint("ck_review_tips_positive", "review_tips", "amount_cents > 0")
+    op.create_index("idx_review_tips_review", "review_tips", ["review_id"])
+    op.create_index("idx_review_tips_status", "review_tips", ["status"])
+
 
 def downgrade() -> None:
     """Drop booking system tables."""
@@ -466,6 +538,29 @@ def downgrade() -> None:
     op.drop_index("idx_password_reset_tokens_user_id", table_name="password_reset_tokens")
     op.drop_index("ix_password_reset_tokens_token", table_name="password_reset_tokens")
     op.drop_table("password_reset_tokens")
+
+    # ======== DROP REVIEWS TABLES (in reverse order) ========
+    # review_tips
+    op.drop_index("idx_review_tips_status", table_name="review_tips")
+    op.drop_index("idx_review_tips_review", table_name="review_tips")
+    op.drop_constraint("ck_review_tips_positive", "review_tips", type_="check")
+    op.drop_constraint("uq_review_tips_review", "review_tips", type_="unique")
+    op.drop_table("review_tips")
+
+    # review_responses
+    op.drop_index("idx_review_responses_review", table_name="review_responses")
+    op.drop_constraint("ck_review_responses_text_length", "review_responses", type_="check")
+    op.drop_constraint("uq_review_responses_review", "review_responses", type_="unique")
+    op.drop_table("review_responses")
+
+    # reviews
+    op.drop_index("idx_reviews_created_at", table_name="reviews")
+    op.drop_index("idx_reviews_instructor_service", table_name="reviews")
+    op.drop_index("idx_reviews_instructor", table_name="reviews")
+    op.drop_constraint("ck_reviews_text_length", "reviews", type_="check")
+    op.drop_constraint("ck_reviews_rating_range", "reviews", type_="check")
+    op.drop_constraint("uq_reviews_booking", "reviews", type_="unique")
+    op.drop_table("reviews")
 
     # Drop bookings constraints
     op.drop_constraint("ck_bookings_location_type", "bookings", type_="check")

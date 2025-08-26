@@ -48,6 +48,7 @@ from .routes import (
     prometheus,
     public,
     redis_monitor,
+    reviews,
     search,
     search_history,
     services,
@@ -227,6 +228,7 @@ app.include_router(stripe_webhooks.router)
 app.include_router(prometheus.router)
 app.include_router(uploads.router)
 app.include_router(users_profile_picture.router)
+app.include_router(reviews.router)
 
 # Identity + uploads: new endpoints are included via existing payments router and addresses router
 

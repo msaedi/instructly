@@ -1,4 +1,6 @@
 import { Card } from '@/components/ui/card';
+import { useEffect, useState } from 'react';
+import { reviewsApi } from '@/services/api/reviews';
 import { Booking } from '@/types/booking';
 import { LessonStatus } from './LessonStatus';
 import { InstructorInfo } from './InstructorInfo';
@@ -14,6 +16,11 @@ interface LessonCardProps {
   onChat?: () => void;
   onReviewTip?: () => void;
   className?: string;
+  prefetchedRating?: number;
+  prefetchedReviewCount?: number;
+  prefetchedReviewed?: boolean;
+  suppressFetchRating?: boolean;
+  suppressFetchReviewed?: boolean;
 }
 
 export function LessonCard({
@@ -24,12 +31,88 @@ export function LessonCard({
   onChat,
   onReviewTip,
   className,
+  prefetchedRating,
+  prefetchedReviewCount,
+  prefetchedReviewed,
+  suppressFetchRating,
+  suppressFetchReviewed,
 }: LessonCardProps) {
+  const [reviewed, setReviewed] = useState<boolean | null>(null);
   const lessonDate = new Date(`${lesson.booking_date}T${lesson.start_time}`);
   const formattedDate = format(lessonDate, 'EEE MMM d');
   const formattedTime = format(lessonDate, 'h:mmaaa');
 
   const displayStatus = formatLessonStatus(lesson.status, lesson.cancelled_at);
+
+  useEffect(() => {
+    // If a prefetched value is provided, always use it and skip fetching
+    if (typeof prefetchedReviewed === 'boolean') {
+      setReviewed(prefetchedReviewed);
+      return;
+    }
+    if (suppressFetchReviewed) {
+      return;
+    }
+    let mounted = true;
+    // Only check for completed lessons where review CTA might show
+    if (isCompleted && (lesson.status === 'COMPLETED' || lesson.status === 'CONFIRMED')) {
+      (async () => {
+        try {
+          const r = await reviewsApi.getByBooking(lesson.id);
+          if (mounted) setReviewed(!!r);
+        } catch {
+          if (mounted) setReviewed(false);
+        }
+      })();
+    } else {
+      setReviewed(null);
+    }
+    return () => {
+      mounted = false;
+    };
+  }, [isCompleted, lesson.id, lesson.status, prefetchedReviewed, suppressFetchReviewed]);
+
+  const [rating, setRating] = useState<number | undefined>(undefined);
+  const [reviewCount, setReviewCount] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (suppressFetchRating) {
+      // Use prefetched if present, else skip
+      if (typeof prefetchedRating === 'number' && typeof prefetchedReviewCount === 'number') {
+        setRating(prefetchedRating);
+        setReviewCount(prefetchedReviewCount);
+      }
+      return;
+    }
+    if (typeof prefetchedRating === 'number' && typeof prefetchedReviewCount === 'number') {
+      setRating(prefetchedRating);
+      setReviewCount(prefetchedReviewCount);
+      return;
+    }
+    let mounted = true;
+    (async () => {
+      try {
+        const data = await reviewsApi.getInstructorRatings(lesson.instructor_id);
+        if (!mounted || !data) return;
+        const count = data.overall?.total_reviews ?? 0;
+        setReviewCount(count);
+        // Only show rating when we have enough reviews (threshold aligned with backend display)
+        if (count >= 3) {
+          setRating(data.overall?.rating ?? undefined);
+        } else {
+          setRating(undefined);
+        }
+      } catch {
+        if (mounted) {
+          setRating(undefined);
+          setReviewCount(undefined);
+        }
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [lesson.instructor_id, prefetchedRating, prefetchedReviewCount, suppressFetchRating]);
 
   return (
     <Card
@@ -96,11 +179,14 @@ export function LessonCard({
         <div className="pt-4 border-t border-gray-300">
           <InstructorInfo
             instructor={lesson.instructor}
+            rating={rating}
+            reviewCount={reviewCount}
             onChat={(e) => {
               e?.stopPropagation?.();
               onChat?.();
             }}
             showReviewButton={isCompleted && (lesson.status === 'COMPLETED' || lesson.status === 'CONFIRMED')}
+            reviewed={Boolean(reviewed)}
             onReview={(e) => {
               e?.stopPropagation?.();
               onReviewTip?.();

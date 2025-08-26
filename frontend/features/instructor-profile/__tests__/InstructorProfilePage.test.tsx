@@ -104,7 +104,7 @@ describe('InstructorProfilePage', () => {
     jest.clearAllMocks();
   });
 
-  it('renders instructor header with correct information', () => {
+  it('renders instructor header with correct information', async () => {
     render(
       <TestWrapper>
         <InstructorHeader instructor={mockInstructor} />
@@ -112,8 +112,8 @@ describe('InstructorProfilePage', () => {
     );
 
     expect(screen.getByText('Sarah C.')).toBeInTheDocument();
-    expect(screen.getByText('4.9')).toBeInTheDocument(); // Rating
-    expect(screen.getByText('(127 reviews)')).toBeInTheDocument(); // Reviews
+    // Wait for ratings query to resolve and show review count
+    expect(await screen.findByText('(5 reviews)')).toBeInTheDocument();
   });
 
   it('displays loading state while fetching data', () => {

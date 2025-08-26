@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useCurrentLessons, useCompletedLessons } from '@/hooks/useMyLessons';
 import { LessonCard } from '@/components/lessons/LessonCard';
+import { reviewsApi } from '@/services/api/reviews';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -23,12 +24,22 @@ function MyLessonsContent() {
   // Chat modal state
   const [chatModalOpen, setChatModalOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [hasMounted, setHasMounted] = useState(false);
 
   // Initialize tab from URL or default to 'upcoming'
   const tabFromUrl = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>(
-    tabFromUrl === 'history' ? 'history' : 'upcoming'
-  );
+  const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming');
+
+  useEffect(() => {
+    // Defer reading URL param to client to avoid hydration mismatch
+    const initial = tabFromUrl === 'history' ? 'history' : 'upcoming';
+    setActiveTab(initial as 'upcoming' | 'history');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   const {
     data: upcomingLessons,
@@ -48,6 +59,65 @@ function MyLessonsContent() {
     activeTab === 'upcoming'
       ? upcomingLessons?.items
       : historyLessons?.items;
+
+  const [batchRatings, setBatchRatings] = useState<Record<string, { rating: number | null; review_count: number }>>({});
+  const [batchReviewed, setBatchReviewed] = useState<Record<string, boolean>>({});
+
+  // Batch fetch ratings for visible lessons
+  useEffect(() => {
+    let mounted = true;
+    const visible = lessons || [];
+    if (!visible || visible.length === 0) return;
+    const uniqueInstructorIds = Array.from(new Set(visible.map((l) => l.instructor_id)));
+    (async () => {
+      try {
+        const res = await reviewsApi.getRatingsBatch(uniqueInstructorIds);
+        if (!mounted) return;
+        const map: Record<string, { rating: number | null; review_count: number }> = {};
+        for (const item of res.results) {
+          map[item.instructor_id] = { rating: item.rating, review_count: item.review_count };
+        }
+        setBatchRatings(map);
+      } catch {
+        if (mounted) setBatchRatings({});
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [lessons]);
+
+  // Batch fetch existing reviews for visible completed lessons to avoid per-card existence checks
+  useEffect(() => {
+    let mounted = true;
+    const visible = lessons || [];
+    // Include lessons that are COMPLETED or CONFIRMED and already in the past
+    const now = new Date();
+    const checkable = visible.filter((l) => {
+      if (l.status === 'COMPLETED') return true;
+      if (l.status === 'CONFIRMED') {
+        const lessonDateTime = new Date(`${l.booking_date}T${l.start_time}`);
+        return lessonDateTime < now;
+      }
+      return false;
+    });
+    if (checkable.length === 0) return;
+    const ids = checkable.map((l) => l.id);
+    (async () => {
+      try {
+        const existing = await reviewsApi.getExistingForBookings(ids);
+        if (!mounted) return;
+        const map: Record<string, boolean> = {};
+        for (const bid of existing) map[bid] = true;
+        setBatchReviewed(map);
+      } catch {
+        if (mounted) setBatchReviewed({});
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [lessons]);
 
   // Update URL when tab changes
   const handleTabChange = (tab: 'upcoming' | 'history') => {
@@ -74,7 +144,7 @@ function MyLessonsContent() {
   }, [error, redirectToLogin]);
 
   // Show loading while checking auth
-  if (isAuthLoading) {
+  if (!hasMounted || isAuthLoading) {
     return (
       <div className="min-h-screen">
         <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
@@ -186,7 +256,8 @@ function MyLessonsContent() {
           lessons.map((lesson) => {
             // Check if lesson is in the past (for lessons that haven't been marked COMPLETED yet)
             const lessonDateTime = new Date(`${lesson.booking_date}T${lesson.start_time}`);
-            const isPastLesson = lessonDateTime < new Date();
+            const isPastLesson = hasMounted ? (lessonDateTime < new Date()) : false;
+            const br = batchRatings[lesson.instructor_id];
 
             return (
               <LessonCard
@@ -197,6 +268,11 @@ function MyLessonsContent() {
                 onChat={() => handleOpenChat(lesson)}
                 onBookAgain={() => router.push(`/instructors/${lesson.instructor_id}`)}
                 onReviewTip={() => router.push(`/student/review/${lesson.id}`)}
+                prefetchedRating={typeof br?.rating === 'number' ? br.rating : undefined}
+                prefetchedReviewCount={typeof br?.review_count === 'number' ? br.review_count : undefined}
+                prefetchedReviewed={!!batchReviewed[lesson.id]}
+                suppressFetchRating={true}
+                suppressFetchReviewed={true}
               />
             );
           })

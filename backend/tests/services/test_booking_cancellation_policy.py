@@ -122,9 +122,11 @@ async def test_cancel_over_24h_releases_auth(db: Session):
 async def test_cancel_12_24h_capture_reverse_credit(db: Session):
     instructor, profile, svc = _create_instructor_with_service(db)
     student = _create_student(db)
-    # Booking 18 hours out
+    # Booking ~18 hours out. Avoid crossing midnight which would wrap end_time to 00:00
     when = datetime.now() + timedelta(hours=18)
     when = when.replace(minute=0, second=0, microsecond=0)
+    if (when + timedelta(hours=1)).date() != when.date():
+        when = (when + timedelta(hours=2)).replace(minute=0, second=0, microsecond=0)
     bk = _create_booking(db, student, instructor, svc, when)
 
     service = BookingService(db)
@@ -148,9 +150,13 @@ async def test_cancel_12_24h_capture_reverse_credit(db: Session):
 async def test_cancel_under_12h_capture_only(db: Session):
     instructor, profile, svc = _create_instructor_with_service(db)
     student = _create_student(db)
-    # Booking 3 hours out
+    # Booking ~3 hours out. Avoid crossing midnight which would make end_time wrap to 00:00
+    # on the same booking_date and violate the DB constraint (start_time < end_time).
     when = datetime.now() + timedelta(hours=3)
     when = when.replace(minute=0, second=0, microsecond=0)
+    # If adding one hour crosses the date boundary, push start into next day (01:00)
+    if (when + timedelta(hours=1)).date() != when.date():
+        when = (when + timedelta(hours=2)).replace(minute=0, second=0, microsecond=0)
     bk = _create_booking(db, student, instructor, svc, when)
 
     service = BookingService(db)

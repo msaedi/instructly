@@ -1,96 +1,59 @@
 import { useQuery } from '@tanstack/react-query';
 import { CACHE_TIMES } from '@/lib/react-query/queryClient';
+import { reviewsApi, ReviewItem as ApiReviewItem, ReviewListPageResponse } from '@/services/api/reviews';
 
-interface Review {
-  id: number;
+export interface ReviewItem {
+  id: string;
   rating: number;
-  comment: string;
-  reviewer_name: string;
+  review_text?: string | null;
   created_at: string;
-  service_name?: string;
+  instructor_service_id: string;
+  reviewer_display_name?: string | null;
 }
 
-interface ReviewsResponse {
-  reviews: Review[];
+export interface ReviewsResponse {
+  reviews: ReviewItem[];
   total: number;
-  average_rating: number;
-  rating_distribution: {
-    1: number;
-    2: number;
-    3: number;
-    4: number;
-    5: number;
-  };
+  page: number;
+  per_page: number;
+  has_next: boolean;
+  has_prev: boolean;
 }
 
-// Mock reviews data until the feature is built
-const createMockReviews = (instructorId: string): ReviewsResponse => ({
-  total: 127,
-  average_rating: 4.9,
-  rating_distribution: {
-    1: 1,
-    2: 2,
-    3: 5,
-    4: 25,
-    5: 94,
-  },
-  reviews: [
-    {
-      id: 1,
-      rating: 5,
-      reviewer_name: 'Emma J.',
-      created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
-      comment: 'Amazing teacher! Sarah helped my daughter gain confidence in just a few lessons. Very patient and encouraging with beginners.',
-      service_name: 'Piano Lessons',
-    },
-    {
-      id: 2,
-      rating: 5,
-      reviewer_name: 'Michael R.',
-      created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), // 1 week ago
-      comment: 'Very knowledgeable and patient. Helped me prepare for my grade 5 exam with excellent results. Highly recommend!',
-      service_name: 'Music Theory',
-    },
-    {
-      id: 3,
-      rating: 4,
-      reviewer_name: 'David L.',
-      created_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(), // 2 weeks ago
-      comment: 'Great instructor, very professional. My son has improved significantly. Would definitely recommend to other parents.',
-      service_name: 'Piano Lessons',
-    },
-    {
-      id: 4,
-      rating: 5,
-      reviewer_name: 'Sarah M.',
-      created_at: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString(), // 3 weeks ago
-      comment: 'Excellent teacher! Makes learning fun and engaging. My daughter looks forward to every lesson.',
-      service_name: 'Piano Lessons',
-    },
-    {
-      id: 5,
-      rating: 5,
-      reviewer_name: 'James K.',
-      created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(), // 1 month ago
-      comment: 'Professional and patient. Great with adult learners who are starting from scratch.',
-      service_name: 'Piano Lessons',
-    },
-  ],
-});
-
-/**
- * Hook to fetch instructor reviews
- * Currently returns mock data until reviews feature is implemented
- */
-export function useInstructorReviews(instructorId: string, page: number = 1) {
+export function useInstructorReviews(
+  instructorId: string,
+  page: number = 1,
+  limit: number = 12,
+  opts?: { minRating?: number; withText?: boolean; instructorServiceId?: string }
+) {
   return useQuery<ReviewsResponse>({
-    queryKey: ['instructors', instructorId, 'reviews', { page }],
+    queryKey: ['instructors', instructorId, 'reviews', { page, limit, opts }],
     queryFn: async () => {
-      // Return mock data for now
-      // TODO: Replace with actual API call when reviews endpoint is available
-      return createMockReviews(instructorId);
+      const res: ReviewListPageResponse = await reviewsApi.getRecent(
+        instructorId,
+        opts?.instructorServiceId,
+        limit,
+        page,
+        { minRating: opts?.minRating, withText: opts?.withText }
+      );
+      const items: ApiReviewItem[] = res.reviews || [];
+      return {
+        reviews: items.map((r) => ({
+          id: r.id,
+          rating: r.rating,
+          review_text: r.review_text,
+          created_at: r.created_at,
+          instructor_service_id: r.instructor_service_id,
+          reviewer_display_name: (r as any).reviewer_display_name ?? null,
+        })),
+        total: res.total,
+        page: res.page,
+        per_page: res.per_page,
+        has_next: res.has_next,
+        has_prev: res.has_prev,
+      };
     },
-    staleTime: CACHE_TIMES.SLOW * 2, // 30 minutes
+    staleTime: CACHE_TIMES.SLOW,
     enabled: !!instructorId,
   });
 }

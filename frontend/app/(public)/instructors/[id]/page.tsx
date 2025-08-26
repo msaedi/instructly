@@ -450,7 +450,7 @@ function InstructorProfileContent() {
             <AvailabilityCalendar instructorId={instructor.user_id} />
           </section>
 
-          <ReviewsSection instructorId={instructor.id} />
+          <ReviewsSection instructorId={instructor.user_id} />
         </div>
 
         {/* Desktop Layout - Fixed Layout */}
@@ -549,7 +549,7 @@ function InstructorProfileContent() {
           </div>
           {/* Reviews Section */}
           <div className="bg-white rounded-xl border border-gray-200 p-6" data-reviews-section>
-            <ReviewsSection instructorId={instructor.id} />
+            <ReviewsSection instructorId={instructor.user_id} />
           </div>
         </div>
       </div>

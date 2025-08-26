@@ -10,6 +10,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { publicApi } from '@/features/shared/api/client';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { favoritesApi } from '@/services/api/favorites';
+import { reviewsApi } from '@/services/api/reviews';
+import { useSearchRatingQuery } from '@/hooks/queries/useRatings';
 import { toast } from 'sonner';
 
 // Simple in-module cache to avoid N duplicate catalog fetches (one per card)
@@ -42,6 +44,11 @@ export default function InstructorCard({
   const [isFavorited, setIsFavorited] = useState(false);
   const [isLoadingFavorite, setIsLoadingFavorite] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const primaryServiceId = instructor?.services?.[0]?.id;
+  const { data: searchRating } = useSearchRatingQuery(instructor.user_id, primaryServiceId);
+  const rating = typeof searchRating?.primary_rating === 'number' ? searchRating?.primary_rating : null;
+  const reviewCount = searchRating?.review_count || 0;
+  const [recentReviews, setRecentReviews] = useState<import('@/services/api/reviews').ReviewItem[]>([]);
 
   // Fetch service catalog on mount with simple de-duplication
   useEffect(() => {
@@ -79,6 +86,22 @@ export default function InstructorCard({
         .catch(() => setIsFavorited(false));
     }
   }, [user, instructor?.user_id]);
+
+  // (React Query handles caching and avoids duplicate fetches)
+
+  // Fetch a couple of recent reviews to preview on the card
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const { reviews } = await reviewsApi.getRecent(instructor.user_id, undefined, 2);
+        if (mounted) setRecentReviews(reviews || []);
+      } catch {
+        if (mounted) setRecentReviews([]);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [instructor.user_id]);
 
   // Helper function to get service name from catalog
   const getServiceName = (serviceId: string): string => {
@@ -218,13 +241,21 @@ export default function InstructorCard({
                 })}
               </div>
 
-              {/* Rating */}
-              <div className={`flex items-center gap-1 ${compact ? 'text-sm mb-1' : 'text-lg mb-2'} text-gray-600`}>
-                <Star className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-yellow-500 fill-current`} />
-                <span className="font-medium">{instructor.rating || 4.8}</span>
-                <span>·</span>
-                <span>{instructor.total_reviews || 0} reviews</span>
-              </div>
+              {/* Rating (show only when backend says to display) */}
+              {typeof rating === 'number' && reviewCount >= 3 && (
+                <div className={`flex items-center gap-1 ${compact ? 'text-sm mb-1' : 'text-lg mb-2'} text-gray-600`}>
+                  <Star className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-yellow-500 fill-current`} />
+                  <span className="font-medium">{rating}</span>
+                  <span>·</span>
+                  <button
+                    onClick={() => router.push(`/instructors/${instructor.user_id}/reviews`)}
+                    className="underline-offset-2 hover:underline cursor-pointer"
+                    aria-label="See all reviews"
+                  >
+                    {reviewCount} reviews
+                  </button>
+                </div>
+              )}
 
               {/* Experience */}
               {!compact && (
@@ -355,37 +386,27 @@ export default function InstructorCard({
             </button>
           </div>
 
-          {/* Reviews Section - Two columns - hide in compact mode */}
-          {!compact && (
-          <div className="mt-6 grid grid-cols-2 gap-4">
-            <div className="bg-gray-50 p-3 rounded-lg">
-              <div className="flex items-center mb-1">
-                <div className="flex">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="h-4 w-4 text-yellow-500 fill-current" />
-                  ))}
+          {/* Reviews preview - show up to two real recent reviews when available (hide in compact) */}
+          {!compact && recentReviews.length > 0 && (
+            <div className="mt-6 grid grid-cols-2 gap-4">
+              {recentReviews.map((r) => (
+                <div key={r.id} className="bg-gray-50 p-3 rounded-lg">
+                  <div className="flex items-center mb-1">
+                    <div className="flex">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} className="h-4 w-4 text-yellow-500 fill-current" />
+                      ))}
+                    </div>
+                  </div>
+                  {r.review_text && (
+                    <p className="text-sm text-gray-700 italic line-clamp-3">{`"${r.review_text}"`}</p>
+                  )}
+                  {r.reviewer_display_name && (
+                    <p className="text-xs text-gray-500 mt-1">- {r.reviewer_display_name}</p>
+                  )}
                 </div>
-              </div>
-              <p className="text-sm text-gray-700 italic line-clamp-3">
-                "Amazing instructor! Very patient and knowledgeable. My skills improved significantly."
-              </p>
-              <p className="text-xs text-gray-500 mt-1">- Sarah M.</p>
+              ))}
             </div>
-
-            <div className="bg-gray-50 p-3 rounded-lg">
-              <div className="flex items-center mb-1">
-                <div className="flex">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="h-4 w-4 text-yellow-500 fill-current" />
-                  ))}
-                </div>
-              </div>
-              <p className="text-sm text-gray-700 italic line-clamp-3">
-                "Best teacher I've had! Makes learning fun and engaging. Highly recommend!"
-              </p>
-              <p className="text-xs text-gray-500 mt-1">- John D.</p>
-            </div>
-          </div>
           )}
         </div>
       </div>

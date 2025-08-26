@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from ..repositories.factory import RepositoryFactory
 from .base import BaseService
+from .review_service import ReviewService
 
 logger = logging.getLogger(__name__)
 
@@ -308,6 +309,7 @@ class SearchService(BaseService):
         self.catalog_repository = RepositoryFactory.create_service_catalog_repository(db)
         self.analytics_repository = RepositoryFactory.create_service_analytics_repository(db)
         self.instructor_repository = RepositoryFactory.create_instructor_profile_repository(db)
+        self.review_service = ReviewService(db)
 
     @BaseService.measure_operation("natural_language_search")
     def search(self, query: str, limit: int = 20, include_availability: bool = False) -> Dict:
@@ -840,7 +842,10 @@ class SearchService(BaseService):
         return True
 
     def _calculate_match_score(self, relevance_score: float, instructor_service, parsed: Dict) -> float:
-        """Calculate overall match score for ranking."""
+        """Calculate overall match score for ranking.
+
+        Incorporates semantic relevance and a cautious rating lower-bound (Beta posterior 5th percentile).
+        """
         score = relevance_score * 100  # Base score from semantic similarity
 
         # Boost for exact price match
@@ -861,6 +866,35 @@ class SearchService(BaseService):
         # Boost for location type match
         if parsed["location"].get("online") and "online" in (instructor_service.location_types or []):
             score *= 1.1
+
+        # Add cautious rating signal (Beta lower-bound at 5th percentile) using 4-5★ as positive
+        try:
+            instructor_id = (
+                getattr(instructor_service, "instructor_profile_id", None)
+                or getattr(instructor_service, "instructor_id", None)
+                or getattr(instructor_service, "instructor", None)
+            )
+            if instructor_id:
+                ratings = self.review_service.get_instructor_ratings(str(instructor_id))
+                total = int(ratings.get("overall", {}).get("total_reviews", 0))
+                # Approximate positives as reviews >=4 if breakdown available; fallback to Bayesian mean
+                bayes = float(ratings.get("overall", {}).get("rating", 0.0))
+                # Map mean to Bernoulli p by assuming linear map: p ~= (bayes-3)/2 for 3..5 range (rough)
+                p_mean = max(0.0, min(1.0, (bayes - 3.0) / 2.0))
+                alpha0, beta0 = 9.0, 1.0
+                alpha = alpha0 + p_mean * total
+                beta = beta0 + (1.0 - p_mean) * total
+                # 5th percentile of Beta via simple approximation (mean - 2*std for moderate n)
+                import math
+
+                mean = alpha / (alpha + beta) if (alpha + beta) > 0 else 0.0
+                var = (alpha * beta) / (((alpha + beta) ** 2) * (alpha + beta + 1.0)) if (alpha + beta) > 1 else 0.0
+                std = math.sqrt(var)
+                lb = max(0.0, mean - 2.0 * std)
+                # Weight into score (scaled 0..100) with modest influence
+                score *= 1.0 + (lb * 0.08)  # up to +8% boost for strong lower-bound
+        except Exception:
+            pass
 
         return min(score, 100)  # Cap at 100
 

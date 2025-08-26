@@ -39,6 +39,7 @@ export default function LessonDetailsPage() {
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
+  const [reviewed, setReviewed] = useState(false);
 
   const { data: lesson, isLoading, error } = useLessonDetails(lessonId);
 
@@ -55,6 +56,24 @@ export default function LessonDetailsPage() {
       redirectToLogin(`/student/lessons/${lessonId}`);
     }
   }, [error, redirectToLogin, lessonId]);
+
+  // Check if a review exists for this booking to toggle CTA
+  useEffect(() => {
+    if (!lesson?.id) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const { reviewsApi } = await import('@/services/api/reviews');
+        const r = await reviewsApi.getByBooking(lesson.id);
+        if (mounted) setReviewed(!!r);
+      } catch {
+        if (mounted) setReviewed(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [lesson?.id]);
 
   // Show loading while checking auth
   if (isAuthLoading) {
@@ -193,12 +212,18 @@ export default function LessonDetailsPage() {
               >
                 Book Again
               </Button>
-              <Button
-                onClick={() => router.push(`/student/review/${lesson.id}`)}
-                className="bg-white text-purple-700 border-2 border-purple-700 hover:bg-purple-50 rounded-lg py-2.5 px-6 text-sm font-medium"
-              >
-                Review & tip
-              </Button>
+              {reviewed ? (
+                <span className="bg-gray-100 text-gray-600 border-2 border-gray-300 rounded-lg py-2.5 px-6 text-sm font-medium cursor-default">
+                  Reviewed
+                </span>
+              ) : (
+                <Button
+                  onClick={() => router.push(`/student/review/${lesson.id}`)}
+                  className="bg-white text-purple-700 border-2 border-purple-700 hover:bg-purple-50 rounded-lg py-2.5 px-6 text-sm font-medium"
+                >
+                  Review & tip
+                </Button>
+              )}
               <Button
                 onClick={() => setShowChatModal(true)}
                 className="bg-white text-gray-400 border-2 border-gray-300 hover:bg-gray-50 rounded-lg py-2.5 px-6 text-sm font-medium"
