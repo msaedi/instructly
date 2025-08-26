@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger';
 import { Providers } from './providers';
 import GlobalBackground from '../components/ui/GlobalBackground';
 import { BackgroundProvider } from '@/lib/config/backgroundProvider';
+import { Analytics } from '@vercel/analytics/next';
 
 /**
  * Geist Sans Font Configuration
@@ -161,6 +162,7 @@ export default function RootLayout({
             - Theme provider
           */}
           <Providers>{children}</Providers>
+          <Analytics />
         </BackgroundProvider>
       </body>
     </html>
