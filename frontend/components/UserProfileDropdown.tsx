@@ -118,8 +118,18 @@ export default function UserProfileDropdown() {
         >
           {/* Menu items */}
           <div className="py-1">
-            {/* For instructors, hide student-only items */}
-            {!(user?.roles || []).includes(RoleName.INSTRUCTOR) && (
+            {/* Different menu for instructors vs students */}
+            {(user?.roles || []).includes(RoleName.INSTRUCTOR) ? (
+              // Instructor menu
+              <button
+                onClick={() => handleNavigation('/instructor/dashboard')}
+                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <User className="h-4 w-4" />
+                Dashboard
+              </button>
+            ) : (
+              // Student menu
               <>
                 <button
                   onClick={() => handleNavigation('/student/dashboard')}
@@ -136,10 +146,10 @@ export default function UserProfileDropdown() {
                   <Calendar className="h-4 w-4" />
                   My Lessons
                 </button>
-
-                <hr className="my-1 border-gray-100" />
               </>
             )}
+
+            <hr className="my-1 border-gray-100" />
 
             <button
               onClick={handleLogout}

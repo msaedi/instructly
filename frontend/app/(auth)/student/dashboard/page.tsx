@@ -1533,17 +1533,27 @@ function NotificationsTab() {
         <h4 className="font-medium text-gray-900 mb-4">Lesson Reminder Timing</h4>
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-700">Send reminders</span>
-          <select
-            value={reminderTiming}
-            onChange={(e) => setReminderTiming(e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/25 focus:border-purple-500"
-          >
-            <option value="0">None - Don't send reminders</option>
-            <option value="60">1 hour before lesson</option>
-            <option value="360">6 hours before lesson</option>
-            <option value="1440">24 hours before lesson</option>
-            <option value="2880">2 days before lesson</option>
-          </select>
+          <div className="relative">
+            <select
+              value={reminderTiming}
+              onChange={(e) => setReminderTiming(e.target.value)}
+              className="appearance-none rounded-lg border border-purple-200 bg-white px-3 py-2 pr-10 text-sm text-gray-900 shadow-sm hover:border-purple-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all cursor-pointer"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239333ea' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                backgroundPosition: 'right 0.5rem center',
+                backgroundRepeat: 'no-repeat',
+                backgroundSize: '1.5em 1.5em',
+                paddingRight: '2.5rem',
+                backgroundColor: 'white',
+              }}
+            >
+              <option value="0" style={{ backgroundColor: 'white' }}>None - Don't send reminders</option>
+              <option value="60" style={{ backgroundColor: 'white' }}>1 hour before lesson</option>
+              <option value="360" style={{ backgroundColor: 'white' }}>6 hours before lesson</option>
+              <option value="1440" style={{ backgroundColor: 'white' }}>24 hours before lesson</option>
+              <option value="2880" style={{ backgroundColor: 'white' }}>2 days before lesson</option>
+            </select>
+          </div>
           <span className="text-sm text-gray-700">lesson starts</span>
         </div>
         <p className="text-xs text-gray-500 mt-2">You'll receive a reminder at your selected time before each scheduled lesson.</p>

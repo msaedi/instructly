@@ -131,17 +131,17 @@ export default function InstructorDashboardNew() {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <nav className="bg-white shadow-sm border-b">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-50 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+          <div className="container mx-auto px-6">
             <div className="flex justify-between items-center h-16">
-              <Link href="/" className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors">
-                iNSTAiNSTRU
+              <Link href="/" className="text-2xl font-bold text-purple-700">
+                {BRAND.name}
               </Link>
               <UserProfileDropdown />
             </div>
           </div>
-        </nav>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        </header>
+        <div className="container mx-auto px-6 py-12">
           <div className="bg-white rounded-lg shadow p-6 text-center">
             <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
             <p className="text-gray-600 mb-6">{error}</p>
@@ -163,39 +163,49 @@ export default function InstructorDashboardNew() {
   const displayName = getInstructorDisplayName(profile);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4 sticky top-0 z-50">
+    <div className="min-h-screen">
+      {/* Header - matching other pages */}
+      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
-          <div className="flex items-center gap-4">
-            <a href="/" className="inline-block">
-              <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">
-                {BRAND.name}
-              </h1>
-            </a>
+          <a href="/" className="inline-block">
+            <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">{BRAND.name}</h1>
+          </a>
+          <div className="pr-4">
+            <UserProfileDropdown />
           </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
-          >
-            <LogOut className="h-5 w-5 mr-2" />
-            Log out
-          </button>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Link
-          href="/"
-          className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4 transition-colors"
-          onClick={() => logger.debug('Navigating back to home')}
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Home
-        </Link>
-
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome back, {profile.user?.first_name || 'Instructor'}!</h1>
+      <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
+        {/* Page Header */}
+        <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
+          <h1 className="text-3xl font-bold text-gray-600 mb-2">Welcome back, {profile.user?.first_name || 'Instructor'}!</h1>
           <p className="text-gray-600">Manage your instructor profile and payouts</p>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="mb-6 flex flex-wrap gap-4">
+          <Link
+            href="/instructor/availability"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <Calendar className="h-4 w-4" />
+            <span>Manage Availability</span>
+          </Link>
+          <Link
+            href="/instructor/bookings"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <Calendar className="h-4 w-4" />
+            <span>View Bookings</span>
+          </Link>
+          <button
+            onClick={handleViewPublicProfile}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <ExternalLink className="h-4 w-4" />
+            <span>View Public Profile</span>
+          </button>
         </div>
 
         <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">

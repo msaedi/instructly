@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { createStripeIdentitySession, createSignedUpload, getConnectStatus } from '@/lib/api';
 import { logger } from '@/lib/logger';
+import UserProfileDropdown from '@/components/UserProfileDropdown';
 
 export default function Step4Verification() {
   const [identityLoading, setIdentityLoading] = useState(false);
@@ -90,9 +91,76 @@ export default function Step4Verification() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto p-6">
-      <h1 className="text-2xl font-semibold text-[#6A0DAD]">Build trust with students</h1>
-      <p className="text-gray-600 mt-1">Get verified and start teaching today</p>
+    <div className="min-h-screen">
+      {/* Header - matching other pages */}
+      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between max-w-full relative">
+          <a href="/" className="inline-block">
+            <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+          </a>
+
+          {/* Progress Bar - 4 Steps - Absolutely centered */}
+          <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-0">
+            {/* Step 1 - Completed */}
+            <div className="flex items-center">
+              <button
+                onClick={() => {/* TODO: Navigate to Step 1 */}}
+                className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center hover:bg-purple-700 transition-colors cursor-pointer"
+                title="Step 1: Account Created"
+              >
+                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                </svg>
+              </button>
+              <div className="w-60 h-0.5 bg-purple-600"></div>
+            </div>
+
+            {/* Step 2 - Completed */}
+            <div className="flex items-center">
+              <button
+                onClick={() => window.location.href = '/instructor/onboarding/skill-selection'}
+                className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center hover:bg-purple-700 transition-colors cursor-pointer"
+                title="Step 2: Skills & Pricing"
+              >
+                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                </svg>
+              </button>
+              <div className="w-60 h-0.5 bg-purple-600"></div>
+            </div>
+
+            {/* Step 3 - Current (Verification) */}
+            <div className="flex items-center">
+              <button
+                onClick={() => {/* Already on this page */}}
+                className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
+                title="Step 3: Verification (Current)"
+              ></button>
+              <div className="w-60 h-0.5 bg-gray-300"></div>
+            </div>
+
+            {/* Step 4 - Upcoming */}
+            <div className="flex items-center">
+              <button
+                onClick={() => window.location.href = '/instructor/onboarding/status'}
+                className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-gray-400 transition-colors cursor-pointer"
+                title="Step 4: Status"
+              ></button>
+            </div>
+          </div>
+
+          <div className="pr-4">
+            <UserProfileDropdown />
+          </div>
+        </div>
+      </header>
+
+      <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
+        {/* Page Header */}
+        <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
+          <h1 className="text-3xl font-bold text-gray-600 mb-2">Build trust with students</h1>
+          <p className="text-gray-600">Get verified and start teaching today</p>
+        </div>
       <div className="mt-4 rounded-2xl ring-1 ring-gray-100 shadow-sm p-4 bg-white">
         <h2 className="text-sm font-medium text-gray-900">Status</h2>
         <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
@@ -123,9 +191,9 @@ export default function Step4Verification() {
           <h2 className="text-lg font-medium text-gray-900">Upload Background Check</h2>
           <p className="text-gray-600 mt-1">PDF/JPG/PNG, max 10MB. From approved providers like Checkr, Sterling, NYC DOE.</p>
           <div className="mt-3">
-            <label className="inline-flex items-center px-4 py-2 rounded-lg bg-white border border-gray-200 shadow-sm hover:bg-gray-50 cursor-pointer">
+            <label className="inline-flex items-center px-4 py-2.5 rounded-lg bg-purple-50 border border-purple-300 text-purple-700 font-medium shadow-sm hover:bg-purple-100 transition-colors cursor-pointer">
               <input type="file" accept=".pdf,.png,.jpg,.jpeg" className="hidden" onChange={onFileSelected} />
-              <span className="text-gray-800">{uploading ? 'Uploading…' : 'Choose file'}</span>
+              <span>{uploading ? 'Uploading…' : 'Choose File'}</span>
             </label>
             {fileInfo && (
               <div className="mt-2 text-sm text-gray-700">Selected: {fileInfo.name}</div>
@@ -141,6 +209,7 @@ export default function Step4Verification() {
         >
           Continue
         </button>
+      </div>
       </div>
     </div>
   );

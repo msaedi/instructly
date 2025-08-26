@@ -59,13 +59,13 @@ export function CancelWarningModal({
             {/* Lesson Details */}
             <div className="bg-purple-100 rounded-lg p-4 mb-4">
               <p className="text-sm mb-1">
-                <span className="font-medium text-gray-700">Your lesson:</span>{' '}
+                <span className="font-medium text-gray-700">Your lesson</span>{' '}
                 <span className="text-gray-900">
                   {format(lessonDateTime, 'EEEE, MMMM d')} at {format(lessonDateTime, 'h:mm a')}
                 </span>
               </p>
               <p className="text-sm">
-                <span className="font-medium text-gray-700">Time until lesson:</span>{' '}
+                <span className="font-medium text-gray-700">Time until Lesson</span>{' '}
                 <span className="text-gray-900">{getTimeUntilDisplay()}</span>
               </p>
             </div>
@@ -75,6 +75,17 @@ export function CancelWarningModal({
               {hoursUntil < 12 ? (
                 <p className="text-sm text-gray-700">
                   To respect our instructors' time, unfortunately cancellations made less than 12 hours before a lesson can't be rescheduled and will be charged in full.
+                </p>
+              ) : hoursUntil > 24 ? (
+                <p className="text-sm text-gray-700">
+                  Life happens! You can cancel your session free of charge. Would you like to{' '}
+                  <button
+                    onClick={onReschedule}
+                    className="text-purple-600 hover:text-purple-700 font-medium underline cursor-pointer"
+                  >
+                    reschedule
+                  </button>{' '}
+                  instead?
                 </p>
               ) : (
                 <>

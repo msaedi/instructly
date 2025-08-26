@@ -8,6 +8,7 @@ import { paymentService } from '@/services/api/payments';
 import { loadStripe } from '@stripe/stripe-js';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { logger } from '@/lib/logger';
+import UserProfileDropdown from '@/components/UserProfileDropdown';
 
 export default function OnboardingStatusPage() {
   const router = useRouter();
@@ -135,18 +136,34 @@ export default function OnboardingStatusPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto p-6">
-      <h1 className="text-2xl font-semibold text-[#6A0DAD]">Onboarding Status</h1>
-      <p className="text-gray-600 mt-1">Finish these steps to go live.</p>
+    <div className="min-h-screen">
+      {/* Header - matching other pages */}
+      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between max-w-full">
+          <a href="/" className="inline-block">
+            <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+          </a>
+          <div className="pr-4">
+            <UserProfileDropdown />
+          </div>
+        </div>
+      </header>
 
-      <div className="mt-6 space-y-4">
-        <Row label="Stripe Connect" ok={!!connectStatus?.onboarding_completed} action={<button onClick={enrollStripeConnect} className="text-purple-700 hover:underline disabled:text-gray-400" disabled={!!connectStatus?.onboarding_completed || connectLoading}>{connectStatus?.onboarding_completed ? 'Completed' : (connectLoading ? 'Opening…' : 'Enroll')}</button>} />
+      <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
+        {/* Page Header */}
+        <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
+          <h1 className="text-3xl font-bold text-gray-600 mb-2">Onboarding Status</h1>
+          <p className="text-gray-600">Finish these steps to go live.</p>
+        </div>
+
+        <div className="mt-6 space-y-4">
+          <Row label="Stripe Connect" ok={!!connectStatus?.onboarding_completed} action={<button onClick={enrollStripeConnect} className="text-purple-700 hover:underline disabled:text-gray-400" disabled={!!connectStatus?.onboarding_completed || connectLoading}>{connectStatus?.onboarding_completed ? 'Completed' : (connectLoading ? 'Opening…' : 'Enroll')}</button>} />
         <Row label="ID verification" ok={Boolean(profile?.identity_verified_at)} action={profile?.identity_verified_at ? <span className="text-gray-400">Completed</span> : <button onClick={startIdentity} className="text-purple-700 hover:underline">Start</button>} />
         <Row label="Background check (optional)" ok={Boolean(profile?.background_check_uploaded_at)} action={<button onClick={startBackgroundUpload} className="text-purple-700 hover:underline">{profile?.background_check_uploaded_at ? 'Replace' : 'Upload'}</button>} />
         <Row label="Skills & pricing" ok={Boolean(profile && ((profile.skills_configured) || (Array.isArray(profile.services) && profile.services.length > 0)))} action={<Link href="/instructor/onboarding/skill-selection?redirect=%2Finstructor%2Fonboarding%2Fstatus" className="text-purple-700 hover:underline">Edit</Link>} />
-      </div>
+        </div>
 
-      <div className="mt-8">
+        <div className="mt-8">
         <button
           disabled={!canGoLive || saving}
           onClick={goLive}
@@ -159,6 +176,7 @@ export default function OnboardingStatusPage() {
         ) : (
           <p className="text-sm text-gray-500 mt-2">Pending: {formatList(pendingRequired)}. Background check is optional.</p>
         )}
+      </div>
       </div>
     </div>
   );

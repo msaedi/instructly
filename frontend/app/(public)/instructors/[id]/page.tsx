@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { logger } from '@/lib/logger';
 import { InstructorHeader } from '@/features/instructor-profile/components/InstructorHeader';
 import { ServiceCards } from '@/features/instructor-profile/components/ServiceCards';
-import { AvailabilityCalendar } from '@/features/instructor-profile/components/AvailabilityCalendar';
 import { ReviewsSection } from '@/features/instructor-profile/components/ReviewsSection';
 import { BookingButton } from '@/features/instructor-profile/components/BookingButton';
 import { InstructorProfileSkeleton } from '@/features/instructor-profile/components/InstructorProfileSkeleton';
@@ -445,10 +444,6 @@ function InstructorProfileContent() {
             />
           </section>
 
-          <section>
-            <h2 className="text-xl font-semibold mb-4">Availability This Week</h2>
-            <AvailabilityCalendar instructorId={instructor.user_id} />
-          </section>
 
           <ReviewsSection instructorId={instructor.user_id} />
         </div>

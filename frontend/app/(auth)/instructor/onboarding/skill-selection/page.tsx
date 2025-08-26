@@ -7,6 +7,7 @@ import { fetchWithAuth, API_ENDPOINTS, getErrorMessage, isNetworkError } from '@
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import type { CatalogService, ServiceCategory } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
+import UserProfileDropdown from '@/components/UserProfileDropdown';
 
 type AgeGroup = 'kids' | 'adults' | 'both';
 
@@ -118,22 +119,29 @@ function Step3SkillsPricingInner() {
     };
   }, [isAuthenticated, user]);
 
-  const addService = (svc: CatalogService) => {
-    if (selected.some((s) => s.catalog_service_id === svc.id)) return;
-    setSelected((prev) => [
-      ...prev,
-      {
-        catalog_service_id: svc.id,
-        name: svc.name,
-        hourly_rate: '',
-        ageGroup: 'adults',
-        description: '',
-        equipment: '',
-        levels_taught: ['beginner', 'intermediate', 'advanced'],
-        duration_options: [60],
-        location_types: ['in-person'],
-      },
-    ]);
+  const toggleService = (svc: CatalogService) => {
+    const isSelected = selected.some((s) => s.catalog_service_id === svc.id);
+
+    if (isSelected) {
+      // Deselect the service
+      setSelected((prev) => prev.filter((s) => s.catalog_service_id !== svc.id));
+    } else {
+      // Add the service
+      setSelected((prev) => [
+        ...prev,
+        {
+          catalog_service_id: svc.id,
+          name: svc.name,
+          hourly_rate: '',
+          ageGroup: 'adults',
+          description: '',
+          equipment: '',
+          levels_taught: ['beginner', 'intermediate', 'advanced'],
+          duration_options: [60],
+          location_types: ['in-person'],
+        },
+      ]);
+    }
   };
 
   const removeService = (id: string) => {
@@ -228,9 +236,72 @@ function Step3SkillsPricingInner() {
   if (loading) return <div className="p-8">Loading…</div>;
 
   return (
-    <div className="max-w-5xl mx-auto p-6">
-      <h1 className="text-2xl font-semibold text-[#6A0DAD]">What do you teach?</h1>
-      <p className="text-gray-600 mt-1">Select your skills and set your hourly rates</p>
+    <div className="min-h-screen">
+      {/* Header - matching other pages */}
+      <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between max-w-full relative">
+          <a href="/" className="inline-block">
+            <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+          </a>
+
+          {/* Progress Bar - 4 Steps - Absolutely centered */}
+          <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-0">
+            {/* Step 1 - Completed */}
+            <div className="flex items-center">
+              <button
+                onClick={() => {/* TODO: Navigate to Step 1 */}}
+                className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center hover:bg-purple-700 transition-colors cursor-pointer"
+                title="Step 1: Account Created"
+              >
+                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                </svg>
+              </button>
+              <div className="w-60 h-0.5 bg-purple-600"></div>
+            </div>
+
+            {/* Step 2 - Current (Skills) */}
+            <div className="flex items-center">
+              <button
+                onClick={() => {/* Already on this page */}}
+                className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
+                title="Step 2: Skills & Pricing (Current)"
+              ></button>
+              <div className="w-60 h-0.5 bg-gray-300"></div>
+            </div>
+
+            {/* Step 3 - Upcoming */}
+            <div className="flex items-center">
+              <button
+                onClick={() => window.location.href = '/instructor/onboarding/verification'}
+                className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-gray-400 transition-colors cursor-pointer"
+                title="Step 3: Verification"
+              ></button>
+              <div className="w-60 h-0.5 bg-gray-300"></div>
+            </div>
+
+            {/* Step 4 - Upcoming */}
+            <div className="flex items-center">
+              <button
+                onClick={() => window.location.href = '/instructor/onboarding/status'}
+                className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-gray-400 transition-colors cursor-pointer"
+                title="Step 4: Status"
+              ></button>
+            </div>
+          </div>
+
+          <div className="pr-4">
+            <UserProfileDropdown />
+          </div>
+        </div>
+      </header>
+
+      <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
+        {/* Page Header */}
+        <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
+          <h1 className="text-3xl font-bold text-gray-600 mb-2">What do you teach?</h1>
+          <p className="text-gray-600">Select your skills and set your hourly rates</p>
+        </div>
 
       {error && <div className="mt-4 rounded-md bg-red-50 text-red-700 px-4 py-2">{error}</div>}
 
@@ -238,12 +309,12 @@ function Step3SkillsPricingInner() {
         {categories.map((cat) => {
           const isCollapsed = collapsed[cat.slug] === true;
           return (
-          <div key={cat.slug} className="rounded-2xl overflow-hidden shadow-sm ring-1 ring-gray-100">
+          <div key={cat.slug} className="rounded-lg overflow-hidden border border-gray-200 bg-white">
             <button
-              className="w-full px-4 py-3 flex items-center justify-between font-semibold tracking-wide text-gray-900 bg-[#D4B5F0]"
+              className="w-full px-4 py-3 flex items-center justify-between text-gray-700 hover:bg-gray-50 transition-colors"
               onClick={() => setCollapsed((prev) => ({ ...prev, [cat.slug]: !isCollapsed }))}
             >
-              <span>{cat.name}</span>
+              <span className="font-bold">{cat.name}</span>
               <span className="text-sm">{isCollapsed ? '▼' : '▲'}</span>
             </button>
             {!isCollapsed && (
@@ -253,9 +324,12 @@ function Step3SkillsPricingInner() {
                 return (
                   <button
                     key={svc.id}
-                    onClick={() => addService(svc)}
-                    disabled={selectedFlag}
-                    className={`px-4 py-3 text-sm text-gray-900 rounded-xl bg-white shadow-sm hover:shadow-md transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] ${selectedFlag ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    onClick={() => toggleService(svc)}
+                    className={`px-4 py-2.5 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-purple-500/20 ${
+                      selectedFlag
+                        ? 'bg-purple-100 text-purple-700 border border-purple-300'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
                   >
                     {svc.name} {selectedFlag ? '✓' : '+'}
                   </button>
@@ -269,185 +343,253 @@ function Step3SkillsPricingInner() {
 
       {/* Global age group selector removed; per-service selection is below */}
 
-      <div className="mt-8">
-        <h2 className="text-lg font-medium text-gray-900">Your selected skills</h2>
+      <div className="mt-8 bg-white rounded-lg p-6 border border-gray-200">
+        <h2 className="text-lg font-medium text-gray-900 mb-4">Your selected skills</h2>
         {selected.length === 0 ? (
-          <p className="text-gray-500 mt-2">You can add skills now or later.</p>
+          <p className="text-gray-500">You can add skills now or later.</p>
         ) : (
-          <div className="mt-3 space-y-4 bg-gray-50 rounded-2xl p-4 ring-1 ring-gray-100">
+          <div className="grid gap-4">
             {selected.map((s) => (
-              <div key={s.catalog_service_id} className="rounded-xl bg-white ring-1 ring-gray-200 p-4 shadow-sm">
-                <div className="flex items-start justify-between">
-                  <div className="text-gray-900 font-semibold">{s.name}</div>
+              <div key={s.catalog_service_id} className="rounded-lg border border-gray-200 bg-gray-50 p-5 hover:shadow-sm transition-shadow">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <div className="text-lg font-medium text-gray-900">{s.name}</div>
+                    <div className="flex items-center gap-3 mt-2">
+                      <div className="flex items-center gap-1">
+                        <span className="text-2xl font-bold text-purple-700">${s.hourly_rate || '0'}</span>
+                        <span className="text-sm text-gray-600">/hour</span>
+                      </div>
+                    </div>
+                  </div>
                   <button
-                    aria-label="Remove"
-                    title="Remove"
-                    className="ml-2 w-8 h-8 flex items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                    aria-label="Remove skill"
+                    title="Remove skill"
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-300 text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-colors"
                     onClick={() => removeService(s.catalog_service_id)}
                   >
-                    ×
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                   </button>
                 </div>
-                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <textarea
-                    rows={2}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] bg-white"
-                    placeholder="Brief description (optional)"
-                    value={s.description || ''}
-                    onChange={(e) =>
-                      setSelected((prev) =>
-                        prev.map((x) => (x.catalog_service_id === s.catalog_service_id ? { ...x, description: e.target.value } : x))
-                      )
-                    }
-                  />
-                  <textarea
-                    rows={2}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] bg-white"
-                    placeholder="Equipment required (comma-separated, optional)"
-                    value={s.equipment || ''}
-                    onChange={(e) =>
-                      setSelected((prev) =>
-                        prev.map((x) => (x.catalog_service_id === s.catalog_service_id ? { ...x, equipment: e.target.value } : x))
-                      )
-                    }
-                  />
-                </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Rate:</span>
-                  <span className="text-gray-600">$</span>
-                  <input
-                    type="number"
-                    min={1}
-                    step="1"
-                    inputMode="decimal"
-                    className="w-28 rounded-lg border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0] bg-white"
-                    placeholder="75"
-                    value={s.hourly_rate}
-                    onChange={(e) =>
-                      setSelected((prev) =>
-                        prev.map((x) =>
-                          x.catalog_service_id === s.catalog_service_id ? { ...x, hourly_rate: e.target.value } : x
-                        )
-                      )
-                    }
-                  />
-                  <span className="text-gray-600">/hour</span>
-                </div>
-                <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <span className="text-sm text-gray-600">Age group:</span>
-                  <div className="inline-flex rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
-                    {([
-                      { key: 'kids', label: 'Kids' },
-                      { key: 'adults', label: 'Adults' },
-                      { key: 'both', label: 'Both' },
-                    ] as const).map((opt) => (
-                      <button
-                        key={opt.key}
-                        onClick={() =>
+                {/* Price Input Section */}
+                <div className="mb-4 bg-white rounded-lg p-3 border border-gray-200">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-gray-700">Hourly Rate:</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-gray-500">$</span>
+                      <input
+                        type="number"
+                        min={1}
+                        step="1"
+                        inputMode="decimal"
+                        className="w-24 rounded-md border border-gray-300 px-2 py-1.5 text-center font-medium focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                        placeholder="75"
+                        value={s.hourly_rate}
+                        onChange={(e) =>
                           setSelected((prev) =>
                             prev.map((x) =>
-                              x.catalog_service_id === s.catalog_service_id ? { ...x, ageGroup: opt.key } : x
+                              x.catalog_service_id === s.catalog_service_id ? { ...x, hourly_rate: e.target.value } : x
                             )
                           )
                         }
-                        className={`px-3 py-1.5 text-sm ${
-                          s.ageGroup === opt.key ? 'bg-[#6A0DAD] text-white' : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
+                      />
+                      <span className="text-gray-500">/hr</span>
+                    </div>
+                  </div>
+                  {s.hourly_rate && Number(s.hourly_rate) > 0 && (
+                    <div className="mt-2 text-xs text-gray-600">
+                      You'll earn <span className="font-semibold text-purple-700">${(Number(s.hourly_rate) * 0.85).toFixed(2)}</span> after the 15% platform fee
+                    </div>
+                  )}
+                </div>
+                {/* Settings Grid - 2x2 Layout */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                  {/* Age Group */}
+                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Age Group</label>
+                    <div className="flex gap-1">
+                      {(['kids', 'adults'] as const).map((ageType) => {
+                        // Check if this age type is selected
+                        const isSelected = s.ageGroup === 'both'
+                          ? true
+                          : s.ageGroup === ageType;
+
+                        return (
+                          <button
+                            key={ageType}
+                            onClick={() => {
+                              setSelected((prev) =>
+                                prev.map((x) => {
+                                  if (x.catalog_service_id !== s.catalog_service_id) return x;
+
+                                  // Toggle logic for age groups - works like checkboxes
+                                  const currentAgeGroup = x.ageGroup;
+                                  let newAgeGroup: AgeGroup;
+
+                                  if (currentAgeGroup === 'both') {
+                                    // Both selected: clicking one deselects it, leaving only the other
+                                    newAgeGroup = ageType === 'kids' ? 'adults' : 'kids';
+                                  } else if (currentAgeGroup === ageType) {
+                                    // Only this one selected: can't deselect (must have at least one)
+                                    // Keep it selected
+                                    newAgeGroup = ageType;
+                                  } else {
+                                    // The other one is selected, clicking this one selects both
+                                    newAgeGroup = 'both';
+                                  }
+
+                                  return { ...x, ageGroup: newAgeGroup };
+                                })
+                              );
+                            }}
+                            className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
+                              isSelected
+                                ? 'bg-purple-100 text-purple-700 border border-purple-300'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                            type="button"
+                          >
+                            {ageType === 'kids' ? 'Kids' : 'Adults'}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Location Type */}
+                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Location Type</label>
+                    <div className="flex gap-1">
+                      {(['in-person', 'online'] as const).map((loc) => (
+                        <button
+                          key={loc}
+                          onClick={() =>
+                            setSelected((prev) =>
+                              prev.map((x) =>
+                                x.catalog_service_id === s.catalog_service_id
+                                  ? {
+                                      ...x,
+                                      location_types: x.location_types.includes(loc)
+                                        ? x.location_types.filter((v) => v !== loc)
+                                        : [...x.location_types, loc],
+                                    }
+                                  : x
+                              )
+                            )
+                          }
+                          className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
+                            s.location_types.includes(loc)
+                              ? 'bg-purple-100 text-purple-700 border border-purple-300'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                          type="button"
+                        >
+                          {loc === 'in-person' ? 'In-Person' : 'Online'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Levels */}
+                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Skill Levels</label>
+                    <div className="flex gap-1">
+                      {(['beginner', 'intermediate', 'advanced'] as const).map((lvl) => (
+                        <button
+                          key={lvl}
+                          onClick={() =>
+                            setSelected((prev) =>
+                              prev.map((x) =>
+                                x.catalog_service_id === s.catalog_service_id
+                                  ? {
+                                      ...x,
+                                      levels_taught: x.levels_taught.includes(lvl)
+                                        ? x.levels_taught.filter((v) => v !== lvl)
+                                        : [...x.levels_taught, lvl],
+                                    }
+                                  : x
+                              )
+                            )
+                          }
+                          className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
+                            s.levels_taught.includes(lvl)
+                              ? 'bg-purple-100 text-purple-700 border border-purple-300'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                          type="button"
+                        >
+                          {lvl === 'beginner' ? 'Beginner' : lvl === 'intermediate' ? 'Intermediate' : 'Advanced'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Duration */}
+                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Session Duration</label>
+                    <div className="flex gap-1">
+                      {[30, 45, 60, 90].map((d) => (
+                        <button
+                          key={d}
+                          onClick={() =>
+                            setSelected((prev) =>
+                              prev.map((x) =>
+                                x.catalog_service_id === s.catalog_service_id
+                                  ? {
+                                      ...x,
+                                      duration_options: x.duration_options.includes(d)
+                                        ? x.duration_options.filter((v) => v !== d)
+                                        : [...x.duration_options, d],
+                                    }
+                                  : x
+                              )
+                            )
+                          }
+                          className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
+                            s.duration_options.includes(d)
+                              ? 'bg-purple-100 text-purple-700 border border-purple-300'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                          type="button"
+                        >
+                          {d}m
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <span className="text-sm text-gray-600">Levels:</span>
-                  {(['beginner', 'intermediate', 'advanced'] as const).map((lvl) => (
-                    <button
-                      key={lvl}
-                      onClick={() =>
+
+                {/* Optional Details */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">Description (Optional)</label>
+                    <textarea
+                      rows={2}
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-white"
+                      placeholder="Brief description of your teaching style..."
+                      value={s.description || ''}
+                      onChange={(e) =>
                         setSelected((prev) =>
-                          prev.map((x) =>
-                            x.catalog_service_id === s.catalog_service_id
-                              ? {
-                                  ...x,
-                                  levels_taught: x.levels_taught.includes(lvl)
-                                    ? x.levels_taught.filter((v) => v !== lvl)
-                                    : [...x.levels_taught, lvl],
-                                }
-                              : x
-                          )
+                          prev.map((x) => (x.catalog_service_id === s.catalog_service_id ? { ...x, description: e.target.value } : x))
                         )
                       }
-                      className={`px-3 py-1.5 rounded-full text-sm border ${
-                        s.levels_taught.includes(lvl)
-                          ? 'bg-[#6A0DAD] text-white border-[#6A0DAD]'
-                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                      }`}
-                      type="button"
-                    >
-                      {lvl[0].toUpperCase() + lvl.slice(1)}
-                    </button>
-                  ))}
-                </div>
-                <div className="mt-2 flex flex-wrap items-center gap-3">
-                  <span className="text-sm text-gray-600">Durations:</span>
-                  {[30, 45, 60, 90].map((d) => (
-                    <button
-                      key={d}
-                      onClick={() =>
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">Equipment (Optional)</label>
+                    <textarea
+                      rows={2}
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-white"
+                      placeholder="Yoga mat, tennis racket..."
+                      value={s.equipment || ''}
+                      onChange={(e) =>
                         setSelected((prev) =>
-                          prev.map((x) =>
-                            x.catalog_service_id === s.catalog_service_id
-                              ? {
-                                  ...x,
-                                  duration_options: x.duration_options.includes(d)
-                                    ? x.duration_options.filter((v) => v !== d)
-                                    : [...x.duration_options, d],
-                                }
-                              : x
-                          )
+                          prev.map((x) => (x.catalog_service_id === s.catalog_service_id ? { ...x, equipment: e.target.value } : x))
                         )
                       }
-                      className={`px-3 py-1.5 rounded-full text-sm border ${
-                        s.duration_options.includes(d)
-                          ? 'bg-[#6A0DAD] text-white border-[#6A0DAD]'
-                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                      }`}
-                      type="button"
-                    >
-                      {d}m
-                    </button>
-                  ))}
-                </div>
-                <div className="mt-2 flex flex-wrap items-center gap-3">
-                  <span className="text-sm text-gray-600">Location:</span>
-                  {(['in-person', 'online'] as const).map((loc) => (
-                    <button
-                      key={loc}
-                      onClick={() =>
-                        setSelected((prev) =>
-                          prev.map((x) =>
-                            x.catalog_service_id === s.catalog_service_id
-                              ? {
-                                  ...x,
-                                  location_types: x.location_types.includes(loc)
-                                    ? x.location_types.filter((v) => v !== loc)
-                                    : [...x.location_types, loc],
-                                }
-                              : x
-                          )
-                        )
-                      }
-                      className={`px-3 py-1.5 rounded-full text-sm border ${
-                        s.location_types.includes(loc)
-                          ? 'bg-[#6A0DAD] text-white border-[#6A0DAD]'
-                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                      }`}
-                      type="button"
-                    >
-                      {loc === 'in-person' ? 'In‑person' : 'Online'}
-                    </button>
-                  ))}
+                    />
+                  </div>
                 </div>
               </div>
             ))}
@@ -456,8 +598,8 @@ function Step3SkillsPricingInner() {
       </div>
 
       {/* Request a new service */}
-      <div className="mt-8 rounded-2xl bg-[#D4B5F0] ring-1 ring-[#D4B5F0] p-5">
-        <div className="text-gray-900 font-semibold">Don't see your skill? We'd love to add it!</div>
+      <div className="mt-8 bg-white rounded-lg p-6 border border-gray-200">
+        <h2 className="text-lg font-medium text-gray-900">Don't see your skill? We'd love to add it!</h2>
         <div className="mt-3 flex flex-col sm:flex-row gap-3">
           <input
             type="text"
@@ -481,10 +623,11 @@ function Step3SkillsPricingInner() {
         <button
           onClick={save}
           disabled={!canSave || saving}
-          className="px-5 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:bg-[#5c0a9a] disabled:opacity-50 shadow-sm"
+          className="px-6 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:bg-[#5c0a9a] disabled:opacity-50 shadow-sm transition-colors"
         >
           {selected.length ? 'Save & Continue' : 'Add skills later →'}
         </button>
+      </div>
       </div>
     </div>
   );

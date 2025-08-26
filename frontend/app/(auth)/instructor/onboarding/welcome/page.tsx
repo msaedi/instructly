@@ -24,24 +24,23 @@ export default function WelcomeStep() {
           aria-labelledby="welcome-title"
           className="w-full max-w-md sm:max-w-lg rounded-2xl bg-white shadow-2xl p-8 sm:p-12 animate-scale-in"
         >
-          {/* Optional success icon */}
-          <div className="mx-auto mb-6 h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
+          {/* Success icon - brand yellow */}
+          <div className="mx-auto mb-6 h-12 w-12 rounded-full bg-[#FFD700] flex items-center justify-center">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path d="M20 7L9 18L4 13" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M20 7L9 18L4 13" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
 
-          <h1 id="welcome-title" className="text-2xl sm:text-3xl font-bold text-gray-900 text-center">
-            Your instructor account is ready!
+          <h1 id="welcome-title" className="text-2xl sm:text-3xl font-bold text-gray-900 text-center mb-2">
+            Welcome aboard!
           </h1>
-          <div className="mt-4 space-y-3 text-center text-gray-600 text-base">
-            <p>Welcome aboard — we're thrilled to have you join InstaInstru!</p>
+          <p className="text-lg text-gray-600 text-center mb-4">We're thrilled to have you join <span className="font-bold">iNSTAiNSTRU</span>!</p>
+          <div className="space-y-3 text-center text-gray-600 text-base">
             <p>
               Instructors in your area earn around <span className="font-semibold text-gray-900">$75</span> per lesson.
             </p>
             <p>
-              Over <span className="font-semibold text-gray-900">500 students</span> are actively searching for instructors.
-              Next up, you'll create your profile and could book your first lesson within 48 hours!
+              Over <span className="font-semibold text-gray-900">500 students</span> are actively searching for instructors. Next up, you'll create your profile and could book your first lesson within 48 hours!
             </p>
           </div>
 
