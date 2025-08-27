@@ -9,6 +9,7 @@ import { useGuestSessionCleanup } from '@/hooks/useGuestSessionCleanup';
 import { initializeSessionTracking, cleanupSessionTracking } from '@/lib/sessionTracking';
 import { queryClient } from '@/lib/react-query/queryClient';
 import { Toaster } from 'sonner';
+// Reverted: Analytics now handled in layout or removed by user preference
 
 function AppInitializer({ children }: { children: ReactNode }) {
   // Initialize guest session cleanup on app mount

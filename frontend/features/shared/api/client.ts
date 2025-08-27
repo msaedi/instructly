@@ -39,6 +39,7 @@ export const PROTECTED_ENDPOINTS = {
     list: '/bookings/',
     get: (id: string) => `/bookings/${id}`,
     cancel: (id: string) => `/bookings/${id}/cancel`,
+    reschedule: (id: string) => `/bookings/${id}/reschedule`,
   },
 } as const;
 
@@ -778,6 +779,17 @@ export const protectedApi = {
     return authFetch<Booking>(PROTECTED_ENDPOINTS.bookings.cancel(bookingId), {
       method: 'POST',
       body: JSON.stringify({ reason }),
+    });
+  },
+
+  // Add reschedule endpoint client
+  async rescheduleBooking(
+    bookingId: string,
+    payload: { booking_date: string; start_time: string; selected_duration: number; instructor_service_id?: string }
+  ) {
+    return authFetch<Booking>(PROTECTED_ENDPOINTS.bookings.reschedule(bookingId), {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   },
 };

@@ -469,18 +469,29 @@ class StripeService(BaseService):
             # Get account details from Stripe
             stripe_account = stripe.Account.retrieve(account_record.stripe_account_id)
 
-            charges_enabled = stripe_account.charges_enabled
-            details_submitted = stripe_account.details_submitted
+            charges_enabled = bool(getattr(stripe_account, "charges_enabled", False))
+            payouts_enabled = bool(getattr(stripe_account, "payouts_enabled", False))
+            details_submitted = bool(getattr(stripe_account, "details_submitted", False))
 
-            # Update onboarding status if completed
-            if charges_enabled and details_submitted and not account_record.onboarding_completed:
-                self.payment_repository.update_onboarding_status(account_record.stripe_account_id, True)
-                account_record.onboarding_completed = True
+            # Compute actual onboarding completion from live Stripe fields
+            computed_completed = bool(charges_enabled and details_submitted)
+
+            # Keep DB flag in sync (do not force true when not actually completed)
+            if account_record.onboarding_completed != computed_completed:
+                try:
+                    self.payment_repository.update_onboarding_status(
+                        account_record.stripe_account_id, computed_completed
+                    )
+                    account_record.onboarding_completed = computed_completed
+                except Exception:
+                    # Non-fatal if persistence fails; return live-computed status
+                    pass
 
             return {
                 "has_account": True,
-                "onboarding_completed": account_record.onboarding_completed,
+                "onboarding_completed": computed_completed,
                 "can_accept_payments": charges_enabled,
+                "payouts_enabled": payouts_enabled,
                 "details_submitted": details_submitted,
                 "stripe_account_id": account_record.stripe_account_id,
             }

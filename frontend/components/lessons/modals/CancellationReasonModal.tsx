@@ -131,12 +131,12 @@ export function CancellationReasonModal({
           {canReschedule && (
             <div className="bg-purple-100 rounded-lg p-4">
               <p className="text-sm text-gray-700">
-                Need to reschedule instead?{' '}
+                Need to reschedule?{' '}
                 <button
                   onClick={onReschedule}
                   className="font-medium text-purple-700 underline hover:no-underline cursor-pointer"
                 >
-                  Reschedule
+                  Reschedule instead
                 </button>
               </p>
             </div>

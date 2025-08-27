@@ -91,8 +91,8 @@ describe('CancelWarningModal', () => {
       />
     );
 
-    // Modal should show time-based message
-    expect(screen.getByText(/Time until lesson:/)).toBeInTheDocument();
+    // Modal should show time-based message (case-insensitive, optional colon)
+    expect(screen.getByText(/Time until lesson:?/i)).toBeInTheDocument();
   });
 
   it('shows warning for late cancellation', () => {

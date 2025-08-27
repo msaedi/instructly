@@ -108,7 +108,7 @@ class BookingService(BaseService):
         # 1. Validate and load required data
         service, instructor_profile = await self._validate_booking_prerequisites(student, booking_data)
 
-        # 2. Validate selected duration
+        # 2. Validate selected duration (strict for new bookings)
         if selected_duration not in service.duration_options:
             raise BusinessRuleException(
                 f"Invalid duration {selected_duration}. Available options: {service.duration_options}"
@@ -138,7 +138,11 @@ class BookingService(BaseService):
 
     @BaseService.measure_operation("create_booking_with_payment_setup")
     async def create_booking_with_payment_setup(
-        self, student: User, booking_data: BookingCreate, selected_duration: int
+        self,
+        student: User,
+        booking_data: BookingCreate,
+        selected_duration: int,
+        rescheduled_from_booking_id: Optional[str] = None,
     ) -> Booking:
         """
         Create a booking with payment setup (Phase 2.1).
@@ -188,6 +192,17 @@ class BookingService(BaseService):
             booking = await self._create_booking_record(
                 student, booking_data, service, instructor_profile, selected_duration
             )
+
+            # If this booking was created via reschedule, persist linkage for analytics
+            if rescheduled_from_booking_id:
+                try:
+                    # Use repository to persist linkage (repository handles flush within transaction)
+                    booking = self.repository.update(
+                        booking.id, rescheduled_from_booking_id=rescheduled_from_booking_id
+                    )
+                except Exception:
+                    # Non-fatal; linkage is analytics-only
+                    pass
 
             # Override status to PENDING until payment confirmed
             booking.status = BookingStatus.PENDING
@@ -345,6 +360,11 @@ class BookingService(BaseService):
         self.log_operation(
             "confirm_booking_payment_completed", booking_id=booking.id, payment_status=booking.payment_status
         )
+        # Invalidate caches so upcoming lists include the newly confirmed booking
+        try:
+            self._invalidate_booking_caches(booking)
+        except Exception:
+            pass
         return booking
 
     @BaseService.measure_operation("find_booking_opportunities")
@@ -768,7 +788,13 @@ class BookingService(BaseService):
 
     @BaseService.measure_operation("check_availability")
     async def check_availability(
-        self, instructor_id: str, booking_date: date, start_time: time, end_time: time, service_id: str
+        self,
+        instructor_id: str,
+        booking_date: date,
+        start_time: time,
+        end_time: time,
+        service_id: str,
+        exclude_booking_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Check if a time range is available for booking.
@@ -789,6 +815,7 @@ class BookingService(BaseService):
             booking_date=booking_date,
             start_time=start_time,
             end_time=end_time,
+            exclude_booking_id=exclude_booking_id,
         )
 
         if has_conflict:

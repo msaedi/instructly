@@ -47,6 +47,8 @@ def upgrade() -> None:
         sa.Column("hourly_rate", sa.Numeric(10, 2), nullable=False),
         sa.Column("total_price", sa.Numeric(10, 2), nullable=False),
         sa.Column("duration_minutes", sa.Integer(), nullable=False),
+        # Optional link to original booking if this was created via reschedule
+        sa.Column("rescheduled_from_booking_id", sa.String(26), nullable=True),
         # Status
         sa.Column("status", sa.String(20), nullable=False, server_default="CONFIRMED"),
         # Location details
@@ -83,6 +85,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["student_id"], ["users.id"]),
         sa.ForeignKeyConstraint(["instructor_id"], ["users.id"]),
         sa.ForeignKeyConstraint(["instructor_service_id"], ["instructor_services.id"]),
+        sa.ForeignKeyConstraint(["rescheduled_from_booking_id"], ["bookings.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["cancelled_by_id"], ["users.id"]),
         sa.PrimaryKeyConstraint("id"),
         comment="Self-contained booking records - no dependency on availability slots",
@@ -110,6 +113,7 @@ def upgrade() -> None:
     # with better 3-column design including booking_date for date-filtered queries
     op.create_index("idx_bookings_instructor_service_id", "bookings", ["instructor_service_id"])
     op.create_index("idx_bookings_cancelled_by_id", "bookings", ["cancelled_by_id"])
+    op.create_index("idx_bookings_rescheduled_from_id", "bookings", ["rescheduled_from_booking_id"])
 
     # Add check constraints
     op.create_check_constraint(
@@ -567,6 +571,7 @@ def downgrade() -> None:
     op.drop_constraint("ck_bookings_status", "bookings", type_="check")
 
     # Drop bookings indexes
+    op.drop_index("idx_bookings_rescheduled_from_id", table_name="bookings")
     op.drop_index("idx_bookings_cancelled_by_id", table_name="bookings")
     op.drop_index("idx_bookings_instructor_service_id", table_name="bookings")
     # NOTE: idx_bookings_student_status removed - now in 005_performance_indexes.py

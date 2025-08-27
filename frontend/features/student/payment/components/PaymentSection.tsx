@@ -183,8 +183,8 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     try {
       // Get instructor ID and service ID from booking data (now strings/ULIDs)
       const instructorId = bookingData.instructorId;
-      // Try to get serviceId from metadata first, otherwise use lessonType
-      const serviceId = bookingData.metadata?.serviceId || bookingData.lessonType;
+      // Prefer explicit serviceId (ULID) from metadata; as a fallback, try bookingData.serviceId
+      const serviceId = bookingData.metadata?.serviceId || (bookingData as any).serviceId;
 
       // Format time to remove seconds if present
       const formattedStartTime = bookingData.startTime.split(':').slice(0, 2).join(':');

@@ -807,7 +807,7 @@ test.describe('Lesson Details Page', () => {
     // Click reschedule button in the modal
     // In our flow, click Continue then choose "Reschedule instead" in the next modal
     await page.getByRole('button', { name: 'Continue' }).click();
-    await page.getByText(/Reschedule instead/i).click();
+    await page.getByRole('button', { name: 'Reschedule instead' }).click();
 
     // Verify switched to reschedule modal
     await expect(page.locator('text=Cancellation Policy')).not.toBeVisible();

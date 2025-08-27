@@ -1,0 +1,63 @@
+trim trailing whitespace........................................................Passed
+fix end of files................................................................Passed
+check yaml......................................................................Passed
+check for added large files.....................................................Passed
+black...........................................................................Passed
+isort...........................................................................Passed
+API Contract Check..............................................................Passed
+Check for date.today() usage in user code.......................................Passed
+Check Repository Pattern Compliance.............................................Failed
+- hook id: check-repository-pattern
+- exit code: 1
+
+================================================================================
+REPOSITORY PATTERN VIOLATION CHECK
+================================================================================
+
+📊 Summary:
+  Files checked: 58
+  ❌ Unmarked violations: 1
+  ⚠️  Migration-marked violations: 0
+  ✅ Ignored (legitimate): 28
+
+❌ UNMARKED VIOLATIONS (Must Fix or Mark):
+
+
+📁 backend/app/services/booking_service.py
+   Violations: 1
+
+   Line 202:
+   >>> self.db.flush()
+   Fix: Add '# repo-pattern-migrate: TODO: migrate to repository' above this line
+
+================================================================================
+❌ REPOSITORY PATTERN VIOLATIONS DETECTED
+
+To fix these violations, either:
+1. Replace with repository calls (preferred)
+2. Add '# repo-pattern-migrate: TODO: <reason>' above the line
+3. Add '# repo-pattern-ignore: <reason>' if legitimately needed
+================================================================================
+
+✅ IGNORED (Legitimate DB Access): 28 violations
+  - backend/app/services/stripe_service.py: 1 legitimate uses
+  - backend/app/services/auth_service.py: 1 legitimate uses
+  - backend/app/services/slot_manager.py: 1 legitimate uses
+  - backend/app/services/bulk_operation_service.py: 1 legitimate uses
+  - backend/app/services/permission_service.py: 4 legitimate uses
+  - backend/app/services/search_history_cleanup_service.py: 11 legitimate uses
+  - backend/app/services/privacy_service.py: 6 legitimate uses
+  - backend/app/services/password_reset_service.py: 1 legitimate uses
+  - backend/app/services/instructor_service.py: 1 legitimate uses
+  - backend/app/services/search_history_service.py: 1 legitimate uses
+
+📈 Progress Tracking:
+  Total DB accesses found: 29
+  Unmarked (blocking): 1
+  Marked for migration: 0
+  Legitimate (ignored): 28
+
+❌ Pre-commit check FAILED - unmarked violations found
+   Run with --generate-markers to get list of violations to mark
+
+Enforce @BaseService.measure_operation on service methods.......................Passed

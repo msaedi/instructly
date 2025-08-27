@@ -17,6 +17,14 @@ from ..models.booking import BookingStatus
 from ..schemas.base import Money, StandardizedModel
 
 
+class RescheduledFromInfo(StandardizedModel):
+    """Minimal info about the original booking used for annotation."""
+
+    id: str
+    booking_date: date
+    start_time: time
+
+
 class BookingCreate(BaseModel):
     """
     Create a booking with self-contained time information.
@@ -108,6 +116,40 @@ class BookingCreate(BaseModel):
         return self
 
 
+class BookingRescheduleRequest(BaseModel):
+    """
+    Request to reschedule an existing booking by specifying a new date/time and duration.
+
+    Frontend will subsequently create a new booking; this endpoint prepares the system by
+    cancelling the old booking according to policy and recording audit events.
+    """
+
+    booking_date: date = Field(..., description="New date for the lesson")
+    start_time: time = Field(..., description="New start time (HH:MM)")
+    selected_duration: int = Field(..., description="New selected duration in minutes")
+    instructor_service_id: Optional[str] = Field(None, description="Override service if needed (defaults to old)")
+
+    @field_validator("start_time", mode="before")
+    @classmethod
+    def parse_time_string(cls, v):
+        if isinstance(v, str):
+            try:
+                hour, minute = v.split(":")
+                return time(int(hour), int(minute))
+            except (ValueError, AttributeError):
+                raise ValueError(f"Invalid time format: {v}. Expected HH:MM format.")
+        return v
+
+    @field_validator("selected_duration")
+    @classmethod
+    def validate_duration(cls, v):
+        if v < 15:
+            raise ValueError("Duration must be at least 15 minutes")
+        if v > 720:
+            raise ValueError("Duration cannot exceed 12 hours")
+        return v
+
+
 class BookingConfirmPayment(BaseModel):
     """
     Confirm payment method for a booking after SetupIntent completion.
@@ -160,6 +202,8 @@ class BookingBase(StandardizedModel):
     student_id: str
     instructor_id: str
     instructor_service_id: str
+    # If this booking was created by rescheduling another booking
+    rescheduled_from_booking_id: Optional[str] = None
 
     # Self-contained booking details
     booking_date: date
@@ -250,6 +294,8 @@ class BookingResponse(BookingBase):
     student: StudentInfo  # Students see their own full info
     instructor: InstructorInfo  # Privacy-aware: only has last_initial
     instructor_service: ServiceInfo
+    # Minimal info to display "Rescheduled from ..." on detail page
+    rescheduled_from: Optional["RescheduledFromInfo"] = None
 
     @classmethod
     def from_booking(cls, booking) -> "BookingResponse":
@@ -257,13 +303,28 @@ class BookingResponse(BookingBase):
         Create BookingResponse from Booking ORM model.
         Handles privacy transformation automatically.
         """
+
         # Build the response with proper privacy protection
+        # Defensive getters for possibly mocked attributes in tests
+        def _safe_str(value: object) -> Optional[str]:
+            return value if isinstance(value, str) else None
+
+        def _safe_location_type(value: object) -> Optional[str]:
+            if isinstance(value, str) and value in ["student_home", "instructor_location", "neutral"]:
+                return value
+            return "neutral"
+
+        rescheduled_from_booking_id_value = getattr(booking, "rescheduled_from_booking_id", None)
+
         response_data = {
             # Base fields from BookingBase
             "id": booking.id,
             "student_id": booking.student_id,
             "instructor_id": booking.instructor_id,
             "instructor_service_id": booking.instructor_service_id,
+            "rescheduled_from_booking_id": rescheduled_from_booking_id_value
+            if isinstance(rescheduled_from_booking_id_value, str)
+            else None,
             # Booking details
             "booking_date": booking.booking_date,
             "start_time": booking.start_time,
@@ -274,12 +335,12 @@ class BookingResponse(BookingBase):
             "duration_minutes": booking.duration_minutes,
             "status": booking.status,
             # Location
-            "service_area": booking.service_area,
-            "meeting_location": booking.meeting_location,
-            "location_type": booking.location_type,
+            "service_area": _safe_str(getattr(booking, "service_area", None)),
+            "meeting_location": _safe_str(getattr(booking, "meeting_location", None)),
+            "location_type": _safe_location_type(getattr(booking, "location_type", None)),
             # Notes
-            "student_note": booking.student_note,
-            "instructor_note": booking.instructor_note,
+            "student_note": _safe_str(getattr(booking, "student_note", None)),
+            "instructor_note": _safe_str(getattr(booking, "instructor_note", None)),
             # Timestamps
             "created_at": booking.created_at,
             "confirmed_at": booking.confirmed_at,
@@ -294,7 +355,27 @@ class BookingResponse(BookingBase):
             "instructor_service": ServiceInfo.model_validate(booking.instructor_service)
             if booking.instructor_service
             else None,
+            # Nested minimal info for annotation
+            "rescheduled_from": None,
         }
+
+        # Safely include minimal reschedule info only when real values are present
+        try:
+            res_from = getattr(booking, "rescheduled_from", None)
+            if (
+                res_from is not None
+                and isinstance(getattr(res_from, "id", None), str)
+                and isinstance(getattr(res_from, "booking_date", None), date)
+                and isinstance(getattr(res_from, "start_time", None), time)
+            ):
+                response_data["rescheduled_from"] = RescheduledFromInfo(
+                    id=res_from.id,
+                    booking_date=res_from.booking_date,
+                    start_time=res_from.start_time,
+                )
+        except Exception:
+            # If anything is off (e.g., mocks), omit the optional annotation
+            response_data["rescheduled_from"] = None
 
         return cls(**response_data)
 

@@ -10,6 +10,7 @@ import { Edit, Calendar, ExternalLink, LogOut, Trash2, CheckCircle2, XCircle } f
 import EditProfileModal from '@/components/modals/EditProfileModal';
 import DeleteProfileModal from '@/components/modals/DeleteProfileModal';
 import { fetchWithAuth, API_ENDPOINTS, getConnectStatus } from '@/lib/api';
+import { paymentService } from '@/services/api/payments';
 import { logger } from '@/lib/logger';
 import { InstructorProfile, getInstructorDisplayName } from '@/types/instructor';
 import { useAuth } from '@/features/shared/hooks/useAuth';
@@ -25,6 +26,8 @@ export default function InstructorDashboardNew() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [connectStatus, setConnectStatus] = useState<any>(null);
+  const [isMounted, setIsMounted] = useState(false);
+  const [isStartingStripeOnboarding, setIsStartingStripeOnboarding] = useState(false);
 
   const fetchProfile = async () => {
     const token = localStorage.getItem('access_token');
@@ -71,6 +74,7 @@ export default function InstructorDashboardNew() {
   };
 
   useEffect(() => {
+    setIsMounted(true);
     logger.info('Instructor dashboard (new) loaded');
     fetchProfile();
     (async () => {
@@ -86,9 +90,11 @@ export default function InstructorDashboardNew() {
   // Gate access until cleared to go live
   useEffect(() => {
     if (!profile || connectStatus == null) return;
+    const isLive = Boolean(profile.is_live);
+    if (isLive) return; // Never redirect live instructors
     const skillsOk = (profile.skills_configured === true) || (Array.isArray(profile.services) && profile.services.length > 0);
     const identityOk = Boolean(profile.identity_verified_at || profile.identity_verification_session_id);
-    const connectOk = Boolean(connectStatus && connectStatus.onboarding_completed);
+    const connectOk = Boolean(connectStatus?.charges_enabled && connectStatus?.details_submitted);
     const ready = skillsOk && identityOk && connectOk;
     if (!ready) {
       logger.info('Redirecting to onboarding status - prerequisites not complete');
@@ -120,10 +126,11 @@ export default function InstructorDashboardNew() {
     }
   };
 
+  // After mount, show a client-rendered spinner while loading
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-700"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-700" />
       </div>
     );
   }
@@ -210,18 +217,45 @@ export default function InstructorDashboardNew() {
 
         <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Stripe Status Card */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Stripe Account Status</h2>
-            <p className="text-gray-600 text-sm mb-4">Your Stripe account setup status.</p>
-            <div className="rounded-lg border border-green-200 bg-green-50 p-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-green-900">
-                <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Charges enabled</div>
-                <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Payouts enabled</div>
-                <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Details verified</div>
-                <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Ready for payments</div>
-              </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-purple-600 via-purple-500 to-indigo-500 px-6 py-4">
+              <h2 className="text-lg font-semibold text-white">Stripe Account</h2>
+              <p className="text-purple-100 text-xs mt-0.5">Manage onboarding and payouts</p>
             </div>
-            <div className="mt-4">
+            <div className="p-6">
+              <p className="text-gray-600 text-sm mb-4">Your Stripe account setup status.</p>
+            {connectStatus ? (() => {
+              const chargesEnabled = Boolean(connectStatus?.charges_enabled);
+              const payoutsEnabled = Boolean(connectStatus?.payouts_enabled);
+              const detailsSubmitted = Boolean(connectStatus?.details_submitted);
+              // Compute UI completion from live signals rather than trusting stale flag
+              const onboardingCompleted = Boolean(chargesEnabled && detailsSubmitted);
+              const allGood = chargesEnabled && payoutsEnabled && detailsSubmitted && onboardingCompleted;
+              const wrapperClass = allGood
+                ? 'rounded-lg border border-green-200 bg-green-50 p-4'
+                : 'rounded-lg border border-amber-200 bg-amber-50 p-4';
+              return (
+                <div className={wrapperClass}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <ChecklistRow label="Charges enabled" ok={chargesEnabled} />
+                    <ChecklistRow label="Payouts enabled" ok={payoutsEnabled} />
+                    <ChecklistRow label="Details verified" ok={detailsSubmitted} />
+                    <ChecklistRow label="Onboarding completed" ok={onboardingCompleted} />
+                  </div>
+                </div>
+              );
+            })() : (
+              <div className="rounded-lg border border-gray-200 bg-white p-4">
+                <div className="h-6 w-40 bg-gray-100 rounded mb-2" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="h-10 bg-gray-100 rounded" />
+                  <div className="h-10 bg-gray-100 rounded" />
+                  <div className="h-10 bg-gray-100 rounded" />
+                  <div className="h-10 bg-gray-100 rounded" />
+                </div>
+              </div>
+            )}
+            <div className="mt-5 flex gap-3">
               <button
                 onClick={async () => {
                   try { const s = await getConnectStatus(); setConnectStatus(s); } catch {}
@@ -230,6 +264,31 @@ export default function InstructorDashboardNew() {
               >
                 <ExternalLink className="w-4 h-4 mr-2 rotate-90" /> Refresh Status
               </button>
+              {connectStatus && !(Boolean(connectStatus?.charges_enabled) && Boolean(connectStatus?.details_submitted)) && (
+                <button
+                  onClick={async () => {
+                    try {
+                      setIsStartingStripeOnboarding(true);
+                      const retPath = '/instructor/dashboard?stripe_onboarding_return=true';
+                      const resp = await paymentService.startOnboardingWithReturn(retPath);
+                      if (resp?.onboarding_url) {
+                        window.location.href = resp.onboarding_url;
+                      } else {
+                        alert('Could not start Stripe onboarding.');
+                      }
+                    } catch (e) {
+                      alert('Unable to start Stripe onboarding right now.');
+                    } finally {
+                      setIsStartingStripeOnboarding(false);
+                    }
+                  }}
+                  disabled={isStartingStripeOnboarding}
+                  className="inline-flex items-center px-3 py-2 text-sm rounded-md border border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 disabled:opacity-60"
+                >
+                  {isStartingStripeOnboarding ? 'Opening…' : 'Complete Stripe onboarding'}
+                </button>
+              )}
+            </div>
             </div>
           </div>
 
@@ -243,14 +302,18 @@ export default function InstructorDashboardNew() {
                 e.preventDefault();
                 try {
                   const resp = await getConnectStatus();
-                  if (resp?.onboarding_completed) {
-                    const dl = await fetchWithAuth('/api/payments/connect/dashboard');
-                    if (dl.ok) {
-                      const data = await dl.json();
-                      window.open(data.dashboard_url, '_blank');
-                    }
+                  setConnectStatus(resp);
+                  if (!resp || !(resp.charges_enabled && resp.details_submitted)) {
+                    alert('Your Stripe onboarding is not completed yet. Please finish onboarding first.');
+                    return;
+                  }
+                  const dl = await fetchWithAuth('/api/payments/connect/dashboard');
+                  if (dl.ok) {
+                    const data = await dl.json();
+                    window.open(data.dashboard_url, '_blank');
                   } else {
-                    alert('Your Stripe onboarding is not completed yet.');
+                    const err = await dl.json().catch(() => ({} as any));
+                    alert(`Unable to open Stripe dashboard: ${err.detail || dl.statusText}`);
                   }
                 } catch {
                   alert('Unable to open Stripe dashboard right now.');

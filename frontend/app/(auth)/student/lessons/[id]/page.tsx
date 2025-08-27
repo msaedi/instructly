@@ -139,6 +139,18 @@ export default function LessonDetailsPage() {
 
   const formattedDate = format(lessonDateTime, 'EEE MMM d');
   const formattedTime = format(lessonDateTime, 'h:mm a');
+  // Reschedule annotation (if this was created from another booking)
+  const rescheduledFrom = (lesson as any).rescheduled_from_booking_id as string | undefined;
+  let rescheduledFromText: string | null = null;
+  if (rescheduledFrom && (lesson as any).rescheduled_from) {
+    try {
+      const prev = (lesson as any).rescheduled_from;
+      const prevDt = new Date(`${prev.booking_date}T${prev.start_time}`);
+      rescheduledFromText = `Rescheduled from ${format(prevDt, 'MMM d')}, ${format(prevDt, 'h:mm a')}`;
+    } catch {
+      rescheduledFromText = null;
+    }
+  }
 
   return (
     <div className="min-h-screen">
@@ -178,6 +190,9 @@ export default function LessonDetailsPage() {
                 <StatusBadge variant="success" label="Completed" showIcon={true} />
               )}
             </div>
+            {rescheduledFromText && (
+              <p className="mt-2 text-sm text-gray-500">{rescheduledFromText}</p>
+            )}
           </div>
 
         {/* Date, Time, Price */}

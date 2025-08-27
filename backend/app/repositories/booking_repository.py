@@ -406,6 +406,8 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                                 and_(Booking.booking_date == today, Booking.start_time > current_time.isoformat()),
                             ),
                             Booking.status.in_([BookingStatus.CANCELLED, BookingStatus.NO_SHOW]),
+                            # Hide reschedule-driven cancellations from student History
+                            Booking.cancellation_reason != "Rescheduled",
                         ),
                     )
                 )
@@ -656,6 +658,7 @@ class BookingRepository(BaseRepository[Booking], CachedRepositoryMixin):
                     joinedload(Booking.student),
                     joinedload(Booking.instructor),
                     joinedload(Booking.instructor_service),
+                    joinedload(Booking.rescheduled_from),
                     joinedload(Booking.cancelled_by),
                 )
                 .filter(Booking.id == booking_id)

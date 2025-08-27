@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PaymentSection } from '@/features/student/payment';
-import { BookingPayment } from '@/features/student/payment/types';
+import { BookingPayment, PaymentStatus, BookingType } from '@/features/student/payment/types';
 import { navigationStateManager } from '@/lib/navigation/navigationStateManager';
 import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
@@ -50,13 +50,85 @@ export default function BookingConfirmationPage() {
         logger.error('[BOOKING CONFIRM] Failed to parse booking data', error as Error);
         setIsLoading(false);
         // Delay redirect to avoid React strict mode issues
-        setTimeout(() => router.push('/search'), 100);
+        setTimeout(() => router.push('/student/lessons'), 100);
       }
     } else {
-      // Redirect back if no booking data
+      // Attempt to recover from reschedule flow
+      const storedReschedule = sessionStorage.getItem('rescheduleData');
+      if (storedReschedule) {
+        try {
+          const rd = JSON.parse(storedReschedule);
+
+          // Parse display time like "8:00am" to 24h HH:MM:SS
+          const toStartTime = (display: string): string => {
+            const lower = String(display).toLowerCase();
+            const core = lower.replace(/am|pm/g, '').trim();
+            const [hh, mm] = core.split(':');
+            let hour = parseInt(hh || '0', 10);
+            const minute = parseInt(mm || '0', 10);
+            const isPM = lower.includes('pm');
+            const isAM = lower.includes('am');
+            if (isPM && hour !== 12) hour += 12;
+            if (isAM && hour === 12) hour = 0;
+            return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`;
+          };
+
+          const startTime = toStartTime(rd.time);
+          const [sh, sm] = startTime.split(':').map((v: string) => parseInt(v, 10));
+          const duration = parseInt(String(rd.duration || 0), 10) || 0;
+          const endTotal = sh * 60 + (sm || 0) + duration;
+          const endHour = Math.floor(endTotal / 60);
+          const endMinute = endTotal % 60;
+          const endTime = `${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}:00`;
+
+          const basePrice = Math.round(((rd.hourlyRate || 0) * duration) / 60);
+          const serviceFee = Math.round(basePrice * 0.1);
+          const totalAmount = basePrice + serviceFee;
+
+          const freeCancel = new Date(`${rd.date}T${startTime}`);
+          if (!isNaN(freeCancel.getTime())) {
+            freeCancel.setHours(freeCancel.getHours() - 24);
+          }
+
+          const paymentBooking: BookingPayment = {
+            bookingId: '',
+            instructorId: rd.instructorId,
+            instructorName: rd.instructorName || 'Instructor',
+            // Preserve service ULID for downstream API call
+            // Also carry it on the top-level object for convenience
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-ignore
+            serviceId: rd.serviceId,
+            lessonType: rd.serviceName || 'Lesson',
+            date: new Date(rd.date),
+            startTime,
+            endTime,
+            duration,
+            location: 'Online',
+            basePrice,
+            serviceFee,
+            totalAmount,
+            bookingType: BookingType.STANDARD,
+            paymentStatus: PaymentStatus.PENDING,
+            freeCancellationUntil: isNaN(freeCancel.getTime()) ? undefined : freeCancel,
+          } as BookingPayment;
+
+          setBookingData(paymentBooking);
+          setServiceId(rd.serviceId || null);
+          setIsLoading(false);
+          return;
+        } catch (e) {
+          logger.error('[BOOKING CONFIRM] Failed to parse reschedule data', e as Error);
+          setIsLoading(false);
+          setTimeout(() => router.push('/student/lessons'), 100);
+          return;
+        }
+      }
+
+      // Redirect back if no booking data and no reschedule data
       setIsLoading(false);
       // Delay redirect to avoid React strict mode issues
-      setTimeout(() => router.push('/search'), 100);
+      setTimeout(() => router.push('/student/lessons'), 100);
     }
   }, [bookingData, router]);
 
@@ -199,10 +271,10 @@ export default function BookingConfirmationPage() {
               No booking data found
             </h2>
             <button
-              onClick={() => router.push('/search')}
+              onClick={() => router.push('/student/lessons')}
               className="text-purple-700 hover:text-purple-800 hover:underline"
             >
-              Back to search
+              Back to My Lessons
             </button>
           </div>
         </div>
@@ -261,7 +333,7 @@ export default function BookingConfirmationPage() {
                 </button>
 
                 <button
-                  onClick={() => router.push('/search')}
+                  onClick={() => router.push(bookingData?.instructorId ? `/instructors/${bookingData.instructorId}` : '/student/lessons')}
                   className="w-full bg-white text-purple-700 py-3 px-6 rounded-lg font-medium border-2 border-purple-700 hover:bg-purple-50 transition-colors"
                 >
                   Book Another Lesson

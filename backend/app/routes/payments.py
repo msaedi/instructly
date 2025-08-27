@@ -215,11 +215,11 @@ async def get_onboarding_status(
             pass
 
         return OnboardingStatusResponse(
-            has_account=status_data["has_account"],
-            onboarding_completed=status_data["onboarding_completed"],
-            charges_enabled=status_data.get("can_accept_payments", False),
-            payouts_enabled=status_data.get("can_accept_payments", False),  # Simplified for now
-            details_submitted=status_data.get("details_submitted", False),
+            has_account=status_data.get("has_account", False),
+            onboarding_completed=bool(status_data.get("onboarding_completed", False)),
+            charges_enabled=bool(status_data.get("can_accept_payments", False)),
+            payouts_enabled=bool(status_data.get("payouts_enabled", False)),
+            details_submitted=bool(status_data.get("details_submitted", False)),
             requirements=status_data.get("requirements_extra", []),
         )
 

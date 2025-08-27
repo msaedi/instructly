@@ -115,6 +115,10 @@ class Booking(Base):
         "PlatformCredit", foreign_keys="PlatformCredit.used_booking_id", back_populates="used_booking"
     )
 
+    # Optional linkage when created by reschedule
+    rescheduled_from_booking_id = Column(String(26), ForeignKey("bookings.id"), nullable=True)
+    rescheduled_from = relationship("Booking", remote_side=[id], uselist=False, post_update=True)
+
     # Data integrity constraints
     __table_args__ = (
         CheckConstraint(

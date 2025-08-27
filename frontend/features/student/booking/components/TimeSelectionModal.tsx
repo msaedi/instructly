@@ -459,7 +459,8 @@ export default function TimeSelectionModal({
       const bookingData = {
         instructorId: instructor.user_id,
         instructorName: `${instructor.user.first_name} ${instructor.user.last_initial}.`,
-        serviceId: serviceId || selectedService.id || 1,
+        // Ensure we propagate the instructor_service_id ULID, never a display name
+        serviceId: serviceId || selectedService.id,
         skill: selectedService.skill,
         lessonType: selectedService.skill, // Same as skill for display
         date: selectedDate,
