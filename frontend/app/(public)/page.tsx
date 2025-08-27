@@ -374,7 +374,7 @@ export default function HomePage() {
 
         <div className="relative z-10">
         <div className="max-w-4xl mx-auto px-4 text-center">
-          <h1 className="text-5xl font-bold mb-8" suppressHydrationWarning>
+          <h1 className="text-5xl font-bold mb-8" suppressHydrationWarning aria-label="Instant Learning with iNSTAiNSTRU">
             <div className="leading-tight">
               {isClient && isAuthenticated ? (
                 <span className="text-purple-700">Your Next Lesson Awaits</span>
