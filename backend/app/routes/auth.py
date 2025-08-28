@@ -24,6 +24,7 @@ from ..middleware.rate_limiter import RateLimitKeyType, rate_limit
 from ..schemas import Token, UserCreate, UserLogin, UserResponse, UserUpdate, UserWithPermissionsResponse
 from ..schemas.security import LoginResponse, PasswordChangeRequest, PasswordChangeResponse
 from ..services.auth_service import AuthService
+from ..services.beta_service import BetaService
 from ..services.permission_service import PermissionService
 from ..services.search_history_service import SearchHistoryService
 
@@ -82,6 +83,27 @@ async def register(
             except Exception as e:
                 logger.error(f"Failed to convert guest searches during registration: {str(e)}")
                 # Don't fail registration if conversion fails
+
+        # Beta invite consumption (server-side guarantee)
+        try:
+            invite_code = None
+            if isinstance(getattr(user, "metadata", None), dict):
+                invite_code = user.metadata.get("invite_code")
+            if invite_code:
+                svc = BetaService(db)
+                grant, reason = svc.consume_and_grant(
+                    code=str(invite_code),
+                    user_id=db_user.id,
+                    role=user.role or "student",
+                    phase="instructor_only",
+                )
+                if grant:
+                    logger.info(f"Consumed beta invite for user {db_user.id} via register")
+                else:
+                    logger.warning(f"Invite not consumed on register for user {db_user.id}: {reason}")
+        except Exception as e:
+            # Log only; do not block registration if invite handling fails
+            logger.error(f"Error consuming invite on register for {db_user.id}: {e}")
 
         # Use Pydantic model for response
         return UserResponse(

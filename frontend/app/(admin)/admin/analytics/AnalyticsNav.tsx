@@ -38,6 +38,12 @@ export function AnalyticsNav() {
       icon: Code,
       active: pathname === '/admin/analytics/codebase',
     },
+    {
+      name: 'Beta Invites',
+      href: '/admin/beta/invites',
+      icon: Code,
+      active: pathname === '/admin/beta/invites',
+    },
   ];
 
   return (

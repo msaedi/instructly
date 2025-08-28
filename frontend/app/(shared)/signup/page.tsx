@@ -92,7 +92,7 @@ function SignUpForm() {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
-    email: '',
+    email: (searchParams.get('email') || '').toLowerCase(),
     phone: '',
     zipCode: '',
     password: '',
@@ -235,7 +235,7 @@ function SignUpForm() {
       const guestSessionId = getGuestSessionId();
 
       // Prepare registration data with new fields
-      const registrationData: RegisterRequest & { guest_session_id?: string } = {
+      const registrationData: RegisterRequest & { guest_session_id?: string; metadata?: Record<string, any> } = {
         first_name: formData.firstName.trim(),
         last_name: formData.lastName.trim(),
         email: formData.email.trim().toLowerCase(),
@@ -244,6 +244,10 @@ function SignUpForm() {
         password: formData.password,
         role: (searchParams.get('role') as any) === 'instructor' ? RoleName.INSTRUCTOR : RoleName.STUDENT,
         ...(guestSessionId && { guest_session_id: guestSessionId }),
+        metadata: {
+          founding: searchParams.get('founding') === 'true' || undefined,
+          invite_code: searchParams.get('invite_code') || undefined,
+        },
       };
 
       logger.info('Attempting user registration', {
@@ -368,6 +372,28 @@ function SignUpForm() {
 
       if (userResponse.ok) {
         const userData = await userResponse.json();
+        // If the user signed up via a beta invite, consume it and grant access
+        try {
+          const inviteCode = searchParams.get('invite_code') || (typeof window !== 'undefined' ? sessionStorage.getItem('invite_code') || '' : '');
+          if (inviteCode) {
+            logger.info('Consuming beta invite for new user', { inviteCode, userId: userData.id });
+            await fetch(`${API_URL}/api/beta/invites/consume`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${authData.access_token}`,
+              },
+              body: JSON.stringify({
+                code: inviteCode,
+                user_id: userData.id,
+                role: 'instructor_beta',
+                phase: 'instructor_only',
+              }),
+            });
+          }
+        } catch (e) {
+          logger.warn('Failed to consume beta invite after signup', e as any);
+        }
         logger.info('User data fetched, redirecting based on role', {
           userId: userData.id,
           roles: userData.roles,

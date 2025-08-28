@@ -263,8 +263,11 @@ class TestBookingPaymentRoutes:
         """Test confirming payment for booking within 24 hours."""
         instructor, profile, service = instructor_setup
 
-        # Create pending booking within 24h (avoid midnight rollover by binding date to base)
-        base = (datetime.now() + timedelta(hours=2)).replace(microsecond=0)
+        # Create pending booking within 24h and avoid midnight rollover
+        # Pick 8 PM today when possible; otherwise 8 PM tomorrow
+        now = datetime.now().replace(microsecond=0)
+        base_date = date.today() if now.hour <= 18 else date.today() + timedelta(days=1)
+        base = datetime.combine(base_date, time(20, 0))
         booking = Booking(
             id=str(ulid.ULID()),
             student_id=student_user.id,

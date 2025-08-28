@@ -385,6 +385,43 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
 
+    # ======================================
+    # Beta program tables (invites & access)
+    # ======================================
+    print("Creating beta_invites table...")
+    op.create_table(
+        "beta_invites",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("code", sa.String(16), nullable=False),
+        sa.Column("email", sa.String(255), nullable=True),
+        sa.Column("role", sa.String(32), nullable=False, server_default="instructor_beta"),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("used_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("used_by_user_id", sa.String(26), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("metadata", sa.JSON(), nullable=True),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("code", name="uq_beta_invites_code"),
+    )
+    op.create_index("ix_beta_invites_code", "beta_invites", ["code"])  # helps foreign key in access
+    op.create_index("ix_beta_invites_email", "beta_invites", ["email"])  # quick lookup for prefill
+
+    print("Creating beta_access table...")
+    op.create_table(
+        "beta_access",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("user_id", sa.String(26), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("role", sa.String(32), nullable=False),
+        sa.Column(
+            "invited_by_code", sa.String(16), sa.ForeignKey("beta_invites.code", ondelete="SET NULL"), nullable=True
+        ),
+        sa.Column("granted_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("phase", sa.String(32), nullable=False, server_default="instructor_only"),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("user_id", "role", "phase", name="uq_beta_access_user_role_phase"),
+    )
+    op.create_index("ix_beta_access_user", "beta_access", ["user_id"])  # common filter
+
     # Add any remaining check constraints that weren't in earlier migrations
 
     # Ensure bookings have positive duration
@@ -546,5 +583,14 @@ def downgrade() -> None:
     op.drop_index("ix_alert_history_alert_type", "alert_history")
     op.drop_index("ix_alert_history_created_at", "alert_history")
     op.drop_table("alert_history")
+
+    # Drop beta tables (access first due to FK to invites)
+    print("Dropping beta_access and beta_invites tables...")
+    op.drop_index("ix_beta_access_user", table_name="beta_access")
+    op.drop_table("beta_access")
+
+    op.drop_index("ix_beta_invites_email", table_name="beta_invites")
+    op.drop_index("ix_beta_invites_code", table_name="beta_invites")
+    op.drop_table("beta_invites")
 
     print("Final constraints and monitoring tables dropped successfully!")

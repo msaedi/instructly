@@ -15,19 +15,23 @@ def student_client_and_db(client: TestClient, db):
 
 
 def _create_completed_booking(db, student_id: str, instructor_id: str, service_id: str) -> Booking:
+    # Anchor times within the same calendar day to avoid crossing midnight
+    today = datetime.now(timezone.utc).date()
+    start_dt = datetime(today.year, today.month, today.day, 14, 0, 0, tzinfo=timezone.utc)
+    end_dt = start_dt + timedelta(hours=1)
     b = Booking(
         student_id=student_id,
         instructor_id=instructor_id,
         instructor_service_id=service_id,
-        booking_date=datetime.now(timezone.utc).date(),
-        start_time=(datetime.now(timezone.utc) - timedelta(hours=2)).time(),
-        end_time=(datetime.now(timezone.utc) - timedelta(hours=1)).time(),
+        booking_date=today,
+        start_time=start_dt.time(),
+        end_time=end_dt.time(),
         service_name="Lesson",
         hourly_rate=50,
         total_price=50,
         duration_minutes=60,
         status=BookingStatus.COMPLETED,
-        completed_at=datetime.now(timezone.utc) - timedelta(hours=1),
+        completed_at=end_dt,
     )
     db.add(b)
     db.flush()

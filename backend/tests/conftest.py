@@ -63,6 +63,7 @@ from app.models import SearchEvent, SearchHistory
 # Ensure address and region models are registered so Base.metadata.create_all creates their tables
 from app.models.address import InstructorServiceArea, NYCNeighborhood, UserAddress  # noqa: F401
 from app.models.availability import AvailabilitySlot
+from app.models.beta import BetaAccess, BetaInvite  # noqa: F401 ensure beta tables are registered
 from app.models.booking import Booking, BookingStatus
 from app.models.instructor import InstructorProfile
 from app.models.region_boundary import RegionBoundary  # noqa: F401

@@ -41,6 +41,7 @@ import { PrivacySettings } from '@/components/PrivacySettings';
 import { recordSearch } from '@/lib/searchTracking';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { fetchWithAuth } from '@/lib/api';
+import { useBeta } from '@/contexts/BetaContext';
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -57,6 +58,8 @@ export default function HomePage() {
   const router = useRouter();
   const { user, isAuthenticated, logout, isLoading: isAuthLoading } = useAuth();
   const isInstructor = isAuthenticated && hasRole(user, RoleName.INSTRUCTOR);
+  const { config } = useBeta();
+  const hideStudentUi = config.site === 'beta' && config.phase === 'instructor_only';
 
   // Set isClient to true after mount to avoid hydration issues
   useEffect(() => {
@@ -311,17 +314,19 @@ export default function HomePage() {
             ) : (
               <div className="flex items-center gap-4">
                 <Link
-                  href="/signup?role=instructor&redirect=%2Finstructor%2Fonboarding%2Fwelcome"
+                  href={hideStudentUi ? '/instructor/join' : '/signup?role=instructor&redirect=%2Finstructor%2Fonboarding%2Fwelcome'}
                   className="text-gray-700 hover:text-purple-700 font-medium"
                 >
                   Become an Instructor
                 </Link>
-                <Link
-                  href="/login"
-                  className="px-4 py-2 bg-purple-700 text-white rounded-lg hover:bg-purple-800 transition-colors font-medium"
-                >
-                  Sign up / Log in
-                </Link>
+                {!hideStudentUi && (
+                  <Link
+                    href="/login"
+                    className="px-4 py-2 bg-purple-700 text-white rounded-lg hover:bg-purple-800 transition-colors font-medium"
+                  >
+                    Sign up / Log in
+                  </Link>
+                )}
               </div>
             )}
           </div>
@@ -385,6 +390,7 @@ export default function HomePage() {
             {(!isClient || !isAuthenticated) && <div className="leading-tight text-gray-900 dark:text-gray-100">iNSTAiNSTRU</div>}
           </h1>
 
+          {!hideStudentUi && (
           <form onSubmit={handleSearch} className="max-w-2xl mx-auto">
             <div
               className="relative border border-[#E5E5E5] dark:border-gray-600 rounded-full focus-within:border-purple-700 dark:focus-within:border-purple-400 bg-white dark:bg-gray-700 overflow-hidden"
@@ -426,11 +432,13 @@ export default function HomePage() {
               </button>
             </div>
           </form>
+          )}
         </div>
         </div>
       </section>
 
       {/* Categories */}
+      {!hideStudentUi && (
       <section className="py-2 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-2xl mx-auto">
           <div className="flex justify-center items-start space-x-10 ml-15">
@@ -502,8 +510,10 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Service Capsules */}
+      {!hideStudentUi && (
       <section className="py-6 bg-transparent dark:bg-transparent">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex flex-wrap justify-center gap-2 min-h-[48px] items-center">
@@ -594,6 +604,7 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Book Again OR How It Works - render on client only to avoid SSR/client mismatch */}
       {isClient && (

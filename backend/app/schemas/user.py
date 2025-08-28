@@ -41,6 +41,7 @@ class UserCreate(UserBase):
     password: str
     role: Optional[str] = None  # For backward compatibility during registration
     guest_session_id: Optional[str] = None  # For conversion on signup
+    metadata: Optional[dict] = None  # Optional client-provided metadata (e.g., invite_code)
 
 
 class UserUpdate(BaseModel):

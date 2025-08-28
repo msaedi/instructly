@@ -33,6 +33,7 @@ from .routes import (
     analytics,
     auth,
     availability_windows,
+    beta,
     bookings,
     codebase_metrics,
     database_monitor,
@@ -228,6 +229,7 @@ app.include_router(stripe_webhooks.router)
 app.include_router(prometheus.router)
 app.include_router(uploads.router)
 app.include_router(users_profile_picture.router)
+app.include_router(beta.router)
 app.include_router(reviews.router)
 
 # Identity + uploads: new endpoints are included via existing payments router and addresses router

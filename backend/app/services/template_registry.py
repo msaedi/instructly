@@ -15,3 +15,6 @@ class TemplateRegistry(str, Enum):
     # Referrals
     REFERRALS_INVITE = "email/referrals/invite.html"
     REFERRALS_INVITE_STANDALONE = "email/referrals/invite_standalone.html"
+
+    # Beta invites
+    BETA_INVITE = "email/beta/invite.html"

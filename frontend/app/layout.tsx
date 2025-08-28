@@ -6,6 +6,7 @@ import './globals.css';
 import { logger } from '@/lib/logger';
 import { Providers } from './providers';
 import GlobalBackground from '../components/ui/GlobalBackground';
+import { BetaProvider, BetaBanner } from '@/contexts/BetaContext';
 import { BackgroundProvider } from '@/lib/config/backgroundProvider';
 // Analytics moved to client-only Providers to avoid SSR hydration mismatch
 
@@ -155,13 +156,16 @@ export default function RootLayout({
         <BackgroundProvider>
           {/* Global fixed background with blur-up and readability overlay */}
           <GlobalBackground />
-          {/* Future enhancements could include:
-            - Global error boundary
-            - Analytics provider
-            - Toast notifications provider
-            - Theme provider
-          */}
-          <Providers>{children}</Providers>
+          <BetaProvider>
+            <BetaBanner />
+            {/* Future enhancements could include:
+              - Global error boundary
+              - Analytics provider
+              - Toast notifications provider
+              - Theme provider
+            */}
+            <Providers>{children}</Providers>
+          </BetaProvider>
         </BackgroundProvider>
       </body>
     </html>
