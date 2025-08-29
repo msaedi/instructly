@@ -5,7 +5,7 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 import Link from 'next/link';
 import { RefreshCw, BarChart3, Table } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { AnalyticsNav } from '../AnalyticsNav';
+import AdminSidebar from '@/app/(admin)/admin/AdminSidebar';
 import {
   analyticsApi,
   CandidateSummary,
@@ -78,12 +78,7 @@ export default function CandidatesAnalyticsDashboard() {
             </div>
             <div className="flex items-center space-x-3">
               <DaysSelector value={days} onChange={setDays} />
-              <button
-                onClick={refresh}
-                disabled={loading}
-                className="inline-flex items-center justify-center h-9 w-9 rounded-full text-indigo-600 hover:text-white hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/70 disabled:opacity-50"
-                title="Refresh data"
-              >
+              <button onClick={refresh} disabled={loading} className="inline-flex items-center justify-center h-9 w-9 rounded-full text-indigo-600 hover:text-white hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/70 disabled:opacity-50" title="Refresh data">
                 <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
               </button>
               <button
@@ -99,129 +94,131 @@ export default function CandidatesAnalyticsDashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Tabs */}
-        <div className="mb-6">
-          <AnalyticsNav />
-        </div>
+        <div className="grid grid-cols-12 gap-6">
+          <aside className="col-span-12 md:col-span-4 lg:col-span-4">
+            <AdminSidebar />
+          </aside>
+          <section className="col-span-12 md:col-span-8 lg:col-span-8">
 
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-            <div className="flex items-center">
-              <span className="text-red-700 dark:text-red-300">{error}</span>
-            </div>
-          </div>
-        )}
+              {error && (
+                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <div className="flex items-center">
+                    <span className="text-red-700 dark:text-red-300">{error}</span>
+                  </div>
+                </div>
+              )}
 
-        {/* Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <SummaryCard title="Total Candidates" value={summary?.total_candidates ?? 0} />
-          <SummaryCard title="Events with Candidates" value={summary?.events_with_candidates ?? 0} />
-          <SummaryCard title="Avg Candidates/Event" value={summary?.avg_candidates_per_event ?? 0} />
-          <SummaryCard title="Zero-Result Events w/ Candidates" value={summary?.zero_result_events_with_candidates ?? 0} />
-        </div>
+              {/* Summary */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <SummaryCard title="Total Candidates" value={summary?.total_candidates ?? 0} />
+                <SummaryCard title="Events with Candidates" value={summary?.events_with_candidates ?? 0} />
+                <SummaryCard title="Avg Candidates/Event" value={summary?.avg_candidates_per_event ?? 0} />
+                <SummaryCard title="Zero-Result Events w/ Candidates" value={summary?.zero_result_events_with_candidates ?? 0} />
+              </div>
 
-        {/* Trends & Score distribution */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <CategoryTrendsChart data={trends} loading={loading} />
-          <ScoreDistributionCard dist={scoreDist} loading={loading} />
-        </div>
+              {/* Trends & Score distribution */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <CategoryTrendsChart data={trends} loading={loading} />
+                <ScoreDistributionCard dist={scoreDist} loading={loading} />
+              </div>
 
-        {/* Top Services Table */}
-        <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Top Services by Candidate Frequency</h3>
-            <BarChart3 className="h-5 w-5 text-indigo-600" />
-          </div>
-          {!topServices || topServices.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-center py-8">No data available</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="text-left border-b border-gray-200 dark:border-gray-700">
-                    <th className="pb-3 pr-4 font-medium text-gray-700 dark:text-gray-300">Service</th>
-                    <th className="pb-3 pr-4 font-medium text-gray-700 dark:text-gray-300">Category</th>
-                    <th className="pb-3 pr-4 font-medium text-gray-700 dark:text-gray-300">Candidates</th>
-                    <th className="pb-3 pr-4 font-medium text-gray-700 dark:text-gray-300">Avg Score</th>
-                    <th className="pb-3 pr-4 font-medium text-gray-700 dark:text-gray-300">Avg Position</th>
-                    <th className="pb-3 pr-4 font-medium text-gray-700 dark:text-gray-300">Supply</th>
-                    <th className="pb-3 pr-4 font-medium text-gray-700 dark:text-gray-300">Opportunity</th>
-                    <th className="pb-3 pr-4 font-medium text-gray-700 dark:text-gray-300">Drill-down</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {topServices.map((item, i) => (
-                    <>
-                      <tr key={`row-${i}`} className="border-b border-gray-100 dark:border-gray-700">
-                        <td className="py-3 pr-4 text-gray-900 dark:text-gray-100">{item.service_name}</td>
-                        <td className="py-3 pr-4 text-gray-600 dark:text-gray-400">{item.category_name}</td>
-                        <td className="py-3 pr-4 text-gray-600 dark:text-gray-400">{item.candidate_count}</td>
-                        <td className="py-3 pr-4 text-gray-600 dark:text-gray-400">{item.avg_score.toFixed(2)}</td>
-                        <td className="py-3 pr-4 text-gray-600 dark:text-gray-400">{item.avg_position.toFixed(1)}</td>
-                        <td className="py-3 pr-4 text-gray-600 dark:text-gray-400">{item.active_instructors}</td>
-                        <td className="py-3 pr-4 text-gray-900 dark:text-gray-100 font-medium">{item.opportunity_score.toFixed(2)}</td>
-                        <td className="py-3 pr-4">
-                          <button
-                            className="text-indigo-600 hover:underline"
-                            onClick={async () => {
-                              if (!token) return;
-                              // Toggle behavior: close if already open
-                              if (drilldown && drilldown.serviceId === item.service_catalog_id) {
-                                setDrilldown(null);
-                                return;
-                              }
-                              const rows = await analyticsApi.getCandidateServiceQueries(token, item.service_catalog_id, days, 50);
-                              setDrilldown({ serviceId: item.service_catalog_id, serviceName: item.service_name, rows });
-                            }}
-                          >
-                            {drilldown && drilldown.serviceId === item.service_catalog_id ? 'Hide' : 'View queries'}
-                          </button>
-                        </td>
-                      </tr>
-                      {drilldown && drilldown.serviceId === item.service_catalog_id && (
-                        <tr key={`drill-${i}`} className="border-b border-gray-100 dark:border-gray-700">
-                          <td colSpan={8} className="py-3 pr-4">
-                            <div className="rounded-xl p-4 bg-white/60 dark:bg-gray-900/40 ring-1 ring-gray-200/70 dark:ring-gray-700/60">
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-medium text-gray-900 dark:text-gray-100">Queries for {drilldown.serviceName}</h4>
-                                <button className="text-gray-600 hover:underline" onClick={() => setDrilldown(null)}>Close</button>
-                              </div>
-                              <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                  <thead>
-                                    <tr className="text-left border-b border-gray-200 dark:border-gray-700">
-                                      <th className="py-2 pr-4">When</th>
-                                      <th className="py-2 pr-4">Query</th>
-                                      <th className="py-2 pr-4">Results</th>
-                                      <th className="py-2 pr-4">Position</th>
-                                      <th className="py-2 pr-4">Score</th>
-                                      <th className="py-2 pr-4">Source</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {drilldown.rows.map((r, idx) => (
-                                      <tr key={idx} className="border-b border-gray-100 dark:border-gray-700">
-                                        <td className="py-2 pr-4 text-gray-600 dark:text-gray-400">{new Date(r.searched_at).toLocaleString()}</td>
-                                        <td className="py-2 pr-4 text-gray-900 dark:text-gray-100">{r.search_query}</td>
-                                        <td className="py-2 pr-4 text-gray-600 dark:text-gray-400">{r.results_count ?? 0}</td>
-                                        <td className="py-2 pr-4 text-gray-600 dark:text-gray-400">{r.position}</td>
-                                        <td className="py-2 pr-4 text-gray-600 dark:text-gray-400">{r.score != null ? r.score.toFixed(2) : '-'}</td>
-                                        <td className="py-2 pr-4 text-gray-600 dark:text-gray-400">{r.source || '-'}</td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          </td>
+              {/* Top Services Table */}
+              <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Top Services by Candidate Frequency</h3>
+                  <BarChart3 className="h-5 w-5 text-indigo-600" />
+                </div>
+                {!topServices || topServices.length === 0 ? (
+                  <p className="text-gray-500 dark:text-gray-400 text-center py-8">No data available</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="text-left border-b border-gray-200 dark:border-gray-700">
+                          <th className="pb-3 pr-4 font-medium text-gray-700 dark:text-gray-300">Service</th>
+                          <th className="pb-3 pr-4 font-medium text-gray-700 dark:text-gray-300">Category</th>
+                          <th className="pb-3 pr-4 font-medium text-gray-700 dark:text-gray-300">Candidates</th>
+                          <th className="pb-3 pr-4 font-medium text-gray-700 dark:text-gray-300">Avg Score</th>
+                          <th className="pb-3 pr-4 font-medium text-gray-700 dark:text-gray-300">Avg Position</th>
+                          <th className="pb-3 pr-4 font-medium text-gray-700 dark:text-gray-300">Supply</th>
+                          <th className="pb-3 pr-4 font-medium text-gray-700 dark:text-gray-300">Opportunity</th>
+                          <th className="pb-3 pr-4 font-medium text-gray-700 dark:text-gray-300">Drill-down</th>
                         </tr>
-                      )}
-                    </>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                      </thead>
+                      <tbody>
+                        {topServices.map((item, i) => (
+                          <>
+                            <tr key={`row-${i}`} className="border-b border-gray-100 dark:border-gray-700">
+                              <td className="py-3 pr-4 text-gray-900 dark:text-gray-100">{item.service_name}</td>
+                              <td className="py-3 pr-4 text-gray-600 dark:text-gray-400">{item.category_name}</td>
+                              <td className="py-3 pr-4 text-gray-600 dark:text-gray-400">{item.candidate_count}</td>
+                              <td className="py-3 pr-4 text-gray-600 dark:text-gray-400">{item.avg_score.toFixed(2)}</td>
+                              <td className="py-3 pr-4 text-gray-600 dark:text-gray-400">{item.avg_position.toFixed(1)}</td>
+                              <td className="py-3 pr-4 text-gray-600 dark:text-gray-400">{item.active_instructors}</td>
+                              <td className="py-3 pr-4 text-gray-900 dark:text-gray-100 font-medium">{item.opportunity_score.toFixed(2)}</td>
+                              <td className="py-3 pr-4">
+                                <button
+                                  className="text-indigo-600 hover:underline"
+                                  onClick={async () => {
+                                    if (!token) return;
+                                    if (drilldown && drilldown.serviceId === item.service_catalog_id) {
+                                      setDrilldown(null);
+                                      return;
+                                    }
+                                    const rows = await analyticsApi.getCandidateServiceQueries(token, item.service_catalog_id, days, 50);
+                                    setDrilldown({ serviceId: item.service_catalog_id, serviceName: item.service_name, rows });
+                                  }}
+                                >
+                                  {drilldown && drilldown.serviceId === item.service_catalog_id ? 'Hide' : 'View queries'}
+                                </button>
+                              </td>
+                            </tr>
+                            {drilldown && drilldown.serviceId === item.service_catalog_id && (
+                              <tr key={`drill-${i}`} className="border-b border-gray-100 dark:border-gray-700">
+                                <td colSpan={8} className="py-3 pr-4">
+                                  <div className="rounded-xl p-4 bg-white/60 dark:bg-gray-900/40 ring-1 ring-gray-200/70 dark:ring-gray-700/60">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <h4 className="font-medium text-gray-900 dark:text-gray-100">Queries for {drilldown.serviceName}</h4>
+                                      <button className="text-gray-600 hover:underline" onClick={() => setDrilldown(null)}>Close</button>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                      <table className="w-full text-sm">
+                                        <thead>
+                                          <tr className="text-left border-b border-gray-200 dark:border-gray-700">
+                                            <th className="py-2 pr-4">When</th>
+                                            <th className="py-2 pr-4">Query</th>
+                                            <th className="py-2 pr-4">Results</th>
+                                            <th className="py-2 pr-4">Position</th>
+                                            <th className="py-2 pr-4">Score</th>
+                                            <th className="py-2 pr-4">Source</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {drilldown.rows.map((r, idx) => (
+                                            <tr key={idx} className="border-b border-gray-100 dark:border-gray-700">
+                                              <td className="py-2 pr-4 text-gray-600 dark:text-gray-400">{new Date(r.searched_at).toLocaleString()}</td>
+                                              <td className="py-2 pr-4 text-gray-900 dark:text-gray-100">{r.search_query}</td>
+                                              <td className="py-2 pr-4 text-gray-600 dark:text-gray-400">{r.results_count ?? 0}</td>
+                                              <td className="py-2 pr-4 text-gray-600 dark:text-gray-400">{r.position}</td>
+                                              <td className="py-2 pr-4 text-gray-600 dark:text-gray-400">{r.score != null ? r.score.toFixed(2) : '-'}</td>
+                                              <td className="py-2 pr-4 text-gray-600 dark:text-gray-400">{r.source || '-'}</td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+          </section>
         </div>
       </main>
     </div>

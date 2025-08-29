@@ -104,7 +104,6 @@ export const metadata: Metadata = {
     icon: '/favicon.ico',
     // Use only existing icons to avoid 404s
   },
-  manifest: '/site.webmanifest',
 };
 
 /**

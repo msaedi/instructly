@@ -10,7 +10,7 @@ import { PopularSearchesTable } from './components/PopularSearchesTable';
 import { SearchTypesChart } from './components/SearchTypesChart';
 import { RefreshCw, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
-import { AnalyticsNav } from '../AnalyticsNav';
+import AdminSidebar from '@/app/(admin)/admin/AdminSidebar';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 
 export default function SearchAnalyticsDashboard() {
@@ -73,10 +73,11 @@ export default function SearchAnalyticsDashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Navigation */}
-        <div className="mb-6">
-          <AnalyticsNav />
-        </div>
+        <div className="grid grid-cols-12 gap-6">
+          <aside className="col-span-12 md:col-span-4 lg:col-span-4">
+            <AdminSidebar />
+          </aside>
+          <div className="col-span-12 md:col-span-8 lg:col-span-8">
 
         {error && (
           <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
@@ -153,6 +154,8 @@ export default function SearchAnalyticsDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ReferrerAnalysis data={data.referrers} loading={loading} />
           <ServicePillPerformance data={data.servicePills} loading={loading} />
+        </div>
+          </div>
         </div>
       </main>
     </div>

@@ -1,5 +1,5 @@
 import { ConnectionAudit } from '@/lib/redisApi';
-import { CheckCircle, XCircle, AlertCircle, Globe, Database } from 'lucide-react';
+import { CheckCircle, Globe, Database } from 'lucide-react';
 
 interface ConnectionAuditProps {
   audit: ConnectionAudit | null;
