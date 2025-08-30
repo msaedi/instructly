@@ -59,10 +59,10 @@ export default function RedisOpsPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-12 gap-6">
-          <aside className="col-span-12 md:col-span-4 lg:col-span-4">
+          <aside className="col-span-12 md:col-span-3 lg:col-span-3">
             <AdminSidebar />
           </aside>
-          <div className="col-span-12 md:col-span-8 lg:col-span-8">
+          <div className="col-span-12 md:col-span-9 lg:col-span-9">
             {error && (
               <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                 <p className="text-red-700 dark:text-red-300">{error}</p>

@@ -69,3 +69,36 @@ class BetaMetricsSummaryResponse(BaseModel):
     invites_sent_24h: int
     invites_errors_24h: int
     phase_counts_24h: dict[str, int]
+
+
+class InviteBatchSendRequest(BaseModel):
+    emails: list[EmailStr] = Field(default_factory=list, min_length=1)
+    role: str = Field(default="instructor_beta")
+    expires_in_days: int = Field(default=14, ge=1, le=180)
+    source: Optional[str] = None
+    base_url: Optional[str] = None
+
+
+class InviteBatchSendFailure(BaseModel):
+    email: EmailStr
+    reason: str
+
+
+class InviteBatchSendResponse(BaseModel):
+    sent: list[InviteSendResponse]
+    failed: list[InviteBatchSendFailure]
+
+
+class InviteBatchAsyncStartResponse(BaseModel):
+    task_id: str
+
+
+class InviteBatchProgressResponse(BaseModel):
+    task_id: str
+    state: str
+    current: int
+    total: int
+    sent: int
+    failed: int
+    sent_items: Optional[list[InviteSendResponse]] = None
+    failed_items: Optional[list[InviteBatchSendFailure]] = None

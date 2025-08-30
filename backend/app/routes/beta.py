@@ -11,6 +11,11 @@ from ..repositories.beta_repository import BetaSettingsRepository
 from ..schemas.beta import (
     AccessGrantResponse,
     BetaMetricsSummaryResponse,
+    InviteBatchAsyncStartResponse,
+    InviteBatchProgressResponse,
+    InviteBatchSendFailure,
+    InviteBatchSendRequest,
+    InviteBatchSendResponse,
     InviteConsumeRequest,
     InviteGenerateRequest,
     InviteGenerateResponse,
@@ -20,6 +25,7 @@ from ..schemas.beta import (
     InviteValidateResponse,
 )
 from ..services.beta_service import BetaService
+from ..tasks.celery_app import celery_app
 
 router = APIRouter(prefix="/api/beta", tags=["beta"])
 
@@ -172,6 +178,60 @@ def send_invite(payload: InviteSendRequest, db: Session = Depends(get_db), admin
     )
     return InviteSendResponse(
         id=invite.id, code=invite.code, email=payload.to_email, join_url=join_url, welcome_url=welcome_url
+    )
+
+
+@router.post("/invites/send-batch", response_model=InviteBatchSendResponse)
+def send_invite_batch(
+    payload: InviteBatchSendRequest, db: Session = Depends(get_db), admin=Depends(require_role("admin"))
+):
+    svc = BetaService(db)
+    sent, failed = svc.send_invite_batch(
+        emails=[str(e) for e in payload.emails],
+        role=payload.role,
+        expires_in_days=payload.expires_in_days,
+        source=payload.source,
+        base_url=payload.base_url,
+    )
+    sent_models = [
+        InviteSendResponse(id=inv.id, code=inv.code, email=em, join_url=join, welcome_url=welcome)
+        for (inv, em, join, welcome) in sent
+    ]
+    failed_models = [InviteBatchSendFailure(email=em, reason=reason) for (em, reason) in failed]
+    return InviteBatchSendResponse(sent=sent_models, failed=failed_models)
+
+
+@router.post("/invites/send-batch-async", response_model=InviteBatchAsyncStartResponse)
+def send_invite_batch_async(
+    payload: InviteBatchSendRequest, db: Session = Depends(get_db), admin=Depends(require_role("admin"))
+):
+    task = celery_app.send_task(
+        "app.tasks.email.send_beta_invites_batch",
+        args=[list(map(str, payload.emails)), payload.role, payload.expires_in_days, payload.source, payload.base_url],
+    )
+    return InviteBatchAsyncStartResponse(task_id=task.id)
+
+
+@router.get("/invites/send-batch-progress", response_model=InviteBatchProgressResponse)
+def get_invite_batch_progress(task_id: str, admin=Depends(require_role("admin"))):
+    result = celery_app.AsyncResult(task_id)
+    meta = result.info or {}
+    state = result.state or "PENDING"
+    current = int(meta.get("current", 0))
+    total = int(meta.get("total", 0))
+    sent = int(meta.get("sent", 0))
+    failed = int(meta.get("failed", 0))
+    sent_items = meta.get("sent") or None
+    failed_items = meta.get("failed") or None
+    return InviteBatchProgressResponse(
+        task_id=task_id,
+        state=state,
+        current=current,
+        total=total,
+        sent=sent,
+        failed=failed,
+        sent_items=sent_items,
+        failed_items=failed_items,
     )
 
 

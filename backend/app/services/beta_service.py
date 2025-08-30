@@ -106,3 +106,19 @@ class BetaService:
         )
 
         return invite, join_url, welcome_url
+
+    @BaseService.measure_operation("beta_invite_sent_batch")
+    def send_invite_batch(
+        self, emails: list[str], role: str, expires_in_days: int, source: str | None, base_url: str | None
+    ):
+        sent: list[tuple[object, str, str, str]] = []  # (invite, email, join, welcome)
+        failed: list[tuple[str, str]] = []  # (email, reason)
+        for em in emails:
+            try:
+                invite, join_url, welcome_url = self.send_invite_email(
+                    to_email=em, role=role, expires_in_days=expires_in_days, source=source, base_url=base_url
+                )
+                sent.append((invite, em, join_url, welcome_url))
+            except Exception as e:
+                failed.append((em, str(e)))
+        return sent, failed

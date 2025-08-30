@@ -12,6 +12,7 @@ from typing import Any, Dict, Optional
 from app.core.database import get_db
 from app.models.booking import Booking
 from app.models.user import User
+from app.services.beta_service import BetaService
 from app.services.email import EmailService
 from app.tasks import BaseTask, celery_app
 
@@ -204,4 +205,66 @@ def send_password_reset_email(self, email: str, reset_token: str) -> Dict[str, A
 
     except Exception as exc:
         logger.error(f"Failed to send password reset email to {email}: {exc}")
+        raise self.retry(exc=exc, countdown=60)
+
+
+@celery_app.task(
+    base=BaseTask,
+    name="app.tasks.email.send_beta_invites_batch",
+    bind=True,
+    max_retries=2,
+)
+def send_beta_invites_batch(
+    self, emails: list[str], role: str, expires_in_days: int, source: str | None, base_url: str | None
+) -> Dict[str, Any]:
+    """
+    Send beta invites to a list of emails, reporting progress.
+
+    Returns a summary dict with counts and per-email status.
+    """
+    from celery import current_task
+
+    try:
+        db = next(get_db())
+        svc = BetaService(db)
+
+        total = len(emails)
+        sent = 0
+        failed = 0
+        results: Dict[str, Any] = {"sent": [], "failed": []}
+
+        for idx, em in enumerate(emails, start=1):
+            try:
+                invite, join_url, welcome_url = svc.send_invite_email(
+                    to_email=em, role=role, expires_in_days=expires_in_days, source=source, base_url=base_url
+                )
+                sent += 1
+                results["sent"].append(
+                    {
+                        "id": invite.id,
+                        "code": invite.code,
+                        "email": em,
+                        "join_url": join_url,
+                        "welcome_url": welcome_url,
+                    }
+                )
+            except Exception as e:
+                failed += 1
+                results["failed"].append({"email": em, "reason": str(e)})
+
+            # Update task meta for progress UI
+            if current_task:
+                current_task.update_state(
+                    state="PROGRESS",
+                    meta={
+                        "current": idx,
+                        "total": total,
+                        "sent": sent,
+                        "failed": failed,
+                    },
+                )
+
+        db.close()
+        return {"status": "success", "current": total, "total": total, "sent": sent, "failed": failed, **results}
+    except Exception as exc:
         raise self.retry(exc=exc, countdown=60)
