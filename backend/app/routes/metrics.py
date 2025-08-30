@@ -37,6 +37,39 @@ from ..services.cache_service import CacheService
 router = APIRouter(prefix="/metrics", tags=["monitoring"])
 
 
+def _normalize_service_metrics(raw_metrics: dict) -> dict:
+    """Convert BaseService.get_metrics() output into ServiceMetrics shape.
+
+    Ensures required fields exist even when no metrics have been recorded yet.
+    """
+    if not raw_metrics:
+        return {
+            "operations": {},
+            "total_operations": 0,
+            "cache_operations": 0,
+            "db_operations": 0,
+        }
+
+    # raw_metrics is a mapping: operation_name -> { count, total_time, ... }
+    operations = {}
+    total_operations = 0
+    for op_name, data in (raw_metrics or {}).items():
+        try:
+            count = int(data.get("count", 0)) if isinstance(data, dict) else 0
+        except Exception:
+            count = 0
+        operations[op_name] = count
+        total_operations += count
+
+    return {
+        "operations": operations,
+        "total_operations": total_operations,
+        # Not tracked at this layer; keep zeros to satisfy schema
+        "cache_operations": 0,
+        "db_operations": 0,
+    }
+
+
 @router.get("/health", response_model=HealthCheckResponse)
 async def health_check() -> HealthCheckResponse:
     """Basic health check endpoint."""
@@ -82,9 +115,9 @@ async def get_performance_metrics(
     }
 
     return PerformanceMetricsResponse(
-        availability_service=availability_service.get_metrics(),
-        booking_service=booking_service.get_metrics(),
-        conflict_checker=conflict_checker.get_metrics(),
+        availability_service=_normalize_service_metrics(availability_service.get_metrics()),
+        booking_service=_normalize_service_metrics(booking_service.get_metrics()),
+        conflict_checker=_normalize_service_metrics(conflict_checker.get_metrics()),
         cache=cache_stats,
         system=system_metrics,
         database=database_metrics,

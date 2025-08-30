@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_active_user
+from app.api.dependencies.auth import require_beta_access
 from app.core.enums import PermissionName
 from app.database import get_db
 from app.models.booking import Booking, BookingStatus
@@ -42,7 +43,9 @@ def check_permission(user: User, permission: PermissionName, db: Session) -> Non
         )
 
 
-@router.post("/{booking_id}/complete", response_model=BookingResponse)
+@router.post(
+    "/{booking_id}/complete", response_model=BookingResponse, dependencies=[Depends(require_beta_access("instructor"))]
+)
 async def mark_lesson_complete(
     booking_id: str,
     notes: Optional[str] = None,
@@ -125,7 +128,11 @@ async def mark_lesson_complete(
     return BookingResponse.from_booking(booking)
 
 
-@router.get("/pending-completion", response_model=PaginatedResponse[BookingResponse])
+@router.get(
+    "/pending-completion",
+    response_model=PaginatedResponse[BookingResponse],
+    dependencies=[Depends(require_beta_access("instructor"))],
+)
 async def get_pending_completion_bookings(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
@@ -176,7 +183,11 @@ async def get_pending_completion_bookings(
     )
 
 
-@router.get("/completed", response_model=PaginatedResponse[BookingResponse])
+@router.get(
+    "/completed",
+    response_model=PaginatedResponse[BookingResponse],
+    dependencies=[Depends(require_beta_access("instructor"))],
+)
 async def get_completed_bookings(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
@@ -220,7 +231,9 @@ async def get_completed_bookings(
     )
 
 
-@router.post("/{booking_id}/dispute", response_model=BookingResponse)
+@router.post(
+    "/{booking_id}/dispute", response_model=BookingResponse, dependencies=[Depends(require_beta_access("instructor"))]
+)
 async def dispute_completion(
     booking_id: str,
     reason: str,

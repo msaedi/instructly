@@ -11,6 +11,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from ..api.dependencies.auth import require_beta_phase_access
 from ..database import get_db
 from ..schemas.search_responses import InstructorSearchResponse
 from ..services.search_service import SearchService
@@ -18,7 +19,11 @@ from ..services.search_service import SearchService
 router = APIRouter()
 
 
-@router.get("/instructors", response_model=InstructorSearchResponse)
+@router.get(
+    "/instructors",
+    response_model=InstructorSearchResponse,
+    dependencies=[Depends(require_beta_phase_access("open_beta"))],
+)
 async def search_instructors(
     q: str = Query(..., description="Search query", min_length=1),
     limit: Optional[int] = Query(20, ge=1, le=100, description="Maximum results to return"),

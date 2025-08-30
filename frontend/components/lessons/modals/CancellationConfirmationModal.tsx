@@ -5,6 +5,7 @@ import { Booking } from '@/types/booking';
 import { useCancelLesson, calculateCancellationFee } from '@/hooks/useMyLessons';
 import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
+import { logger } from '@/lib/logger';
 
 interface CancellationConfirmationModalProps {
   isOpen: boolean;
@@ -28,7 +29,7 @@ export function CancellationConfirmationModal({
       await cancelLesson.mutateAsync({ lessonId: lesson.id, reason });
       // Modal will show success state before closing
     } catch (error) {
-      console.error('Failed to cancel lesson:', error);
+      logger.error('Failed to cancel lesson', error as Error);
     }
   };
 
@@ -104,7 +105,7 @@ export function CancellationConfirmationModal({
           <p className="text-sm text-gray-600">
             Questions?{' '}
             <button
-              onClick={() => console.log('Contact support')}
+              onClick={() => logger.info('Contact support clicked')}
               className="text-purple-700 hover:underline cursor-pointer"
             >
               Contact support

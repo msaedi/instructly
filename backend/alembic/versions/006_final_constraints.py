@@ -422,6 +422,20 @@ def upgrade() -> None:
     )
     op.create_index("ix_beta_access_user", "beta_access", ["user_id"])  # common filter
 
+    # ======================================
+    # Beta settings (admin-controlled toggles)
+    # ======================================
+    print("Creating beta_settings table...")
+    op.create_table(
+        "beta_settings",
+        sa.Column("id", sa.String(26), nullable=False),
+        sa.Column("beta_disabled", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("beta_phase", sa.String(32), nullable=False, server_default="instructor_only"),
+        sa.Column("allow_signup_without_invite", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.PrimaryKeyConstraint("id"),
+    )
+
     # Add any remaining check constraints that weren't in earlier migrations
 
     # Ensure bookings have positive duration
@@ -588,6 +602,9 @@ def downgrade() -> None:
     print("Dropping beta_access and beta_invites tables...")
     op.drop_index("ix_beta_access_user", table_name="beta_access")
     op.drop_table("beta_access")
+
+    # Drop beta_settings table
+    op.drop_table("beta_settings")
 
     op.drop_index("ix_beta_invites_email", table_name="beta_invites")
     op.drop_index("ix_beta_invites_code", table_name="beta_invites")

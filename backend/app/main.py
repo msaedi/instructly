@@ -18,6 +18,7 @@ from .core.constants import (
     SSE_PATH_PREFIX,
 )
 from .database import get_db
+from .middleware.beta_phase_header import BetaPhaseHeaderMiddleware
 from .middleware.https_redirect import create_https_redirect_middleware
 from .middleware.monitoring import MonitoringMiddleware
 from .middleware.performance import PerformanceMiddleware
@@ -181,6 +182,7 @@ app.add_middleware(MonitoringMiddleware)
 # These middlewares now properly detect and bypass SSE endpoints
 app.add_middleware(PerformanceMiddleware)  # Performance monitoring with SSE bypass
 app.add_middleware(PrometheusMiddleware)  # Prometheus metrics with SSE bypass
+app.add_middleware(BetaPhaseHeaderMiddleware)  # Attach x-beta-phase header for every response
 
 # Add GZip compression middleware with SSE exclusion
 # SSE responses must NOT be compressed to work properly

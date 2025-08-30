@@ -22,15 +22,33 @@ function isPublicAssetPath(pathname: string): boolean {
   );
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { nextUrl, cookies, url } = request;
   const pathname = nextUrl.pathname;
 
-  // Detect site configuration by hostname
+  // Detect site configuration by hostname, then allow cookie to override phase for beta host
   const betaConfig = getBetaConfigFromHeaders(request.headers);
+  // Try to read phase from backend server header for source-of-truth
+  let serverPhase: string | null = null;
+  let serverAllowSignup: string | null = null;
+  if (betaConfig.site === 'beta') {
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const healthRes = await fetch(`${apiBase}/health`, { method: 'GET', cache: 'no-store' });
+      serverPhase = healthRes.headers.get('x-beta-phase');
+      serverAllowSignup = healthRes.headers.get('x-beta-allow-signup');
+    } catch {}
+  }
+  const cookiePhase = (cookies.get('beta_phase')?.value as any) || null;
+  const effectivePhase = (serverPhase === 'open_beta' || serverPhase === 'instructor_only')
+    ? serverPhase
+    : (cookiePhase === 'open_beta' || cookiePhase === 'instructor_only')
+      ? cookiePhase
+      : betaConfig.phase;
+  const effectiveConfig = { ...betaConfig, phase: effectivePhase } as ReturnType<typeof getBetaConfigFromHeaders>;
   const responseHeaders = new Headers();
-  responseHeaders.set('x-beta-site', betaConfig.site);
-  responseHeaders.set('x-beta-phase', betaConfig.phase);
+  responseHeaders.set('x-beta-site', effectiveConfig.site);
+  responseHeaders.set('x-beta-phase', effectivePhase);
   const hostHeader = request.headers.get('host') || '';
   const hostOnly = hostHeader.split(':')[0].toLowerCase();
   const isLocalHost = hostOnly === 'localhost' || hostOnly === '127.0.0.1' || hostOnly === '::1';
@@ -84,27 +102,47 @@ export function middleware(request: NextRequest) {
   }
 
   // For beta site: apply phase-aware routing; keep staff gate logic untouched here
-  if (betaConfig.site === 'beta') {
-    if (!isRouteAccessible(pathname, betaConfig)) {
-      const redirectPath = getBetaRedirect(pathname, betaConfig, undefined);
+  if (effectiveConfig.site === 'beta') {
+    // Special-case: allow signup when admin enabled flag or open_beta
+    if (pathname === '/signup') {
+      const allowCookie = cookies.get('beta_allow_signup_no_invite')?.value;
+      const allowNoInvite = allowCookie === '1';
+      const allowFromServer = serverAllowSignup === '1';
+      if (effectivePhase === 'open_beta' || allowNoInvite || allowFromServer) {
+        return NextResponse.next({ request: { headers: request.headers }, headers: responseHeaders });
+      }
+      // During instructor_only, require invite_code unless admin override is set
+      if (effectivePhase === 'instructor_only') {
+        const hasInvite = nextUrl.searchParams.get('invite_code');
+        if (!hasInvite) {
+          const res = NextResponse.redirect(new URL('/instructor/join', request.url));
+          res.headers.set('x-beta-site', effectiveConfig.site);
+          res.headers.set('x-beta-phase', effectivePhase);
+          return res;
+        }
+      }
+    }
+
+    if (!isRouteAccessible(pathname, effectiveConfig)) {
+      const redirectPath = getBetaRedirect(pathname, effectiveConfig, undefined);
       if (redirectPath) {
         const res = NextResponse.redirect(new URL(redirectPath, request.url));
-        res.headers.set('x-beta-site', betaConfig.site);
-        res.headers.set('x-beta-phase', betaConfig.phase);
+        res.headers.set('x-beta-site', effectiveConfig.site);
+        res.headers.set('x-beta-phase', effectivePhase);
         return res;
       }
       const res = NextResponse.rewrite(new URL('/404', request.url));
-      res.headers.set('x-beta-site', betaConfig.site);
-      res.headers.set('x-beta-phase', betaConfig.phase);
+      res.headers.set('x-beta-site', effectiveConfig.site);
+      res.headers.set('x-beta-phase', effectivePhase);
       return res;
     }
 
     if (pathname === '/') {
-      const redirectPath = getBetaRedirect(pathname, betaConfig, undefined);
+      const redirectPath = getBetaRedirect(pathname, effectiveConfig, undefined);
       if (redirectPath) {
         const res = NextResponse.redirect(new URL(redirectPath, request.url));
-        res.headers.set('x-beta-site', betaConfig.site);
-        res.headers.set('x-beta-phase', betaConfig.phase);
+        res.headers.set('x-beta-site', effectiveConfig.site);
+        res.headers.set('x-beta-phase', effectivePhase);
         return res;
       }
     }

@@ -8,6 +8,9 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from .core.config import settings
+from .database import SessionLocal
+from .models.user import User
+from .repositories.beta_repository import BetaAccessRepository
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +68,30 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
 
     to_encode.update({"exp": expire})
+
+    # Enrich with beta claims when possible (email -> user -> beta access)
+    try:
+        email = data.get("sub")
+        if email:
+            db = SessionLocal()
+            try:
+                user = db.query(User).filter(User.email == email).first()
+                if user:
+                    beta_repo = BetaAccessRepository(db)
+                    beta = beta_repo.get_latest_for_user(user.id)
+                    if beta:
+                        to_encode.update(
+                            {
+                                "beta_access": True,
+                                "beta_role": beta.role,
+                                "beta_phase": beta.phase,
+                                "beta_invited_by": beta.invited_by_code,
+                            }
+                        )
+            finally:
+                db.close()
+    except Exception as e:
+        logger.warning(f"Unable to enrich JWT with beta claims: {e}")
     # Fix: Use get_secret_value() to get the actual string from SecretStr
     encoded_jwt = jwt.encode(
         to_encode,

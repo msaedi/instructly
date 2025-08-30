@@ -44,6 +44,8 @@ export function AdminSidebar() {
       icon: FlaskConical,
       items: [
         { name: 'Invites', href: '/admin/beta/invites' },
+        { name: 'Settings', href: '/admin/beta/settings' },
+        { name: 'Metrics', href: '/admin/beta/metrics' },
         { name: 'UI Preview', href: '/admin/beta/ui-preview' },
       ],
     },

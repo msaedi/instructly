@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { logger } from '@/lib/logger';
 import { databaseApi } from '@/lib/databaseApi';
 import type { DatabaseStats } from '@/lib/databaseApi';
 
@@ -33,7 +34,7 @@ export function useDatabaseData(token: string | null): UseDatabaseDataReturn {
       const stats = await databaseApi.getStats(token);
       setData(stats);
     } catch (err) {
-      console.error('Failed to fetch database data:', err);
+      logger.error('Failed to fetch database data', err as Error);
       setError(err instanceof Error ? err.message : 'Failed to fetch database data');
     } finally {
       setLoading(false);

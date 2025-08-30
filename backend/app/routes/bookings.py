@@ -41,6 +41,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from ..api.dependencies import get_booking_service, get_current_active_user
+from ..api.dependencies.auth import require_beta_phase_access
 from ..core.config import settings
 from ..core.enums import PermissionName, RoleName
 from ..core.exceptions import DomainException, NotFoundException, ValidationException
@@ -291,7 +292,11 @@ async def send_reminder_emails(
 # 2. Then: routes without path params
 
 
-@router.get("/", response_model=PaginatedResponse[BookingResponse])
+@router.get(
+    "/",
+    response_model=PaginatedResponse[BookingResponse],
+    dependencies=[Depends(require_beta_phase_access("open_beta"))],
+)
 async def get_bookings(
     status: Optional[BookingStatus] = None,
     upcoming_only: Optional[bool] = None,
@@ -384,7 +389,12 @@ async def get_bookings(
         handle_domain_exception(e)
 
 
-@router.post("/", response_model=BookingCreateResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=BookingCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_beta_phase_access("open_beta"))],
+)
 @rate_limit(
     f"{settings.rate_limit_booking_per_minute}/minute",
     key_type=RateLimitKeyType.USER,

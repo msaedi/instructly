@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { logger } from '@/lib/logger';
 import { redisApi } from '@/lib/redisApi';
 import type { RedisHealth, RedisStats, CeleryQueues, ConnectionAudit } from '@/lib/redisApi';
 
@@ -69,7 +70,7 @@ export function useRedisData(token: string | null): UseRedisDataReturn {
         connectionAudit,
       });
     } catch (err) {
-      console.error('Failed to fetch Redis data:', err);
+      logger.error('Failed to fetch Redis data', err as Error);
       setError(err instanceof Error ? err.message : 'Failed to fetch Redis data');
     } finally {
       setLoading(false);

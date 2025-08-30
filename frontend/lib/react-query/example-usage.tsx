@@ -14,6 +14,7 @@ import { useAuth, useAuthStatus } from '@/hooks/queries/useAuth';
 import { queryFn, mutationFn } from '@/lib/react-query/api';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { publicApi } from '@/features/shared/api/client';
+import { logger } from '@/lib/logger';
 
 /**
  * Example 1: Using the useUser hook in a component
@@ -248,7 +249,7 @@ function LoginForm() {
       router.push('/student/dashboard');
     } catch (error) {
       // Error is handled by the hook
-      console.error('Login failed:', error);
+      logger.error('Login failed', error as Error);
     }
   };
 

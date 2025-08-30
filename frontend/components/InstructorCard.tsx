@@ -13,6 +13,7 @@ import { favoritesApi } from '@/services/api/favorites';
 import { reviewsApi } from '@/services/api/reviews';
 import { useSearchRatingQuery } from '@/hooks/queries/useRatings';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 
 // Simple in-module cache to avoid N duplicate catalog fetches (one per card)
 let catalogCache: ServiceCatalogItem[] | null = null;
@@ -72,7 +73,7 @@ export default function InstructorCard({
         const data = await catalogPromise;
         setServiceCatalog(data);
       } catch (error) {
-        console.error('Failed to fetch service catalog:', error);
+        logger.error('Failed to fetch service catalog', error as Error);
       }
     };
     fetchServiceCatalog();
@@ -147,7 +148,7 @@ export default function InstructorCard({
       // Revert on error
       setIsFavorited(isFavorited);
       toast.error('Failed to update favorite');
-      console.error('Favorite toggle error:', error);
+      logger.error('Favorite toggle error', error as Error);
     } finally {
       setIsLoadingFavorite(false);
     }

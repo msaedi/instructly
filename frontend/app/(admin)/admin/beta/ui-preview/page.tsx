@@ -7,6 +7,13 @@ import * as Tooltip from '@radix-ui/react-tooltip';
 import * as Tabs from '@radix-ui/react-tabs';
 import * as Popover from '@radix-ui/react-popover';
 import { useState } from 'react';
+import { Geist, Sora, Inter } from 'next/font/google';
+import { m, useReducedMotion } from 'framer-motion';
+
+// Fonts for comparison (must be module-scope)
+const geistSans = Geist({ subsets: ['latin'] });
+const sora = Sora({ subsets: ['latin'], weight: ['400', '600', '700'] });
+const inter = Inter({ subsets: ['latin'], weight: ['400', '500', '600'] });
 
 export default function UIPreviewPage() {
   const { isAdmin, isLoading } = useAdminAuth();
@@ -28,6 +35,41 @@ export default function UIPreviewPage() {
             <AdminSidebar />
           </aside>
           <div className="col-span-12 md:col-span-9 lg:col-span-9">
+
+        {/* Typography preview: Geist vs Sora/Inter */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          {/* Current (Geist) */}
+          <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40">
+            <h2 className="text-lg font-semibold mb-3">Typography: Current (Geist)</h2>
+            <div className={geistSans.className}>
+              <h1 className="text-2xl font-semibold mb-2">Heading One</h1>
+              <h2 className="text-xl font-semibold mb-2">Heading Two</h2>
+              <h3 className="text-lg font-medium mb-3">Heading Three</h3>
+              <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
+                Body text using Geist. This reflects the current site typography.
+              </p>
+              <button className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-800/60">
+                Sample Button
+              </button>
+            </div>
+          </div>
+
+          {/* Proposed (Sora for headings, Inter for body) */}
+          <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40">
+            <h2 className="text-lg font-semibold mb-3">Typography: Sora (headings) + Inter (body)</h2>
+            <div>
+              <h1 className={`${sora.className} text-2xl font-semibold mb-2`}>Heading One</h1>
+              <h2 className={`${sora.className} text-xl font-semibold mb-2`}>Heading Two</h2>
+              <h3 className={`${sora.className} text-lg font-semibold mb-3`}>Heading Three</h3>
+              <p className={`${inter.className} text-sm text-gray-700 dark:text-gray-300 mb-4`}>
+                Body text using Inter. Headings use Sora to emphasize hierarchy.
+              </p>
+              <button className={`${inter.className} inline-flex items-center rounded-full px-4 py-2 text-sm font-medium ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-800/60`}>
+                Sample Button
+              </button>
+            </div>
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Dialog demo */}
@@ -86,10 +128,29 @@ export default function UIPreviewPage() {
               </Tabs.Content>
             </Tabs.Root>
           </div>
+
+          {/* Motion demo (respects reduced motion) */}
+          <MotionCard />
         </div>
           </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+function MotionCard() {
+  const prefersReducedMotion = useReducedMotion();
+  const initial = prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 12 };
+  const animate = prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 };
+  const transition = prefersReducedMotion ? { duration: 0.2 } : { duration: 0.35, ease: 'easeOut' };
+
+  return (
+    <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40">
+      <h2 className="text-lg font-semibold mb-3">Motion</h2>
+      <m.div initial={initial} animate={animate} transition={transition} className="rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white dark:bg-gray-900 p-4">
+        <p className="text-sm text-gray-700 dark:text-gray-300">Subtle reveal animation that respects reduced motion.</p>
+      </m.div>
     </div>
   );
 }

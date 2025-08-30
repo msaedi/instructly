@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useLessonDetails } from '@/hooks/useMyLessons';
 import { format } from 'date-fns';
 import { ArrowLeft, Calendar, Clock, DollarSign, MapPin, MessageCircle } from 'lucide-react';
+import { logger } from '@/lib/logger';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -284,7 +285,7 @@ export default function LessonDetailsPage() {
                     <Button
                       variant="link"
                       className="px-0 h-auto text-purple-700 hover:text-purple-800"
-                      onClick={() => console.log('View map')}
+                      onClick={() => logger.info('View map clicked')}
                     >
                       <MapPin className="h-4 w-4 mr-1" />
                       View map

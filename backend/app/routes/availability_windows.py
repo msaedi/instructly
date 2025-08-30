@@ -44,7 +44,7 @@ from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
-from ..api.dependencies.auth import get_current_active_user
+from ..api.dependencies.auth import get_current_active_user, require_beta_access
 from ..api.dependencies.services import (
     get_availability_service,
     get_bulk_operation_service,
@@ -102,7 +102,9 @@ def verify_instructor(current_user: User) -> User:
     return current_user
 
 
-@router.get("/week", response_model=Dict[str, List[TimeRange]])
+@router.get(
+    "/week", response_model=Dict[str, List[TimeRange]], dependencies=[Depends(require_beta_access("instructor"))]
+)
 async def get_week_availability(
     response: Response,
     start_date: date = Query(..., description="Monday of the week"),
@@ -138,7 +140,9 @@ async def get_week_availability(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/week", response_model=WeekAvailabilityUpdateResponse)
+@router.post(
+    "/week", response_model=WeekAvailabilityUpdateResponse, dependencies=[Depends(require_beta_access("instructor"))]
+)
 async def save_week_availability(
     week_data: WeekSpecificScheduleCreate,
     response: Response,
@@ -221,7 +225,7 @@ async def save_week_availability(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/copy-week", response_model=CopyWeekResponse)
+@router.post("/copy-week", response_model=CopyWeekResponse, dependencies=[Depends(require_beta_access("instructor"))])
 async def copy_week_availability(
     copy_data: CopyWeekRequest,
     current_user: User = Depends(get_current_active_user),
@@ -248,7 +252,11 @@ async def copy_week_availability(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/apply-to-date-range", response_model=ApplyToDateRangeResponse)
+@router.post(
+    "/apply-to-date-range",
+    response_model=ApplyToDateRangeResponse,
+    dependencies=[Depends(require_beta_access("instructor"))],
+)
 async def apply_to_date_range(
     apply_data: ApplyToDateRangeRequest,
     current_user: User = Depends(get_current_active_user),
@@ -288,7 +296,11 @@ async def apply_to_date_range(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/specific-date", response_model=AvailabilityWindowResponse)
+@router.post(
+    "/specific-date",
+    response_model=AvailabilityWindowResponse,
+    dependencies=[Depends(require_beta_access("instructor"))],
+)
 def add_specific_date_availability(
     availability_data: SpecificDateAvailabilityCreate,
     current_user: User = Depends(get_current_active_user),
@@ -315,7 +327,9 @@ def add_specific_date_availability(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/", response_model=List[AvailabilityWindowResponse])
+@router.get(
+    "/", response_model=List[AvailabilityWindowResponse], dependencies=[Depends(require_beta_access("instructor"))]
+)
 def get_all_availability(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
@@ -358,7 +372,9 @@ def get_all_availability(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.patch("/bulk-update", response_model=BulkUpdateResponse)
+@router.patch(
+    "/bulk-update", response_model=BulkUpdateResponse, dependencies=[Depends(require_beta_access("instructor"))]
+)
 async def bulk_update_availability(
     update_data: BulkUpdateRequest,
     current_user: User = Depends(get_current_active_user),
@@ -379,7 +395,9 @@ async def bulk_update_availability(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.patch("/{window_id}", response_model=AvailabilityWindowResponse)
+@router.patch(
+    "/{window_id}", response_model=AvailabilityWindowResponse, dependencies=[Depends(require_beta_access("instructor"))]
+)
 def update_availability_window(
     window_id: str,
     update_data: AvailabilityWindowUpdate,
@@ -418,7 +436,9 @@ def update_availability_window(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.delete("/{window_id}", response_model=DeleteWindowResponse)
+@router.delete(
+    "/{window_id}", response_model=DeleteWindowResponse, dependencies=[Depends(require_beta_access("instructor"))]
+)
 def delete_availability_window(
     window_id: str,
     current_user: User = Depends(get_current_active_user),
@@ -437,7 +457,9 @@ def delete_availability_window(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.get("/week/booked-slots", response_model=BookedSlotsResponse)
+@router.get(
+    "/week/booked-slots", response_model=BookedSlotsResponse, dependencies=[Depends(require_beta_access("instructor"))]
+)
 async def get_week_booked_slots(
     start_date: date = Query(..., description="Start date (Monday) of the week"),
     current_user: User = Depends(get_current_active_user),
@@ -467,7 +489,11 @@ async def get_week_booked_slots(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/week/validate-changes", response_model=WeekValidationResponse)
+@router.post(
+    "/week/validate-changes",
+    response_model=WeekValidationResponse,
+    dependencies=[Depends(require_beta_access("instructor"))],
+)
 async def validate_week_changes(
     validation_data: ValidateWeekRequest,
     current_user: User = Depends(get_current_active_user),
@@ -489,7 +515,11 @@ async def validate_week_changes(
 
 
 # Blackout dates endpoints
-@router.get("/blackout-dates", response_model=List[BlackoutDateResponse])
+@router.get(
+    "/blackout-dates",
+    response_model=List[BlackoutDateResponse],
+    dependencies=[Depends(require_beta_access("instructor"))],
+)
 def get_blackout_dates(
     current_user: User = Depends(get_current_active_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
@@ -507,7 +537,9 @@ def get_blackout_dates(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/blackout-dates", response_model=BlackoutDateResponse)
+@router.post(
+    "/blackout-dates", response_model=BlackoutDateResponse, dependencies=[Depends(require_beta_access("instructor"))]
+)
 def add_blackout_date(
     blackout_data: BlackoutDateCreate,
     current_user: User = Depends(get_current_active_user),
@@ -526,7 +558,11 @@ def add_blackout_date(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.delete("/blackout-dates/{blackout_id}", response_model=DeleteBlackoutResponse)
+@router.delete(
+    "/blackout-dates/{blackout_id}",
+    response_model=DeleteBlackoutResponse,
+    dependencies=[Depends(require_beta_access("instructor"))],
+)
 def delete_blackout_date(
     blackout_id: str,
     current_user: User = Depends(get_current_active_user),

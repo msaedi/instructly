@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useInstructorAvailability } from '../hooks/useInstructorAvailability';
 import { format, addDays } from 'date-fns';
+import { logger } from '@/lib/logger';
 
 interface AvailabilityCalendarProps {
   instructorId: string;
@@ -122,7 +123,7 @@ export function AvailabilityCalendar({ instructorId, onSelectSlot }: Availabilit
         className="w-full mt-4 justify-between"
         onClick={() => {
           // TODO: Open full calendar view
-          console.log('View full calendar');
+          logger.info('View full calendar clicked');
         }}
       >
         <span className="flex items-center gap-2">

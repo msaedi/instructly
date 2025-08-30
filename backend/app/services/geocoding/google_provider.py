@@ -59,12 +59,15 @@ class GoogleMapsProvider(GeocodingProvider):
 
     async def get_place_details(self, place_id: str) -> Optional[GeocodedAddress]:
         async with httpx.AsyncClient(timeout=10) as client:
+            # Use correct field names per Google Places Details API
+            # https://developers.google.com/maps/documentation/places/web-service/details
+            fields = "formatted_address,geometry,address_components,place_id"
             resp = await client.get(
                 f"{self.base_url}/place/details/json",
                 params={
                     "place_id": place_id,
                     "key": self.api_key,
-                    "fields": "formatted_address,geometry,address_component,place_id",
+                    "fields": fields,
                 },
             )
             if resp.status_code != 200:
@@ -73,11 +76,17 @@ class GoogleMapsProvider(GeocodingProvider):
             result = data.get("result")
             if not result:
                 return None
-            return self._parse_result(result)
+            parsed = self._parse_result(result)
+            # Treat (0.0, 0.0) as missing coords
+            if (parsed.latitude or 0.0) == 0.0 and (parsed.longitude or 0.0) == 0.0:
+                return None
+            return parsed
 
     def _parse_result(self, result: dict) -> GeocodedAddress:
         comps = {}
-        for c in result.get("address_components", []):
+        # Google returns 'address_components' in Details; support both keys defensively
+        addr_components = result.get("address_components") or result.get("address_component") or []
+        for c in addr_components:
             for t in c.get("types", []):
                 comps[t] = c.get("long_name")
         geom = result.get("geometry", {})

@@ -4,6 +4,8 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // Allow dev asset loading from local beta host for testing
+  allowedDevOrigins: ['beta-local.instainstru.com'],
   // No legacy redirects; all links should point to Phoenix paths directly
   headers: async () => {
     return [

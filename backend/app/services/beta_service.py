@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from ..core.config import settings
 from ..core.constants import BRAND_NAME
 from ..repositories.beta_repository import BetaAccessRepository, BetaInviteRepository
+from ..services.base import BaseService
 from ..services.email import EmailService
 from ..services.email_subjects import EmailSubject
 from ..services.template_registry import TemplateRegistry
@@ -28,6 +29,7 @@ class BetaService:
         self.access = BetaAccessRepository(db)
         self.db = db
 
+    @BaseService.measure_operation("beta_invite_validated")
     def validate_invite(self, code: str) -> tuple[bool, Optional[str], Optional[object]]:
         invite = self.invites.get_by_code(code)
         if not invite:
@@ -39,6 +41,7 @@ class BetaService:
             return False, "used", invite
         return True, None, invite
 
+    @BaseService.measure_operation("beta_invite_generated_bulk")
     def bulk_generate(
         self, count: int, role: str, expires_in_days: int, source: Optional[str], emails: Optional[list[str]]
     ):
@@ -57,6 +60,7 @@ class BetaService:
             records.append(rec)
         return self.invites.bulk_create_invites(records)
 
+    @BaseService.measure_operation("beta_invite_consumed")
     def consume_and_grant(self, code: str, user_id: str, role: str, phase: str):
         ok, reason, invite = self.validate_invite(code)
         if not ok:
@@ -65,6 +69,7 @@ class BetaService:
         grant = self.access.grant_access(user_id=user_id, role=role, phase=phase, invited_by_code=code)
         return grant, None
 
+    @BaseService.measure_operation("beta_invite_sent")
     def send_invite_email(
         self, to_email: str, role: str, expires_in_days: int, source: str | None, base_url: str | None
     ):

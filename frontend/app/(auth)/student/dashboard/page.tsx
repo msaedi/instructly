@@ -94,7 +94,7 @@ function StudentDashboardContent() {
   // Debug user data
   useEffect(() => {
     if (userData) {
-      console.log('User data loaded:', userData);
+      logger.debug('User data loaded');
     }
   }, [userData]);
 
@@ -429,7 +429,7 @@ function StudentDashboardContent() {
                       <button
                         className="text-sm font-medium text-purple-700 hover:text-purple-800 cursor-pointer"
                         onClick={() => {
-                          console.log('Edit button clicked. Current userData:', userData);
+                          logger.debug('Edit profile clicked');
                           setShowEditProfile(true);
                         }}
                       >
@@ -1658,7 +1658,7 @@ function TfaModal({ onClose, onChanged }: { onClose: () => void; onChanged: () =
       const res = await fetchWithAuth('/api/auth/2fa/setup/verify', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code })
       });
-      if (!res.ok) { const b = await res.json().catch(() => ({})); setError(b.detail || 'That code didn’t work. Please try again.'); setLoading(false); return; }
+      if (!res.ok) { const b = await res.json().catch(() => ({})); setError(b.detail || 'That code didn\'t work. Please try again.'); setLoading(false); return; }
       const data = await res.json();
       setBackupCodes(data.backup_codes || []);
       setStep('enabled');
@@ -2109,7 +2109,7 @@ function DeleteAccountModal({ email, onClose, onDeleted }: { email: string; onCl
 
 function EditProfileModal({ user, onClose, onSaved }: { user: any; onClose: () => void; onSaved: () => void }) {
   // Debug log to see what user data we're getting
-  console.log('EditProfileModal received user data:', {
+  logger.debug('EditProfileModal received user data', {
     fullUser: user,
     first_name: user?.first_name,
     last_name: user?.last_name,
@@ -2124,7 +2124,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: any; onClose: () =
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  console.log('Initial state values:', { firstName, lastName, phone, zipCode });
+  logger.debug('Initial state values set');
 
   const handleSubmit = async () => {
     setError('');
@@ -2137,7 +2137,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: any; onClose: () =
       zip_code: zipCode,
     };
 
-    console.log('Submitting profile update:', updateData);
+    logger.info('Submitting profile update');
 
     try {
       const res = await fetchWithAuth('/auth/me', {
@@ -2148,14 +2148,14 @@ function EditProfileModal({ user, onClose, onSaved }: { user: any; onClose: () =
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        console.error('Profile update failed:', res.status, body);
+        logger.error('Profile update failed', new Error(String(res.status)), { body });
         setError(body.detail || 'Failed to update profile');
         setLoading(false);
         return;
       }
 
       const updatedUser = await res.json();
-      console.log('Profile update successful:', updatedUser);
+      logger.info('Profile update successful');
 
       toast.success('Profile updated successfully', {
         style: {
@@ -2169,7 +2169,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: any; onClose: () =
       setLoading(false);
       onSaved();
     } catch (err) {
-      console.error('Profile update error:', err);
+      logger.error('Profile update error', err as Error);
       setError('Network error. Please try again.');
       setLoading(false);
     }
@@ -2187,10 +2187,10 @@ function EditProfileModal({ user, onClose, onSaved }: { user: any; onClose: () =
               type="text"
               value={firstName}
               onChange={(e) => {
-                console.log('First name changing from:', firstName, 'to:', e.target.value);
+                logger.debug('First name changing');
                 setFirstName(e.target.value);
               }}
-              onFocus={() => console.log('First name input focused')}
+              onFocus={() => logger.debug('First name input focused')}
               placeholder="Enter first name"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/25 focus:border-purple-500"
             />

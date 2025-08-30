@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { logger } from '@/lib/logger';
 import { MapContainer, TileLayer, GeoJSON, AttributionControl, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L, { type LatLngExpression, type LeafletEventHandlerFnMap } from 'leaflet';
@@ -24,7 +25,7 @@ interface InstructorCoverageMapProps {
 function MapReadyHandler() {
   const map = useMap();
   useEffect(() => {
-    console.log('Map is ready, center:', map.getCenter());
+    logger.debug('Map is ready', { center: map.getCenter() });
   }, [map]);
   return null;
 }
@@ -95,7 +96,7 @@ export default function InstructorCoverageMap({
         attributionControl={false}
         zoomControl={false}
         whenReady={() => {
-          console.log('MapContainer whenReady (no args)');
+          logger.debug('MapContainer whenReady');
         }}
       >
         <MapReadyHandler />

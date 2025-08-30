@@ -8,7 +8,8 @@
 
 import { getSessionId, refreshSession } from '@/lib/sessionTracking';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Browser calls go through Next.js proxy to avoid CORS and middleware redirects
+const API_BASE_URL = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
 
 /**
  * API response type for consistent error handling
@@ -622,14 +623,14 @@ export const publicApi = {
    * Get all service categories
    */
   async getServiceCategories() {
-    return cleanFetch<ServiceCategory[]>('/services/categories');
+    return cleanFetch<ServiceCategory[]>(typeof window !== 'undefined' ? '/api/proxy/services/categories' : '/services/categories');
   },
 
   /**
    * Get catalog services, optionally filtered by category
    */
   async getCatalogServices(categorySlug?: string) {
-    return cleanFetch<CatalogService[]>('/services/catalog', {
+    return cleanFetch<CatalogService[]>(typeof window !== 'undefined' ? '/api/proxy/services/catalog' : '/services/catalog', {
       params: categorySlug ? { category: categorySlug } : {},
     });
   },
@@ -639,7 +640,7 @@ export const publicApi = {
    * Returns all categories with their top services in a single request
    */
   async getTopServicesPerCategory() {
-    return cleanFetch<TopServicesResponse>('/services/catalog/top-per-category');
+    return cleanFetch<TopServicesResponse>(typeof window !== 'undefined' ? '/api/proxy/services/catalog/top-per-category' : '/services/catalog/top-per-category');
   },
 
   /**
@@ -672,7 +673,7 @@ export const publicApi = {
         cached_for_seconds: number;
         updated_at: string;
       };
-    }>('/services/catalog/all-with-instructors');
+    }>(typeof window !== 'undefined' ? '/api/proxy/services/catalog/all-with-instructors' : '/services/catalog/all-with-instructors');
   },
 
   /**
@@ -680,7 +681,7 @@ export const publicApi = {
    * Returns minimal entries for pills: { id, name, slug }
    */
   async getKidsAvailableServices() {
-    return cleanFetch<Array<{ id: string; name: string; slug: string }>>('/services/catalog/kids-available');
+    return cleanFetch<Array<{ id: string; name: string; slug: string }>>(typeof window !== 'undefined' ? '/api/proxy/services/catalog/kids-available' : '/services/catalog/kids-available');
   },
 };
 

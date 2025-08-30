@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { logger } from '@/lib/logger';
 import { useRouter } from 'next/navigation';
 import { CheckCircle } from 'lucide-react';
 import Modal from '@/components/Modal';
@@ -45,7 +46,7 @@ export function CancellationReasonModal({
         await cancelLesson.mutateAsync({ lessonId: lesson.id, reason: selectedReason });
         // Success is handled by showing success state
       } catch (error) {
-        console.error('Failed to cancel lesson:', error);
+        logger.error('Failed to cancel lesson', error as Error);
       }
     }
   };
@@ -87,7 +88,7 @@ export function CancellationReasonModal({
           <p className="text-sm text-gray-600">
             Questions?{' '}
             <button
-              onClick={() => console.log('Contact support')}
+              onClick={() => logger.info('Contact support clicked')}
               className="text-purple-700 hover:underline cursor-pointer"
             >
               Contact support

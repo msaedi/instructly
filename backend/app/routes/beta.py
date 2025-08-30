@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..dependencies.permissions import require_role
+from ..repositories.beta_repository import BetaSettingsRepository
 from ..schemas.beta import (
     AccessGrantResponse,
     InviteConsumeRequest,
@@ -80,4 +82,38 @@ def send_invite(payload: InviteSendRequest, db: Session = Depends(get_db), admin
     )
     return InviteSendResponse(
         id=invite.id, code=invite.code, email=payload.to_email, join_url=join_url, welcome_url=welcome_url
+    )
+
+
+class BetaSettingsPayload(BaseModel):
+    beta_disabled: bool
+    beta_phase: str
+    allow_signup_without_invite: bool
+
+
+@router.get("/settings", response_model=BetaSettingsPayload)
+def get_beta_settings(db: Session = Depends(get_db), admin=Depends(require_role("admin"))):
+    repo = BetaSettingsRepository(db)
+    s = repo.get_singleton()
+    return BetaSettingsPayload(
+        beta_disabled=bool(s.beta_disabled),
+        beta_phase=str(s.beta_phase),
+        allow_signup_without_invite=bool(s.allow_signup_without_invite),
+    )
+
+
+@router.put("/settings", response_model=BetaSettingsPayload)
+def update_beta_settings(
+    payload: BetaSettingsPayload, db: Session = Depends(get_db), admin=Depends(require_role("admin"))
+):
+    repo = BetaSettingsRepository(db)
+    rec = repo.update_settings(
+        beta_disabled=payload.beta_disabled,
+        beta_phase=payload.beta_phase,
+        allow_signup_without_invite=payload.allow_signup_without_invite,
+    )
+    return BetaSettingsPayload(
+        beta_disabled=bool(rec.beta_disabled),
+        beta_phase=str(rec.beta_phase),
+        allow_signup_without_invite=bool(rec.allow_signup_without_invite),
     )

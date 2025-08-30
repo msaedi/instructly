@@ -31,7 +31,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from ..api.dependencies.auth import get_current_active_user, get_current_active_user_optional
+from ..api.dependencies.auth import get_current_active_user, get_current_active_user_optional, require_beta_access
 from ..api.dependencies.services import get_cache_service_dep, get_favorites_service, get_instructor_service
 from ..core.enums import RoleName
 from ..core.ulid_helper import is_valid_ulid
@@ -129,6 +129,7 @@ def get_address_service(db: Session = Depends(get_db)) -> AddressService:
     "/me",
     response_model=InstructorProfileResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_beta_access("instructor"))],
 )
 async def create_instructor_profile(
     profile: InstructorProfileCreate,
@@ -169,7 +170,7 @@ async def get_my_profile(
         raise
 
 
-@router.put("/me", response_model=InstructorProfileResponse)
+@router.put("/me", response_model=InstructorProfileResponse, dependencies=[Depends(require_beta_access("instructor"))])
 async def update_profile(
     profile_update: InstructorProfileUpdate,
     current_user: User = Depends(get_current_active_user),
@@ -196,7 +197,9 @@ async def update_profile(
         raise
 
 
-@router.post("/me/go-live", response_model=InstructorProfileResponse)
+@router.post(
+    "/me/go-live", response_model=InstructorProfileResponse, dependencies=[Depends(require_beta_access("instructor"))]
+)
 async def go_live(
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),
@@ -283,7 +286,7 @@ async def go_live(
     return instructor_service.get_instructor_profile(current_user.id)
 
 
-@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_beta_access("instructor"))])
 async def delete_instructor_profile(
     current_user: User = Depends(get_current_active_user),
     instructor_service: InstructorService = Depends(get_instructor_service),

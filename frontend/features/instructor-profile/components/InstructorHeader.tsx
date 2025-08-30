@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { favoritesApi } from '@/services/api/favorites';
 import { toast } from 'sonner';
+import { logger } from '@/lib/logger';
 import type { InstructorProfile } from '@/types/instructor';
 
 interface InstructorHeaderProps {
@@ -102,7 +103,7 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
       setIsSaved(isSaved);
       setFavoriteCount(instructor.favorited_count || 0);
       toast.error('Failed to update favorite');
-      console.error('Favorite toggle error:', error);
+      logger.error('Favorite toggle error', error as Error);
     } finally {
       setIsLoading(false);
     }

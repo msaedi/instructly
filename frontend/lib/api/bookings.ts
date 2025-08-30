@@ -418,7 +418,7 @@ export const bookingsApi = {
    * @example
    * ```ts
    * const stats = await bookingsApi.getBookingStats();
-   * console.log(`Total bookings: ${stats.total_bookings}`);
+   * Example: Total bookings: ${stats.total_bookings}
    * ```
    */
   getBookingStats: async (): Promise<BookingStatsResponse> => {

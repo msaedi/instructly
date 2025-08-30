@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { logger } from '@/lib/logger';
 import { analyticsApi } from '@/lib/analyticsApi';
 import type {
   SearchTrend,
@@ -90,7 +91,7 @@ export function useAnalyticsData(token: string | null): UseAnalyticsDataReturn {
         conversions,
       });
     } catch (err) {
-      console.error('Failed to fetch analytics data:', err);
+      logger.error('Failed to fetch analytics data', err as Error);
       setError(err instanceof Error ? err.message : 'Failed to fetch analytics data');
     } finally {
       setLoading(false);

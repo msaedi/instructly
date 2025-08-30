@@ -152,6 +152,20 @@ instructly/
 
 See `docs/infrastructure/` for detailed deployment instructions.
 
+#### Cloudflare + Vercel DNS (Admin/Beta)
+
+- Set Cloudflare DNS records to DNS-only (gray cloud) so Vercel serves traffic directly.
+- Avoid reverse proxy through Cloudflare to prevent TLS/proxy issues and unexpected caching.
+
+#### Admin Navigation Map
+
+Left sidebar groups:
+
+- Analytics: `/admin/analytics/search`, `/admin/analytics/candidates`
+- Ops: `/admin/ops/redis`, `/admin/ops/database`
+- Engineering: `/admin/engineering/codebase`
+- Beta: `/admin/beta/invites`, `/admin/beta/ui-preview`
+
 
 📝 License
 Copyright © 2024 InstaInstru. All rights reserved.

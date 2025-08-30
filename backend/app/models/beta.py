@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional
 
 import ulid
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.sql import func
 
 from ..database import Base
@@ -56,3 +56,13 @@ class BetaAccess(Base):
         # Avoid duplicate grants for same user+role in same phase
         UniqueConstraint("user_id", "role", "phase", name="uq_beta_access_user_role_phase"),
     )
+
+
+class BetaSettings(Base):
+    __tablename__ = "beta_settings"
+
+    id: str = Column(String(26), primary_key=True, default=lambda: str(ulid.ULID()))
+    beta_disabled = Column(Boolean, nullable=False, default=False)
+    beta_phase = Column(String(32), nullable=False, default="instructor_only")
+    allow_signup_without_invite = Column(Boolean, nullable=False, default=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

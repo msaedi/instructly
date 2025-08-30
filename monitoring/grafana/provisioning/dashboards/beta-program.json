@@ -1,0 +1,97 @@
+{
+  "title": "InstaInstru Beta Program",
+  "uid": "instainstru-beta-program",
+  "tags": ["instainstru", "beta"],
+  "timezone": "",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "label": "Data Source",
+        "query": "prometheus",
+        "refresh": 1,
+        "current": { "text": "Prometheus", "value": "prometheus", "selected": false }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Invites Sent (rate)",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(instainstru_service_operations_total{service=~\".*BetaService\",operation=\"beta_invite_sent\",status=\"success\"}[5m]))",
+          "refId": "A"
+        }
+      ],
+      "datasource": { "type": "prometheus", "uid": "${datasource}" }
+    },
+    {
+      "type": "stat",
+      "title": "Invites Validated (rate)",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(instainstru_service_operations_total{service=~\".*BetaService\",operation=\"beta_invite_validated\",status=\"success\"}[5m]))",
+          "refId": "A"
+        }
+      ],
+      "datasource": { "type": "prometheus", "uid": "${datasource}" }
+    },
+    {
+      "type": "stat",
+      "title": "Invites Consumed (rate)",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(instainstru_service_operations_total{service=~\".*BetaService\",operation=\"beta_invite_consumed\",status=\"success\"}[5m]))",
+          "refId": "A"
+        }
+      ],
+      "datasource": { "type": "prometheus", "uid": "${datasource}" }
+    },
+    {
+      "type": "timeseries",
+      "title": "API Latency (P95)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(instainstru_http_request_duration_seconds_bucket[5m])))",
+          "refId": "A"
+        }
+      ],
+      "datasource": { "type": "prometheus", "uid": "${datasource}" }
+    },
+    {
+      "type": "timeseries",
+      "title": "API Error Rate",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "targets": [
+        {
+          "expr": "sum(rate(instainstru_service_operations_total{status=\"error\"}[5m])) / sum(rate(instainstru_service_operations_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "datasource": { "type": "prometheus", "uid": "${datasource}" }
+    },
+    {
+      "type": "table",
+      "title": "Beta Ops by Operation (last 6h)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "targets": [
+        {
+          "expr": "sum by (operation, status) (increase(instainstru_service_operations_total{service=~\".*BetaService\"}[6h]))",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "datasource": { "type": "prometheus", "uid": "${datasource}" }
+    }
+  ]
+}

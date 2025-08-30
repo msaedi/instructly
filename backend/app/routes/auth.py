@@ -345,8 +345,14 @@ async def read_users_me(
         permissions = permission_service.get_user_permissions(user.id)
         roles = permission_service.get_user_roles(user.id)
 
-        # Create response with roles and permissions
-        return UserWithPermissionsResponse(
+        # Fetch beta access info
+        from app.repositories.beta_repository import BetaAccessRepository
+
+        beta_repo = BetaAccessRepository(db)
+        beta = beta_repo.get_latest_for_user(user.id)
+
+        # Create response with roles, permissions, and beta info (if any)
+        resp = UserWithPermissionsResponse(
             id=user.id,
             email=user.email,
             first_name=user.first_name,
@@ -361,6 +367,15 @@ async def read_users_me(
             roles=roles,
             permissions=list(permissions),
         )
+
+        # Attach beta fields dynamically (Pydantic will ignore extras if not defined)
+        if beta:
+            setattr(resp, "beta_access", True)
+            setattr(resp, "beta_role", beta.role)
+            setattr(resp, "beta_phase", beta.phase)
+            setattr(resp, "beta_invited_by", beta.invited_by_code)
+
+        return resp
     except NotFoundException:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

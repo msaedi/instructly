@@ -5,7 +5,7 @@
 
 export function exportToCSV(data: any[], filename: string) {
   if (!data || data.length === 0) {
-    console.warn('No data to export');
+    // Silently ignore empty export requests in production builds
     return;
   }
 

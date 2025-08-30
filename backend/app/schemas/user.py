@@ -99,7 +99,11 @@ class UserResponse(StandardizedModel):  # Changed from UserBase
 class UserWithPermissionsResponse(UserResponse):
     """Enhanced user response with roles and permissions for /me endpoint."""
 
-    pass  # roles and permissions already defined in UserResponse
+    # Optional beta metadata (present during beta phases)
+    beta_access: Optional[bool] = None
+    beta_role: Optional[str] = None
+    beta_phase: Optional[str] = None
+    beta_invited_by: Optional[str] = None
 
 
 class Token(BaseModel):

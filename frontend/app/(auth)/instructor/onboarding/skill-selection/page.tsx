@@ -198,8 +198,7 @@ function Step3SkillsPricingInner() {
         try {
           // Best effort to log error but keep user moving forward
           const msg = await getErrorMessage(res);
-          // eslint-disable-next-line no-console
-          console.warn('Save services failed, moving to verification:', msg);
+          logger.warn('Save services failed, moving to verification', { msg });
         } catch {}
         window.location.href = nextUrl;
         return;

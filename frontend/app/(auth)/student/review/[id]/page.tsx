@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { getStripe } from '@/features/student/payment/utils/stripe';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/react-query/queryClient';
+import { logger } from '@/lib/logger';
 
 export default function ReviewPage() {
   const params = useParams();
@@ -57,7 +58,7 @@ export default function ReviewPage() {
         const r = await reviewsApi.getByBooking(lesson.id);
         setHasExistingReview(!!r);
       } catch (error) {
-        console.error('Failed to check existing review:', error);
+        logger.error('Failed to check existing review', error as Error);
       }
     };
     checkExistingReview();
@@ -149,7 +150,7 @@ export default function ReviewPage() {
           await favoritesApi.add(lesson.instructor_id);
           toast.success('Added to favorites!');
         } catch (error) {
-          console.error('Failed to add to favorites:', error);
+          logger.error('Failed to add to favorites', error as Error);
         }
       }
 

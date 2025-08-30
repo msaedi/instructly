@@ -1,7 +1,8 @@
 // frontend/components/Modal.tsx
-import React, { useEffect } from 'react';
+import React from 'react';
 import { X } from 'lucide-react';
 import { logger } from '@/lib/logger';
+import * as Dialog from '@radix-ui/react-dialog';
 
 /**
  * Modal Component with Enhanced Professional Design
@@ -49,39 +50,7 @@ const Modal: React.FC<ModalProps> = ({
   noPadding = false,
   footer,
 }) => {
-  // Handle escape key press
-  useEffect(() => {
-    if (!isOpen || !closeOnEscape) return;
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        logger.debug('Modal closed via Escape key');
-        onClose();
-      }
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose, closeOnEscape]);
-
-  // Prevent body scroll when modal is open
-  useEffect(() => {
-    if (isOpen) {
-      logger.debug('Modal opened - locking body scroll');
-      document.body.style.overflow = 'hidden';
-    } else {
-      logger.debug('Modal closed - unlocking body scroll');
-      document.body.style.overflow = 'unset';
-    }
-
-    // Cleanup on unmount
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen]);
-
-  // Don't render if not open
-  if (!isOpen) return null;
+  // Note: Radix Dialog manages focus trap, aria-hiding, and body scroll lock.
 
   // Size presets for modal width
   const sizeClasses = {
@@ -92,88 +61,84 @@ const Modal: React.FC<ModalProps> = ({
     full: 'max-w-7xl',
   };
 
-  /**
-   * Handle backdrop click
-   */
-  const handleBackdropClick = () => {
-    if (closeOnBackdrop) {
-      logger.debug('Modal closed via backdrop click');
-      onClose();
-    }
-  };
-
   return (
-    <>
-      {/* Enhanced Backdrop with better blur and opacity */}
-      <div
-        className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 transition-all duration-200"
-        onClick={handleBackdropClick}
-        aria-hidden="true"
-      />
-
-      {/* Modal Container with better positioning and animation */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none p-4 sm:p-6">
-        <div
-          className={`
-            pointer-events-auto w-full ${sizeClasses[size]}
-            bg-white dark:bg-gray-800 rounded-xl shadow-2xl
-            transform transition-all duration-200 ease-out
-            ${className}
-          `}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={title ? 'modal-title' : undefined}
+    <Dialog.Root
+      open={isOpen}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          logger.debug('Modal closed via onOpenChange');
+          onClose();
+        }
+      }}
+   >
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 transition-all duration-200" />
+        <Dialog.Content
+          className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none p-4 sm:p-6"
+          onEscapeKeyDown={(e) => {
+            if (!closeOnEscape) {
+              e.preventDefault();
+            }
+          }}
+          onInteractOutside={(e) => {
+            if (!closeOnBackdrop) {
+              e.preventDefault();
+            }
+          }}
         >
-          {/* Enhanced Header */}
-          {(title || showCloseButton) && (
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              {title && (
-                <h2
-                  id="modal-title"
-                  className="text-xl font-semibold text-gray-900 dark:text-gray-100"
-                >
-                  {title}
-                </h2>
-              )}
-              {showCloseButton && (
-                <button
-                  onClick={() => {
-                    logger.debug('Modal closed via close button');
-                    onClose();
-                  }}
-                  className={`
-                    ${title ? 'ml-auto' : ''}
-                    p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors duration-150
-                    focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 cursor-pointer
-                  `}
-                  aria-label="Close modal"
-                >
-                  <X className="w-5 h-5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300" />
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Enhanced Content Area */}
           <div
             className={`
-            overflow-y-auto
-            ${footer ? 'max-h-[calc(100vh-12rem)]' : 'max-h-[calc(100vh-8rem)]'}
-            ${noPadding ? '' : 'p-6'}
-          `}
+              pointer-events-auto w-full ${sizeClasses[size]}
+              bg-white dark:bg-gray-800 rounded-xl shadow-2xl
+              transform transition-all duration-200 ease-out
+              ${className}
+            `}
           >
-            {children}
-          </div>
-
-          {/* Optional Footer */}
-          {footer && (
-            <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600 rounded-b-xl">
-              {footer}
+            {(title || showCloseButton) && (
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                {title && (
+                  <Dialog.Title
+                    id="modal-title"
+                    className="text-xl font-semibold text-gray-900 dark:text-gray-100"
+                  >
+                    {title}
+                  </Dialog.Title>
+                )}
+                {showCloseButton && (
+                  <Dialog.Close asChild>
+                    <button
+                      onClick={() => logger.debug('Modal closed via close button')}
+                      className={`
+                        ${title ? 'ml-auto' : ''}
+                        p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors duration-150
+                        focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 cursor-pointer
+                      `}
+                      aria-label="Close modal"
+                    >
+                      <X className="w-5 h-5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300" />
+                    </button>
+                  </Dialog.Close>
+                )}
+              </div>
+            )}
+            <div
+              className={`
+                overflow-y-auto
+                ${footer ? 'max-h-[calc(100vh-12rem)]' : 'max-h-[calc(100vh-8rem)]'}
+                ${noPadding ? '' : 'p-6'}
+              `}
+            >
+              {children}
             </div>
-          )}
-        </div>
-      </div>
-    </>
+            {footer && (
+              <div className="px-6 py-4 bg-gray-50 dark:bg-gray-700 border-t border-gray-200 dark:border-gray-600 rounded-b-xl">
+                {footer}
+              </div>
+            )}
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 };
 
