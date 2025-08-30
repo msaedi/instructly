@@ -81,3 +81,7 @@ assets-manifest.json
 backend/scripts/prep_local_db.py
 # Allow metrics history to be committed for server-side trend charts
 # metrics_history.json
+
+# Ignore local backup copies
+*.backup
+frontend/app/(auth)/instructor/profile/page.tsx.backup
