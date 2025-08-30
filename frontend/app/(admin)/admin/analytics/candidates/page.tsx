@@ -4,6 +4,8 @@ import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import Link from 'next/link';
 import { RefreshCw, BarChart3, Table } from 'lucide-react';
+import * as Select from '@radix-ui/react-select';
+import { ChevronDown, Check } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import AdminSidebar from '@/app/(admin)/admin/AdminSidebar';
 import {
@@ -228,17 +230,28 @@ export default function CandidatesAnalyticsDashboard() {
 function DaysSelector({ value, onChange }: { value: number; onChange: (d: number) => void }) {
   const options = [7, 14, 30, 60, 90];
   return (
-    <select
-      className="h-9 rounded-full px-3 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40"
-      value={value}
-      onChange={(e) => onChange(parseInt(e.target.value, 10))}
-    >
-      {options.map((d) => (
-        <option key={d} value={d}>
-          Last {d} days
-        </option>
-      ))}
-    </select>
+    <Select.Root value={String(value)} onValueChange={(v) => onChange(parseInt(v, 10))}>
+      <Select.Trigger className="inline-flex items-center justify-between h-9 min-w-[150px] rounded-full px-3 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40">
+        <Select.Value />
+        <Select.Icon>
+          <ChevronDown className="h-4 w-4 text-gray-500" />
+        </Select.Icon>
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Content className="overflow-hidden rounded-md bg-white dark:bg-gray-800 shadow ring-1 ring-gray-200 dark:ring-gray-700">
+          <Select.Viewport className="p-1">
+            {options.map((d) => (
+              <Select.Item key={d} value={String(d)} className="relative flex select-none items-center rounded px-2 py-1.5 text-sm text-gray-800 dark:text-gray-200 data-[highlighted]:bg-gray-100 dark:data-[highlighted]:bg-gray-700 outline-none cursor-pointer">
+                <Select.ItemText>Last {d} days</Select.ItemText>
+                <Select.ItemIndicator className="absolute right-2">
+                  <Check className="h-4 w-4" />
+                </Select.ItemIndicator>
+              </Select.Item>
+            ))}
+          </Select.Viewport>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
   );
 }
 

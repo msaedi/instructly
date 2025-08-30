@@ -63,3 +63,9 @@ class InviteSendResponse(BaseModel):
     email: EmailStr
     join_url: str
     welcome_url: str
+
+
+class BetaMetricsSummaryResponse(BaseModel):
+    invites_sent_24h: int
+    invites_errors_24h: int
+    phase_counts_24h: dict[str, int]

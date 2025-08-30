@@ -9,6 +9,7 @@ import { SearchTrendsChart } from './components/SearchTrendsChart';
 import { PopularSearchesTable } from './components/PopularSearchesTable';
 import { SearchTypesChart } from './components/SearchTypesChart';
 import { RefreshCw, AlertCircle } from 'lucide-react';
+import * as Dialog from '@radix-ui/react-dialog';
 import Link from 'next/link';
 import AdminSidebar from '@/app/(admin)/admin/AdminSidebar';
 import { useAuth } from '@/features/shared/hooks/useAuth';
@@ -96,9 +97,28 @@ export default function SearchAnalyticsDashboard() {
         {/* Key Insights */}
         {data.summary && !loading && (
           <div className="mb-8 rounded-2xl p-6 bg-gradient-to-b from-indigo-50 to-white dark:from-indigo-900/10 dark:to-transparent ring-1 ring-indigo-200/70 dark:ring-indigo-800/60">
-            <h2 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-3">
-              Key Insights
-            </h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-blue-900 dark:text-blue-100">Key Insights</h2>
+              <Dialog.Root>
+                <Dialog.Trigger className="inline-flex items-center rounded-full px-3 py-1.5 text-sm font-medium text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-300/70 dark:ring-indigo-700/60 hover:bg-indigo-50/70 dark:hover:bg-indigo-900/20">View details</Dialog.Trigger>
+                <Dialog.Portal>
+                  <Dialog.Overlay className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40" />
+                  <Dialog.Content className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="pointer-events-auto w-full max-w-2xl bg-white dark:bg-gray-900 rounded-xl shadow-2xl ring-1 ring-gray-200/70 dark:ring-gray-700/60">
+                      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                        <Dialog.Title className="text-base font-semibold">Insights detail</Dialog.Title>
+                        <Dialog.Close className="text-sm text-gray-600 hover:underline">Close</Dialog.Close>
+                      </div>
+                      <div className="p-4 text-sm space-y-2">
+                        <div>Most searched: {data.popularSearches?.[0]?.query ?? 'n/a'} ({data.popularSearches?.[0]?.search_count ?? 0})</div>
+                        <div>Guest→User CVR: {data.summary.conversions?.guest_sessions?.conversion_rate ? (data.summary.conversions.guest_sessions.conversion_rate * 100).toFixed(1) + '%' : 'n/a'}</div>
+                        <div>Zero-result rate: {data.summary.performance?.zero_result_rate ? (data.summary.performance.zero_result_rate * 100).toFixed(1) + '%' : 'n/a'}</div>
+                      </div>
+                    </div>
+                  </Dialog.Content>
+                </Dialog.Portal>
+              </Dialog.Root>
+            </div>
             <ul className="space-y-2 text-blue-800 dark:text-blue-200">
               {data.popularSearches && data.popularSearches.length > 0 && (
                 <li>

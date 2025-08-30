@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AdminSidebar from '@/app/(admin)/admin/AdminSidebar';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import * as Tooltip from '@radix-ui/react-tooltip';
+import * as Select from '@radix-ui/react-select';
+import { ChevronDown, Check } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -19,8 +21,30 @@ export default function BetaInvitesAdminPage() {
   const [result, setResult] = useState<{ code: string; join_url: string; welcome_url: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [betaSummary, setBetaSummary] = useState<{ phase: string; invites24h: number; errors24h: number } | null>(null);
+  const [csvText, setCsvText] = useState('');
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+
+  useEffect(() => {
+    async function fetchSummary() {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+        const authHeaders = token ? { Authorization: `Bearer ${token}` } : undefined;
+        const [settingsRes, summaryRes] = await Promise.all([
+          fetch(`/api/proxy/beta/settings`, { headers: authHeaders }),
+          fetch(`/api/proxy/beta/metrics/summary`, { headers: authHeaders }),
+        ]);
+        const settings = settingsRes.ok ? await settingsRes.json() : null;
+        const phase = settings?.beta_phase || 'unknown';
+        const data = summaryRes.ok ? await summaryRes.json() : { invites_sent_24h: 0, invites_errors_24h: 0 };
+        setBetaSummary({ phase, invites24h: data.invites_sent_24h || 0, errors24h: data.invites_errors_24h || 0 });
+      } catch {
+        setBetaSummary(null);
+      }
+    }
+    fetchSummary();
+  }, []);
 
   if (isLoading) {
     return (
@@ -72,26 +96,6 @@ export default function BetaInvitesAdminPage() {
               <Tooltip.Provider delayDuration={200}>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <Link href="/admin/beta/settings" className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-800/60">Settings</Link>
-                  </Tooltip.Trigger>
-                  <Tooltip.Portal>
-                    <Tooltip.Content side="bottom" sideOffset={8} className="rounded-md bg-gray-900 text-white px-2 py-1 text-xs shadow pointer-events-none select-none">Beta settings</Tooltip.Content>
-                  </Tooltip.Portal>
-                </Tooltip.Root>
-              </Tooltip.Provider>
-              <Tooltip.Provider delayDuration={200}>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Link href="/admin/beta/metrics" className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-800/60">Metrics</Link>
-                  </Tooltip.Trigger>
-                  <Tooltip.Portal>
-                    <Tooltip.Content side="bottom" sideOffset={8} className="rounded-md bg-gray-900 text-white px-2 py-1 text-xs shadow pointer-events-none select-none">Performance metrics</Tooltip.Content>
-                  </Tooltip.Portal>
-                </Tooltip.Root>
-              </Tooltip.Provider>
-              <Tooltip.Provider delayDuration={200}>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
                     <button onClick={logout} className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 ring-1 ring-gray-300/70 dark:ring-gray-700/60 hover:bg-gray-100/80 dark:hover:bg-gray-800/60 cursor-pointer">Log out</button>
                   </Tooltip.Trigger>
                   <Tooltip.Portal>
@@ -111,7 +115,30 @@ export default function BetaInvitesAdminPage() {
           </aside>
           <section className="col-span-12 md:col-span-8 lg:col-span-8">
             <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
+              {/* Beta summary card - order 4 */}
+              <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur order-4">
+                <h2 className="mb-2 text-lg font-semibold">Beta Summary</h2>
+                {!betaSummary ? (
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Loading summary…</p>
+                ) : (
+                  <div className="grid grid-cols-3 gap-3 text-sm">
+                    <div>
+                      <div className="text-gray-600 dark:text-gray-400">Phase</div>
+                      <div className="font-medium">{betaSummary.phase}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-600 dark:text-gray-400">Invites (24h)</div>
+                      <div className="font-medium">{betaSummary.invites24h}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-600 dark:text-gray-400">Errors (24h)</div>
+                      <div className="font-medium">{betaSummary.errors24h}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {/* Send invite - order 1 */}
+              <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur order-1">
                 <h2 className="mb-2 text-lg font-semibold">Send Founding Instructor Invite</h2>
                 <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">Generate an invite code and email a direct link to onboarding. Links include both Join and Welcome URLs.</p>
                 <form onSubmit={onSubmit} className="space-y-4">
@@ -122,9 +149,26 @@ export default function BetaInvitesAdminPage() {
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="block text-sm font-medium mb-1">Role</label>
-                      <select value={role} onChange={(e) => setRole(e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800">
-                        <option value="instructor_beta">instructor_beta</option>
-                      </select>
+                      <Select.Root value={role} onValueChange={setRole}>
+                        <Select.Trigger className="inline-flex items-center justify-between w-full rounded-lg px-3 py-2 ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800">
+                          <Select.Value />
+                          <Select.Icon>
+                            <ChevronDown className="h-4 w-4 text-gray-500" />
+                          </Select.Icon>
+                        </Select.Trigger>
+                        <Select.Portal>
+                          <Select.Content className="overflow-hidden rounded-md bg-white dark:bg-gray-800 shadow ring-1 ring-gray-200 dark:ring-gray-700">
+                            <Select.Viewport className="p-1">
+                              <Select.Item value="instructor_beta" className="relative flex select-none items-center rounded px-2 py-1.5 text-sm text-gray-800 dark:text-gray-200 data-[highlighted]:bg-gray-100 dark:data-[highlighted]:bg-gray-700 outline-none cursor-pointer">
+                                <Select.ItemText>instructor_beta</Select.ItemText>
+                                <Select.ItemIndicator className="absolute right-2">
+                                  <Check className="h-4 w-4" />
+                                </Select.ItemIndicator>
+                              </Select.Item>
+                            </Select.Viewport>
+                          </Select.Content>
+                        </Select.Portal>
+                      </Select.Root>
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1">Expires (days)</label>
@@ -149,7 +193,8 @@ export default function BetaInvitesAdminPage() {
                 {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
               </div>
 
-              <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
+              {/* Result - order 2 */}
+              <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur order-2">
                 <h2 className="mb-2 text-lg font-semibold">Result</h2>
                 {!result ? (
                   <p className="text-sm text-gray-600 dark:text-gray-400">No invite sent yet.</p>
@@ -199,6 +244,74 @@ export default function BetaInvitesAdminPage() {
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* CSV bulk invites - order 3 */}
+              <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur order-3">
+                <h2 className="mb-2 text-lg font-semibold">CSV Bulk Invites</h2>
+                <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">Paste a CSV of emails (one per line or comma-separated). This will generate invites without sending emails.</p>
+                <textarea
+                  value={csvText}
+                  onChange={(e) => setCsvText(e.target.value)}
+                  className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800 min-h-[120px]"
+                  placeholder="alice@example.com\nbob@example.com\ncharlie@example.com"
+                />
+                <div className="mt-3 flex gap-2">
+                  <button
+                    className="inline-flex items-center rounded-full bg-gradient-to-b from-indigo-600 to-indigo-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:brightness-110 disabled:opacity-50 cursor-pointer"
+                    onClick={async () => {
+                      setError(null);
+                      const emails = csvText
+                        .split(/\n|,|;|\s+/)
+                        .map((s) => s.trim())
+                        .filter((s) => s.length > 0);
+                      if (emails.length === 0) return;
+                      try {
+                        if (!token) throw new Error('Not authenticated');
+                        const res = await fetch(`${API_BASE_URL}/api/beta/invites/generate`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                          body: JSON.stringify({ count: emails.length, role, expires_in_days: days, source: 'csv_upload', emails }),
+                        });
+                        if (!res.ok) throw new Error((await res.text()) || `Failed to generate invites (${res.status})`);
+                        const data = await res.json();
+                        // Show a simple success summary
+                        setResult({ code: data.invites?.[0]?.code || 'bulk', join_url: '#', welcome_url: '#' });
+                      } catch (err: any) {
+                        setError(err?.message || 'Failed to generate invites');
+                      }
+                    }}
+                  >
+                    Generate Invites
+                  </button>
+                  <button
+                    className="inline-flex items-center rounded-full bg-gradient-to-b from-green-600 to-green-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:brightness-110 disabled:opacity-50 cursor-pointer"
+                    onClick={async () => {
+                      setError(null);
+                      const emails = csvText
+                        .split(/\n|,|;|\s+/)
+                        .map((s) => s.trim())
+                        .filter((s) => s.length > 0);
+                      if (emails.length === 0) return;
+                      try {
+                        if (!token) throw new Error('Not authenticated');
+                        for (const em of emails) {
+                          const r = await fetch(`${API_BASE_URL}/api/beta/invites/send`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                            body: JSON.stringify({ to_email: em, role, expires_in_days: days, source: 'csv_upload' }),
+                          });
+                          if (!r.ok) throw new Error((await r.text()) || `Failed to send invite to ${em}`);
+                        }
+                        setResult({ code: 'batch', join_url: '#', welcome_url: '#' });
+                      } catch (err: any) {
+                        setError(err?.message || 'Failed to send batch invites');
+                      }
+                    }}
+                  >
+                    Send Emails
+                  </button>
+                </div>
               </div>
             </div>
           </section>

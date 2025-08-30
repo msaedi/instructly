@@ -2,6 +2,7 @@ import logging
 
 from ..core.constants import SSE_PATH_PREFIX
 from ..database import SessionLocal
+from ..monitoring.prometheus_metrics import PrometheusMetrics
 from ..repositories.beta_repository import BetaSettingsRepository
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,11 @@ class BetaPhaseHeaderMiddleware:
                 headers.append((b"x-beta-phase", phase_value))
                 headers.append((b"x-beta-allow-signup", allow_signup_value))
                 message = {**message, "headers": headers}
+                # Record header distribution
+                try:
+                    PrometheusMetrics.inc_beta_phase_header(phase_value.decode("utf-8"))
+                except Exception:
+                    pass
             await send(message)
 
         await self.app(scope, receive, send_wrapper)

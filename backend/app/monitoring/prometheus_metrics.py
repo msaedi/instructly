@@ -87,6 +87,14 @@ instant_payout_requests_total = Counter(
     registry=REGISTRY,
 )
 
+# Beta program: distribution of x-beta-phase headers observed
+beta_phase_header_total = Counter(
+    "instainstru_beta_phase_header_total",
+    "Count of responses by x-beta-phase header value",
+    ["phase"],
+    registry=REGISTRY,
+)
+
 # Storage for tracking active operations
 active_operations: Dict[str, int] = defaultdict(int)
 
@@ -184,6 +192,12 @@ class PrometheusMetrics:
     def inc_instant_payout_request(status: str) -> None:
         """Increment instant payout request counter with given status label."""
         instant_payout_requests_total.labels(status=status).inc()
+        PrometheusMetrics._dirty_since_last_scrape = True
+
+    @staticmethod
+    def inc_beta_phase_header(phase: str) -> None:
+        """Increment beta phase header distribution counter."""
+        beta_phase_header_total.labels(phase=phase).inc()
         PrometheusMetrics._dirty_since_last_scrape = True
 
 

@@ -6,6 +6,58 @@ groups:
     folder: InstaInstru Dashboards
     interval: 1m
     rules:
+      # Beta invite send failures
+      - uid: beta-invite-send-failures
+        title: Beta Invite Send Failures (> 5 in 5m)
+        condition: B
+        data:
+          - refId: A
+            queryType: ""
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus-uid
+            model:
+              expr: increase(instainstru_service_operations_total{operation="beta_invite_sent",status="error"}[5m])
+              interval: ""
+              refId: A
+          - refId: B
+            queryType: ""
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 5
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              hide: false
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: classic_conditions
+        noDataState: NoData
+        execErrState: Alerting
+        for: 2m
+        annotations:
+          description: "More than 5 beta invite send errors in the last 5 minutes"
+          summary: "Beta invite send failures"
+        labels:
+          severity: warning
+          team: backend
       # Response Time Alert
       - uid: response-time-alert
         title: High Response Time (P95 > 500ms)

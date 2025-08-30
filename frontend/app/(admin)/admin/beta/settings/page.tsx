@@ -8,6 +8,9 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 import { getBetaSettings, updateBetaSettings, type BetaSettings } from '@/lib/betaApi';
 import { API_URL } from '@/lib/api';
 import { logger } from '@/lib/logger';
+import * as Switch from '@radix-ui/react-switch';
+import * as Select from '@radix-ui/react-select';
+import { ChevronDown, Check } from 'lucide-react';
 
 export default function BetaSettingsPage() {
   const { isAdmin, isLoading } = useAdminAuth();
@@ -87,35 +90,59 @@ export default function BetaSettingsPage() {
             ) : (
               <form onSubmit={onSubmit} className="max-w-xl space-y-4 bg-white/60 dark:bg-gray-900/40 backdrop-blur p-4 rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60">
                 <div className="flex items-center justify-between">
-                  <label className="font-medium">Disable Beta</label>
-                  <input
-                    type="checkbox"
+                  <label className="font-medium" htmlFor="beta-disabled">Disable Beta</label>
+                  <Switch.Root
+                    id="beta-disabled"
                     checked={form.beta_disabled}
-                    onChange={(e) => onChange('beta_disabled', e.target.checked)}
-                    className="h-4 w-4"
-                  />
+                    onCheckedChange={(v) => onChange('beta_disabled', v)}
+                    className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 dark:bg-gray-700 data-[state=checked]:bg-indigo-600 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    aria-label="Disable Beta"
+                  >
+                    <Switch.Thumb className="block h-5 w-5 rounded-full bg-white shadow transition-transform translate-x-1 data-[state=checked]:translate-x-5" />
+                  </Switch.Root>
                 </div>
 
                 <div>
                   <label className="font-medium block mb-1">Beta Phase</label>
-                  <select
-                    value={form.beta_phase}
-                    onChange={(e) => onChange('beta_phase', e.target.value)}
-                    className="w-full rounded-md border-gray-300 dark:bg-gray-800 dark:border-gray-700"
-                  >
-                    <option value="instructor_only">instructor_only</option>
-                    <option value="open_beta">open_beta</option>
-                  </select>
+                  <Select.Root value={form.beta_phase} onValueChange={(v) => onChange('beta_phase', v)}>
+                    <Select.Trigger className="inline-flex items-center justify-between w-full rounded-lg px-3 py-2 ring-1 ring-gray-300/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-800">
+                      <Select.Value />
+                      <Select.Icon>
+                        <ChevronDown className="h-4 w-4 text-gray-500" />
+                      </Select.Icon>
+                    </Select.Trigger>
+                    <Select.Portal>
+                      <Select.Content className="overflow-hidden rounded-md bg-white dark:bg-gray-800 shadow ring-1 ring-gray-200 dark:ring-gray-700">
+                        <Select.Viewport className="p-1">
+                          <Select.Item value="instructor_only" className="relative flex select-none items-center rounded px-2 py-1.5 text-sm text-gray-800 dark:text-gray-200 data-[highlighted]:bg-gray-100 dark:data-[highlighted]:bg-gray-700 outline-none cursor-pointer">
+                            <Select.ItemText>instructor_only</Select.ItemText>
+                            <Select.ItemIndicator className="absolute right-2">
+                              <Check className="h-4 w-4" />
+                            </Select.ItemIndicator>
+                          </Select.Item>
+                          <Select.Item value="open_beta" className="relative flex select-none items-center rounded px-2 py-1.5 text-sm text-gray-800 dark:text-gray-200 data-[highlighted]:bg-gray-100 dark:data-[highlighted]:bg-gray-700 outline-none cursor-pointer">
+                            <Select.ItemText>open_beta</Select.ItemText>
+                            <Select.ItemIndicator className="absolute right-2">
+                              <Check className="h-4 w-4" />
+                            </Select.ItemIndicator>
+                          </Select.Item>
+                        </Select.Viewport>
+                      </Select.Content>
+                    </Select.Portal>
+                  </Select.Root>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <label className="font-medium">Allow signup without invite</label>
-                  <input
-                    type="checkbox"
+                  <label className="font-medium" htmlFor="allow-signup">Allow signup without invite</label>
+                  <Switch.Root
+                    id="allow-signup"
                     checked={form.allow_signup_without_invite}
-                    onChange={(e) => onChange('allow_signup_without_invite', e.target.checked)}
-                    className="h-4 w-4"
-                  />
+                    onCheckedChange={(v) => onChange('allow_signup_without_invite', v)}
+                    className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 dark:bg-gray-700 data-[state=checked]:bg-indigo-600 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    aria-label="Allow signup without invite"
+                  >
+                    <Switch.Thumb className="block h-5 w-5 rounded-full bg-white shadow transition-transform translate-x-1 data-[state=checked]:translate-x-5" />
+                  </Switch.Root>
                 </div>
 
                 <div className="flex items-center gap-3">

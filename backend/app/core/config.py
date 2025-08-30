@@ -178,6 +178,10 @@ class Settings(BaseSettings):
         description="Base URL for publicly served assets (if applicable)",
     )
 
+    # Prometheus HTTP API (optional)
+    prometheus_http_url: str = Field(default="", description="Prometheus base URL, e.g., http://localhost:9090")
+    prometheus_bearer_token: str = Field(default="", description="Optional bearer token for Prometheus API")
+
     @property
     def webhook_secrets(self) -> list[str]:
         """Build list of webhook secrets to try in order."""

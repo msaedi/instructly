@@ -1,12 +1,16 @@
+import requests
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from ..core.config import settings
 from ..database import get_db
 from ..dependencies.permissions import require_role
+from ..monitoring.prometheus_metrics import prometheus_metrics
 from ..repositories.beta_repository import BetaSettingsRepository
 from ..schemas.beta import (
     AccessGrantResponse,
+    BetaMetricsSummaryResponse,
     InviteConsumeRequest,
     InviteGenerateRequest,
     InviteGenerateResponse,
@@ -18,6 +22,39 @@ from ..schemas.beta import (
 from ..services.beta_service import BetaService
 
 router = APIRouter(prefix="/api/beta", tags=["beta"])
+
+
+def _fetch_prometheus_summary(prometheus_http_url: str, bearer_token: str | None) -> BetaMetricsSummaryResponse | None:
+    try:
+        base = prometheus_http_url.rstrip("/")
+        headers = {"Authorization": f"Bearer {bearer_token}"} if bearer_token else None
+
+        def q(expr: str) -> float:
+            r = requests.get(f"{base}/api/v1/query", params={"query": expr}, headers=headers, timeout=4)
+            r.raise_for_status()
+            data = r.json()
+            try:
+                val = float(data["data"]["result"][0]["value"][1])
+            except Exception:
+                val = 0.0
+            return val
+
+        invites_sent = q(
+            'increase(instainstru_service_operations_total{operation="beta_invite_sent",status="success"}[24h])'
+        )
+        invites_err = q(
+            'increase(instainstru_service_operations_total{operation="beta_invite_sent",status="error"}[24h])'
+        )
+        phases = {}
+        for phase in ["disabled", "instructor_only", "open_beta", "unknown"]:
+            phases[phase] = q(f'last_over_time(instainstru_beta_phase_header_total{{phase="{phase}"}}[24h])')
+        return BetaMetricsSummaryResponse(
+            invites_sent_24h=int(invites_sent),
+            invites_errors_24h=int(invites_err),
+            phase_counts_24h={k: int(v) for k, v in phases.items() if v > 0},
+        )
+    except Exception:
+        return None
 
 
 @router.get("/invites/validate", response_model=InviteValidateResponse)
@@ -51,6 +88,59 @@ def generate_invites(
     )
     items = [InviteRecord(id=i.id, code=i.code, email=i.email, role=i.role, expires_at=i.expires_at) for i in created]
     return InviteGenerateResponse(invites=items)
+
+
+@router.get("/metrics/summary", response_model=BetaMetricsSummaryResponse)
+def get_beta_metrics_summary(db: Session = Depends(get_db), admin=Depends(require_role("admin"))):
+    """Lightweight summary derived from in-process counters.
+
+    Note: Without Prometheus remote-read, we return cumulative counts observed since process start.
+    """
+    # If Prometheus HTTP API is configured, prefer a true 24h window query
+    if settings.prometheus_http_url:
+        result = _fetch_prometheus_summary(settings.prometheus_http_url, settings.prometheus_bearer_token)
+        if result is not None:
+            return result
+
+    # Fallback: in-process cumulative counters
+    try:
+        # Access private registry scrape (text) and parse simple totals
+        data = prometheus_metrics.get_metrics().decode("utf-8")
+        invites_sent_total = 0
+        invites_error_total = 0
+        phase_counts: dict[str, int] = {}
+        for line in data.splitlines():
+            if line.startswith("instainstru_service_operations_total"):
+                if 'operation="beta_invite_sent"' in line:
+                    # ... status="success" or error
+                    if 'status="success"' in line:
+                        try:
+                            invites_sent_total += int(float(line.split(" ")[-1]))
+                        except Exception:
+                            pass
+                    elif 'status="error"' in line:
+                        try:
+                            invites_error_total += int(float(line.split(" ")[-1]))
+                        except Exception:
+                            pass
+            elif line.startswith("instainstru_beta_phase_header_total"):
+                # instainstru_beta_phase_header_total{phase="open_beta"} 123
+                try:
+                    phase = line.split("{", 1)[1].split("}", 1)[0]
+                    for part in phase.split(","):
+                        if part.startswith("phase="):
+                            val = part.split("=")[1].strip('"')
+                            count = int(float(line.split(" ")[-1]))
+                            phase_counts[val] = phase_counts.get(val, 0) + count
+                except Exception:
+                    pass
+        return BetaMetricsSummaryResponse(
+            invites_sent_24h=invites_sent_total,  # best-effort cumulative
+            invites_errors_24h=invites_error_total,
+            phase_counts_24h=phase_counts,
+        )
+    except Exception:
+        return BetaMetricsSummaryResponse(invites_sent_24h=0, invites_errors_24h=0, phase_counts_24h={})
 
 
 @router.post("/invites/consume", response_model=AccessGrantResponse)
