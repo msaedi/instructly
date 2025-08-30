@@ -137,24 +137,24 @@ export default function InstructorDashboardNew() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <header className="sticky top-0 z-50 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
-          <div className="container mx-auto px-6">
-            <div className="flex justify-between items-center h-16">
-              <Link href="/" className="text-2xl font-bold text-purple-700">
-                {BRAND.name}
-              </Link>
+      <div className="min-h-screen">
+        <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between max-w-full">
+            <a href="/" className="inline-block">
+              <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
+            </a>
+            <div className="pr-4">
               <UserProfileDropdown />
             </div>
           </div>
         </header>
-        <div className="container mx-auto px-6 py-12">
-          <div className="bg-white rounded-lg shadow p-6 text-center">
+        <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
             <h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
             <p className="text-gray-600 mb-6">{error}</p>
             <Link
               href="/signup?redirect=%2Finstructor%2Fonboarding%2Fstep-2"
-              className="inline-block px-6 py-2 bg-purple-700 text-white rounded-md hover:bg-purple-800 transition-colors"
+              className="inline-block px-6 py-2.5 bg-purple-700 text-white rounded-lg hover:bg-purple-800 transition-colors"
               onClick={() => logger.debug('Navigating to signup with redirect to step-2 from error state')}
             >
               Complete Profile Setup
@@ -175,7 +175,7 @@ export default function InstructorDashboardNew() {
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <a href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">{BRAND.name}</h1>
+            <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </a>
           <div className="pr-4">
             <UserProfileDropdown />
@@ -260,7 +260,7 @@ export default function InstructorDashboardNew() {
                 onClick={async () => {
                   try { const s = await getConnectStatus(); setConnectStatus(s); } catch {}
                 }}
-                className="inline-flex items-center px-3 py-2 text-sm rounded-md border border-gray-300 bg-white hover:bg-gray-50"
+                className="inline-flex items-center px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition-colors"
               >
                 <ExternalLink className="w-4 h-4 mr-2 rotate-90" /> Refresh Status
               </button>
@@ -293,8 +293,8 @@ export default function InstructorDashboardNew() {
           </div>
 
           {/* Stripe Payouts Link */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Stripe Payouts</h2>
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h2 className="text-xl font-semibold text-gray-700 mb-2">Stripe Payouts</h2>
             <p className="text-gray-600 text-sm mb-3">Access your Stripe Express dashboard to view payouts and account settings.</p>
             <Link
               href="#"
@@ -319,7 +319,7 @@ export default function InstructorDashboardNew() {
                   alert('Unable to open Stripe dashboard right now.');
                 }
               }}
-              className="text-purple-700 hover:underline"
+              className="text-purple-700 hover:underline font-medium"
             >
               Open payouts dashboard →
             </Link>
@@ -327,18 +327,18 @@ export default function InstructorDashboardNew() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Total Bookings</h3>
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide mb-2">Total Bookings</h3>
             <p className="text-3xl font-bold text-purple-700">0</p>
             <p className="text-sm text-gray-500 mt-1">Coming soon</p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Rating</h3>
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide mb-2">Rating</h3>
             <p className="text-3xl font-bold text-purple-700">-</p>
             <p className="text-sm text-gray-500 mt-1">Not yet available</p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Total Earnings</h3>
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide mb-2">Total Earnings</h3>
             <p className="text-3xl font-bold text-purple-700">$0</p>
             <p className="text-sm text-gray-500 mt-1">Payment integration pending</p>
           </div>
@@ -347,18 +347,20 @@ export default function InstructorDashboardNew() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <Link
             href="/instructor/availability"
-            className="block p-6 bg-white rounded-lg shadow hover:shadow-lg transition-shadow"
+            className="block p-6 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow"
             onClick={() => logger.debug('Navigating to availability management')}
           >
             <div className="flex items-center gap-4">
-              <Calendar className="w-8 h-8 text-purple-700" />
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <Calendar className="w-6 h-6 text-purple-700" />
+              </div>
               <div>
-                <h3 className="text-lg font-semibold">Manage Availability</h3>
-                <p className="text-gray-600">Set your weekly schedule and available hours</p>
+                <h3 className="text-lg font-semibold text-gray-700">Manage Availability</h3>
+                <p className="text-gray-600 text-sm">Set your weekly schedule and available hours</p>
               </div>
             </div>
           </Link>
-          <div className="p-6 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300">
+          <div className="p-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
             <div className="text-center text-gray-500">
               <p className="font-semibold">More features coming soon</p>
               <p className="text-sm mt-1">Booking management, analytics, and more</p>
@@ -366,15 +368,15 @@ export default function InstructorDashboardNew() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-8">
           <div className="flex justify-between items-start mb-6">
-            <h2 className="text-xl font-bold text-gray-900">Profile Information</h2>
+            <h2 className="text-xl font-semibold text-gray-700">Profile Information</h2>
             <button
               onClick={() => {
                 logger.debug('Opening edit profile modal');
                 setShowEditModal(true);
               }}
-              className="flex items-center px-4 py-2 bg-purple-700 text-white rounded-md hover:bg-purple-800 transition-colors"
+              className="flex items-center px-4 py-2.5 bg-purple-700 text-white rounded-lg hover:bg-purple-800 transition-colors"
             >
               <Edit className="h-4 w-4 mr-2" />
               Edit Profile
@@ -383,20 +385,20 @@ export default function InstructorDashboardNew() {
 
           <div className="space-y-6">
             <div>
-              <h3 className="text-sm font-medium text-gray-500 mb-1">Bio</h3>
-              <p className="text-gray-900">{profile.bio}</p>
+              <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide mb-2">Bio</h3>
+              <p className="text-gray-700">{profile.bio}</p>
             </div>
 
             <div>
-              <h3 className="text-sm font-medium text-gray-500 mb-2">Services & Pricing</h3>
+              <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide mb-3">Services & Pricing</h3>
               <div className="space-y-2">
                 {profile.services.map((service) => (
-                  <div key={service.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                  <div key={service.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100">
                     <div>
-                      <span className="font-medium">{service.skill}</span>
-                      {service.description && <p className="text-sm text-gray-600">{service.description}</p>}
+                      <span className="font-medium text-gray-700">{service.skill}</span>
+                      {service.description && <p className="text-sm text-gray-600 mt-1">{service.description}</p>}
                     </div>
-                    <span className="font-semibold text-purple-700">${service.hourly_rate}/hr</span>
+                    <span className="font-bold text-purple-700 text-lg">${service.hourly_rate}/hr</span>
                   </div>
                 ))}
               </div>
@@ -404,12 +406,12 @@ export default function InstructorDashboardNew() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-1">Areas of Service</h3>
-                <p className="text-gray-900">{profile.areas_of_service.join(', ')}</p>
+                <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide mb-2">Areas of Service</h3>
+                <p className="text-gray-700">{profile.areas_of_service.join(', ')}</p>
               </div>
               <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-1">Experience</h3>
-                <p className="text-gray-900">{profile.years_experience} years</p>
+                <h3 className="text-sm font-medium text-gray-600 uppercase tracking-wide mb-2">Experience</h3>
+                <p className="text-gray-700">{profile.years_experience} years</p>
               </div>
             </div>
           </div>
@@ -418,7 +420,7 @@ export default function InstructorDashboardNew() {
         <div className="flex flex-wrap gap-4">
           <button
             onClick={handleViewPublicProfile}
-            className="flex items-center px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+            className="flex items-center px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
           >
             <ExternalLink className="h-5 w-5 mr-2" />
             View Public Profile
@@ -428,7 +430,7 @@ export default function InstructorDashboardNew() {
               logger.debug('Opening delete profile modal');
               setShowDeleteModal(true);
             }}
-            className="flex items-center px-6 py-3 bg-red-50 border border-red-300 text-red-700 rounded-md hover:bg-red-100 transition-colors"
+            className="flex items-center px-5 py-2.5 bg-red-50 border border-red-200 text-red-700 rounded-lg hover:bg-red-100 transition-colors"
           >
             <Trash2 className="h-5 w-5 mr-2" />
             Delete Instructor Profile

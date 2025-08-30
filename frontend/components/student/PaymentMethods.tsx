@@ -17,10 +17,8 @@ import {
   Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { logger } from '@/lib/logger';
 import { paymentService } from '@/services/api/payments';
-import { API_URL } from '@/lib/api';
 import DeletePaymentMethodModal from '@/components/modals/DeletePaymentMethodModal';
 
 const stripePromise = loadStripe(
@@ -38,21 +36,6 @@ interface PaymentMethod {
 interface PaymentMethodsProps {
   userId: string;
 }
-
-// Card brand icons mapping
-const getCardBrandIcon = (brand: string): string => {
-  const brandIcons: Record<string, string> = {
-    visa: '💳',
-    mastercard: '💳',
-    amex: '💳',
-    discover: '💳',
-    diners: '💳',
-    jcb: '💳',
-    unionpay: '💳',
-    unknown: '💳',
-  };
-  return brandIcons[brand.toLowerCase()] || brandIcons.unknown;
-};
 
 // Styled brand names
 const getCardBrandDisplay = (brand: string): string => {
@@ -175,9 +158,11 @@ const AddCardForm: React.FC<{
       </div>
 
       {error && (
-        <div className="flex items-center space-x-2 text-red-600 text-sm">
-          <AlertCircle className="h-4 w-4" />
-          <span>{error}</span>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3">
+          <div className="flex items-center space-x-2 text-gray-600 text-sm">
+            <AlertCircle className="h-4 w-4" />
+            <span>{error}</span>
+          </div>
         </div>
       )}
 
@@ -279,12 +264,11 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-semibold">Payment Methods</h2>
+      <div className="flex justify-end items-center">
         {!addingCard && (
           <Button
             onClick={() => setAddingCard(true)}
-            className="flex items-center space-x-2"
+            className="flex items-center space-x-2 bg-purple-700 hover:bg-purple-800 text-white"
           >
             <Plus className="h-4 w-4" />
             <span>Add Payment Method</span>
@@ -293,13 +277,13 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId }) => {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-          {error}
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3">
+          <p className="text-gray-600">{error}</p>
         </div>
       )}
 
       {addingCard && (
-        <Card className="p-6">
+        <div className="rounded-xl border border-gray-200 p-6">
           <h3 className="text-lg font-medium mb-4">Add New Card</h3>
           <Elements stripe={stripePromise}>
             <AddCardForm
@@ -310,11 +294,11 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId }) => {
               onCancel={() => setAddingCard(false)}
             />
           </Elements>
-        </Card>
+        </div>
       )}
 
       {paymentMethods.length === 0 ? (
-        <Card className="p-8 text-center">
+        <div className="rounded-xl border border-gray-200 p-8 text-center">
           <CreditCard className="h-12 w-12 mx-auto text-gray-400 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">
             No payment methods saved
@@ -327,13 +311,13 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId }) => {
               Add Your First Card
             </Button>
           )}
-        </Card>
+        </div>
       ) : (
         <div className="space-y-3">
           {paymentMethods.map((method) => (
-            <Card
+            <div
               key={method.id}
-              className="p-4 flex items-center justify-between"
+              className="rounded-xl border border-gray-200 p-4 flex items-center justify-between"
             >
               <div className="flex items-center space-x-4">
                 <CreditCard className="h-8 w-8 text-gray-400" />
@@ -377,7 +361,7 @@ const PaymentMethods: React.FC<PaymentMethodsProps> = ({ userId }) => {
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
-            </Card>
+            </div>
           ))}
         </div>
       )}

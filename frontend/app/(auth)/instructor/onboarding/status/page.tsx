@@ -18,6 +18,8 @@ export default function OnboardingStatusPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [connectLoading, setConnectLoading] = useState(false);
+  const [skillsSkipped, setSkillsSkipped] = useState(false);
+  const [verificationSkipped, setVerificationSkipped] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -35,7 +37,23 @@ export default function OnboardingStatusPage() {
           })(),
         ]);
         if (s) setConnectStatus(s);
-        if (me) setProfile(me);
+        if (me) {
+          setProfile(me);
+        }
+
+        // Check if skills were skipped
+        if (typeof window !== 'undefined' && sessionStorage.getItem('skillsSkipped') === 'true') {
+          setSkillsSkipped(true);
+        } else if (me && (!me.services || me.services.length === 0)) {
+          setSkillsSkipped(true);
+        }
+
+        // Check if verification was skipped
+        if (typeof window !== 'undefined' && sessionStorage.getItem('verificationSkipped') === 'true') {
+          setVerificationSkipped(true);
+        } else if (me && (!me.background_check_status || me.background_check_status === 'pending')) {
+          setVerificationSkipped(true);
+        }
       } finally {
         setLoading(false);
       }
@@ -139,10 +157,121 @@ export default function OnboardingStatusPage() {
     <div className="min-h-screen">
       {/* Header - matching other pages */}
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between max-w-full">
+        <div className="flex items-center justify-between max-w-full relative">
           <a href="/" className="inline-block">
             <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </a>
+
+          {/* Progress Bar - 4 Steps - Absolutely centered */}
+          <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-0">
+            {/* Walking Stick Figure Animation - positioned on the line between step 3 and 4 */}
+            <div className="absolute inst-anim-walk" style={{ top: '-12px', left: '544px' }}>
+              <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
+                {/* Head */}
+                <circle cx="8" cy="4" r="2.5" stroke="#6A0DAD" strokeWidth="1.2" fill="none" />
+                {/* Body */}
+                <line x1="8" y1="6.5" x2="8" y2="12" stroke="#6A0DAD" strokeWidth="1.2" />
+                {/* Left arm */}
+                <line x1="8" y1="8" x2="5" y2="10" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-leftArm" />
+                {/* Right arm */}
+                <line x1="8" y1="8" x2="11" y2="10" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-rightArm" />
+                {/* Left leg */}
+                <line x1="8" y1="12" x2="6" y2="17" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-leftLeg" />
+                {/* Right leg */}
+                <line x1="8" y1="12" x2="10" y2="17" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-rightLeg" />
+              </svg>
+            </div>
+
+            {/* Step 1 - Completed */}
+            <div className="flex items-center">
+              <div className="flex flex-col items-center relative">
+                <button
+                  onClick={() => window.location.href = '/instructor/profile'}
+                  className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center hover:bg-purple-700 transition-colors cursor-pointer"
+                  title="Step 1: Account Created - Click to edit profile"
+                >
+                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                  </svg>
+                </button>
+                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Account Setup</span>
+              </div>
+              <div className="w-60 h-0.5 bg-purple-600"></div>
+            </div>
+
+            {/* Step 2 - Completed or Skipped */}
+            <div className="flex items-center">
+              <div className="flex flex-col items-center relative">
+                <button
+                  onClick={() => window.location.href = '/instructor/onboarding/skill-selection'}
+                  className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+                    skillsSkipped
+                      ? 'bg-purple-300 hover:bg-purple-400'
+                      : 'bg-purple-600 hover:bg-purple-700'
+                  }`}
+                  title={skillsSkipped ? "Step 2: Skills & Pricing (Skipped)" : "Step 2: Skills & Pricing"}
+                >
+                  {skillsSkipped ? (
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  ) : (
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Add Skills</span>
+              </div>
+              <div
+                className={`w-60 h-0.5 ${skillsSkipped ? 'border-t-2 border-dashed border-gray-400' : 'bg-purple-600'}`}
+                style={skillsSkipped ? { borderTopStyle: 'dashed', backgroundColor: 'transparent' } : {}}
+              ></div>
+            </div>
+
+            {/* Step 3 - Completed or Skipped */}
+            <div className="flex items-center">
+              <div className="flex flex-col items-center relative">
+                <button
+                  onClick={() => window.location.href = '/instructor/onboarding/verification'}
+                  className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+                    verificationSkipped
+                      ? 'bg-purple-300 hover:bg-purple-400'
+                      : 'bg-purple-600 hover:bg-purple-700'
+                  }`}
+                  title={verificationSkipped ? "Step 3: Verification (Skipped)" : "Step 3: Verification"}
+                >
+                  {verificationSkipped ? (
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  ) : (
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Verify Identity</span>
+              </div>
+              <div
+                className={`w-60 h-0.5 ${verificationSkipped ? 'border-t-2 border-dashed border-gray-400' : 'bg-purple-600'}`}
+                style={verificationSkipped ? { borderTopStyle: 'dashed', backgroundColor: 'transparent' } : {}}
+              ></div>
+            </div>
+
+            {/* Step 4 - Current (Status) */}
+            <div className="flex items-center">
+              <div className="flex flex-col items-center relative">
+                <button
+                  onClick={() => {/* Already on this page */}}
+                  className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
+                  title="Step 4: Status (Current)"
+                ></button>
+                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Payment Setup</span>
+              </div>
+            </div>
+          </div>
+
           <div className="pr-4">
             <UserProfileDropdown />
           </div>
@@ -178,6 +307,8 @@ export default function OnboardingStatusPage() {
         )}
       </div>
       </div>
+
+      {/* Animation CSS moved to global (app/globals.css) */}
     </div>
   );
 }

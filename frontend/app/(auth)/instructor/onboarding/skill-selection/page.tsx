@@ -160,6 +160,10 @@ function Step3SkillsPricingInner() {
       const nextUrl = redirectParam || '/instructor/onboarding/verification';
       // If no skills selected, skip saving and go to verification step
       if (selected.length === 0) {
+        // Store a flag that skills were skipped
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('skillsSkipped', 'true');
+        }
         window.location.href = nextUrl;
         return;
       }
@@ -199,6 +203,10 @@ function Step3SkillsPricingInner() {
         } catch {}
         window.location.href = nextUrl;
         return;
+      }
+      // Clear the skipped flag since skills were saved
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('skillsSkipped');
       }
       // Navigate to next step
       window.location.href = nextUrl;
@@ -246,47 +254,77 @@ function Step3SkillsPricingInner() {
 
           {/* Progress Bar - 4 Steps - Absolutely centered */}
           <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-0">
+            {/* Walking Stick Figure Animation - positioned on the line between step 1 and 2 */}
+            <div className="absolute inst-anim-walk" style={{ top: '-12px', left: '24px' }}>
+              <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
+                {/* Head */}
+                <circle cx="8" cy="4" r="2.5" stroke="#6A0DAD" strokeWidth="1.2" fill="none" />
+                {/* Body */}
+                <line x1="8" y1="6.5" x2="8" y2="12" stroke="#6A0DAD" strokeWidth="1.2" />
+                {/* Left arm */}
+                <line x1="8" y1="8" x2="5" y2="10" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-leftArm" />
+                {/* Right arm */}
+                <line x1="8" y1="8" x2="11" y2="10" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-rightArm" />
+                {/* Left leg */}
+                <line x1="8" y1="12" x2="6" y2="17" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-leftLeg" />
+                {/* Right leg */}
+                <line x1="8" y1="12" x2="10" y2="17" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-rightLeg" />
+              </svg>
+            </div>
+
             {/* Step 1 - Completed */}
             <div className="flex items-center">
-              <button
-                onClick={() => {/* TODO: Navigate to Step 1 */}}
-                className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center hover:bg-purple-700 transition-colors cursor-pointer"
-                title="Step 1: Account Created"
-              >
-                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                </svg>
-              </button>
+              <div className="flex flex-col items-center relative">
+                <button
+                  onClick={() => window.location.href = '/instructor/profile'}
+                  className="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center hover:bg-purple-700 transition-colors cursor-pointer"
+                  title="Step 1: Account Created - Click to edit profile"
+                >
+                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                  </svg>
+                </button>
+                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Account Setup</span>
+              </div>
               <div className="w-60 h-0.5 bg-purple-600"></div>
             </div>
 
             {/* Step 2 - Current (Skills) */}
             <div className="flex items-center">
-              <button
-                onClick={() => {/* Already on this page */}}
-                className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
-                title="Step 2: Skills & Pricing (Current)"
-              ></button>
+              <div className="flex flex-col items-center relative">
+                <button
+                  onClick={() => {/* Already on this page */}}
+                  className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
+                  title="Step 2: Skills & Pricing (Current)"
+                ></button>
+                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Add Skills</span>
+              </div>
               <div className="w-60 h-0.5 bg-gray-300"></div>
             </div>
 
             {/* Step 3 - Upcoming */}
             <div className="flex items-center">
-              <button
-                onClick={() => window.location.href = '/instructor/onboarding/verification'}
-                className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-gray-400 transition-colors cursor-pointer"
-                title="Step 3: Verification"
-              ></button>
+              <div className="flex flex-col items-center relative">
+                <button
+                  onClick={() => window.location.href = '/instructor/onboarding/verification'}
+                  className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-gray-400 transition-colors cursor-pointer"
+                  title="Step 3: Verification"
+                ></button>
+                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Verify Identity</span>
+              </div>
               <div className="w-60 h-0.5 bg-gray-300"></div>
             </div>
 
             {/* Step 4 - Upcoming */}
             <div className="flex items-center">
-              <button
-                onClick={() => window.location.href = '/instructor/onboarding/status'}
-                className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-gray-400 transition-colors cursor-pointer"
-                title="Step 4: Status"
-              ></button>
+              <div className="flex flex-col items-center relative">
+                <button
+                  onClick={() => window.location.href = '/instructor/onboarding/payment-setup'}
+                  className="w-6 h-6 rounded-full border-2 border-gray-300 hover:border-gray-400 transition-colors cursor-pointer"
+                  title="Step 4: Payment Setup"
+                ></button>
+                <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Payment Setup</span>
+              </div>
             </div>
           </div>
 
@@ -300,7 +338,7 @@ function Step3SkillsPricingInner() {
         {/* Page Header */}
         <div className="bg-white rounded-lg p-6 mb-6 border border-gray-200">
           <h1 className="text-3xl font-bold text-gray-600 mb-2">What do you teach?</h1>
-          <p className="text-gray-600">Select your skills and set your hourly rates</p>
+          <p className="text-gray-600">Choose your skills and set your rates</p>
         </div>
 
       {error && <div className="mt-4 rounded-md bg-red-50 text-red-700 px-4 py-2">{error}</div>}
@@ -315,7 +353,9 @@ function Step3SkillsPricingInner() {
               onClick={() => setCollapsed((prev) => ({ ...prev, [cat.slug]: !isCollapsed }))}
             >
               <span className="font-bold">{cat.name}</span>
-              <span className="text-sm">{isCollapsed ? '▼' : '▲'}</span>
+              <svg className={`h-4 w-4 text-gray-600 transition-transform ${isCollapsed ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+              </svg>
             </button>
             {!isCollapsed && (
             <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -325,7 +365,7 @@ function Step3SkillsPricingInner() {
                   <button
                     key={svc.id}
                     onClick={() => toggleService(svc)}
-                    className={`px-4 py-2.5 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-purple-500/20 ${
+                    className={`px-3 py-2 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-purple-500/20 whitespace-nowrap ${
                       selectedFlag
                         ? 'bg-purple-100 text-purple-700 border border-purple-300'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -431,9 +471,8 @@ function Step3SkillsPricingInner() {
                                     // Both selected: clicking one deselects it, leaving only the other
                                     newAgeGroup = ageType === 'kids' ? 'adults' : 'kids';
                                   } else if (currentAgeGroup === ageType) {
-                                    // Only this one selected: can't deselect (must have at least one)
-                                    // Keep it selected
-                                    newAgeGroup = ageType;
+                                    // Only this one selected: deselect it to select the other
+                                    newAgeGroup = ageType === 'kids' ? 'adults' : 'kids';
                                   } else {
                                     // The other one is selected, clicking this one selects both
                                     newAgeGroup = 'both';
@@ -466,16 +505,25 @@ function Step3SkillsPricingInner() {
                           key={loc}
                           onClick={() =>
                             setSelected((prev) =>
-                              prev.map((x) =>
-                                x.catalog_service_id === s.catalog_service_id
-                                  ? {
-                                      ...x,
-                                      location_types: x.location_types.includes(loc)
-                                        ? x.location_types.filter((v) => v !== loc)
-                                        : [...x.location_types, loc],
-                                    }
-                                  : x
-                              )
+                              prev.map((x) => {
+                                if (x.catalog_service_id !== s.catalog_service_id) return x;
+
+                                const hasLoc = x.location_types.includes(loc);
+                                const otherLoc = loc === 'in-person' ? 'online' : 'in-person';
+
+                                // If this is the only location selected, switch to the other one
+                                if (hasLoc && x.location_types.length === 1) {
+                                  return { ...x, location_types: [otherLoc] };
+                                }
+
+                                // Otherwise toggle normally
+                                return {
+                                  ...x,
+                                  location_types: hasLoc
+                                    ? x.location_types.filter((v) => v !== loc)
+                                    : [...x.location_types, loc],
+                                };
+                              })
                             )
                           }
                           className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
@@ -534,16 +582,24 @@ function Step3SkillsPricingInner() {
                           key={d}
                           onClick={() =>
                             setSelected((prev) =>
-                              prev.map((x) =>
-                                x.catalog_service_id === s.catalog_service_id
-                                  ? {
-                                      ...x,
-                                      duration_options: x.duration_options.includes(d)
-                                        ? x.duration_options.filter((v) => v !== d)
-                                        : [...x.duration_options, d],
-                                    }
-                                  : x
-                              )
+                              prev.map((x) => {
+                                if (x.catalog_service_id !== s.catalog_service_id) return x;
+
+                                const hasDuration = x.duration_options.includes(d);
+
+                                // If this is the only duration selected, don't allow deselecting it
+                                if (hasDuration && x.duration_options.length === 1) {
+                                  return x;
+                                }
+
+                                // Otherwise toggle normally
+                                return {
+                                  ...x,
+                                  duration_options: hasDuration
+                                    ? x.duration_options.filter((v) => v !== d)
+                                    : [...x.duration_options, d],
+                                };
+                              })
                             )
                           }
                           className={`flex-1 px-2 py-2 text-sm rounded-md transition-colors ${
@@ -606,7 +662,7 @@ function Step3SkillsPricingInner() {
             value={requestText}
             onChange={(e) => setRequestText(e.target.value)}
             placeholder="Type your skill here..."
-            className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-white/70"
+            className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
           />
           <button
             onClick={submitServiceRequest}
@@ -629,6 +685,8 @@ function Step3SkillsPricingInner() {
         </button>
       </div>
       </div>
+
+      {/* Animation CSS moved to global (app/globals.css) */}
     </div>
   );
 }

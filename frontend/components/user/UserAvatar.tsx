@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getProfilePictureUrl } from '@/lib/api';
-import { getUserInitials, getAvatarColor } from '@/features/shared/hooks/useAuth';
+import { getUserInitials } from '@/features/shared/hooks/useAuth';
 
 interface Props {
   user: { id: string; first_name?: string; last_name?: string; email?: string; has_profile_picture?: boolean; profile_picture_version?: number } | null;
@@ -14,11 +14,9 @@ interface Props {
 
 export function UserAvatar({ user, size = 40, className, variant = 'thumb' }: Props) {
   const [url, setUrl] = useState<string | null>(null);
-  const initials = useMemo(() => getUserInitials(user), [user]);
-  const color = useMemo(() => {
-    const safeUserId = user?.id != null ? String(user.id) : '';
-    return safeUserId ? getAvatarColor(safeUserId) : '#999';
-  }, [user?.id]);
+  // Keep initials computation available for future variants if needed
+  // Currently unused because we show a glyph fallback per product spec
+  useMemo(() => getUserInitials(user), [user]);
 
   useEffect(() => {
     let mounted = true;
@@ -50,14 +48,7 @@ export function UserAvatar({ user, size = 40, className, variant = 'thumb' }: Pr
       {url ? (
         <AvatarImage src={url} alt="Avatar" />
       ) : (
-        <AvatarFallback className="bg-transparent p-0">
-          <div
-            className="bg-gray-200 rounded-full flex items-center justify-center text-gray-500"
-            style={{ width: size, height: size }}
-          >
-            <span className="text-2xl">👤</span>
-          </div>
-        </AvatarFallback>
+        <AvatarFallback className="bg-purple-100 text-purple-700 font-semibold">👤</AvatarFallback>
       )}
     </Avatar>
   );

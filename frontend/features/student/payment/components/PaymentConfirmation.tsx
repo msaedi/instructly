@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown, ChevronUp, Check, Plus } from 'lucide-react';
 import { BookingPayment, PaymentMethod, BookingType } from '../types';
 import { format } from 'date-fns';
 import { protectedApi, publicApi } from '@/features/shared/api/client';
@@ -16,9 +16,13 @@ interface PaymentConfirmationProps {
   paymentMethod: PaymentMethod;
   cardLast4?: string;
   creditsUsed?: number;
+  availableCredits?: number;
+  creditEarliestExpiry?: string | Date | null;
   onConfirm: () => void;
   onBack: () => void;
   onChangePaymentMethod?: () => void;
+  onCreditToggle?: () => void;
+  onCreditAmountChange?: (amount: number) => void;
   cardBrand?: string;
   isDefaultCard?: boolean;
 }
@@ -28,9 +32,13 @@ export default function PaymentConfirmation({
   paymentMethod,
   cardLast4,
   creditsUsed = 0,
+  availableCredits = 0,
+  creditEarliestExpiry = null,
   onConfirm,
   onBack, // eslint-disable-line @typescript-eslint/no-unused-vars
   onChangePaymentMethod,
+  onCreditToggle,
+  onCreditAmountChange,
   cardBrand = 'Card',
   isDefaultCard = false,
 }: PaymentConfirmationProps) {
@@ -42,6 +50,9 @@ export default function PaymentConfirmation({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [instructorServices, setInstructorServices] = useState<any[]>([]);
   const [loadingInstructor, setLoadingInstructor] = useState(false);
+
+  // Track if credits are enabled (slider is shown) separately from amount
+  const creditsEnabled = paymentMethod === PaymentMethod.MIXED || paymentMethod === PaymentMethod.CREDITS;
 
   logger.info('PaymentConfirmation component rendered', {
     booking,
@@ -154,17 +165,17 @@ export default function PaymentConfirmation({
             className="flex items-center justify-between cursor-pointer"
             onClick={() => setIsPaymentExpanded(!isPaymentExpanded)}
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-1">
               <h4 className="font-bold text-xl">Payment Method</h4>
               {!isPaymentExpanded && hasSavedCard && (
                 <span className="text-sm text-gray-600">•••• {cardLast4}</span>
               )}
             </div>
-            {isPaymentExpanded ? (
-              <ChevronUp className="h-5 w-5 text-gray-600" />
-            ) : (
-              <ChevronDown className="h-5 w-5 text-gray-600" />
-            )}
+            <ChevronDown
+              className={`h-5 w-5 text-gray-500 transition-transform ${
+                isPaymentExpanded ? 'rotate-180' : ''
+              }`}
+            />
           </div>
 
           {/* Credit Card Fields */}
@@ -400,13 +411,67 @@ export default function PaymentConfirmation({
           )}
         </div>
 
+        {/* Available Credits Section - with interactive toggle and slider */}
+        {availableCredits > 0 && (
+          <div className="mb-6 rounded-lg p-4" style={{ backgroundColor: 'rgb(249, 247, 255)' }}>
+            <div
+              className="flex items-center justify-between cursor-pointer"
+              onClick={() => onCreditToggle?.()}
+            >
+              <div className="flex-1">
+                <h4 className="font-bold text-xl">Available Credits</h4>
+                <p className="text-sm text-gray-600">
+                  Balance: ${availableCredits.toFixed(2)}
+                </p>
+              </div>
+              <ChevronDown
+                className={`h-5 w-5 text-gray-500 transition-transform ${
+                  creditsEnabled ? 'rotate-180' : ''
+                }`}
+              />
+            </div>
+
+            {creditsEnabled && (
+              <div className="mt-3 p-3 bg-white rounded-lg">
+                <div className="flex items-center justify-between text-sm mb-2">
+                  <span>Credits to apply:</span>
+                  <span className="font-medium">${creditsUsed.toFixed(2)}</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max={Math.min(availableCredits, booking.totalAmount)}
+                  step="1"
+                  value={creditsUsed}
+                  onChange={(e) => {
+                    const newValue = Number(e.target.value);
+                    onCreditAmountChange?.(newValue);
+                  }}
+                  className="w-full accent-purple-700"
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  {creditsUsed >= booking.totalAmount
+                    ? 'Entire lesson covered by credits!'
+                    : `Remaining balance: $${(booking.totalAmount - creditsUsed).toFixed(2)}`}
+                </p>
+              </div>
+            )}
+
+            <p className="text-xs text-gray-500 mt-2">
+              {creditEarliestExpiry
+                ? `Earliest credit expiry: ${new Date(creditEarliestExpiry).toLocaleDateString()}`
+                : 'Credits expire 12 months after issue date'}
+            </p>
+          </div>
+        )}
+
         {/* Lesson Location */}
         <div className="mb-6 rounded-lg p-4" style={{ backgroundColor: 'rgb(249, 247, 255)' }}>
           <div
             className="flex items-center justify-between cursor-pointer"
             onClick={() => setIsLocationExpanded(!isLocationExpanded)}
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-1">
               <h4 className="font-bold text-xl">Lesson Location</h4>
               {!isLocationExpanded && (
                 <span className="text-sm text-gray-600">
@@ -414,11 +479,11 @@ export default function PaymentConfirmation({
                 </span>
               )}
             </div>
-            {isLocationExpanded ? (
-              <ChevronUp className="h-5 w-5 text-gray-600" />
-            ) : (
-              <ChevronDown className="h-5 w-5 text-gray-600" />
-            )}
+            <ChevronDown
+              className={`h-5 w-5 text-gray-500 transition-transform ${
+                isLocationExpanded ? 'rotate-180' : ''
+              }`}
+            />
           </div>
 
           {/* Online Checkbox */}

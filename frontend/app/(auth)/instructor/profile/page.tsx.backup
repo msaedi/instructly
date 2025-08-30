@@ -10,7 +10,6 @@ type Profile = {
   last_name: string;
   postal_code: string;
   bio: string;
-  areas_of_service: string[];
   years_experience: number;
   min_advance_booking_hours?: number;
   buffer_time_minutes?: number;
@@ -19,16 +18,6 @@ type Profile = {
 type ServiceAreaItem = { id: string; neighborhood_id?: string; ntacode?: string | null; name?: string | null; borough?: string | null };
 type ServiceAreasResponse = { items: ServiceAreaItem[]; total: number };
 type NYCZipCheck = { is_nyc: boolean; borough?: string | null };
-
-function toTitle(s: string): string {
-  return s
-    .trim()
-    .toLowerCase()
-    .split(' ')
-    .filter(Boolean)
-    .map((w) => w[0].toUpperCase() + w.slice(1))
-    .join(' ');
-}
 
 export default function InstructorProfileSettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -40,10 +29,8 @@ export default function InstructorProfileSettingsPage() {
     last_name: '',
     postal_code: '',
     bio: '',
-    areas_of_service: [],
     years_experience: 0
   });
-  const [areaInput, setAreaInput] = useState('');
   const [isNYC, setIsNYC] = useState<boolean>(true); // default to true for now
   const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<Set<string>>(new Set());
   const [boroughOpen, setBoroughOpen] = useState<string | null>(null);
@@ -56,63 +43,38 @@ export default function InstructorProfileSettingsPage() {
       try {
         setLoading(true);
         const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
-        logger.debug('Prefill: /instructors/me status', { status: res.status });
-        const data = res.ok ? await res.json() : {};
         if (!res.ok) {
-          try {
-            const errBody = await res.clone().json();
-            logger.debug('Prefill: /instructors/me error body', errBody);
-          } catch {}
-        } else {
-          logger.debug('Prefill: /instructors/me body keys', { keys: Object.keys(data || {}) });
+          setError(await getErrorMessage(res));
+          return;
         }
+        const data = await res.json();
 
-        // Get user info for name fields (use /auth/me)
-        const userRes = await fetchWithAuth(API_ENDPOINTS.ME);
-        logger.debug('Prefill: /auth/me status', { status: userRes.status });
+        // Get user info for name fields
+        const userRes = await fetchWithAuth('/api/users/me');
         let firstName = '';
         let lastName = '';
-        let userZip = '';
         if (userRes.ok) {
           const userData = await userRes.json();
           firstName = userData.first_name || '';
           lastName = userData.last_name || '';
-          userZip = userData.zip_code || '';
-          logger.debug('Prefill: /auth/me body', { first_name: firstName, last_name: lastName, id: userData.id, zip_code: userZip });
-        } else if (data && data.user) {
-          // Fallback to instructor payload's embedded user if available
-          firstName = data.user.first_name || '';
-          lastName = data.user.last_name || '';
-          userZip = data.user.zip_code || '';
-          logger.debug('Prefill: using instructor.user fallback', { first_name: firstName, last_name: lastName, zip_code: userZip });
         }
 
         // Get postal code from default address
         let postalCode = '';
         try {
           const addrRes = await fetchWithAuth('/api/addresses/me');
-          logger.debug('Prefill: /api/addresses/me status', { status: addrRes.status });
           if (addrRes.ok) {
             const list = await addrRes.json();
             const def = (list.items || []).find((a: any) => a.is_default) || (list.items || [])[0];
             postalCode = def?.postal_code || '';
-            logger.debug('Prefill: selected default address', { id: def?.id, postal_code: postalCode });
           }
         } catch {}
-        // if no default address zip, fallback to user zip from /auth/me
-        if (!postalCode && userZip) {
-          postalCode = userZip;
-          logger.debug('Prefill: using user.zip_code fallback for postal_code', { postal_code: postalCode });
-        }
 
         setProfile({
           first_name: firstName,
           last_name: lastName,
           postal_code: postalCode,
           bio: data.bio || '',
-          areas_of_service: Array.isArray(data.areas_of_service)
-            ? data.areas_of_service
-            : (data.areas_of_service || '').split(',').map((x: string) => x.trim()).filter((x: string) => x.length),
           years_experience: data.years_experience ?? 0,
           min_advance_booking_hours: data.min_advance_booking_hours ?? 2,
           buffer_time_minutes: data.buffer_time_minutes ?? 0,
@@ -121,7 +83,6 @@ export default function InstructorProfileSettingsPage() {
         // Prefill service areas (neighborhoods)
         try {
           const areasRes = await fetchWithAuth('/api/addresses/service-areas/me');
-          logger.debug('Prefill: /api/addresses/service-areas/me status', { status: areasRes.status });
           if (areasRes.ok) {
             const areas: ServiceAreasResponse = await areasRes.json();
             const items = (areas.items || []) as ServiceAreaItem[];
@@ -150,11 +111,9 @@ export default function InstructorProfileSettingsPage() {
             const zip = def?.postal_code;
             if (zip) {
               const nycRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${API_ENDPOINTS.NYC_ZIP_CHECK}?zip=${encodeURIComponent(zip)}`);
-              logger.debug('Prefill: NYC zip check status', { status: nycRes.status, zip });
               if (nycRes.ok) {
                 const nyc: NYCZipCheck = await nycRes.json();
                 setIsNYC(!!nyc.is_nyc);
-                logger.debug('Prefill: NYC zip check body', nyc);
               }
             }
           }
@@ -173,16 +132,6 @@ export default function InstructorProfileSettingsPage() {
     return profile.bio.trim().length >= 1;
   }, [profile]);
 
-  const addArea = () => {
-    const val = areaInput.trim();
-    if (!val) return;
-    setProfile((p) => ({ ...p, areas_of_service: Array.from(new Set([...(p.areas_of_service || []), toTitle(val)])) }));
-    setAreaInput('');
-  };
-  const removeArea = (area: string) => {
-    setProfile((p) => ({ ...p, areas_of_service: (p.areas_of_service || []).filter((a) => a !== area) }));
-  };
-
   const save = async () => {
     try {
       setSaving(true);
@@ -190,7 +139,7 @@ export default function InstructorProfileSettingsPage() {
       setSuccess(null);
       // Update user info if changed
       if (profile.first_name || profile.last_name) {
-        await fetchWithAuth(API_ENDPOINTS.ME, {
+        await fetchWithAuth('/api/users/me', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -202,7 +151,6 @@ export default function InstructorProfileSettingsPage() {
 
       const payload = {
         bio: profile.bio.trim(),
-        areas_of_service: profile.areas_of_service,
         years_experience: Number(profile.years_experience) || 0,
         min_advance_booking_hours: profile.min_advance_booking_hours ?? 2,
         buffer_time_minutes: profile.buffer_time_minutes ?? 0,
@@ -216,34 +164,6 @@ export default function InstructorProfileSettingsPage() {
         setError(await getErrorMessage(res));
         return;
       }
-
-      // If ZIP changed, update default address postal_code
-      try {
-        const addrRes = await fetchWithAuth('/api/addresses/me');
-        if (addrRes.ok) {
-          const list = await addrRes.json();
-          const items = (list.items || []) as any[];
-          const def = items.find((a) => a.is_default) || items[0];
-          if (def) {
-            const currentZip = def.postal_code || '';
-            const newZip = (profile.postal_code || '').trim();
-            if (newZip && newZip !== currentZip) {
-              await fetchWithAuth(`/api/addresses/me/${def.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ postal_code: newZip }),
-              });
-            }
-          } else if ((profile.postal_code || '').trim()) {
-            // No address exists yet—create one with ZIP only
-            await fetchWithAuth('/api/addresses/me', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ postal_code: (profile.postal_code || '').trim(), is_default: true }),
-            });
-          }
-        }
-      } catch {}
 
       // Persist service areas
       try {
@@ -324,7 +244,7 @@ export default function InstructorProfileSettingsPage() {
     return { selected, total: ids.length };
   };
 
-  // Avoid early return to prevent hydration mismatches; render a lightweight inline loader instead
+  if (loading) return <div className="p-8">Loading...</div>;
 
   return (
     <div className="min-h-screen">
@@ -335,24 +255,23 @@ export default function InstructorProfileSettingsPage() {
             <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </a>
 
-          {/* Progress Bar - 4 Steps - Absolutely centered */
-          }
+          {/* Progress Bar - 4 Steps - Absolutely centered */}
           <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-0">
-            {/* Walking Stick Figure - profile page variant */}
-            <div className="absolute inst-anim-walk-profile" style={{ top: '-12px', left: '-28px' }}>
+            {/* Walking Stick Figure Animation - positioned to show on step 1 */}
+            <div className="absolute animate-walk" style={{ top: '-12px', left: '-28px' }}>
               <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
                 {/* Head */}
                 <circle cx="8" cy="4" r="2.5" stroke="#6A0DAD" strokeWidth="1.2" fill="none" />
                 {/* Body */}
                 <line x1="8" y1="6.5" x2="8" y2="12" stroke="#6A0DAD" strokeWidth="1.2" />
                 {/* Left arm */}
-                <line x1="8" y1="8" x2="5" y2="10" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-leftArm-fast" />
+                <line x1="8" y1="8" x2="5" y2="10" stroke="#6A0DAD" strokeWidth="1.2" className="animate-leftArm" />
                 {/* Right arm */}
-                <line x1="8" y1="8" x2="11" y2="10" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-rightArm-fast" />
+                <line x1="8" y1="8" x2="11" y2="10" stroke="#6A0DAD" strokeWidth="1.2" className="animate-rightArm" />
                 {/* Left leg */}
-                <line x1="8" y1="12" x2="6" y2="17" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-leftLeg-fast" />
+                <line x1="8" y1="12" x2="6" y2="17" stroke="#6A0DAD" strokeWidth="1.2" className="animate-leftLeg" />
                 {/* Right leg */}
-                <line x1="8" y1="12" x2="10" y2="17" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-rightLeg-fast" />
+                <line x1="8" y1="12" x2="10" y2="17" stroke="#6A0DAD" strokeWidth="1.2" className="animate-rightLeg" />
               </svg>
             </div>
 
@@ -415,9 +334,6 @@ export default function InstructorProfileSettingsPage() {
       </header>
 
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
-        {loading && (
-          <div className="p-8 text-sm text-gray-500">Loading…</div>
-        )}
         {/* Page Header with subtle purple accent - matching verification page */}
         <div className="bg-white rounded-lg p-6 mb-8 border border-gray-200">
           <div className="flex items-center gap-3 mb-3">
@@ -433,23 +349,30 @@ export default function InstructorProfileSettingsPage() {
           </div>
         </div>
 
-      {error && (
-        <div className="mb-6 rounded-lg bg-red-50 border border-red-200 text-red-700 px-4 py-3">{error}</div>
-      )}
-      {success && (
-        <div className="mb-6 rounded-lg bg-green-50 border border-green-200 text-green-700 px-4 py-3">{success}</div>
-      )}
+        {error && (
+          <div className="mb-6 rounded-lg bg-red-50 border border-red-200 text-red-700 px-4 py-3">
+            {error}
+          </div>
+        )}
+        {success && (
+          <div className="mb-6 rounded-lg bg-green-50 border border-green-200 text-green-700 px-4 py-3">
+            {success}
+          </div>
+        )}
 
-      <div className="mt-6 space-y-6">
-        {/* Personal Information Section */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-5 hover:shadow-sm transition-shadow">
+        <div className="mt-8 bg-white rounded-lg p-6 border border-gray-200">
+          <h2 className="text-lg font-medium text-gray-900 mb-4">Your Profile Information</h2>
+
+          {/* Personal Information Card - styled like skill selection cards */}
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-5 hover:shadow-sm transition-shadow mb-4">
             <div className="flex items-start justify-between mb-4">
               <div>
                 <div className="text-lg font-medium text-gray-900">Personal Information</div>
                 <div className="text-sm text-gray-600 mt-1">Your basic profile details</div>
               </div>
             </div>
+
+            {/* Input Fields Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="bg-white rounded-lg p-3 border border-gray-200">
                 <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">First Name</label>
@@ -461,6 +384,7 @@ export default function InstructorProfileSettingsPage() {
                   onChange={(e) => setProfile((p) => ({ ...p, first_name: e.target.value }))}
                 />
               </div>
+
               <div className="bg-white rounded-lg p-3 border border-gray-200">
                 <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Last Name</label>
                 <input
@@ -471,6 +395,7 @@ export default function InstructorProfileSettingsPage() {
                   onChange={(e) => setProfile((p) => ({ ...p, last_name: e.target.value }))}
                 />
               </div>
+
               <div className="bg-white rounded-lg p-3 border border-gray-200">
                 <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">ZIP Code</label>
                 <input
@@ -483,185 +408,31 @@ export default function InstructorProfileSettingsPage() {
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Professional Information Section */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-5 hover:shadow-sm transition-shadow">
+          {/* Professional Information Card - styled like skill selection cards */}
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-5 hover:shadow-sm transition-shadow mb-4">
             <div className="flex items-start justify-between mb-4">
               <div>
                 <div className="text-lg font-medium text-gray-900">Professional Details</div>
                 <div className="text-sm text-gray-600 mt-1">Share your experience and teaching preferences</div>
               </div>
             </div>
-            <div className="mb-1 bg-white rounded-lg p-3 border border-gray-200">
+
+            {/* Bio Section */}
+            <div className="mb-4 bg-white rounded-lg p-3 border border-gray-200">
               <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Bio</label>
               <textarea
                 rows={4}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
-                placeholder="Tell students about your experience, style, and approach"
+                placeholder="Tell students about your experience, teaching style, and approach..."
                 value={profile.bio}
                 onChange={(e) => setProfile((p) => ({ ...p, bio: e.target.value }))}
               />
+              <p className="text-xs text-gray-500 mt-1">This will be displayed on your public profile</p>
             </div>
-            <p className="text-xs text-gray-500 mt-1">This will be displayed on your public profile</p>
-          </div>
-        </div>
 
-        {/* Service Areas Section */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-5 hover:shadow-sm transition-shadow">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <div className="text-lg font-medium text-gray-900">Service Areas</div>
-                <div className="text-sm text-gray-600 mt-1">Select the neighborhoods where you teach</div>
-              </div>
-            </div>
-            {isNYC ? (
-            <div className="space-y-3">
-              <div className="bg-white rounded-lg p-3 border border-gray-200">
-                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Select Boroughs</label>
-                <div className="flex flex-wrap gap-2">
-                {NYC_BOROUGHS.map((b) => {
-                  const { selected, total } = getBoroughCounts(b);
-                  const isAll = total > 0 && selected > 0 && selected === total;
-                  const isSome = selected > 0 && (!total || selected < total);
-                  const base = 'px-3 py-1.5 rounded-full text-sm border';
-                  const open = boroughOpen === b;
-                  const cls = isAll
-                    ? `${base} bg-[#6A0DAD] text-white border-[#6A0DAD]`
-                    : isSome
-                    ? `${base} bg-[#F6ECFF] text-[#6A0DAD] border-[#D4B5F0]`
-                    : `${base} bg-white text-gray-700 border-gray-200 hover:bg-gray-50`;
-                  const openRing = open ? ' ring-2 ring-[#D4B5F0]' : '';
-                  return (
-                    <button
-                      key={b}
-                      onClick={async () => {
-                        setBoroughOpen(boroughOpen === b ? null : b);
-                        await loadBoroughNeighborhoods(b);
-                      }}
-                      type="button"
-                      className={cls + openRing}
-                    >
-                      {b}
-                      {selected > 0 && (
-                        <span
-                          className={`ml-2 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-xs ${
-                            isAll
-                              ? 'bg-white text-[#6A0DAD] ring-1 ring-white/60'
-                              : 'bg-[#F3E8FF] text-[#6A0DAD] ring-1 ring-[#D4B5F0]'
-                          }`}
-                        >
-                          {selected}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-                </div>
-              </div>
-              {/* Global selection panel (persists across boroughs) */}
-              {selectedNeighborhoods.size > 0 && (
-                <div className="mt-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-                  <div className="text-sm text-gray-700 mb-2">Selected {selectedNeighborhoods.size} neighborhoods</div>
-                  <div className="flex flex-wrap gap-2">
-                    {Array.from(selectedNeighborhoods).map((id) => {
-                      const it = idToItem[id];
-                      const label = it?.name || id;
-                      const hint = it?.borough ? ` • ${it.borough}` : '';
-                      return (
-                        <span key={id} className="inline-flex items-center gap-1.5 rounded-full bg-purple-50 border border-purple-200 px-3 py-1 text-sm text-purple-700">
-                          {label}
-                          <span className="text-purple-500 text-xs">{hint}</span>
-                          <button
-                            className="w-4 h-4 flex items-center justify-center rounded-full hover:bg-purple-200 text-purple-500"
-                            onClick={() => toggleNeighborhood(id)}
-                            aria-label={`Remove ${label}`}
-                          >
-                            ×
-                          </button>
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {boroughOpen && (
-                <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <div className="font-medium text-gray-900">{boroughOpen}</div>
-                    <div className="flex gap-2">
-                      <button
-                        className="text-sm px-3 py-1 rounded-md bg-purple-100 text-purple-700 hover:bg-purple-200"
-                        onClick={() => toggleBoroughAll(boroughOpen!, true)}
-                      >
-                        Select all
-                      </button>
-                      <button
-                        className="text-sm px-3 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
-                        onClick={() => toggleBoroughAll(boroughOpen!, false)}
-                      >
-                        Clear all
-                      </button>
-                    </div>
-                  </div>
-                  <div className="mt-3">
-                    <input
-                      type="text"
-                      value={boroughFilter}
-                      onChange={(e) => setBoroughFilter(e.target.value)}
-                      placeholder="Search neighborhoods..."
-                      className="w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
-                    />
-                  </div>
-                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto overflow-x-hidden">
-                    {(boroughNeighborhoods[boroughOpen] || [])
-                      .filter((n) => (n.name || '').toLowerCase().includes(boroughFilter.toLowerCase()))
-                      .map((n) => {
-                        const nid = n.neighborhood_id || (n as any).id;
-                        const checked = selectedNeighborhoods.has(nid);
-                        return (
-                          <button
-                            key={nid}
-                            type="button"
-                            onClick={() => toggleNeighborhood(nid)}
-                            aria-pressed={checked}
-                            className={`flex items-center justify-between w-full min-w-0 px-3 py-2 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-purple-500/20 ${
-                              checked
-                                ? 'bg-purple-100 text-purple-700 border border-purple-300'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
-                          >
-                            <span className="truncate text-left">{n.name || nid}</span>
-                            <span className="ml-2">{checked ? '✓' : '+'}</span>
-                          </button>
-                        );
-                      })}
-                  </div>
-                </div>
-              )}
-
-
-            </div>
-          ) : (
-            <div className="mt-2 rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-600">
-              Your city is not yet supported for granular neighborhoods. We’ll add it soon.
-            </div>
-          )}
-          </div>
-        </div>
-
-        {/* Experience Settings Section */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-5 hover:shadow-sm transition-shadow">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <div className="text-lg font-medium text-gray-900">Settings</div>
-                <div className="text-sm text-gray-600 mt-1">Control availability and booking preferences</div>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Settings Grid - matching skill selection style */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="bg-white rounded-lg p-3 border border-gray-200">
                 <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Years of Experience</label>
                 <input
@@ -673,8 +444,11 @@ export default function InstructorProfileSettingsPage() {
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
                 />
               </div>
+
               <div className="bg-white rounded-lg p-3 border border-gray-200">
-                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Advance Notice (hours)</label>
+                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">
+                  Advance Notice (hours)
+                </label>
                 <input
                   type="number"
                   min={0}
@@ -684,8 +458,11 @@ export default function InstructorProfileSettingsPage() {
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-center font-medium focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
                 />
               </div>
+
               <div className="bg-white rounded-lg p-3 border border-gray-200">
-                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Buffer Time (minutes)</label>
+                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">
+                  Buffer Time (minutes)
+                </label>
                 <input
                   type="number"
                   min={0}
@@ -697,20 +474,211 @@ export default function InstructorProfileSettingsPage() {
               </div>
             </div>
           </div>
+
+          {/* Service Areas Card - styled like skill selection cards */}
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-5 hover:shadow-sm transition-shadow">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <div className="text-lg font-medium text-gray-900">Service Areas</div>
+                <div className="text-sm text-gray-600 mt-1">Select the neighborhoods where you teach</div>
+              </div>
+            </div>
+
+            {isNYC ? (
+              <div className="space-y-3">
+                {/* Borough Selection Buttons - styled like skill category buttons */}
+                <div className="bg-white rounded-lg p-3 border border-gray-200">
+                  <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Select Boroughs</label>
+                  <div className="flex flex-wrap gap-2">
+                    {NYC_BOROUGHS.map((b) => {
+                      const { selected, total } = getBoroughCounts(b);
+                      const isAll = total > 0 && selected > 0 && selected === total;
+                      const isSome = selected > 0 && (!total || selected < total);
+                      const open = boroughOpen === b;
+
+                      return (
+                        <button
+                          key={b}
+                          onClick={async () => {
+                            setBoroughOpen(boroughOpen === b ? null : b);
+                            await loadBoroughNeighborhoods(b);
+                          }}
+                          type="button"
+                          className={`px-3 py-2 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-purple-500/20 whitespace-nowrap ${
+                            isAll || isSome
+                              ? 'bg-purple-100 text-purple-700 border border-purple-300'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          } ${open ? 'ring-2 ring-purple-500/20' : ''}`}
+                        >
+                          {b}
+                          {selected > 0 && (
+                            <span className="ml-2 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-xs bg-purple-200 text-purple-800">
+                              {selected}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Selected neighborhoods display */}
+                {selectedNeighborhoods.size > 0 && (
+                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                    <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Selected Neighborhoods ({selectedNeighborhoods.size})</label>
+                    <div className="flex flex-wrap gap-2">
+                      {Array.from(selectedNeighborhoods).map((id) => {
+                        const it = idToItem[id];
+                        const label = it?.name || id;
+                        const hint = it?.borough ? ` • ${it.borough}` : '';
+                        return (
+                          <span key={id} className="inline-flex items-center gap-2 rounded-full bg-purple-50 border border-purple-200 px-3 py-1 text-sm text-purple-700">
+                            {label}
+                            <span className="text-purple-500 text-xs">{hint}</span>
+                            <button
+                              className="w-4 h-4 flex items-center justify-center rounded-full hover:bg-purple-200 text-purple-500"
+                              onClick={() => toggleNeighborhood(id)}
+                              aria-label={`Remove ${label}`}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Borough neighborhood selection panel */}
+                {boroughOpen && (
+                  <div className="bg-white rounded-lg p-4 border border-gray-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="font-medium text-gray-900">{boroughOpen} Neighborhoods</div>
+                      <div className="flex gap-2">
+                        <button
+                          className="text-sm px-3 py-1 rounded-md bg-purple-100 text-purple-700 hover:bg-purple-200"
+                          onClick={() => toggleBoroughAll(boroughOpen!, true)}
+                        >
+                          Select all
+                        </button>
+                        <button
+                          className="text-sm px-3 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+                          onClick={() => toggleBoroughAll(boroughOpen!, false)}
+                        >
+                          Clear all
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mb-3">
+                      <input
+                        type="text"
+                        value={boroughFilter}
+                        onChange={(e) => setBoroughFilter(e.target.value)}
+                        placeholder="Search neighborhoods..."
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-80 overflow-auto">
+                      {(boroughNeighborhoods[boroughOpen] || [])
+                        .filter((n) => (n.name || '').toLowerCase().includes(boroughFilter.toLowerCase()))
+                        .map((n) => {
+                          const nid = n.neighborhood_id || (n as any).id;
+                          const checked = selectedNeighborhoods.has(nid);
+                          return (
+                            <button
+                              key={nid}
+                              onClick={() => toggleNeighborhood(nid)}
+                              className={`px-3 py-2 text-sm rounded-md transition-colors ${
+                                checked
+                                  ? 'bg-purple-100 text-purple-700 border border-purple-300'
+                                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                              }`}
+                            >
+                              {n.name || nid}
+                            </button>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+            ) : (
+              <div className="mt-4 rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-600">
+                Your city is not yet supported for granular neighborhoods. We'll add it soon.
+              </div>
+            )}
+          </div>
+
         </div>
 
-      </div>
-        <div className="pt-4">
+        {/* Save Buttons - matching skill selection page style */}
+        <div className="mt-8 flex gap-3">
           <button
             onClick={save}
             disabled={!canSave || saving}
-            className="px-5 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:bg-[#5c0a9a] disabled:opacity-50 shadow-sm"
+            className="px-6 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:bg-[#5c0a9a] disabled:opacity-50 shadow-sm transition-colors"
           >
             {saving ? 'Saving...' : 'Save & Continue'}
           </button>
         </div>
-        {/* Animation CSS now global in app/globals.css */}
       </div>
+
+      {/* CSS Animations for Walking Stick Figure */}
+      <style jsx>{`
+        @keyframes walk {
+          0% {
+            transform: translateX(0);
+          }
+          100% {
+            transform: translateX(0);
+          }
+        }
+
+        @keyframes leftLeg {
+          0%, 100% { transform: rotate(0deg); transform-origin: 8px 12px; }
+          25% { transform: rotate(-15deg); transform-origin: 8px 12px; }
+          75% { transform: rotate(15deg); transform-origin: 8px 12px; }
+        }
+
+        @keyframes rightLeg {
+          0%, 100% { transform: rotate(0deg); transform-origin: 8px 12px; }
+          25% { transform: rotate(15deg); transform-origin: 8px 12px; }
+          75% { transform: rotate(-15deg); transform-origin: 8px 12px; }
+        }
+
+        @keyframes leftArm {
+          0%, 100% { transform: rotate(0deg); transform-origin: 8px 8px; }
+          25% { transform: rotate(20deg); transform-origin: 8px 8px; }
+          75% { transform: rotate(-20deg); transform-origin: 8px 8px; }
+        }
+
+        @keyframes rightArm {
+          0%, 100% { transform: rotate(0deg); transform-origin: 8px 8px; }
+          25% { transform: rotate(-20deg); transform-origin: 8px 8px; }
+          75% { transform: rotate(20deg); transform-origin: 8px 8px; }
+        }
+
+        .animate-walk {
+          animation: walk 4s linear infinite;
+        }
+
+        .animate-leftLeg {
+          animation: leftLeg 0.5s linear infinite;
+        }
+
+        .animate-rightLeg {
+          animation: rightLeg 0.5s linear infinite;
+        }
+
+        .animate-leftArm {
+          animation: leftArm 0.5s linear infinite;
+        }
+
+        .animate-rightArm {
+          animation: rightArm 0.5s linear infinite;
+        }
+      `}</style>
     </div>
   );
 }

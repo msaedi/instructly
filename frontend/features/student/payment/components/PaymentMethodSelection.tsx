@@ -187,52 +187,6 @@ export default function PaymentMethodSelection({
         <div className="w-[60%] bg-white dark:bg-gray-900 rounded-lg p-6">
           <h3 className="font-extrabold text-2xl mb-4">Select payment method</h3>
 
-          {/* Credits Section */}
-          {credits.totalAmount > 0 && (
-            <div className="mb-6 rounded-lg p-4" style={{ backgroundColor: 'rgb(249, 247, 255)' }}>
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h4 className="font-bold text-xl">Available Credits</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Balance: ${credits.totalAmount.toFixed(2)}
-                  </p>
-                </div>
-                <button
-                  onClick={handleCreditToggle}
-                  className={`p-2 rounded-lg border transition-colors ${
-                    useCredits
-                      ? 'bg-purple-700 border-purple-700 text-white'
-                      : 'border-gray-300 dark:border-gray-600'
-                  }`}
-                >
-                  {useCredits ? <Check size={20} /> : <Plus size={20} />}
-                </button>
-              </div>
-
-              {useCredits && (
-                <div className="mt-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Credits to apply:</span>
-                    <span className="font-medium">${creditsToApply.toFixed(2)}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max={maxCreditsApplicable}
-                    value={creditsToApply}
-                    onChange={(e) => setCreditsToApply(Number(e.target.value))}
-                    className="w-full mt-2"
-                  />
-                </div>
-              )}
-
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                {credits.earliestExpiry
-                  ? `Earliest credit expiry: ${new Date(credits.earliestExpiry).toLocaleDateString()}`
-                  : 'Credits expire 12 months after issue date'}
-              </p>
-            </div>
-          )}
 
           {/* Payment Cards */}
           <div className="mb-6 rounded-lg p-4" style={{ backgroundColor: 'rgb(249, 247, 255)' }}>
@@ -314,30 +268,6 @@ export default function PaymentMethodSelection({
             </div>
           </div>
 
-          {/* Payment Summary */}
-          <div className="mb-6 rounded-lg p-4" style={{ backgroundColor: 'rgb(249, 247, 255)' }}>
-            <h4 className="font-bold text-xl mb-3">Payment Summary</h4>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span>Lesson Total</span>
-                <span>${booking.totalAmount.toFixed(2)}</span>
-              </div>
-              {creditsToApply > 0 && (
-                <>
-                  <div className="flex justify-between text-green-600 dark:text-green-400">
-                    <span>Credits Applied</span>
-                    <span>-${creditsToApply.toFixed(2)}</span>
-                  </div>
-                  <div className="border-t pt-2 mt-2">
-                    <div className="flex justify-between font-semibold">
-                      <span>Amount Due</span>
-                      <span>${remainingAfterCredits.toFixed(2)}</span>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
 
           {/* Action Button - Single button for inline flow */}
           <div className="mt-6">

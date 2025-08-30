@@ -1,3 +1,51 @@
+/* Shared stick-figure animation (global) */
+@keyframes inst-walk {
+  0% { transform: translateX(0); }
+  35% { transform: translateX(236px); }
+  37% { transform: translateX(236px) translateY(-2px); }
+  41% { transform: translateX(236px) translateY(-8px); }
+  45% { transform: translateX(236px) translateY(-2px); }
+  49% { transform: translateX(236px) translateY(0); }
+  50% { transform: translateX(236px); }
+  85% { transform: translateX(0); }
+  100% { transform: translateX(0); }
+}
+@keyframes inst-leftLeg { 0%,100%{transform:rotate(0deg);transform-origin:8px 12px;} 5%{transform:rotate(-15deg);transform-origin:8px 12px;} 10%{transform:rotate(0deg);transform-origin:8px 12px;} 15%{transform:rotate(15deg);transform-origin:8px 12px;} 20%{transform:rotate(0deg);transform-origin:8px 12px;} 25%{transform:rotate(-15deg);transform-origin:8px 12px;} 30%{transform:rotate(0deg);transform-origin:8px 12px;} 50%,100%{transform:rotate(0deg);transform-origin:8px 12px;} 55%{transform:rotate(15deg);transform-origin:8px 12px;} 60%{transform:rotate(0deg);transform-origin:8px 12px;} 65%{transform:rotate(-15deg);transform-origin:8px 12px;} 70%{transform:rotate(0deg);transform-origin:8px 12px;} 75%{transform:rotate(15deg);transform-origin:8px 12px;} 80%{transform:rotate(0deg);transform-origin:8px 12px;} }
+@keyframes inst-rightLeg { 0%,100%{transform:rotate(0deg);transform-origin:8px 12px;} 5%{transform:rotate(15deg);transform-origin:8px 12px;} 10%{transform:rotate(0deg);transform-origin:8px 12px;} 15%{transform:rotate(-15deg);transform-origin:8px 12px;} 20%{transform:rotate(0deg);transform-origin:8px 12px;} 25%{transform:rotate(15deg);transform-origin:8px 12px;} 30%{transform:rotate(0deg);transform-origin:8px 12px;} 50%,100%{transform:rotate(0deg);transform-origin:8px 12px;} 55%{transform:rotate(-15deg);transform-origin:8px 12px;} 60%{transform:rotate(0deg);transform-origin:8px 12px;} 65%{transform:rotate(15deg);transform-origin:8px 12px;} 70%{transform:rotate(0deg);transform-origin:8px 12px;} 75%{transform:rotate(-15deg);transform-origin:8px 12px;} 80%{transform:rotate(0deg);transform-origin:8px 12px;} }
+@keyframes inst-leftArm { 0%,100%{transform:rotate(0deg);transform-origin:8px 8px;} 5%{transform:rotate(20deg);transform-origin:8px 8px;} 10%{transform:rotate(0deg);transform-origin:8px 8px;} 15%{transform:rotate(-20deg);transform-origin:8px 8px;} 20%{transform:rotate(0deg);transform-origin:8px 8px;} 25%{transform:rotate(20deg);transform-origin:8px 8px;} 30%{transform:rotate(0deg);transform-origin:8px 8px;} 37%,49%{transform:rotate(-30deg);transform-origin:8px 8px;} 41%,45%{transform:rotate(30deg);transform-origin:8px 8px;} 50%,100%{transform:rotate(0deg);transform-origin:8px 8px;} 55%{transform:rotate(-20deg);transform-origin:8px 8px;} 60%{transform:rotate(0deg);transform-origin:8px 8px;} 65%{transform:rotate(20deg);transform-origin:8px 8px;} 70%{transform:rotate(0deg);transform-origin:8px 8px;} 75%{transform:rotate(-20deg);transform-origin:8px 8px;} 80%{transform:rotate(0deg);transform-origin:8px 8px;} }
+@keyframes inst-rightArm { 0%,100%{transform:rotate(0deg);transform-origin:8px 8px;} 5%{transform:rotate(-20deg);transform-origin:8px 8px;} 10%{transform:rotate(0deg);transform-origin:8px 8px;} 15%{transform:rotate(20deg);transform-origin:8px 8px;} 20%{transform:rotate(0deg);transform-origin:8px 8px;} 25%{transform:rotate(-20deg);transform-origin:8px 8px;} 30%{transform:rotate(0deg);transform-origin:8px 8px;} 37%,49%{transform:rotate(30deg);transform-origin:8px 8px;} 41%,45%{transform:rotate(-30deg);transform-origin:8px 8px;} 50%,100%{transform:rotate(0deg);transform-origin:8px 8px;} 55%{transform:rotate(20deg);transform-origin:8px 8px;} 60%{transform:rotate(0deg);transform-origin:8px 8px;} 65%{transform:rotate(-20deg);transform-origin:8px 8px;} 70%{transform:rotate(0deg);transform-origin:8px 8px;} 75%{transform:rotate(20deg);transform-origin:8px 8px;} 80%{transform:rotate(0deg);transform-origin:8px 8px;} }
+
+.inst-anim-walk { animation: inst-walk 20s linear infinite; }
+.inst-anim-leftLeg { animation: inst-leftLeg 20s linear infinite; }
+.inst-anim-rightLeg { animation: inst-rightLeg 20s linear infinite; }
+.inst-anim-leftArm { animation: inst-leftArm 20s linear infinite; }
+.inst-anim-rightArm { animation: inst-rightArm 20s linear infinite; }
+
+/* Variant for profile page: walk to Account Setup circle and jump, then return */
+@keyframes inst-walk-profile {
+  0% { transform: translateX(0) translateY(0); }
+  25% { transform: translateX(28px) translateY(0); }
+  35% { transform: translateX(28px) translateY(-6px); }
+  45% { transform: translateX(28px) translateY(-14px); }
+  55% { transform: translateX(28px) translateY(-6px); }
+  65% { transform: translateX(28px) translateY(0); }
+  100% { transform: translateX(0) translateY(0); }
+}
+.inst-anim-walk-profile { animation: inst-walk-profile 6s ease-in-out infinite; }
+
+/* Faster limb swing for short-range profile animation */
+.inst-anim-leftLeg-fast { animation: inst-leftLeg 0.5s linear infinite; }
+.inst-anim-rightLeg-fast { animation: inst-rightLeg 0.5s linear infinite; }
+.inst-anim-leftArm-fast { animation: inst-leftArm 0.5s linear infinite; }
+.inst-anim-rightArm-fast { animation: inst-rightArm 0.5s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .inst-anim-walk,
+  .inst-anim-leftLeg,
+  .inst-anim-rightLeg,
+  .inst-anim-leftArm,
+  .inst-anim-rightArm { animation: none !important; }
+}
 /* frontend/app/globals.css */
 @import 'tailwindcss';
 

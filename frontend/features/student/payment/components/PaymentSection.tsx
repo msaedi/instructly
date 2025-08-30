@@ -360,35 +360,126 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
   return (
     <div className="w-full">
-      {currentStep === PaymentStep.METHOD_SELECTION && (
-        <PaymentMethodSelection
-          booking={updatedBookingData}
-          cards={userCards}
-          credits={userCredits}
-          onSelectPayment={selectPaymentMethod}
-          onBack={onBack}
-          onCardAdded={(newCard) => {
-            // Add the new card to the list
-            setUserCards([...userCards, newCard]);
-            logger.info('New card added to list', { cardId: newCard.id });
-          }}
-        />
-      )}
-      {currentStep === PaymentStep.CONFIRMATION && (
-        <PaymentConfirmation
-          booking={updatedBookingData}
-          paymentMethod={paymentMethod!}
-          cardLast4={selectedCard?.last4}
-          cardBrand={selectedCard?.brand}
-          isDefaultCard={selectedCard?.isDefault}
-          creditsUsed={creditsToUse}
-          onConfirm={processPayment}
-          onBack={() => goToStep(PaymentStep.METHOD_SELECTION)}
-          onChangePaymentMethod={() => {
-            setUserChangingPayment(true);
-            goToStep(PaymentStep.METHOD_SELECTION);
-          }}
-        />
+      {/* Show both payment selection and confirmation on same page when inline mode */}
+      {showPaymentMethodInline && (currentStep === PaymentStep.METHOD_SELECTION || currentStep === PaymentStep.CONFIRMATION) ? (
+        <div className="space-y-6">
+          {/* Payment Method Selection at the top */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Select Payment Method</h2>
+            <PaymentMethodSelection
+              booking={updatedBookingData}
+              cards={userCards}
+              credits={userCredits}
+              onSelectPayment={(method, cardId, credits) => {
+                selectPaymentMethod(method, cardId, credits);
+                // Automatically move to confirmation view when a payment method is selected
+                if (currentStep === PaymentStep.METHOD_SELECTION) {
+                  goToStep(PaymentStep.CONFIRMATION);
+                }
+              }}
+              onBack={onBack}
+              onCardAdded={(newCard) => {
+                // Add the new card to the list
+                setUserCards([...userCards, newCard]);
+                logger.info('New card added to list', { cardId: newCard.id });
+              }}
+            />
+          </div>
+
+          {/* Show confirmation details below if payment method is selected */}
+          {currentStep === PaymentStep.CONFIRMATION && (
+            <PaymentConfirmation
+              booking={updatedBookingData}
+              paymentMethod={paymentMethod!}
+              cardLast4={selectedCard?.last4}
+              cardBrand={selectedCard?.brand}
+              isDefaultCard={selectedCard?.isDefault}
+              creditsUsed={creditsToUse}
+              availableCredits={userCredits.totalAmount}
+              creditEarliestExpiry={userCredits.earliestExpiry}
+              onConfirm={processPayment}
+              onBack={() => goToStep(PaymentStep.METHOD_SELECTION)}
+              onChangePaymentMethod={() => {
+                setUserChangingPayment(true);
+                // Don't change step, just let user select a different method above
+              }}
+              onCreditToggle={() => {
+                if (creditsToUse > 0) {
+                  // Turn off credits completely
+                  selectPaymentMethod(PaymentMethod.CREDIT_CARD, selectedCardId);
+                } else {
+                  // Turn on credits - apply max available
+                  const maxApplicable = Math.min(userCredits.totalAmount, updatedBookingData.totalAmount);
+                  selectPaymentMethod(PaymentMethod.MIXED, selectedCardId, maxApplicable);
+                }
+              }}
+              onCreditAmountChange={(amount) => {
+                // Keep credits "on" even at zero - just change the amount
+                if (amount >= updatedBookingData.totalAmount) {
+                  selectPaymentMethod(PaymentMethod.CREDITS, undefined, amount);
+                } else {
+                  // Always use MIXED mode when slider is visible, even at 0
+                  selectPaymentMethod(PaymentMethod.MIXED, selectedCardId, amount);
+                }
+              }}
+            />
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Original step-by-step flow for non-inline mode */}
+          {currentStep === PaymentStep.METHOD_SELECTION && (
+            <PaymentMethodSelection
+              booking={updatedBookingData}
+              cards={userCards}
+              credits={userCredits}
+              onSelectPayment={selectPaymentMethod}
+              onBack={onBack}
+              onCardAdded={(newCard) => {
+                // Add the new card to the list
+                setUserCards([...userCards, newCard]);
+                logger.info('New card added to list', { cardId: newCard.id });
+              }}
+            />
+          )}
+          {currentStep === PaymentStep.CONFIRMATION && (
+            <PaymentConfirmation
+              booking={updatedBookingData}
+              paymentMethod={paymentMethod!}
+              cardLast4={selectedCard?.last4}
+              cardBrand={selectedCard?.brand}
+              isDefaultCard={selectedCard?.isDefault}
+              creditsUsed={creditsToUse}
+              availableCredits={userCredits.totalAmount}
+              creditEarliestExpiry={userCredits.earliestExpiry}
+              onConfirm={processPayment}
+              onBack={() => goToStep(PaymentStep.METHOD_SELECTION)}
+              onChangePaymentMethod={() => {
+                setUserChangingPayment(true);
+                goToStep(PaymentStep.METHOD_SELECTION);
+              }}
+              onCreditToggle={() => {
+                if (creditsToUse > 0) {
+                  // Turn off credits completely
+                  selectPaymentMethod(PaymentMethod.CREDIT_CARD, selectedCardId);
+                } else {
+                  // Turn on credits - apply max available
+                  const maxApplicable = Math.min(userCredits.totalAmount, updatedBookingData.totalAmount);
+                  selectPaymentMethod(PaymentMethod.MIXED, selectedCardId, maxApplicable);
+                }
+              }}
+              onCreditAmountChange={(amount) => {
+                // Keep credits "on" even at zero - just change the amount
+                if (amount >= updatedBookingData.totalAmount) {
+                  selectPaymentMethod(PaymentMethod.CREDITS, undefined, amount);
+                } else {
+                  // Always use MIXED mode when slider is visible, even at 0
+                  selectPaymentMethod(PaymentMethod.MIXED, selectedCardId, amount);
+                }
+              }}
+            />
+          )}
+        </>
       )}
       {currentStep === PaymentStep.PROCESSING && (
         <PaymentProcessing

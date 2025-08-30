@@ -2,11 +2,12 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { User, Calendar, LogOut, ChevronDown } from 'lucide-react';
+import { User, Calendar, LogOut, ChevronDown, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { createPortal } from 'react-dom';
 import { RoleName } from '@/types/enums';
 import { UserAvatar } from '@/components/user/UserAvatar';
+import { API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
 
 export default function UserProfileDropdown() {
   const { user, logout, isLoading } = useAuth();
@@ -14,6 +15,7 @@ export default function UserProfileDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const [instructorOnboardingComplete, setInstructorOnboardingComplete] = useState(true);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -22,13 +24,31 @@ export default function UserProfileDropdown() {
     setIsMounted(true);
   }, []);
 
-  // Get user initials
-  const getInitials = () => {
-    if (!user) return 'G'; // Guest
-    const firstInitial = user.first_name?.[0] || '';
-    const lastInitial = user.last_name?.[0] || '';
-    return (firstInitial + lastInitial).toUpperCase() || 'U';
-  };
+  // Check instructor onboarding status
+  useEffect(() => {
+    const checkOnboardingStatus = async () => {
+      if (user && (user.roles || []).includes(RoleName.INSTRUCTOR)) {
+        try {
+          const response = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
+          if (response.ok) {
+            const profile = await response.json();
+            // Check if all onboarding steps are complete
+            const isComplete =
+              profile.is_live === true ||
+              (profile.stripe_connect_enabled === true &&
+               profile.identity_verified_at !== null &&
+               profile.services && profile.services.length > 0);
+            setInstructorOnboardingComplete(isComplete);
+          }
+        } catch (error) {
+          // If we can't fetch profile, assume onboarding incomplete
+          setInstructorOnboardingComplete(false);
+        }
+      }
+    };
+
+    checkOnboardingStatus();
+  }, [user]);
 
   // Calculate dropdown position
   useEffect(() => {
@@ -36,7 +56,7 @@ export default function UserProfileDropdown() {
       const rect = buttonRef.current.getBoundingClientRect();
       setDropdownPosition({
         top: rect.bottom + window.scrollY + 8,
-        left: rect.right - 150 + window.scrollX, // Right-aligned, 150px width
+        left: rect.right - 180 + window.scrollX, // Right-aligned, 180px width for longer text
       });
     }
   }, [isOpen]);
@@ -101,14 +121,14 @@ export default function UserProfileDropdown() {
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 hover:bg-gray-100 rounded-full pr-2 pl-1 py-1 transition-colors"
       >
-        <UserAvatar user={user as any} size={36} />
-        <ChevronDown className={`h-4 w-4 text-gray-600 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <UserAvatar user={user as any} size={44} />
+        <ChevronDown className={`h-4 w-4 text-purple-600 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && typeof window !== 'undefined' && createPortal(
         <div
           ref={dropdownRef}
-          className="bg-white rounded-lg shadow-xl border border-gray-200 py-2 w-[150px] animate-fadeIn"
+          className="bg-white rounded-lg shadow-xl border border-gray-200 py-2 w-[180px] animate-fadeIn"
           style={{
             position: 'absolute',
             top: `${dropdownPosition.top}px`,
@@ -122,11 +142,22 @@ export default function UserProfileDropdown() {
             {(user?.roles || []).includes(RoleName.INSTRUCTOR) ? (
               // Instructor menu
               <button
-                onClick={() => handleNavigation('/instructor/dashboard')}
+                onClick={() => handleNavigation(
+                  instructorOnboardingComplete ? '/instructor/dashboard' : '/instructor/onboarding/skill-selection'
+                )}
                 className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
               >
-                <User className="h-4 w-4" />
-                Dashboard
+                {instructorOnboardingComplete ? (
+                  <>
+                    <User className="h-4 w-4" />
+                    Dashboard
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="h-4 w-4 text-purple-600" />
+                    <span className="text-purple-700 font-medium">Finish Onboarding</span>
+                  </>
+                )}
               </button>
             ) : (
               // Student menu
