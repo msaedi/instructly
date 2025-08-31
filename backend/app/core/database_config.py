@@ -383,29 +383,10 @@ class DatabaseConfig:
         """
         Detect if we're running in production environment.
 
-        Checks for:
-        - INSTAINSTRU_PRODUCTION_MODE environment variable
-        - Common deployment platform indicators
+        Authoritative source: SITE_MODE only. Platform indicators are ignored
+        to prevent misclassification (e.g., Render preview).
         """
-        # Check for explicit production mode flag
-        if os.getenv("SITE_MODE", "").lower().strip() in {"prod", "production", "live"}:
-            return True
-
-        # Check for common deployment platforms
-        deployment_indicators = [
-            "RENDER",
-            "RAILWAY_ENVIRONMENT",
-            "HEROKU_APP_NAME",
-            "FLY_APP_NAME",
-            "VERCEL",
-            "NETLIFY",
-        ]
-
-        for indicator in deployment_indicators:
-            if os.getenv(indicator):
-                return True
-
-        return False
+        return os.getenv("SITE_MODE", "").lower().strip() in {"prod", "production", "live"}
 
     def _pre_production_checks(self) -> None:
         """
