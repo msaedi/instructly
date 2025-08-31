@@ -16,6 +16,8 @@ function isPublicAssetPath(pathname: string): boolean {
     pathname.startsWith('/_next/') ||
     pathname.startsWith('/static/') ||
     pathname.startsWith('/api/') ||
+    pathname === '/robots.txt' ||
+    pathname === '/logout' ||
     pathname === STAFF_LOGIN_PATH ||
     pathname === '/instructor/join' ||
     pathname === '/instructor/welcome'
@@ -25,6 +27,7 @@ function isPublicAssetPath(pathname: string): boolean {
 export async function middleware(request: NextRequest) {
   const { nextUrl, cookies, url } = request;
   const pathname = nextUrl.pathname;
+  const isPreviewProject = (process.env.NEXT_PUBLIC_APP_ENV || '').toLowerCase() === 'preview';
 
   // Detect site configuration by hostname, then allow cookie to override phase for beta host
   const betaConfig = getBetaConfigFromHeaders(request.headers);
@@ -61,8 +64,9 @@ export async function middleware(request: NextRequest) {
   // Support lowercase env var per project convention, fallback to uppercase
   const requiredToken = process.env.staff_access_token || process.env.STAFF_ACCESS_TOKEN;
 
-  // If host is the preview site OR localhost (for local testing), enforce staff gate
-  if (betaConfig.site === 'preview' || (isLocalHost && requiredToken)) {
+  // Project-level preview gate: if this is the preview project, always enforce staff gate
+  // Also enforce locally when testing with a configured token
+  if (isPreviewProject || (isLocalHost && requiredToken)) {
     // If no required token configured, do not block preview
     if (!requiredToken) {
       return NextResponse.next({ request: { headers: request.headers }, headers: responseHeaders });
@@ -70,6 +74,7 @@ export async function middleware(request: NextRequest) {
 
     const cookieToken = cookies.get(STAFF_COOKIE_NAME)?.value;
     if (cookieToken === requiredToken) {
+      responseHeaders.set('x-preview-gate', 'hit');
       return NextResponse.next({ request: { headers: request.headers }, headers: responseHeaders });
     }
 
@@ -89,6 +94,7 @@ export async function middleware(request: NextRequest) {
       });
       response.headers.set('x-beta-site', betaConfig.site);
       response.headers.set('x-beta-phase', betaConfig.phase);
+      response.headers.set('x-preview-gate', 'hit');
       return response;
     }
 
@@ -98,7 +104,9 @@ export async function middleware(request: NextRequest) {
     if (providedTokenForPreview && providedTokenForPreview !== requiredToken) {
       loginUrl.searchParams.set('error', 'invalid');
     }
-    return NextResponse.redirect(loginUrl);
+    const res = NextResponse.redirect(loginUrl);
+    res.headers.set('x-preview-gate', 'hit');
+    return res;
   }
 
   // For beta site: apply phase-aware routing; keep staff gate logic untouched here

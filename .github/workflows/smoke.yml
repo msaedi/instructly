@@ -1,71 +1,109 @@
-name: smoke
-on: [push, workflow_dispatch]
+name: Smoke (Preview & Prod)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
-  matrix:
+  smoke-preview:
+    name: Preview smoke
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        target:
-          - name: preview
-            api: ${{ secrets.PREVIEW_API_BASE }}
-            origin: ${{ secrets.PREVIEW_ORIGIN }}
-            mode: preview
-          - name: prod
-            api: ${{ secrets.PROD_API_BASE }}
-            origin: ${{ secrets.BETA_ORIGIN }}
-            mode: prod
+    env:
+      API: ${{ secrets.PREVIEW_API_BASE }}          # e.g. https://preview-api.instainstru.com
+      ORIGIN: ${{ secrets.PREVIEW_ORIGIN }}          # e.g. https://preview.instainstru.com
+      GATED: ${{ secrets.GATED_ENDPOINT }}           # e.g. /v1/gated/ping
+      WEBHOOK: ${{ secrets.WEBHOOK_ENDPOINT }}       # e.g. /webhooks/stripe/payment-events
+      PREVIEW_HEADER_TOKEN: ${{ secrets.PREVIEW_HEADER_TOKEN }}  # usually unset/empty
     steps:
       - name: Health
-        env:
-          API: ${{ matrix.target.api }}
-          MODE: ${{ matrix.target.mode }}
         run: |
           set -e
-          curl -i "$API/health" | tee /tmp/h.txt
-          grep -i "X-Site-Mode: $MODE" /tmp/h.txt
+          curl -sS -i "$API/health" | tee /tmp/health.txt
+          grep -i "^x-site-mode: preview" /tmp/health.txt
       - name: CORS preflight (allowed)
-        env:
-          API: ${{ matrix.target.api }}
-          ORIGIN: ${{ matrix.target.origin }}
         run: |
-          curl -i -X OPTIONS "$API${{ secrets.GATED_ENDPOINT }}" \
-           -H "Origin: $ORIGIN" \
-           -H "Access-Control-Request-Method: POST" \
-           -H "Access-Control-Request-Headers: content-type"
-      - name: CSRF sanity (prod should block cross-origin POST)
-        if: ${{ matrix.target.name == 'prod' }}
-        env:
-          API: ${{ matrix.target.api }}
+          curl -sS -i -X OPTIONS "$API$GATED" \
+            -H "Origin: $ORIGIN" \
+            -H "Access-Control-Request-Method: GET" \
+            -H "Access-Control-Request-Headers: content-type"
+      - name: Phase-gated route should be 200 in preview
         run: |
-          set +e
-          curl -i -X POST "$API${{ secrets.GATED_ENDPOINT }}" -d '{}' | tee /tmp/c.txt
-          grep -E "401|403" /tmp/c.txt
-      - name: Phase-gated route (200 in preview, 401/403 in prod)
-        env:
-          API: ${{ matrix.target.api }}
-          MODE: ${{ matrix.target.mode }}
-          ORIGIN: ${{ matrix.target.origin }}
-        run: |
-          URL="$API${{ secrets.GATED_ENDPOINT }}"
-          if [ "$MODE" = "preview" ]; then
-            curl -i "$URL" -H "Origin: $ORIGIN" | grep "200"
-          else
-            set +e; curl -i "$URL" | tee /tmp/g.txt; grep -E "401|403" /tmp/g.txt
-          fi
-      - name: Webhook ignores preview header
-        env:
-          API: ${{ matrix.target.api }}
-          MODE: ${{ matrix.target.mode }}
+          curl -sS -i "$API$GATED" -H "Origin: $ORIGIN" | tee /tmp/g.txt
+          grep -E "^HTTP/.* 200" /tmp/g.txt
+      - name: Webhook must ignore preview header (only if provided)
+        if: env.PREVIEW_HEADER_TOKEN != ''
         run: |
           set +e
-          curl -i -X POST "$API${{ secrets.WEBHOOK_ENDPOINT }}" \
-            -H "x-staff-preview-token: ${{ secrets.PREVIEW_HEADER_TOKEN }}" \
+          curl -sS -i -X POST "$API$WEBHOOK" \
+            -H "x-staff-preview-token: $PREVIEW_HEADER_TOKEN" \
             -H "Content-Type: application/json" \
             -d '{}' | tee /tmp/w.txt
-          # Expect signature failure both envs; header must have no effect
-          grep -E "400|401|403" /tmp/w.txt
-      - name: Metrics endpoint
-        env:
-          API: ${{ matrix.target.api }}
+          grep -E "^HTTP/.* (400|401|403)" /tmp/w.txt
+      - name: Metrics endpoint reachable
         run: |
-          curl -sf "$API/metrics" | head -n 20
+          curl -sSf "$API/metrics" | head -n 20
+
+  smoke-preview-web:
+    name: Preview Web gate (frontend)
+    runs-on: ubuntu-latest
+    env:
+      PREVIEW_WEB: ${{ secrets.PREVIEW_WEB }}
+    steps:
+      - name: GET / should redirect to /staff-login (no cookie)
+        run: |
+          set -e
+          curl -sS -i "$PREVIEW_WEB/" | tee /tmp/web.txt
+          grep -E "^HTTP/.* (301|302|307|308)" /tmp/web.txt
+          grep -i "location: /staff-login" /tmp/web.txt
+      - name: robots header present
+        run: |
+          curl -sS -I "$PREVIEW_WEB/" | grep -i "x-robots-tag: noindex"
+
+  smoke-prod:
+    name: Prod smoke (beta mode)
+    runs-on: ubuntu-latest
+    env:
+      API: ${{ secrets.PROD_API_BASE }}             # e.g. https://api.instainstru.com
+      ORIGIN: ${{ secrets.BETA_ORIGIN }}            # e.g. https://beta.instainstru.com
+      GATED: ${{ secrets.GATED_ENDPOINT }}          # e.g. /v1/gated/ping
+      WEBHOOK: ${{ secrets.WEBHOOK_ENDPOINT }}      # e.g. /webhooks/stripe/payment-events
+      PREVIEW_HEADER_TOKEN: ${{ secrets.PREVIEW_HEADER_TOKEN }}  # ignored in prod, just for step gating
+    steps:
+      - name: Health
+        run: |
+          set -e
+          curl -sS -i "$API/health" | tee /tmp/health.txt
+          grep -i "^x-site-mode: prod" /tmp/health.txt
+          grep -i "^x-phase: beta" /tmp/health.txt
+      - name: CORS preflight (allowed)
+        run: |
+          curl -sS -i -X OPTIONS "$API$GATED" \
+            -H "Origin: $ORIGIN" \
+            -H "Access-Control-Request-Method: GET" \
+            -H "Access-Control-Request-Headers: content-type"
+      - name: CSRF sanity (cross-origin POST should be blocked)
+        run: |
+          set +e
+          curl -sS -i -X POST "$API$GATED" -H "Origin: $ORIGIN" -d '{}' | tee /tmp/c.txt
+          grep -E "^HTTP/.* (401|403)" /tmp/c.txt
+      - name: Phase-gated route should be 401/403 in prod (beta)
+        run: |
+          set +e
+          curl -sS -i "$API$GATED" -H "Origin: $ORIGIN" | tee /tmp/g.txt
+          grep -E "^HTTP/.* (401|403)" /tmp/g.txt
+      - name: Webhook ignores preview header (only if provided)
+        if: env.PREVIEW_HEADER_TOKEN != ''
+        run: |
+          set +e
+          curl -sS -i -X POST "$API$WEBHOOK" \
+            -H "x-staff-preview-token: $PREVIEW_HEADER_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{}' | tee /tmp/w.txt
+          grep -E "^HTTP/.* (400|401|403)" /tmp/w.txt
+      - name: Metrics endpoint reachable
+        run: |
+          curl -sSf "$API/metrics" | head -n 20

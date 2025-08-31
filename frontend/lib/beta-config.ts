@@ -25,6 +25,15 @@ function normalizeHostname(hostname: string | null | undefined): string {
 export function getBetaConfig(hostname?: string | null): BetaConfig {
   const host = normalizeHostname(hostname || (typeof window !== 'undefined' ? window.location.hostname : ''));
 
+  // Domains from env to avoid hard-coding
+  const PREVIEW_DOMAINS = [
+    (process.env.NEXT_PUBLIC_PREVIEW_DOMAIN || '').toLowerCase().trim(),
+    (process.env.NEXT_PUBLIC_PREVIEW_ALTERNATE_DOMAIN || '').toLowerCase().trim(),
+    'preview.instainstru.com',
+    'instainstru-preview.vercel.app',
+    'instructly-ten.vercel.app',
+  ].filter(Boolean);
+
   if (host === 'beta.instainstru.com') {
     return {
       site: 'beta',
@@ -46,8 +55,8 @@ export function getBetaConfig(hostname?: string | null): BetaConfig {
     };
   }
 
-  if (host === 'instructly-ten.vercel.app') {
-    // Preview environment with staff gate enabled in middleware
+  if (PREVIEW_DOMAINS.includes(host)) {
+    // Preview environment (staff gate enforced at middleware level)
     return {
       site: 'preview',
       phase: 'production',
