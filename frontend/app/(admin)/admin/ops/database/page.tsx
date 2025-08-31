@@ -15,7 +15,7 @@ export default function DatabaseOpsPage() {
   const { isLoading: authLoading, isAdmin } = useAdminAuth();
   const { logout } = useAuth();
 
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  const token = null;
   const { data, loading: dataLoading, error, refetch } = useDatabaseData(token);
 
   useEffect(() => {

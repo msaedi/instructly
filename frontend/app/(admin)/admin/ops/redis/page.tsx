@@ -19,7 +19,7 @@ export default function RedisOpsPage() {
   const { isLoading: authLoading, isAdmin } = useAdminAuth();
   const { logout } = useAuth();
 
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  const token = null;
   const { data, loading: dataLoading, error, refetch } = useRedisData(token);
 
   useEffect(() => {

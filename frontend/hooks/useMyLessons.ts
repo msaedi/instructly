@@ -14,19 +14,18 @@ import type {
  * Only shows CONFIRMED lessons that are in the future
  * Uses 5-minute cache as these may change with new bookings
  */
-export function useCurrentLessons() {
+export function useCurrentLessons(enabled: boolean = true) {
   return useQuery<BookingListResponse>({
     queryKey: queryKeys.bookings.all,
-    queryFn: queryFn('/bookings/', {
+    queryFn: queryFn('/bookings/upcoming', {
       params: {
-        status: 'CONFIRMED',
-        upcoming_only: true,
-        per_page: 50,
+        limit: 20,
       },
       requireAuth: true,
     }),
     staleTime: CACHE_TIMES.FREQUENT, // 5 minutes for upcoming lessons
     refetchInterval: false, // Don't poll, rely on invalidation
+    enabled,
   });
 }
 
@@ -35,10 +34,10 @@ export function useCurrentLessons() {
  * This includes all lessons that are not upcoming confirmed lessons
  * Uses 15-minute cache as these rarely change
  */
-export function useCompletedLessons(page: number = 1) {
+export function useCompletedLessons(page: number = 1, enabled: boolean = true) {
   return useQuery<BookingListResponse>({
     queryKey: queryKeys.bookings.history(page),
-    queryFn: queryFn('/bookings/', {
+    queryFn: queryFn('/bookings', {
       params: {
         exclude_future_confirmed: true, // Use new backend parameter
         page,
@@ -47,6 +46,7 @@ export function useCompletedLessons(page: number = 1) {
       requireAuth: true,
     }),
     staleTime: CACHE_TIMES.SLOW, // 15 minutes for history lessons
+    enabled,
   });
 }
 
@@ -57,7 +57,7 @@ export function useCompletedLessons(page: number = 1) {
 export function useCancelledLessons(page: number = 1) {
   return useQuery<BookingListResponse>({
     queryKey: ['bookings', 'cancelled', { page }],
-    queryFn: queryFn('/bookings/', {
+    queryFn: queryFn('/bookings', {
       params: {
         status: 'CANCELLED',
         upcoming_only: false,

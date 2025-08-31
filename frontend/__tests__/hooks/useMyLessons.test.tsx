@@ -9,7 +9,6 @@ import {
   useRescheduleLesson,
   calculateCancellationFee,
 } from '@/hooks/useMyLessons';
-import { bookingService } from '@/lib/api/bookings';
 
 // Mock the booking service
 jest.mock('@/lib/api/bookings', () => ({
@@ -25,8 +24,10 @@ jest.mock('@/lib/api/bookings', () => ({
 jest.mock('@/lib/react-query/api', () => ({
   queryFn: jest.fn((endpoint: string, options?: any) => {
     return async () => {
-      // Check if this is for upcoming lessons (has status=CONFIRMED and upcoming_only=true)
-      if (options?.params?.status === 'CONFIRMED' && options?.params?.upcoming_only === true) {
+      // Updated: upcoming lessons now use /bookings/upcoming with limit param
+      const isUpcoming = typeof endpoint === 'string' && endpoint.includes('/bookings/upcoming');
+      const legacyUpcoming = options?.params?.status === 'CONFIRMED' && options?.params?.upcoming_only === true;
+      if (isUpcoming || legacyUpcoming) {
         return {
           items: [
             {
@@ -184,8 +185,8 @@ describe('useMyLessons hooks', () => {
       });
 
       expect(result.current.data?.id).toBe(1);
-      expect(result.current.data?.instructor.first_name).toBe('John');
-      expect(result.current.data?.instructor.last_initial).toBe('D');
+      expect(result.current.data?.instructor?.first_name).toBe('John');
+      expect(result.current.data?.instructor?.last_initial).toBe('D');
     });
 
     it('handles invalid lesson ID', async () => {
@@ -210,7 +211,7 @@ describe('useMyLessons hooks', () => {
       const { result } = renderHook(() => useCancelLesson(), { wrapper });
 
       result.current.mutate({
-        lessonId: 1,
+        lessonId: '1',
         reason: 'Schedule conflict',
       });
 
@@ -229,7 +230,7 @@ describe('useMyLessons hooks', () => {
       const { result } = renderHook(() => useCancelLesson(), { wrapper });
 
       result.current.mutate({
-        lessonId: 1,
+        lessonId: '1',
         reason: 'Emergency',
       });
 
@@ -245,7 +246,7 @@ describe('useMyLessons hooks', () => {
       const { result } = renderHook(() => useRescheduleLesson(), { wrapper });
 
       result.current.mutate({
-        lessonId: 1,
+        lessonId: '1',
         newDate: '2024-12-26',
         newStartTime: '10:00:00',
         newEndTime: '11:00:00',

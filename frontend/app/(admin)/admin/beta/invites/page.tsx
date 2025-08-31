@@ -3,13 +3,12 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AdminSidebar from '@/app/(admin)/admin/AdminSidebar';
+import { withApiBase } from '@/lib/apiBase';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import * as Select from '@radix-ui/react-select';
 import { ChevronDown, Check } from 'lucide-react';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function BetaInvitesAdminPage() {
   const { isAdmin, isLoading } = useAdminAuth();
@@ -27,16 +26,14 @@ export default function BetaInvitesAdminPage() {
   const [progress, setProgress] = useState<{ state: string; current: number; total: number; sent: number; failed: number; sent_items?: { id: string; code: string; email: string; join_url: string; welcome_url: string }[]; failed_items?: { email: string; reason: string }[] } | null>(null);
   const [showDetails, setShowDetails] = useState(false);
 
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  // Cookies carry auth; avoid localStorage for security and SSR safety
 
   useEffect(() => {
     async function fetchSummary() {
       try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-        const authHeaders = token ? { Authorization: `Bearer ${token}` } : undefined;
         const [settingsRes, summaryRes] = await Promise.all([
-          fetch(`/api/proxy/beta/settings`, { headers: authHeaders }),
-          fetch(`/api/proxy/beta/metrics/summary`, { headers: authHeaders }),
+          fetch(withApiBase(`/beta/settings`), { credentials: 'include' }),
+          fetch(withApiBase(`/beta/metrics/summary`), { credentials: 'include' }),
         ]);
         const settings = settingsRes.ok ? await settingsRes.json() : null;
         const phase = settings?.beta_phase || 'unknown';
@@ -52,11 +49,9 @@ export default function BetaInvitesAdminPage() {
   useEffect(() => {
     if (!asyncTaskId) return;
     let cancelled = false;
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-    const authHeaders = token ? { Authorization: `Bearer ${token}` } : undefined;
     async function poll() {
       try {
-        const res = await fetch(`/api/proxy/beta/invites/send-batch-progress?task_id=${encodeURIComponent(asyncTaskId || '')}`, { headers: authHeaders });
+        const res = await fetch(withApiBase(`/beta/invites/send-batch-progress?task_id=${encodeURIComponent(asyncTaskId || '')}`), { credentials: 'include' });
         if (!res.ok) throw new Error('progress error');
         const data = await res.json();
         if (!cancelled) {
@@ -93,11 +88,11 @@ export default function BetaInvitesAdminPage() {
     setError(null);
     setResult(null);
     try {
-      if (!token) throw new Error('Not authenticated');
-      const res = await fetch(`${API_BASE_URL}/api/beta/invites/send`, {
+      const res = await fetch(withApiBase(`/beta/invites/send`), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to_email: email, role, expires_in_days: days, source }),
+        credentials: 'include',
       });
       if (!res.ok) throw new Error((await res.text()) || `Failed to send invite (${res.status})`);
       const data = await res.json();
@@ -293,11 +288,11 @@ export default function BetaInvitesAdminPage() {
                         .filter((s) => s.length > 0);
                       if (emails.length === 0) return;
                       try {
-                        if (!token) throw new Error('Not authenticated');
-                        const res = await fetch(`${API_BASE_URL}/api/beta/invites/generate`, {
+                        const res = await fetch(withApiBase('/beta/invites/generate'), {
                           method: 'POST',
-                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                          headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ count: emails.length, role, expires_in_days: days, source: 'csv_upload', emails }),
+                          credentials: 'include',
                         });
                         if (!res.ok) throw new Error((await res.text()) || `Failed to generate invites (${res.status})`);
                         const data = await res.json();
@@ -320,11 +315,11 @@ export default function BetaInvitesAdminPage() {
                         .filter((s) => s.length > 0);
                       if (emails.length === 0) return;
                       try {
-                        if (!token) throw new Error('Not authenticated');
-                        const r = await fetch(`${API_BASE_URL}/api/beta/invites/send-batch-async`, {
+                        const r = await fetch(withApiBase('/beta/invites/send-batch-async'), {
                           method: 'POST',
-                          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                          headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ emails, role, expires_in_days: days, source: 'csv_upload' }),
+                          credentials: 'include',
                         });
                         if (!r.ok) throw new Error((await r.text()) || `Failed to send batch invites (${r.status})`);
                         const data = await r.json();

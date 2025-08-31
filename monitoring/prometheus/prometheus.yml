@@ -12,8 +12,7 @@ alerting:
 
 # Load rules once and periodically evaluate them according to the global 'evaluation_interval'
 rule_files:
-  # - "first_rules.yml"
-  # - "second_rules.yml"
+  - alerts.yml
 
 # Scrape configurations
 scrape_configs:
@@ -27,7 +26,7 @@ scrape_configs:
     # Scrape the FastAPI backend metrics
     static_configs:
       - targets: ['host.docker.internal:8000'] # Use host.docker.internal to access host machine
-    metrics_path: '/metrics/prometheus' # Adjust based on your actual metrics endpoint
+    metrics_path: '/metrics'
     scrape_interval: 15s
 
   - job_name: 'instainstru-health'

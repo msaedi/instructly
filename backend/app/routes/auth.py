@@ -192,13 +192,23 @@ async def login(
     )
 
     # Set cookie for SSE authentication
+    import os as _os
+
+    _site_mode = _os.getenv("SITE_MODE", "").lower().strip()
+    _cookie_name = (
+        "sid_preview"
+        if _site_mode == "preview"
+        else ("sid_prod" if _site_mode in {"prod", "production", "live"} else "access_token")
+    )
     response.set_cookie(
-        key="access_token",
+        key=_cookie_name,
         value=access_token,
-        httponly=True,  # Prevent JavaScript access for security
-        secure=settings.environment == "production",  # HTTPS only in production
-        samesite="lax",  # CSRF protection
-        max_age=settings.access_token_expire_minutes * 60,  # Convert to seconds
+        httponly=True,
+        secure=True if _site_mode in {"prod", "preview"} else settings.environment == "production",
+        samesite="lax",
+        max_age=settings.access_token_expire_minutes * 60,
+        domain=".instainstru.com" if _site_mode in {"prod", "preview"} else None,
+        path="/",
     )
 
     return LoginResponse(access_token=access_token, token_type="bearer", requires_2fa=False)
@@ -303,13 +313,23 @@ async def login_with_session(
     )
 
     # Set cookie for SSE authentication
+    import os as _os2
+
+    _site_mode2 = _os2.getenv("SITE_MODE", "").lower().strip()
+    _cookie_name2 = (
+        "sid_preview"
+        if _site_mode2 == "preview"
+        else ("sid_prod" if _site_mode2 in {"prod", "production", "live"} else "access_token")
+    )
     response.set_cookie(
-        key="access_token",
+        key=_cookie_name2,
         value=access_token,
-        httponly=True,  # Prevent JavaScript access for security
-        secure=settings.environment == "production",  # HTTPS only in production
-        samesite="lax",  # CSRF protection
-        max_age=settings.access_token_expire_minutes * 60,  # Convert to seconds
+        httponly=True,
+        secure=True if _site_mode2 in {"prod", "preview"} else settings.environment == "production",
+        samesite="lax",
+        max_age=settings.access_token_expire_minutes * 60,
+        domain=".instainstru.com" if _site_mode2 in {"prod", "preview"} else None,
+        path="/",
     )
 
     return Token(access_token=access_token, token_type="bearer")

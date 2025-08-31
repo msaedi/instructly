@@ -169,7 +169,7 @@ export function LessonCard({
               {lesson.status === 'CANCELLED' && lesson.cancelled_at ? (
                 <>{getCancellationFeeDisplay(lesson)}</>
               ) : (
-                `${lesson.total_price.toFixed(2)}`
+                formatMoney(lesson.total_price)
               )}
             </span>
           </div>
@@ -205,7 +205,7 @@ export function LessonCard({
 
 function getCancellationFeeDisplay(lesson: Booking): string {
   if (!lesson.cancelled_at || !lesson.booking_date || !lesson.start_time) {
-    return `$${lesson.total_price.toFixed(2)}`;
+    return formatMoney(lesson.total_price);
   }
 
   const cancelledDate = new Date(lesson.cancelled_at);
@@ -215,10 +215,21 @@ function getCancellationFeeDisplay(lesson: Booking): string {
   if (hoursBeforeLesson > 24) {
     return '$0.00 (No charge)';
   } else if (hoursBeforeLesson > 12) {
-    const charged = lesson.total_price;
-    const credit = lesson.total_price / 2;
+    const price = toNumber(lesson.total_price);
+    if (price == null) return '—';
+    const charged = price;
+    const credit = price / 2;
     return `Charged: $${charged.toFixed(2)} | Credit: $${credit.toFixed(2)}`;
   } else {
-    return `$${lesson.total_price.toFixed(2)}`;
+    return formatMoney(lesson.total_price);
   }
+}
+
+function toNumber(val: unknown): number | null {
+  return typeof val === 'number' && Number.isFinite(val) ? val : null;
+}
+
+function formatMoney(val: unknown, fallback: string = '—'): string {
+  const n = toNumber(val);
+  return n == null ? fallback : `$${n.toFixed(2)}`;
 }

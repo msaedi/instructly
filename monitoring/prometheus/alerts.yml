@@ -1,0 +1,18 @@
+groups:
+- name: preview-bypass
+  rules:
+  - alert: PreviewBypassSpike
+    expr: sum(rate(instainstru_preview_bypass_total{env="preview"}[5m])) > 20
+    for: 10m
+    labels: { severity: warning }
+    annotations:
+      summary: "Preview bypass spike"
+      description: "High rate of preview bypass events (>20/5m). Investigate misuse or miswired proxy."
+
+  - alert: BypassSeenInProd
+    expr: sum(rate(instainstru_preview_bypass_total{env="prod"}[5m])) > 0
+    for: 1m
+    labels: { severity: critical }
+    annotations:
+      summary: "Bypass observed in PROD"
+      description: "Preview bypass must never occur in PROD. Check SITE_MODE, headers, hosts, and CORS."

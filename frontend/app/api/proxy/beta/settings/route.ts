@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     cache: 'no-store',
   });
   const contentType = res.headers.get('content-type') || 'application/json';
-  let bodyText = await res.text();
+  const bodyText = await res.text();
   // Try to derive allow flag to set a cookie the middleware can read
   try {
     const data = JSON.parse(bodyText);
@@ -37,7 +37,7 @@ export async function PUT(req: NextRequest) {
     cache: 'no-store',
   });
   const contentType = res.headers.get('content-type') || 'application/json';
-  let bodyText = await res.text();
+  const bodyText = await res.text();
   try {
     const data = JSON.parse(bodyText);
     const allow = data?.allow_signup_without_invite ? '1' : '0';

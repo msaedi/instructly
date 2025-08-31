@@ -48,8 +48,8 @@ function buildDayCellSet(slots: TimeSlot[], startHour: number, endHour: number):
     const start = Math.max(startHour, sh);
     const end = Math.min(endHour, eh);
 
-    let startIdx = (start - startHour) * HALF_HOURS_PER_HOUR + (sm >= 30 ? 1 : 0);
-    let endIdx = (end - startHour) * HALF_HOURS_PER_HOUR + (em > 0 ? (em >= 30 ? 2 : 1) : 0);
+    const startIdx = (start - startHour) * HALF_HOURS_PER_HOUR + (sm >= 30 ? 1 : 0);
+    const endIdx = (end - startHour) * HALF_HOURS_PER_HOUR + (em > 0 ? (em >= 30 ? 2 : 1) : 0);
     // Fill each half-hour cell
     for (let i = startIdx; i < endIdx; i++) set.add(i);
   }

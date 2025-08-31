@@ -6,6 +6,7 @@ import './globals.css';
 import { logger } from '@/lib/logger';
 import { Providers } from './providers';
 import GlobalBackground from '../components/ui/GlobalBackground';
+import PreviewRibbon from '../components/PreviewRibbon';
 import { BetaProvider, BetaBanner } from '@/contexts/BetaContext';
 import { BackgroundProvider } from '@/lib/config/backgroundProvider';
 // Analytics moved to client-only Providers to avoid SSR hydration mismatch
@@ -156,6 +157,7 @@ export default function RootLayout({
           {/* Global fixed background with blur-up and readability overlay */}
           <GlobalBackground />
           <BetaProvider>
+            {process.env.NEXT_PUBLIC_APP_ENV === 'preview' ? <PreviewRibbon /> : null}
             <BetaBanner />
             {/* Future enhancements could include:
               - Global error boundary

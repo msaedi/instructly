@@ -28,7 +28,7 @@ interface BookAgainProps {
 export function BookAgain({ onLoadComplete }: BookAgainProps) {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
-  const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('access_token');
+  const hasToken = true; // rely on session cookie
 
   // Fetch past completed bookings with React Query
   const { data: bookingsData, isLoading } = useQuery<BookingListResponse>({
@@ -41,7 +41,7 @@ export function BookAgain({ onLoadComplete }: BookAgainProps) {
       requireAuth: true,
     }),
     staleTime: CACHE_TIMES.SLOW, // 15 minutes - past bookings rarely change
-    enabled: isAuthenticated && hasToken,
+    enabled: isAuthenticated,
   });
 
   // Extract unique instructors from bookings
@@ -104,7 +104,7 @@ export function BookAgain({ onLoadComplete }: BookAgainProps) {
   };
 
   // Don't render anything if not authenticated or still loading
-  if (!isAuthenticated || !hasToken || isLoading) {
+  if (!isAuthenticated || isLoading) {
     logger.debug('BookAgain: Not rendering - not authenticated or loading', {
       isAuthenticated,
       hasToken,

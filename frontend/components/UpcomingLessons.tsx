@@ -24,7 +24,7 @@ interface UpcomingBookingsResponse {
 export function UpcomingLessons() {
   const { isAuthenticated, user, isLoading: isAuthLoading } = useAuth();
   const [isClient, setIsClient] = useState(false);
-  const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('access_token');
+  const hasToken = true;
 
   useEffect(() => {
     setIsClient(true);
@@ -38,7 +38,7 @@ export function UpcomingLessons() {
   } = useQuery<UpcomingBookingsResponse>({
     queryKey: queryKeys.bookings.upcoming(2),
     queryFn: queryFn('/bookings/upcoming?limit=2', { requireAuth: true }),
-    enabled: isClient && !isAuthLoading && isAuthenticated && hasToken,
+    enabled: isClient && !isAuthLoading && isAuthenticated,
     staleTime: CACHE_TIMES.FAST, // 1 minute - upcoming lessons can change frequently
     retry: 0,
   });
@@ -47,7 +47,7 @@ export function UpcomingLessons() {
   const bookings = response?.items ?? [];
 
   // Don't render if not authenticated or no bookings
-  if (!isClient || isAuthLoading || !isAuthenticated || !hasToken || (!isLoading && bookings.length === 0)) {
+  if (!isClient || isAuthLoading || !isAuthenticated || (!isLoading && bookings.length === 0)) {
     return null;
   }
 

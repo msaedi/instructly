@@ -95,6 +95,14 @@ beta_phase_header_total = Counter(
     registry=REGISTRY,
 )
 
+# Preview bypass audit
+preview_bypass_total = Counter(
+    "instainstru_preview_bypass_total",
+    "Count of preview bypass events (by mechanism)",
+    ["via"],  # session | header
+    registry=REGISTRY,
+)
+
 # Storage for tracking active operations
 active_operations: Dict[str, int] = defaultdict(int)
 
@@ -198,6 +206,12 @@ class PrometheusMetrics:
     def inc_beta_phase_header(phase: str) -> None:
         """Increment beta phase header distribution counter."""
         beta_phase_header_total.labels(phase=phase).inc()
+        PrometheusMetrics._dirty_since_last_scrape = True
+
+    @staticmethod
+    def inc_preview_bypass(via: str) -> None:
+        """Increment preview bypass counter by mechanism (session|header)."""
+        preview_bypass_total.labels(via=via).inc()
         PrometheusMetrics._dirty_since_last_scrape = True
 
 

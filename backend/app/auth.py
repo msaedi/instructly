@@ -1,4 +1,5 @@
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -92,6 +93,16 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
                 db.close()
     except Exception as e:
         logger.warning(f"Unable to enrich JWT with beta claims: {e}")
+    # Add iss/aud per environment
+    try:
+        site_mode = os.getenv("SITE_MODE", "").lower().strip()
+    except Exception:
+        site_mode = ""
+    if site_mode == "preview":
+        to_encode.update({"iss": f"https://{settings.preview_api_domain}", "aud": "preview"})
+    elif site_mode in {"prod", "production", "live"}:
+        to_encode.update({"iss": f"https://{settings.prod_api_domain}", "aud": "prod"})
+
     # Fix: Use get_secret_value() to get the actual string from SecretStr
     encoded_jwt = jwt.encode(
         to_encode,
@@ -129,6 +140,16 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
             settings.secret_key.get_secret_value(),  # Changed this line
             algorithms=[settings.algorithm],
         )
+        # Enforce iss/aud
+        site_mode = os.getenv("SITE_MODE", "").lower().strip()
+        iss = payload.get("iss", "")
+        aud = payload.get("aud", "")
+        if site_mode == "preview":
+            if iss != f"https://{settings.preview_api_domain}" or aud != "preview":
+                raise credentials_exception
+        elif site_mode in {"prod", "production", "live"}:
+            if iss != f"https://{settings.prod_api_domain}" or aud != "prod":
+                raise credentials_exception
         email: str = payload.get("sub")
         if email is None:
             logger.warning("Token payload missing 'sub' field")

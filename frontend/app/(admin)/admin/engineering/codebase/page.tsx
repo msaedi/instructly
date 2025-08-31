@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useCodebaseMetrics } from '@/hooks/useCodebaseMetrics';
@@ -13,7 +14,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 export default function CodebaseMetricsPage() {
   const router = useRouter();
   const { isLoading: authLoading, isAdmin } = useAdminAuth();
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  const token = null;
   const { logout } = useAuth();
   const { data, history, loading, error, refetch } = useCodebaseMetrics(token);
 
@@ -37,7 +38,7 @@ export default function CodebaseMetricsPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              <a href="/" className="text-2xl font-semibold text-indigo-600 dark:text-indigo-400 mr-8">iNSTAiNSTRU</a>
+              <Link href="/" className="text-2xl font-semibold text-indigo-600 dark:text-indigo-400 mr-8">iNSTAiNSTRU</Link>
               <h1 className="text-xl font-semibold">Codebase Analytics</h1>
             </div>
             <div className="flex items-center space-x-3">

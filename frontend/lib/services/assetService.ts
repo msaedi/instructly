@@ -287,7 +287,7 @@ async function ensureServiceCatalogLoaded(): Promise<void> {
       if (!resp || resp.error || !resp.data) return;
       const { categories } = resp.data;
       for (const cat of categories) {
-        const categorySlug: string = cat.slug;
+        const categorySlug = cat.slug as string;
         for (const svc of cat.services) {
           const meta: ServiceMeta = {
             id: String(svc.id),
@@ -627,7 +627,7 @@ export async function hasMultipleVariantsForService(
   }
 
   await ensureServiceCatalogLoaded();
-  let meta: ServiceMeta | undefined = serviceSlugToMeta.get(key) || serviceNameToMeta.get(key) || serviceIdToMeta.get(key);
+  const meta: ServiceMeta | undefined = serviceSlugToMeta.get(key) || serviceNameToMeta.get(key) || serviceIdToMeta.get(key);
 
   if (meta) {
     const variants = await getActivityVariants(meta.categorySlug, meta.slug);

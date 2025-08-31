@@ -3,9 +3,10 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy.orm import Session
 
 from .core.config import settings
@@ -20,6 +21,7 @@ from .core.constants import (
 )
 from .database import get_db
 from .middleware.beta_phase_header import BetaPhaseHeaderMiddleware
+from .middleware.csrf_asgi import CsrfOriginMiddlewareASGI
 from .middleware.https_redirect import create_https_redirect_middleware
 from .middleware.monitoring import MonitoringMiddleware
 from .middleware.performance import PerformanceMiddleware
@@ -28,6 +30,8 @@ from .middleware.prometheus_middleware import PrometheusMiddleware
 # Use the new ASGI middleware to avoid "No response returned" errors
 from .middleware.rate_limiter_asgi import RateLimitMiddlewareASGI
 from .middleware.timing_asgi import TimingMiddlewareASGI
+from .monitoring.prometheus_metrics import REGISTRY as PROM_REGISTRY
+from .repositories.beta_repository import BetaSettingsRepository
 from .routes import (
     account_management,
     addresses,
@@ -40,6 +44,7 @@ from .routes import (
     codebase_metrics,
     database_monitor,
     favorites,
+    gated,
     instructor_bookings,
     instructors,
     messages,
@@ -169,33 +174,43 @@ if settings.environment == "production":
     app.add_middleware(HTTPSRedirectMiddleware)
 
 
-# Place CORS as high as possible in the stack so it can process preflight/headers early
 def _compute_allowed_origins() -> list[str]:
+    """Per-env explicit CORS allowlist."""
+    site_mode = os.getenv("SITE_MODE", "").lower().strip()
+    if site_mode == "preview":
+        # Include preview frontend domain and optional extra CSV
+        origins = {f"https://{settings.preview_frontend_domain}"}
+        extra = os.getenv("CORS_ALLOW_ORIGINS", "")
+        if extra:
+            for origin in extra.split(","):
+                origin = origin.strip()
+                if origin:
+                    origins.add(origin)
+        return list(origins)
+    if site_mode in {"prod", "production", "live"}:
+        csv = (settings.prod_frontend_origins_csv or "").strip()
+        origins = [o.strip() for o in csv.split(",") if o.strip()]
+        return origins or ["https://app.instainstru.com"]
+    # local/dev: include env override or constants
     origins = set(ALLOWED_ORIGINS)
-    # Include configured frontend URL
-    if settings.frontend_url:
-        origins.add(settings.frontend_url.rstrip("/"))
-    # Comma-separated env var override
     extra = os.getenv("CORS_ALLOW_ORIGINS", "")
     if extra:
         for origin in extra.split(","):
             origin = origin.strip()
             if origin:
                 origins.add(origin)
-    # Preview convenience
-    if os.getenv("SITE_MODE", "").lower().strip() == "preview":
-        origins.add("https://preview.instainstru.com")
     return list(origins)
 
 
 _DYN_ALLOWED_ORIGINS = _compute_allowed_origins()
+assert "*" not in _DYN_ALLOWED_ORIGINS, "CORS allow_origins cannot include * when allow_credentials=True"
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_DYN_ALLOWED_ORIGINS,
     allow_origin_regex=CORS_ORIGIN_REGEX,  # Support Vercel preview deployments
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -207,6 +222,7 @@ app.add_middleware(MonitoringMiddleware)
 app.add_middleware(PerformanceMiddleware)  # Performance monitoring with SSE bypass
 app.add_middleware(PrometheusMiddleware)  # Prometheus metrics with SSE bypass
 app.add_middleware(BetaPhaseHeaderMiddleware)  # Attach x-beta-phase header for every response
+app.add_middleware(CsrfOriginMiddlewareASGI)  # CSRF Origin/Referer checks for state-changing methods
 
 # Add GZip compression middleware with SSE exclusion
 # SSE responses must NOT be compressed to work properly
@@ -257,6 +273,7 @@ app.include_router(uploads.router)
 app.include_router(users_profile_picture.router)
 app.include_router(beta.router)
 app.include_router(reviews.router)
+app.include_router(gated.router)
 
 # Identity + uploads: new endpoints are included via existing payments router and addresses router
 
@@ -293,8 +310,25 @@ def read_root() -> RootResponse:
 
 
 @app.get("/health", response_model=HealthResponse)
-def health_check() -> HealthResponse:
-    """Health check endpoint for monitoring"""
+def health_check(response: Response, db: Session = Depends(get_db)) -> HealthResponse:
+    """Health check endpoint with headers for mode/phase/commit."""
+    import os as _os
+
+    # Determine phase from settings table (fallback to 'beta')
+    phase = "beta"
+    try:
+        s = BetaSettingsRepository(db).get_singleton()
+        if getattr(s, "beta_phase", None):
+            phase = str(s.beta_phase)
+    except Exception:
+        phase = "beta"
+
+    # Headers
+    site_mode = _os.getenv("SITE_MODE", "").lower().strip() or "unset"
+    response.headers["X-Site-Mode"] = site_mode
+    response.headers["X-Phase"] = phase
+    response.headers["X-Commit-Sha"] = _os.getenv("COMMIT_SHA", "dev")
+
     return HealthResponse(
         status="healthy",
         service=f"{BRAND_NAME.lower()}-api",
@@ -314,6 +348,12 @@ def get_performance_metrics() -> PerformanceMetricsResponse:
     from .middleware.monitoring import monitor
 
     return PerformanceMetricsResponse(metrics=monitor.get_stats())
+
+
+@app.get("/metrics")
+def metrics_endpoint():
+    """Prometheus metrics endpoint."""
+    return Response(generate_latest(PROM_REGISTRY), media_type=CONTENT_TYPE_LATEST)
 
 
 # Keep the original FastAPI app for tools/tests that need access to routes

@@ -173,6 +173,17 @@ class Settings(BaseSettings):
     stripe_platform_fee_percentage: float = Field(default=15, description="Platform fee percentage (15 = 15%)")
     stripe_currency: str = Field(default="usd", description="Default currency for payments")
 
+    # Preview staff access (for API-side preview bypass)
+    staff_preview_token: str = Field(default="", alias="staff_preview_token")
+    allow_preview_header: bool = Field(default=False, alias="allow_preview_header")
+    preview_frontend_domain: str = Field(default="preview.instainstru.com", alias="preview_frontend_domain")
+    preview_api_domain: str = Field(default="preview-api.instainstru.com", alias="preview_api_domain")
+    prod_api_domain: str = Field(default="api.instainstru.com", alias="prod_api_domain")
+    prod_frontend_origins_csv: str = Field(
+        default="https://beta.instainstru.com,https://app.instainstru.com",
+        alias="prod_frontend_origins",
+    )
+
     # Cloudflare R2 (S3-compatible) configuration for asset uploads
     r2_account_id: str = Field(default="", description="Cloudflare R2 Account ID")
     r2_access_key_id: str = Field(default="", description="R2 access key ID")

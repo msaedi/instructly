@@ -224,18 +224,16 @@ export interface CandidateTopService {
 }
 
 // Shared fetch helper
-async function fetchWithAuth<T>(endpoint: string, token: string): Promise<T> {
+async function fetchWithAuth<T>(endpoint: string, _token: string | null): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     headers: {
-      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
+    credentials: 'include',
   });
 
   if (!response.ok) {
-    if (response.status === 401) {
-      throw new Error('Unauthorized');
-    }
+    if (response.status === 401) throw new Error('Unauthorized');
     const body = await response.text();
     throw new Error(body || `API error: ${response.status}`);
   }

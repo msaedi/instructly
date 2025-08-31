@@ -18,8 +18,8 @@ export default function SearchAnalyticsDashboard() {
   const { isAdmin, isLoading: authLoading } = useAdminAuth();
   const { logout } = useAuth();
 
-  // Get token from localStorage
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  // Cookies-only auth; analyticsApi must be updated to use cookies server-side
+  const token = null;
 
   const { data, loading, error, refetch, dateRange, setDateRange } = useAnalyticsData(token);
 

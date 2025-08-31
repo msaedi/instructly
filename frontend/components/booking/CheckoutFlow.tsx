@@ -121,7 +121,7 @@ const PaymentForm: React.FC<{
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          // Cookies-only auth; do not attach bearer token
         },
         body: JSON.stringify({
           booking_id: booking.id,
@@ -319,7 +319,7 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
       try {
         const response = await fetch('/api/payments/methods', {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            // Cookies-only auth; do not attach bearer token
           },
         });
 

@@ -33,12 +33,12 @@ export interface DatabaseStats {
 /**
  * Fetch with authentication
  */
-async function fetchWithAuth<T>(endpoint: string, token: string): Promise<T> {
+async function fetchWithAuth<T>(endpoint: string, _token: string | null): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     headers: {
-      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
+    credentials: 'include',
   });
 
   if (!response.ok) {

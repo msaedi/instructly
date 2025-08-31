@@ -1,0 +1,71 @@
+name: smoke
+on: [push, workflow_dispatch]
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - name: preview
+            api: ${{ secrets.PREVIEW_API_BASE }}
+            origin: ${{ secrets.PREVIEW_ORIGIN }}
+            mode: preview
+          - name: prod
+            api: ${{ secrets.PROD_API_BASE }}
+            origin: ${{ secrets.BETA_ORIGIN }}
+            mode: prod
+    steps:
+      - name: Health
+        env:
+          API: ${{ matrix.target.api }}
+          MODE: ${{ matrix.target.mode }}
+        run: |
+          set -e
+          curl -i "$API/health" | tee /tmp/h.txt
+          grep -i "X-Site-Mode: $MODE" /tmp/h.txt
+      - name: CORS preflight (allowed)
+        env:
+          API: ${{ matrix.target.api }}
+          ORIGIN: ${{ matrix.target.origin }}
+        run: |
+          curl -i -X OPTIONS "$API${{ secrets.GATED_ENDPOINT }}" \
+           -H "Origin: $ORIGIN" \
+           -H "Access-Control-Request-Method: POST" \
+           -H "Access-Control-Request-Headers: content-type"
+      - name: CSRF sanity (prod should block cross-origin POST)
+        if: ${{ matrix.target.name == 'prod' }}
+        env:
+          API: ${{ matrix.target.api }}
+        run: |
+          set +e
+          curl -i -X POST "$API${{ secrets.GATED_ENDPOINT }}" -d '{}' | tee /tmp/c.txt
+          grep -E "401|403" /tmp/c.txt
+      - name: Phase-gated route (200 in preview, 401/403 in prod)
+        env:
+          API: ${{ matrix.target.api }}
+          MODE: ${{ matrix.target.mode }}
+          ORIGIN: ${{ matrix.target.origin }}
+        run: |
+          URL="$API${{ secrets.GATED_ENDPOINT }}"
+          if [ "$MODE" = "preview" ]; then
+            curl -i "$URL" -H "Origin: $ORIGIN" | grep "200"
+          else
+            set +e; curl -i "$URL" | tee /tmp/g.txt; grep -E "401|403" /tmp/g.txt
+          fi
+      - name: Webhook ignores preview header
+        env:
+          API: ${{ matrix.target.api }}
+          MODE: ${{ matrix.target.mode }}
+        run: |
+          set +e
+          curl -i -X POST "$API${{ secrets.WEBHOOK_ENDPOINT }}" \
+            -H "x-staff-preview-token: ${{ secrets.PREVIEW_HEADER_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{}' | tee /tmp/w.txt
+          # Expect signature failure both envs; header must have no effect
+          grep -E "400|401|403" /tmp/w.txt
+      - name: Metrics endpoint
+        env:
+          API: ${{ matrix.target.api }}
+        run: |
+          curl -sf "$API/metrics" | head -n 20

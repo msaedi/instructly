@@ -11,7 +11,8 @@ import { ApiResponse } from '@/features/shared/api/client';
 /**
  * Base API URL from environment
  */
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { API_BASE } from '@/lib/apiBase';
+const API_BASE_URL = API_BASE || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 /**
  * Custom error class for API errors with proper typing
@@ -27,12 +28,9 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * Get auth token from localStorage
- */
+// Cookies-only auth: do not read tokens from localStorage
 function getAuthToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('access_token');
+  return null;
 }
 
 /**
@@ -92,8 +90,15 @@ export function queryFn<T = any>(endpoint: string, options: QueryOptions = {}) {
   return async ({ signal }: QueryFunctionContext): Promise<T> => {
     const { params, requireAuth = false, ...fetchOptions } = options;
 
-    // Build URL with query params
-    const url = new URL(`${API_BASE_URL}${endpoint}`);
+    // Build URL with query params (supports absolute or relative API_BASE)
+    const endpointPath = `${API_BASE_URL}${endpoint}`;
+    const isAbsolute = /^https?:\/\//i.test(endpointPath);
+    const base = isAbsolute
+      ? undefined
+      : (typeof window !== 'undefined'
+          ? window.location.origin
+          : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'));
+    const url = new URL(endpointPath, base as string | undefined);
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -109,26 +114,23 @@ export function queryFn<T = any>(endpoint: string, options: QueryOptions = {}) {
       ...((fetchOptions.headers as Record<string, string>) || {}),
     };
 
-    // Add auth token if available
-    const token = getAuthToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    } else if (requireAuth) {
-      throw new ApiError('Authentication required', 401);
+    // Cookies-only auth: do not attach bearer tokens from localStorage
+    if (requireAuth) {
+      // Rely on server session cookie; client cannot prove auth here
+      // If the endpoint requires auth, backend will 401; callers should handle redirect
     }
-
-    // Add guest session ID if no auth token
-    if (!token) {
-      const guestSessionId = getGuestSessionId();
-      if (guestSessionId) {
-        headers['X-Guest-Session-ID'] = guestSessionId;
-      }
+    // Optional guest/session analytics
+    const guestSessionId = getGuestSessionId();
+    if (guestSessionId) {
+      headers['X-Guest-Session-ID'] = guestSessionId;
     }
 
     try {
       const response = await fetch(url.toString(), {
         ...fetchOptions,
         headers,
+        // Always include cookies for cross-site API domain
+        credentials: (fetchOptions as any)?.credentials ?? 'include',
         signal, // Pass AbortSignal for query cancellation
       });
 
@@ -184,8 +186,15 @@ export function mutationFn<TData = any, TVariables = any>(
   return async (variables: TVariables): Promise<TData> => {
     const { params, requireAuth = false, ...fetchOptions } = options;
 
-    // Build URL with query params
-    const url = new URL(`${API_BASE_URL}${endpoint}`);
+    // Build URL with query params (supports absolute or relative API_BASE)
+    const endpointPath = `${API_BASE_URL}${endpoint}`;
+    const isAbsolute = /^https?:\/\//i.test(endpointPath);
+    const base = isAbsolute
+      ? undefined
+      : (typeof window !== 'undefined'
+          ? window.location.origin
+          : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'));
+    const url = new URL(endpointPath, base as string | undefined);
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
@@ -201,20 +210,10 @@ export function mutationFn<TData = any, TVariables = any>(
       ...((fetchOptions.headers as Record<string, string>) || {}),
     };
 
-    // Add auth token if available
-    const token = getAuthToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    } else if (requireAuth) {
-      throw new ApiError('Authentication required', 401);
-    }
-
-    // Add guest session ID if no auth token
-    if (!token) {
-      const guestSessionId = getGuestSessionId();
-      if (guestSessionId) {
-        headers['X-Guest-Session-ID'] = guestSessionId;
-      }
+    // Cookies-only auth: rely on session cookie; backend will 401 if not authenticated
+    const guestSessionId = getGuestSessionId();
+    if (guestSessionId) {
+      headers['X-Guest-Session-ID'] = guestSessionId;
     }
 
     try {
@@ -222,6 +221,8 @@ export function mutationFn<TData = any, TVariables = any>(
         ...fetchOptions,
         headers,
         body: variables ? JSON.stringify(variables) : undefined,
+        // Always include cookies for cross-site API domain
+        credentials: (fetchOptions as any)?.credentials ?? 'include',
       });
 
       // Parse response

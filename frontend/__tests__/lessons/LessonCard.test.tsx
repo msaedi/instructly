@@ -73,8 +73,8 @@ describe('LessonCard', () => {
     expect(screen.getByText(/Dec 25/)).toBeInTheDocument();
     expect(screen.getByText(/2:00pm/)).toBeInTheDocument();
 
-    // Check price (currency symbol rendered separately)
-    expect(screen.getByText('60.00')).toBeInTheDocument();
+    // Check price (formatted with currency symbol)
+    expect(screen.getByText('$60.00')).toBeInTheDocument();
   });
 
   it('shows no badge for upcoming confirmed lessons', () => {

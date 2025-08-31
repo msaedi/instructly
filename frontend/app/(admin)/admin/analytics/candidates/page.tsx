@@ -19,7 +19,7 @@ export default function CandidatesAnalyticsDashboard() {
   const { isAdmin, isLoading: authLoading } = useAdminAuth();
   const { logout } = useAuth();
 
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+  const token = null;
 
   const [loading, setLoading] = useState(false);
   const [days, setDays] = useState(30);

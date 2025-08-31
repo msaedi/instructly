@@ -16,6 +16,7 @@ import {
   getRecentSearches,
   deleteSearch,
 } from '../searchTracking';
+import { captureDeviceContext } from '../deviceContext';
 import { SearchType } from '../../types/enums';
 
 // Mock dependencies
@@ -411,8 +412,7 @@ describe('Search Tracking', () => {
 
   describe('Edge Cases', () => {
     it('should handle missing device context gracefully', async () => {
-      const { captureDeviceContext } = require('../deviceContext');
-      captureDeviceContext.mockReturnValueOnce({});
+      (captureDeviceContext as unknown as jest.Mock).mockReturnValueOnce({});
 
       mockFetch.mockResolvedValueOnce({
         ok: true,

@@ -1,6 +1,7 @@
 'use client';
 
-import { fetchWithAuth, getErrorMessage } from '@/lib/api';
+import { getErrorMessage } from '@/lib/api';
+import { withApiBase } from '@/lib/apiBase';
 
 export interface BetaSettings {
   beta_disabled: boolean;
@@ -9,24 +10,20 @@ export interface BetaSettings {
 }
 
 export async function getBetaSettings(): Promise<BetaSettings> {
-  // Go through Next.js route handler to avoid CORS/hydration issues
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-  const res = await fetch('/api/proxy/beta/settings', {
+  // Use toggleable base; rely on cookies for auth
+  const res = await fetch(withApiBase('/beta/settings'), {
     credentials: 'include',
     cache: 'no-store',
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
   if (!res.ok) throw new Error(await getErrorMessage(res));
   return res.json();
 }
 
 export async function updateBetaSettings(payload: BetaSettings): Promise<BetaSettings> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-  const res = await fetch('/api/proxy/beta/settings', {
+  const res = await fetch(withApiBase('/beta/settings'), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(payload),
     credentials: 'include',
@@ -48,11 +45,9 @@ export interface MetricsPerformanceResponse {
 }
 
 export async function getPerformanceMetrics(): Promise<MetricsPerformanceResponse> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-  const res = await fetch('/api/proxy/metrics/performance', {
+  const res = await fetch(withApiBase('/metrics/performance'), {
     credentials: 'include',
     cache: 'no-store',
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
   if (!res.ok) throw new Error(await getErrorMessage(res));
   return res.json();

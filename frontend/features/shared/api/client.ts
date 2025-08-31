@@ -7,6 +7,7 @@
  */
 
 import { getSessionId, refreshSession } from '@/lib/sessionTracking';
+import { withApiBase } from '@/lib/apiBase';
 
 // Browser calls go through Next.js proxy to avoid CORS and middleware redirects
 const API_BASE_URL = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
@@ -89,7 +90,6 @@ async function unifiedFetch<T>(
   endpoint: string,
   options: FetchOptions = {}
 ): Promise<ApiResponse<T>> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
   const guestSessionId = getGuestSessionId();
 
   const headers: Record<string, string> = {
@@ -98,12 +98,8 @@ async function unifiedFetch<T>(
     ...((options.headers as Record<string, string>) || {}),
   };
 
-  // Add auth token if available
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  // Otherwise add guest session ID if available
-  else if (guestSessionId) {
+  // Add guest session ID if available (for unified guest tracking)
+  if (guestSessionId) {
     headers['X-Guest-Session-ID'] = guestSessionId;
   }
 
@@ -116,14 +112,25 @@ async function unifiedFetch<T>(
 /**
  * Clean fetch wrapper with error handling
  */
-async function cleanFetch<T>(
+export async function cleanFetch<T>(
   endpoint: string,
   options: FetchOptions = {}
 ): Promise<ApiResponse<T>> {
   const { params, ...fetchOptions } = options;
 
-  // Build URL with query params
-  const url = new URL(`${API_BASE_URL}${endpoint}`);
+  // Build URL with query params (support relative endpoints in browser/SSR)
+  const isAbsolute = /^https?:\/\//i.test(endpoint);
+  let url: URL;
+  if (isAbsolute) {
+    url = new URL(endpoint);
+  } else if (typeof window !== 'undefined') {
+    // Respect proxy toggle for browser requests
+    const adjustedPath = endpoint.startsWith('/api/proxy') || endpoint.startsWith('/api/') ? endpoint : withApiBase(endpoint);
+    url = new URL(adjustedPath, window.location.origin);
+  } else {
+    const base = API_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    url = new URL(endpoint, base as string);
+  }
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
@@ -140,6 +147,8 @@ async function cleanFetch<T>(
         ...getAnalyticsHeaders(),
         ...((fetchOptions.headers as Record<string, string>) || {}),
       },
+      // Always include credentials so cookies (sid_preview/sid_prod) are sent
+      credentials: (fetchOptions as any)?.credentials ?? 'include',
     });
 
     const retryAfterHeader = response.headers.get('Retry-After');
@@ -193,11 +202,9 @@ async function optionalAuthFetch<T>(
   endpoint: string,
   options: FetchOptions = {}
 ): Promise<ApiResponse<T>> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
   const mergedHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
     ...getAnalyticsHeaders(),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...((options.headers as Record<string, string>) || {}),
   };
 
@@ -212,21 +219,8 @@ async function optionalAuthFetch<T>(
  * Authenticated fetch wrapper
  */
 async function authFetch<T>(endpoint: string, options: FetchOptions = {}): Promise<ApiResponse<T>> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-
-  if (!token) {
-    return {
-      error: 'Not authenticated',
-      status: 401,
-    };
-  }
-
   return cleanFetch<T>(endpoint, {
     ...options,
-    headers: {
-      ...((options.headers as Record<string, string>) || {}),
-      Authorization: `Bearer ${token}`,
-    },
   });
 }
 
@@ -623,14 +617,14 @@ export const publicApi = {
    * Get all service categories
    */
   async getServiceCategories() {
-    return cleanFetch<ServiceCategory[]>(typeof window !== 'undefined' ? '/api/proxy/services/categories' : '/services/categories');
+    return cleanFetch<ServiceCategory[]>('/services/categories');
   },
 
   /**
    * Get catalog services, optionally filtered by category
    */
   async getCatalogServices(categorySlug?: string) {
-    return cleanFetch<CatalogService[]>(typeof window !== 'undefined' ? '/api/proxy/services/catalog' : '/services/catalog', {
+    return cleanFetch<CatalogService[]>('/services/catalog', {
       params: categorySlug ? { category: categorySlug } : {},
     });
   },
@@ -640,7 +634,7 @@ export const publicApi = {
    * Returns all categories with their top services in a single request
    */
   async getTopServicesPerCategory() {
-    return cleanFetch<TopServicesResponse>(typeof window !== 'undefined' ? '/api/proxy/services/catalog/top-per-category' : '/services/catalog/top-per-category');
+    return cleanFetch<TopServicesResponse>('/services/catalog/top-per-category');
   },
 
   /**
@@ -673,7 +667,7 @@ export const publicApi = {
         cached_for_seconds: number;
         updated_at: string;
       };
-    }>(typeof window !== 'undefined' ? '/api/proxy/services/catalog/all-with-instructors' : '/services/catalog/all-with-instructors');
+    }>('/services/catalog/all-with-instructors');
   },
 
   /**
@@ -681,7 +675,7 @@ export const publicApi = {
    * Returns minimal entries for pills: { id, name, slug }
    */
   async getKidsAvailableServices() {
-    return cleanFetch<Array<{ id: string; name: string; slug: string }>>(typeof window !== 'undefined' ? '/api/proxy/services/catalog/kids-available' : '/services/catalog/kids-available');
+    return cleanFetch<Array<{ id: string; name: string; slug: string }>>('/services/catalog/kids-available');
   },
 };
 
