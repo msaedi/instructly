@@ -34,8 +34,16 @@ jobs:
         run: |
           curl -sS -i "$API$GATED" -H "Origin: $ORIGIN" | tee /tmp/g.txt
           grep -E "^HTTP/.* 200" /tmp/g.txt
+      - name: Phase-gated route 200 via preview header bypass (preview only)
+        if: ${{ env.PREVIEW_HEADER_TOKEN != '' }}
+        run: |
+          set -e
+          curl -sS -i "$API$GATED" \
+            -H "Origin: $ORIGIN" \
+            -H "x-staff-preview-token: $PREVIEW_HEADER_TOKEN" | tee /tmp/g2.txt
+          grep -E "^HTTP/.* 200" /tmp/g2.txt
       - name: Webhook must ignore preview header (only if provided)
-        if: env.PREVIEW_HEADER_TOKEN != ''
+        if: ${{ env.PREVIEW_HEADER_TOKEN != '' }}
         run: |
           set +e
           curl -sS -i -X POST "$API$WEBHOOK" \
@@ -53,10 +61,13 @@ jobs:
     env:
       PREVIEW_WEB: ${{ secrets.PREVIEW_WEB }}
     steps:
-      - name: GET / should redirect to /staff-login (no cookie)
+      - name: GET guaranteed gated path should redirect to /staff-login (no cookie)
         run: |
           set -e
-          curl -sS -i "$PREVIEW_WEB/" | tee /tmp/web.txt
+          # prefer a path that is not in the allowlist and not public
+          curl -sS -i --max-redirs 0 \
+            -H "Cache-Control: no-cache" -H "Pragma: no-cache" \
+            "$PREVIEW_WEB/instructor/console?ts=$(date +%s)" | tee /tmp/web.txt
           grep -E "^HTTP/.* (301|302|307|308)" /tmp/web.txt
           grep -i "location: /staff-login" /tmp/web.txt
       - name: robots header present
@@ -96,7 +107,7 @@ jobs:
           curl -sS -i "$API$GATED" -H "Origin: $ORIGIN" | tee /tmp/g.txt
           grep -E "^HTTP/.* (401|403)" /tmp/g.txt
       - name: Webhook ignores preview header (only if provided)
-        if: env.PREVIEW_HEADER_TOKEN != ''
+        if: ${{ env.PREVIEW_HEADER_TOKEN != '' }}
         run: |
           set +e
           curl -sS -i -X POST "$API$WEBHOOK" \

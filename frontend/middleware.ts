@@ -74,7 +74,7 @@ export async function middleware(request: NextRequest) {
 
     const cookieToken = cookies.get(STAFF_COOKIE_NAME)?.value;
     if (cookieToken === requiredToken) {
-      responseHeaders.set('x-preview-gate', 'hit');
+      responseHeaders.set('x-preview-gate', 'active');
       return NextResponse.next({ request: { headers: request.headers }, headers: responseHeaders });
     }
 
@@ -94,7 +94,7 @@ export async function middleware(request: NextRequest) {
       });
       response.headers.set('x-beta-site', betaConfig.site);
       response.headers.set('x-beta-phase', betaConfig.phase);
-      response.headers.set('x-preview-gate', 'hit');
+      response.headers.set('x-preview-gate', 'active');
       return response;
     }
 
@@ -105,7 +105,7 @@ export async function middleware(request: NextRequest) {
       loginUrl.searchParams.set('error', 'invalid');
     }
     const res = NextResponse.redirect(loginUrl);
-    res.headers.set('x-preview-gate', 'hit');
+    res.headers.set('x-preview-gate', 'redirect');
     return res;
   }
 
