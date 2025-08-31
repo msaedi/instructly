@@ -9,8 +9,7 @@ import pytest
 def test_default_is_int_database():
     """Default database must be INT."""
     # Clear any env vars
-    os.environ.pop("USE_PROD_DATABASE", None)
-    os.environ.pop("USE_STG_DATABASE", None)
+    os.environ.pop("SITE_MODE", None)
 
     # Mock CI detection to ensure we're not in CI mode for this test
     with patch("app.core.database_config.DatabaseConfig._is_ci_environment", return_value=False):
@@ -27,11 +26,13 @@ def test_cannot_access_prod_without_confirmation():
     """Production database requires confirmation in non-interactive mode."""
     # Save and clear DATABASE_URL to ensure CI doesn't interfere
     db_url = os.environ.pop("DATABASE_URL", None)
-    os.environ["USE_PROD_DATABASE"] = "true"
+    os.environ["SITE_MODE"] = "prod"
 
     try:
-        # Mock CI detection to ensure we're not in CI mode for this test
-        with patch("app.core.database_config.DatabaseConfig._is_ci_environment", return_value=False):
+        # Mock CI detection and production server mode to ensure confirmation path
+        with patch("app.core.database_config.DatabaseConfig._is_ci_environment", return_value=False), patch(
+            "app.core.database_config.DatabaseConfig._check_production_mode", return_value=False
+        ):
             # Create fresh DatabaseConfig to test
             from app.core.database_config import DatabaseConfig
 
@@ -42,7 +43,7 @@ def test_cannot_access_prod_without_confirmation():
                 _ = config.get_database_url()
     finally:
         # Cleanup
-        os.environ.pop("USE_PROD_DATABASE", None)
+        os.environ.pop("SITE_MODE", None)
         if db_url:
             os.environ["DATABASE_URL"] = db_url
 
@@ -50,8 +51,7 @@ def test_cannot_access_prod_without_confirmation():
 def test_old_scripts_safe_by_default():
     """Old patterns must be safe."""
     # Clear any env vars
-    os.environ.pop("USE_PROD_DATABASE", None)
-    os.environ.pop("USE_STG_DATABASE", None)
+    os.environ.pop("SITE_MODE", None)
 
     # Mock CI detection
     with patch("app.core.database_config.DatabaseConfig._is_ci_environment", return_value=False):
@@ -69,10 +69,7 @@ def test_stg_database_with_flag():
     """Staging database accessible with flag."""
     # Save and clear DATABASE_URL to prevent CI interference
     db_url = os.environ.pop("DATABASE_URL", None)
-    os.environ["USE_STG_DATABASE"] = "true"
-
-    # Also clear any production flags
-    prod_flag = os.environ.pop("USE_PROD_DATABASE", None)
+    os.environ["SITE_MODE"] = "local"
 
     try:
         # Mock CI detection to ensure consistent behavior
@@ -91,14 +88,12 @@ def test_stg_database_with_flag():
                 pytest.skip("STG database URL not configured in this environment")
 
             url = config.get_database_url()
-            assert "instainstru_stg" in url, f"Expected STG database, got {url}"
+            assert url == config.stg_url, f"Expected STG database URL {config.stg_url}, got {url}"
     finally:
         # Cleanup
-        os.environ.pop("USE_STG_DATABASE", None)
+        os.environ.pop("SITE_MODE", None)
         if db_url:
             os.environ["DATABASE_URL"] = db_url
-        if prod_flag:
-            os.environ["USE_PROD_DATABASE"] = prod_flag
 
 
 def test_backward_compatibility():
@@ -128,8 +123,7 @@ def test_raw_fields_not_in_public_api():
 def test_alembic_uses_safe_database():
     """Alembic should use INT database by default."""
     # Clear any env vars
-    os.environ.pop("USE_PROD_DATABASE", None)
-    os.environ.pop("USE_STG_DATABASE", None)
+    os.environ.pop("SITE_MODE", None)
 
     # We can't actually run alembic in tests, but we can check
     # that settings.database_url returns INT
@@ -140,44 +134,41 @@ def test_alembic_uses_safe_database():
 
 def test_production_server_can_access_prod():
     """Production servers should be able to access production database."""
-    # Set both required flags
-    os.environ["INSTAINSTRU_PRODUCTION_MODE"] = "true"
-    os.environ["USE_PROD_DATABASE"] = "true"
+    # SITE_MODE=prod should allow production server access when production mode detected
+    os.environ["SITE_MODE"] = "prod"
 
     try:
         from app.core.config import settings
 
         # This should NOT raise an error in production mode
-        url = settings.database_url
+        with patch("app.core.database_config.DatabaseConfig._check_production_mode", return_value=True):
+            url = settings.database_url
         # In test environment, we won't actually get prod URL
         # but we should not get an error
         assert url is not None
     finally:
         # Cleanup
-        os.environ.pop("INSTAINSTRU_PRODUCTION_MODE", None)
-        os.environ.pop("USE_PROD_DATABASE", None)
+        os.environ.pop("SITE_MODE", None)
 
 
-def test_production_requires_both_flags():
-    """Production access should require both USE_PROD_DATABASE and either confirmation or production mode."""
-    # Only production mode flag - should not access production
-    os.environ["INSTAINSTRU_PRODUCTION_MODE"] = "true"
-    os.environ.pop("USE_PROD_DATABASE", None)
+def test_production_requires_production_server_mode():
+    """Without production server mode, SITE_MODE=prod should require confirmation and fail in non-interactive tests."""
+    os.environ["SITE_MODE"] = "prod"
 
-    from app.core.config import settings
+    from app.core.database_config import DatabaseConfig
 
-    url = settings.database_url
-    assert "instainstru_test" in url, "Should use INT without USE_PROD_DATABASE flag"
-
-    # Cleanup
-    os.environ.pop("INSTAINSTRU_PRODUCTION_MODE", None)
+    with patch("app.core.database_config.DatabaseConfig._is_ci_environment", return_value=False), patch(
+        "app.core.database_config.DatabaseConfig._check_production_mode", return_value=False
+    ):
+        config = DatabaseConfig()
+        with pytest.raises(RuntimeError, match="non-interactive mode"):
+            _ = config.get_database_url()
 
 
 def test_local_prod_requires_confirmation():
     """Local production access should still require confirmation even with USE_PROD_DATABASE."""
-    # Set production flag but not production mode
-    os.environ["USE_PROD_DATABASE"] = "true"
-    os.environ.pop("INSTAINSTRU_PRODUCTION_MODE", None)
+    # Set SITE_MODE=prod but not production server mode
+    os.environ["SITE_MODE"] = "prod"
     os.environ.pop("RENDER", None)
 
     try:
@@ -195,7 +186,7 @@ def test_local_prod_requires_confirmation():
                 _ = config.get_database_url()
     finally:
         # Cleanup
-        os.environ.pop("USE_PROD_DATABASE", None)
+        os.environ.pop("SITE_MODE", None)
 
 
 def test_ci_environment_detection():
@@ -272,18 +263,17 @@ def test_production_mode_overrides_ci():
     """Production mode should take precedence over CI mode."""
     # Set both CI and production flags
     os.environ["CI"] = "true"
-    os.environ["USE_PROD_DATABASE"] = "true"
-    os.environ["INSTAINSTRU_PRODUCTION_MODE"] = "true"
+    os.environ["SITE_MODE"] = "prod"
 
     try:
         from app.core.config import settings
 
         # Should use production database (in production mode, no confirmation needed)
         # In test environment, this should not raise an error
-        url = settings.database_url
+        with patch("app.core.database_config.DatabaseConfig._check_production_mode", return_value=True):
+            url = settings.database_url
         assert url is not None
     finally:
         # Cleanup
         os.environ.pop("CI", None)
-        os.environ.pop("USE_PROD_DATABASE", None)
-        os.environ.pop("INSTAINSTRU_PRODUCTION_MODE", None)
+        os.environ.pop("SITE_MODE", None)

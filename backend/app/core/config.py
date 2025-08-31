@@ -40,9 +40,7 @@ class Settings(BaseSettings):
     #  - preview_database_url
     #  - stg_database_url
     #  - test_database_url
-    prod_database_url_raw: str = Field(
-        default="" if os.getenv("CI") else ..., alias="prod_database_url"
-    )  # From env PROD_DATABASE_URL
+    prod_database_url_raw: str = Field(default="", alias="prod_database_url")  # From env PROD_DATABASE_URL
     preview_database_url_raw: str = Field(default="", alias="preview_database_url")  # From env PREVIEW_DATABASE_URL
     int_database_url_raw: str = Field(
         default="postgresql://postgres:postgres@localhost:5432/instainstru_test" if os.getenv("CI") else "",

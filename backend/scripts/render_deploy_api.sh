@@ -24,6 +24,8 @@ if [ -z "$RENDER_API_KEY" ]; then
     exit 1
 fi
 
+# ---------- Helpers ----------
+
 # Function to get service ID by name
 get_service_id() {
     local service_name=$1
@@ -37,6 +39,34 @@ for service in data:
         print(service['service']['id'])
         break
 "
+}
+
+# Resolve service name for a given logical type and target env
+# Types: backend|redis|worker|beat|flower
+get_service_name() {
+    local typ=$1
+    local env=$2  # preview|prod
+    local var_name="RENDER_$(echo "$typ" | tr '[:lower:]' '[:upper:]')_SERVICE_NAME_$(echo "$env" | tr '[:lower:]' '[:upper:]')"
+    local val="${!var_name}"
+    if [ -n "$val" ]; then echo "$val"; return; fi
+    # Defaults if env vars not set
+    if [ "$env" = "preview" ]; then
+        case "$typ" in
+            backend) echo "instainstru-api-preview" ;;
+            redis)   echo "redis-preview" ;;
+            worker)  echo "celery-worker-preview" ;;
+            beat)    echo "celery-beat-preview" ;;
+            flower)  echo "flower-preview" ;;
+        esac
+    else
+        case "$typ" in
+            backend) echo "instructly" ;;
+            redis)   echo "instructly-redis" ;;
+            worker)  echo "instructly-celery-worker" ;;
+            beat)    echo "instructly-celery-beat" ;;
+            flower)  echo "instructly-flower" ;;
+        esac
+    fi
 }
 
 # Function to trigger deploy
@@ -68,9 +98,37 @@ deploy_service() {
     fi
 }
 
-# Menu
+# ---------- Target environment ----------
+
+# Accept first arg as env (preview|prod) for non-interactive usage
+TARGET_ENV="${1}"
+shift || true
+if [ -z "$TARGET_ENV" ]; then
+  echo ""
+  echo "Select environment:"
+  echo "1) preview"
+  echo "2) prod"
+  echo "0) Exit"
+  echo ""
+  read -p "Enter your choice (0-2): " env_choice
+  case $env_choice in
+    1) TARGET_ENV="preview" ;;
+    2) TARGET_ENV="prod" ;;
+    0) echo "Exiting..."; exit 0 ;;
+    *) echo "Invalid environment"; exit 1 ;;
+  esac
+fi
+
+if [ "$TARGET_ENV" != "preview" ] && [ "$TARGET_ENV" != "prod" ]; then
+  echo "❌ Invalid TARGET_ENV: $TARGET_ENV (expected 'preview' or 'prod')"
+  exit 1
+fi
+
+echo "Deploying to environment: $TARGET_ENV"
+
+# ---------- Menu ----------
 echo ""
-echo "What would you like to deploy?"
+echo "What would you like to deploy? ($TARGET_ENV)"
 echo "1) Backend API (instructly)"
 echo "2) Redis (instructly-redis)"
 echo "3) Celery Worker (instructly-celery-worker)"
@@ -85,44 +143,44 @@ read -p "Enter your choice (0-8): " choice
 
 case $choice in
     1)
-        deploy_service "instructly"
+        deploy_service "$(get_service_name backend "$TARGET_ENV")"
         ;;
     2)
-        deploy_service "instructly-redis"
+        deploy_service "$(get_service_name redis "$TARGET_ENV")"
         ;;
     3)
-        deploy_service "instructly-celery-worker"
+        deploy_service "$(get_service_name worker "$TARGET_ENV")"
         ;;
     4)
-        deploy_service "instructly-celery-beat"
+        deploy_service "$(get_service_name beat "$TARGET_ENV")"
         ;;
     5)
-        deploy_service "instructly-flower"
+        deploy_service "$(get_service_name flower "$TARGET_ENV")"
         ;;
     6)
         echo "Deploying Celery Stack..."
-        deploy_service "instructly-celery-worker"
-        deploy_service "instructly-celery-beat"
-        deploy_service "instructly-flower"
+        deploy_service "$(get_service_name worker "$TARGET_ENV")"
+        deploy_service "$(get_service_name beat "$TARGET_ENV")"
+        deploy_service "$(get_service_name flower "$TARGET_ENV")"
         ;;
     7)
         echo "Deploying all services (except Redis)..."
-        deploy_service "instructly"
-        deploy_service "instructly-celery-worker"
-        deploy_service "instructly-celery-beat"
-        deploy_service "instructly-flower"
+        deploy_service "$(get_service_name backend "$TARGET_ENV")"
+        deploy_service "$(get_service_name worker "$TARGET_ENV")"
+        deploy_service "$(get_service_name beat "$TARGET_ENV")"
+        deploy_service "$(get_service_name flower "$TARGET_ENV")"
         ;;
     8)
         echo "Deploying full stack (including Redis)..."
         echo "⚠️  Note: Redis should be deployed first and allowed to start before other services"
-        deploy_service "instructly-redis"
+        deploy_service "$(get_service_name redis "$TARGET_ENV")"
         echo ""
         echo "Waiting 10 seconds for Redis to initialize..."
         sleep 10
-        deploy_service "instructly-celery-worker"
-        deploy_service "instructly-celery-beat"
-        deploy_service "instructly-flower"
-        deploy_service "instructly"
+        deploy_service "$(get_service_name worker "$TARGET_ENV")"
+        deploy_service "$(get_service_name beat "$TARGET_ENV")"
+        deploy_service "$(get_service_name flower "$TARGET_ENV")"
+        deploy_service "$(get_service_name backend "$TARGET_ENV")"
         ;;
     0)
         echo "Exiting..."
