@@ -23,13 +23,12 @@ print("=" * 60)
 
 # Check what would happen on Render
 print("\n📦 Render Production Server Check:")
-prod_mode = check_env_var("INSTAINSTRU_PRODUCTION_MODE", "Render")
-use_prod = check_env_var("USE_PROD_DATABASE", "Render")
-
-if prod_mode and use_prod:
-    print("✅ Render would work correctly!")
+site_mode_ok = check_env_var("SITE_MODE", "Render")
+db_url_ok = check_env_var("DATABASE_URL", "Render (optional, set by platform)")
+if site_mode_ok:
+    print("✅ Render would work correctly if DATABASE_URL is set by the platform")
 else:
-    print("❌ Render would FAIL - add missing environment variables")
+    print("❌ Render would FAIL - set SITE_MODE")
 
 # Check CI
 print("\n🤖 CI/CD Check:")
@@ -84,8 +83,7 @@ except Exception as e:
 # Environment recommendations
 print("\n📋 Environment Variable Recommendations:")
 print("\nFor Render Production:")
-print("  INSTAINSTRU_PRODUCTION_MODE=true")
-print("  USE_PROD_DATABASE=true")
+print("  SITE_MODE=prod")
 print("  DATABASE_URL=<your-supabase-url>")
 print("  SECRET_KEY=<generate-secure-key>")
 
@@ -94,7 +92,7 @@ print("  CI=true  (automatically set)")
 print("  DATABASE_URL=<ci-postgres-url>  (from service container)")
 
 print("\nFor Local Development:")
-print("  USE_STG_DATABASE=true  (or use ./run_backend.py)")
+print("  SITE_MODE=local  (or use ./run_backend.py)")
 
 print("\n" + "=" * 60)
 print("✅ Pre-deployment check complete!")

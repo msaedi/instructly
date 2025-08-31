@@ -18,7 +18,7 @@ from app.database import Base  # noqa: E402
 # access to the values within the .ini file in use.
 config = context.config
 
-# Use the safe database URL property - defaults to INT, requires confirmation for PROD
+# Use the resolved database URL via SITE_MODE
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
 # Interpret the config file for Python logging.

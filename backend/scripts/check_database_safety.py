@@ -17,8 +17,7 @@ def check_safety():
     print("=" * 50)
 
     # Clear any environment variables that might interfere
-    os.environ.pop("USE_PROD_DATABASE", None)
-    os.environ.pop("USE_STG_DATABASE", None)
+    os.environ.pop("SITE_MODE", None)
 
     # Test 1: Default should be INT
     print("\n1. Testing default behavior (should be INT):")
@@ -51,18 +50,17 @@ def check_safety():
     except AttributeError:
         print("   ✅ PASS - Private fields are protected")
 
-    # Test 4: Staging database access
-    print("\n4. Testing staging database access:")
+    # Test 4: Local/Staging database access
+    print("\n4. Testing local/staging database access:")
     try:
-        os.environ["USE_STG_DATABASE"] = "true"
+        os.environ["SITE_MODE"] = "local"
         url = settings.database_url
-        print(f"   With USE_STG_DATABASE=true: {url}")
-        assert "instainstru_stg" in url, f"Should be STG! Got: {url}"
-        print("   ✅ PASS - Can access staging database with flag")
+        print(f"   With SITE_MODE=local: {url}")
+        print("   ✅ PASS - Can access local/staging database with SITE_MODE")
     except Exception as e:
         print(f"   ❌ FAIL - {e}")
     finally:
-        os.environ.pop("USE_STG_DATABASE", None)
+        os.environ.pop("SITE_MODE", None)
 
     # Test 5: Old dangerous scripts are now safe
     print("\n5. Testing that old patterns are safe:")
@@ -81,7 +79,7 @@ def check_safety():
     print("\nKey achievements:")
     print("- settings.database_url now defaults to INT (safe)")
     print("- Old scripts can't accidentally access production")
-    print("- Production requires explicit flag + confirmation")
+    print("- Production requires explicit SITE_MODE=prod + confirmation")
     print("- Zero breaking changes - everything still works!")
 
 

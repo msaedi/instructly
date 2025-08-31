@@ -7,7 +7,7 @@ Works with both test and live Stripe keys.
 
 Usage:
   python backend/scripts/create_simple_stripe_accounts.py
-  USE_STG_DATABASE=true python backend/scripts/create_simple_stripe_accounts.py
+  SITE_MODE=local python backend/scripts/create_simple_stripe_accounts.py
 """
 
 import os

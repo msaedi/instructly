@@ -7,7 +7,7 @@ Test accounts are fully functional for development but don't handle real money.
 
 Usage:
   Default (INT database): python backend/scripts/create_test_stripe_accounts.py
-  Staging database: USE_STG_DATABASE=true python backend/scripts/create_test_stripe_accounts.py
+  Staging database: SITE_MODE=local python backend/scripts/create_test_stripe_accounts.py
 
   Dry run (see what would be created):
     python backend/scripts/create_test_stripe_accounts.py --dry-run

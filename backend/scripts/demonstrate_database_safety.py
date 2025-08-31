@@ -42,8 +42,7 @@ def demonstrate_safety():
     print("=" * 60)
 
     # Clear any environment variables
-    os.environ.pop("USE_PROD_DATABASE", None)
-    os.environ.pop("USE_STG_DATABASE", None)
+    os.environ.pop("SITE_MODE", None)
 
     print("\n1. Default behavior (what old scripts do):")
     print("   Code: db_url = settings.database_url")
@@ -51,17 +50,17 @@ def demonstrate_safety():
     print(f"   Result: {db_url}")
     print("   ✅ SAFE! Defaults to INT database")
 
-    print("\n2. Explicit staging access:")
-    os.environ["USE_STG_DATABASE"] = "true"
-    print("   Code: USE_STG_DATABASE=true")
+    print("\n2. Explicit local/staging access:")
+    os.environ["SITE_MODE"] = "local"
+    print("   Code: SITE_MODE=local")
     print("         db_url = settings.database_url")
     db_url = settings.database_url
     print(f"   Result: {db_url}")
-    print("   ✅ Staging database accessible with flag")
-    os.environ.pop("USE_STG_DATABASE")
+    print("   ✅ Local/Staging database accessible with SITE_MODE")
+    os.environ.pop("SITE_MODE")
 
     print("\n3. Production access attempt:")
-    print("   Code: USE_PROD_DATABASE=true")
+    print("   Code: SITE_MODE=prod")
     print("         db_url = settings.database_url")
     print("   Result: Would prompt for confirmation!")
     print("   ✅ Production protected by confirmation")

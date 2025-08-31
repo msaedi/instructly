@@ -14,8 +14,7 @@ print("=" * 60)
 
 # Test 1: Will it work on Render?
 print("\n1️⃣ Will it work on Render?")
-os.environ["INSTAINSTRU_PRODUCTION_MODE"] = "true"
-os.environ["USE_PROD_DATABASE"] = "true"
+os.environ["SITE_MODE"] = "prod"
 try:
     from app.core.config import settings
 
@@ -23,8 +22,7 @@ try:
     print(f"   Render: {'✅ YES' if 'supabase' in url else '❌ NO'}")
     print(f"   URL: {url[:50]}...")
 finally:
-    os.environ.pop("INSTAINSTRU_PRODUCTION_MODE", None)
-    os.environ.pop("USE_PROD_DATABASE", None)
+    os.environ.pop("SITE_MODE", None)
 
 # Test 2: Will it work on GitHub Actions?
 print("\n2️⃣ Will it work on GitHub Actions?")

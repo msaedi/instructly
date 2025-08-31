@@ -40,7 +40,7 @@ python scripts/load_region_boundaries.py --force-refresh
 #### Option 2: Export from a good database
 ```bash
 # If STG has the latest data
-USE_STG_DATABASE=true python scripts/export_boundaries.py
+SITE_MODE=local python scripts/export_boundaries.py
 
 # Or from INT if that's updated
 python scripts/export_boundaries.py

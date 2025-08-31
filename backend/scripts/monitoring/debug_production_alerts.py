@@ -18,7 +18,7 @@ def check_alert_details():
     """Check detailed alert information."""
     print("=== Production Alert Debugging ===")
     print(f"Database: {settings.database_url.split('@')[1].split('/')[0]}")
-    print(f"Environment: {settings.environment}")
+    print(f"Environment: {settings.environment} (SITE_MODE={os.getenv('SITE_MODE','')})")
     print(f"Redis URL: {settings.redis_url}")
     print()
 

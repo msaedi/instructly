@@ -1,190 +1,234 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
-Simplified database preparation script.
+prep_db.py — environment-aware database prep for Instainstru.
 
-Usage:
-    python scripts/prep_db.py           # Default: prep INT database
-    python scripts/prep_db.py int       # Prep INT database
-    python scripts/prep_db.py stg       # Prep STG database
-    python scripts/prep_db.py prod      # Prep PROD database (requires confirmation)
-
-This script:
-1. Creates the database if it doesn't exist (for INT/STG only)
-2. Runs migrations (alembic downgrade base + upgrade head)
-3. Seeds with YAML data
-4. Generates service embeddings
-5. Calculates service analytics
+Supports SITE_MODE resolution via positional arg, env var, or legacy flags.
+Modes: prod | preview | local | int
 """
 
+import argparse
 import os
+import shlex
 import subprocess
 import sys
+import textwrap
 from pathlib import Path
-from urllib.parse import urlparse
+from typing import Optional, Tuple
 
-import psycopg2
-from psycopg2 import sql
+BACKEND_DIR = Path(__file__).parent.parent
 
-# Add backend to path to import settings
-backend_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(backend_dir))
+# Load backend/.env so lowercase keys are available when running directly
+try:
+    from dotenv import load_dotenv  # type: ignore
 
-from app.core.config import settings
+    load_dotenv(BACKEND_DIR / ".env")
+except Exception:
+    pass
 
-# Color codes
-GREEN = "\033[92m"
-YELLOW = "\033[93m"
-RED = "\033[91m"
-NC = "\033[0m"
-BOLD = "\033[1m"
+# ---------- tiny log helpers ----------
 
 
-def parse_database_url(url):
-    """Parse a database URL to extract connection parameters."""
-    parsed = urlparse(url)
-    return {
-        "host": parsed.hostname,
-        "port": parsed.port or 5432,
-        "user": parsed.username,
-        "password": parsed.password,
-        "database": parsed.path.lstrip("/"),
-    }
+def warn(msg: str):
+    print(f"[WARN] {msg}", file=sys.stderr)
 
 
-# Database configurations from settings - using raw fields for direct access
-DB_CONFIG = {
-    "int": {
-        "url": settings.int_database_url_raw,
-        "color": GREEN,
-        "label": "INT",
-        "description": "Integration Test Database",
-    },
-    "stg": {
-        "url": settings.stg_database_url_raw if settings.stg_database_url_raw else settings.prod_database_url_raw,
-        "color": YELLOW,
-        "label": "STG",
-        "description": "Staging/Local Development Database",
-    },
-    "prod": {
-        "url": settings.prod_database_url_raw,
-        "color": RED,
-        "label": "PROD",
-        "description": "Production Database",
-    },
+def info(tag: str, msg: str):
+    print(f"[{tag.upper()}] {msg}")
+
+
+def fail(msg: str, code: int = 1):
+    print(f"[ERROR] {msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+# ---------- env resolution ----------
+
+ALIASES = {
+    "prod": {"prod", "production", "live"},
+    "preview": {"preview", "pre"},
+    "local": {"local", "stg", "stage", "staging"},
+    "int": {"int", "test", "ci"},
 }
 
-# Get backend directory
-backend_dir = Path(__file__).parent.parent
+
+def _norm_mode(s: Optional[str]) -> Optional[str]:
+    if not s:
+        return None
+    s = s.strip().lower()
+    for canon, names in ALIASES.items():
+        if s in names:
+            return canon
+    return None
 
 
-def print_header(db_type):
-    """Print colored header for database type."""
-    config = DB_CONFIG[db_type]
-    print(f"\n{'='*60}")
-    print(f"{config['color']}{BOLD}[{config['label']}]{NC} {config['description']}")
-    print(f"{'='*60}\n")
+def detect_site_mode(positional: Optional[str]) -> Tuple[str, bool]:
+    """Return (mode, legacy_used). Priority: positional > SITE_MODE > legacy > default(int)."""
+    # positional
+    m = _norm_mode(positional)
+    if m:
+        return m, False
+
+    # env
+    env_mode = _norm_mode(os.getenv("SITE_MODE"))
+    if env_mode:
+        return env_mode, False
+
+    # legacy
+    # default
+    return "int", False
 
 
-def create_local_database(db_url):
-    """Create a local database if it doesn't exist."""
-    db_params = parse_database_url(db_url)
-    db_name = db_params["database"]
+def resolve_db_url(mode: str) -> str:
+    """Resolve DB URL, preferring lowercase .env keys used in this project.
 
+    Also supports uppercase variants for portability, and for prod optionally
+    falls back to DATABASE_URL with a warning if explicit keys are missing.
+    """
+    if mode == "prod":
+        url = os.getenv("prod_database_url") or os.getenv("PROD_DATABASE_URL") or os.getenv("DATABASE_URL")
+        if not url:
+            fail("Missing prod_database_url (or PROD_DATABASE_URL/DATABASE_URL) for prod.")
+        if os.getenv("DATABASE_URL") and not (os.getenv("prod_database_url") or os.getenv("PROD_DATABASE_URL")):
+            warn("Using DATABASE_URL for prod. Prefer prod_database_url or PROD_DATABASE_URL.")
+        return url
+    if mode == "preview":
+        url = os.getenv("preview_database_url") or os.getenv("PREVIEW_DATABASE_URL")
+        if not url:
+            fail("Missing preview_database_url (or PREVIEW_DATABASE_URL) for preview.")
+        return url
+    if mode == "local":
+        url = (
+            os.getenv("stg_database_url")
+            or os.getenv("local_database_url")
+            or os.getenv("STG_DATABASE_URL")
+            or os.getenv("LOCAL_DATABASE_URL")
+        )
+        if not url:
+            fail("Missing stg_database_url/local_database_url (or STG/LOCAL_DATABASE_URL) for local.")
+        return url
+    # int
+    url = os.getenv("test_database_url") or os.getenv("TEST_DATABASE_URL")
+    if not url:
+        fail("Missing test_database_url (or TEST_DATABASE_URL) for int/test.")
+    return url
+
+
+# ---------- ops ----------
+
+
+def redact(url: str) -> str:
     try:
-        # Connect to PostgreSQL default database
-        # Try 'postgres' first, then fallback to 'template1' if it doesn't exist
-        for default_db in ["postgres", "template1"]:
-            try:
-                conn = psycopg2.connect(
-                    host=db_params["host"],
-                    port=db_params["port"],
-                    user=db_params["user"],
-                    password=db_params["password"],
-                    database=default_db,
-                )
-                break
-            except psycopg2.OperationalError as e:
-                if "database" in str(e) and "does not exist" in str(e) and default_db == "postgres":
-                    continue  # Try template1
-                else:
-                    raise
-        conn.autocommit = True
-        cursor = conn.cursor()
+        if "://" in url and "@" in url:
+            scheme, rest = url.split("://", 1)
+            creds, host = rest.split("@", 1)
+            return f"{scheme}://***:***@{host}"
+    except Exception:
+        pass
+    return url
 
-        # Check if database exists
-        cursor.execute("SELECT 1 FROM pg_database WHERE datname = %s", (db_name,))
-        exists = cursor.fetchone()
 
-        if not exists:
-            # Create database
-            cursor.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(db_name)))
-            print(f"{GREEN}✓{NC} Created database: {db_name}")
-        else:
-            print(f"ℹ️  Database '{db_name}' already exists")
+def run_migrations(db_url: str, dry_run: bool, tool_cmd: Optional[str]):
+    if dry_run:
+        info("dry", f"(dry-run) Would run migrations on {redact(db_url)}")
+        return
+    env = os.environ.copy()
+    env["DATABASE_URL"] = db_url
+    cmd = tool_cmd or "alembic upgrade head"
+    info("sys", f"Running migrations: {cmd}")
+    subprocess.check_call(shlex.split(cmd), cwd=str(BACKEND_DIR), env=env)
 
-        cursor.close()
-        conn.close()
+
+def _mode_env(mode: str) -> dict:
+    # Only SITE_MODE is authoritative now
+    return {"SITE_MODE": mode}
+
+
+def seed_system_data(db_url: str, dry_run: bool, mode: str):
+    if dry_run:
+        info("dry", f"(dry-run) Would seed SYSTEM data on {redact(db_url)}")
+        return
+    info("seed", "Seeding SYSTEM data…")
+    # Roles/permissions and catalog + regions
+    env = {**os.environ, **_mode_env(mode), "DATABASE_URL": db_url}
+    subprocess.check_call([sys.executable, "scripts/seed_data.py", "--system-only"], cwd=str(BACKEND_DIR), env=env)
+
+
+def seed_mock_users(db_url: str, dry_run: bool, mode: str):
+    if dry_run:
+        info("dry", f"(dry-run) Would seed MOCK users on {redact(db_url)}")
+        return
+    info("seed", "Seeding MOCK users/instructors/bookings…")
+    env = {**os.environ, **_mode_env(mode), "DATABASE_URL": db_url}
+    subprocess.check_call(
+        [sys.executable, "scripts/seed_data.py", "--include-mock-users"], cwd=str(BACKEND_DIR), env=env
+    )
+
+
+def verify_env_marker(db_url: str, expected_mode: str) -> bool:
+    """
+    Optional sanity check. If a 'settings' table with key='env_name' exists, verify it.
+    Return True if OK or unknown; False if mismatch.
+    """
+    try:
+        import psycopg2  # type: ignore
+    except Exception:
+        warn("psycopg2 not available; skipping --verify-env check.")
+        return True
+    try:
+        conn = psycopg2.connect(db_url)
+        with conn, conn.cursor() as cur:
+            cur.execute("SELECT value FROM settings WHERE key='env_name'")
+            row = cur.fetchone()
+            if not row:
+                warn("settings.env_name not found; skipping strict verify.")
+                return True
+            value = (row[0] or "").strip().lower()
+            if value not in ALIASES.get(expected_mode, {expected_mode}):
+                warn(f"DB env_name='{value}' != expected '{expected_mode}'")
+                return False
+            return True
+    except Exception as e:
+        warn(f"--verify-env check skipped ({e})")
         return True
 
-    except Exception as e:
-        print(f"{RED}✗{NC} Failed to create database: {e}")
-        return False
+
+# ---------- post-seed operations ----------
 
 
-def run_command(cmd, description, cwd=None):
-    """Run a command and show progress."""
-    print(f"\n▶ {description}...")
+def generate_embeddings(db_url: str, dry_run: bool, mode: str) -> None:
+    if dry_run:
+        info("dry", f"(dry-run) Would generate embeddings on {redact(db_url)}")
+        return
+    info("ops", "Generating service embeddings…")
+    env = {**os.environ, **_mode_env(mode), "DATABASE_URL": db_url}
+    subprocess.check_call([sys.executable, "scripts/generate_service_embeddings.py"], cwd=str(BACKEND_DIR), env=env)
 
-    try:
-        # Use subprocess.call for real-time output
-        returncode = subprocess.call(cmd, cwd=cwd or backend_dir)
 
-        if returncode == 0:
-            print(f"{GREEN}✓{NC} {description} completed")
-            return True
-        else:
-            print(f"{RED}✗{NC} {description} failed")
-            return False
-
-    except Exception as e:
-        print(f"{RED}✗{NC} Error: {e}")
-        return False
+def calculate_analytics(db_url: str, dry_run: bool, mode: str) -> None:
+    if dry_run:
+        info("dry", f"(dry-run) Would calculate service analytics on {redact(db_url)}")
+        return
+    info("ops", "Calculating service analytics…")
+    env = {**os.environ, **_mode_env(mode), "DATABASE_URL": db_url}
+    subprocess.check_call([sys.executable, "scripts/calculate_service_analytics.py"], cwd=str(BACKEND_DIR), env=env)
 
 
 def _trigger_render_one_off_job(command: str) -> bool:
-    """Trigger a Render one-off job on the backend service to run a command.
-
-    Requires env var RENDER_API_KEY and either RENDER_BACKEND_SERVICE_ID or a
-    service name via RENDER_BACKEND_SERVICE_NAME (defaults to 'instainstru-backend').
-    """
-    import requests
+    try:
+        import requests  # type: ignore
+    except Exception:
+        warn("requests not available; cannot trigger Render job for cache clear")
+        return False
 
     api_key = os.getenv("RENDER_API_KEY")
     if not api_key:
-        # Try loading backend/.env.render
-        env_render_path = Path(backend_dir) / ".env.render"
-        if env_render_path.exists():
-            try:
-                for line in env_render_path.read_text().splitlines():
-                    line = line.strip()
-                    if not line or line.startswith("#") or "=" not in line:
-                        continue
-                    k, v = line.split("=", 1)
-                    os.environ.setdefault(k.strip(), v.strip())
-                api_key = os.getenv("RENDER_API_KEY")
-            except Exception:
-                pass
-    if not api_key:
-        print("  ⚠ RENDER_API_KEY not set; cannot trigger Render job")
+        warn("RENDER_API_KEY not set; skipping Render cache clear")
         return False
 
     service_id = os.getenv("RENDER_BACKEND_SERVICE_ID")
-    # Primary preferred name via env; otherwise we'll try common candidates
     service_name = os.getenv("RENDER_BACKEND_SERVICE_NAME")
-
     try:
         if not service_id:
-            # Lookup service ID by name
             resp = requests.get(
                 "https://api.render.com/v1/services?limit=100",
                 headers={"Authorization": f"Bearer {api_key}"},
@@ -192,233 +236,169 @@ def _trigger_render_one_off_job(command: str) -> bool:
             )
             resp.raise_for_status()
             services = resp.json()
-            # Accept either a configured name or common candidates
             candidate_names = [
-                name
-                for name in [
-                    service_name,
-                    "instainstru-backend",
-                    "instructly",
-                    "instructly-backend",
-                    "instainstru-celery",
-                ]
-                if name
+                n for n in [service_name, "instainstru-backend", "instructly-backend", "instainstru-celery"] if n
             ]
             for svc in services:
-                # Render returns a flat object list; handle potential nested structure defensively
-                candidate_name = (
+                name = (
                     (svc.get("service") or {}).get("name")
                     if isinstance(svc, dict) and "service" in svc
                     else svc.get("name")
                 )
-                candidate_id = (
+                sid = (
                     (svc.get("service") or {}).get("id")
                     if isinstance(svc, dict) and "service" in svc
                     else svc.get("id")
                 )
-                if candidate_name in candidate_names and candidate_id:
-                    service_id = candidate_id
+                if name in candidate_names and sid:
+                    service_id = sid
                     break
-
         if not service_id:
-            looked_for = service_name or "(common candidates)"
-            print(f"  ⚠ Could not find Render service ID for '{looked_for}'")
+            warn("Could not resolve Render backend service id; skipping cache clear")
             return False
 
-        # Start the one-off job
         job_resp = requests.post(
             f"https://api.render.com/v1/services/{service_id}/jobs",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
             json={"startCommand": command},
             timeout=15,
         )
         if job_resp.status_code not in (200, 201):
-            print(f"  ⚠ Failed to start Render job [{job_resp.status_code}]")
-            try:
-                print(f"    Response: {job_resp.text[:300]}")
-            except Exception:
-                pass
+            warn(f"Failed to start Render job [{job_resp.status_code}]")
             return False
-
-        job_id = job_resp.json().get("id") or job_resp.json().get("job", {}).get("id")
-        if job_id:
-            print(f"  ✓ Started Render job {job_id} to clear cache")
-        else:
-            print("  ✓ Started Render cache clear job")
         return True
     except Exception as e:
-        print(f"  ⚠ Exception starting Render job: {e}")
+        warn(f"Render job error: {e}")
         return False
 
 
-def clear_cache(db_type):
-    """Clear cache after database operations."""
-    if db_type == "int":
-        print(f"\n▶ Skipping cache clear for INT database (testing use only)")
-        return True
-
-    print(f"\n▶ Clearing cache for {db_type.upper()} database...")
-
-    try:
-        if db_type == "prod":
-            # Trigger a one-off job on Render to clear cache in production
-            # Use the container's Python via a shell, not the local sys.executable path
-            command = 'bash -lc "python backend/scripts/clear_cache.py --scope all"'
-            ok = _trigger_render_one_off_job(command)
-            if not ok:
-                print("  ⚠ Could not trigger Render job; cache may remain warm until TTL")
-        elif db_type == "stg":
-            # For staging, run against local Docker Redis directly
-            print("  Clearing cache locally via script...")
-            result = subprocess.call([sys.executable, "scripts/clear_cache.py", "--scope", "all"], cwd=backend_dir)
-            if result != 0:
-                print(f"  ⚠ Cache clear script exited with code {result}")
-        else:
-            # INT: no Redis per env description; skip
-            print("  Skipping cache clear (INT has no Redis)")
-
-        print(f"{GREEN}✓{NC} Cache clearing initiated/completed")
-        return True
-
-    except Exception as e:
-        print(f"{RED}✗{NC} Cache clearing failed: {e}")
-        print(f"  💡 Database operations completed successfully - cache will expire naturally")
-        return True  # Don't fail the entire process for cache issues
+def clear_cache(mode: str, dry_run: bool) -> None:
+    if dry_run:
+        info("dry", f"(dry-run) Would clear cache for mode={mode}")
+        return
+    if mode == "int":
+        info("cache", "Skipping cache clear for INT")
+        return
+    if mode in ("local", "preview"):
+        info("cache", "Clearing cache locally via script…")
+        try:
+            subprocess.check_call([sys.executable, "scripts/clear_cache.py", "--scope", "all"], cwd=str(BACKEND_DIR))
+        except FileNotFoundError:
+            warn("clear_cache.py not found; skipping cache clear")
+        return
+    if mode == "prod":
+        info("cache", "Triggering Render one-off job to clear cache…")
+        ok = _trigger_render_one_off_job('bash -lc "python backend/scripts/clear_cache.py --scope all"')
+        if not ok:
+            warn("Render cache clear could not be started; cache will expire naturally")
+        return
 
 
-def prep_database(db_type):
-    """Prepare a specific database."""
-    config = DB_CONFIG[db_type]
-
-    # Set environment variables
-    if db_type == "int":
-        os.environ.pop("USE_STG_DATABASE", None)
-        os.environ.pop("USE_PROD_DATABASE", None)
-    elif db_type == "stg":
-        os.environ["USE_STG_DATABASE"] = "true"
-        os.environ.pop("USE_PROD_DATABASE", None)
-    elif db_type == "prod":
-        os.environ["USE_PROD_DATABASE"] = "true"
-        os.environ.pop("USE_STG_DATABASE", None)
-
-        # Require confirmation for production
-        db_params = parse_database_url(config["url"])
-        print(f"\n{RED}{BOLD}⚠️  WARNING: This will modify PRODUCTION data!{NC}")
-        print(f"{RED}Database: {db_params['host']}{NC}")
-        print(f"{RED}Only proceed if you absolutely know what you're doing.{NC}")
-        confirmation = input(f"\nType 'yes' to confirm: ")
-        if confirmation.lower() != "yes":
-            print("Operation cancelled.")
-            return False
-
-    print_header(db_type)
-
-    # Step 1: Create database (only for local databases)
-    db_params = parse_database_url(config["url"])
-    is_local = db_params["host"] in ["localhost", "127.0.0.1"]
-
-    if is_local and db_type in ["int", "stg"]:
-        if not create_local_database(config["url"]):
-            return False
-
-    # Step 2: Run migrations
-    if not run_command(["alembic", "downgrade", "base"], "Reset database schema"):
-        return False
-
-    if not run_command(["alembic", "upgrade", "head"], "Apply database migrations"):
-        return False
-
-    # Load region boundaries if table exists and is empty
-    try:
-        db_params = parse_database_url(config["url"])
-        conn = psycopg2.connect(
-            host=db_params["host"],
-            port=db_params["port"],
-            user=db_params["user"],
-            password=db_params["password"],
-            database=db_params["database"],
-        )
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT EXISTS (
-                    SELECT 1 FROM information_schema.tables
-                    WHERE table_schema='public' AND table_name='region_boundaries'
-                )
-                """
-            )
-            exists = cur.fetchone()[0]
-            count = 0
-            if exists:
-                cur.execute("SELECT COUNT(1) FROM region_boundaries")
-                count = cur.fetchone()[0]
-        conn.close()
-        if exists and count == 0:
-            # For INT database, region boundaries are optional (tests work without them)
-            if db_type == "int":
-                result = run_command([sys.executable, "scripts/load_region_boundaries.py"], "Load region boundaries")
-                if not result:
-                    print(
-                        f"{YELLOW}⚠{NC} Region boundaries failed to load for INT database - continuing anyway (tests don't require them)"
-                    )
-            else:
-                # For STG and PROD, region boundaries are required
-                if not run_command([sys.executable, "scripts/load_region_boundaries.py"], "Load region boundaries"):
-                    return False
-    except Exception as e:
-        print(f"{YELLOW}⚠{NC} Skipping auto-load of region boundaries ({e})")
-
-    # Step 3: Seed roles and permissions (required for ULID migration)
-    if not run_command([sys.executable, "scripts/seed_roles_permissions.py"], "Seed roles and permissions"):
-        return False
-
-    # Step 4: Seed data
-    if not run_command([sys.executable, "scripts/reset_and_seed_yaml.py"], "Seed database with YAML data"):
-        return False
-
-    # Step 5: Generate embeddings
-    if not run_command([sys.executable, "scripts/generate_service_embeddings.py"], "Generate service embeddings"):
-        return False
-
-    # Step 6: Calculate analytics
-    if not run_command([sys.executable, "scripts/calculate_service_analytics.py"], "Calculate service analytics"):
-        return False
-
-    # Step 7: Clear cache to ensure fresh data
-    if not clear_cache(db_type):
-        return False
-
-    print(f"\n{GREEN}{BOLD}✅ Database preparation complete!{NC}")
-    print_header(db_type)
-
-    return True
+# ---------- main ----------
 
 
 def main():
-    """Main entry point."""
-    # Parse arguments
-    if len(sys.argv) > 1:
-        db_type = sys.argv[1].lower()
-    else:
-        db_type = "int"  # Default to INT
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="Prepare database by environment.",
+        epilog=textwrap.dedent(
+            """
+Examples:
+  python scripts/prep_db.py                # default → int
+  python scripts/prep_db.py stg            # maps to local
+  python scripts/prep_db.py preview
+  python scripts/prep_db.py prod
 
-    # Validate database type
-    if db_type not in DB_CONFIG:
-        print(f"{RED}Error: Invalid database type '{db_type}'{NC}")
-        print(f"Valid options: {', '.join(DB_CONFIG.keys())}")
-        print("\nUsage:")
-        print("  python scripts/prep_db.py       # Default: INT database")
-        print("  python scripts/prep_db.py int   # INT database")
-        print("  python scripts/prep_db.py stg   # STG database")
-        print("  python scripts/prep_db.py prod  # PROD database (requires confirmation)")
-        sys.exit(1)
+  SITE_MODE=preview python scripts/prep_db.py --migrate --seed-all
+  SITE_MODE=prod    python scripts/prep_db.py --migrate --seed-all --force --yes
+"""
+        ),
+    )
+    parser.add_argument("env", nargs="?", help="env alias: int|stg|preview|prod")
+    parser.add_argument("--migrate", action="store_true")
+    parser.add_argument("--seed-all", action="store_true")
+    parser.add_argument("--seed-system-only", action="store_true")
+    parser.add_argument("--seed-mock-users", action="store_true")
+    parser.add_argument("--dry-run", "--noop", dest="dry_run", action="store_true")
+    parser.add_argument("--migrate-tool", type=str, default=None)
+    parser.add_argument("--force", action="store_true", help="required for any writes in prod")
+    parser.add_argument("--yes", action="store_true", help="non-interactive confirmation for prod")
+    parser.add_argument("--verify-env", action="store_true", help="sanity-check DB env marker")
+    args = parser.parse_args()
 
-    # Prepare the database
-    if not prep_database(db_type):
-        sys.exit(1)
+    mode, legacy = detect_site_mode(args.env)
+    if legacy:
+        warn(
+            "Legacy flags (USE_*_DATABASE) are deprecated. Use SITE_MODE or positional env. This mapping will be removed."
+        )
+
+    db_url = resolve_db_url(mode)
+
+    seed_mode = (
+        "system+mock"
+        if args.seed_all
+        else "system_only"
+        if args.seed_system_only
+        else "mock_only"
+        if args.seed_mock_users
+        else "none"
+    )
+
+    info(
+        "mode",
+        f"MODE={mode} db={redact(db_url)} migrate={'Y' if args.migrate else 'N'} "
+        f"seed={seed_mode} dry_run={'Y' if args.dry_run else 'N'} verify_env={'Y' if args.verify_env else 'N'}",
+    )
+
+    # verify env marker (optional)
+    if args.verify_env:
+        ok = verify_env_marker(db_url, mode)
+        if not ok and not args.force:
+            info("guard", "Env marker mismatch; re-run with --force to override.")
+            sys.exit(0)
+
+    # prod safety
+    if mode == "prod":
+        if args.seed_mock_users or args.seed_all:
+            warn("Prod mode: mock user seeding is not allowed. Forcing system-only.")
+            args.seed_system_only = True
+            args.seed_mock_users = False
+            args.seed_all = False
+        if not args.dry_run and (args.migrate or args.seed_system_only):
+            if not (args.force and args.yes):
+                fail("Prod writes require BOTH --force and --yes.")
+        # optional interactive confirmation (only when writing)
+        if not args.yes and not args.dry_run and (args.migrate or args.seed_system_only) and not os.getenv("CI"):
+            resp = input("You are about to modify PRODUCTION. Type 'yes' to continue: ").strip().lower()
+            if resp != "yes":
+                info("prod", "Operation cancelled.")
+                sys.exit(0)
+
+    # do work
+    try:
+        if args.migrate:
+            run_migrations(db_url, args.dry_run, args.migrate_tool)
+        if args.seed_system_only:
+            seed_system_data(db_url, args.dry_run, mode)
+        if args.seed_mock_users:
+            if mode == "prod":
+                fail("Cannot seed mock users in prod!")
+            seed_mock_users(db_url, args.dry_run, mode)
+        if args.seed_all:
+            # only non-prod paths fall here
+            seed_system_data(db_url, args.dry_run, mode)
+            seed_mock_users(db_url, args.dry_run, mode)
+
+        # Post-seed ops (always run after any seeding or migration when not dry-run)
+        if args.migrate or args.seed_all or args.seed_system_only or args.seed_mock_users:
+            generate_embeddings(db_url, args.dry_run, mode)
+            calculate_analytics(db_url, args.dry_run, mode)
+            clear_cache(mode, args.dry_run)
+        info(mode, "Complete!")
+    except subprocess.CalledProcessError as e:
+        fail(f"External command failed with exit code {e.returncode}")
+    except KeyboardInterrupt:
+        fail("Interrupted by user", code=130)
 
 
 if __name__ == "__main__":

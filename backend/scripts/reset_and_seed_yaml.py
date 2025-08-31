@@ -4,8 +4,8 @@ Reset and seed database using YAML configuration files.
 
 Usage:
   Default (INT database): python backend/scripts/reset_and_seed_yaml.py
-  Staging database: USE_STG_DATABASE=true python backend/scripts/reset_and_seed_yaml.py
-  Production: USE_PROD_DATABASE=true python backend/scripts/reset_and_seed_yaml.py (requires confirmation)
+  Staging database: SITE_MODE=local python backend/scripts/reset_and_seed_yaml.py
+  Production: SITE_MODE=prod python backend/scripts/reset_and_seed_yaml.py (requires confirmation)
 """
 
 import sys

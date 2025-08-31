@@ -161,7 +161,7 @@ def check_celery_workers():
 def main():
     """Run all checks."""
     print("=== InstaInstru Production Monitoring Check ===")
-    print(f"Environment: {settings.environment}")
+    print(f"Environment: {settings.environment} (SITE_MODE={os.getenv('SITE_MODE','')})")
     print(f"Timestamp: {datetime.now(timezone.utc).isoformat()}")
     print()
 

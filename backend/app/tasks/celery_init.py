@@ -9,24 +9,10 @@ three-tier system (INT/STG/PROD).
 import os
 import sys
 
-# Determine which database to use
+# Determine which database to use via SITE_MODE only
+site_mode = os.getenv("SITE_MODE", "int").lower()
 if "pytest" in sys.modules:
-    # Force INT for tests
-    os.environ.pop("USE_STG_DATABASE", None)
-    os.environ.pop("USE_PROD_DATABASE", None)
-    if not os.getenv("SUPPRESS_DB_MESSAGES"):
-        print("[Celery Init] Using INT database (pytest detected)")
-elif os.getenv("USE_PROD_DATABASE") == "true":
-    if not os.getenv("SUPPRESS_DB_MESSAGES"):
-        print("[Celery Init] Using PROD database")
-elif os.getenv("USE_STG_DATABASE") == "true":
-    if not os.getenv("SUPPRESS_DB_MESSAGES"):
-        print("[Celery Init] Using STG database")
-else:
-    # Handle legacy USE_TEST_DATABASE flag
-    if os.getenv("USE_TEST_DATABASE") == "true":
-        if not os.getenv("SUPPRESS_DB_MESSAGES"):
-            print("[Celery Init] Using INT database (legacy flag)")
-    else:
-        if not os.getenv("SUPPRESS_DB_MESSAGES"):
-            print("[Celery Init] Using INT database (default)")
+    site_mode = "int"
+
+if not os.getenv("SUPPRESS_DB_MESSAGES"):
+    print(f"[Celery Init] SITE_MODE={site_mode}")

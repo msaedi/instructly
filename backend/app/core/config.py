@@ -35,10 +35,15 @@ class Settings(BaseSettings):
     two_factor_trust_days: int = Field(default=30, description="Days to trust a browser for 2FA")
 
     # Raw database URLs - DO NOT USE DIRECTLY! Use properties instead
-    # In CI environments, DATABASE_URL is the CI database, not production
+    # Explicit env names (no backward compatibility):
+    #  - prod_database_url
+    #  - preview_database_url
+    #  - stg_database_url
+    #  - test_database_url
     prod_database_url_raw: str = Field(
-        default="" if os.getenv("CI") else ..., alias="database_url"
-    )  # From env DATABASE_URL
+        default="" if os.getenv("CI") else ..., alias="prod_database_url"
+    )  # From env PROD_DATABASE_URL
+    preview_database_url_raw: str = Field(default="", alias="preview_database_url")  # From env PREVIEW_DATABASE_URL
     int_database_url_raw: str = Field(
         default="postgresql://postgres:postgres@localhost:5432/instainstru_test" if os.getenv("CI") else "",
         alias="test_database_url",
@@ -56,8 +61,10 @@ class Settings(BaseSettings):
     # Frontend URL - will use production URL if not set
     frontend_url: str = "https://instructly-ten.vercel.app"
 
-    # Environment
-    environment: str = "production"  # or "development"
+    # Environment (derived from SITE_MODE)
+    environment: str = (
+        "production" if os.getenv("SITE_MODE", "local").lower() in {"prod", "production", "live"} else "development"
+    )
 
     # Cache settings
     redis_url: str = "redis://localhost:6379"
@@ -250,17 +257,6 @@ class Settings(BaseSettings):
 
     def get_database_url(self) -> str:
         """Get the appropriate database URL based on context."""
-        # Check for deprecated USE_TEST_DATABASE flag
-        if os.getenv("USE_TEST_DATABASE", "").lower() == "true":
-            logger.warning(
-                "DEPRECATION WARNING: USE_TEST_DATABASE is deprecated. "
-                "The new system uses three databases:\n"
-                "  - INT (default): Integration test database\n"
-                "  - STG: Set USE_STG_DATABASE=true for local development\n"
-                "  - PROD: Set USE_PROD_DATABASE=true for production (requires confirmation)\n"
-                "USE_TEST_DATABASE now maps to the default INT behavior."
-            )
-
         # Import here to avoid circular dependency
         from .database_config import DatabaseConfig
 
@@ -268,18 +264,8 @@ class Settings(BaseSettings):
         try:
             return DatabaseConfig().get_database_url()
         except Exception as e:
-            # Fallback to old behavior if new system fails
-            logger.error(f"Failed to use new database config: {e}")
-
-            # Old behavior for backward compatibility
-            if self.is_testing and self.test_database_url:
-                return self.test_database_url
-            elif self.is_testing:
-                raise ValueError(
-                    "Testing mode is enabled but TEST_DATABASE_URL is not configured. "
-                    "Please set TEST_DATABASE_URL in your environment."
-                )
-            return self.database_url
+            # Surface error immediately; do not fall back to legacy behavior
+            raise
 
     def is_production_database(self, url: str = None) -> bool:
         """Check if a database URL appears to be a production database."""
@@ -288,11 +274,7 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
-        """
-        SAFE database URL property - defaults to INT database.
-        Only returns production if USE_PROD_DATABASE=true AND confirmed.
-        This makes ALL database access safe by default, even for old scripts!
-        """
+        """SAFE database URL property resolved via DatabaseConfig and SITE_MODE."""
         # Import here to avoid circular dependency
         from .database_config import DatabaseConfig
 

@@ -10,7 +10,7 @@ Usage:
   python backend/scripts/create_stripe_prefilled_accounts.py --email sarah.chen@example.com
   python backend/scripts/create_stripe_prefilled_accounts.py --all  # Create for all
 
-  USE_STG_DATABASE=true python backend/scripts/create_stripe_prefilled_accounts.py --email ...
+  SITE_MODE=local python backend/scripts/create_stripe_prefilled_accounts.py --email ...
 """
 
 import argparse

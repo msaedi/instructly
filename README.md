@@ -1,3 +1,21 @@
+## DB prep quickstart
+
+Use `backend/scripts/prep_db.py` with SITE_MODE:
+
+```bash
+# Defaults to int
+python backend/scripts/prep_db.py --migrate --dry-run
+
+# Local/staging
+python backend/scripts/prep_db.py stg --migrate --seed-all
+
+# Preview (system+mock allowed)
+python backend/scripts/prep_db.py preview --migrate --seed-all
+
+# Production (system-only, requires --force and --yes)
+SITE_MODE=prod python backend/scripts/prep_db.py --migrate --seed-system-only --force --yes
+```
+
 # InstaInstru
 
 The "Uber of instruction" - A marketplace platform for instantly booking private instructors in NYC.

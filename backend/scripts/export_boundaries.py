@@ -6,6 +6,7 @@ useful for creating or refreshing the cache from a known-good database.
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -87,7 +88,7 @@ def export_boundaries():
 
 if __name__ == "__main__":
     # Check which database we're using
-    if "USE_STG_DATABASE" in str(settings.database_url):
+    if os.getenv("SITE_MODE", "").lower() in {"local", "stg", "staging"}:
         print("[STG] Exporting from Staging database")
     elif "instainstru_test" in str(settings.database_url):
         print("[INT] Exporting from Integration Test database")

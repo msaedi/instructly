@@ -14,11 +14,11 @@ backend_dir = Path(__file__).parent
 sys.path.insert(0, str(backend_dir))
 os.chdir(backend_dir)
 
-# Force staging database for local development
-os.environ["USE_STG_DATABASE"] = "true"
+# Default SITE_MODE for local development
+os.environ.setdefault("SITE_MODE", "local")
 
 if __name__ == "__main__":
-    print("🚀 Starting Celery worker with STAGING database...")
+    print("🚀 Starting Celery worker (SITE_MODE=" + os.getenv("SITE_MODE", "local") + ")…")
     print("📊 This preserves your local development data between test runs")
     print(
         "🔄 Worker configuration: concurrency=2, max-tasks-per-child=100, queues=analytics,celery,privacy,maintenance,email,notifications,payments"

@@ -64,18 +64,18 @@ print("🧪 Testing Deployment Scenarios")
 # Local development
 test_scenario("Local Development (Default)", {}, "instainstru_test")
 
-test_scenario("Local Development (STG)", {"USE_STG_DATABASE": "true"}, "instainstru_stg")
+test_scenario("Local Development (local)", {"SITE_MODE": "local"}, "instainstru_stg")
 
 # Production server (Render)
 test_scenario(
     "Production Server (Render)",
-    {"INSTAINSTRU_PRODUCTION_MODE": "true", "USE_PROD_DATABASE": "true"},
+    {"SITE_MODE": "prod"},
     "supabase",  # or whatever your prod URL contains
 )
 
 test_scenario(
     "Production Server (Missing Flag)",
-    {"INSTAINSTRU_PRODUCTION_MODE": "true"},
+    {},
     "instainstru_test",  # Should default to INT
 )
 
@@ -95,13 +95,13 @@ test_scenario("CI without DATABASE_URL", {"CI": "true"}, "instainstru_test")  # 
 # Edge cases
 test_scenario(
     "CI with Production Flags (Should Ignore)",
-    {"CI": "true", "USE_PROD_DATABASE": "true", "DATABASE_URL": "postgresql://ci/test"},
+    {"CI": "true", "SITE_MODE": "prod", "DATABASE_URL": "postgresql://ci/test"},
     "postgresql://ci/test",  # CI takes precedence
 )
 
 test_scenario(
     "Production Mode with CI (Production Wins)",
-    {"CI": "true", "INSTAINSTRU_PRODUCTION_MODE": "true", "USE_PROD_DATABASE": "true"},
+    {"CI": "true", "SITE_MODE": "prod"},
     "supabase",  # Production mode overrides CI
 )
 

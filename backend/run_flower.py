@@ -7,9 +7,8 @@ import os
 import subprocess
 import sys
 
-# Only force staging database for local development (not in production)
-if not os.getenv("INSTAINSTRU_PRODUCTION_MODE"):
-    os.environ["USE_STG_DATABASE"] = "true"
+# Set SITE_MODE default for local runs
+os.environ.setdefault("SITE_MODE", "local")
 
 # Get environment variables
 port = os.getenv("PORT", "5555")

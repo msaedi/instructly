@@ -50,6 +50,7 @@ class DatabaseConfig:
             settings.stg_database_url_raw if settings.stg_database_url_raw else settings.prod_database_url_raw
         )
         self.prod_url = settings.prod_database_url_raw
+        self.preview_url = settings.preview_database_url_raw
 
         # Validate configuration on startup
         self.validate_configuration()
@@ -86,12 +87,17 @@ class DatabaseConfig:
                 )
                 return ci_database_url
 
-        # First, check for explicit environment variables (highest priority)
-        if os.getenv("USE_PROD_DATABASE", "").lower() == "true":
-            return self._get_production_url()
-
-        if os.getenv("USE_STG_DATABASE", "").lower() == "true":
-            return self._get_staging_url()
+        # First, honor SITE_MODE (authoritative explicit selection)
+        site_mode = os.getenv("SITE_MODE", "").lower().strip()
+        if site_mode:
+            if site_mode in {"prod", "production", "live"}:
+                return self._get_production_url()
+            if site_mode in {"preview"}:
+                return self._get_preview_url()
+            if site_mode in {"local", "stg", "stage", "staging"}:
+                return self._get_staging_url()
+            if site_mode in {"int", "test", "ci"}:
+                return self._get_int_url()
 
         # Then, detect environment
         detected_env = self._detect_environment()
@@ -192,6 +198,18 @@ class DatabaseConfig:
         self._audit_log_operation("database_selection", {"environment": "stg", "url": self._mask_url(self.stg_url)})
         return self.stg_url
 
+    def _get_preview_url(self) -> str:
+        """Get preview database URL (for preview site mode)."""
+        if not self.preview_url:
+            raise ValueError(
+                "Preview database URL not configured. Please set preview_database_url in your environment."
+            )
+        print("\033[96m[PREVIEW]\033[0m Using Preview database")
+        self._audit_log_operation(
+            "database_selection", {"environment": "preview", "url": self._mask_url(self.preview_url)}
+        )
+        return self.preview_url
+
     def _get_production_url(self) -> str:
         """
         Get production database URL with safety checks.
@@ -261,7 +279,11 @@ class DatabaseConfig:
         errors = []
 
         # In production mode, we only need the production database
-        if self._check_production_mode() or os.getenv("USE_PROD_DATABASE", "").lower() == "true":
+        if self._check_production_mode() or os.getenv("SITE_MODE", "").lower().strip() in {
+            "prod",
+            "production",
+            "live",
+        }:
             if not self.prod_url:
                 errors.append("PROD database (database_url) not configured")
             # Skip INT/STG validation in production
@@ -363,7 +385,7 @@ class DatabaseConfig:
         - Common deployment platform indicators
         """
         # Check for explicit production mode flag
-        if os.getenv("INSTAINSTRU_PRODUCTION_MODE", "").lower() == "true":
+        if os.getenv("SITE_MODE", "").lower().strip() in {"prod", "production", "live"}:
             return True
 
         # Check for common deployment platforms

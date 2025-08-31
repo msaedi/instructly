@@ -79,7 +79,9 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     logger.info(f"{BRAND_NAME} API starting up...")
-    logger.info(f"Environment: {settings.environment}")
+    import os
+
+    logger.info(f"Environment: {settings.environment} (SITE_MODE={os.getenv('SITE_MODE','') or 'unset'})")
 
     # Log database selection (this will show which database is being used)
     from .core.database_config import DatabaseConfig

@@ -144,8 +144,7 @@ settings.is_testing = True
 
 # CRITICAL: Force INT database for all tests - ignore any environment flags
 # This ensures tests ALWAYS use the INT database for safety
-os.environ.pop("USE_STG_DATABASE", None)
-os.environ.pop("USE_PROD_DATABASE", None)
+os.environ.pop("SITE_MODE", None)
 
 # Get test database URL - this will now always use INT database
 TEST_DATABASE_URL = settings.test_database_url

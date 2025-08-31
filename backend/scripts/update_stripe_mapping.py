@@ -7,8 +7,8 @@ the config/stripe_test_accounts.json file with any new account associations.
 
 Usage:
   Default (INT database): python backend/scripts/update_stripe_mapping.py
-  Staging database: USE_STG_DATABASE=true python backend/scripts/update_stripe_mapping.py
-  Production: USE_PROD_DATABASE=true python backend/scripts/update_stripe_mapping.py (requires confirmation)
+  Staging database: SITE_MODE=local python backend/scripts/update_stripe_mapping.py
+  Production: SITE_MODE=prod python backend/scripts/update_stripe_mapping.py (requires confirmation)
 """
 
 import json
