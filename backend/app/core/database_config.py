@@ -278,29 +278,34 @@ class DatabaseConfig:
         """
         errors = []
 
-        # In production mode, we only need the production database
-        if self._check_production_mode() or os.getenv("SITE_MODE", "").lower().strip() in {
-            "prod",
-            "production",
-            "live",
-        }:
+        site_mode = os.getenv("SITE_MODE", "").lower().strip()
+
+        # Explicit SITE_MODE selection takes precedence
+        if site_mode in {"prod", "production", "live"}:
             if not self.prod_url:
                 errors.append("PROD database (prod_database_url) not configured")
-            # Skip INT/STG validation in production
-        else:
-            # In non-production, validate INT database
+        elif site_mode in {"preview"}:
+            if not self.preview_url:
+                errors.append("PREVIEW database (preview_database_url) not configured")
+        elif site_mode in {"local", "stg", "stage", "staging"}:
+            if not self.stg_url and not self.prod_url:
+                errors.append("STG database (stg_database_url) not configured and no prod_database_url fallback")
+            elif not self.stg_url and self.prod_url and not self._is_ci_environment():
+                logger.info(
+                    "STG database (stg_database_url) not configured; using prod_database_url as fallback for SITE_MODE=local/stg"
+                )
+        elif site_mode in {"int", "test", "ci"}:
             if not self.int_url:
                 errors.append("INT database (test_database_url) not configured")
-
-            if not self.stg_url:
-                # Not an error if stg_database_url is missing
-                if not self._is_ci_environment():
-                    logger.info(
-                        "STG database (stg_database_url) not configured; will use prod_database_url if SITE_MODE=local/stg"
-                    )
-
-            # In non-prod SITE_MODE, prod URL may be absent
-            pass
+        else:
+            # Fallback behavior if SITE_MODE is unset/unknown
+            if self._check_production_mode():
+                if not self.prod_url:
+                    errors.append("PROD database (prod_database_url) not configured")
+            else:
+                # Default to INT for safety
+                if not self.int_url:
+                    errors.append("INT database (test_database_url) not configured")
 
         if errors:
             raise ValueError(f"Database configuration errors:\n" + "\n".join(f"  - {error}" for error in errors))

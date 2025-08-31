@@ -29,6 +29,10 @@ def test_cannot_access_prod_without_confirmation():
     os.environ["SITE_MODE"] = "prod"
 
     try:
+        # Provide dummy prod URL to satisfy configuration validation in prod mode
+        from app.core.config import settings as _settings
+
+        _settings.prod_database_url_raw = "postgresql://postgres:postgres@localhost:5432/instainstru_prod"
         # Mock CI detection and production server mode to ensure confirmation path
         with patch("app.core.database_config.DatabaseConfig._is_ci_environment", return_value=False), patch(
             "app.core.database_config.DatabaseConfig._check_production_mode", return_value=False
@@ -140,6 +144,9 @@ def test_production_server_can_access_prod():
     try:
         from app.core.config import settings
 
+        # Provide dummy prod URL to satisfy configuration validation
+        settings.prod_database_url_raw = "postgresql://postgres:postgres@localhost:5432/instainstru_prod"
+
         # This should NOT raise an error in production mode
         with patch("app.core.database_config.DatabaseConfig._check_production_mode", return_value=True):
             url = settings.database_url
@@ -155,7 +162,10 @@ def test_production_requires_production_server_mode():
     """Without production server mode, SITE_MODE=prod should require confirmation and fail in non-interactive tests."""
     os.environ["SITE_MODE"] = "prod"
 
+    from app.core.config import settings as _settings
     from app.core.database_config import DatabaseConfig
+
+    _settings.prod_database_url_raw = "postgresql://postgres:postgres@localhost:5432/instainstru_prod"
 
     with patch("app.core.database_config.DatabaseConfig._is_ci_environment", return_value=False), patch(
         "app.core.database_config.DatabaseConfig._check_production_mode", return_value=False
@@ -177,7 +187,10 @@ def test_local_prod_requires_confirmation():
             "app.core.database_config.DatabaseConfig._check_production_mode", return_value=False
         ):
             # Create fresh DatabaseConfig to test
+            from app.core.config import settings as _settings
             from app.core.database_config import DatabaseConfig
+
+            _settings.prod_database_url_raw = "postgresql://postgres:postgres@localhost:5432/instainstru_prod"
 
             config = DatabaseConfig()
 
@@ -267,6 +280,9 @@ def test_production_mode_overrides_ci():
 
     try:
         from app.core.config import settings
+
+        # Provide dummy prod URL to satisfy configuration validation
+        settings.prod_database_url_raw = "postgresql://postgres:postgres@localhost:5432/instainstru_prod"
 
         # Should use production database (in production mode, no confirmation needed)
         # In test environment, this should not raise an error
