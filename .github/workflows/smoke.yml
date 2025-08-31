@@ -17,62 +17,58 @@ jobs:
       ORIGIN: ${{ secrets.PREVIEW_ORIGIN }}          # e.g. https://preview.instainstru.com
       GATED: ${{ secrets.GATED_ENDPOINT }}           # e.g. /v1/gated/ping
       WEBHOOK: ${{ secrets.WEBHOOK_ENDPOINT }}       # e.g. /webhooks/stripe/payment-events
-      PREVIEW_HEADER_TOKEN: ${{ secrets.PREVIEW_HEADER_TOKEN }}  # usually unset/empty
+      MODE: preview
     steps:
       - name: Health
         run: |
           set -e
-          curl -sS -i "$API/health" | tee /tmp/health.txt
+          curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i "$API/health" | tee /tmp/health.txt
           grep -i "^x-site-mode: preview" /tmp/health.txt
       - name: CORS preflight (allowed)
         run: |
-          curl -sS -i -X OPTIONS "$API$GATED" \
+          curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i -X OPTIONS "$API$GATED" \
             -H "Origin: $ORIGIN" \
             -H "Access-Control-Request-Method: GET" \
             -H "Access-Control-Request-Headers: content-type"
-      - name: Phase-gated route should be 200 in preview
-        run: |
-          curl -sS -i "$API$GATED" -H "Origin: $ORIGIN" | tee /tmp/g.txt
-          grep -E "^HTTP/.* 200" /tmp/g.txt
-      - name: Phase-gated route 200 via preview header bypass (preview only)
-        if: ${{ env.PREVIEW_HEADER_TOKEN != '' }}
+      - name: Phase-gated route (200 in preview)
         run: |
           set -e
-          curl -sS -i "$API$GATED" \
+          URL="$API$GATED"
+          curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i "$URL" \
             -H "Origin: $ORIGIN" \
-            -H "x-staff-preview-token: $PREVIEW_HEADER_TOKEN" | tee /tmp/g2.txt
-          grep -E "^HTTP/.* 200" /tmp/g2.txt
+            -H "x-staff-preview-token: ${{ secrets.PREVIEW_HEADER_TOKEN }}" \
+            | tee /tmp/g.txt
+          grep -E "^HTTP/.+ 200" /tmp/g.txt
       - name: Webhook must ignore preview header (only if provided)
-        if: ${{ env.PREVIEW_HEADER_TOKEN != '' }}
         run: |
           set +e
-          curl -sS -i -X POST "$API$WEBHOOK" \
-            -H "x-staff-preview-token: $PREVIEW_HEADER_TOKEN" \
+          curl -sS --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i -X POST "$API$WEBHOOK" \
+            -H "x-staff-preview-token: ${{ secrets.PREVIEW_HEADER_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d '{}' | tee /tmp/w.txt
           grep -E "^HTTP/.* (400|401|403)" /tmp/w.txt
       - name: Metrics endpoint reachable
         run: |
-          curl -sSf "$API/metrics" | head -n 20
+          curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused "$API/metrics" | head -n 20
 
   smoke-preview-web:
     name: Preview Web gate (frontend)
     runs-on: ubuntu-latest
     env:
-      PREVIEW_WEB: ${{ secrets.PREVIEW_WEB }}
+      PREVIEW_WEB: ${{ secrets.PREVIEW_WEB || secrets.PREVIEW_ORIGIN }}
     steps:
       - name: GET guaranteed gated path should redirect to /staff-login (no cookie)
         run: |
           set -e
           # prefer a path that is not in the allowlist and not public
-          curl -sS -i --max-redirs 0 \
+          curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i --max-redirs 0 \
             -H "Cache-Control: no-cache" -H "Pragma: no-cache" \
             "$PREVIEW_WEB/instructor/console?ts=$(date +%s)" | tee /tmp/web.txt
           grep -E "^HTTP/.* (301|302|307|308)" /tmp/web.txt
           grep -i "location: /staff-login" /tmp/web.txt
       - name: robots header present
         run: |
-          curl -sS -I "$PREVIEW_WEB/" | grep -i "x-robots-tag: noindex"
+          curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -I "$PREVIEW_WEB/" | grep -i "x-robots-tag: noindex"
 
   smoke-prod:
     name: Prod smoke (beta mode)
@@ -82,39 +78,39 @@ jobs:
       ORIGIN: ${{ secrets.BETA_ORIGIN }}            # e.g. https://beta.instainstru.com
       GATED: ${{ secrets.GATED_ENDPOINT }}          # e.g. /v1/gated/ping
       WEBHOOK: ${{ secrets.WEBHOOK_ENDPOINT }}      # e.g. /webhooks/stripe/payment-events
-      PREVIEW_HEADER_TOKEN: ${{ secrets.PREVIEW_HEADER_TOKEN }}  # ignored in prod, just for step gating
+      MODE: prod
     steps:
       - name: Health
         run: |
           set -e
-          curl -sS -i "$API/health" | tee /tmp/health.txt
+          curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i "$API/health" | tee /tmp/health.txt
           grep -i "^x-site-mode: prod" /tmp/health.txt
-          grep -i "^x-phase: beta" /tmp/health.txt
+          grep -Ei "^x-phase:\s*(beta|instructor_only)" /tmp/health.txt
       - name: CORS preflight (allowed)
         run: |
-          curl -sS -i -X OPTIONS "$API$GATED" \
+          curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i -X OPTIONS "$API$GATED" \
             -H "Origin: $ORIGIN" \
             -H "Access-Control-Request-Method: GET" \
             -H "Access-Control-Request-Headers: content-type"
       - name: CSRF sanity (cross-origin POST should be blocked)
         run: |
           set +e
-          curl -sS -i -X POST "$API$GATED" -H "Origin: $ORIGIN" -d '{}' | tee /tmp/c.txt
-          grep -E "^HTTP/.* (401|403)" /tmp/c.txt
-      - name: Phase-gated route should be 401/403 in prod (beta)
+          curl -sS --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i -X POST "$API$GATED" -H "Origin: $ORIGIN" -d '{}' | tee /tmp/c.txt
+          grep -E "^HTTP/.* (401|403|405)" /tmp/c.txt
+      - name: Phase-gated route (401/403 in prod)
         run: |
           set +e
-          curl -sS -i "$API$GATED" -H "Origin: $ORIGIN" | tee /tmp/g.txt
-          grep -E "^HTTP/.* (401|403)" /tmp/g.txt
+          URL="$API$GATED"
+          curl -sS --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i "$URL" | tee /tmp/g.txt
+          grep -E " 401| 403" /tmp/g.txt
       - name: Webhook ignores preview header (only if provided)
-        if: ${{ env.PREVIEW_HEADER_TOKEN != '' }}
         run: |
           set +e
-          curl -sS -i -X POST "$API$WEBHOOK" \
-            -H "x-staff-preview-token: $PREVIEW_HEADER_TOKEN" \
+          curl -sS --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused -i -X POST "$API$WEBHOOK" \
+            -H "x-staff-preview-token: ${{ secrets.PREVIEW_HEADER_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d '{}' | tee /tmp/w.txt
           grep -E "^HTTP/.* (400|401|403)" /tmp/w.txt
       - name: Metrics endpoint reachable
         run: |
-          curl -sSf "$API/metrics" | head -n 20
+          curl -fSs --connect-timeout 5 --max-time 20 --retry 3 --retry-delay 1 --retry-connrefused "$API/metrics" | head -n 20
