@@ -49,7 +49,7 @@ class DatabaseConfig:
         self.stg_url = (
             settings.stg_database_url_raw if settings.stg_database_url_raw else settings.prod_database_url_raw
         )
-        self.prod_url = settings.prod_database_url_raw
+        self.prod_url = settings.prod_database_url_raw or ""
         self.preview_url = settings.preview_database_url_raw
 
         # Validate configuration on startup
@@ -285,7 +285,7 @@ class DatabaseConfig:
             "live",
         }:
             if not self.prod_url:
-                errors.append("PROD database (database_url) not configured")
+                errors.append("PROD database (prod_database_url) not configured")
             # Skip INT/STG validation in production
         else:
             # In non-production, validate INT database
@@ -293,11 +293,14 @@ class DatabaseConfig:
                 errors.append("INT database (test_database_url) not configured")
 
             if not self.stg_url:
-                # Not an error if stg_database_url is missing - falls back to database_url
-                logger.warning("STG database (stg_database_url) not configured, using database_url as fallback")
+                # Not an error if stg_database_url is missing
+                if not self._is_ci_environment():
+                    logger.info(
+                        "STG database (stg_database_url) not configured; will use prod_database_url if SITE_MODE=local/stg"
+                    )
 
-            if not self.prod_url:
-                errors.append("PROD database (database_url) not configured")
+            # In non-prod SITE_MODE, prod URL may be absent
+            pass
 
         if errors:
             raise ValueError(f"Database configuration errors:\n" + "\n".join(f"  - {error}" for error in errors))

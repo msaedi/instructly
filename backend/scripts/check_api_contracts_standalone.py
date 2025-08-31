@@ -14,6 +14,10 @@ sys.path.insert(0, str(backend_dir))
 
 # Suppress database messages and warnings
 os.environ["SUPPRESS_DB_MESSAGES"] = "1"
+
+# Force safe DB selection for contract checks
+# Prefer INT to avoid requiring prod/preview URLs in CI or local pre-commit
+os.environ.setdefault("SITE_MODE", "int")
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", message="urllib3")
 

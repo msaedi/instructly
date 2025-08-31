@@ -2,7 +2,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 
 from dotenv import load_dotenv
 from pydantic import ConfigDict, Field, SecretStr, field_validator
@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     #  - preview_database_url
     #  - stg_database_url
     #  - test_database_url
-    prod_database_url_raw: str = Field(default="", alias="prod_database_url")  # From env PROD_DATABASE_URL
+    prod_database_url_raw: Optional[str] = Field(default=None, alias="prod_database_url")  # From env PROD_DATABASE_URL
     preview_database_url_raw: str = Field(default="", alias="preview_database_url")  # From env PREVIEW_DATABASE_URL
     int_database_url_raw: str = Field(
         default="postgresql://postgres:postgres@localhost:5432/instainstru_test" if os.getenv("CI") else "",
@@ -267,7 +267,7 @@ class Settings(BaseSettings):
 
     def is_production_database(self, url: str = None) -> bool:
         """Check if a database URL appears to be a production database."""
-        check_url = url or self.prod_database_url_raw
+        check_url = url or self.prod_database_url_raw or ""
         return any(indicator in check_url.lower() for indicator in self.production_database_indicators)
 
     @property
