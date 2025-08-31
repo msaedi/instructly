@@ -1,5 +1,6 @@
 # backend/app/main.py
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Request
@@ -89,7 +90,7 @@ async def lifespan(app: FastAPI):
     db_config = DatabaseConfig()
     logger.info(f"Database safety score: {db_config.get_safety_score()['score']}%")
 
-    logger.info(f"Allowed origins: {ALLOWED_ORIGINS}")
+    logger.info(f"Allowed origins: {_DYN_ALLOWED_ORIGINS}")
     logger.info("GZip compression enabled for responses > 500 bytes")
     logger.info("Rate limiting enabled for DDoS and brute force protection")
 
@@ -167,10 +168,31 @@ if settings.environment == "production":
     HTTPSRedirectMiddleware = create_https_redirect_middleware(force_https=True)
     app.add_middleware(HTTPSRedirectMiddleware)
 
+
 # Place CORS as high as possible in the stack so it can process preflight/headers early
+def _compute_allowed_origins() -> list[str]:
+    origins = set(ALLOWED_ORIGINS)
+    # Include configured frontend URL
+    if settings.frontend_url:
+        origins.add(settings.frontend_url.rstrip("/"))
+    # Comma-separated env var override
+    extra = os.getenv("CORS_ALLOW_ORIGINS", "")
+    if extra:
+        for origin in extra.split(","):
+            origin = origin.strip()
+            if origin:
+                origins.add(origin)
+    # Preview convenience
+    if os.getenv("SITE_MODE", "").lower().strip() == "preview":
+        origins.add("https://preview.instainstru.com")
+    return list(origins)
+
+
+_DYN_ALLOWED_ORIGINS = _compute_allowed_origins()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=_DYN_ALLOWED_ORIGINS,
     allow_origin_regex=CORS_ORIGIN_REGEX,  # Support Vercel preview deployments
     allow_credentials=True,
     allow_methods=["*"],
