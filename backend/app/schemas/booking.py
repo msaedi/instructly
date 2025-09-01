@@ -562,6 +562,7 @@ class UpcomingBookingResponse(StandardizedModel):
     """
 
     id: str
+    instructor_id: str
     booking_date: date
     start_time: time
     end_time: time
@@ -571,8 +572,29 @@ class UpcomingBookingResponse(StandardizedModel):
     instructor_first_name: str
     instructor_last_name: str  # Last initial for students, full for instructors
     meeting_location: Optional[str]
+    total_price: float
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("total_price", mode="before")
+    @classmethod
+    def _coerce_price(cls, v):
+        if v is None:
+            return 0.0
+        if isinstance(v, (int, float)):
+            return float(v)
+        # Money-like objects
+        if hasattr(v, "amount"):
+            try:
+                return float(v.amount)
+            except Exception:
+                pass
+        from decimal import Decimal
+
+        try:
+            return float(Decimal(str(v)))
+        except Exception:
+            return 0.0
 
 
 class UpcomingBookingsListResponse(StandardizedModel):

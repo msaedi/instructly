@@ -96,6 +96,20 @@ def _preview_bypass(request: Request, user: User | None) -> bool:
 from .database import get_db
 
 
+def _testing_bypass(request: Request | None) -> bool:
+    """Return True when test mode should bypass beta/phase gates.
+
+    - Respects explicit enforcement via header: x-enforce-beta-checks=1
+    - Works whenever settings.is_testing is truthy, regardless of SITE_MODE
+    """
+    try:
+        if request and request.headers.get("x-enforce-beta-checks") == "1":
+            return False
+    except Exception:
+        pass
+    return bool(getattr(settings, "is_testing", False))
+
+
 async def get_current_user(
     request: Request,
     current_user_email: str = Depends(auth_get_current_user),
@@ -272,8 +286,8 @@ def require_beta_access(role: Optional[str] = None):
         if _preview_bypass(request, current_user):
             return current_user
 
-        # Testing and global bypasses
-        if getattr(settings, "is_testing", False) and request.headers.get("x-enforce-beta-checks") != "1":
+        # Testing bypass (independent of SITE_MODE; still overridable via header)
+        if _testing_bypass(request):
             return current_user
         if getattr(settings, "beta_disabled", False):
             return current_user
@@ -297,8 +311,8 @@ def require_beta_phase_access(expected_phase: Optional[str] = None):
         if _preview_bypass(request, None):
             return None
 
-        # Testing and global bypasses
-        if getattr(settings, "is_testing", False) and request.headers.get("x-enforce-beta-checks") != "1":
+        # Testing bypass (independent of SITE_MODE; still overridable via header)
+        if _testing_bypass(request):
             return None
         if getattr(settings, "beta_disabled", False):
             return None

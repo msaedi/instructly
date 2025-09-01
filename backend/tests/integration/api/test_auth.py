@@ -86,12 +86,56 @@ class TestAuth:
 
     def test_login_success(self, db: Session, client: TestClient, test_student: User, test_password: str):
         """Test successful login."""
-        response = client.post("/auth/login", data={"username": test_student.email, "password": test_password})
+        response = client.post(
+            "/auth/login",
+            data={"username": test_student.email, "password": test_password},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
 
         assert response.status_code == 200
         data = response.json()
         assert "access_token" in data
-        assert data["token_type"] == "bearer"
+        # Ensure Set-Cookie is present for access_token
+        set_cookie = response.headers.get("set-cookie", "")
+        assert "access_token=" in set_cookie
+
+    def test_cookie_only_auth_local(
+        self, db: Session, client: TestClient, test_student: User, test_password: str, monkeypatch
+    ):
+        """Local mode: cookie-only auth should succeed on /auth/me."""
+        # Simulate local mode
+        monkeypatch.setenv("SITE_MODE", "local")
+        # Login form-urlencoded to set cookie
+        r = client.post(
+            "/auth/login",
+            data={"username": test_student.email, "password": test_password},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        assert r.status_code == 200
+        # Call /auth/me without Authorization header (cookie-only)
+        r2 = client.get("/auth/me")
+        assert r2.status_code == 200
+
+    def test_cookie_only_auth_denied_in_prod(
+        self, db: Session, client: TestClient, test_student: User, test_password: str, monkeypatch
+    ):
+        """Prod/preview: cookie-only must be rejected; header required."""
+        # Simulate prod mode
+        monkeypatch.setenv("SITE_MODE", "prod")
+        # Login still returns a token (we won't use it here)
+        r = client.post(
+            "/auth/login",
+            data={"username": test_student.email, "password": test_password},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        assert r.status_code == 200
+        # Cookie-only should fail in prod
+        r2 = client.get("/auth/me")
+        assert r2.status_code == 401
+        # With header it should succeed
+        token = r.json().get("access_token")
+        r3 = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+        assert r3.status_code == 200
 
     def test_login_wrong_password(self, db: Session, client: TestClient, test_student: User):
         """Test login with wrong password."""

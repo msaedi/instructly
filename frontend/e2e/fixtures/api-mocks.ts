@@ -9,6 +9,11 @@ export async function mockInstructorProfile(page: Page) {
   // Mock the instructor profile endpoint - matches /instructors/[id]
   await page.route('**/instructors/*', async (route: Route) => {
     const url = route.request().url();
+    // Do NOT intercept frontend page navigations (Next.js route on :3100)
+    if (url.includes('://localhost:3100') || url.includes(':3100')) {
+      await route.continue();
+      return;
+    }
     // Handle /instructors/[id] but not availability or search endpoints
     if (!url.includes('/availability') && !url.includes('/search') && !url.includes('/services')) {
       // Extract instructor ID from URL
@@ -306,13 +311,16 @@ export async function setupAllMocks(page: Page, context: any = null) {
   // Mock the search endpoint FIRST (before the general instructors handler)
   await routeContext.route('**/api/search/instructors**', async (route: Route) => {
     // Reduce noisy logs
+    const origin = route.request().headers()['origin'] || 'http://localhost:3100';
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type'
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Session-ID, X-Search-Origin, X-Guest-Session-ID, Authorization',
+        'Vary': 'Origin'
       },
       body: JSON.stringify({
         query: 'piano',
@@ -359,12 +367,32 @@ export async function setupAllMocks(page: Page, context: any = null) {
 
   // Mock services catalog endpoints (consistent response shapes)
   await routeContext.route('**/services/catalog**', async (route: Route) => {
-    const url = route.request().url();
+    const req = route.request();
+    const url = req.url();
+    const origin = req.headers()['origin'] || 'http://localhost:3100';
+    if (req.method() === 'OPTIONS') {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': origin,
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, X-Session-ID, X-Search-Origin, X-Guest-Session-ID, Authorization',
+          'Vary': 'Origin'
+        }
+      });
+      return;
+    }
     if (url.includes('top-per-category')) {
       // Return TopServicesResponse with categories array
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
+        headers: {
+          'Access-Control-Allow-Origin': origin,
+          'Access-Control-Allow-Credentials': 'true',
+          'Vary': 'Origin'
+        },
         body: JSON.stringify({
           categories: [
             {
@@ -387,24 +415,111 @@ export async function setupAllMocks(page: Page, context: any = null) {
           ]
         })
       });
-    } else {
+      return;
+    }
+    if (url.includes('kids-available')) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
+        headers: {
+          'Access-Control-Allow-Origin': origin,
+          'Access-Control-Allow-Credentials': 'true',
+          'Vary': 'Origin'
+        },
         body: JSON.stringify([
-          { id: TEST_ULIDS.service1, name: 'Piano', category_id: '1' },
-          { id: '01J5TESTSERV00000000000002', name: 'Guitar', category_id: '1' },
-          { id: 97, name: 'Personal Training', category_id: 2 }
+          { id: TEST_ULIDS.service1, name: 'Piano', slug: 'piano' }
         ])
       });
+      return;
     }
+    // Default services catalog list
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Credentials': 'true',
+        'Vary': 'Origin'
+      },
+      body: JSON.stringify([
+        { id: TEST_ULIDS.service1, name: 'Piano', category_id: '1' },
+        { id: '01J5TESTSERV00000000000002', name: 'Guitar', category_id: '1' },
+        { id: 97, name: 'Personal Training', category_id: 2 }
+      ])
+    });
+  });
+
+  // Mock service categories (homepage depends on this)
+  await routeContext.route('**/services/categories', async (route: Route) => {
+    const req = route.request();
+    const origin = req.headers()['origin'] || 'http://localhost:3100';
+    if (req.method() === 'OPTIONS') {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': origin,
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, X-Session-ID, X-Search-Origin, X-Guest-Session-ID, Authorization',
+          'Vary': 'Origin'
+        }
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Credentials': 'true',
+        'Vary': 'Origin'
+      },
+      body: JSON.stringify([
+        {
+          id: 1,
+          name: 'Music',
+          slug: 'music',
+          subtitle: 'Instrument Voice Theory',
+          description: 'Learn instruments',
+          icon_name: 'music',
+        },
+        {
+          id: 2,
+          name: 'Languages',
+          slug: 'language',
+          subtitle: '',
+          description: 'Learn new languages',
+          icon_name: 'globe',
+        },
+      ]),
+    });
   });
 
   // First set up search-history mock (called on homepage load)
   await routeContext.route('**/search-history**', async (route: Route) => {
+    const req = route.request();
+    const origin = req.headers()['origin'] || 'http://localhost:3100';
+    if (req.method() === 'OPTIONS') {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': origin,
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, X-Session-ID, X-Search-Origin, X-Guest-Session-ID, Authorization',
+          'Vary': 'Origin'
+        }
+      });
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Credentials': 'true',
+        'Vary': 'Origin'
+      },
       body: JSON.stringify([])
     });
   });
@@ -456,11 +571,14 @@ export async function setupAllMocks(page: Page, context: any = null) {
 
     // Always return a successful response with availability data
     // This prevents "Instructor not found" errors
+    const origin = route.request().headers()['origin'] || 'http://localhost:3100';
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Credentials': 'true',
+        'Vary': 'Origin'
       },
       body: JSON.stringify({
         instructor_id: TEST_ULIDS.instructor8,  // Always use the test ULID
@@ -531,11 +649,14 @@ export async function setupAllMocks(page: Page, context: any = null) {
     const mon = addDaysDyn(5);
     const tue = addDaysDyn(6);
     const formatDate = (date: Date) => date.toISOString().split('T')[0];
+    const origin = route.request().headers()['origin'] || 'http://localhost:3100';
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Credentials': 'true',
+        'Vary': 'Origin'
       },
       body: JSON.stringify({
         instructor_id: TEST_ULIDS.instructor8,
@@ -575,7 +696,7 @@ export async function setupAllMocks(page: Page, context: any = null) {
     const url = route.request().url();
 
     // Skip frontend page routes (port 3000)
-    if (url.includes(':3000')) {
+    if (url.includes(':3000') || url.includes(':3100')) {
       await route.continue();
       return;
     }
@@ -640,84 +761,8 @@ export async function setupAllMocks(page: Page, context: any = null) {
     }
   });
 
-  // Set up route handler for other API endpoints (register BEFORE generic instructors to avoid overrides)
-  await routeContext.route('**/api/**', async (route: Route) => {
-    const url = route.request().url();
-    console.log('Mock intercepting api:', url);
-
-    // Never override availability mocks
-    if (url.includes('/api/public/instructors/') && url.includes('/availability')) {
-      await route.continue();
-      return;
-    }
-
-    // Mock payments endpoints to prevent 401s in tests
-    if (url.includes('/api/payments/methods')) {
-      if (route.request().method() === 'GET') {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify([
-            { id: 'card_test_1', last4: '4242', brand: 'visa', is_default: true, created_at: new Date().toISOString() },
-          ]),
-        });
-        return;
-      }
-      if (route.request().method() === 'POST') {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ id: 'card_test_new', last4: '4242', brand: 'visa', is_default: false, created_at: new Date().toISOString() }),
-        });
-        return;
-      }
-    }
-    if (url.includes('/api/payments/credits')) {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ available: 0, expires_at: null, pending: 0 }),
-      });
-      return;
-    }
-
-    if (url.includes('/api/payments/checkout')) {
-      if (route.request().method() === 'POST') {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            success: true,
-            payment_intent_id: 'pi_test_123',
-            status: 'succeeded',
-            amount: 7200,
-            application_fee: 0
-          }),
-        });
-        return;
-      }
-    }
-
-    if (url.includes('/search-history/interaction')) {
-      // Mock search interaction tracking
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true })
-      });
-    } else if (url.includes('/search-history')) {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify([])
-      });
-    } else if (url.includes('/auth/')) {
-      // Auth is already handled, just continue
-      await route.continue();
-    } else {
-      await route.continue();
-    }
-  });
+  // NOTE: Removed generic '**/api/**' catch-all to avoid double-handling routes.
+  // Specific mocks above handle needed endpoints; others will fall through to network.
 
   // Mock booking creation to allow confirmation step to proceed
   await routeContext.route('**/bookings**', async (route: Route) => {
@@ -771,50 +816,69 @@ export async function setupAllMocks(page: Page, context: any = null) {
 
   // Set up route handler for services endpoints
   await routeContext.route('**/services/**', async (route: Route) => {
-    const url = route.request().url();
+    const req = route.request();
+    const url = req.url();
+    const origin = req.headers()['origin'] || 'http://localhost:3100';
+    if (req.method() === 'OPTIONS') {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': origin,
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, X-Session-ID, X-Search-Origin, X-Guest-Session-ID, Authorization',
+          'Vary': 'Origin'
+        }
+      });
+      return;
+    }
     console.log('Mock intercepting services:', url);
-
     if (url.includes('/services/catalog/top-per-category')) {
-      // Mock top services per category for homepage
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
+        headers: { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Vary': 'Origin' },
         body: JSON.stringify({
           categories: [
-            {
-              id: 1,
-              name: 'Music',
-              slug: 'music',
-              services: [
-                {
-                  id: 1,
-                  name: 'Piano',
-                  slug: 'piano',
-                  min_price: 75,
-                  instructor_count: 5
-                }
-              ]
-            }
+            { id: 1, name: 'Music', slug: 'music', services: [ { id: 1, name: 'Piano', slug: 'piano', min_price: 75, instructor_count: 5 } ] }
           ]
         })
       });
-    } else if (url.includes('/services/catalog')) {
+      return;
+    }
+    if (url.includes('/services/catalog/kids-available')) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
+        headers: { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Vary': 'Origin' },
+        body: JSON.stringify([ { id: TEST_ULIDS.service1, name: 'Piano', slug: 'piano' } ])
+      });
+      return;
+    }
+    if (url.includes('/services/categories')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Vary': 'Origin' },
         body: JSON.stringify([
-          {
-            id: 1,
-            name: 'Piano',
-            slug: 'piano',
-            description: 'Learn to play the piano',
-            category_id: 1
-          }
+          { id: 1, name: 'Music', slug: 'music', subtitle: 'Instrument Voice Theory', description: 'Learn instruments', icon_name: 'music' },
+          { id: 2, name: 'Languages', slug: 'language', subtitle: '', description: 'Learn new languages', icon_name: 'globe' },
         ])
       });
-    } else {
-      await route.continue();
+      return;
     }
+    if (url.includes('/services/catalog')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Vary': 'Origin' },
+        body: JSON.stringify([
+          { id: 1, name: 'Piano', slug: 'piano', description: 'Learn to play the piano', category_id: 1 }
+        ])
+      });
+      return;
+    }
+    await route.continue();
   });
 
   // Re-register availability mocks LAST so they win when multiple handlers match
@@ -836,10 +900,15 @@ export async function setupAllMocks(page: Page, context: any = null) {
     const tue = addDaysDyn(6);
     const formatDate = (date: Date) => date.toISOString().split('T')[0];
 
+    const origin = route.request().headers()['origin'] || 'http://localhost:3100';
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      headers: { 'Access-Control-Allow-Origin': '*' },
+      headers: {
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Credentials': 'true',
+        'Vary': 'Origin'
+      },
       body: JSON.stringify({
         instructor_id: instructorId,
         instructor_first_name: 'Sarah',
@@ -885,10 +954,15 @@ export async function setupAllMocks(page: Page, context: any = null) {
     const mon = addDaysDyn(5);
     const tue = addDaysDyn(6);
     const formatDate = (date: Date) => date.toISOString().split('T')[0];
+    const origin = route.request().headers()['origin'] || 'http://localhost:3100';
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      headers: { 'Access-Control-Allow-Origin': '*' },
+      headers: {
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Credentials': 'true',
+        'Vary': 'Origin'
+      },
       body: JSON.stringify({
         instructor_id: TEST_ULIDS.instructor8,
         instructor_first_name: 'Sarah',
@@ -918,6 +992,55 @@ export async function setupAllMocks(page: Page, context: any = null) {
           ], is_blackout: false },
         },
       }),
+    });
+  });
+
+  // Reviews endpoints (ratings, recent, search-rating)
+  await routeContext.route('**/api/reviews/instructor/**', async (route: Route) => {
+    const url = route.request().url();
+    const origin = route.request().headers()['origin'] || 'http://localhost:3100';
+    if (url.includes('/ratings')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Vary': 'Origin' },
+        body: JSON.stringify({
+          overall: { rating: 4.9, total_reviews: 127, display_rating: '4.9' },
+          by_service: [ { instructor_service_id: TEST_ULIDS.service1, rating: 4.9, review_count: 127 } ],
+          confidence_level: 'trusted'
+        })
+      });
+      return;
+    }
+    if (url.includes('/recent')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Vary': 'Origin' },
+        body: JSON.stringify({ reviews: [], total: 0, page: 1, per_page: 12, has_next: false, has_prev: false })
+      });
+      return;
+    }
+    if (url.includes('/search-rating')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Vary': 'Origin' },
+        body: JSON.stringify({ primary_rating: 4.9, review_count: 127, is_service_specific: true })
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  // Address coverage bulk
+  await routeContext.route('**/api/addresses/coverage/bulk**', async (route: Route) => {
+    const origin = route.request().headers()['origin'] || 'http://localhost:3100';
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Credentials': 'true', 'Vary': 'Origin' },
+      body: JSON.stringify({ results: [] })
     });
   });
 }

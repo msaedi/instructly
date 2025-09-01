@@ -53,8 +53,8 @@ test.describe('Availability 409 conflict flow', () => {
     }
 
     // Login or set auth if helpers exist; here we assume already authenticated via dev setup
-    await pageA.goto('http://localhost:3000/instructor/availability');
-    await pageB.goto('http://localhost:3000/instructor/availability');
+    await pageA.goto('/instructor/availability');
+    await pageB.goto('/instructor/availability');
 
     // Wait for page to load headers (disambiguate to the H1)
     await expect(pageA.getByRole('heading', { name: 'Availability' })).toBeVisible();

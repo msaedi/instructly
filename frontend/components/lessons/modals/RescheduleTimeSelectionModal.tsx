@@ -152,53 +152,51 @@ export default function RescheduleTimeSelectionModal({
           }
         });
 
-        // Batch related updates in a microtask to reduce act() warnings in tests
-        Promise.resolve().then(() => {
-          setAvailabilityData(availabilityByDate);
-          setAvailableDates(datesWithSlots);
+        // Apply related updates synchronously to avoid act() warnings in tests
+        setAvailabilityData(availabilityByDate);
+        setAvailableDates(datesWithSlots);
 
-          if (datesWithSlots.length > 0) {
-            const firstDate = datesWithSlots[0];
-            const slots = availabilityByDate[firstDate].available_slots || [];
-            const expandDiscreteStarts = (
-              start: string,
-              end: string,
-              stepMinutes: number,
-              requiredMinutes: number
-            ): string[] => {
-              const [sh, sm] = start.split(':').map((v: string) => parseInt(v, 10));
-              const [eh, em] = end.split(':').map((v: string) => parseInt(v, 10));
-              const startTotal = sh * 60 + (sm || 0);
-              const endTotal = eh * 60 + (em || 0);
+        if (datesWithSlots.length > 0) {
+          const firstDate = datesWithSlots[0];
+          const slots = availabilityByDate[firstDate].available_slots || [];
+          const expandDiscreteStarts = (
+            start: string,
+            end: string,
+            stepMinutes: number,
+            requiredMinutes: number
+          ): string[] => {
+            const [sh, sm] = start.split(':').map((v: string) => parseInt(v, 10));
+            const [eh, em] = end.split(':').map((v: string) => parseInt(v, 10));
+            const startTotal = sh * 60 + (sm || 0);
+            const endTotal = eh * 60 + (em || 0);
 
-              const times: string[] = [];
-              for (let t = startTotal; t + requiredMinutes <= endTotal; t += stepMinutes) {
-                const h = Math.floor(t / 60);
-                const m = t % 60;
-                const ampm = h >= 12 ? 'pm' : 'am';
-                const displayHour = (h % 12) || 12;
-                times.push(`${displayHour}:${String(m).padStart(2, '0')}${ampm}`);
-              }
-              return times;
-            };
-
-            const formattedSlots = slots.flatMap((slot: any) =>
-              expandDiscreteStarts(slot.start_time, slot.end_time, 60, selectedDuration)
-            );
-
-            setSelectedDate(firstDate);
-            setShowTimeDropdown(true);
-            setTimeSlots(formattedSlots);
-            if (formattedSlots.length > 0) {
-              setSelectedTime(formattedSlots[0]);
+            const times: string[] = [];
+            for (let t = startTotal; t + requiredMinutes <= endTotal; t += stepMinutes) {
+              const h = Math.floor(t / 60);
+              const m = t % 60;
+              const ampm = h >= 12 ? 'pm' : 'am';
+              const displayHour = (h % 12) || 12;
+              times.push(`${displayHour}:${String(m).padStart(2, '0')}${ampm}`);
             }
+            return times;
+          };
+
+          const formattedSlots = slots.flatMap((slot: any) =>
+            expandDiscreteStarts(slot.start_time, slot.end_time, 60, selectedDuration)
+          );
+
+          setSelectedDate(firstDate);
+          setShowTimeDropdown(true);
+          setTimeSlots(formattedSlots);
+          if (formattedSlots.length > 0) {
+            setSelectedTime(formattedSlots[0]);
           }
-        });
+        }
       }
     } catch (error) {
       logger.error('Failed to fetch availability', error);
     } finally {
-      Promise.resolve().then(() => setLoadingAvailability(false));
+      setLoadingAvailability(false);
     }
   };
 

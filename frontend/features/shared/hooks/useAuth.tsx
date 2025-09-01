@@ -10,6 +10,7 @@ import {
   getGuestSessionId,
   clearGuestSession,
 } from '@/lib/searchTracking';
+import { withApiBase } from '@/lib/apiBase';
 
 export interface User {
   id: string;
@@ -141,11 +142,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // Get guest session ID if available
       const guestSessionId = getGuestSessionId();
+      logger.info('Login attempt with guest session:', { guestSessionId, hasGuestSession: !!guestSessionId });
 
       // Use new endpoint if we have a guest session, otherwise use regular login
-      const endpoint = guestSessionId
-        ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/auth/login-with-session`
-        : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/auth/login`;
+      const path = guestSessionId ? '/auth/login-with-session' : '/auth/login';
+      const apiPath = withApiBase(path);
+
+      // Create full URL for fetch
+      const endpoint = typeof window !== 'undefined'
+        ? `${window.location.origin}${apiPath}`
+        : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${path}`;
+
+      logger.info('Login endpoint:', { endpoint, path, apiPath });
 
       const body = guestSessionId
         ? JSON.stringify({
@@ -162,6 +170,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ? { 'Content-Type': 'application/json' }
         : { 'Content-Type': 'application/x-www-form-urlencoded' };
 
+      logger.info('Sending login request:', {
+        endpoint,
+        hasGuestSession: !!guestSessionId,
+        bodyPreview: guestSessionId ? JSON.parse(body as string) : 'form-data'
+      });
+
       const response = await fetch(endpoint, {
         method: 'POST',
         headers,
@@ -174,8 +188,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Transfer guest searches to user account (backend handles this automatically)
         if (guestSessionId) {
+          logger.info('Initiating guest search transfer for session:', { guestSessionId });
           await transferGuestSearchesToAccount();
           logger.info('Guest search transfer completed after login');
+        } else {
+          logger.warn('No guest session ID found during login');
         }
 
         // Immediately fetch and cache user data
@@ -222,6 +239,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       returnUrl: url,
       encodedUrl,
     });
+
+    // Persist intended destination as a fallback to query param
+    try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('post_login_redirect', url);
+      }
+    } catch {
+      // ignore storage errors
+    }
 
     // Use push to maintain proper navigation history
     router.push(`/login?redirect=${encodedUrl}`);

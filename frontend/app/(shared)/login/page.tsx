@@ -101,7 +101,7 @@ function LoginForm() {
       const loginPath = guestSessionId ? '/auth/login-with-session' : '/auth/login';
       const apiPath = withApiBase(loginPath);
       const endpoint = typeof window !== 'undefined'
-        ? `${window.location.origin}${apiPath}`
+        ? new URL(apiPath, window.location.origin).toString()
         : `${API_URL}${loginPath}`;
 
       const body = guestSessionId
@@ -156,10 +156,17 @@ function LoginForm() {
       }
 
       await checkAuth();
-      // Decide post-login route: respect explicit redirect; otherwise route instructors by live status
+      // Decide post-login route: respect explicit redirect; otherwise use session fallback; else role-based
       try {
         if (redirect && redirect !== '/' && !redirect.startsWith('/login')) {
           router.push(redirect);
+          return;
+        }
+        // Session fallback set by guards/helpers
+        const storedRedirect = typeof window !== 'undefined' ? sessionStorage.getItem('post_login_redirect') : null;
+        if (storedRedirect && !storedRedirect.startsWith('/login')) {
+          try { sessionStorage.removeItem('post_login_redirect'); } catch {}
+          router.push(storedRedirect);
           return;
         }
         // Determine role first
@@ -183,10 +190,10 @@ function LoginForm() {
           }
         } else {
           // Student (or non-instructor) default landing
-          router.push('/student/dashboard');
+          router.push('/');
         }
       } catch {
-        router.push('/student/dashboard');
+        router.push('/');
       }
     } catch (error) {
       logger.error('Login network error', error);
@@ -235,6 +242,12 @@ function LoginForm() {
           router.push(redirect);
           return;
         }
+        const storedRedirect = typeof window !== 'undefined' ? sessionStorage.getItem('post_login_redirect') : null;
+        if (storedRedirect && !storedRedirect.startsWith('/login')) {
+          try { sessionStorage.removeItem('post_login_redirect'); } catch {}
+          router.push(storedRedirect);
+          return;
+        }
         const meUserRes = await fetchWithAuth(API_ENDPOINTS.ME);
         const meUser = meUserRes.ok ? await meUserRes.json() : null;
         const roles = Array.isArray(meUser?.roles) ? meUser.roles : [];
@@ -252,10 +265,10 @@ function LoginForm() {
             router.push('/instructor/onboarding/status');
           }
         } else {
-          router.push('/student/dashboard');
+          router.push('/student/lessons');
         }
       } catch {
-        router.push('/student/dashboard');
+        router.push('/student/lessons');
       }
     } catch (err) {
       logger.error('2FA verification error', err);

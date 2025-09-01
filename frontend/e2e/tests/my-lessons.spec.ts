@@ -61,7 +61,7 @@ async function setupMocksAndAuth(page: Page) {
     });
   });
 
-  // Mock upcoming lessons for homepage (returns paginated format)
+  // Mock upcoming lessons for homepage (returns paginated format, matching BookingListResponse)
   await page.route('**/bookings/upcoming*', async (route) => {
     await route.fulfill({
       status: 200,
@@ -70,18 +70,34 @@ async function setupMocksAndAuth(page: Page) {
         items: [
           {
             id: '01J5TESTBOOK00000000000001',
-            instructor_name: upcomingLesson.instructor,
-            student_name: 'Test Student',
-            service_name: upcomingLesson.service,
+            student_id: '01J5TESTUSER00000000000001',
+            instructor_id: '01J5TESTINSTR0000000000008',
+            instructor_service_id: '01J5TESTSERV00000000000001',
             booking_date: futureISO,
             start_time: '14:00:00',
             end_time: '15:00:00',
-            meeting_location: 'Zoom meeting',
+            status: 'CONFIRMED',
+            service_name: upcomingLesson.service,
+            hourly_rate: 60,
+            total_price: 60,
+            duration_minutes: 60,
+            meeting_location: 'Online via Zoom',
+            instructor: {
+              id: '01J5TESTINSTR0000000000008',
+              first_name: 'John',
+              last_initial: 'D',
+            },
+            student: {
+              id: '01J5TESTUSER00000000000001',
+              first_name: 'Test',
+              last_name: 'Student',
+              email: studentCredentials.email,
+            },
           },
         ],
         total: 1,
         page: 1,
-        per_page: 2,
+        per_page: 20,
         has_next: false,
         has_prev: false,
       }),
@@ -104,12 +120,88 @@ async function setupMocksAndAuth(page: Page) {
     });
   });
 
+  // Precise mock for history list used by My Lessons
+  await page.route('**/bookings?*exclude_future_confirmed=true*', async (route) => {
+    const url = new URL(route.request().url());
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        items: [
+          {
+            id: '01J5TESTBOOK00000000000002',
+            student_id: '01J5TESTUSER00000000000001',
+            instructor_id: '01J5TESTINSTR00000000000009',
+            instructor_service_id: '01J5TESTSERV00000000000002',
+            instructor: { id: '01J5TESTINSTR00000000000009', first_name: 'Jane', last_initial: 'S' },
+            service_name: 'Physics',
+            booking_date: '2024-12-20',
+            start_time: '10:00:00',
+            end_time: '11:00:00',
+            hourly_rate: 80,
+            total_price: 80,
+            duration_minutes: 60,
+            status: 'COMPLETED',
+            location_type: 'in_person',
+            location_details: 'Upper East Side, NYC',
+          },
+        ],
+        total: 1,
+        page: Number(url.searchParams.get('page') || 1),
+        per_page: Number(url.searchParams.get('per_page') || 50),
+        has_next: false,
+        has_prev: false,
+      }),
+    });
+  });
+
+  // (Reverted) Do not intercept generic /bookings?* here; specific mocks below handle scenarios
+
   // Mock upcoming lessons and booking details (ULID-friendly)
   await page.route('**/bookings/*', async (route) => {
     const url = new URL(route.request().url());
+    const pathname = url.pathname;
+
+    // Handle explicit /bookings/upcoming list (ensure list shape)
+    if (pathname.endsWith('/bookings/upcoming')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          items: [
+            {
+              id: '01J5TESTBOOK00000000000001',
+              instructor: {
+                id: '01J5TESTINSTR0000000000008',
+                first_name: 'John',
+                last_initial: 'D',
+                email: 'john.doe@example.com',
+                rating: 4.8,
+                total_reviews: 156,
+              },
+              service_name: upcomingLesson.service,
+              booking_date: futureISO,
+              start_time: '14:00:00',
+              end_time: '15:00:00',
+              price: 60,
+              total_price: 60,
+              status: 'CONFIRMED',
+              location_type: 'online',
+              location_details: 'Zoom meeting',
+            },
+          ],
+          total: 1,
+          page: 1,
+          per_page: 20,
+          has_next: false,
+          has_prev: false,
+        }),
+      });
+      return;
+    }
 
     // Check if this is a detail request
-    const pathParts = url.pathname.split('/');
+    const pathParts = pathname.split('/');
     const bookingId = pathParts[pathParts.length - 1];
 
     // Treat any /bookings/{id} (ULID or numeric) without list query params as a detail request
@@ -250,20 +342,22 @@ async function setupMocksAndAuth(page: Page) {
             items: [
               {
                 id: '01J5TESTBOOK00000000000002',
+                student_id: '01J5TESTUSER00000000000001',
+                instructor_id: '01J5TESTINSTR00000000000009',
+                instructor_service_id: '01J5TESTSERV00000000000002',
                 instructor: {
                   id: '01J5TESTINSTR00000000000009',
                   first_name: 'Jane',
                   last_initial: 'S',
                   email: 'jane.smith@example.com',
-                  rating: 4.9,
-                  total_reviews: 89,
                 },
                 service_name: completedLesson.service,
                 booking_date: '2024-12-20',
                 start_time: '10:00:00',
                 end_time: '11:00:00',
-                price: 80,
+                hourly_rate: 80,
                 total_price: 80,
+                duration_minutes: 60,
                 status: 'COMPLETED',
                 location_type: 'in_person',
                 location_details: 'Upper East Side, NYC',
@@ -546,11 +640,12 @@ test.describe('My Lessons Page', () => {
     await page.fill('input[name="password"]', studentCredentials.password);
     await page.click('button[type="submit"]');
 
-    // Wait for redirect to student dashboard (current behavior)
-    await page.waitForURL('/student/dashboard');
+    // After login, user should land on the homepage
+    await page.waitForURL(/\/$/);
 
     // Wait for page to fully load
-    await page.waitForLoadState('networkidle');
+    // Wait for page content to stabilize without relying on networkidle
+    await expect(page.getByTestId('nav-my-lessons')).toBeVisible({ timeout: 10000 });
 
     // Now "My Lessons" should be visible (just like manual testing showed)
     // Navigate to My Lessons (click if visible, fallback to direct navigation)
@@ -563,12 +658,12 @@ test.describe('My Lessons Page', () => {
     await expect(page).toHaveURL('/student/lessons');
 
     // Verify page title
-    await expect(page.getByRole('heading', { name: 'My Lessons' })).toBeVisible();
+    await expect(page.getByTestId('my-lessons-title')).toBeVisible();
   });
 
   test('should display upcoming and history tabs', async ({ page }) => {
     await page.goto('/student/lessons');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'My Lessons' })).toBeVisible({ timeout: 10000 });
 
     // Wait for tabs to be visible (use exact role names to avoid Chat history)
     await expect(page.getByRole('button', { name: /^Upcoming$/ })).toBeVisible({ timeout: 10000 });
@@ -581,13 +676,14 @@ test.describe('My Lessons Page', () => {
 
   test('should switch between Upcoming and History tabs', async ({ page }) => {
     await page.goto('/student/lessons');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'My Lessons' })).toBeVisible({ timeout: 10000 });
 
     // Wait for tabs
     await page.waitForSelector('button:has-text("History")', { timeout: 10000 });
 
     // Click History tab
     await page.getByRole('button', { name: /^History$/ }).click();
+    await page.waitForURL(/\/student\/lessons\?tab=history/, { timeout: 5000 });
 
     // Verify History tab is now active
     const historyTab = page.getByRole('button', { name: /^History$/ });
@@ -599,12 +695,13 @@ test.describe('My Lessons Page', () => {
 
     // Switch back to Upcoming
     await page.getByRole('button', { name: /^Upcoming$/ }).click();
+    await page.waitForURL(/\/student\/lessons(\?tab=upcoming)?$/, { timeout: 5000 });
     await expect(upcomingTab).toHaveClass(/border-b-2/);
   });
 
   test('should display lesson cards with correct information', async ({ page }) => {
     await page.goto('/student/lessons');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'My Lessons' })).toBeVisible({ timeout: 10000 });
 
     // Wait for lesson title to appear
     const lessonTitle = page.getByRole('heading', { name: upcomingLesson.service }).first();
@@ -615,15 +712,15 @@ test.describe('My Lessons Page', () => {
     await expect(page.getByText(upcomingLesson.date)).toBeVisible();
     // Time formatting may differ; assert loosely on any hh:mm
     await expect(page.getByText(/\d{1,2}:\d{2}/)).toBeVisible();
-    await expect(page.getByText(upcomingLesson.price)).toBeVisible();
+    await expect(page.getByText(`$${upcomingLesson.price}`)).toBeVisible();
   });
 
   test('should navigate to lesson details when card is clicked', async ({ page }) => {
     await page.goto('/student/lessons');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'My Lessons' })).toBeVisible({ timeout: 10000 });
 
     // Wait for lesson title then click "See lesson details" button
-    await page.getByRole('heading', { name: upcomingLesson.service }).first();
+    await expect(page.getByRole('heading', { name: upcomingLesson.service }).first()).toBeVisible();
     await page.getByRole('button', { name: /See lesson details/i }).first().click();
 
     // Verify navigation to lesson details (support ULID or numeric id)
@@ -643,8 +740,28 @@ test.describe('My Lessons Page', () => {
 
   test('should show empty state when no upcoming lessons', async ({ page }) => {
     // Override mock to return empty lessons
+    await page.route('**/bookings/upcoming*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          items: [],
+          total: 0,
+          page: 1,
+          per_page: 50,
+          has_next: false,
+          has_prev: false,
+        }),
+      });
+    });
     await page.route('**/bookings/*', async (route) => {
       const url = new URL(route.request().url());
+      const pathname = url.pathname;
+      // Let the specific '/bookings/upcoming' empty override handle that path
+      if (pathname.endsWith('/bookings/upcoming')) {
+        await route.fallback();
+        return;
+      }
       const isUpcoming = url.searchParams.get('upcoming_only') === 'true';
       const status = url.searchParams.get('status');
 
@@ -688,7 +805,7 @@ test.describe('My Lessons Page', () => {
     });
 
     await page.goto('/student/lessons');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'My Lessons' })).toBeVisible({ timeout: 10000 });
 
     // Verify empty state
     await expect(page.locator("text=You don't have any upcoming lessons")).toBeVisible({
@@ -698,8 +815,8 @@ test.describe('My Lessons Page', () => {
   });
 
   test('should show empty state message when no upcoming lessons', async ({ page }) => {
-    // Mock empty lessons
-    await page.route('**/bookings/*', async (route) => {
+    // Mock empty upcoming but leave history populated
+    await page.route('**/bookings/upcoming*', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -713,9 +830,39 @@ test.describe('My Lessons Page', () => {
         }),
       });
     });
+    await page.route('**/bookings/*', async (route) => {
+      const url = new URL(route.request().url());
+      const pathname = url.pathname;
+      if (pathname.endsWith('/bookings/upcoming')) {
+        await route.fallback();
+        return;
+      }
+      // Return a completed history item for non-upcoming list calls
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          items: [
+            {
+              id: 2,
+              instructor: { id: 2, first_name: 'Jane', last_initial: 'S' },
+              service_name: completedLesson.service,
+              booking_date: '2024-12-20',
+              start_time: '10:00:00',
+              status: 'COMPLETED',
+            },
+          ],
+          total: 1,
+          page: 1,
+          per_page: 20,
+          has_next: false,
+          has_prev: false,
+        }),
+      });
+    });
 
     await page.goto('/student/lessons');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'My Lessons' })).toBeVisible({ timeout: 10000 });
 
     // Verify empty state message is shown
     await expect(page.locator("text=You don't have any upcoming lessons")).toBeVisible({
@@ -732,7 +879,7 @@ test.describe('Lesson Details Page', () => {
 
   test('should display lesson details correctly', async ({ page }) => {
     await page.goto('/student/lessons/1');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: upcomingLesson.service })).toBeVisible({ timeout: 10000 });
 
     // Verify lesson information (dynamic date/time)
     const lessonHeader = page.getByRole('heading', { name: upcomingLesson.service });
@@ -747,7 +894,7 @@ test.describe('Lesson Details Page', () => {
 
   test('should show reschedule and cancel buttons for upcoming lessons', async ({ page }) => {
     await page.goto('/student/lessons/1');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: upcomingLesson.service })).toBeVisible({ timeout: 10000 });
 
     // Wait for buttons to appear
     await expect(page.locator('button:has-text("Reschedule lesson")')).toBeVisible({
@@ -807,7 +954,7 @@ test.describe('Lesson Details Page', () => {
     // Click reschedule button in the modal
     // In our flow, click Continue then choose "Reschedule instead" in the next modal
     await page.getByRole('button', { name: 'Continue' }).click();
-    await page.getByRole('button', { name: 'Reschedule instead' }).click();
+    await page.getByRole('button', { name: 'Reschedule instead' }).first().click();
 
     // Verify switched to reschedule modal
     await expect(page.locator('text=Cancellation Policy')).not.toBeVisible();
@@ -947,14 +1094,17 @@ test.describe('Error Handling', () => {
   test('should redirect to login when unauthorized', async ({ page }) => {
     // Ensure no token is set
     await page.addInitScript(() => localStorage.removeItem('access_token'));
-    await page.goto('/student/lessons', { waitUntil: 'networkidle' });
-    // Current behavior: page displays auth-guarded UI; accept either redirect or guarded page
-    const onLogin = page.url().includes('/login');
-    if (onLogin) {
+    await page.goto('/student/lessons');
+    // Accept either redirect to login or guarded My Lessons header
+    const redirectedToLogin = await page
+      .waitForURL(/\/login\?redirect=%2Fstudent%2Flessons$/, { timeout: 7000 })
+      .then(() => true)
+      .catch(() => page.url().includes('/login?redirect=%2Fstudent%2Flessons'));
+
+    if (redirectedToLogin) {
       await expect(page).toHaveURL('/login?redirect=%2Fstudent%2Flessons');
     } else {
-      // Guarded page should show header
-      await expect(page.getByRole('heading', { name: 'My Lessons' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'My Lessons' })).toBeVisible({ timeout: 10000 });
     }
   });
 

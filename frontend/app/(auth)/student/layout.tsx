@@ -20,7 +20,10 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
       return;
     }
 
-    if (!isAuthenticated) {
+    // Check if we have a token even if user data is still loading
+    const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('access_token');
+
+    if (!isAuthenticated && !hasToken) {
       const ret = encodeURIComponent(pathname || '/');
       router.replace(`/login?redirect=${ret}`);
       return;
@@ -38,6 +41,15 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
       router.replace('/instructor/dashboard');
     }
   }, [isAuthenticated, isLoading, user, router, pathname, sitePhase]);
+
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+      </div>
+    );
+  }
 
   return (
     <>

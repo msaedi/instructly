@@ -448,8 +448,8 @@ export default function TimeSelectionModal({
         });
 
         // Close modal and redirect to login
-        // After login, user should return to the instructor page to complete booking
-        const returnUrl = `/instructors/${instructor.user_id}`;
+        // After login, return directly to the confirmation flow
+        const returnUrl = `/student/booking/confirm`;
         onClose();
         redirectToLogin(returnUrl);
         return;

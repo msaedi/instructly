@@ -89,6 +89,19 @@ async def lifespan(app: FastAPI):
 
     logger.info(f"Environment: {settings.environment} (SITE_MODE={os.getenv('SITE_MODE','') or 'unset'})")
 
+    # Enforce is_testing discipline without changing preview/prod behavior otherwise
+    try:
+        site_mode = os.getenv("SITE_MODE", "").strip().lower()
+        if site_mode in {"preview", "prod", "production", "live"} and bool(getattr(settings, "is_testing", False)):
+            logger.error("Refusing to start: is_testing=true is not allowed in preview/prod")
+            raise SystemExit(2)
+        if site_mode == "local" and bool(getattr(settings, "is_testing", False)):
+            logger.warning("Local testing mode enabled (is_testing=true)")
+    except SystemExit:
+        raise
+    except Exception as e:
+        logger.error(f"Startup guard evaluation failed: {e}")
+
     # Log database selection (this will show which database is being used)
     from .core.database_config import DatabaseConfig
 
@@ -275,6 +288,7 @@ app.include_router(beta.router)
 app.include_router(reviews.router)
 app.include_router(gated.router)
 
+
 # Identity + uploads: new endpoints are included via existing payments router and addresses router
 
 
@@ -328,6 +342,12 @@ def health_check(response: Response, db: Session = Depends(get_db)) -> HealthRes
     response.headers["X-Site-Mode"] = site_mode
     response.headers["X-Phase"] = phase
     response.headers["X-Commit-Sha"] = _os.getenv("COMMIT_SHA", "dev")
+    # Local-only testing marker
+    try:
+        if site_mode == "local" and bool(getattr(settings, "is_testing", False)):
+            response.headers["X-Testing"] = "1"
+    except Exception:
+        pass
 
     return HealthResponse(
         status="healthy",

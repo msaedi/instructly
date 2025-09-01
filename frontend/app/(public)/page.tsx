@@ -270,7 +270,7 @@ export default function HomePage() {
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
           <Link href="/" className="inline-block">
-            <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">
+            <h1 data-testid="home-brand" className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">
               iNSTAiNSTRU
             </h1>
           </Link>
@@ -285,6 +285,7 @@ export default function HomePage() {
                         ? '/instructor/dashboard'
                         : '/instructor/onboarding/status'
                   }
+                  data-testid={hasRole(user, RoleName.STUDENT) ? 'nav-my-lessons' : undefined}
                   className="text-gray-700 hover:text-purple-700 font-medium relative"
                 >
                   {hasRole(user, RoleName.STUDENT)
@@ -366,7 +367,7 @@ export default function HomePage() {
 
         <div className="relative z-10">
         <div className="max-w-4xl mx-auto px-4 text-center">
-          <h1 className="text-5xl font-bold mb-8" suppressHydrationWarning aria-label="Instant Learning with iNSTAiNSTRU">
+          <h1 data-testid="home-hero-title" className="text-5xl font-bold mb-8" suppressHydrationWarning aria-label="Instant Learning with iNSTAiNSTRU">
             <div className="leading-tight">
               {isClient && isAuthenticated ? (
                 <span className="text-purple-700">Your Next Lesson Awaits</span>

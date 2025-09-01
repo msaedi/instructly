@@ -112,13 +112,24 @@ async def get_upcoming_bookings(
                     booking.get("instructor", {}).get("last_name", "") if booking.get("instructor") else ""
                 )
 
+                total_price_raw = booking.get("total_price", 0)
+                try:
+                    _tp = (
+                        float(total_price_raw.amount)
+                        if hasattr(total_price_raw, "amount")
+                        else float(total_price_raw or 0)
+                    )
+                except Exception:
+                    _tp = 0.0
                 upcoming_bookings.append(
                     UpcomingBookingResponse(
                         id=booking["id"],
+                        instructor_id=booking.get("instructor_id"),
                         booking_date=booking["booking_date"],
                         start_time=booking["start_time"],
                         end_time=booking["end_time"],
                         service_name=booking["service_name"],
+                        total_price=_tp,
                         student_first_name=booking.get("student", {}).get("first_name", "Unknown")
                         if booking.get("student")
                         else "Unknown",
@@ -144,13 +155,24 @@ async def get_upcoming_bookings(
                 is_student = current_user.id == booking.student_id
                 is_instructor = current_user.id == booking.instructor_id
 
+                total_price_raw = getattr(booking, "total_price", 0)
+                try:
+                    _tp = (
+                        float(total_price_raw.amount)
+                        if hasattr(total_price_raw, "amount")
+                        else float(total_price_raw or 0)
+                    )
+                except Exception:
+                    _tp = 0.0
                 upcoming_bookings.append(
                     UpcomingBookingResponse(
                         id=booking.id,
+                        instructor_id=booking.instructor_id,
                         booking_date=booking.booking_date,
                         start_time=booking.start_time,
                         end_time=booking.end_time,
                         service_name=booking.service_name,
+                        total_price=_tp,
                         student_first_name=booking.student.first_name if booking.student else "Unknown",
                         student_last_name=booking.student.last_name
                         if is_student and booking.student

@@ -68,7 +68,7 @@ function MyLessonsContent() {
     let mounted = true;
     const visible = lessons || [];
     if (!visible || visible.length === 0) return;
-    const uniqueInstructorIds = Array.from(new Set(visible.map((l) => l.instructor_id)));
+    const uniqueInstructorIds = Array.from(new Set(visible.map((l) => l.instructor_id))).filter(Boolean) as string[];
     (async () => {
       try {
         const res = await reviewsApi.getRatingsBatch(uniqueInstructorIds);
@@ -197,7 +197,7 @@ function MyLessonsContent() {
       <div className="container mx-auto px-8 lg:px-32 py-8 max-w-6xl">
         {/* Page Header */}
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-gray-600">My Lessons</h1>
+        <h1 data-testid="my-lessons-title" className="text-3xl font-bold text-gray-600">My Lessons</h1>
       </div>
 
       {/* Tabs */}

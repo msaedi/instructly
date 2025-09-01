@@ -3,7 +3,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -114,7 +114,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
+async def get_current_user(request: Request, token: Optional[str] = Depends(oauth2_scheme_optional)) -> str:
     """
     Dependency to get the current authenticated user email from JWT token.
 
@@ -127,29 +127,58 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
     Raises:
         HTTPException: If token is invalid or expired
     """
-    credentials_exception = HTTPException(
+    not_authenticated = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Not authenticated",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    invalid_credentials = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
     try:
-        # Fix: Use get_secret_value() here too
-        payload = jwt.decode(
-            token,
-            settings.secret_key.get_secret_value(),  # Changed this line
-            algorithms=[settings.algorithm],
-        )
-        # Enforce iss/aud
+        # Local-only cookie fallback when no Authorization header is present
+        if not token:
+            try:
+                site_mode = os.getenv("SITE_MODE", "").lower().strip()
+            except Exception:
+                site_mode = ""
+            if site_mode == "local":
+                cookie_token = request.cookies.get("access_token") if hasattr(request, "cookies") else None
+                if cookie_token:
+                    token = cookie_token
+        if not token:
+            raise not_authenticated
+        # Decode JWT with appropriate audience enforcement
         site_mode = os.getenv("SITE_MODE", "").lower().strip()
-        iss = payload.get("iss", "")
-        aud = payload.get("aud", "")
-        if site_mode == "preview":
-            if iss != f"https://{settings.preview_api_domain}" or aud != "preview":
-                raise credentials_exception
-        elif site_mode in {"prod", "production", "live"}:
-            if iss != f"https://{settings.prod_api_domain}" or aud != "prod":
-                raise credentials_exception
+        enforce_aud = (site_mode in {"preview", "prod", "production", "live"}) and not bool(
+            getattr(settings, "is_testing", False)
+        )
+        if enforce_aud:
+            expected_aud = "preview" if site_mode == "preview" else "prod"
+            payload = jwt.decode(
+                token,
+                settings.secret_key.get_secret_value(),
+                algorithms=[settings.algorithm],
+                audience=expected_aud,
+            )
+            iss = payload.get("iss", "")
+            if site_mode == "preview":
+                if iss != f"https://{settings.preview_api_domain}":
+                    raise invalid_credentials
+            else:  # prod family
+                if iss != f"https://{settings.prod_api_domain}":
+                    raise invalid_credentials
+        else:
+            # Disable audience verification in tests and non-preview/prod modes
+            payload = jwt.decode(
+                token,
+                settings.secret_key.get_secret_value(),
+                algorithms=[settings.algorithm],
+                options={"verify_aud": False},
+            )
         email: str = payload.get("sub")
         if email is None:
             logger.warning("Token payload missing 'sub' field")
@@ -158,12 +187,15 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> str:
         logger.debug(f"Successfully validated token for user: {email}")
         return email
 
+    except HTTPException as http_exc:
+        # Preserve explicit HTTPExceptions (e.g., Not authenticated)
+        raise http_exc
     except JWTError as e:
         logger.error(f"JWT validation error: {str(e)}")
-        raise credentials_exception
+        raise invalid_credentials
     except Exception as e:
         logger.error(f"Unexpected error in token validation: {str(e)}")
-        raise credentials_exception
+        raise invalid_credentials
 
 
 async def get_current_user_optional(token: Optional[str] = Depends(oauth2_scheme_optional)) -> Optional[str]:

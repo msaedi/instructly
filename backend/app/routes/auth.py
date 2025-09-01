@@ -186,8 +186,18 @@ async def login(
 
     # Create access token (HTTP concern - stays in route)
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
+    # Include aud/iss in preview/prod so downstream validators accept the token
+    import os as _os_jwt
+
+    _site_mode_jwt = _os_jwt.getenv("SITE_MODE", "").lower().strip()
+    _claims = {"sub": user.email}
+    if _site_mode_jwt == "preview":
+        _claims.update({"aud": "preview", "iss": f"https://{settings.preview_api_domain}"})
+    elif _site_mode_jwt in {"prod", "production", "live"}:
+        _claims.update({"aud": "prod", "iss": f"https://{settings.prod_api_domain}"})
+
     access_token = create_access_token(
-        data={"sub": user.email},
+        data=_claims,
         expires_delta=access_token_expires,
     )
 
