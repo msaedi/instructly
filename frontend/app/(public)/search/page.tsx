@@ -12,12 +12,17 @@ import { Instructor } from '@/types/api';
 import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import { recordSearch } from '@/lib/searchTracking';
+import { SearchType } from '@/types/enums';
+import { useAuth } from '@/features/shared/hooks/useAuth';
 
 function SearchPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { setActivity } = useBackgroundConfig();
+  const { isAuthenticated } = useAuth();
   const headerRef = useRef<HTMLDivElement | null>(null);
+  const lastSearchParamsRef = useRef<string>('');
   const [stackedViewportHeight, setStackedViewportHeight] = useState<number | null>(null);
   const [isStacked, setIsStacked] = useState<boolean>(false);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
@@ -57,16 +62,18 @@ function SearchPageContent() {
   const query = searchParams.get('q') || '';
   const category = searchParams.get('category') || '';
   const serviceCatalogId = searchParams.get('service_catalog_id') || '';
+  const serviceNameFromUrl = searchParams.get('service_name') || '';
   const availableNow = searchParams.get('available_now') === 'true';
   const ageGroup = searchParams.get('age_group') || '';
+  const fromSource = searchParams.get('from') || '';
 
   useEffect(() => {
     // reset page and list when search params change
-    setServiceName('');
+    setServiceName(serviceNameFromUrl);
     setPage(1);
     setInstructors([]);
     setHasMore(true);
-  }, [query, category, serviceCatalogId]);
+  }, [query, category, serviceCatalogId, serviceNameFromUrl]);
 
   useEffect(() => {
     const activity = (query || category || '').trim();
@@ -163,6 +170,47 @@ function SearchPageContent() {
         setInstructors(prev => [...prev, ...instructorsData]);
       } else {
         setInstructors(instructorsData);
+
+        // Track search only for initial loads, not pagination
+        if (pageNum === 1) {
+          // Create a unique key for the current search parameters
+          const searchKey = `${query || ''}-${serviceCatalogId || ''}-${category || ''}-${serviceNameFromUrl || ''}-${fromSource || ''}`;
+
+          // Only track if this is a different search than the last one
+          if (searchKey !== lastSearchParamsRef.current) {
+            lastSearchParamsRef.current = searchKey;
+
+            // Determine search type based on what parameters are present
+            let searchType: SearchType = SearchType.NATURAL_LANGUAGE;
+            let searchQuery = '';
+
+            if (query) {
+              // Check if this is from search history
+              if (fromSource === 'recent') {
+                searchType = SearchType.SEARCH_HISTORY;
+              } else {
+                searchType = SearchType.NATURAL_LANGUAGE;
+              }
+              searchQuery = query;
+            } else if (serviceCatalogId) {
+              searchType = SearchType.SERVICE_PILL;
+              searchQuery = serviceNameFromUrl || serviceName || `Service #${serviceCatalogId}`;
+            } else if (category) {
+              searchType = SearchType.CATEGORY;
+              searchQuery = category;
+            }
+
+            // Record the search
+            recordSearch(
+              {
+                query: searchQuery,
+                search_type: searchType,
+                results_count: totalResults,
+              },
+              isAuthenticated
+            );
+          }
+        }
       }
       setTotal(totalResults);
     } catch (err) {
@@ -171,7 +219,7 @@ function SearchPageContent() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [query, category, serviceCatalogId, availableNow, ageGroup]);
+  }, [query, category, serviceCatalogId, availableNow, ageGroup, isAuthenticated, serviceNameFromUrl]);
 
   useEffect(() => {
     fetchResults(1, false);

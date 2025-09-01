@@ -10,6 +10,8 @@ import { Eye, EyeOff } from 'lucide-react';
 import { API_URL, API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
+import { getGuestSessionId, transferGuestSearchesToAccount } from '@/lib/searchTracking';
+import { withApiBase } from '@/lib/apiBase';
 
 /**
  * LoginForm Component
@@ -91,17 +93,41 @@ function LoginForm() {
     });
 
     try {
-      // Attempt login via auth context; adjust to capture 2FA challenge
-      // Directly post to /auth/login to capture requires_2fa/temp_token
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/auth/login`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({ username: formData.email, password: formData.password }).toString(),
-          credentials: 'include',
-        }
-      );
+      // Get guest session ID if available
+      const guestSessionId = getGuestSessionId();
+      logger.info('Login attempt with guest session:', { guestSessionId, hasGuestSession: !!guestSessionId });
+
+      // Determine endpoint and body based on guest session
+      const loginPath = guestSessionId ? '/auth/login-with-session' : '/auth/login';
+      const apiPath = withApiBase(loginPath);
+      const endpoint = typeof window !== 'undefined'
+        ? `${window.location.origin}${apiPath}`
+        : `${API_URL}${loginPath}`;
+
+      const body = guestSessionId
+        ? JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+            guest_session_id: guestSessionId,
+          })
+        : new URLSearchParams({ username: formData.email, password: formData.password }).toString();
+
+      const headers = guestSessionId
+        ? { 'Content-Type': 'application/json' }
+        : { 'Content-Type': 'application/x-www-form-urlencoded' };
+
+      logger.info('Sending login request:', {
+        endpoint,
+        hasGuestSession: !!guestSessionId,
+        bodyPreview: guestSessionId ? { email: formData.email, guest_session_id: guestSessionId } : 'form-data'
+      });
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body,
+        credentials: 'include',
+      });
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -120,6 +146,15 @@ function LoginForm() {
 
       // No 2FA: complete login using existing flow
       localStorage.setItem('access_token', data.access_token);
+
+      // Transfer guest searches if we had a guest session
+      const transferGuestSession = getGuestSessionId();
+      if (transferGuestSession) {
+        logger.info('Initiating guest search transfer for session:', { guestSessionId: transferGuestSession });
+        await transferGuestSearchesToAccount();
+        logger.info('Guest search transfer completed after login');
+      }
+
       await checkAuth();
       // Decide post-login route: respect explicit redirect; otherwise route instructors by live status
       try {
@@ -175,7 +210,7 @@ function LoginForm() {
     setIsVerifying2FA(true);
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/2fa/verify-login`,
+        `${API_URL}/api/auth/2fa/verify-login`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Trust-Browser': trustThisBrowser ? 'true' : 'false' },

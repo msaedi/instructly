@@ -125,7 +125,8 @@ export async function cleanFetch<T>(
     url = new URL(endpoint);
   } else if (typeof window !== 'undefined') {
     // Respect proxy toggle for browser requests
-    const adjustedPath = endpoint.startsWith('/api/proxy') || endpoint.startsWith('/api/') ? endpoint : withApiBase(endpoint);
+    // Don't double-apply proxy prefix if already present
+    const adjustedPath = endpoint.startsWith('/api/proxy') ? endpoint : withApiBase(endpoint);
     url = new URL(adjustedPath, window.location.origin);
   } else {
     const base = API_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';

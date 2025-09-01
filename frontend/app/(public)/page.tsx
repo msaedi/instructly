@@ -13,7 +13,8 @@ import { NotificationBar } from '@/components/NotificationBar';
 import { UpcomingLessons } from '@/components/UpcomingLessons';
 import { BookAgain } from '@/components/BookAgain';
 import { RecentSearches } from '@/components/RecentSearches';
-// Removed react-query hook usage here to avoid SSR hook order differences
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { convertApiResponse } from '@/lib/react-query/api';
 import { getActivityBackground } from '@/lib/services/assetService';
 import {
@@ -47,9 +48,6 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('arts');
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
-  const [categoryServices, setCategoryServices] = useState<Record<string, TopServiceSummary[]>>({});
-  const [kidsServices, setKidsServices] = useState<Array<{ id: string; name: string; slug: string }>>([]);
-  const [categoriesFromDb, setCategoriesFromDb] = useState<ServiceCategory[]>([]);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [userHasBookingHistory, setUserHasBookingHistory] = useState<boolean | null>(null);
@@ -60,6 +58,59 @@ export default function HomePage() {
   const isInstructor = isAuthenticated && hasRole(user, RoleName.INSTRUCTOR);
   const { config } = useBeta();
   const hideStudentUi = config.site === 'beta' && config.phase === 'instructor_only';
+
+  // React Query hooks for fetching data with caching
+  // These prevent duplicate API calls and improve performance
+  const { data: topServicesData } = useQuery({
+    queryKey: queryKeys.services.topPerCategory,
+    queryFn: async () => {
+      const response = await publicApi.getTopServicesPerCategory();
+      if (response.error) {
+        throw new Error(response.error);
+      }
+      return response.data;
+    },
+    staleTime: CACHE_TIMES.STATIC, // 1 hour cache for static content
+    enabled: true, // Always fetch, don't make it conditional to avoid hook order issues
+  });
+
+  const { data: kidsServicesData } = useQuery({
+    queryKey: queryKeys.services.kidsAvailable,
+    queryFn: async () => {
+      const response = await publicApi.getKidsAvailableServices();
+      if (response.error) {
+        throw new Error(response.error);
+      }
+      return response.data;
+    },
+    staleTime: CACHE_TIMES.STATIC, // 1 hour cache
+    enabled: true,
+  });
+
+  const { data: categoriesData } = useQuery({
+    queryKey: queryKeys.services.categories,
+    queryFn: async () => {
+      const response = await publicApi.getServiceCategories();
+      if (response.error) {
+        throw new Error(response.error);
+      }
+      return response.data;
+    },
+    staleTime: CACHE_TIMES.STATIC, // 1 hour cache
+    enabled: true,
+  });
+
+  // Process the cached data into the format the component expects
+  const categoryServices = topServicesData ? (() => {
+    const servicesMap: Record<string, TopServiceSummary[]> = {};
+    topServicesData.categories.forEach((category) => {
+      servicesMap[category.slug] = category.services;
+    });
+    return servicesMap;
+  })() : {};
+
+  const kidsServices = kidsServicesData || [];
+  const categoriesFromDb = categoriesData || [];
 
   // Set isClient to true after mount to avoid hydration issues
   useEffect(() => {
@@ -140,9 +191,8 @@ export default function HomePage() {
     }
   };
 
-  // Fetch services for all categories on mount (client-only)
+  // Probe instructor live status for nav label/link
   useEffect(() => {
-    // Probe instructor live status for nav label/link
     const probeInstructorStatus = async () => {
       try {
         if (isAuthenticated && hasRole(user, RoleName.INSTRUCTOR)) {
@@ -160,70 +210,7 @@ export default function HomePage() {
     };
 
     probeInstructorStatus();
-
-    const fetchCategoryServices = async () => {
-      try {
-        const response = await publicApi.getTopServicesPerCategory();
-
-        if (response.error) {
-          logger.error('API error fetching top services', new Error(response.error), {
-            status: response.status,
-          });
-          return;
-        }
-
-        if (!response.data) {
-          logger.error('No data received from top services endpoint');
-          return;
-        }
-
-        const servicesMap: Record<string, TopServiceSummary[]> = {};
-        response.data.categories.forEach((category) => {
-          servicesMap[category.slug] = category.services;
-        });
-
-        setCategoryServices(servicesMap);
-
-        const totalServicesLoaded = Object.values(servicesMap).reduce(
-          (sum, services) => sum + services.length,
-          0
-        );
-        logger.info('All category services loaded with single request', {
-          categoriesLoaded: Object.keys(servicesMap).length,
-          totalServices: totalServicesLoaded,
-        });
-      } catch (error) {
-        logger.error('Failed to fetch category services', error as Error);
-      }
-    };
-
-    fetchCategoryServices();
-    // Fetch kids-available services for Kids category pills
-    const fetchKids = async () => {
-      try {
-        const res = await publicApi.getKidsAvailableServices();
-        if (res.data) setKidsServices(res.data);
-      } catch (e) {
-        // non-fatal
-      }
-    };
-    fetchKids();
-  }, [isClient, isAuthenticated, user]);
-
-  // Fetch categories from API for homepage (DB-driven icons/names/subtitles)
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const res = await publicApi.getServiceCategories();
-        if (res.data) {
-          setCategoriesFromDb(res.data);
-        }
-      } catch (e) {
-        // non-fatal; fallback to hardcoded list
-      }
-    };
-    fetchCategories();
-  }, []);
+  }, [isAuthenticated, user]);
 
   // Detect touch device
   useEffect(() => {
@@ -539,8 +526,8 @@ export default function HomePage() {
               servicesToShow.forEach((service, index) => {
                 const href =
                   activeCategory === 'kids'
-                    ? `/search?service_catalog_id=${service.id}&age_group=kids&from=home`
-                    : `/search?service_catalog_id=${service.id}&from=home`;
+                    ? `/search?service_catalog_id=${service.id}&service_name=${encodeURIComponent(service.name)}&age_group=kids&from=home`
+                    : `/search?service_catalog_id=${service.id}&service_name=${encodeURIComponent(service.name)}&from=home`;
                 pills.push(
                   <Link
                     key={service.id}

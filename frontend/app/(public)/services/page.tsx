@@ -407,7 +407,7 @@ export default function AllServicesPage() {
           return (
             <Link
               key={service.id}
-              href={`/search?service_catalog_id=${service.id}&from=services`}
+              href={`/search?service_catalog_id=${service.id}&service_name=${encodeURIComponent(service.name)}&from=services`}
               onClick={async () => {
                 // Track navigation source as backup
                 if (typeof window !== 'undefined') {

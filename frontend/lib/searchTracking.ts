@@ -11,7 +11,12 @@ import { getSessionId, refreshSession, getAnalyticsContext } from '@/lib/session
 import { SearchType } from '@/types/enums';
 import { captureDeviceContext, formatDeviceContextForAnalytics } from '@/lib/deviceContext';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { withApiBase } from '@/lib/apiBase';
+
+// Build URL using centralized API base resolver
+function buildUrl(path: string): string {
+  return withApiBase(path);
+}
 
 export interface SearchRecord {
   query: string;
@@ -168,7 +173,7 @@ export async function recordSearch(
       body.observability_candidates = searchRecord.observability_candidates;
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/search-history/`, {
+    const response = await fetch(buildUrl('/api/search-history/'), {
       method: 'POST',
       headers: getHeaders(isAuthenticated),
       body: JSON.stringify(body),
@@ -219,7 +224,7 @@ export async function getRecentSearches(
   limit: number = 3
 ): Promise<any[]> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/search-history/?limit=${limit}`, {
+    const response = await fetch(buildUrl(`/api/search-history/?limit=${limit}`), {
       method: 'GET',
       headers: getHeaders(isAuthenticated),
     });
@@ -279,7 +284,7 @@ export async function trackSearchInteraction(
       isAuthenticated,
     });
 
-    const response = await fetch(`${API_BASE_URL}/api/search-history/interaction`, {
+    const response = await fetch(buildUrl('/api/search-history/interaction'), {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -315,7 +320,7 @@ export async function trackSearchInteraction(
  */
 export async function deleteSearch(searchId: string, isAuthenticated: boolean): Promise<boolean> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/search-history/${searchId}`, {
+    const response = await fetch(buildUrl(`/api/search-history/${searchId}`), {
       method: 'DELETE',
       headers: getHeaders(isAuthenticated),
     });

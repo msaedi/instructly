@@ -116,6 +116,8 @@ export const queryKeys = {
     categories: ['services', 'categories'] as const,
     byCategory: (categorySlug: string) => ['services', 'category', categorySlug] as const,
     withInstructors: ['services', 'with-instructors'] as const,
+    topPerCategory: ['services', 'top-per-category'] as const,
+    kidsAvailable: ['services', 'kids-available'] as const,
   },
 
   // Notifications queries

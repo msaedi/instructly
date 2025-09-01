@@ -76,7 +76,7 @@ async def register(
         if user.guest_session_id:
             try:
                 search_service = SearchHistoryService(db)
-                converted_count = await search_service.convert_guest_searches_to_user(
+                converted_count = search_service.convert_guest_searches_to_user(
                     guest_session_id=user.guest_session_id, user_id=db_user.id
                 )
                 logger.info(f"Converted {converted_count} guest searches for new user {db_user.id}")
@@ -297,7 +297,7 @@ async def login_with_session(
     if login_data.guest_session_id:
         try:
             search_service = SearchHistoryService(db)
-            converted_count = await search_service.convert_guest_searches_to_user(
+            converted_count = search_service.convert_guest_searches_to_user(
                 guest_session_id=login_data.guest_session_id, user_id=user.id
             )
             logger.info(f"Converted {converted_count} guest searches for user {user.id}")
