@@ -386,7 +386,7 @@ export default function Step4Verification() {
             if (!verificationComplete && typeof window !== 'undefined') {
               sessionStorage.setItem('verificationSkipped', 'true');
             }
-            window.location.href = '/instructor/onboarding/status';
+            window.location.href = '/instructor/onboarding/payment-setup';
           }}
         >
           Continue →

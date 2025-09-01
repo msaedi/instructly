@@ -10,7 +10,10 @@ import { getSessionId, refreshSession } from '@/lib/sessionTracking';
 import { withApiBase } from '@/lib/apiBase';
 
 // Browser calls go through Next.js proxy to avoid CORS and middleware redirects
-const API_BASE_URL = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
+// Ensure an absolute base URL for URL construction in the browser
+const API_BASE_URL = typeof window !== 'undefined'
+  ? window.location.origin
+  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
 
 /**
  * API response type for consistent error handling

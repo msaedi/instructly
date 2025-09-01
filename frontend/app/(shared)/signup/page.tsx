@@ -15,7 +15,7 @@ import { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
-import { API_URL, API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
+import { API_URL, API_ENDPOINTS, fetchWithAuth, checkIsNYCZip } from '@/lib/api';
 import { BRAND } from '@/app/config/brand';
 import { logger } from '@/lib/logger';
 import { getGuestSessionId } from '@/lib/searchTracking';
@@ -107,6 +107,8 @@ function SignUpForm() {
     hasRedirect: redirect !== '/',
   });
 
+  const isInstructorFlow = (searchParams.get('role') || '').toLowerCase() === 'instructor';
+
   /**
    * Handle form input changes
    *
@@ -131,12 +133,57 @@ function SignUpForm() {
       [name]: nextValue,
     }));
 
-    // Clear error for this field when user types
-    if (errors[name as keyof FormErrors]) {
+    // Field-specific live validation and error updates
+    if (name === 'email') {
+      const invalid = nextValue.trim().length > 0 && !/\S+@\S+\.\S+/.test(nextValue);
       setErrors((prev) => ({
         ...prev,
-        [name]: undefined,
+        email: invalid ? 'Please enter a valid email' : undefined,
       }));
+    } else if (name === 'phone') {
+      const cleaned = nextValue.replace(/\D/g, '');
+      const invalid = nextValue.trim().length > 0 && cleaned.length !== 10;
+      setErrors((prev) => ({
+        ...prev,
+        phone: invalid ? 'Please enter a valid phone number' : undefined,
+      }));
+    } else if (name === 'zipCode') {
+      const len = nextValue.length;
+      const invalidLen = len > 0 && len < 5;
+      setErrors((prev) => ({
+        ...prev,
+        // Show generic hint while typing; preserve NYC error if present
+        zipCode: invalidLen
+          ? 'Please enter a valid ZIP code'
+          : (prev.zipCode === 'Please enter a valid ZIP code' ? undefined : prev.zipCode),
+      }));
+    } else {
+      // Clear error for this field when user types
+      if (errors[name as keyof FormErrors]) {
+        setErrors((prev) => ({
+          ...prev,
+          [name]: undefined,
+        }));
+      }
+    }
+  };
+
+  // Validate ZIP against backend NYC checker for instructor flow
+  const handleZipBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
+    const value = (e.target.value || '').trim();
+    if (value.length !== 5) return;
+    try {
+      const res = await checkIsNYCZip(value);
+      if (isInstructorFlow && !res.is_nyc) {
+        setErrors((prev) => ({ ...prev, zipCode: 'Please enter a New York City ZIP code' }));
+      } else {
+        setErrors((prev) => ({
+          ...prev,
+          zipCode: prev.zipCode && prev.zipCode.startsWith('Please enter a New York City') ? undefined : prev.zipCode,
+        }));
+      }
+    } catch {
+      // Network or parsing error: do not block; keep existing validation
     }
   };
 
@@ -145,7 +192,7 @@ function SignUpForm() {
    *
    * @returns {boolean} True if form is valid
    */
-  const validateForm = (): boolean => {
+  const validateForm = (): { isValid: boolean; errors: FormErrors } => {
     logger.debug('Validating signup form');
     const newErrors: FormErrors = {};
 
@@ -175,14 +222,14 @@ function SignUpForm() {
     if (!formData.phone.trim()) {
       newErrors.phone = 'Phone number is required';
     } else if (cleanedPhone.length !== 10) {
-      newErrors.phone = 'Please enter a valid 10-digit phone number';
+      newErrors.phone = 'Please enter a valid phone number';
     }
 
     // Validate zip code
     if (!formData.zipCode.trim()) {
       newErrors.zipCode = 'Zip code is required';
     } else if (formData.zipCode.length !== 5) {
-      newErrors.zipCode = 'Please enter a valid 5-digit zip code';
+      newErrors.zipCode = 'Please enter a valid ZIP code';
     }
 
     // Validate password
@@ -197,7 +244,6 @@ function SignUpForm() {
       newErrors.confirmPassword = 'Passwords do not match';
     }
 
-    setErrors(newErrors);
     const isValid = Object.keys(newErrors).length === 0;
 
     logger.debug('Form validation result', {
@@ -206,7 +252,7 @@ function SignUpForm() {
       errors: Object.keys(newErrors),
     });
 
-    return isValid;
+    return { isValid, errors: newErrors };
   };
 
   /**
@@ -218,8 +264,29 @@ function SignUpForm() {
     e.preventDefault();
     logger.info('Signup form submitted');
 
-    if (!validateForm()) {
+    const { isValid, errors: vfErrors } = validateForm();
+    if (!isValid) {
       logger.warn('Signup form validation failed');
+      setErrors(vfErrors);
+      // Focus first invalid field for faster correction
+      const order: Array<keyof FormErrors> = [
+        'firstName',
+        'lastName',
+        'email',
+        'phone',
+        'zipCode',
+        'password',
+        'confirmPassword',
+      ];
+      for (const key of order) {
+        if (vfErrors[key]) {
+          const el = document.getElementById(key as string) as HTMLInputElement | null;
+          if (el) {
+            el.focus();
+          }
+          break;
+        }
+      }
       return;
     }
 
@@ -430,17 +497,33 @@ function SignUpForm() {
   const isLoading = requestStatus === RequestStatus.LOADING;
 
   return (
-    <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-      <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
-        <div className="text-center mb-6">
+    <div className="mt-4 sm:mx-auto sm:w-full sm:max-w-md">
+      <div className="bg-white dark:bg-gray-800 py-6 md:py-8 px-4 shadow sm:rounded-lg sm:px-10">
+        <div className="text-center mb-1 md:mb-2">
           <Link href="/" onClick={() => logger.info('Navigating to home from signup inside box')}>
             <h1 className="text-4xl font-bold text-purple-700 hover:text-purple-800 transition-colors">{BRAND.name}</h1>
           </Link>
         </div>
-        <form className="space-y-6" onSubmit={handleSubmit} noValidate>
+        {isInstructorFlow && (
+          <div className="text-center mb-2 md:mb-3">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Join as an Instructor</h2>
+            <p className="text-gray-600 dark:text-gray-300 mt-0.5">Share your skills and earn on your schedule</p>
+          </div>
+        )}
+        {!isInstructorFlow && (
+          <div className="text-center mb-2 md:mb-3">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Start Learning Today</h2>
+            <p className="text-gray-600 dark:text-gray-300 mt-0.5">Discover instructors and book lessons instantly.</p>
+          </div>
+        )}
+        <form className="space-y-5 md:space-y-6" onSubmit={handleSubmit} noValidate>
+          {/* Screen reader live region for aggregated errors */}
+          <div className="sr-only" role="status" aria-live="polite">
+            {(Object.values(errors).filter(Boolean) as string[]).join('. ')}
+          </div>
           {/* General error message */}
           {errors.general && (
-            <div className={`rounded-md p-4 ${
+            <div role="alert" className={`rounded-md p-4 ${
               errors.general === 'An account with this email already exists'
                 ? 'bg-yellow-50'
                 : 'bg-red-50 dark:bg-red-900/20'
@@ -454,7 +537,7 @@ function SignUpForm() {
           )}
 
           {/* Name Fields Row */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3 md:gap-4">
             {/* First Name Field */}
             <div>
               <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 dark:text-gray-300">First Name</label>
@@ -478,19 +561,19 @@ function SignUpForm() {
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
             <div className="mt-1">
-              <input id="email" name="email" type="email" autoComplete="email" required value={formData.email} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.email} aria-describedby={errors.email ? 'email-error' : undefined} />
-              {errors.email && (<p id="email-error" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.email}</p>)}
+              <input id="email" name="email" type="email" autoComplete="email" autoCapitalize="none" autoCorrect="off" inputMode="email" required value={formData.email} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.email} aria-describedby={errors.email ? 'email-error' : undefined} />
+              {errors.email && (<p id="email-error" role="alert" aria-live="polite" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.email}</p>)}
             </div>
           </div>
 
           {/* Phone and Zip Code Row */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3 md:gap-4">
             {/* Phone Field */}
             <div>
               <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Phone Number</label>
               <div className="mt-1">
-                <input id="phone" name="phone" type="tel" autoComplete="tel" required placeholder="(555) 555-5555" value={formData.phone} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed" aria-invalid={!!errors.phone} aria-describedby={errors.phone ? 'phone-error' : undefined} />
-                {errors.phone && (<p id="phone-error" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.phone}</p>)}
+                <input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" required placeholder="(555) 555-5555" value={formData.phone} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed" aria-invalid={!!errors.phone} aria-describedby={errors.phone ? 'phone-error' : undefined} />
+                {errors.phone && (<p id="phone-error" role="alert" aria-live="polite" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.phone}</p>)}
               </div>
             </div>
 
@@ -498,9 +581,9 @@ function SignUpForm() {
             <div>
               <label htmlFor="zipCode" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Zip Code</label>
               <div className="mt-1">
-                <input id="zipCode" name="zipCode" type="text" autoComplete="postal-code" required placeholder="10001" maxLength={5} value={formData.zipCode} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed" aria-invalid={!!errors.zipCode} aria-describedby={errors.zipCode ? 'zipCode-error' : undefined} />
+                <input id="zipCode" name="zipCode" type="text" inputMode="numeric" pattern="\\d{5}" autoComplete="postal-code" required placeholder="10001" maxLength={5} value={formData.zipCode} onChange={handleChange} onBlur={handleZipBlur} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed" aria-invalid={!!errors.zipCode} aria-describedby={errors.zipCode ? 'zipCode-error' : undefined} />
                 {errors.zipCode && (
-                  <p id="zipCode-error" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.zipCode}</p>
+                  <p id="zipCode-error" role="alert" aria-live="polite" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.zipCode}</p>
                 )}
               </div>
             </div>
@@ -510,10 +593,13 @@ function SignUpForm() {
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
             <div className="mt-1 relative">
-              <input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" required value={formData.password} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.password} aria-describedby={errors.password ? 'password-error' : 'password-hint'} />
+              <input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" minLength={8} required value={formData.password} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.password} aria-describedby={errors.password ? 'password-error' : 'password-hint'} />
               <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-0 top-1/2 -translate-y-1/2 -mt-2.5 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300" disabled={isLoading}>{showPassword ? (<EyeOff className="h-5 w-5" aria-hidden="true" />) : (<Eye className="h-5 w-5" aria-hidden="true" />)}</button>
               {errors.password && (<p id="password-error" className="mt-1 text-sm text-red-600 dark:text-red-400">At least 8 characters</p>)}
-              {!errors.password && (<p id="password-hint" className="mt-1 text-sm text-gray-500 dark:text-gray-400">At least 8 characters</p>)}
+              {/* Strength hint */}
+              {!errors.password && (
+                <p id="password-hint" className="mt-1 text-sm text-gray-500 dark:text-gray-400">At least 8 characters</p>
+              )}
             </div>
           </div>
 
@@ -521,33 +607,74 @@ function SignUpForm() {
           <div>
             <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Confirm Password</label>
             <div className="mt-1">
-              <input id="confirmPassword" name="confirmPassword" type={showPassword ? 'text' : 'password'} autoComplete="new-password" required value={formData.confirmPassword} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.confirmPassword} aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined} />
+              <input id="confirmPassword" name="confirmPassword" type={showPassword ? 'text' : 'password'} autoComplete="new-password" minLength={8} required value={formData.confirmPassword} onChange={handleChange} disabled={isLoading} className="appearance-none block w-full px-3 py-2 h-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed autofill-fix" aria-invalid={!!errors.confirmPassword} aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined} />
               {errors.confirmPassword && (<p id="confirmPassword-error" className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.confirmPassword}</p>)}
             </div>
           </div>
 
-          {/* Terms and Privacy Policy */}
-          <div className="text-center">
-            <p className="text-xs text-gray-600 dark:text-gray-400">
-              By clicking below and creating an account, I agree to iNSTAiNSTRU's{' '}
+          {/* Submit Button */}
+          <div>
+            {/* Terms and Privacy Policy - smaller and tight above button */}
+            <p className="text-center text-[11px] leading-4 text-gray-600 dark:text-gray-400 mb-3">
+              By clicking below and creating an account,
+              <br />
+              I agree to iNSTAiNSTRU's{' '}
               <Link href="/terms" className="text-purple-700 hover:text-purple-800 underline">Terms of Service</Link>{' '}
               and{' '}
               <Link href="/privacy" className="text-purple-700 hover:text-purple-800 underline">Privacy Policy</Link>
             </p>
+            <button type="submit" disabled={isLoading} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-700 hover:bg-purple-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-purple-600 dark:hover:bg-purple-700">{isLoading ? 'Creating account...' : (isInstructorFlow ? 'Sign up as Instructor' : 'Sign up as Student')}</button>
+
+            {/* Instructor CTAs placed tight under the button */}
+            {isInstructorFlow && (
+              <div className="text-center mt-1">
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  Looking to learn instead?{' '}
+                  <Link
+                    href={`/signup${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
+                    className="font-medium text-purple-700 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300"
+                  >
+                    Sign up as a student
+                  </Link>
+                </span>
+                <div className="mt-0.5">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    Already have an account?{' '}
+                    <Link
+                      href={`/login${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
+                      className="font-medium text-purple-700 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300"
+                      onClick={() => logger.info('Navigating to login from signup')}
+                    >
+                      Sign in
+                    </Link>
+                  </span>
+                </div>
+              </div>
+            )}
+            {!isInstructorFlow && (
+              <div className="text-center mt-1">
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  Looking to teach instead?{' '}
+                  <Link
+                    href={`/signup?role=instructor${redirect !== '/' ? `&redirect=${encodeURIComponent(redirect)}` : ''}`}
+                    className="font-medium text-purple-700 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300"
+                  >
+                    Sign up as Instructor
+                  </Link>
+                </span>
+                <div className="mt-0.5">
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    Already have an account?{' '}
+                    <Link href={`/login${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`} className="font-medium text-purple-700 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300" onClick={() => logger.info('Navigating to login from signup')}>Sign in</Link>
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Submit Button */}
-          <div>
-            <button type="submit" disabled={isLoading} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-700 hover:bg-purple-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-purple-600 dark:hover:bg-purple-700">{isLoading ? 'Creating account...' : 'Sign up'}</button>
-          </div>
+          {/* CTAs are now rendered just above inside the button block */}
 
-          {/* Login Link */}
-          <div className="text-center">
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              Already have an account?{' '}
-              <Link href={`/login${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`} className="font-medium text-purple-700 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300" onClick={() => logger.info('Navigating to login from signup')}>Sign in</Link>
-            </span>
-          </div>
+          {/* Login link for student flow moved under submit button above */}
         </form>
       </div>
     </div>

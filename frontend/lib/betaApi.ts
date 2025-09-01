@@ -52,3 +52,20 @@ export async function getPerformanceMetrics(): Promise<MetricsPerformanceRespons
   if (!res.ok) throw new Error(await getErrorMessage(res));
   return res.json();
 }
+
+export interface MetricsSummaryResponse {
+  bookings_last_7d?: number;
+  students_total?: number;
+  earnings_last_7d?: number;
+  // Allow other backend-provided fields without strict typing
+  [key: string]: any;
+}
+
+export async function getMetricsSummary(): Promise<MetricsSummaryResponse> {
+  const res = await fetch(withApiBase('/beta/metrics/summary'), {
+    credentials: 'include',
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error(await getErrorMessage(res));
+  return res.json();
+}

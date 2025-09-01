@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
+import { User as UserIcon, MapPin, Settings as SettingsIcon, BookOpen, ChevronDown } from 'lucide-react';
 import { fetchWithAuth, API_ENDPOINTS, getErrorMessage } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
@@ -46,10 +47,14 @@ export default function InstructorProfileSettingsPage() {
   const [areaInput, setAreaInput] = useState('');
   const [isNYC, setIsNYC] = useState<boolean>(true); // default to true for now
   const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<Set<string>>(new Set());
-  const [boroughOpen, setBoroughOpen] = useState<string | null>(null);
   const [boroughNeighborhoods, setBoroughNeighborhoods] = useState<Record<string, ServiceAreaItem[]>>({});
-  const [boroughFilter, setBoroughFilter] = useState<string>('');
+  const [openBoroughsMain, setOpenBoroughsMain] = useState<Set<string>>(new Set());
+  const [globalNeighborhoodFilter, setGlobalNeighborhoodFilter] = useState<string>('');
   const [idToItem, setIdToItem] = useState<Record<string, ServiceAreaItem>>({});
+  // Removed selected neighborhoods pills panel state
+  const boroughRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const boroughAccordionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const boroughPillRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   useEffect(() => {
     const load = async () => {
@@ -169,6 +174,15 @@ export default function InstructorProfileSettingsPage() {
     void load();
   }, []);
 
+  // Auto-hide success toast after a short delay
+  useEffect(() => {
+    if (success) {
+      const t = setTimeout(() => setSuccess(null), 2500);
+      return () => clearTimeout(t);
+    }
+    return;
+  }, [success]);
+
   const canSave = useMemo(() => {
     return profile.bio.trim().length >= 1;
   }, [profile]);
@@ -178,6 +192,41 @@ export default function InstructorProfileSettingsPage() {
     if (!val) return;
     setProfile((p) => ({ ...p, areas_of_service: Array.from(new Set([...(p.areas_of_service || []), toTitle(val)])) }));
     setAreaInput('');
+  };
+
+  // Removed selected neighborhoods panel prefetch effect
+
+  // When using global neighborhood search, ensure borough lists are prefetched
+  useEffect(() => {
+    if (globalNeighborhoodFilter.trim().length > 0) {
+      NYC_BOROUGHS.forEach((b) => {
+        void loadBoroughNeighborhoods(b);
+      });
+    }
+  }, [globalNeighborhoodFilter]);
+
+  // Removed selected neighborhoods panel accordion handlers
+
+  // Toggle main borough accordion with scroll-position preservation
+  const toggleMainBoroughOpen = async (b: string) => {
+    const el = boroughAccordionRefs.current[b];
+    const prevTop = el?.getBoundingClientRect().top ?? 0;
+    setOpenBoroughsMain((prev) => {
+      const next = new Set(prev);
+      if (next.has(b)) next.delete(b);
+      else next.add(b);
+      return next;
+    });
+    await loadBoroughNeighborhoods(b);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const newTop = boroughAccordionRefs.current[b]?.getBoundingClientRect().top ?? prevTop;
+        const delta = newTop - prevTop;
+        if (delta !== 0) {
+          window.scrollBy({ top: delta, left: 0, behavior: 'auto' });
+        }
+      });
+    });
   };
   const removeArea = (area: string) => {
     setProfile((p) => ({ ...p, areas_of_service: (p.areas_of_service || []).filter((a) => a !== area) }));
@@ -265,8 +314,8 @@ export default function InstructorProfileSettingsPage() {
   // NYC helpers
   const NYC_BOROUGHS = ['Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island'] as const;
 
-  const loadBoroughNeighborhoods = async (borough: string) => {
-    if (boroughNeighborhoods[borough]) return;
+  const loadBoroughNeighborhoods = async (borough: string): Promise<ServiceAreaItem[]> => {
+    if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
     try {
       const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`;
       const r = await fetch(url);
@@ -283,12 +332,14 @@ export default function InstructorProfileSettingsPage() {
           }
           return next;
         });
+        return list;
       }
     } catch {}
+    return boroughNeighborhoods[borough] || [];
   };
 
-  const toggleBoroughAll = (borough: string, value: boolean) => {
-    const items = boroughNeighborhoods[borough] || [];
+  const toggleBoroughAll = (borough: string, value: boolean, itemsOverride?: ServiceAreaItem[]) => {
+    const items = itemsOverride || boroughNeighborhoods[borough] || [];
     const ids = items.map((i) => i.neighborhood_id || (i as any).id);
     setSelectedNeighborhoods((prev) => {
       const next = new Set(prev);
@@ -436,211 +487,207 @@ export default function InstructorProfileSettingsPage() {
       {error && (
         <div className="mb-6 rounded-lg bg-red-50 border border-red-200 text-red-700 px-4 py-3">{error}</div>
       )}
-      {success && (
-        <div className="mb-6 rounded-lg bg-green-50 border border-green-200 text-green-700 px-4 py-3">{success}</div>
-      )}
+      {/* Success toast is shown as a floating element; banner removed for cleaner UI */}
 
       <div className="mt-6 space-y-6">
         {/* Personal Information Section */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-5 hover:shadow-sm transition-shadow">
             <div className="flex items-start justify-between mb-4">
               <div>
-                <div className="text-lg font-medium text-gray-900">Personal Information</div>
-                <div className="text-sm text-gray-600 mt-1">Your basic profile details</div>
+                <div className="flex items-center gap-2 text-lg font-medium text-gray-900"><UserIcon className="w-5 h-5 text-purple-700" />Personal Information</div>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="bg-white rounded-lg p-3 border border-gray-200">
-                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">First Name</label>
-                <input
-                  type="text"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
-                  placeholder="John"
-                  value={profile.first_name}
-                  onChange={(e) => setProfile((p) => ({ ...p, first_name: e.target.value }))}
-                />
-              </div>
-              <div className="bg-white rounded-lg p-3 border border-gray-200">
-                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Last Name</label>
-                <input
-                  type="text"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
-                  placeholder="Smith"
-                  value={profile.last_name}
-                  onChange={(e) => setProfile((p) => ({ ...p, last_name: e.target.value }))}
-                />
-              </div>
-              <div className="bg-white rounded-lg p-3 border border-gray-200">
-                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">ZIP Code</label>
-                <input
-                  type="text"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
-                  placeholder="10001"
-                  value={profile.postal_code}
-                  onChange={(e) => setProfile((p) => ({ ...p, postal_code: e.target.value }))}
-                />
+            <div className="rounded-lg border border-gray-200 p-5 hover:shadow-sm transition-shadow">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="p-2">
+                  <label htmlFor="first_name" className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">First Name</label>
+                  <input
+                    id="first_name"
+                    type="text"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                    placeholder="John"
+                    value={profile.first_name}
+                    onChange={(e) => setProfile((p) => ({ ...p, first_name: e.target.value }))}
+                  />
+                </div>
+                <div className="p-2">
+                  <label htmlFor="last_name" className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Last Name</label>
+                  <input
+                    id="last_name"
+                    type="text"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                    placeholder="Smith"
+                    value={profile.last_name}
+                    onChange={(e) => setProfile((p) => ({ ...p, last_name: e.target.value }))}
+                  />
+                </div>
+                <div className="p-2">
+                  <label htmlFor="postal_code" className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">ZIP Code</label>
+                  <input
+                    id="postal_code"
+                    type="text"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
+                    placeholder="10001"
+                    value={profile.postal_code}
+                    onChange={(e) => setProfile((p) => ({ ...p, postal_code: e.target.value }))}
+                  />
+                </div>
               </div>
             </div>
-          </div>
         </div>
 
         {/* Professional Information Section */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-5 hover:shadow-sm transition-shadow">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <div className="text-lg font-medium text-gray-900">Professional Details</div>
-                <div className="text-sm text-gray-600 mt-1">Share your experience and teaching preferences</div>
-              </div>
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <div className="flex items-center gap-2 text-lg font-medium text-gray-900"><BookOpen className="w-5 h-5 text-purple-700" />Professional Details</div>
             </div>
-            <div className="mb-1 bg-white rounded-lg p-3 border border-gray-200">
-              <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Bio</label>
+          </div>
+          <div className="rounded-lg border border-gray-200 p-5 hover:shadow-sm transition-shadow">
+            <div className="p-2">
+              <p className="mb-2 text-sm text-gray-600">Share your experience and teaching preferences</p>
               <textarea
                 rows={4}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
                 placeholder="Tell students about your experience, style, and approach"
                 value={profile.bio}
                 onChange={(e) => setProfile((p) => ({ ...p, bio: e.target.value }))}
               />
             </div>
-            <p className="text-xs text-gray-500 mt-1">This will be displayed on your public profile</p>
           </div>
         </div>
 
         {/* Service Areas Section */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-5 hover:shadow-sm transition-shadow">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <div className="text-lg font-medium text-gray-900">Service Areas</div>
-                <div className="text-sm text-gray-600 mt-1">Select the neighborhoods where you teach</div>
-              </div>
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <div className="flex items-center gap-2 text-lg font-medium text-gray-900"><MapPin className="w-5 h-5 text-purple-700" />Service Areas</div>
             </div>
-            {isNYC ? (
-            <div className="space-y-3">
-              <div className="bg-white rounded-lg p-3 border border-gray-200">
-                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Select Boroughs</label>
+          </div>
+          <div className="rounded-lg border border-gray-200 p-5 hover:shadow-sm transition-shadow">
+            <p className="mb-3 text-sm text-gray-600">Select the neighborhoods where you teach</p>
+            {/* Global neighborhood search (no card wrapper) */}
+            <div className="mb-3">
+              <input
+                type="text"
+                value={globalNeighborhoodFilter}
+                onChange={(e) => setGlobalNeighborhoodFilter(e.target.value)}
+                placeholder="Search neighborhoods..."
+                className="w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
+              />
+            </div>
+            {globalNeighborhoodFilter.trim().length > 0 && (
+              <div className="rounded-lg border border-gray-200 bg-white p-3 mb-3">
+                <div className="text-sm text-gray-700 mb-2">Results</div>
                 <div className="flex flex-wrap gap-2">
-                {NYC_BOROUGHS.map((b) => {
-                  const { selected, total } = getBoroughCounts(b);
-                  const isAll = total > 0 && selected > 0 && selected === total;
-                  const isSome = selected > 0 && (!total || selected < total);
-                  const base = 'px-3 py-1.5 rounded-full text-sm border';
-                  const open = boroughOpen === b;
-                  const cls = isAll
-                    ? `${base} bg-[#6A0DAD] text-white border-[#6A0DAD]`
-                    : isSome
-                    ? `${base} bg-[#F6ECFF] text-[#6A0DAD] border-[#D4B5F0]`
-                    : `${base} bg-white text-gray-700 border-gray-200 hover:bg-gray-50`;
-                  const openRing = open ? ' ring-2 ring-[#D4B5F0]' : '';
-                  return (
-                    <button
-                      key={b}
-                      onClick={async () => {
-                        setBoroughOpen(boroughOpen === b ? null : b);
-                        await loadBoroughNeighborhoods(b);
-                      }}
-                      type="button"
-                      className={cls + openRing}
-                    >
-                      {b}
-                      {selected > 0 && (
-                        <span
-                          className={`ml-2 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-xs ${
-                            isAll
-                              ? 'bg-white text-[#6A0DAD] ring-1 ring-white/60'
-                              : 'bg-[#F3E8FF] text-[#6A0DAD] ring-1 ring-[#D4B5F0]'
+                  {NYC_BOROUGHS.flatMap((b) => boroughNeighborhoods[b] || [])
+                    .filter((n) => (n.name || '').toLowerCase().includes(globalNeighborhoodFilter.toLowerCase()))
+                    .map((n) => {
+                      const nid = n.neighborhood_id || (n as any).id;
+                      if (!nid) return null;
+                      const checked = selectedNeighborhoods.has(nid);
+                      return (
+                        <button
+                          key={`global-${nid}`}
+                          type="button"
+                          onClick={() => toggleNeighborhood(nid)}
+                          aria-pressed={checked}
+                          className={`flex items-center justify-between px-3 py-1.5 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-purple-500/20 ${
+                            checked ? 'bg-[#6A0DAD] text-white border border-[#6A0DAD]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                           }`}
                         >
-                          {selected}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
+                          <span className="truncate text-left">{n.name || nid}</span>
+                          <span className="ml-2">{checked ? '✓' : '+'}</span>
+                        </button>
+                      );
+                    })
+                    .filter(Boolean)
+                    .slice(0, 200)}
+                  {NYC_BOROUGHS.flatMap((b) => boroughNeighborhoods[b] || [])
+                    .filter((n) => (n.name || '').toLowerCase().includes(globalNeighborhoodFilter.toLowerCase())).length === 0 && (
+                      <div className="text-sm text-gray-500">No matches found</div>
+                  )}
                 </div>
               </div>
-              {/* Global selection panel (persists across boroughs) */}
-              {selectedNeighborhoods.size > 0 && (
-                <div className="mt-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-                  <div className="text-sm text-gray-700 mb-2">Selected {selectedNeighborhoods.size} neighborhoods</div>
-                  <div className="flex flex-wrap gap-2">
-                    {Array.from(selectedNeighborhoods).map((id) => {
-                      const it = idToItem[id];
-                      const label = it?.name || id;
-                      const hint = it?.borough ? ` • ${it.borough}` : '';
-                      return (
-                        <span key={id} className="inline-flex items-center gap-1.5 rounded-full bg-purple-50 border border-purple-200 px-3 py-1 text-sm text-purple-700">
-                          {label}
-                          <span className="text-purple-500 text-xs">{hint}</span>
-                          <button
-                            className="w-4 h-4 flex items-center justify-center rounded-full hover:bg-purple-200 text-purple-500"
-                            onClick={() => toggleNeighborhood(id)}
-                            aria-label={`Remove ${label}`}
-                          >
-                            ×
-                          </button>
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {boroughOpen && (
-                <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <div className="font-medium text-gray-900">{boroughOpen}</div>
-                    <div className="flex gap-2">
-                      <button
-                        className="text-sm px-3 py-1 rounded-md bg-purple-100 text-purple-700 hover:bg-purple-200"
-                        onClick={() => toggleBoroughAll(boroughOpen!, true)}
+            )}
+            {isNYC ? (
+            <div className="space-y-3">
+              {/* Removed top borough pills row */}
+              {/* Per-borough accordions like screenshot */}
+              <div className="mt-3 space-y-3">
+                {NYC_BOROUGHS.map((borough) => {
+                  const isOpen = openBoroughsMain.has(borough);
+                  const list = boroughNeighborhoods[borough] || [];
+                  return (
+                    <div key={`accordion-${borough}`} ref={(el) => { boroughAccordionRefs.current[borough] = el; }} className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+                      <div
+                        className="flex items-center justify-between cursor-pointer"
+                        onClick={async () => { await toggleMainBoroughOpen(borough); }}
+                        aria-expanded={isOpen}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={async (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); await toggleMainBoroughOpen(borough); } }}
                       >
-                        Select all
-                      </button>
-                      <button
-                        className="text-sm px-3 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
-                        onClick={() => toggleBoroughAll(boroughOpen!, false)}
-                      >
-                        Clear all
-                      </button>
-                    </div>
-                  </div>
-                  <div className="mt-3">
-                    <input
-                      type="text"
-                      value={boroughFilter}
-                      onChange={(e) => setBoroughFilter(e.target.value)}
-                      placeholder="Search neighborhoods..."
-                      className="w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4B5F0]"
-                    />
-                  </div>
-                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto overflow-x-hidden">
-                    {(boroughNeighborhoods[boroughOpen] || [])
-                      .filter((n) => (n.name || '').toLowerCase().includes(boroughFilter.toLowerCase()))
-                      .map((n) => {
-                        const nid = n.neighborhood_id || (n as any).id;
-                        const checked = selectedNeighborhoods.has(nid);
-                        return (
+                        <div className="flex items-center gap-2 text-gray-800 font-medium">
+                          <span className="tracking-wide text-sm">{borough}</span>
+                          <ChevronDown className={`h-4 w-4 text-gray-600 transition-transform ${isOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+                        </div>
+                        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                           <button
-                            key={nid}
                             type="button"
-                            onClick={() => toggleNeighborhood(nid)}
-                            aria-pressed={checked}
-                            className={`flex items-center justify-between w-full min-w-0 px-3 py-2 text-sm rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-purple-500/20 ${
-                              checked
-                                ? 'bg-purple-100 text-purple-700 border border-purple-300'
-                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                            }`}
+                            className="text-sm px-3 py-1 rounded-md bg-purple-100 text-purple-700 hover:bg-purple-200"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const listNow = boroughNeighborhoods[borough] || (await loadBoroughNeighborhoods(borough));
+                              toggleBoroughAll(borough, true, listNow);
+                            }}
                           >
-                            <span className="truncate text-left">{n.name || nid}</span>
-                            <span className="ml-2">{checked ? '✓' : '+'}</span>
+                            Select all
                           </button>
-                        );
-                      })}
-                  </div>
-                </div>
-              )}
+                          <button
+                            type="button"
+                            className="text-sm px-3 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const listNow = boroughNeighborhoods[borough] || (await loadBoroughNeighborhoods(borough));
+                              toggleBoroughAll(borough, false, listNow);
+                            }}
+                          >
+                            Clear all
+                          </button>
+                        </div>
+                      </div>
+                      {isOpen && (
+                        <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto overflow-x-hidden scrollbar-hide">
+                          {(list || []).map((n) => {
+                            const nid = n.neighborhood_id || (n as any).id;
+                            if (!nid) return null;
+                            const checked = selectedNeighborhoods.has(nid);
+                            const label = toTitle(n.name || String(nid));
+                            return (
+                              <button
+                                key={`${borough}-${nid}`}
+                                type="button"
+                                onClick={() => toggleNeighborhood(nid)}
+                                aria-pressed={checked}
+                                className={`flex items-center justify-between w-full min-w-0 px-2 py-1 text-xs rounded-full font-semibold transition focus:outline-none focus:ring-2 focus:ring-purple-500/20 ${
+                                  checked ? 'bg-[#6A0DAD] text-white border border-[#6A0DAD]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                }`}
+                              >
+                                <span className="truncate text-left">{label}</span>
+                                <span className="ml-2">{checked ? '✓' : '+'}</span>
+                              </button>
+                            );
+                          })}
+                          {list.length === 0 && (
+                            <div className="col-span-full text-sm text-gray-500">Loading…</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
 
 
             </div>
@@ -654,13 +701,13 @@ export default function InstructorProfileSettingsPage() {
 
         {/* Experience Settings Section */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-5 hover:shadow-sm transition-shadow">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <div className="text-lg font-medium text-gray-900">Settings</div>
-                <div className="text-sm text-gray-600 mt-1">Control availability and booking preferences</div>
-              </div>
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <div className="flex items-center gap-2 text-lg font-medium text-gray-900"><SettingsIcon className="w-5 h-5 text-purple-700" />Settings</div>
             </div>
+          </div>
+          <div className="rounded-lg border border-gray-200 p-5 hover:shadow-sm transition-shadow">
+            <p className="mb-3 text-sm text-gray-600">Control availability and booking preferences</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="bg-white rounded-lg p-3 border border-gray-200">
                 <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2 block">Years of Experience</label>
@@ -700,15 +747,35 @@ export default function InstructorProfileSettingsPage() {
         </div>
 
       </div>
-        <div className="pt-4">
-          <button
-            onClick={save}
-            disabled={!canSave || saving}
-            className="px-5 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:bg-[#5c0a9a] disabled:opacity-50 shadow-sm"
-          >
-            {saving ? 'Saving...' : 'Save & Continue'}
-          </button>
+        {/* Sticky save bar */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur border-t border-gray-200">
+          <div className="mx-auto max-w-6xl px-8 lg:px-32 py-3 flex items-center justify-between">
+            <div className="text-sm" aria-live="polite">
+              {saving ? (
+                <span className="text-gray-600">Saving…</span>
+              ) : success ? (
+                <span className="text-green-700">Saved</span>
+              ) : error ? (
+                <span className="text-red-700">Save failed</span>
+              ) : (
+                <span className="text-gray-500">Make changes and save</span>
+              )}
+            </div>
+            <button
+              onClick={save}
+              disabled={!canSave || saving}
+              className="px-5 py-2.5 rounded-lg text-white bg-[#6A0DAD] hover:bg-[#5c0a9a] disabled:opacity-50 shadow-sm"
+            >
+              {saving ? 'Saving...' : 'Save & Continue'}
+            </button>
+          </div>
         </div>
+        {/* Success toast */}
+        {success && (
+          <div className="fixed bottom-20 right-6 rounded-lg bg-green-600 text-white px-4 py-2 shadow-lg" role="alert" aria-live="polite">
+            {success}
+          </div>
+        )}
         {/* Animation CSS now global in app/globals.css */}
       </div>
     </div>

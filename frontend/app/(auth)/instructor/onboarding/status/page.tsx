@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { getConnectStatus, fetchWithAuth, API_ENDPOINTS, createStripeIdentitySession } from '@/lib/api';
+import { useEffect, useRef, useState } from 'react';
+import { getConnectStatus, fetchWithAuth, API_ENDPOINTS, createStripeIdentitySession, createSignedUpload } from '@/lib/api';
 import { paymentService } from '@/services/api/payments';
 import { loadStripe } from '@stripe/stripe-js';
 import { useAuth } from '@/features/shared/hooks/useAuth';
@@ -18,8 +18,10 @@ export default function OnboardingStatusPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [connectLoading, setConnectLoading] = useState(false);
+  const [bgUploading, setBgUploading] = useState(false);
   const [skillsSkipped, setSkillsSkipped] = useState(false);
   const [verificationSkipped, setVerificationSkipped] = useState(false);
+  const redirectingRef = useRef(false);
 
   useEffect(() => {
     (async () => {
@@ -127,29 +129,60 @@ export default function OnboardingStatusPage() {
     }
   };
 
-  const startBackgroundUpload = () => {
-    // Navigate to verification section where upload widget lives
-    window.location.href = '/instructor/onboarding/verification?from=status';
+  const backgroundInputRef = useRef<HTMLInputElement | null>(null);
+  const onBackgroundFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+      setBgUploading(true);
+      const signed = await createSignedUpload({
+        filename: f.name,
+        content_type: f.type || 'application/octet-stream',
+        size_bytes: f.size,
+        purpose: 'background_check',
+      });
+      const putRes = await fetch(signed.upload_url, {
+        method: 'PUT',
+        headers: signed.headers,
+        body: f,
+      });
+      if (!putRes.ok) throw new Error('Upload failed');
+      // Refresh profile to reflect background check upload status if backend exposes it
+      try {
+        const meRes = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
+        if (meRes.ok) {
+          const me = await meRes.json();
+          setProfile(me);
+        }
+      } catch {}
+    } catch (err) {
+      logger.error('Background upload failed', err);
+    } finally {
+      setBgUploading(false);
+      if (backgroundInputRef.current) backgroundInputRef.current.value = '';
+    }
   };
 
   const enrollStripeConnect = async () => {
     try {
       setConnectLoading(true);
+      redirectingRef.current = false;
       const resp = await paymentService.startOnboardingWithReturn('/instructor/onboarding/status?stripe_onboarding_return=true');
       if (resp.already_onboarded) {
         const s = await getConnectStatus().catch(() => null);
         if (s) setConnectStatus(s);
-        setConnectLoading(false);
         return;
       }
       if (resp.onboarding_url) {
+        // Keep the button in "Opening…" state until navigation happens
+        redirectingRef.current = true;
         window.location.href = resp.onboarding_url;
         return;
       }
     } catch (e) {
       // silent fail; could add toast
     } finally {
-      setConnectLoading(false);
+      if (!redirectingRef.current) setConnectLoading(false);
     }
   };
 
@@ -162,25 +195,8 @@ export default function OnboardingStatusPage() {
             <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </a>
 
-          {/* Progress Bar - 4 Steps - Absolutely centered */}
+          {/* Progress Bar - 4 Steps - Absolutely centered (no walking figure on status page) */}
           <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-0">
-            {/* Walking Stick Figure Animation - positioned on the line between step 3 and 4 */}
-            <div className="absolute inst-anim-walk" style={{ top: '-12px', left: '544px' }}>
-              <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
-                {/* Head */}
-                <circle cx="8" cy="4" r="2.5" stroke="#6A0DAD" strokeWidth="1.2" fill="none" />
-                {/* Body */}
-                <line x1="8" y1="6.5" x2="8" y2="12" stroke="#6A0DAD" strokeWidth="1.2" />
-                {/* Left arm */}
-                <line x1="8" y1="8" x2="5" y2="10" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-leftArm" />
-                {/* Right arm */}
-                <line x1="8" y1="8" x2="11" y2="10" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-rightArm" />
-                {/* Left leg */}
-                <line x1="8" y1="12" x2="6" y2="17" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-leftLeg" />
-                {/* Right leg */}
-                <line x1="8" y1="12" x2="10" y2="17" stroke="#6A0DAD" strokeWidth="1.2" className="inst-anim-rightLeg" />
-              </svg>
-            </div>
 
             {/* Step 1 - Completed */}
             <div className="flex items-center">
@@ -264,9 +280,21 @@ export default function OnboardingStatusPage() {
               <div className="flex flex-col items-center relative">
                 <button
                   onClick={() => {/* Already on this page */}}
-                  className="w-6 h-6 rounded-full border-2 border-purple-300 bg-purple-100 hover:border-purple-400 transition-colors cursor-pointer"
-                  title="Step 4: Status (Current)"
-                ></button>
+                  className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+                    canGoLive ? 'bg-purple-600 hover:bg-purple-700' : (pendingRequired.length === 0 ? 'bg-purple-600' : 'bg-purple-300 hover:bg-purple-400')
+                  }`}
+                  title="Step 4: Payment Setup / Status"
+                >
+                  {pendingRequired.length === 0 ? (
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  )}
+                </button>
                 <span className="text-[10px] text-gray-600 mt-1 whitespace-nowrap absolute top-7">Payment Setup</span>
               </div>
             </div>
@@ -286,10 +314,36 @@ export default function OnboardingStatusPage() {
         </div>
 
         <div className="mt-6 space-y-4">
+          {/* 1) Skills & pricing */}
+          <Row label="Skills & pricing" ok={Boolean(profile && ((profile.skills_configured) || (Array.isArray(profile.services) && profile.services.length > 0)))} action={<Link href="/instructor/onboarding/skill-selection?redirect=%2Finstructor%2Fonboarding%2Fstatus" className="text-purple-700 hover:underline">Edit</Link>} />
+          {/* 2) ID verification */}
+          <Row label="ID verification" ok={Boolean(profile?.identity_verified_at)} action={profile?.identity_verified_at ? <span className="text-gray-400">Completed</span> : <button onClick={startIdentity} className="text-purple-700 hover:underline">Start</button>} />
+          {/* 3) Background check (optional) */}
+          <Row
+            label="Background check (optional)"
+            ok={Boolean(profile?.background_check_uploaded_at)}
+            action={
+              <div>
+                <input
+                  ref={backgroundInputRef}
+                  type="file"
+                  accept=".pdf,.png,.jpg,.jpeg"
+                  className="hidden"
+                  onChange={onBackgroundFileSelected}
+                  disabled={bgUploading}
+                />
+                <button
+                  onClick={() => backgroundInputRef.current?.click()}
+                  className="text-purple-700 hover:underline disabled:text-gray-400"
+                  disabled={bgUploading}
+                >
+                  {bgUploading ? 'Uploading…' : (profile?.background_check_uploaded_at ? 'Replace' : 'Upload')}
+                </button>
+              </div>
+            }
+          />
+          {/* 4) Stripe Connect */}
           <Row label="Stripe Connect" ok={!!connectStatus?.onboarding_completed} action={<button onClick={enrollStripeConnect} className="text-purple-700 hover:underline disabled:text-gray-400" disabled={!!connectStatus?.onboarding_completed || connectLoading}>{connectStatus?.onboarding_completed ? 'Completed' : (connectLoading ? 'Opening…' : 'Enroll')}</button>} />
-        <Row label="ID verification" ok={Boolean(profile?.identity_verified_at)} action={profile?.identity_verified_at ? <span className="text-gray-400">Completed</span> : <button onClick={startIdentity} className="text-purple-700 hover:underline">Start</button>} />
-        <Row label="Background check (optional)" ok={Boolean(profile?.background_check_uploaded_at)} action={<button onClick={startBackgroundUpload} className="text-purple-700 hover:underline">{profile?.background_check_uploaded_at ? 'Replace' : 'Upload'}</button>} />
-        <Row label="Skills & pricing" ok={Boolean(profile && ((profile.skills_configured) || (Array.isArray(profile.services) && profile.services.length > 0)))} action={<Link href="/instructor/onboarding/skill-selection?redirect=%2Finstructor%2Fonboarding%2Fstatus" className="text-purple-700 hover:underline">Edit</Link>} />
         </div>
 
         <div className="mt-8">
