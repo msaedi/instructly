@@ -8,7 +8,8 @@ on:
       - '.github/workflows/deploy.yml'
 
 jobs:
-  deploy:
+  deploy-production:
+    name: Deploy to Production
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -16,11 +17,43 @@ jobs:
       - name: Install Vercel CLI
         run: npm install -g vercel@latest
 
-      - name: Deploy to Vercel
+      - name: Deploy to Production
         run: |
           cd frontend
-          vercel --prod --token=${{ secrets.VERCEL_TOKEN }} --yes --scope=${{ secrets.VERCEL_ORG_ID }}
+          # Remove any existing .vercel directory to avoid conflicts
+          rm -rf .vercel
+          # Create .vercel directory
+          mkdir -p .vercel
+          # Link to the production project
+          echo '{"projectId":"${{ secrets.VERCEL_PRODUCTION_PROJECT_ID }}","orgId":"${{ secrets.VERCEL_ORG_ID }}"}' > .vercel/project.json
+          # Deploy
+          vercel --prod --token=${{ secrets.VERCEL_TOKEN }} --yes
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PRODUCTION_PROJECT_ID }}
+
+  deploy-preview:
+    name: Deploy to Preview
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Deploy to Preview
+        run: |
+          cd frontend
+          # Remove any existing .vercel directory to avoid conflicts
+          rm -rf .vercel
+          # Create .vercel directory
+          mkdir -p .vercel
+          # Link to the preview project
+          echo '{"projectId":"${{ secrets.VERCEL_PREVIEW_PROJECT_ID }}","orgId":"${{ secrets.VERCEL_ORG_ID }}"}' > .vercel/project.json
+          # Deploy
+          vercel --prod --token=${{ secrets.VERCEL_TOKEN }} --yes
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PREVIEW_PROJECT_ID }}
