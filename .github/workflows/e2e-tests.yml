@@ -184,7 +184,7 @@ jobs:
       run: |
         set -euo pipefail
         # Run migrations and seed data using prep_db script
-        python scripts/prep_db.py int --skip-backup --force
+        python scripts/prep_db.py int --migrate --seed-all --force --yes
         echo "Database setup complete"
 
         # Verify database schema is accessible
