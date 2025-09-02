@@ -42,6 +42,7 @@ async def get_current_user_optional(
 
 
 async def get_search_context(
+    request: Request,
     current_user: Optional[User] = Depends(get_current_user_optional),
     x_guest_session_id: Optional[str] = Header(None),
     x_session_id: Optional[str] = Header(None),
@@ -64,10 +65,18 @@ async def get_search_context(
     elif x_guest_session_id:
         context = SearchUserContext.from_guest(x_guest_session_id, session_id=x_session_id)
     else:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Must provide either authentication token or guest session ID",
-        )
+        # Try guest_id cookie provided by session bootstrap
+        try:
+            guest_cookie = request.cookies.get("guest_id") if hasattr(request, "cookies") else None
+        except Exception:
+            guest_cookie = None
+        if guest_cookie:
+            context = SearchUserContext.from_guest(guest_cookie, session_id=x_session_id)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Must provide either authentication token or guest session ID",
+            )
 
     # Add search origin if provided
     context.search_origin = x_search_origin

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Search, Music, BookOpen, Dumbbell, Globe, Palette, Baby, Sparkles } from 'lucide-react';
 import { publicApi, type CatalogService } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
+import { getString, getNumber, getBoolean, getStringArray } from '@/lib/typesafe';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 // Removed recordSearch and SearchType - tracking now handled by search page
 import { useQuery } from '@tanstack/react-query';
@@ -158,21 +159,20 @@ export default function AllServicesPage() {
             icon: config?.icon || Search, // Default icon if not found
             subtitle: category.subtitle,
             services: category.services.map((service: unknown) => {
-              const s = service as Record<string, unknown>;
               return {
-                id: s.id as string,
-                category_id: s.category_id as string,
-                name: s.name as string,
-                slug: s.slug as string,
-                description: s.description as string,
-                search_terms: s.search_terms as string[],
-                display_order: s.display_order as number,
-                online_capable: s.online_capable as boolean,
-                requires_certification: s.requires_certification as boolean,
-                is_active: s.is_active as boolean,
-                instructor_count: s.instructor_count as number,
-                actual_min_price: s.actual_min_price as number | undefined,
-                actual_max_price: s.actual_max_price as number | undefined,
+                id: getString(service, 'id', ''),
+                category_id: getString(service, 'category_id', ''),
+                name: getString(service, 'name', ''),
+                slug: getString(service, 'slug', ''),
+                description: getString(service, 'description', ''),
+                search_terms: getStringArray(service, 'search_terms', []),
+                display_order: getNumber(service, 'display_order', 0),
+                online_capable: getBoolean(service, 'online_capable', false),
+                requires_certification: getBoolean(service, 'requires_certification', false),
+                is_active: getBoolean(service, 'is_active', true),
+                instructor_count: getNumber(service, 'instructor_count', 0),
+                actual_min_price: getNumber(service, 'actual_min_price') || undefined,
+                actual_max_price: getNumber(service, 'actual_max_price') || undefined,
               };
             }),
           };
@@ -230,21 +230,20 @@ export default function AllServicesPage() {
             icon: config?.icon || Search, // Default icon if not found
             subtitle: category.subtitle,
             services: category.services.map((service: unknown) => {
-              const s = service as Record<string, unknown>;
               return {
-                id: s.id as string,
-                category_id: s.category_id as string,
-                name: s.name as string,
-                slug: s.slug as string,
-                description: s.description as string,
-                search_terms: s.search_terms as string[],
-                display_order: s.display_order as number,
-                online_capable: s.online_capable as boolean,
-                requires_certification: s.requires_certification as boolean,
-                is_active: s.is_active as boolean,
-                instructor_count: s.instructor_count as number,
-                actual_min_price: s.actual_min_price as number | undefined,
-                actual_max_price: s.actual_max_price as number | undefined,
+                id: getString(service, 'id', ''),
+                category_id: getString(service, 'category_id', ''),
+                name: getString(service, 'name', ''),
+                slug: getString(service, 'slug', ''),
+                description: getString(service, 'description', ''),
+                search_terms: getStringArray(service, 'search_terms', []),
+                display_order: getNumber(service, 'display_order', 0),
+                online_capable: getBoolean(service, 'online_capable', false),
+                requires_certification: getBoolean(service, 'requires_certification', false),
+                is_active: getBoolean(service, 'is_active', true),
+                instructor_count: getNumber(service, 'instructor_count', 0),
+                actual_min_price: getNumber(service, 'actual_min_price') || undefined,
+                actual_max_price: getNumber(service, 'actual_max_price') || undefined,
               };
             }),
           };

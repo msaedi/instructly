@@ -10,7 +10,7 @@ import dynamic from 'next/dynamic';
 const InstructorCoverageMap = dynamic(() => import('@/components/maps/InstructorCoverageMap'), { ssr: false });
 import { Instructor } from '@/types/api';
 import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
-import type { FeatureCollection } from 'geojson';
+import { getString, getNumber, getArray, isRecord, isFeatureCollection } from '@/lib/typesafe';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { recordSearch } from '@/lib/searchTracking';
@@ -121,36 +121,38 @@ function SearchPageContent() {
           return;
         } else if (nlResponse.data) {
           instructorsData = nlResponse.data.results.map(
-            (result: Record<string, unknown>) => {
-              const instructor = result.instructor as Record<string, unknown> | undefined;
-              const service = result.service as Record<string, unknown> | undefined;
-              const offering = result.offering as Record<string, unknown> | undefined;
+            (result: unknown) => {
+              const instructor = isRecord(result) ? result.instructor : undefined;
+              const service = isRecord(result) ? result.service : undefined;
+              const offering = isRecord(result) ? result.offering : undefined;
 
               return {
-                id: instructor?.id || '',
-                user_id: instructor?.id || '',
-                bio: instructor?.bio || '',
-                areas_of_service: instructor?.areas_of_service
-                  ? String(instructor.areas_of_service).split(', ')
+                id: getString(instructor, 'id', ''),
+                user_id: getString(instructor, 'id', ''),
+                bio: getString(instructor, 'bio', ''),
+                areas_of_service: getString(instructor, 'areas_of_service')
+                  ? getString(instructor, 'areas_of_service').split(', ')
                   : [],
-                years_experience: instructor?.years_experience || 0,
+                years_experience: getNumber(instructor, 'years_experience', 0),
                 user: {
-                  first_name: instructor?.first_name || 'Unknown',
-                  last_initial: instructor?.last_initial || '',
+                  first_name: getString(instructor, 'first_name', 'Unknown'),
+                  last_initial: getString(instructor, 'last_initial', ''),
                 },
                 services: [
                   {
-                    id: service?.id || 1,
-                    service_catalog_id: service?.id || 1,
+                    id: getString(service, 'id') || '1',
+                    service_catalog_id: getString(service, 'id') || '1',
                     hourly_rate:
-                      offering?.hourly_rate || service?.actual_min_price || 0,
+                      getNumber(offering, 'hourly_rate') || getNumber(service, 'actual_min_price', 0),
                     description:
-                      offering?.description || service?.description || '',
-                    duration_options: offering?.duration_options || [60],
+                      getString(offering, 'description') || getString(service, 'description', ''),
+                    duration_options: getArray(offering, 'duration_options').length > 0 
+                      ? getArray(offering, 'duration_options') as number[]
+                      : [60],
                     is_active: true,
                   },
                 ],
-                relevance_score: result.match_score || 0,
+                relevance_score: getNumber(result, 'match_score', 0),
               } as Instructor & { relevance_score: number };
             }
           );
@@ -234,7 +236,7 @@ function SearchPageContent() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [query, category, serviceCatalogId, ageGroup, isAuthenticated, serviceNameFromUrl, fromSource, serviceName]);
+  }, [query, category, serviceCatalogId, isAuthenticated, serviceNameFromUrl, fromSource, serviceName]);
 
   useEffect(() => {
     fetchResults(1, false);
@@ -682,7 +684,7 @@ function SearchPageContent() {
             <div className="bg-white/95 backdrop-blur-sm rounded-xl border border-gray-200 p-2 md:p-4 h-full">
               <InstructorCoverageMap
                 height="100%"
-                featureCollection={coverageGeoJSON as any}
+                featureCollection={isFeatureCollection(coverageGeoJSON) ? coverageGeoJSON : null}
                 showCoverage={true}
                 highlightInstructorId={hoveredInstructorId}
                 focusInstructorId={focusedInstructorId}
@@ -700,21 +702,21 @@ function SearchPageContent() {
           isOpen={showTimeSelection}
           onClose={() => setShowTimeSelection(false)}
           instructor={{
-            user_id: (timeSelectionContext.instructor as Record<string, unknown>)?.user_id as string,
+            user_id: getString(timeSelectionContext?.instructor, 'user_id', ''),
             user: {
-              first_name: ((timeSelectionContext.instructor as Record<string, unknown>)?.user as Record<string, unknown>)?.first_name as string,
-              last_initial: ((timeSelectionContext.instructor as Record<string, unknown>)?.user as Record<string, unknown>)?.last_initial as string
+              first_name: getString(isRecord(timeSelectionContext?.instructor) ? timeSelectionContext.instructor.user : undefined, 'first_name', ''),
+              last_initial: getString(isRecord(timeSelectionContext?.instructor) ? timeSelectionContext.instructor.user : undefined, 'last_initial', '')
             },
-            services: ((timeSelectionContext.instructor as Record<string, unknown>)?.services as Array<{
+            services: getArray(timeSelectionContext?.instructor, 'services') as Array<{
               id?: string;
               duration_options: number[];
               hourly_rate: number;
               skill: string;
-            }>) || []
+            }>
           }}
-          preSelectedDate={typeof timeSelectionContext.preSelectedDate === 'string' ? timeSelectionContext.preSelectedDate : undefined}
-          preSelectedTime={typeof timeSelectionContext.preSelectedTime === 'string' ? timeSelectionContext.preSelectedTime : undefined}
-          serviceId={typeof timeSelectionContext.serviceId === 'string' ? timeSelectionContext.serviceId : undefined}
+          preSelectedDate={getString(timeSelectionContext, 'preSelectedDate') || undefined}
+          preSelectedTime={getString(timeSelectionContext, 'preSelectedTime') || undefined}
+          serviceId={getString(timeSelectionContext, 'serviceId') || undefined}
         />
       )}
     </div>

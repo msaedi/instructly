@@ -20,6 +20,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
+import ulid
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
@@ -67,6 +68,34 @@ def get_cache_service_dep(db: Session = Depends(get_db)) -> Optional[CacheServic
         return get_cache_service(db)
     except Exception:
         return None
+
+
+@router.post("/session/guest")
+def create_guest_session(response_obj: Response, request: Request) -> JSONResponse:
+    """Issue a first-party guest_id cookie used for optional auth endpoints.
+
+    Sets cookie attributes appropriate for cross-site subdomains in preview/prod.
+    """
+    guest_id = request.cookies.get("guest_id") if hasattr(request, "cookies") else None
+    if not guest_id:
+        guest_id = str(ulid.ULID())
+
+    # Cookie defaults
+    import os as _os
+    site_mode = (_os.getenv("SITE_MODE", "").lower().strip()) or "local"
+    cookie_kwargs = {
+        "httponly": True,
+        "samesite": "lax",
+        "path": "/",
+        "max_age": 60 * 60 * 24 * 30,
+    }
+    if site_mode in {"preview", "prod", "production", "live"}:
+        cookie_kwargs["secure"] = True
+        cookie_kwargs["domain"] = ".instainstru.com"
+
+    resp = JSONResponse({"guest_id": guest_id})
+    resp.set_cookie("guest_id", guest_id, **cookie_kwargs)
+    return resp
 
 
 @router.get(

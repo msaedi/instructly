@@ -2,7 +2,8 @@
 
 import React, { Component, ReactNode, ErrorInfo } from 'react';
 import { QueryErrorResetBoundary } from '@tanstack/react-query';
-import { ApiError, isAuthError, isNetworkError } from '@/lib/react-query/api';
+import { isAuthError, isNetworkError } from '@/lib/react-query/api';
+import { ApiError } from '@/lib/http';
 import { logger } from '@/lib/logger';
 
 interface ErrorFallbackProps {

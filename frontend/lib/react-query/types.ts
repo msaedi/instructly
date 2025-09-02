@@ -1,5 +1,5 @@
 import { UseQueryOptions, UseMutationOptions, QueryKey } from '@tanstack/react-query';
-import { ApiError } from './api';
+import { ApiError } from '@/lib/http';
 
 /**
  * React Query TypeScript Types and Utilities

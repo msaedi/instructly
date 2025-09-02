@@ -210,7 +210,9 @@ async def get_current_user(request: Request, token: Optional[str] = Depends(oaut
         raise invalid_credentials
 
 
-async def get_current_user_optional(token: Optional[str] = Depends(oauth2_scheme_optional)) -> Optional[str]:
+async def get_current_user_optional(
+    request: Request, token: Optional[str] = Depends(oauth2_scheme_optional)
+) -> Optional[str]:
     """
     Dependency to get the current authenticated user email from JWT token if present.
 
@@ -225,7 +227,27 @@ async def get_current_user_optional(token: Optional[str] = Depends(oauth2_scheme
         str: The user's email address if authenticated, None otherwise
     """
     if not token:
-        return None
+        # Mirror cookie fallback behavior from get_current_user so optional
+        # auth works with cookie-only sessions in preview/prod/local.
+        try:
+            site_mode = os.getenv("SITE_MODE", "").lower().strip()
+        except Exception:
+            site_mode = ""
+
+        cookie_name = None
+        if site_mode == "preview":
+            cookie_name = "sid_preview"
+        elif site_mode in {"prod", "production", "live"}:
+            cookie_name = "sid_prod"
+        elif site_mode == "local" or not site_mode:
+            cookie_name = "access_token"
+
+        if cookie_name and hasattr(request, "cookies"):
+            cookie_token = request.cookies.get(cookie_name)
+            if cookie_token:
+                token = cookie_token
+        if not token:
+            return None
 
     try:
         payload = jwt.decode(

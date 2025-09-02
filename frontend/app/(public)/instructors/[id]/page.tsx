@@ -30,6 +30,7 @@ import { navigationStateManager } from '@/lib/navigation/navigationStateManager'
 import { format } from 'date-fns';
 import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
+import { getString, getNumber, isRecord } from '@/lib/typesafe';
 
 // Booking intent helpers
 function storeBookingIntent(bookingIntent: {
@@ -90,7 +91,7 @@ function InstructorProfileContent() {
   // Detect rate limit errors and auto-retry once with a friendly inline banner
   useEffect(() => {
     if (!error) return;
-    const message = (error as unknown as Record<string, unknown>)?.message as string || '';
+    const message = getString(error, 'message', '');
     const isRateLimited = /hamsters|Too Many Requests|rate limit/i.test(message);
     if (!isRateLimited) return;
     const m = message.match(/(\d+)s/);
@@ -166,7 +167,7 @@ function InstructorProfileContent() {
 
     if (selectedSlot && selectedService && instructor) {
       const bookingDate = new Date(selectedSlot.date + 'T' + selectedSlot.time);
-      const hourlyRate = typeof selectedService.hourly_rate === 'number' ? selectedService.hourly_rate : 0;
+      const hourlyRate = getNumber(selectedService, 'hourly_rate', 0);
       const totalPrice = hourlyRate * (duration / 60);
       const basePrice = totalPrice;
       const serviceFee = calculateServiceFee(basePrice);
@@ -177,7 +178,7 @@ function InstructorProfileContent() {
         bookingId: '',
         instructorId: String(instructor.user_id),
         instructorName: instructor.user ? `${instructor.user.first_name} ${instructor.user.last_initial ? instructor.user.last_initial + '.' : ''}`.trim() : `Instructor #${instructor.user_id}`,
-        lessonType: typeof selectedService.skill === 'string' ? selectedService.skill : '',
+        lessonType: getString(selectedService, 'skill', ''),
         date: bookingDate,
         startTime: selectedSlot.time,
         endTime: calculateEndTime(selectedSlot.time, duration),
@@ -211,7 +212,7 @@ function InstructorProfileContent() {
         // User not authenticated - store booking intent and redirect to login
         storeBookingIntent({
           instructorId: instructor.user_id,
-          serviceId: typeof selectedService.id === 'string' ? selectedService.id : undefined,
+          serviceId: getString(selectedService, 'id') || undefined,
           date: selectedSlot.date,
           time: selectedSlot.time,
           duration,
@@ -319,8 +320,8 @@ function InstructorProfileContent() {
 
         // Find the slot that contains this start time
         const containingSlot = dayData.available_slots.find((slot: Record<string, unknown>) => {
-          const slotStart = typeof slot.start_time === 'string' ? parseInt(slot.start_time.split(':')[0]) : 0;
-          const slotEnd = typeof slot.end_time === 'string' ? parseInt(slot.end_time.split(':')[0]) : 0;
+          const slotStart = getString(slot, 'start_time') ? parseInt(getString(slot, 'start_time').split(':')[0]) : 0;
+          const slotEnd = getString(slot, 'end_time') ? parseInt(getString(slot, 'end_time').split(':')[0]) : 0;
           return startHour >= slotStart && startHour < slotEnd;
         });
 
@@ -438,7 +439,7 @@ function InstructorProfileContent() {
             <ServiceCards
               services={instructor.services}
               selectedSlot={selectedSlot}
-              onBookService={(service, duration) => handleBookingClick(service as unknown as Record<string, unknown>, duration)}
+              onBookService={(service, duration) => handleBookingClick(isRecord(service) ? service : {}, duration)}
             />
           </section>
 
@@ -461,7 +462,7 @@ function InstructorProfileContent() {
                 <ServiceCards
                   services={instructor.services}
                   selectedSlot={selectedSlot}
-                  onBookService={(service, duration) => handleBookingClick(service as unknown as Record<string, unknown>, duration)}
+                  onBookService={(service, duration) => handleBookingClick(isRecord(service) ? service : {}, duration)}
                 />
               </div>
 
@@ -638,7 +639,7 @@ function InstructorProfileContent() {
                 // User not authenticated - store booking intent and redirect to login
                 storeBookingIntent({
                   instructorId: instructor.user_id,
-                  serviceId: typeof selectedService.id === 'string' ? selectedService.id : undefined,
+                  serviceId: getString(selectedService, 'id') || undefined,
                   date: newSlot.date,
                   time: newSlot.time,
                   duration: newSlot.duration,

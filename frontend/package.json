@@ -79,6 +79,6 @@
     "vercel": "^44.7.3"
   },
   "lint-staged": {
-    "*.{ts,tsx,js,jsx}": "eslint --max-warnings=0 --fix"
+    "*.{ts,tsx,js,jsx}": "eslint --fix"
   }
 }

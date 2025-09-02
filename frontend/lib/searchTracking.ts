@@ -12,6 +12,7 @@ import { SearchType } from '@/types/enums';
 import { captureDeviceContext, formatDeviceContextForAnalytics } from '@/lib/deviceContext';
 
 import { withApiBase } from '@/lib/apiBase';
+import { httpGet, httpPost } from '@/lib/http';
 
 // Build URL using centralized API base resolver
 function buildUrl(path: string): string {
@@ -189,27 +190,7 @@ export async function recordSearch(
       body.observability_candidates = searchRecord.observability_candidates;
     }
 
-    const response = await fetch(buildUrl('/api/search-history/'), {
-      method: 'POST',
-      headers: getHeaders(isAuthenticated),
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error(
-        'Failed to record search',
-        new Error(`Status: ${response.status}, ${errorText}`)
-      );
-
-      // Fallback to sessionStorage for guests if API fails
-      if (!isAuthenticated) {
-        recordGuestSearchFallback(searchRecord);
-      }
-      return null;
-    }
-
-    const data = await response.json();
+    const data = (await httpPost(buildUrl('/api/search-history/'), body)) as any;
     logger.info('Search recorded successfully', { searchRecord, responseData: data });
 
     // Trigger update event for UI components
@@ -240,34 +221,8 @@ export async function getRecentSearches(
   limit: number = 3
 ): Promise<SearchHistoryItem[]> {
   try {
-    const response = await fetch(buildUrl(`/api/search-history/?limit=${limit}`), {
-      method: 'GET',
-      headers: getHeaders(isAuthenticated),
-    });
-
-    if (!response.ok) {
-      // Avoid noisy errors in UI; treat as recoverable
-      const level = response.status >= 500 ? 'error' : 'warn';
-      if (level === 'error') {
-        logger.error('Failed to fetch recent searches', new Error(`Status: ${response.status}`));
-      } else {
-        logger.warn('Failed to fetch recent searches (non-fatal)', {
-          status: response.status,
-        });
-      }
-
-      // Fallback to sessionStorage for guests
-      if (!isAuthenticated) {
-        return getGuestSearches().map(record => ({
-          ...record,
-          timestamp: record.timestamp || new Date().toISOString()
-        })).slice(0, limit);
-      }
-      return [];
-    }
-
-    const data = await response.json();
-    return data;
+    const data = (await httpGet(buildUrl('/api/search-history/'), { query: { limit } })) as any[];
+    return data as SearchHistoryItem[];
   } catch (error) {
     logger.error('Error fetching recent searches', error as Error);
 
@@ -306,30 +261,13 @@ export async function trackSearchInteraction(
       isAuthenticated,
     });
 
-    const response = await fetch(buildUrl('/api/search-history/interaction'), {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        search_event_id: searchEventId,
-        interaction_type: interactionType,
-        instructor_id: instructorId,
-        result_position: resultPosition,
-        time_to_interaction: timeToInteraction,
-      }),
+    await httpPost(buildUrl('/api/search-history/interaction'), {
+      search_event_id: searchEventId,
+      interaction_type: interactionType,
+      instructor_id: instructorId,
+      result_position: resultPosition,
+      time_to_interaction: timeToInteraction,
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-
-      // Only log as error if it's not an auth issue (which we've already handled above)
-      if (!errorText.includes('authentication token or guest session')) {
-        logger.error(
-          'Failed to track search interaction',
-          new Error(`Status: ${response.status}, ${errorText}`)
-        );
-      }
-      return;
-    }
 
     logger.info('Search interaction tracked successfully');
   } catch (error) {

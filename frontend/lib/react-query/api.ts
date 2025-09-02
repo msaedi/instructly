@@ -12,20 +12,12 @@ import { ApiResponse } from '@/features/shared/api/client';
  * Base API URL from environment
  */
 import { withApiBase } from '@/lib/apiBase';
+import { httpGet, httpPost, ApiError } from '@/lib/http';
 
 /**
  * Custom error class for API errors with proper typing
  */
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    public status: number,
-    public data?: unknown
-  ) {
-    super(message);
-    this.name = 'ApiError';
-  }
-}
+// Use ApiError from unified http client
 
 /**
  * Get guest session ID from localStorage
@@ -81,77 +73,12 @@ export interface QueryOptions extends RequestInit {
  * ```
  */
 export function queryFn<T = unknown>(endpoint: string, options: QueryOptions = {}) {
-  return async ({ signal }: QueryFunctionContext): Promise<T> => {
-    const { params, ...fetchOptions } = options;
-
-    // Build URL using centralized API base resolver
-    const fullPath = withApiBase(endpoint);
-    const isAbsolute = /^https?:\/\//i.test(fullPath);
-    const base = isAbsolute
-      ? undefined
-      : (typeof window !== 'undefined'
-          ? window.location.origin
-          : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'));
-    const url = new URL(fullPath, base as string | undefined);
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          url.searchParams.append(key, String(value));
-        }
-      });
-    }
-
-    // Build headers
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...getAnalyticsHeaders(),
-      ...((fetchOptions.headers as Record<string, string>) || {}),
-    };
-
-    // Cookie-based authentication is handled automatically via credentials: 'include'
-    // The backend accepts HttpOnly cookies for auth in all environments
-    // Optional guest/session analytics
-    const guestSessionId = getGuestSessionId();
-    if (guestSessionId) {
-      headers['X-Guest-Session-ID'] = guestSessionId;
-    }
-
-    try {
-      const response = await fetch(url.toString(), {
-        ...fetchOptions,
-        headers,
-        // Always include cookies for cross-site API domain
-        credentials: (fetchOptions as Record<string, unknown>)?.credentials as RequestCredentials ?? 'include',
-        signal, // Pass AbortSignal for query cancellation
-      });
-
-      // Parse response
-      const data = await response.json();
-
-      // Handle errors
-      if (!response.ok) {
-        throw new ApiError(
-          data.detail || data.message || `Error: ${response.status}`,
-          response.status,
-          data
-        );
-      }
-
-      return data;
-    } catch (error) {
-      // Handle network errors
-      if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        throw new ApiError('Network error', 0);
-      }
-
-      // Handle abort errors
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new ApiError('Request cancelled', 0);
-      }
-
-      // Re-throw other errors
-      throw error;
-    }
+  return async (): Promise<T> => {
+    const { params } = options;
+    const url = withApiBase(endpoint);
+    // Use unified client; cookies are always included
+    const data = await httpGet(url, { query: params });
+    return data as T;
   };
 }
 
@@ -175,71 +102,10 @@ export function mutationFn<TData = unknown, TVariables = unknown>(
   options: QueryOptions = {}
 ) {
   return async (variables: TVariables): Promise<TData> => {
-    const { params, ...fetchOptions } = options;
-
-    // Build URL using centralized API base resolver
-    const fullPath = withApiBase(endpoint);
-    const isAbsolute = /^https?:\/\//i.test(fullPath);
-    const base = isAbsolute
-      ? undefined
-      : (typeof window !== 'undefined'
-          ? window.location.origin
-          : (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'));
-    const url = new URL(fullPath, base as string | undefined);
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          url.searchParams.append(key, String(value));
-        }
-      });
-    }
-
-    // Build headers
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...getAnalyticsHeaders(),
-      ...((fetchOptions.headers as Record<string, string>) || {}),
-    };
-    // Cookie-based authentication is handled automatically via credentials: 'include'
-    // The backend accepts HttpOnly cookies for auth in all environments
-
-    // Cookies-only auth: rely on session cookie; backend will 401 if not authenticated
-    const guestSessionId = getGuestSessionId();
-    if (guestSessionId) {
-      headers['X-Guest-Session-ID'] = guestSessionId;
-    }
-
-    try {
-      const response = await fetch(url.toString(), {
-        ...fetchOptions,
-        headers,
-        body: variables ? JSON.stringify(variables) : undefined,
-        // Always include cookies for cross-site API domain
-        credentials: (fetchOptions as Record<string, unknown>)?.credentials as RequestCredentials ?? 'include',
-      });
-
-      // Parse response
-      const data = await response.json();
-
-      // Handle errors
-      if (!response.ok) {
-        throw new ApiError(
-          data.detail || data.message || `Error: ${response.status}`,
-          response.status,
-          data
-        );
-      }
-
-      return data;
-    } catch (error) {
-      // Handle network errors
-      if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        throw new ApiError('Network error', 0);
-      }
-
-      // Re-throw other errors
-      throw error;
-    }
+    const { params } = options;
+    const url = withApiBase(endpoint);
+    const data = await httpPost(url, variables, { query: params });
+    return data as TData;
   };
 }
 

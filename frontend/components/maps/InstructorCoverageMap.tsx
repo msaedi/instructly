@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { logger } from '@/lib/logger';
+import { getString, getArray } from '@/lib/typesafe';
 import { MapContainer, TileLayer, GeoJSON, AttributionControl, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L, { type LatLngExpression, type LeafletEventHandlerFnMap } from 'leaflet';
@@ -18,11 +19,11 @@ interface GeoJSONProperties {
 
 interface GeoJSONFeature {
   type: 'Feature';
-  geometry: {
+  geometry?: {
     type: string;
     coordinates: unknown;
-  };
-  properties: GeoJSONProperties;
+  } | null;
+  properties?: GeoJSONProperties;
 }
 
 type FeatureCollection = {
@@ -137,15 +138,15 @@ export default function InstructorCoverageMap({
             key={fc.features.length}
             data={fc}
             style={(feature) => {
-              const serving = feature?.properties?.instructors || [];
-              const highlighted = highlightInstructorId && serving.includes?.(highlightInstructorId);
+              const serving = getArray(feature?.properties, 'instructors');
+              const highlighted = highlightInstructorId && Array.isArray(serving) && serving.includes(highlightInstructorId);
               return highlighted
                 ? { color: '#7c3aed', weight: 2, fillOpacity: 0.35 }
                 : { color: '#7c3aed', weight: 1, fillOpacity: 0.12 };
             }}
             onEachFeature={(feature, layer) => {
               const props = feature.properties;
-              const name = props.name || props.region_id || 'Coverage Area';
+              const name = getString(props, 'name') || getString(props, 'region_id') || 'Coverage Area';
               layer.bindPopup(`<div>${name}</div>`);
             }}
           />
