@@ -139,16 +139,28 @@ async def get_current_user(request: Request, token: Optional[str] = Depends(oaut
     )
 
     try:
-        # Local-only cookie fallback when no Authorization header is present
+        # Cookie fallback when no Authorization header is present
         if not token:
             try:
                 site_mode = os.getenv("SITE_MODE", "").lower().strip()
             except Exception:
                 site_mode = ""
-            if site_mode == "local":
-                cookie_token = request.cookies.get("access_token") if hasattr(request, "cookies") else None
+
+            # Read environment-specific cookie
+            cookie_name = None
+            if site_mode == "preview":
+                cookie_name = "sid_preview"
+            elif site_mode in {"prod", "production", "live"}:
+                cookie_name = "sid_prod"
+            elif site_mode == "local" or not site_mode:
+                cookie_name = "access_token"
+
+            if cookie_name and hasattr(request, "cookies"):
+                cookie_token = request.cookies.get(cookie_name)
                 if cookie_token:
                     token = cookie_token
+                    logger.debug(f"Using {cookie_name} cookie for authentication")
+
         if not token:
             raise not_authenticated
         # Decode JWT with appropriate audience enforcement

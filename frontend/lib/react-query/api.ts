@@ -108,13 +108,8 @@ export function queryFn<T = any>(endpoint: string, options: QueryOptions = {}) {
       ...((fetchOptions.headers as Record<string, string>) || {}),
     };
 
-    // Add auth token from localStorage when required
-    if (requireAuth) {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-    }
+    // Cookie-based authentication is handled automatically via credentials: 'include'
+    // The backend accepts HttpOnly cookies for auth in all environments
     // Optional guest/session analytics
     const guestSessionId = getGuestSessionId();
     if (guestSessionId) {
@@ -205,13 +200,8 @@ export function mutationFn<TData = any, TVariables = any>(
       ...getAnalyticsHeaders(),
       ...((fetchOptions.headers as Record<string, string>) || {}),
     };
-    // Add auth token from localStorage when required
-    if (requireAuth) {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-    }
+    // Cookie-based authentication is handled automatically via credentials: 'include'
+    // The backend accepts HttpOnly cookies for auth in all environments
 
     // Cookies-only auth: rely on session cookie; backend will 401 if not authenticated
     const guestSessionId = getGuestSessionId();

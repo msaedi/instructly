@@ -99,6 +99,40 @@ class TestAuth:
         set_cookie = response.headers.get("set-cookie", "")
         assert "access_token=" in set_cookie
 
+        return data["access_token"]  # Return token for use in other tests
+
+    def test_cookie_authentication_fallback(
+        self, db: Session, client: TestClient, test_student: User, test_password: str
+    ):
+        """Test that authentication works with cookie when no Authorization header is present."""
+        # First login to get a token
+        response = client.post(
+            "/auth/login",
+            data={"username": test_student.email, "password": test_password},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        assert response.status_code == 200
+        token = response.json()["access_token"]
+
+        # Test with Authorization header (traditional method)
+        response = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["email"] == test_student.email
+
+        # Test with cookie only (no Authorization header)
+        # Manually set the cookie in the client
+        client.cookies.set("access_token", token)
+        response = client.get("/auth/me")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["email"] == test_student.email
+
+        # Clear cookie and verify authentication fails
+        client.cookies.clear()
+        response = client.get("/auth/me")
+        assert response.status_code == 401
+
     def test_cookie_only_auth_local(
         self, db: Session, client: TestClient, test_student: User, test_password: str, monkeypatch
     ):
