@@ -86,9 +86,9 @@ class MonitoringMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # Skip monitoring for SSE endpoints to avoid interference
+        # Skip monitoring for SSE and Prometheus metrics endpoints to avoid interference
         path = scope.get("path", "")
-        if path.startswith(SSE_PATH_PREFIX):
+        if path.startswith(SSE_PATH_PREFIX) or path.startswith("/metrics"):
             await self.app(scope, receive, send)
             return
 

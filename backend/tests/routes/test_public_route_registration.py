@@ -61,15 +61,21 @@ def test_list_all_routes(client):
 
     print("\n📍 All registered routes:")
     for route in app.routes:
-        if hasattr(route, "path"):
+        if hasattr(route, "path") and hasattr(route, "methods"):
             print(f"  {route.methods} {route.path}")
+        elif getattr(route, "__class__", None).__name__ == "Mount":
+            # Mounted apps (e.g., Starlette/Prometheus) don’t expose methods
+            print(f"  MOUNT {getattr(route, 'path', '<mounted>')}")
 
     # Check if public routes are in the list
-    public_routes = [r for r in app.routes if hasattr(r, "path") and "/api/public" in r.path]
+    public_routes = [r for r in app.routes if hasattr(r, "path") and "/api/public" in getattr(r, "path", "")]
 
     if not public_routes:
         print("\n❌ No public routes found!")
     else:
         print(f"\n✅ Found {len(public_routes)} public routes")
         for route in public_routes:
-            print(f"  {route.methods} {route.path}")
+            if hasattr(route, "methods"):
+                print(f"  {route.methods} {route.path}")
+            else:
+                print(f"  MOUNT {route.path}")
