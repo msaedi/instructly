@@ -5,3 +5,11 @@ cd frontend || exit 1
 npx lint-staged
 # Full typecheck to catch cross-file issues
 npm run typecheck
+
+# Run repository-wide Python pre-commit suite (Black, isort, API contracts, timezone, repo pattern, metrics, no-console)
+cd .. || exit 1
+if command -v pre-commit >/dev/null 2>&1; then
+  PRE_COMMIT=1 pre-commit run --show-diff-on-failure
+else
+  echo "pre-commit not installed; skipping Python hooks" >&2
+fi
