@@ -148,12 +148,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const path = guestSessionId ? '/auth/login-with-session' : '/auth/login';
       const apiPath = withApiBase(path);
 
-      // Create full URL for fetch
+      // Create full URL for fetch - check if apiPath is already absolute
+      const isAbsoluteUrl = apiPath.startsWith('http://') || apiPath.startsWith('https://');
       const endpoint = typeof window !== 'undefined'
-        ? `${window.location.origin}${apiPath}`
-        : `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}${path}`;
+        ? (isAbsoluteUrl ? apiPath : `${window.location.origin}${apiPath}`)
+        : apiPath;
 
-      logger.info('Login endpoint:', { endpoint, path, apiPath });
+      logger.info('Login endpoint:', { endpoint, path, apiPath, isAbsoluteUrl });
 
       const body = guestSessionId
         ? JSON.stringify({
