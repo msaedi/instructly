@@ -425,14 +425,14 @@ jobs:
         # Guard against accidental proxy flips and hardcoded backend URLs
         if [ "$NEXT_PUBLIC_USE_PROXY" = "true" ]; then
           echo "Ensuring bundle does NOT include direct backend URLs when proxying..."
-          if grep -R -nE 'https?://(localhost|127\.0\.0\.1):(8000|8001)' .next/static 2>/dev/null | head -5; then
+          if grep -R -qE 'https?://(localhost|127\.0\.0\.1):(8000|8001)' .next/static 2>/dev/null; then
             echo "❌ Found direct backend URLs in bundle while USE_PROXY=true"
-            grep -R -lE 'https?://(localhost|127\.0\.0\.1):(8000|8001)' .next/static 2>/dev/null | head -5
+            grep -R -nE 'https?://(localhost|127\.0\.0\.1):(8000|8001)' .next/static 2>/dev/null | head -5
             exit 1
           fi
           echo "✅ No direct backend URLs in bundle (proxy mode)"
         else
-          echo "Direct mode (USE_PROXY=false): allow exactly \$NEXT_PUBLIC_API_BASE; flag other 8000/8001 targets..."
+          echo "Direct mode (USE_PROXY=false): allow exactly $NEXT_PUBLIC_API_BASE; flag other 8000/8001 targets..."
           ALLOWED_BASE="$NEXT_PUBLIC_API_BASE"
           OFFENDERS=$(grep -R -nE 'https?://(localhost|127\.0\.0\.1):(8000|8001)' .next/static 2>/dev/null \
                       | grep -v -F "$ALLOWED_BASE" | head -5 || true)
@@ -443,16 +443,6 @@ jobs:
           fi
           echo "✅ Bundle URLs look good for direct mode"
         fi
-          done
-
-          if [ "$FOUND_ISSUES" = true ]; then
-            echo "❌ Bundle contains hardcoded localhost references (proxy may be misconfigured)"
-            exit 1
-          else
-            echo "✅ No hardcoded localhost references in client bundle"
-          fi
-        fi
-
         echo "✅ Bundle verification complete"
 
     - name: Run CI E2E tests
