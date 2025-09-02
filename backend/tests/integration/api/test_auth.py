@@ -98,8 +98,7 @@ class TestAuth:
         # Ensure Set-Cookie is present for access_token
         set_cookie = response.headers.get("set-cookie", "")
         assert "access_token=" in set_cookie
-
-        return data["access_token"]  # Return token for use in other tests
+        # Note: Test functions should not return values in pytest
 
     def test_cookie_authentication_fallback(
         self, db: Session, client: TestClient, test_student: User, test_password: str

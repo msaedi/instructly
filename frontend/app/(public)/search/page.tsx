@@ -31,7 +31,7 @@ function SearchPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [total, setTotal] = useState(0);
+  const [_total, setTotal] = useState(0);
   const [serviceName, setServiceName] = useState<string>('');
   const [serviceSlug] = useState<string>('');
   const [rateLimit] = useState<{ seconds: number } | null>(null);
@@ -44,8 +44,6 @@ function SearchPageContent() {
 
   const [hoveredInstructorId, setHoveredInstructorId] = useState<string | null>(null);
   const [focusedInstructorId, setFocusedInstructorId] = useState<string | null>(null);
-  // Always show coverage in all views
-  const showCoverage = true;
   const [coverageGeoJSON, setCoverageGeoJSON] = useState<any | null>(null);
   const [showScrollIndicator, setShowScrollIndicator] = useState(true);
   const [mapBounds, setMapBounds] = useState<any>(null);
@@ -213,7 +211,7 @@ function SearchPageContent() {
         }
       }
       setTotal(totalResults);
-    } catch (err) {
+    } catch {
       setError('Failed to load search results');
     } finally {
       setLoading(false);
@@ -247,7 +245,7 @@ function SearchPageContent() {
         }
         const data = await res.json();
         setCoverageGeoJSON(data);
-      } catch (e) {
+      } catch {
         setCoverageGeoJSON({ type: 'FeatureCollection', features: [] });
       }
     };
@@ -470,7 +468,7 @@ function SearchPageContent() {
                 };
                 break;
               }
-            } catch (e) {
+            } catch {
               // ignore errors for individual instructors
             }
           })
@@ -479,7 +477,7 @@ function SearchPageContent() {
         if (Object.keys(updates).length) {
           setNextAvailableByInstructor(updates);
         }
-      } catch (e) {
+      } catch {
         // ignore batch errors
       }
     };
