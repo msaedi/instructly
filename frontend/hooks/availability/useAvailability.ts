@@ -128,7 +128,7 @@ export function useAvailability(): UseAvailabilityReturn {
       logger.error('saveWeek error', e);
       return { success: false, message: 'Network error while saving' };
     }
-  }, [currentWeekStart, weekSchedule, refreshSchedule]);
+  }, [currentWeekStart, weekSchedule, savedWeekSchedule, version, refreshSchedule]);
 
   const validateWeek: UseAvailabilityReturn['validateWeek'] = useCallback(async () => {
     try {

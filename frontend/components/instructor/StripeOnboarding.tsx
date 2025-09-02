@@ -66,7 +66,7 @@ const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => 
   // Initial status check
   useEffect(() => {
     checkStatus();
-  }, [instructorId]);
+  }, [instructorId, checkStatus]);
 
   // Polling logic for when returning from Stripe
   useEffect(() => {

@@ -6,7 +6,7 @@
  * Compare this to the 600+ lines in useAvailabilityOperations.ts!
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface TimeSlot {
   start_time: string;
@@ -34,11 +34,7 @@ export function usePublicAvailability(instructorId: string, startDate?: Date) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchAvailability();
-  }, [instructorId, startDate]);
-
-  const fetchAvailability = async () => {
+  const fetchAvailability = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -75,7 +71,11 @@ export function usePublicAvailability(instructorId: string, startDate?: Date) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [instructorId, startDate]);
+
+  useEffect(() => {
+    fetchAvailability();
+  }, [fetchAvailability]);
 
   const getAvailableDates = (): string[] => {
     if (!availability) return [];

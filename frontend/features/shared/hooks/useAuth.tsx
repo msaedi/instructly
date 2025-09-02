@@ -1,7 +1,7 @@
 // frontend/features/shared/hooks/useAuth.tsx
 'use client';
 
-import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react';
+import React, { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { API_ENDPOINTS, fetchWithAuth, getErrorMessage } from '@/lib/api';
 import { logger } from '@/lib/logger';
@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
   const [error, setError] = useState<string | null>(null);
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
@@ -133,7 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user, setIsLoading, setError, setUser]);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
@@ -264,7 +264,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setIsLoading(false);
     }
-  }, []);
+  }, [checkAuth]);
 
   return (
     <AuthContext.Provider

@@ -124,7 +124,7 @@ export default function PaymentConfirmation({
     };
 
     checkForConflicts();
-  }, []); // Run only once on mount
+  }, [booking]); // Re-run when booking changes
 
   // Fetch instructor profile to get the actual service duration options
   useEffect(() => {

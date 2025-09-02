@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { BookingPayment, PaymentCard, CreditBalance, PaymentMethod } from '../types';
 import { usePaymentFlow, PaymentStep } from '../hooks/usePaymentFlow';
@@ -71,11 +71,11 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   const selectedCard = selectedCardId ? userCards.find(card => card.id === selectedCardId) : null;
 
   // Wrap selectPaymentMethod to track card ID
-  const selectPaymentMethod = (method: PaymentMethod, cardId?: string, credits?: number) => {
+  const selectPaymentMethod = useCallback((method: PaymentMethod, cardId?: string, credits?: number) => {
     setSelectedCardId(cardId);
     setUserChangingPayment(false); // Reset flag when a new method is selected
     selectPaymentMethodOriginal(method, cardId, credits);
-  };
+  }, [selectPaymentMethodOriginal]);
 
   // Fetch real payment methods and credits from backend
   useEffect(() => {
@@ -161,7 +161,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
     selectPaymentMethod(PaymentMethod.MIXED, effectiveCardId, amountToApply);
     setAutoAppliedCredits(true);
-  }, [userCredits, userCards, selectedCardId, updatedBookingData.totalAmount]);
+  }, [userCredits, userCards, selectedCardId, updatedBookingData.totalAmount, autoAppliedCredits, selectPaymentMethod]);
 
   // Track if user manually went back to change payment method
   const [userChangingPayment, setUserChangingPayment] = useState(false);

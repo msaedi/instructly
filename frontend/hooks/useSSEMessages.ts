@@ -81,7 +81,7 @@ export function useSSEMessages({
   const updateConnectionStatus = useCallback((status: ConnectionStatus) => {
     setConnectionStatus(status);
     onConnectionChange?.(status);
-  }, [bookingId, onConnectionChange]);
+  }, [onConnectionChange]);
 
   // Play notification sound
   const playNotificationSound = useCallback(() => {
@@ -345,8 +345,6 @@ export function useSSEMessages({
     bookingId,
     updateConnectionStatus,
     processMessage,
-    maxReconnectAttempts,
-    reconnectDelay,
   ]);
 
   // Disconnect from SSE

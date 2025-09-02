@@ -202,7 +202,7 @@ export function Chat({
     if (bookingId) {
       markAsRead.mutate({ booking_id: bookingId });
     }
-  }, [bookingId]);
+  }, [bookingId, markAsRead]);
 
   // Handle send message with optimistic update
   const handleSendMessage = async () => {
@@ -508,7 +508,7 @@ export function Chat({
         }
       })();
     }
-  }, [allMessages.length]); // Only re-run when number of messages changes
+  }, [allMessages, userReactions]); // Only re-run when messages or reactions change
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _toggleReactionLocal = (message: Message, emoji: string) => {

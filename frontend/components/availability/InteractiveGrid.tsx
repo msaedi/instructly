@@ -125,6 +125,7 @@ export default function InteractiveGrid({
   const virtualizationEnabled = rows > 46; // enable for large ranges
 
   // Now-line positioning updates every 5 minutes
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- used to trigger now line recalculation
   const [nowTick, setNowTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setNowTick((x) => x + 1), 5 * 60 * 1000);
@@ -160,7 +161,7 @@ export default function InteractiveGrid({
   const todayIdx = useMemo(() => {
     const { isoDate } = getNowInTimezone(timezone);
     return weekDates.findIndex((d) => d.fullDate === isoDate);
-  }, [weekDates, nowTick, timezone, getNowInTimezone]);
+  }, [weekDates, timezone, getNowInTimezone]);
 
   const nowLine = useMemo(() => {
     if (todayIdx < 0) return null;
@@ -168,7 +169,7 @@ export default function InteractiveGrid({
     const halfCells = (hour - startHour) * HALF_HOURS_PER_HOUR + (minute >= 30 ? 1 : 0) + (minute % 30) / 30;
     const perc = Math.max(0, Math.min(halfCells / rows, 1));
     return { column: todayIdx, topPercent: perc * 100 };
-  }, [todayIdx, startHour, rows, nowTick, timezone, getNowInTimezone]);
+  }, [todayIdx, startHour, rows, timezone, getNowInTimezone]);
 
   const isPastCell = (date: string, cellIdx: number) => {
     const { isoDate, hour, minute } = getNowInTimezone(timezone);
@@ -306,7 +307,7 @@ export default function InteractiveGrid({
       // Fallback heuristics
       setRowHeight(isMobile ? 40 : 28);
     }
-  }, [gridRef, isMobile, startHour, endHour]);
+  }, [gridRef, isMobile, startHour, endHour, rowHeight]);
 
   useEffect(() => {
     if (!virtualizationEnabled || rowHeight <= 0) return;
@@ -410,7 +411,8 @@ export default function InteractiveGrid({
       return [renderColumn(weekDates[idx], idx)];
     }
     return weekDates.map((d, i) => renderColumn(d, i));
-  }, [weekDates, isMobile, activeDayIndex, weekSchedule, dragging, bookedSlots, nowLine]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- all dependencies are used in renderColumn function
+  }, [weekDates, isMobile, activeDayIndex, weekSchedule, dragging, bookedSlots, nowLine, renderColumn]);
 
   return (
     <div ref={containerRef} className="relative w-full overflow-x-auto">

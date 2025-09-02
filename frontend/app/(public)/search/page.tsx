@@ -218,7 +218,7 @@ function SearchPageContent() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [query, category, serviceCatalogId, availableNow, ageGroup, isAuthenticated, serviceNameFromUrl]);
+  }, [query, category, serviceCatalogId, ageGroup, isAuthenticated, serviceNameFromUrl, fromSource, serviceName]);
 
   useEffect(() => {
     fetchResults(1, false);

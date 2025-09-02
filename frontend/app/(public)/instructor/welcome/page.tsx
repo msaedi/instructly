@@ -34,7 +34,7 @@ function WelcomeInner() {
         router.replace('/instructor/join');
       }
     })();
-  }, []);
+  }, [params, router]);
 
   const signupHref = `/signup?role=instructor&founding=true${code ? `&invite_code=${encodeURIComponent(code)}` : ''}${email ? `&email=${encodeURIComponent(email)}` : ''}&redirect=${encodeURIComponent('/instructor/onboarding/welcome')}`;
 

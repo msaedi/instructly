@@ -188,7 +188,7 @@ export default function AvailabilityCalendar({
     };
 
     fetchAvailability();
-  }, [instructorId]);
+  }, [instructorId, next14Days]);
 
   const getAvailableSlots = (date: string) => {
     const dayAvailability = availability.find((day) => day.date === date);

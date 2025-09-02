@@ -3,7 +3,7 @@
 // LEGACY-ONLY: This is the legacy instructor dashboard. Phoenix routes live under (auth)/instructor/*.
 
 import { BRAND } from '@/app/config/brand';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -53,7 +53,7 @@ export default function InstructorDashboard() {
    * Redirects to login if not authenticated
    * Handles 404 case for instructors without profiles
    */
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     const token = localStorage.getItem('access_token');
     if (!token) {
       logger.warn('No access token found, redirecting to login');
@@ -97,7 +97,7 @@ export default function InstructorDashboard() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [router]);
 
   useEffect(() => {
     logger.info('Instructor dashboard loaded');
@@ -110,7 +110,7 @@ export default function InstructorDashboard() {
         logger.warn('Failed to load connect status');
       }
     })();
-  }, [router]);
+  }, [router, fetchProfile]);
 
   /**
    * Handle user logout

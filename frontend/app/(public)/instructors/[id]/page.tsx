@@ -305,7 +305,7 @@ function InstructorProfileContent() {
         clearBookingIntent();
       }
     }
-  }, [instructorId]);
+  }, [instructorId, bookingModal]);
 
   // Recalculate availableDuration when availability data loads and we have a selected slot
   useEffect(() => {

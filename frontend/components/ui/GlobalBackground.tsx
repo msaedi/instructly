@@ -128,6 +128,7 @@ export default function GlobalBackground({ overrides, activity }: Props): React.
     }
 
     resolveBg();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- bgUrl and lqUrl are state variables set within the effect
   }, [pathname, ctxActivity, ctxOverrides, overrides, activity, hasMounted, rotationTick]);
 
   // Auto-rotate while staying on the same page when multiple variants exist

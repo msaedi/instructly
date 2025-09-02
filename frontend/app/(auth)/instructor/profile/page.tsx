@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { User as UserIcon, MapPin, Settings as SettingsIcon, BookOpen, ChevronDown } from 'lucide-react';
 import { fetchWithAuth, API_ENDPOINTS, getErrorMessage } from '@/lib/api';
 import { logger } from '@/lib/logger';
@@ -188,6 +188,33 @@ export default function InstructorProfileSettingsPage() {
 
   // Removed selected neighborhoods panel prefetch effect
 
+  // NYC helpers
+  const NYC_BOROUGHS = useMemo(() => ['Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island'] as const, []);
+
+  const loadBoroughNeighborhoods = useCallback(async (borough: string): Promise<ServiceAreaItem[]> => {
+    if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
+    try {
+      const url = `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`;
+      const r = await fetch(url);
+      if (r.ok) {
+        const data = await r.json();
+        const list = (data.items || []) as ServiceAreaItem[];
+        setBoroughNeighborhoods((prev) => ({ ...prev, [borough]: list }));
+        // Update id->item map for display in the selection panel
+        setIdToItem((prev) => {
+          const next = { ...prev } as Record<string, ServiceAreaItem>;
+          for (const it of list) {
+            const nid = it.neighborhood_id || (it as any).id;
+            if (nid) next[nid] = it;
+          }
+          return next;
+        });
+        return list;
+      }
+    } catch {}
+    return boroughNeighborhoods[borough] || [];
+  }, [boroughNeighborhoods]);
+
   // When using global neighborhood search, ensure borough lists are prefetched
   useEffect(() => {
     if (globalNeighborhoodFilter.trim().length > 0) {
@@ -195,7 +222,7 @@ export default function InstructorProfileSettingsPage() {
         void loadBoroughNeighborhoods(b);
       });
     }
-  }, [globalNeighborhoodFilter]);
+  }, [globalNeighborhoodFilter, NYC_BOROUGHS, loadBoroughNeighborhoods]);
 
   // Removed selected neighborhoods panel accordion handlers
 
@@ -298,33 +325,6 @@ export default function InstructorProfileSettingsPage() {
     } finally {
       setSaving(false);
     }
-  };
-
-  // NYC helpers
-  const NYC_BOROUGHS = ['Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island'] as const;
-
-  const loadBoroughNeighborhoods = async (borough: string): Promise<ServiceAreaItem[]> => {
-    if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
-    try {
-      const url = `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`;
-      const r = await fetch(url);
-      if (r.ok) {
-        const data = await r.json();
-        const list = (data.items || []) as ServiceAreaItem[];
-        setBoroughNeighborhoods((prev) => ({ ...prev, [borough]: list }));
-        // Update id->item map for display in the selection panel
-        setIdToItem((prev) => {
-          const next = { ...prev } as Record<string, ServiceAreaItem>;
-          for (const it of list) {
-            const nid = it.neighborhood_id || (it as any).id;
-            if (nid) next[nid] = it;
-          }
-          return next;
-        });
-        return list;
-      }
-    } catch {}
-    return boroughNeighborhoods[borough] || [];
   };
 
   const toggleBoroughAll = (borough: string, value: boolean, itemsOverride?: ServiceAreaItem[]) => {

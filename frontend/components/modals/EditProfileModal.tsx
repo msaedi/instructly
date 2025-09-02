@@ -1,7 +1,7 @@
 // frontend/components/modals/EditProfileModal.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { X, Plus, Trash2, DollarSign, ChevronDown } from 'lucide-react';
 import { publicApi } from '@/features/shared/api/client';
 import type { CatalogService, ServiceCategory } from '@/features/shared/api/client';
@@ -112,7 +112,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
 
   // Neighborhood-based service areas (NYC style) - used in areas-only modal variant
   type ServiceAreaItem = { neighborhood_id?: string; id?: string; name?: string | null; borough?: string | null };
-  const NYC_BOROUGHS = ['Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island'] as const;
+  const NYC_BOROUGHS = useMemo(() => ['Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island'] as const, []);
   const [boroughNeighborhoods, setBoroughNeighborhoods] = useState<Record<string, ServiceAreaItem[]>>({});
   const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<Set<string>>(new Set());
   const [, setIdToItem] = useState<Record<string, ServiceAreaItem>>({});
@@ -228,16 +228,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
     void load();
   }, [isOpen, variant]);
 
-  // Prefetch borough lists when filtering globally
-  useEffect(() => {
-    if (globalNeighborhoodFilter.trim().length > 0) {
-      NYC_BOROUGHS.forEach((b) => {
-        void loadBoroughNeighborhoods(b);
-      });
-    }
-  }, [globalNeighborhoodFilter]);
-
-  const loadBoroughNeighborhoods = async (borough: string): Promise<ServiceAreaItem[]> => {
+  const loadBoroughNeighborhoods = useCallback(async (borough: string): Promise<ServiceAreaItem[]> => {
     if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
     try {
       const url = `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`;
@@ -258,7 +249,16 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
       }
     } catch {}
     return boroughNeighborhoods[borough] || [];
-  };
+  }, [boroughNeighborhoods]);
+
+  // Prefetch borough lists when filtering globally
+  useEffect(() => {
+    if (globalNeighborhoodFilter.trim().length > 0) {
+      NYC_BOROUGHS.forEach((b) => {
+        void loadBoroughNeighborhoods(b);
+      });
+    }
+  }, [globalNeighborhoodFilter, NYC_BOROUGHS, loadBoroughNeighborhoods]);
 
   const toggleNeighborhood = (id: string) => {
     setSelectedNeighborhoods((prev) => {

@@ -52,7 +52,7 @@ export default function BookingModalWithPayment({
       setDuration(firstService.duration);
       setTotalPrice(firstService.hourly_rate * (firstService.duration / 60));
     }
-  }, [instructor.services.length]);
+  }, [instructor.services, selectedService]);
 
   // Pre-fill form with user data if authenticated
   useEffect(() => {
@@ -93,7 +93,7 @@ export default function BookingModalWithPayment({
         agreedToTerms: false,
       });
     }
-  }, [isOpen, isAuthenticated, user?.full_name, user?.email]);
+  }, [isOpen, isAuthenticated, instructor.services, selectedService, user?.full_name, user?.email]);
 
   // Update price when service or duration changes
   useEffect(() => {

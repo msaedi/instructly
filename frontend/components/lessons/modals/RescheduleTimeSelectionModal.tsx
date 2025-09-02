@@ -68,7 +68,7 @@ export default function RescheduleTimeSelectionModal({
 
 
   // Get duration options from the service
-  const getDurationOptions = () => {
+  const getDurationOptions = useCallback(() => {
     const selectedService = instructor.services[0];
     const durations = selectedService?.duration_options || [30, 60, 90, 120];
     const hourlyRate = selectedService?.hourly_rate || 100;
@@ -77,9 +77,9 @@ export default function RescheduleTimeSelectionModal({
       duration,
       price: Math.round((hourlyRate * duration) / 60),
     }));
-  };
+  }, [instructor.services]);
 
-  const durationOptions = useMemo(() => getDurationOptions(), [instructor.services]);
+  const durationOptions = useMemo(() => getDurationOptions(), [getDurationOptions]);
 
   // Component state
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -108,14 +108,7 @@ export default function RescheduleTimeSelectionModal({
     return `${firstName} ${lastInitial}.`;
   };
 
-  // Fetch availability data when modal opens
-  useEffect(() => {
-    if (isOpen && instructor.user_id) {
-      fetchAvailability();
-    }
-  }, [isOpen, instructor.user_id]);
-
-  const fetchAvailability = async () => {
+  const fetchAvailability = useCallback(async () => {
     setLoadingAvailability(true);
     try {
       const today = new Date();
@@ -198,7 +191,14 @@ export default function RescheduleTimeSelectionModal({
     } finally {
       setLoadingAvailability(false);
     }
-  };
+  }, [instructor.user_id, studentTimezone, selectedDuration]);
+
+  // Fetch availability data when modal opens
+  useEffect(() => {
+    if (isOpen && instructor.user_id) {
+      fetchAvailability();
+    }
+  }, [isOpen, instructor.user_id, fetchAvailability]);
 
   // Handle date selection
   const handleDateSelect = useCallback(

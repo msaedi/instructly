@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, Calendar, Clock, MapPin, User, DollarSign } from 'lucide-react';
 import Link from 'next/link';
@@ -16,13 +16,7 @@ export default function BookingDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (bookingId) {
-      fetchBookingDetails();
-    }
-  }, [bookingId]);
-
-  const fetchBookingDetails = async () => {
+  const fetchBookingDetails = useCallback(async () => {
     try {
       logger.debug('Fetching booking details', { bookingId });
       const response = await fetchWithAuth(`${API_ENDPOINTS.BOOKINGS}/${bookingId}`);
@@ -35,7 +29,13 @@ export default function BookingDetailsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [bookingId]);
+
+  useEffect(() => {
+    if (bookingId) {
+      fetchBookingDetails();
+    }
+  }, [bookingId, fetchBookingDetails]);
 
   const formatTime = (timeStr: string) => {
     const [hours, minutes] = timeStr.split(':');

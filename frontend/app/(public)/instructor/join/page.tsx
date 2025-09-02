@@ -22,7 +22,7 @@ function JoinInner() {
       const stored = typeof window !== 'undefined' ? sessionStorage.getItem('invite_code') : null;
       if (stored && !code) setCode(stored);
     }
-  }, []);
+  }, [code, params]);
 
   const [validating, setValidating] = useState(false);
 

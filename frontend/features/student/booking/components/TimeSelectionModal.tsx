@@ -66,7 +66,7 @@ export default function TimeSelectionModal({
   };
 
   // Get duration options from the selected service
-  const getDurationOptions = () => {
+  const getDurationOptions = useCallback(() => {
     // Get the selected service if serviceId is provided, otherwise use first
     const selectedService = serviceId
       ? instructor.services.find((s) => s.id === serviceId) || instructor.services[0]
@@ -95,9 +95,9 @@ export default function TimeSelectionModal({
     });
 
     return result;
-  };
+  }, [serviceId, instructor.services]);
 
-  const durationOptions = useMemo(() => getDurationOptions(), [serviceId, instructor.services]);
+  const durationOptions = useMemo(() => getDurationOptions(), [getDurationOptions]);
 
   // Debug logging
   logger.info('Duration options generated', {
@@ -135,14 +135,7 @@ export default function TimeSelectionModal({
     return `${firstName} ${lastInitial}.`;
   };
 
-  // Fetch availability data when modal opens
-  useEffect(() => {
-    if (isOpen && instructor.user_id) {
-      fetchAvailability();
-    }
-  }, [isOpen, instructor.user_id]);
-
-  const fetchAvailability = async () => {
+  const fetchAvailability = useCallback(async () => {
     setLoadingAvailability(true);
     try {
       const today = new Date();
@@ -279,7 +272,14 @@ export default function TimeSelectionModal({
     } finally {
       setLoadingAvailability(false);
     }
-  };
+  }, [instructor.user_id, selectedDuration, preSelectedDate, preSelectedTime, studentTimezone]);
+
+  // Fetch availability data when modal opens
+  useEffect(() => {
+    if (isOpen && instructor.user_id) {
+      fetchAvailability();
+    }
+  }, [isOpen, instructor.user_id, fetchAvailability]);
 
   // Handle escape key
   useEffect(() => {

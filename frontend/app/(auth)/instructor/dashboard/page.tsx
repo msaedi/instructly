@@ -1,7 +1,7 @@
 // frontend/app/(auth)/instructor/dashboard/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Calendar, ExternalLink, Trash2, RefreshCcw, Camera } from 'lucide-react';
@@ -29,7 +29,7 @@ export default function InstructorDashboardNew() {
   const [isStartingStripeOnboarding, setIsStartingStripeOnboarding] = useState(false);
   const [serviceAreaNames, setServiceAreaNames] = useState<string[] | null>(null);
 
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     const token = localStorage.getItem('access_token');
     if (!token) {
       logger.warn('No access token found, redirecting to login');
@@ -85,7 +85,7 @@ export default function InstructorDashboardNew() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [router]);
 
   useEffect(() => {
     logger.info('Instructor dashboard (new) loaded');
@@ -98,7 +98,7 @@ export default function InstructorDashboardNew() {
         logger.warn('Failed to load connect status');
       }
     })();
-  }, [router]);
+  }, [router, fetchProfile]);
 
   // Gate access until cleared to go live
   useEffect(() => {

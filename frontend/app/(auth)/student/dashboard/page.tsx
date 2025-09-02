@@ -119,7 +119,7 @@ function StudentDashboardContent() {
     if (initial && tabs.some(t => t.key === (initial as TabKey))) {
       setActiveTab(initial as TabKey);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-time initialization with stable inputs
   }, []);
 
   // Handle authentication and role-based redirects
@@ -228,7 +228,6 @@ function StudentDashboardContent() {
         }
       } catch {}
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Loading state
@@ -1770,7 +1769,6 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
         setSuggestions(data.items || []);
       } catch {}
     }, 250);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
   const save = async () => {

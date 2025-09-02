@@ -8,6 +8,23 @@ import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 import { useRef, useEffect, useState, useMemo } from 'react';
 
+// Constants moved outside component to avoid recreation on each render
+const ALL_TIME_SLOTS = [
+  '6am', '7am', '8am', '9am', '10am', '11am',
+  '12pm', '1pm', '2pm', '3pm', '4pm', '5pm',
+  '6pm', '7pm', '8pm', '9pm', '10pm', '11pm'
+];
+
+const mockAvailability: Record<string, string[]> = {
+  'Mon': ['8am', '9am', '10am', '2pm', '5pm'],
+  'Tue': ['6am', '8am', '11am', '5pm'],
+  'Wed': ['8am', '9am', '5pm'],
+  'Thu': ['10am', '2pm'],
+  'Fri': ['9am', '2pm', '5pm'],
+  'Sat': [],
+  'Sun': []
+};
+
 interface AvailabilityGridProps {
   instructorId: string;
   weekStart: Date | null;
@@ -45,23 +62,6 @@ export function AvailabilityGrid({
   // Generate 7 consecutive days starting from actualStartDate
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(actualStartDate, i));
   const weekLabel = `${format(weekDays[0], 'MMM d')} - ${format(weekDays[6], 'MMM d')}`;
-
-  // All possible time slots from 6am to 11pm - define early
-  const ALL_TIME_SLOTS = [
-    '6am', '7am', '8am', '9am', '10am', '11am',
-    '12pm', '1pm', '2pm', '3pm', '4pm', '5pm',
-    '6pm', '7pm', '8pm', '9pm', '10pm', '11pm'
-  ];
-
-  const mockAvailability: Record<string, string[]> = {
-    'Mon': ['8am', '9am', '10am', '2pm', '5pm'],
-    'Tue': ['6am', '8am', '11am', '5pm'],
-    'Wed': ['8am', '9am', '5pm'],
-    'Thu': ['10am', '2pm'],
-    'Fri': ['9am', '2pm', '5pm'],
-    'Sat': [],
-    'Sun': []
-  };
 
   // Mock data fallback
   const useMockData = error || (!isLoading && !data?.availability_by_date);

@@ -46,7 +46,7 @@ export default function BookingModal({
       setDuration(firstService.duration);
       setTotalPrice(firstService.hourly_rate * (firstService.duration / 60));
     }
-  }, [instructor.services.length]);
+  }, [instructor.services, selectedService]);
 
   // Pre-fill form with user data if authenticated
   useEffect(() => {
@@ -88,6 +88,8 @@ export default function BookingModal({
   }, [
     isOpen,
     isAuthenticated,
+    instructor.services,
+    selectedService,
     user?.full_name,
     user?.email,
   ]);
