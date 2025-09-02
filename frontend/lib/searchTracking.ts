@@ -38,6 +38,21 @@ export interface SearchHistoryItem {
 }
 
 /**
+ * Ensure guest_id cookie exists by calling the session bootstrap endpoint once
+ */
+async function ensureGuestCookie(): Promise<void> {
+  if (typeof document === 'undefined') return;
+  const hasGuest = document.cookie.split('; ').some((c) => c.startsWith('guest_id='));
+  if (hasGuest) return;
+  try {
+    await httpPost(withApiBase('/api/public/session/guest'));
+    logger.info('Bootstrapped guest_id cookie');
+  } catch (e) {
+    logger.warn('Failed to bootstrap guest session');
+  }
+}
+
+/**
  * Clean up expired guest sessions
  */
 function cleanupExpiredSessions(): boolean {
@@ -156,6 +171,7 @@ export async function recordSearch(
   isAuthenticated: boolean
 ): Promise<number | null> {
   try {
+    await ensureGuestCookie();
     logger.debug('Recording search', { searchRecord, isAuthenticated });
 
     // Refresh session on search activity
@@ -221,6 +237,7 @@ export async function getRecentSearches(
   limit: number = 3
 ): Promise<SearchHistoryItem[]> {
   try {
+    await ensureGuestCookie();
     const data = (await httpGet(buildUrl('/api/search-history/'), { query: { limit } })) as any[];
     return data as SearchHistoryItem[];
   } catch (error) {

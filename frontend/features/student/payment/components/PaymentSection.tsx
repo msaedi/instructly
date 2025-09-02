@@ -98,12 +98,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       try {
         setIsLoadingPaymentMethods(true);
 
-        // Check if we have an access token
-        const token = localStorage.getItem('access_token');
-        logger.info('Fetching payment data', {
-          hasToken: !!token,
-          tokenPreview: token ? token.substring(0, 20) + '...' : null
-        });
+        logger.info('Fetching payment data');
 
         // Fetch payment methods
         const methods = await paymentService.listPaymentMethods();
@@ -298,7 +293,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
         }
 
         // Provide better error messages for specific failures
-        let errorMessage = (paymentError as Record<string, unknown>)?.message || 'Payment failed';
+        const errorMessage = (paymentError as Record<string, unknown>)?.message || 'Payment failed';
         // If requires_action, instruct UI to perform 3DS confirmation
         if (errorMessage === 'requires_action' && (paymentError as Record<string, unknown>)?.client_secret) {
           setLocalErrorMessage('Additional authentication required to complete your payment.');
@@ -330,7 +325,8 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       logger.error('Payment processing failed', error as Error);
 
       // Extract the error message
-      let errorMessage = 'An error occurred while processing your payment.';
+      const defaultMsg = 'An error occurred while processing your payment.';
+      let errorMessage = defaultMsg;
       if (error instanceof Error) {
         errorMessage = error.message;
         // Clean up specific Stripe error messages

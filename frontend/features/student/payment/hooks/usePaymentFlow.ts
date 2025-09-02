@@ -77,8 +77,8 @@ export function usePaymentFlow({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
         },
+        credentials: 'include',
         body: JSON.stringify({
           bookingId: booking.bookingId,
           paymentMethod,

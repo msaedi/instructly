@@ -3,7 +3,8 @@
 
 import React, { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { API_ENDPOINTS, fetchWithAuth, getErrorMessage } from '@/lib/api';
+import { API_ENDPOINTS } from '@/lib/api';
+import { httpGet, ApiError } from '@/lib/http';
 import { logger } from '@/lib/logger';
 import {
   transferGuestSearchesToAccount,
@@ -47,90 +48,32 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('access_token');
-  // Initialize user from localStorage if token exists to prevent flashing
-  const [user, setUser] = useState<User | null>(() => {
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('access_token');
-      const cachedUser = localStorage.getItem('cached_user');
-      if (token && cachedUser) {
-        try {
-          return JSON.parse(cachedUser);
-        } catch {
-          return null;
-        }
-      }
-    }
-    return null;
-  });
-  // Don't show loading if we have cached user data
-  const [isLoading, setIsLoading] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('access_token');
-      const cachedUser = localStorage.getItem('cached_user');
-      return !(token && cachedUser);
-    }
-    return true;
-  });
+  // Cookie-based sessions: no token gating
+  const hasToken = true;
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const checkAuth = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
-    const token = localStorage.getItem('access_token');
-
-    if (!token) {
-      logger.debug('No auth token found');
-      setUser(null);
-      setIsLoading(false);
-      return;
-    }
-
     try {
       logger.info('Checking authentication status');
-      let response = await fetchWithAuth(API_ENDPOINTS.ME);
-
-      if (response.status === 429) {
-        // Respect Retry-After and retry once silently
-        const retryAfter = parseInt(response.headers.get('Retry-After') || '0', 10);
-        if (Number.isFinite(retryAfter) && retryAfter > 0) {
-          await new Promise((r) => setTimeout(r, retryAfter * 1000));
-          response = await fetchWithAuth(API_ENDPOINTS.ME);
-        }
-      }
-
-      if (response.ok) {
-        const userData = await response.json();
-        logger.info('User authenticated', {
-          userId: userData.id,
-          roles: userData.roles,
-          email: userData.email,
-        });
-        setUser(userData);
-        // Cache user data to prevent auth loss during navigation
-        localStorage.setItem('cached_user', JSON.stringify(userData));
-      } else if (response.status === 401) {
-        logger.warn('Invalid or expired auth token - clearing session');
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('cached_user');
+      const data = (await httpGet(withApiBase(API_ENDPOINTS.ME))) as User;
+      logger.info('User authenticated', {
+        userId: data?.id,
+        roles: data?.roles,
+        email: data?.email,
+      });
+      setUser(data);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        logger.warn('Not authenticated');
         setUser(null);
       } else {
-        const msg = await getErrorMessage(response);
-        logger.error('Failed to fetch user data', undefined, {
-          status: response.status,
-          statusText: response.statusText,
-        });
-        // Don't clear user on non-401 errors if already authenticated
-        if (!user) {
-          setError(msg);
-        }
-      }
-    } catch (err) {
-      logger.error('Authentication check error', err);
-      // Don't clear user on network errors if already authenticated
-      if (!user) {
-        setError('Network error while checking authentication');
+        logger.error('Authentication check error', err as Error);
+        if (!user) setError('Network error while checking authentication');
       }
     } finally {
       setIsLoading(false);
@@ -187,8 +130,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (response.ok) {
         const data = await response.json();
-        localStorage.setItem('access_token', data.access_token);
-
         // Transfer guest searches to user account (backend handles this automatically)
         if (guestSessionId) {
           logger.info('Initiating guest search transfer for session:', { guestSessionId });
@@ -217,9 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    // Clear auth token and cached user
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('cached_user');
+    // Clear auth state
     setUser(null);
 
     // Handle guest session based on user preference
@@ -256,16 +195,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push(`/login?redirect=${encodedUrl}`);
   };
 
-  // Check authentication on mount: always validate the token if present
+  // Check authentication on mount
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-    if (token) {
-      checkAuth();
-    } else {
-      // Ensure we reflect logged-out state
-      setUser(null);
-      setIsLoading(false);
-    }
+    checkAuth();
   }, [checkAuth]);
 
   return (

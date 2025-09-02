@@ -1,7 +1,8 @@
 // frontend/features/student/booking/hooks/useAuth.ts
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { API_ENDPOINTS, fetchWithAuth } from '@/lib/api';
+import { API_ENDPOINTS } from '@/lib/api';
+import { httpGet, ApiError } from '@/lib/http';
 import { logger } from '@/lib/logger';
 
 interface User {
@@ -48,41 +49,23 @@ export function useAuth(): UseAuthReturn {
     setIsLoading(true);
     setError(null);
 
-    const token = localStorage.getItem('access_token');
-
-    if (!token) {
-      logger.debug('No auth token found');
-      setUser(null);
-      setIsLoading(false);
-      return;
-    }
-
     try {
       logger.info('Checking authentication status');
-      const response = await fetchWithAuth(API_ENDPOINTS.ME);
-
-      if (response.ok) {
-        const userData = await response.json();
-        logger.info('User authenticated', {
-          userId: userData.id,
-          roles: userData.roles,
-          email: userData.email,
-        });
-        setUser(userData);
-      } else if (response.status === 401) {
-        logger.warn('Invalid or expired auth token');
-        localStorage.removeItem('access_token');
+      const data = (await httpGet(API_ENDPOINTS.ME)) as User;
+      logger.info('User authenticated', {
+        userId: data?.id,
+        roles: data?.roles,
+        email: data?.email,
+      });
+      setUser(data);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        logger.warn('Not authenticated');
         setUser(null);
       } else {
-        logger.error('Failed to fetch user data', undefined, {
-          status: response.status,
-          statusText: response.statusText,
-        });
-        setError('Failed to verify authentication');
+        logger.error('Authentication check error', err as Error);
+        setError('Network error while checking authentication');
       }
-    } catch (err) {
-      logger.error('Authentication check error', err);
-      setError('Network error while checking authentication');
     } finally {
       setIsLoading(false);
     }

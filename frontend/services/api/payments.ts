@@ -1,5 +1,6 @@
 import { logger } from '@/lib/logger';
-import { API_URL } from '@/lib/api';
+import { withApiBase } from '@/lib/apiBase';
+import { httpGet, httpPost } from '@/lib/http';
 
 export interface PaymentMethod {
   id: string;
@@ -64,29 +65,15 @@ export interface EarningsResponse {
 }
 
 class PaymentService {
-  private baseUrl = `${API_URL}/api/payments`;
+  private basePath = `/api/payments`;
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
-    const token = localStorage.getItem('access_token');
-
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : '',
-        ...options.headers,
-      },
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: 'Request failed' }));
-      throw new Error(error.detail || `Request failed with status ${response.status}`);
+  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const url = withApiBase(`${this.basePath}${endpoint}`);
+    const method = (options.method || 'GET').toUpperCase();
+    if (method === 'GET') {
+      return (await httpGet(url)) as T;
     }
-
-    return response.json();
+    return (await httpPost(url, options.body ? JSON.parse(options.body as string) : undefined)) as T;
   }
 
   // Payment Methods Management
@@ -236,18 +223,10 @@ class PaymentService {
 
   // Download Transaction History
   async downloadTransactionHistory(): Promise<Blob> {
-    const token = localStorage.getItem('access_token');
-
-    const response = await fetch(`${this.baseUrl}/transactions/download`, {
-      headers: {
-        'Authorization': token ? `Bearer ${token}` : '',
-      },
+    const response = await fetch(withApiBase(`${this.basePath}/transactions/download`), {
+      credentials: 'include',
     });
-
-    if (!response.ok) {
-      throw new Error('Failed to download transaction history');
-    }
-
+    if (!response.ok) throw new Error('Failed to download transaction history');
     return response.blob();
   }
 }
