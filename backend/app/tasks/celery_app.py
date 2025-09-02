@@ -103,9 +103,18 @@ def create_celery_app() -> Celery:
 
     celery_app.conf.update(base_config)
 
-    # Force import of payment task modules so tasks are registered even if autodiscovery fails
+    # Force import of task modules so tasks are registered even if autodiscovery fails
     # This complements autodiscover and avoids "unregistered task" errors on some runners
-    celery_app.conf.imports = tuple(set((celery_app.conf.imports or ())) | {"app.tasks.payment_tasks"})
+    celery_app.conf.imports = tuple(
+        set((celery_app.conf.imports or ()))
+        | {
+            "app.tasks.payment_tasks",
+            "app.tasks.search_analytics",
+            "app.tasks.analytics",
+            "app.tasks.monitoring_tasks",
+            "app.tasks.codebase_metrics",
+        }
+    )
 
     # Configure task routing if needed
     celery_app.conf.task_routes = {
@@ -118,20 +127,6 @@ def create_celery_app() -> Celery:
 
     # Set up task autodiscovery (namespace package)
     celery_app.autodiscover_tasks(["app.tasks"])  # base namespace
-
-    # Explicitly import task modules to guarantee registration in all envs
-    # (Celery autodiscovery expects 'tasks' modules; our tasks are under app.tasks.*)
-    try:
-        from app.tasks import analytics as _analytics  # noqa: F401
-        from app.tasks import codebase_metrics as _codebase_metrics  # noqa: F401
-        from app.tasks import monitoring_tasks as _monitoring_tasks  # noqa: F401
-        from app.tasks import payment_tasks as _payment_tasks  # noqa: F401
-        from app.tasks import privacy_audit_task as _privacy_audit_task  # noqa: F401
-        from app.tasks import privacy_tasks as _privacy_tasks  # noqa: F401
-        from app.tasks import search_analytics as _search_analytics  # noqa: F401
-    except Exception:
-        # Avoid startup failure if a dev-only module is missing; workers still start
-        pass
 
     # Import environment-aware beat schedule
     from app.tasks.beat_schedule import get_beat_schedule
@@ -153,6 +148,9 @@ def config_loggers(*args: Any, **kwargs: Any) -> None:
 
 # Create the Celery app instance
 celery_app = create_celery_app()
+
+# Task modules are imported via autodiscovery in create_celery_app()
+# and also via the force imports list in celery_app.conf.imports
 
 
 # Define base task class with error handling

@@ -14,13 +14,12 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.repositories.search_event_repository import SearchEventRepository
-from app.tasks.celery_app import BaseTask, celery_app
+from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
 
 @celery_app.task(
-    base=BaseTask,
     name="app.tasks.search_analytics.process_search_event",
     bind=True,
     max_retries=3,
@@ -77,7 +76,6 @@ def process_search_event(self, event_id: int) -> Dict[str, Any]:
 
 
 @celery_app.task(
-    base=BaseTask,
     name="app.tasks.search_analytics.calculate_search_metrics",
     bind=True,
 )
@@ -142,7 +140,6 @@ def calculate_search_metrics(self, hours_back: int = 24) -> Dict[str, Any]:
 
 
 @celery_app.task(
-    base=BaseTask,
     name="app.tasks.search_analytics.generate_search_insights",
     bind=True,
 )

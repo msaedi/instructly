@@ -10,7 +10,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 import stripe
-from celery import shared_task
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
@@ -22,16 +21,17 @@ from app.models.payment import PaymentEvent, StripeCustomer
 from app.repositories.factory import RepositoryFactory
 from app.services.notification_service import NotificationService
 from app.services.stripe_service import StripeService
+from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
 # Configure Stripe
 stripe.api_key = settings.stripe_secret_key.get_secret_value() if settings.stripe_secret_key else None
 STRIPE_CURRENCY = settings.stripe_currency if hasattr(settings, "stripe_currency") else "usd"
-PLATFORM_FEE_PERCENTAGE = 0.15  # 15% platform fee
+PLATFORM_FEE_PERCENTAGE = 15  # 15% platform fee
 
 
-@shared_task(bind=True, max_retries=3)
+@celery_app.task(bind=True, max_retries=3, name="app.tasks.payment_tasks.process_scheduled_authorizations")
 def process_scheduled_authorizations(self) -> Dict[str, Any]:
     """
     Process scheduled payment authorizations.
@@ -129,7 +129,7 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
                     logger.info(f"Booking {booking.id} fully covered by credits; no authorization needed")
                     continue
 
-                application_fee = int(amount_cents * PLATFORM_FEE_PERCENTAGE)
+                application_fee = int(amount_cents * PLATFORM_FEE_PERCENTAGE / 100)
 
                 # Create PaymentIntent with manual capture (authorization only) for the remainder
                 payment_intent = stripe.PaymentIntent.create(
@@ -230,7 +230,7 @@ def process_scheduled_authorizations(self) -> Dict[str, Any]:
         db.close()
 
 
-@shared_task(bind=True, max_retries=5)
+@celery_app.task(bind=True, max_retries=5, name="app.tasks.payment_tasks.retry_failed_authorizations")
 def retry_failed_authorizations(self) -> Dict[str, Any]:
     """
     Retry failed payment authorizations at specific time windows.
@@ -478,7 +478,7 @@ def has_event_type(payment_repo: Any, booking_id: str, event_type: str) -> bool:
     return any(e.event_type == event_type for e in events)
 
 
-@shared_task(bind=True, max_retries=3)
+@celery_app.task(bind=True, max_retries=3, name="app.tasks.payment_tasks.capture_completed_lessons")
 def capture_completed_lessons(self) -> Dict[str, Any]:
     """
     Capture payments for completed lessons.
@@ -811,7 +811,7 @@ def create_new_authorization_and_capture(booking: Booking, payment_repo: Any, db
         return {"success": False, "error": str(e)}
 
 
-@shared_task(bind=True, max_retries=3)
+@celery_app.task(bind=True, max_retries=3, name="app.tasks.payment_tasks.capture_late_cancellation")
 def capture_late_cancellation(self, booking_id: str) -> Dict[str, Any]:
     """
     Immediately capture payment for late cancellations (<12hr before lesson).
@@ -929,7 +929,7 @@ def capture_late_cancellation(self, booking_id: str) -> Dict[str, Any]:
         db.close()
 
 
-@shared_task
+@celery_app.task(name="app.tasks.payment_tasks.check_authorization_health")
 def check_authorization_health() -> Dict[str, Any]:
     """
     Health check for authorization system.
@@ -1015,7 +1015,7 @@ def check_authorization_health() -> Dict[str, Any]:
         db.close()
 
 
-@shared_task(bind=True, max_retries=3)
+@celery_app.task(bind=True, max_retries=3, name="app.tasks.payment_tasks.audit_and_fix_payout_schedules")
 def audit_and_fix_payout_schedules(self) -> Dict[str, Any]:
     """
     Nightly audit to ensure all connected accounts use weekly Tuesday payouts.
