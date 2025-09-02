@@ -104,7 +104,7 @@ export function useSSEMessages({
 
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + 0.2);
-    } catch (_error) {
+    } catch {
     }
   }, [playSound]);
 
@@ -136,7 +136,7 @@ export function useSSEMessages({
         window.focus();
         notification.close();
       };
-    } catch (_error) {
+    } catch {
     }
   }, [showNotifications]);
 
@@ -204,7 +204,7 @@ export function useSSEMessages({
       playNotificationSound();
       showBrowserNotification(message);
 
-    } catch (_error) {
+    } catch {
       logger.error('Error processing message');
     }
   }, [onMessage, playNotificationSound, showBrowserNotification]);
@@ -256,7 +256,7 @@ export function useSSEMessages({
         try {
           const data = JSON.parse((event as MessageEvent).data);
           processMessage(data);
-        } catch (_error) {
+        } catch {
           logger.error('Error parsing SSE message');
         }
       });
@@ -266,7 +266,7 @@ export function useSSEMessages({
         try {
           const data = JSON.parse((event as MessageEvent).data);
           processMessage(data);
-        } catch (_error) {
+        } catch {
           logger.error('Error parsing read_receipt');
         }
       });
@@ -276,7 +276,7 @@ export function useSSEMessages({
         try {
           const data = JSON.parse((event as MessageEvent).data);
           processMessage(data);
-        } catch (_error) {
+        } catch {
           logger.error('Error parsing typing_status');
         }
       });
@@ -286,7 +286,7 @@ export function useSSEMessages({
         try {
           const data = JSON.parse((event as MessageEvent).data);
           processMessage(data);
-        } catch (_error) {
+        } catch {
           logger.error('Error parsing reaction_update');
         }
       });
@@ -349,7 +349,7 @@ export function useSSEMessages({
         }
       };
 
-    } catch (_error) {
+    } catch {
       logger.error('Failed to create SSE connection');
       updateConnectionStatus(ConnectionStatus.ERROR);
     }
@@ -435,7 +435,7 @@ export function useSSEMessages({
         try {
           const data = JSON.parse((event as MessageEvent).data);
           processMessage(data);
-        } catch (_error) {
+        } catch {
           logger.error('Error parsing SSE message');
         }
       });
@@ -444,7 +444,7 @@ export function useSSEMessages({
         try {
           const data = JSON.parse((event as MessageEvent).data);
           processMessage(data);
-        } catch (_error) {
+        } catch {
           logger.error('Error parsing read_receipt');
         }
       });
@@ -453,7 +453,7 @@ export function useSSEMessages({
         try {
           const data = JSON.parse((event as MessageEvent).data);
           processMessage(data);
-        } catch (_error) {
+        } catch {
           logger.error('Error parsing typing_status');
         }
       });
@@ -462,7 +462,7 @@ export function useSSEMessages({
         try {
           const data = JSON.parse((event as MessageEvent).data);
           processMessage(data);
-        } catch (_error) {
+        } catch {
           logger.error('Error parsing reaction_update');
         }
       });

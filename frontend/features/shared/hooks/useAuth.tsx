@@ -159,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (response.ok) {
-        const _data = await response.json();
+        await response.json();
         // Transfer guest searches to user account (backend handles this automatically)
         if (guestSessionId) {
           logger.info('Initiating guest search transfer for session:', { guestSessionId });

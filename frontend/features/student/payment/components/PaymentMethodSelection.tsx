@@ -143,28 +143,17 @@ interface PaymentMethodSelectionProps {
 export default function PaymentMethodSelection({
   booking,
   cards,
-  credits,
+  credits: _credits,
   onSelectPayment,
   onBack,
   onCardAdded,
 }: PaymentMethodSelectionProps) {
   const [selectedCardId, setSelectedCardId] = useState<string>(cards[0]?.id || '');
-  const [useCredits, setUseCredits] = useState(false);
-  const [creditsToApply, setCreditsToApply] = useState(0);
+  const [creditsToApply] = useState(0);
   const [showNewCardForm, setShowNewCardForm] = useState(false);
 
-  const maxCreditsApplicable = Math.min(credits.totalAmount, booking.totalAmount);
   const remainingAfterCredits = booking.totalAmount - creditsToApply;
 
-  const _handleCreditToggle = () => {
-    if (!useCredits && credits.totalAmount > 0) {
-      setUseCredits(true);
-      setCreditsToApply(maxCreditsApplicable);
-    } else {
-      setUseCredits(false);
-      setCreditsToApply(0);
-    }
-  };
 
   const handleContinue = () => {
     if (creditsToApply >= booking.totalAmount) {

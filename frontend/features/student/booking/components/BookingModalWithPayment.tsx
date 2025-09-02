@@ -199,7 +199,6 @@ export default function BookingModalWithPayment({
     }
 
     // Create booking object for payment
-    const _bookingDate = new Date(selectedDate + 'T' + selectedTime);
     const basePrice = totalPrice;
 
     const booking = {

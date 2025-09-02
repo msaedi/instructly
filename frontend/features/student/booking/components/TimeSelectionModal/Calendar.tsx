@@ -33,7 +33,6 @@ export default function Calendar({
 
   // Get the first day of the month
   const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-  const _lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
   const startDate = new Date(firstDay);
   startDate.setDate(startDate.getDate() - firstDay.getDay()); // Start from Sunday
 

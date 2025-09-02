@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Star, CheckCircle, Dumbbell, Music, Guitar, Heart } from 'lucide-react';
+import { Star, CheckCircle, Heart } from 'lucide-react';
 import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/features/shared/hooks/useAuth';
@@ -50,24 +50,7 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
   const reviewCount = ratingsData?.overall?.total_reviews;
   const rating = (reviewCount ?? 0) >= 3 ? ratingsData?.overall?.rating : undefined;
 
-  // Get primary service for icon display
-  const primaryService = instructor.services?.[0]?.skill?.toLowerCase() || '';
 
-  const _getServiceIcon = () => {
-    if (primaryService.includes('personal training') || primaryService.includes('fitness')) {
-      return <Dumbbell className="h-5 w-5" />;
-    }
-    if (primaryService.includes('piano')) {
-      return <Music className="h-5 w-5" />;
-    }
-    if (primaryService.includes('guitar')) {
-      return <Guitar className="h-5 w-5" />;
-    }
-    if (primaryService.includes('yoga')) {
-      return <Heart className="h-5 w-5" />;
-    }
-    return null;
-  };
 
   const handleHeartClick = async () => {
     // Guest users - redirect to login with return URL
@@ -108,14 +91,6 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
     }
   };
 
-  const _formatServices = () => {
-    const uniqueServices = new Set<string>();
-    instructor.services?.forEach(s => {
-      const baseName = s.skill?.split(' - ')[0] || s.skill;
-      if (baseName) uniqueServices.add(baseName);
-    });
-    return Array.from(uniqueServices).slice(0, 2).join(', ');
-  };
 
   return (
     <div className="p-6 bg-white rounded-xl border border-gray-200">

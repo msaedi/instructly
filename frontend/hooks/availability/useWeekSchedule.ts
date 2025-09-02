@@ -11,7 +11,6 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   WeekSchedule,
   ExistingSlot,
@@ -97,7 +96,6 @@ export function useWeekSchedule(
   } = {}
 ): UseWeekScheduleReturn {
   const { messageTimeout = 5000 } = options;
-  const _router = useRouter();
 
   // Core state
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {

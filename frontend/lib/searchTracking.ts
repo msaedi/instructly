@@ -301,9 +301,6 @@ export async function trackSearchInteraction(
   timeToInteraction: number | null = null
 ): Promise<void> {
   try {
-    // Ensure headers are properly set for both authenticated and guest users
-    const _headers = getHeaders(isAuthenticated);
-
     logger.debug('Tracking search interaction', {
       searchEventId,
       interactionType,

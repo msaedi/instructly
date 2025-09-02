@@ -98,14 +98,6 @@ describe('RescheduleModal', () => {
 
   const mockOnClose = jest.fn();
 
-  const _mockUser = {
-    id: '01K2MAY484FQGFEQVN3VKGYZ58',
-    first_name: 'Test',
-    last_name: 'User',
-    email: 'test@example.com',
-    role: 'STUDENT',
-    created_at: '2024-01-01T00:00:00Z',
-  };
 
   const renderWithProviders = (ui: React.ReactElement) => {
     const queryClient = createTestQueryClient();

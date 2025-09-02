@@ -39,7 +39,6 @@ interface PaymentSectionProps {
 export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPaymentMethodInline = false }: PaymentSectionProps) {
   const {
     createBooking,
-    isLoading: _isCreatingBooking,
     error: bookingError,
     reset: resetBookingError,
   } = useCreateBooking();
@@ -64,13 +63,10 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   const {
     currentStep,
     paymentMethod,
-    selectedCard: _selectedCardFromHook,
     creditsToUse,
-    isProcessing: _isProcessing,
     error: paymentError,
     goToStep,
     selectPaymentMethod: selectPaymentMethodOriginal,
-    processPayment: _processPaymentOriginal,
     reset: resetPayment,
   } = usePaymentFlow({
     booking: updatedBookingData,

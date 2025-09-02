@@ -95,7 +95,7 @@ export class InstructorProfilePage {
     try {
       await this.page.locator('[data-testid="instructor-profile-name"]').first().waitFor({ timeout: 5000 });
       await this.page.locator('[data-testid^="time-slot-"]:visible').first().waitFor({ timeout: 15000 });
-    } catch (_e) {
+    } catch {
       // If we can't find basic elements, the page might not have loaded correctly
       console.log('Warning: Could not find expected elements on instructor profile page');
     }

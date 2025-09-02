@@ -1,4 +1,3 @@
-import { Dumbbell, Music, Guitar, Heart, Trophy, Mic, BookOpen } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -11,33 +10,6 @@ interface ServiceCardsProps {
   searchedService?: string; // To prioritize searched service
 }
 
-// Service icon mapping using Lucide React icons
-function _getServiceIcon(skill: string | undefined | null) {
-  if (!skill) return <BookOpen className="h-6 w-6" />;
-
-  const lowerSkill = skill.toLowerCase();
-
-  if (lowerSkill.includes('personal training') || lowerSkill.includes('fitness')) {
-    return <Dumbbell className="h-6 w-6" />;
-  }
-  if (lowerSkill.includes('piano')) {
-    return <Music className="h-6 w-6" />;
-  }
-  if (lowerSkill.includes('guitar')) {
-    return <Guitar className="h-6 w-6" />;
-  }
-  if (lowerSkill.includes('yoga')) {
-    return <Heart className="h-6 w-6" />;
-  }
-  if (lowerSkill.includes('basketball') || lowerSkill.includes('sports')) {
-    return <Trophy className="h-6 w-6" />;
-  }
-  if (lowerSkill.includes('voice') || lowerSkill.includes('vocal') || lowerSkill.includes('singing')) {
-    return <Mic className="h-6 w-6" />;
-  }
-
-  return <BookOpen className="h-6 w-6" />;
-}
 
 // Individual service card with tooltip
 interface ServiceCardItemProps {
@@ -108,7 +80,6 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
             <div>
               <div className="flex gap-2 justify-center">
                 {durationOptions.map((dur) => {
-                  const _durationPrice = Math.round((hourlyRate * dur) / 60);
                   return (
                     <label
                       key={dur}

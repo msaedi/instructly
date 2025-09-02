@@ -7,7 +7,6 @@ import { format } from 'date-fns';
 import { protectedApi, publicApi } from '@/features/shared/api/client';
 import type { InstructorService } from '@/types/instructor';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
-import { useRouter } from 'next/navigation';
 import { calculateEndTime } from '@/features/student/booking/hooks/useCreateBooking';
 import { calculateServiceFee, calculateTotalAmount, determineBookingType } from '../utils/paymentCalculations';
 import { logger } from '@/lib/logger';
@@ -43,7 +42,6 @@ export default function PaymentConfirmation({
   cardBrand = 'Card',
   isDefaultCard = false,
 }: PaymentConfirmationProps) {
-  const _router = useRouter();
   const [isOnlineLesson, setIsOnlineLesson] = useState(false);
   const [hasConflict, setHasConflict] = useState(false);
   const [conflictMessage, setConflictMessage] = useState<string>('');

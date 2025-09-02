@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
 import { X, ArrowLeft } from 'lucide-react';
 import { logger } from '@/lib/logger';
 import { publicApi } from '@/features/shared/api/client';
@@ -48,7 +47,6 @@ export default function TimeSelectionModal({
   onTimeSelected,
   serviceId,
 }: TimeSelectionModalProps) {
-  const _router = useRouter();
   const { isAuthenticated, redirectToLogin, user } = useAuth();
 
   const studentTimezone = (user as { timezone?: string })?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -130,7 +128,6 @@ export default function TimeSelectionModal({
     availability_by_date?: Record<string, { available_slots: AvailabilitySlot[] }>;
     [key: string]: unknown;
   } | null>(null);
-  const [_loadingAvailability, setLoadingAvailability] = useState(false);
   const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
   const lastChangeWasDurationRef = useRef<boolean>(false);
 
@@ -145,7 +142,6 @@ export default function TimeSelectionModal({
   };
 
   const fetchAvailability = useCallback(async () => {
-    setLoadingAvailability(true);
     try {
       const today = new Date();
       const endDate = new Date();
@@ -279,7 +275,7 @@ export default function TimeSelectionModal({
     } catch (error) {
       logger.error('Failed to fetch availability', error);
     } finally {
-      setLoadingAvailability(false);
+      // Loading state cleared
     }
   }, [instructor.user_id, selectedDuration, preSelectedDate, preSelectedTime, studentTimezone]);
 
