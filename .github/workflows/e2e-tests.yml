@@ -423,18 +423,28 @@ jobs:
         fi
 
         # Guard against accidental proxy flips and hardcoded URLs
-        if [ "$NEXT_PUBLIC_USE_PROXY" = "false" ]; then
-          echo "Checking for localhost references in client bundle..."
-          FOUND_ISSUES=false
-
-          # Check for various localhost patterns
-          for PATTERN in "localhost:8000" "127.0.0.1:8000" "localhost:8001" "127.0.0.1:8001"; do
-            if grep -R -q "$PATTERN" .next/static 2>/dev/null; then
-              echo "❌ Found $PATTERN references in client bundle"
-              echo "Offending files:"
-              grep -R -l "$PATTERN" .next/static 2>/dev/null | head -3
-              FOUND_ISSUES=true
-            fi
+        if [ "$NEXT_PUBLIC_USE_PROXY" = "true" ]; then
+          echo "Ensuring bundle does NOT include direct backend URLs when proxying..."
+          if grep -R -nE 'https?://(localhost|127\.0\.0\.1):(8000|8001)' .next/static 2>/dev/null | head -5; then
+            echo "❌ Found direct backend URLs in bundle while USE_PROXY=true"
+            grep -R -lE 'https?://(localhost|127\.0\.0\.1):(8000|8001)' .next/static 2>/dev/null | head -5
+            exit 1
+          fi
+          echo "✅ No direct backend URLs in bundle (proxy mode)"
+        else
+          echo "Direct mode (USE_PROXY=false): allow exactly \$NEXT_PUBLIC_API_BASE, block other localhost targets..."
+          # Allow ONLY the configured base; flag 127.0.0.1:8000 and any :8001 uses
+          ALLOWED_BASE="$NEXT_PUBLIC_API_BASE"
+          # Anything localhost/127 with a port that isn't the exact ALLOWED_BASE should fail
+          OFFENDERS=$(grep -R -nE 'https?://(localhost|127\.0\.0\.1):[0-9]+' .next/static 2>/dev/null \
+                      | grep -v -F "$ALLOWED_BASE" | head -5 || true)
+          if [ -n "$OFFENDERS" ]; then
+            echo "❌ Found unexpected direct backend URL(s) not equal to ALLOWED_BASE=$ALLOWED_BASE"
+            echo "$OFFENDERS"
+            exit 1
+          fi
+          echo "✅ Bundle URLs look good for direct mode"
+        fi
           done
 
           if [ "$FOUND_ISSUES" = true ]; then
