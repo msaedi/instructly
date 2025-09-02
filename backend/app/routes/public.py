@@ -18,9 +18,8 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from fastapi.responses import JSONResponse
 import ulid
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
@@ -35,6 +34,7 @@ from ..schemas.public_availability import (
     PublicInstructorAvailability,
     PublicTimeSlot,
 )
+from ..schemas.public_session import GuestSessionResponse
 from ..services.availability_service import AvailabilityService
 from ..services.cache_service import CacheService
 from ..services.conflict_checker import ConflictChecker
@@ -70,8 +70,8 @@ def get_cache_service_dep(db: Session = Depends(get_db)) -> Optional[CacheServic
         return None
 
 
-@router.post("/session/guest")
-def create_guest_session(response_obj: Response, request: Request) -> JSONResponse:
+@router.post("/session/guest", response_model=GuestSessionResponse)
+def create_guest_session(response_obj: Response, request: Request) -> GuestSessionResponse:
     """Issue a first-party guest_id cookie used for optional auth endpoints.
 
     Sets cookie attributes appropriate for cross-site subdomains in preview/prod.
@@ -85,6 +85,7 @@ def create_guest_session(response_obj: Response, request: Request) -> JSONRespon
 
     # Cookie defaults
     import os as _os
+
     site_mode = (_os.getenv("SITE_MODE", "").lower().strip()) or "local"
     cookie_kwargs = {
         "httponly": True,
@@ -96,9 +97,9 @@ def create_guest_session(response_obj: Response, request: Request) -> JSONRespon
         cookie_kwargs["secure"] = True
         cookie_kwargs["domain"] = ".instainstru.com"
 
-    resp = JSONResponse({"guest_id": guest_id})
-    resp.set_cookie("guest_id", guest_id, **cookie_kwargs)
-    return resp
+    # Set cookie and return typed response model
+    response_obj.set_cookie("guest_id", guest_id, **cookie_kwargs)
+    return GuestSessionResponse(guest_id=guest_id)
 
 
 @router.post("/logout")
@@ -108,6 +109,7 @@ def public_logout(response_obj: Response, request: Request) -> Response:
     This does not revoke server sessions; it only instructs the browser to drop cookies.
     """
     import os as _os
+
     site_mode = (_os.getenv("SITE_MODE", "").lower().strip()) or "local"
     cookie_kwargs = {"path": "/"}
     if site_mode in {"preview", "prod", "production", "live"}:

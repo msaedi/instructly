@@ -24,7 +24,8 @@ import { getGuestSessionId } from '@/lib/searchTracking';
 // Import centralized types
 import type { RegisterRequest, AuthResponse } from '@/types/user';
 import { RequestStatus } from '@/types/api';
-import { hasRole, useAuth } from '@/features/shared/hooks/useAuth';
+import { useAuth } from '@/features/shared/hooks/useAuth';
+import { hasRole } from '@/features/shared/hooks/useAuth.helpers';
 import { RoleName } from '@/types/enums';
 
 /**

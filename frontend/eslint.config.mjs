@@ -1,6 +1,7 @@
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { FlatCompat } from '@eslint/eslintrc';
+import reactRefresh from 'eslint-plugin-react-refresh';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -24,6 +25,9 @@ const eslintConfig = [
   },
   ...compat.extends('next/core-web-vitals', 'next/typescript'),
   {
+    plugins: {
+      'react-refresh': reactRefresh,
+    },
     rules: {
       // Ban console usage in app code; prefer our logger. Allow warn/error in server.js and tests via overrides.
       'no-console': ['error'],
@@ -35,6 +39,31 @@ const eslintConfig = [
       '@typescript-eslint/ban-ts-comment': 'warn',
     },
     languageOptions: { ecmaVersion: 2022, sourceType: 'module' },
+  },
+  // React Refresh ergonomics in component and test files
+  {
+    files: ['components/**/*', 'features/**/*', 'app/**/*', '__tests__/**/*'],
+    plugins: { 'react-refresh': reactRefresh },
+    rules: {
+      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+    },
+  },
+  // Disable react-refresh for Next.js layout files that need to export metadata
+  {
+    files: ['app/layout.tsx', 'app/**/layout.tsx'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
+  // Disable react-refresh for hooks that export both hooks and components/utilities
+  {
+    files: [
+      'features/shared/hooks/useAuth.tsx',
+      'features/shared/hooks/usePermissions.helpers.tsx',
+    ],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
   },
   // Enforce cookies-only auth in critical surfaces (forbid localStorage token reads)
   {

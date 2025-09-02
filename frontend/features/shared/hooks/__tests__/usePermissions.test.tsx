@@ -4,7 +4,8 @@
 
 import React from 'react';
 import { renderHook, render, screen } from '@testing-library/react';
-import { usePermissions, PermissionGate, withPermission } from '../usePermissions';
+import { usePermissions } from '../usePermissions';
+import { PermissionGate, withPermission } from '../usePermissions.helpers';
 import { useAuth } from '../useAuth';
 import { PermissionName } from '@/types/enums';
 

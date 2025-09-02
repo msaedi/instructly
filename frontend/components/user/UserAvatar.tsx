@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getProfilePictureUrl } from '@/lib/api';
-import { getUserInitials } from '@/features/shared/hooks/useAuth';
+import { getUserInitials } from '@/features/shared/hooks/useAuth.helpers';
 
 interface Props {
   user: { id: string; first_name?: string; last_name?: string; email?: string; has_profile_picture?: boolean; profile_picture_version?: number } | null;

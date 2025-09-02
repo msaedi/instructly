@@ -90,10 +90,10 @@ export function isFeatureCollection(
   if (!isRecord(value)) return false;
   if (value.type !== 'FeatureCollection') return false;
   if (!Array.isArray(value.features)) return false;
-  
+
   // Basic validation that features have the right shape
-  return value.features.every((f: unknown) => 
-    isRecord(f) && 
+  return value.features.every((f: unknown) =>
+    isRecord(f) &&
     f.type === 'Feature' &&
     (!f.geometry || (isRecord(f.geometry) && typeof f.geometry.type === 'string'))
   );
@@ -108,15 +108,15 @@ export function getNestedString(
   fallback: string = ''
 ): string {
   if (!isRecord(obj)) return fallback;
-  
+
   const keys = path.split('.');
   let current: unknown = obj;
-  
+
   for (const key of keys) {
     if (!isRecord(current)) return fallback;
     current = current[key];
   }
-  
+
   return typeof current === 'string' ? current : fallback;
 }
 
@@ -129,15 +129,15 @@ export function getNestedNumber(
   fallback: number = 0
 ): number {
   if (!isRecord(obj)) return fallback;
-  
+
   const keys = path.split('.');
   let current: unknown = obj;
-  
+
   for (const key of keys) {
     if (!isRecord(current)) return fallback;
     current = current[key];
   }
-  
+
   return typeof current === 'number' ? current : fallback;
 }
 

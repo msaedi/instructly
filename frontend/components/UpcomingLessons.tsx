@@ -8,7 +8,8 @@ import { useEffect, useState } from 'react';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { queryFn } from '@/lib/react-query/api';
 import { UpcomingBooking } from '@/types/booking';
-import { useAuth, hasRole } from '@/features/shared/hooks/useAuth';
+import { useAuth } from '@/features/shared/hooks/useAuth';
+import { hasRole } from '@/features/shared/hooks/useAuth.helpers';
 import { RoleName } from '@/types/enums';
 
 interface UpcomingBookingsResponse {

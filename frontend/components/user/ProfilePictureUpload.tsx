@@ -7,7 +7,8 @@ import ImageCropModal from '@/components/modals/ImageCropModal';
 import { toast } from 'sonner';
 import { createSignedUpload, finalizeProfilePicture } from '@/lib/api';
 import { logger } from '@/lib/logger';
-import { useAuth, getUserInitials, getAvatarColor } from '@/features/shared/hooks/useAuth';
+import { useAuth } from '@/features/shared/hooks/useAuth';
+import { getUserInitials, getAvatarColor } from '@/features/shared/hooks/useAuth.helpers';
 
 interface Props {
   onCompleted?: () => void;

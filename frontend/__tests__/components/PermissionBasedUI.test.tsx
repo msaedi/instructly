@@ -7,7 +7,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import type { User } from '@/features/shared/hooks/useAuth';
-import { PermissionGate } from '@/features/shared/hooks/usePermissions';
+import { PermissionGate } from '@/features/shared/hooks/usePermissions.helpers';
 import { PermissionName } from '@/types/enums';
 
 // Mock useAuth hook

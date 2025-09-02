@@ -86,5 +86,3 @@ export const httpPut = (url: string, body?: unknown, options?: HttpOptions) =>
 export const httpPatch = (url: string, body?: unknown, options?: HttpOptions) =>
   http('PATCH', url, { ...(options || {}), body: body as BodyInit });
 export const httpDelete = (url: string, options?: HttpOptions) => http('DELETE', url, options);
-
-

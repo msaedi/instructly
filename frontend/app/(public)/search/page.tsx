@@ -146,7 +146,7 @@ function SearchPageContent() {
                       getNumber(offering, 'hourly_rate') || getNumber(service, 'actual_min_price', 0),
                     description:
                       getString(offering, 'description') || getString(service, 'description', ''),
-                    duration_options: getArray(offering, 'duration_options').length > 0 
+                    duration_options: getArray(offering, 'duration_options').length > 0
                       ? getArray(offering, 'duration_options') as number[]
                       : [60],
                     is_active: true,
