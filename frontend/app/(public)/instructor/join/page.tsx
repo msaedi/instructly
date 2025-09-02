@@ -1,13 +1,12 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { BRAND } from '@/app/config/brand';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
 
 function JoinInner() {
-  const router = useRouter();
   const params = useSearchParams();
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);

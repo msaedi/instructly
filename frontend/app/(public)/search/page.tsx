@@ -31,6 +31,7 @@ function SearchPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_total, setTotal] = useState(0);
   const [serviceName, setServiceName] = useState<string>('');
   const [serviceSlug] = useState<string>('');

@@ -4,7 +4,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { Search, Music, BookOpen, Dumbbell, Globe, Palette, Baby, Sparkles } from 'lucide-react';
-import { publicApi, type CatalogService, type ServiceCategory } from '@/features/shared/api/client';
+import { publicApi, type CatalogService } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 // Removed recordSearch and SearchType - tracking now handled by search page
@@ -86,7 +86,7 @@ export default function AllServicesPage() {
   const [error, setError] = useState<string | null>(null);
   const [visibleServices, setVisibleServices] = useState<Record<string, number>>({});
   const categoryRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const { isAuthenticated } = useAuth();
+  const { /* isAuthenticated */ } = useAuth();
 
   // Load kids-available services independently so they show regardless of which data path loads
   useEffect(() => {
@@ -94,7 +94,7 @@ export default function AllServicesPage() {
       try {
         const res = await publicApi.getKidsAvailableServices();
         if (res.data) setKidsServices(res.data);
-      } catch (e) {
+      } catch {
         // non-fatal
       }
     };

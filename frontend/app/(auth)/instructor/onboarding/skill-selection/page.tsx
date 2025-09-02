@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { publicApi } from '@/features/shared/api/client';
 import { fetchWithAuth, API_ENDPOINTS, getErrorMessage, isNetworkError } from '@/lib/api';
@@ -233,7 +234,7 @@ function Step3SkillsPricingInner() {
       await new Promise((resolve) => setTimeout(resolve, 600));
       setRequestSuccess("Thanks! We'll review and consider adding this skill.");
       setRequestText('');
-    } catch (e) {
+    } catch {
       setRequestSuccess('Something went wrong. Please try again.');
     } finally {
       setRequestSubmitting(false);
@@ -247,9 +248,9 @@ function Step3SkillsPricingInner() {
       {/* Header - matching other pages */}
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full relative">
-          <a href="/" className="inline-block">
+          <Link href="/" className="inline-block">
             <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
-          </a>
+          </Link>
 
           {/* Progress Bar - 4 Steps - Absolutely centered */}
           <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-0">

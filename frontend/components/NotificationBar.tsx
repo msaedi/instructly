@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Bell, DollarSign, UserPlus, Tag, Megaphone } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 
 interface NotificationMessage {
@@ -98,20 +98,6 @@ export function NotificationBar() {
     return null;
   }
 
-  const getIcon = () => {
-    switch (currentNotification.type) {
-      case 'credits':
-        return <DollarSign className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />;
-      case 'new_instructors':
-        return <UserPlus className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />;
-      case 'deals':
-        return <Tag className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />;
-      case 'announcement':
-        return <Megaphone className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />;
-      default:
-        return <Bell className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />;
-    }
-  };
 
   return (
     <div className="bg-gray-50 dark:bg-gray-900/20 animate-slide-down">

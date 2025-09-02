@@ -40,7 +40,7 @@ export default function UserProfileDropdown() {
                profile.services && profile.services.length > 0);
             setInstructorOnboardingComplete(isComplete);
           }
-        } catch (error) {
+        } catch {
           // If we can't fetch profile, assume onboarding incomplete
           setInstructorOnboardingComplete(false);
         }

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Search, Server, Database, Code, FlaskConical } from 'lucide-react';
+import { Search, Server, Code, FlaskConical } from 'lucide-react';
 
 export function AdminSidebar() {
   const pathname = usePathname();
@@ -50,8 +50,6 @@ export function AdminSidebar() {
       ],
     },
   ] as const;
-
-  const isActiveCategory = (href: string) => pathname.startsWith(href.split('/').slice(0, 3).join('/'));
 
   return (
     <nav className="bg-white/60 dark:bg-gray-900/40 backdrop-blur rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 p-4 w-full">

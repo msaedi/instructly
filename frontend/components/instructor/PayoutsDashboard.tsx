@@ -25,7 +25,7 @@ interface PayoutsDashboardProps {
 }
 
 const PayoutsDashboard: React.FC<PayoutsDashboardProps> = ({ instructorId }) => {
-  const [dashboardUrl, setDashboardUrl] = useState<string | null>(null);
+  const [, setDashboardUrl] = useState<string | null>(null);
   const [earnings, setEarnings] = useState<EarningsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

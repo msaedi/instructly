@@ -12,18 +12,15 @@ import {
   Calendar,
   Clock,
   User,
-  DollarSign,
   CreditCard,
   Loader2,
   CheckCircle,
   XCircle,
-  AlertCircle,
   Shield,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { logger } from '@/lib/logger';
-import { formatAmountForStripe } from '@/features/student/payment/utils/stripe';
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
@@ -210,7 +207,7 @@ const PaymentForm: React.FC<{
             name="payment-method"
             value="new"
             checked={selectedMethod === 'new'}
-            onChange={(e) => {
+            onChange={() => {
               setSelectedMethod('new');
               setRequiresCvv(false);
             }}
@@ -311,7 +308,8 @@ const CheckoutFlow: React.FC<CheckoutFlowProps> = ({ booking, onSuccess, onCance
   // Calculate fees
   const platformFeePercentage = 0.15; // 15%
   const platformFee = booking.total_price * platformFeePercentage;
-  const instructorEarnings = booking.total_price - platformFee;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _instructorEarnings = booking.total_price - platformFee;
 
   // Load saved payment methods
   useEffect(() => {

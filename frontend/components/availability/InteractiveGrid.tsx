@@ -25,7 +25,8 @@ export interface InteractiveGridProps {
 
 const HALF_HOURS_PER_HOUR = 2;
 
-function toCellIndex(hour: number, halfIndex: 0 | 1) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _toCellIndex(hour: number, halfIndex: 0 | 1) {
   return hour * HALF_HOURS_PER_HOUR + halfIndex;
 }
 
@@ -221,7 +222,8 @@ export default function InteractiveGrid({
         const bottomPx = topPx + rowHeight;
         const rect = gridRef.current.getBoundingClientRect();
         const viewportTop = Math.max(0, -rect.top);
-        const viewportBottom = viewportTop + window.innerHeight - Math.max(0, rect.top + rect.height - window.innerHeight);
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const _viewportBottom = viewportTop + window.innerHeight - Math.max(0, rect.top + rect.height - window.innerHeight);
         if (topPx < viewportTop + visibleStart * rowHeight || bottomPx > (visibleEnd + 1) * rowHeight) {
           // Force update range around target
           const buffer = 6;
@@ -350,13 +352,15 @@ export default function InteractiveGrid({
           {topSpacer}
           {Array.from({ length: endRow - startRow + 1 }).map((_, idx) => {
             const r = startRow + idx;
-            const isHourLine = r % 2 === 0; // full hour rows
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const _isHourLine = r % 2 === 0; // full hour rows
             const isSelected = existing.has(r);
             const inDragRange = dxActive ? r >= Math.min(dxActive.startCell, dxActive.currentCell) && r <= Math.max(dxActive.startCell, dxActive.currentCell) : false;
             const booked = isCellBooked(bookedSlots, date, r, startHour);
             const past = isPastCell(date, r);
             const isFirst = r === 0;
-            const isLast = r === rows - 1;
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const _isLast = r === rows - 1;
             // Draw only bottom borders for consistency; first row adds a top border
             const bottomBorder = r % 2 === 1 ? 'border-b-2 border-gray-300' : 'border-b border-gray-200';
             const bookedTooltip = booked ? 'Booked: reservation stays; editing affects future availability' : undefined;

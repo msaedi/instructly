@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Briefcase, Plus, Trash2, DollarSign, ChevronDown } from 'lucide-react';
+import { X, Plus, Trash2, DollarSign, ChevronDown } from 'lucide-react';
 import { publicApi } from '@/features/shared/api/client';
 import type { CatalogService, ServiceCategory } from '@/features/shared/api/client';
 import Modal from '@/components/Modal';
@@ -53,7 +53,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [savingAbout, setSavingAbout] = useState(false);
-  const [savingAreas, setSavingAreas] = useState(false);
+  const [, setSavingAreas] = useState(false);
   const [profileData, setProfileData] = useState<ProfileFormData>({
     bio: '',
     areas_of_service: [] as string[],
@@ -115,7 +115,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
   const NYC_BOROUGHS = ['Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island'] as const;
   const [boroughNeighborhoods, setBoroughNeighborhoods] = useState<Record<string, ServiceAreaItem[]>>({});
   const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<Set<string>>(new Set());
-  const [idToItem, setIdToItem] = useState<Record<string, ServiceAreaItem>>({});
+  const [, setIdToItem] = useState<Record<string, ServiceAreaItem>>({});
   const [openBoroughs, setOpenBoroughs] = useState<Set<string>>(new Set());
   const [globalNeighborhoodFilter, setGlobalNeighborhoodFilter] = useState('');
   // Services & Pricing (onboarding-like)
@@ -579,7 +579,8 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
     }
   };
 
-  const handleSaveAreas = async () => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _handleSaveAreas = async () => {
     try {
       setSavingAreas(true);
       setError('');
@@ -922,7 +923,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                         });
                         onSuccess();
                         onClose();
-                      } catch (e: any) {
+                      } catch {
                         setError('Failed to save service areas');
                       }
                     }}

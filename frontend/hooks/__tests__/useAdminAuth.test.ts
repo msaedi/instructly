@@ -37,8 +37,11 @@ describe('useAdminAuth', () => {
       user: null,
       isAuthenticated: false,
       isLoading: true,
+      error: null,
       login: jest.fn(),
       logout: jest.fn(),
+      checkAuth: jest.fn().mockResolvedValue(undefined),
+      redirectToLogin: jest.fn(),
     });
 
     mockUsePermissions.mockReturnValue({
@@ -64,8 +67,11 @@ describe('useAdminAuth', () => {
       user: null,
       isAuthenticated: false,
       isLoading: false,
+      error: null,
       login: jest.fn(),
       logout: jest.fn(),
+      checkAuth: jest.fn().mockResolvedValue(undefined),
+      redirectToLogin: jest.fn(),
     });
 
     mockUsePermissions.mockReturnValue({
@@ -92,8 +98,11 @@ describe('useAdminAuth', () => {
       user: null,
       isAuthenticated: false,
       isLoading: false,
+      error: null,
       login: jest.fn(),
       logout: jest.fn(),
+      checkAuth: jest.fn().mockResolvedValue(undefined),
+      redirectToLogin: jest.fn(),
     });
 
     mockUsePermissions.mockReturnValue({
@@ -117,17 +126,26 @@ describe('useAdminAuth', () => {
 
   it('should redirect to home when user lacks admin permissions', () => {
     const mockUser = {
-      id: 1,
+      id: '1',
       email: 'student@test.com',
+      first_name: 'Student',
+      last_name: 'User',
+      roles: [],
       permissions: [PermissionName.CREATE_BOOKINGS],
+      is_active: true,
+      created_at: '',
+      updated_at: '',
     };
 
     mockUseAuth.mockReturnValue({
-      user: mockUser,
+      user: mockUser as any,
       isAuthenticated: true,
       isLoading: false,
+      error: null,
       login: jest.fn(),
       logout: jest.fn(),
+      checkAuth: jest.fn().mockResolvedValue(undefined),
+      redirectToLogin: jest.fn(),
     });
 
     mockUsePermissions.mockReturnValue({
@@ -150,17 +168,26 @@ describe('useAdminAuth', () => {
 
   it('should not redirect when user has admin permissions', () => {
     const mockUser = {
-      id: 1,
+      id: '1',
       email: 'admin@test.com',
+      first_name: 'Admin',
+      last_name: 'User',
+      roles: ['admin'],
       permissions: [PermissionName.VIEW_SYSTEM_ANALYTICS, PermissionName.MANAGE_USERS],
+      is_active: true,
+      created_at: '',
+      updated_at: '',
     };
 
     mockUseAuth.mockReturnValue({
-      user: mockUser,
+      user: mockUser as any,
       isAuthenticated: true,
       isLoading: false,
+      error: null,
       login: jest.fn(),
       logout: jest.fn(),
+      checkAuth: jest.fn().mockResolvedValue(undefined),
+      redirectToLogin: jest.fn(),
     });
 
     mockUsePermissions.mockReturnValue({
@@ -185,17 +212,26 @@ describe('useAdminAuth', () => {
 
   it('should return correct isAdmin value based on permissions', () => {
     const adminUser = {
-      id: 1,
+      id: '1',
       email: 'admin@test.com',
+      first_name: 'Admin',
+      last_name: 'User',
+      roles: ['admin'],
       permissions: [PermissionName.VIEW_SYSTEM_ANALYTICS],
+      is_active: true,
+      created_at: '',
+      updated_at: '',
     };
 
     mockUseAuth.mockReturnValue({
-      user: adminUser,
+      user: adminUser as any,
       isAuthenticated: true,
       isLoading: false,
+      error: null,
       login: jest.fn(),
       logout: jest.fn(),
+      checkAuth: jest.fn().mockResolvedValue(undefined),
+      redirectToLogin: jest.fn(),
     });
 
     mockUsePermissions.mockReturnValue({
@@ -222,8 +258,11 @@ describe('useAdminAuth', () => {
       user: null,
       isAuthenticated: false,
       isLoading: false,
+      error: null,
       login: jest.fn(),
       logout: jest.fn(),
+      checkAuth: jest.fn().mockResolvedValue(undefined),
+      redirectToLogin: jest.fn(),
     });
 
     mockUsePermissions.mockReturnValue({
@@ -242,18 +281,17 @@ describe('useAdminAuth', () => {
     expect(result.current.isAdmin).toBe(false);
 
     // Update to have admin user
-    const adminUser = {
-      id: 1,
-      email: 'admin@test.com',
-      permissions: [PermissionName.VIEW_SYSTEM_ANALYTICS],
-    };
+    const adminUser = { id: '1', email: 'admin@test.com', first_name: 'Admin', last_name: 'User', roles: ['admin'], permissions: [], is_active: true, created_at: '', updated_at: '' };
 
     mockUseAuth.mockReturnValue({
-      user: adminUser,
+      user: adminUser as any,
       isAuthenticated: true,
       isLoading: false,
+      error: null,
       login: jest.fn(),
       logout: jest.fn(),
+      checkAuth: jest.fn().mockResolvedValue(undefined),
+      redirectToLogin: jest.fn(),
     });
 
     mockUsePermissions.mockReturnValue({

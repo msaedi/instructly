@@ -16,7 +16,7 @@ export default function BookingConfirmationPage() {
   const [paymentComplete, setPaymentComplete] = useState(false);
   const [confirmationNumber, setConfirmationNumber] = useState<string>('');
   const router = useRouter();
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   // Check authentication and redirect if not authenticated
   useEffect(() => {
@@ -204,7 +204,7 @@ export default function BookingConfirmationPage() {
       <div className="min-h-screen">
         <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
-            <a href="/" className="inline-block">
+            <a className="inline-block" href="/">
               <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </a>
             <div className="pr-4">
@@ -233,7 +233,7 @@ export default function BookingConfirmationPage() {
         {/* Header - matching search results page */}
         <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
-            <a href="/" className="inline-block">
+            <a className="inline-block" href="/">
               <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
             </a>
             <div className="pr-4">
@@ -355,7 +355,7 @@ export default function BookingConfirmationPage() {
       {/* Header - matching search results page */}
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
-          <a href="/" className="inline-block">
+          <a className="inline-block" href="/">
             <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
           </a>
           <div className="pr-4">

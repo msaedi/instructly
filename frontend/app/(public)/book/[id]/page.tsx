@@ -43,7 +43,7 @@ export default function QuickBookingPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user, isAuthenticated, redirectToLogin } = useAuth();
+  const { isAuthenticated, redirectToLogin } = useAuth();
 
   const instructorId = params.id as string;
   const preselectedTime = searchParams.get('time');
@@ -58,7 +58,7 @@ export default function QuickBookingPage() {
   const [duration, setDuration] = useState(60);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [availability, setAvailability] = useState<any[]>([]);
-  const [confirmingBooking, setConfirmingBooking] = useState(false);
+  const [confirmingBooking] = useState(false);
 
   // Fetch instructor data
   useEffect(() => {

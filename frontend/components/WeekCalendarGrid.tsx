@@ -106,7 +106,8 @@ const WeekCalendarGrid: React.FC<WeekCalendarGridProps> = ({
   /**
    * Handle week navigation with logging
    */
-  const handleNavigateWeek = (direction: 'prev' | 'next') => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _handleNavigateWeek = (direction: 'prev' | 'next') => {
     logger.info('Week navigation triggered', {
       direction,
       currentWeek: currentWeekDisplay || weekDates[0]?.fullDate,

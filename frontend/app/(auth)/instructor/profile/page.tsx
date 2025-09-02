@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { User as UserIcon, MapPin, Settings as SettingsIcon, BookOpen, ChevronDown } from 'lucide-react';
 import { fetchWithAuth, API_ENDPOINTS, getErrorMessage } from '@/lib/api';
@@ -44,7 +45,6 @@ export default function InstructorProfileSettingsPage() {
     areas_of_service: [],
     years_experience: 0
   });
-  const [areaInput, setAreaInput] = useState('');
   const [isNYC, setIsNYC] = useState<boolean>(true); // default to true for now
   const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<Set<string>>(new Set());
   const [boroughNeighborhoods, setBoroughNeighborhoods] = useState<Record<string, ServiceAreaItem[]>>({});
@@ -52,9 +52,7 @@ export default function InstructorProfileSettingsPage() {
   const [globalNeighborhoodFilter, setGlobalNeighborhoodFilter] = useState<string>('');
   const [idToItem, setIdToItem] = useState<Record<string, ServiceAreaItem>>({});
   // Removed selected neighborhoods pills panel state
-  const boroughRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const boroughAccordionRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const boroughPillRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   useEffect(() => {
     const load = async () => {
@@ -187,12 +185,6 @@ export default function InstructorProfileSettingsPage() {
     return profile.bio.trim().length >= 1;
   }, [profile]);
 
-  const addArea = () => {
-    const val = areaInput.trim();
-    if (!val) return;
-    setProfile((p) => ({ ...p, areas_of_service: Array.from(new Set([...(p.areas_of_service || []), toTitle(val)])) }));
-    setAreaInput('');
-  };
 
   // Removed selected neighborhoods panel prefetch effect
 
@@ -227,9 +219,6 @@ export default function InstructorProfileSettingsPage() {
         }
       });
     });
-  };
-  const removeArea = (area: string) => {
-    setProfile((p) => ({ ...p, areas_of_service: (p.areas_of_service || []).filter((a) => a !== area) }));
   };
 
   const save = async () => {
@@ -304,7 +293,7 @@ export default function InstructorProfileSettingsPage() {
       } catch {}
 
       setSuccess('Profile saved');
-    } catch (e) {
+    } catch {
       setError('Failed to save profile');
     } finally {
       setSaving(false);
@@ -362,15 +351,16 @@ export default function InstructorProfileSettingsPage() {
   };
 
   // Compute borough selection status for indeterminate styling
-  const getBoroughCounts = (borough: string) => {
-    const list = boroughNeighborhoods[borough] || [];
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _getBoroughCounts = (_borough: string) => {
+    const list = boroughNeighborhoods[_borough] || [];
     const ids = list.map((n) => n.neighborhood_id || (n as any).id).filter(Boolean) as string[];
     let selected = 0;
     if (ids.length) {
       for (const id of ids) if (selectedNeighborhoods.has(id)) selected++;
     } else {
       // Fallback: count by idToItem when list not loaded
-      for (const id of selectedNeighborhoods) if (idToItem[id]?.borough === borough) selected++;
+      for (const id of selectedNeighborhoods) if (idToItem[id]?.borough === _borough) selected++;
     }
     return { selected, total: ids.length };
   };
@@ -382,9 +372,9 @@ export default function InstructorProfileSettingsPage() {
       {/* Header - matching onboarding pages */}
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full relative">
-          <a href="/" className="inline-block">
+          <Link href="/" className="inline-block">
             <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
-          </a>
+          </Link>
 
           {/* Progress Bar - 4 Steps - Absolutely centered */
           }

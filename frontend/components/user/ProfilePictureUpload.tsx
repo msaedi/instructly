@@ -7,8 +7,6 @@ import ImageCropModal from '@/components/modals/ImageCropModal';
 import { toast } from 'sonner';
 import { createSignedUpload, finalizeProfilePicture } from '@/lib/api';
 import { logger } from '@/lib/logger';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth, getUserInitials, getAvatarColor } from '@/features/shared/hooks/useAuth';
 
 interface Props {
@@ -33,8 +31,10 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [showCrop, setShowCrop] = useState(false);
 
-  const initials = useMemo(() => getUserInitials(user), [user]);
-  const color = useMemo(() => (user?.id ? getAvatarColor(user.id) : '#999'), [user?.id]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _initials = useMemo(() => getUserInitials(user), [user]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _color = useMemo(() => (user?.id ? getAvatarColor(user.id) : '#999'), [user?.id]);
 
   const onPick = () => fileInputRef.current?.click();
 

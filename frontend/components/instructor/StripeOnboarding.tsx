@@ -23,7 +23,8 @@ interface StripeOnboardingProps {
 }
 
 const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => {
-  const router = useRouter();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatusResponse | null>(null);

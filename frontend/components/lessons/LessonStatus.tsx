@@ -6,7 +6,7 @@ interface LessonStatusProps {
   cancelledAt?: string;
 }
 
-export function LessonStatus({ status, cancelledAt }: LessonStatusProps) {
+export function LessonStatus({ status, cancelledAt: _cancelledAt }: LessonStatusProps) {
   const getVariantAndLabel = (): { variant: StatusBadgeVariant; label: string } => {
     switch (status) {
       case 'CONFIRMED':

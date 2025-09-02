@@ -13,8 +13,6 @@
 import {
   recordSearch,
   trackSearchInteraction,
-  getRecentSearches,
-  deleteSearch,
 } from '../searchTracking';
 import { captureDeviceContext } from '../deviceContext';
 import { SearchType } from '../../types/enums';

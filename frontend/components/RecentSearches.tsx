@@ -4,14 +4,12 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Search, X, TrendingUp, Clock } from 'lucide-react';
-import { publicApi } from '@/features/shared/api/client';
+// publicApi not used directly in this component
 import { logger } from '@/lib/logger';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import {
-  getGuestSearches,
   getRecentSearches,
   deleteSearch,
-  getGuestSessionId,
   type SearchRecord,
 } from '@/lib/searchTracking';
 // Removed recordSearch and SearchType - tracking now handled by search page
@@ -29,7 +27,7 @@ type DisplaySearchItem = SearchHistoryItem | (SearchRecord & { id: string });
 export function RecentSearches() {
   const [searches, setSearches] = useState<DisplaySearchItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
 
   useEffect(() => {

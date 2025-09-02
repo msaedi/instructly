@@ -7,7 +7,7 @@ import { useState, useRef, useEffect } from 'react';
 import { BRAND } from '@/app/config/brand';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { cn } from '@/lib/utils';
-import { getUserDisplayName, getUserInitials, getUserFullName } from '@/types/user';
+import { getUserDisplayName, getUserFullName } from '@/types/user';
 import { UserAvatar } from '@/components/user/UserAvatar';
 
 export function StudentHeader() {

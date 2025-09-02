@@ -106,7 +106,7 @@ export default function InstructorDashboard() {
       try {
         const s = await getConnectStatus();
         setConnectStatus(s);
-      } catch (e) {
+      } catch {
         logger.warn('Failed to load connect status');
       }
     })();
@@ -201,7 +201,7 @@ export default function InstructorDashboard() {
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4 sticky top-0 z-50">
         <div className="flex items-center justify-between max-w-full">
           <div className="flex items-center gap-4">
-            <a href="/" className="inline-block">
+            <a className="inline-block" href="/">
               <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">
                 {BRAND.name}
               </h1>
@@ -416,7 +416,7 @@ export default function InstructorDashboard() {
                 }
                 const data = await res.json();
                 alert(`Instant payout requested: ${data.payout_id || 'OK'}`);
-              } catch (e) {
+              } catch {
                 alert('Instant payout request error');
               }
             }}

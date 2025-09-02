@@ -127,7 +127,7 @@ function getHeaders(isAuthenticated: boolean): HeadersInit {
       try {
         const referrerUrl = new URL(document.referrer);
         searchOrigin = referrerUrl.pathname;
-      } catch (e) {
+      } catch {
         // If parsing fails, keep the fallback
       }
     }

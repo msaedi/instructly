@@ -15,7 +15,7 @@ import { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
-import { API_URL, API_ENDPOINTS, fetchWithAuth, checkIsNYCZip } from '@/lib/api';
+import { API_URL, API_ENDPOINTS, checkIsNYCZip } from '@/lib/api';
 import { BRAND } from '@/app/config/brand';
 import { logger } from '@/lib/logger';
 import { getGuestSessionId } from '@/lib/searchTracking';
@@ -24,8 +24,7 @@ import { getGuestSessionId } from '@/lib/searchTracking';
 // Import centralized types
 import type { RegisterRequest, AuthResponse } from '@/types/user';
 import { RequestStatus } from '@/types/api';
-import { getErrorMessage } from '@/types/common';
-import { hasRole, useAuth, type User } from '@/features/shared/hooks/useAuth';
+import { hasRole, useAuth } from '@/features/shared/hooks/useAuth';
 import { RoleName } from '@/types/enums';
 
 /**

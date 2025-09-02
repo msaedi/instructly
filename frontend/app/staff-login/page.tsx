@@ -38,7 +38,7 @@ function StaffLoginInner() {
         target.searchParams.set('redirect', redirectPath);
       }
       window.location.href = target.toString();
-    } catch (err) {
+    } catch {
       setError('Something went wrong. Please try again.');
       setIsSubmitting(false);
     }
@@ -113,3 +113,6 @@ export default function StaffLoginPage() {
     </Suspense>
   );
 }
+
+// Ensure this page is rendered dynamically to avoid prerender/export issues
+export const dynamic = 'force-dynamic';

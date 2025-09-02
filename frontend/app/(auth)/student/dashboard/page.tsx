@@ -4,7 +4,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Heart, User, CreditCard, Bell, Eye, EyeOff, X, Camera, Award, Zap, Star, BookOpen, Calendar, Target, Globe, Lock, CheckCircle } from 'lucide-react';
+import { Heart, User, CreditCard, Bell, Eye, EyeOff, X, Award, Zap, Star, BookOpen, Calendar, Target, Globe, Lock, CheckCircle } from 'lucide-react';
 import { ProfilePictureUpload } from '@/components/user/ProfilePictureUpload';
 import { UserAvatar } from '@/components/user/UserAvatar';
 import { useQuery } from '@tanstack/react-query';
@@ -59,9 +59,7 @@ function StudentDashboardContent() {
   const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState<null | { mode: 'create' } | { mode: 'edit'; address: any }>(null);
   const [tfaStatus, setTfaStatus] = useState<{ enabled: boolean; verified_at?: string | null; last_used_at?: string | null } | null>(null);
-  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [, setProfilePhoto] = useState<string | null>(null);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showAchievementsModal, setShowAchievementsModal] = useState(false);
 
@@ -198,89 +196,7 @@ function StudentDashboardContent() {
 
   const memberSince = decodeUlidTimestamp(userData?.id || '');
 
-  // Handle profile photo upload
-  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file', {
-        style: {
-          background: '#fbbf24',
-          color: '#000000',
-          border: 'none',
-        },
-      });
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image size should be less than 5MB', {
-        style: {
-          background: '#fbbf24',
-          color: '#000000',
-          border: 'none',
-        },
-      });
-      return;
-    }
-
-    setUploadingPhoto(true);
-
-    try {
-      // Create FormData
-      const formData = new FormData();
-      formData.append('photo', file);
-
-      // Upload the photo
-      const res = await fetchWithAuth('/api/users/me/photo', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        toast.error('Failed to upload photo', {
-          style: {
-            background: '#fbbf24',
-            color: '#000000',
-            border: 'none',
-          },
-        });
-        return;
-      }
-
-      const data = await res.json();
-
-      // Update local state with new photo URL
-      setProfilePhoto(data.photo_url);
-      toast.success('Profile photo updated successfully', {
-        style: {
-          background: '#6b21a8',
-          color: 'white',
-          border: 'none',
-          boxShadow: '0 10px 15px -3px rgba(124, 58, 237, 0.1), 0 4px 6px -2px rgba(124, 58, 237, 0.05)',
-        },
-      });
-
-      // Clear the input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    } catch (error) {
-      toast.error('Error uploading photo', {
-        style: {
-          background: '#fbbf24',
-          color: '#000000',
-          border: 'none',
-        },
-      });
-      logger.error('Photo upload error', error as Error);
-    } finally {
-      setUploadingPhoto(false);
-    }
-  };
+  // Note: Profile photo uploads are handled by <ProfilePictureUpload />
 
   // Load addresses
   const loadAddresses = async () => {
@@ -293,7 +209,7 @@ function StudentDashboardContent() {
       }
       const data = await res.json();
       setAddresses(data.items || []);
-    } catch (e) {
+    } catch {
       setAddresses([]);
     } finally {
       setIsLoadingAddresses(false);
@@ -804,7 +720,7 @@ function StudentDashboardContent() {
                               },
                             });
                             setReferralEmails('');
-                          } catch (e) {
+                          } catch {
                             toast.error('Network error while sending invites', {
                               style: {
                                 background: '#fbbf24',
@@ -950,7 +866,7 @@ function StudentDashboardContent() {
                                     },
                                   });
                                   await refetchFavorites();
-                                } catch (e) {
+                                } catch {
                                   toast.error('Failed to update favorite', {
                                     style: {
                                       background: '#fbbf24',
@@ -1697,7 +1613,10 @@ function TfaModal({ onClose, onChanged }: { onClose: () => void; onChanged: () =
         </div>
         {step === 'show' && (
           <div className="space-y-4">
-            {qr && <img src={qr} alt="QR code" className="mx-auto h-40 w-40" />}
+            {qr && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={qr} alt="QR code" className="mx-auto h-40 w-40" />
+            )}
             {secret && (
               <div className="text-sm text-gray-700">
                 <p className="font-medium">Secret (manual entry):</p>
@@ -2053,7 +1972,7 @@ function DeleteAccountModal({ email, onClose, onDeleted }: { email: string; onCl
         return;
       }
       onDeleted();
-    } catch (e) {
+    } catch {
       setError('Unexpected error. Please try again.');
       setSubmitting(false);
     }
@@ -2154,7 +2073,7 @@ function EditProfileModal({ user, onClose, onSaved }: { user: any; onClose: () =
         return;
       }
 
-      const updatedUser = await res.json();
+      await res.json();
       logger.info('Profile update successful');
 
       toast.success('Profile updated successfully', {
@@ -2287,7 +2206,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
       }
       setStatus('Password changed successfully.');
       setSubmitting(false);
-    } catch (e) {
+    } catch {
       setError('Unexpected error. Please try again.');
       setSubmitting(false);
     }

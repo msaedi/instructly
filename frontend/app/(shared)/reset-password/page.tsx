@@ -9,13 +9,12 @@
  * Includes real-time password strength validation and confirmation matching.
  */
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Lock, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-react';
 import { fetchAPI } from '@/lib/api';
 import { BRAND } from '@/app/config/brand';
-import { logger } from '@/lib/logger';
 import type { PasswordResetConfirm } from '@/types/user';
 import { RequestStatus } from '@/types/api';
 import { getErrorMessage } from '@/types/common';
@@ -34,23 +33,22 @@ function ResetPasswordForm() {
   const [requestStatus, setRequestStatus] = useState<RequestStatus>(RequestStatus.IDLE);
   const [isVerifying, setIsVerifying] = useState(true);
   const [tokenValid, setTokenValid] = useState(false);
-  const [maskedEmail, setMaskedEmail] = useState('');
   const [error, setError] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
   const [passwordValidations, setPasswordValidations] = useState<PasswordValidations>({ minLength: false, hasUppercase: false, hasNumber: false });
 
-  const verifyToken = async () => {
+  const verifyToken = useCallback(async () => {
     if (!token) { setIsVerifying(false); return; }
     try {
       const response = await fetchAPI(`/api/auth/password-reset/verify/${token}`);
       const data: TokenValidationResponse = await response.json();
-      if (data.valid) { setTokenValid(true); setMaskedEmail(data.email || ''); }
+      if (data.valid) { setTokenValid(true); }
       else { setError('This reset link is invalid or has expired.'); }
     } catch {
       setError('Failed to verify reset link.');
     } finally { setIsVerifying(false); }
-  };
-  useEffect(() => { verifyToken(); }, [token]);
+  }, [token]);
+  useEffect(() => { verifyToken(); }, [token, verifyToken]);
   useEffect(() => {
     setPasswordValidations({ minLength: password.length >= 8, hasUppercase: /[A-Z]/.test(password), hasNumber: /[0-9]/.test(password) });
   }, [password]);

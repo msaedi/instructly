@@ -28,7 +28,7 @@ describe.skip('useCreateBooking', () => {
       const { result } = renderHook(() => useCreateBooking());
 
       await act(async () => {
-        await result.current.createBooking({
+        await (result as any).current.createBooking({
           instructor_id: 1,
           service_id: 1,
           booking_date: '2024-01-15',
@@ -37,7 +37,7 @@ describe.skip('useCreateBooking', () => {
           selected_duration: 60,
           meeting_location: 'Online',
           location_type: 'neutral',
-        });
+        } as any);
       });
 
       expect(result.current.error).toBe(
@@ -57,7 +57,7 @@ describe.skip('useCreateBooking', () => {
       const { result } = renderHook(() => useCreateBooking());
 
       await act(async () => {
-        await result.current.createBooking({
+        await (result as any).current.createBooking({
           instructor_id: 1,
           service_id: 1,
           booking_date: '2024-01-15',
@@ -66,7 +66,7 @@ describe.skip('useCreateBooking', () => {
           selected_duration: 60,
           meeting_location: 'Online',
           location_type: 'neutral',
-        });
+        } as any);
       });
 
       expect(result.current.error).toBe(
@@ -85,7 +85,7 @@ describe.skip('useCreateBooking', () => {
       const { result } = renderHook(() => useCreateBooking());
 
       await act(async () => {
-        await result.current.createBooking({
+        await (result as any).current.createBooking({
           instructor_id: 1,
           service_id: 1,
           booking_date: '2024-01-15',
@@ -94,7 +94,7 @@ describe.skip('useCreateBooking', () => {
           selected_duration: 60,
           meeting_location: 'Online',
           location_type: 'neutral',
-        });
+        } as any);
       });
 
       expect(result.current.error).toBe('You must be logged in to book lessons');
@@ -110,7 +110,7 @@ describe.skip('useCreateBooking', () => {
       const { result } = renderHook(() => useCreateBooking());
 
       await act(async () => {
-        await result.current.createBooking({
+        await (result as any).current.createBooking({
           instructor_id: 1,
           service_id: 1,
           booking_date: '2024-01-15',
@@ -119,7 +119,7 @@ describe.skip('useCreateBooking', () => {
           selected_duration: 60,
           meeting_location: 'Online',
           location_type: 'neutral',
-        });
+        } as any);
       });
 
       expect(result.current.error).toBe(
@@ -139,7 +139,7 @@ describe.skip('useCreateBooking', () => {
 
       // Create an error by making a failing call
       await act(async () => {
-        await result.current.createBooking({
+        await (result as any).current.createBooking({
           instructor_id: 1,
           service_id: 1,
           booking_date: '2024-01-15',
@@ -148,7 +148,7 @@ describe.skip('useCreateBooking', () => {
           selected_duration: 60,
           meeting_location: 'Online',
           location_type: 'neutral',
-        });
+        } as any);
       });
 
       expect(result.current.error).toBeTruthy();
@@ -165,33 +165,24 @@ describe.skip('useCreateBooking', () => {
 
   describe('Successful Booking', () => {
     it('should create booking successfully', async () => {
-      const mockBooking = {
-        id: 123,
-        instructor_id: 1,
-        student_id: 1,
-        service_id: 1,
-        booking_date: '2024-01-15',
-        start_time: '14:00:00',
-        end_time: '15:00:00',
-        status: 'confirmed' as const,
+      const booking: any = {
+        id: '1',
+        instructor_id: '2',
+        student_id: '3',
+        service_id: '4',
+        booking_date: '2025-01-01',
+        start_time: '10:00',
+        end_time: '11:00',
+        status: 'confirmed',
         total_price: 100,
-        created_at: '2024-01-15T14:00:00Z',
-        updated_at: '2024-01-15T14:00:00Z',
-        instructor: {
-          user_id: 1,
-          user: {
-            full_name: 'Test Instructor',
-            email: 'instructor@test.com',
-          },
-        },
-        service: {
-          skill: 'Piano',
-          hourly_rate: 100,
-        },
+        created_at: '2025-01-01T00:00:00Z',
+        updated_at: '2025-01-01T00:00:00Z',
+        instructor: { id: '2', first_name: 'A', last_name: 'B' },
+        service: { id: '4', name: 'Service' },
       };
 
       mockCreateBooking.mockResolvedValueOnce({
-        data: mockBooking,
+        data: booking,
         error: undefined,
         status: 200,
       });
@@ -199,7 +190,7 @@ describe.skip('useCreateBooking', () => {
       const { result } = renderHook(() => useCreateBooking());
 
       await act(async () => {
-        await result.current.createBooking({
+        await (result as any).current.createBooking({
           instructor_id: 1,
           service_id: 1,
           booking_date: '2024-01-15',
@@ -208,10 +199,10 @@ describe.skip('useCreateBooking', () => {
           selected_duration: 60,
           meeting_location: 'Online',
           location_type: 'neutral',
-        });
+        } as any);
       });
 
-      expect(result.current.booking).toEqual(mockBooking);
+      expect(result.current.booking).toEqual(booking);
       expect(result.current.error).toBeNull();
       expect(result.current.isLoading).toBe(false);
     });

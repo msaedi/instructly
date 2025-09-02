@@ -1,13 +1,13 @@
 // frontend/app/(public)/page.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 // import removed; background handled globally
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { publicApi, type TopServiceSummary, type ServiceCategory } from '@/features/shared/api/client';
+import { publicApi, type TopServiceSummary } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
-import { useAuth, getUserInitials, getAvatarColor, hasRole } from '@/features/shared/hooks/useAuth';
+import { useAuth, hasRole } from '@/features/shared/hooks/useAuth';
 import { RoleName, SearchType } from '@/types/enums';
 import { NotificationBar } from '@/components/NotificationBar';
 import { UpcomingLessons } from '@/components/UpcomingLessons';
@@ -15,7 +15,6 @@ import { BookAgain } from '@/components/BookAgain';
 import { RecentSearches } from '@/components/RecentSearches';
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
-import { convertApiResponse } from '@/lib/react-query/api';
 import { getActivityBackground } from '@/lib/services/assetService';
 import {
   Search,
@@ -34,8 +33,7 @@ import {
   BookOpen,
   Palette,
   Baby,
-  LogOut,
-  Settings,
+
   X,
 } from 'lucide-react';
 import { PrivacySettings } from '@/components/PrivacySettings';
@@ -54,7 +52,7 @@ export default function HomePage() {
   const [isClient, setIsClient] = useState(false);
   const [isInstructorLive, setIsInstructorLive] = useState<boolean | null>(null);
   const router = useRouter();
-  const { user, isAuthenticated, logout, isLoading: isAuthLoading } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const isInstructor = isAuthenticated && hasRole(user, RoleName.INSTRUCTOR);
   const { config } = useBeta();
   const hideStudentUi = config.site === 'beta' && config.phase === 'instructor_only';

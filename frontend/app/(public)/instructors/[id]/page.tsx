@@ -2,10 +2,10 @@
 // frontend/app/(public)/instructors/[id]/page.tsx
 
 import { Suspense, useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Heart } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { logger } from '@/lib/logger';
 import { InstructorHeader } from '@/features/instructor-profile/components/InstructorHeader';
 import { ServiceCards } from '@/features/instructor-profile/components/ServiceCards';
 import { ReviewsSection } from '@/features/instructor-profile/components/ReviewsSection';
@@ -13,7 +13,6 @@ import { BookingButton } from '@/features/instructor-profile/components/BookingB
 import { InstructorProfileSkeleton } from '@/features/instructor-profile/components/InstructorProfileSkeleton';
 import { AvailabilityGrid } from '@/features/instructor-profile/components/AvailabilityGrid';
 import { useInstructorProfile } from '@/features/instructor-profile/hooks/useInstructorProfile';
-import { useSaveInstructor } from '@/features/instructor-profile/hooks/useSaveInstructor';
 import { useBookingModal } from '@/features/instructor-profile/hooks/useBookingModal';
 import { useInstructorAvailability } from '@/features/instructor-profile/hooks/useInstructorAvailability';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
@@ -42,7 +41,7 @@ function storeBookingIntent(bookingIntent: {
 }) {
   try {
     sessionStorage.setItem('bookingIntent', JSON.stringify(bookingIntent));
-  } catch (err) {
+  } catch {
     // Silent failure
   }
 }
@@ -60,7 +59,7 @@ function getBookingIntent(): {
     if (stored) {
       return JSON.parse(stored);
     }
-  } catch (err) {
+  } catch {
     // Silent failure
   }
   return null;
@@ -69,7 +68,7 @@ function getBookingIntent(): {
 function clearBookingIntent() {
   try {
     sessionStorage.removeItem('bookingIntent');
-  } catch (err) {
+  } catch {
     // Silent failure
   }
 }
@@ -138,9 +137,7 @@ function InstructorProfileContent() {
     availabilityInstructorId,
     weekStart ? format(weekStart, 'yyyy-MM-dd') : undefined
   );
-  const { isSaved, toggleSave, isLoading: isSaveLoading } = useSaveInstructor(
-    instructor?.id || ''
-  );
+
   const bookingModal = useBookingModal();
 
   // Helper function to handle booking - checks auth and redirects if needed
@@ -412,9 +409,9 @@ function InstructorProfileContent() {
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4 sticky top-0 z-50">
         <div className="flex items-center justify-between max-w-full">
           <div className="flex items-center gap-4">
-            <a href="/" className="inline-block">
+            <Link className="inline-block" href="/">
               <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
-            </a>
+            </Link>
             <Button
               variant="ghost"
               onClick={() => router.back()}

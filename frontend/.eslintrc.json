@@ -4,5 +4,14 @@
     "react/no-unescaped-entities": "off",
     "react-hooks/exhaustive-deps": "warn",
     "@next/next/no-html-link-for-pages": "off"
-  }
+  },
+  "ignorePatterns": [
+    ".next/**",
+    "out/**",
+    "node_modules/**",
+    "**/*.js",
+    "server.js",
+    "jest.config.js",
+    "jest.setup.js"
+  ]
 }

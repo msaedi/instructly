@@ -82,7 +82,7 @@ export interface QueryOptions extends RequestInit {
  */
 export function queryFn<T = any>(endpoint: string, options: QueryOptions = {}) {
   return async ({ signal }: QueryFunctionContext): Promise<T> => {
-    const { params, requireAuth = false, ...fetchOptions } = options;
+    const { params, ...fetchOptions } = options;
 
     // Build URL using centralized API base resolver
     const fullPath = withApiBase(endpoint);
@@ -175,7 +175,7 @@ export function mutationFn<TData = any, TVariables = any>(
   options: QueryOptions = {}
 ) {
   return async (variables: TVariables): Promise<TData> => {
-    const { params, requireAuth = false, ...fetchOptions } = options;
+    const { params, ...fetchOptions } = options;
 
     // Build URL using centralized API base resolver
     const fullPath = withApiBase(endpoint);

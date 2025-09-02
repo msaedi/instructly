@@ -142,7 +142,7 @@ export function BookAgain({ onLoadComplete }: BookAgainProps) {
         {/* Desktop: Grid, Mobile: Horizontal scroll */}
         <div className="block md:grid md:grid-cols-3 md:gap-6 overflow-x-auto md:overflow-visible">
           <div className="flex md:contents gap-4 md:gap-0">
-            {uniqueInstructors.map((instructor, idx) => (
+            {uniqueInstructors.map((instructor, _idx) => (
               <div
                 key={instructor.instructorId}
                 className="flex-shrink-0 w-80 md:w-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 hover:shadow-md transition-shadow cursor-pointer"

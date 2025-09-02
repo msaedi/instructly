@@ -4,14 +4,14 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Calendar, ExternalLink, Trash2, CheckCircle2, XCircle, RefreshCcw, Camera } from 'lucide-react';
+import { Calendar, ExternalLink, Trash2, RefreshCcw, Camera } from 'lucide-react';
 import { ProfilePictureUpload } from '@/components/user/ProfilePictureUpload';
 import EditProfileModal from '@/components/modals/EditProfileModal';
 import DeleteProfileModal from '@/components/modals/DeleteProfileModal';
 import { fetchWithAuth, API_ENDPOINTS, getConnectStatus } from '@/lib/api';
 import { paymentService } from '@/services/api/payments';
 import { logger } from '@/lib/logger';
-import { InstructorProfile, getInstructorDisplayName } from '@/types/instructor';
+import { InstructorProfile } from '@/types/instructor';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 
@@ -150,9 +150,9 @@ export default function InstructorDashboardNew() {
       <div className="min-h-screen">
         <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
-            <a href="/" className="inline-block">
+            <Link href="/" className="inline-block">
               <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
-            </a>
+            </Link>
             <div className="pr-4">
               <UserProfileDropdown />
             </div>
@@ -358,7 +358,7 @@ export default function InstructorDashboardNew() {
                       } else {
                         alert('Could not start Stripe onboarding.');
                       }
-                    } catch (e) {
+                    } catch {
                       alert('Unable to start Stripe onboarding right now.');
                     } finally {
                       setIsStartingStripeOnboarding(false);
@@ -411,7 +411,7 @@ export default function InstructorDashboardNew() {
                         }
                         const data = await res.json();
                         alert(`Instant payout requested: ${data.payout_id || 'OK'}`);
-                      } catch (e) {
+                      } catch {
                         alert('Instant payout request error');
                       }
                     }}
@@ -557,18 +557,6 @@ export default function InstructorDashboardNew() {
       {showDeleteModal && (
         <DeleteProfileModal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} onSuccess={handleProfileDelete} />
       )}
-    </div>
-  );
-}
-
-function ChecklistRow({ label, ok, action }: { label: string; ok: boolean; action?: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between border border-gray-100 rounded-md px-4 py-3">
-      <div className="flex items-center gap-2">
-        {ok ? <CheckCircle2 className="w-5 h-5 text-green-600" /> : <XCircle className="w-5 h-5 text-gray-300" />}
-        <span className="text-gray-800">{label}</span>
-      </div>
-      <div>{action}</div>
     </div>
   );
 }

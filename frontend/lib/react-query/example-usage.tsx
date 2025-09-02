@@ -10,7 +10,7 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useUser, useIsAuthenticated } from '@/hooks/queries/useUser';
-import { useAuth, useAuthStatus } from '@/hooks/queries/useAuth';
+import { useAuth } from '@/hooks/queries/useAuth';
 import { queryFn, mutationFn } from '@/lib/react-query/api';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { publicApi } from '@/features/shared/api/client';
@@ -93,7 +93,7 @@ function InstructorAvailability({ instructorId }: { instructorId: string }) {
   const today = new Date().toISOString().split('T')[0];
   const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-  const { data: availability } = useQuery({
+  useQuery({
     queryKey: queryKeys.instructors.availability(instructorId, today),
     queryFn: queryFn(`/api/public/instructors/${instructorId}/availability`, {
       params: { start_date: today, end_date: nextWeek },
@@ -153,7 +153,7 @@ function BookingForm({ instructorId, serviceId }: any) {
         ...formData,
       });
       // Success! Redirect to confirmation
-    } catch (error) {
+    } catch {
       // Error handled by mutation
     }
   };

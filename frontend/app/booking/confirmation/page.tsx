@@ -1,6 +1,6 @@
 'use client';
 
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { protectedApi } from '@/features/shared/api/client';
@@ -9,7 +9,6 @@ import { formatInstructorFromUser } from '@/utils/nameDisplay';
 
 function BookingConfirmationContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const bookingId = searchParams.get('bookingId');
 
   const [booking, setBooking] = useState<Booking | null>(null);
@@ -32,7 +31,7 @@ function BookingConfirmationContent() {
         if (response.data) {
           setBooking(response.data as any);
         }
-      } catch (err) {
+      } catch {
         setError('Failed to load booking details');
       } finally {
         setLoading(false);

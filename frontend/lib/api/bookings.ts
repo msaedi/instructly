@@ -333,7 +333,7 @@ export const bookingsApi = {
               .join(', ');
           }
         }
-      } catch (e) {
+      } catch {
         logger.debug('Failed to parse error response');
       }
 

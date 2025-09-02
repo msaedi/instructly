@@ -14,11 +14,9 @@ export default function InstructorAvailabilityPage() {
   const {
     currentWeekStart,
     weekSchedule,
-    savedWeekSchedule,
     hasUnsavedChanges,
     isLoading,
     weekDates,
-    currentWeekDisplay,
     navigateWeek,
     setWeekSchedule,
     setMessage,
@@ -30,9 +28,7 @@ export default function InstructorAvailabilityPage() {
     applyToFutureWeeks,
   } = useAvailability();
 
-  const days = weekDates;
   const [activeDay, setActiveDay] = useState(0);
-  const [saveInfo, setSaveInfo] = useState<string | null>(null);
   const [repeatWeeks, setRepeatWeeks] = useState<number>(4);
   const [isMobile, setIsMobile] = useState(false);
   const [startHour, setStartHour] = useState<number>(AVAILABILITY_CONSTANTS.DEFAULT_START_HOUR);
@@ -53,7 +49,6 @@ export default function InstructorAvailabilityPage() {
   const {
     bookedSlots,
     fetchBookedSlots,
-    refreshBookings,
   } = useBookedSlots();
 
   useEffect(() => {
@@ -107,24 +102,6 @@ export default function InstructorAvailabilityPage() {
     return () => document.removeEventListener('keydown', onKey);
   }, [showConflictModal, modalFocusTrap]);
 
-  const updateSlot = (date: string, start: string, end: string) => {
-    setWeekSchedule((prev) => {
-      const existing = prev[date] || [];
-      return { ...prev, [date]: [...existing, { start_time: start, end_time: end }] };
-    });
-  };
-
-  const removeSlot = (date: string, idx: number) => {
-    setWeekSchedule((prev) => {
-      const existing = prev[date] || [];
-      const next = existing.slice();
-      next.splice(idx, 1);
-      const out = { ...prev } as any;
-      if (next.length === 0) delete out[date];
-      else out[date] = next;
-      return out;
-    });
-  };
 
   function formatHour(h: number): string {
     const period = h >= 12 ? 'PM' : 'AM';
@@ -186,8 +163,6 @@ export default function InstructorAvailabilityPage() {
             }
             toast.success('Availability saved');
             setLastUpdatedLocal(new Date().toLocaleString());
-            setSaveInfo('Saved');
-            setTimeout(() => setSaveInfo(null), 2000);
           }}
           className={`px-4 py-2 rounded-md text-white ${hasUnsavedChanges ? 'bg-[#6A0DAD] hover:bg-[#5a0c94]' : 'bg-gray-300 cursor-not-allowed'}`}
         >

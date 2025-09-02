@@ -1,4 +1,4 @@
-import { Database, AlertCircle, CheckCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle } from 'lucide-react';
 
 interface DatabasePoolStatusProps {
   pool?: {

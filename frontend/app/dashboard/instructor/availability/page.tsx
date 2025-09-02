@@ -54,7 +54,6 @@ import { PRESET_SCHEDULES, SUCCESS_MESSAGES, ERROR_MESSAGES } from '@/lib/availa
 import { isTimeSlotInPast } from '@/lib/availability/dateHelpers';
 import { mergeAdjacentSlots, createHourSlot } from '@/legacy-patterns/slotHelpers';
 import { logger } from '@/lib/logger';
-import { BRAND } from '@/app/config/brand';
 
 /**
  * Main availability management page

@@ -21,7 +21,7 @@ import { logger } from '@/lib/logger';
 // Import centralized types
 import { RequestStatus } from '@/types/api';
 import { getErrorMessage } from '@/types/common';
-import { hasRole, type User } from '@/features/shared/hooks/useAuth';
+import { hasRole } from '@/features/shared/hooks/useAuth';
 import { RoleName } from '@/types/enums';
 
 /**

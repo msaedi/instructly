@@ -8,6 +8,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 import * as Popover from '@radix-ui/react-popover';
 import { useState } from 'react';
 import { Geist, Sora, Inter } from 'next/font/google';
+import Link from 'next/link';
 import { m, useReducedMotion } from 'framer-motion';
 
 // Fonts for comparison (must be module-scope)
@@ -28,7 +29,7 @@ export default function UIPreviewPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
-              <a href="/" className="text-2xl font-semibold text-indigo-600 dark:text-indigo-400 mr-8">iNSTAiNSTRU</a>
+              <Link href="/" className="text-2xl font-semibold text-indigo-600 dark:text-indigo-400 mr-8">iNSTAiNSTRU</Link>
               <h1 className="text-xl font-semibold">UI Preview</h1>
             </div>
           </div>

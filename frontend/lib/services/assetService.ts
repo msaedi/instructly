@@ -606,7 +606,7 @@ export async function getSmartBackgroundForService(
  */
 export async function hasMultipleVariantsForService(
   serviceIdentifier: string,
-  categorySlug?: string
+  _categorySlug?: string
 ): Promise<boolean> {
   if (!serviceIdentifier) return false;
   const key = serviceIdentifier.trim().toLowerCase();

@@ -42,7 +42,8 @@ export function LessonCard({
   const formattedDate = format(lessonDate, 'EEE MMM d');
   const formattedTime = format(lessonDate, 'h:mmaaa');
 
-  const displayStatus = formatLessonStatus(lesson.status, lesson.cancelled_at);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _displayStatus = formatLessonStatus(lesson.status, lesson.cancelled_at);
 
   useEffect(() => {
     // If a prefetched value is provided, always use it and skip fetching

@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useLessonDetails } from '@/hooks/useMyLessons';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { isApiError } from '@/lib/react-query/api';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
@@ -80,9 +80,9 @@ export default function ReviewPage() {
         {/* Header - matching other pages */}
         <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
-            <a href="/" className="inline-block">
+            <Link href="/" className="inline-block">
               <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
-            </a>
+            </Link>
             <div className="pr-4">
               <UserProfileDropdown />
             </div>
@@ -104,13 +104,7 @@ export default function ReviewPage() {
   }
 
   // Get instructor name (first name only, no initials on this page)
-  const getInstructorName = () => {
-    if (!lesson.instructor) return 'your instructor';
-    const firstName = lesson.instructor.first_name || '';
-    return firstName || 'your instructor';
-  };
-
-  const instructorName = getInstructorName();
+  const instructorName = lesson.instructor?.first_name || 'your instructor';
   const instructorFirstName = lesson.instructor?.first_name || 'your instructor';
 
   const handleSubmit = async () => {
@@ -175,9 +169,9 @@ export default function ReviewPage() {
       {/* Header - matching other pages */}
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
-          <a href="/" className="inline-block">
+          <Link className="inline-block" href="/">
             <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
-          </a>
+          </Link>
           <div className="pr-4">
             <UserProfileDropdown />
           </div>
@@ -413,9 +407,9 @@ function ReviewPageLoading() {
     <div className="min-h-screen">
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
-          <a href="/" className="inline-block">
+          <Link href="/" className="inline-block">
             <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
-          </a>
+          </Link>
           <div className="pr-4">
             <div className="animate-pulse">
               <div className="w-10 h-10 bg-gray-200 rounded-full"></div>

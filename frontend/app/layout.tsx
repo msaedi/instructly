@@ -16,7 +16,7 @@ import { BackgroundProvider } from '@/lib/config/backgroundProvider';
  *
  * Modern, clean sans-serif font for UI elements and body text
  */
-const geistSans = Geist({
+const _geistSans = Geist({
   variable: '--font-geist-sans',
   subsets: ['latin'],
 });
@@ -26,7 +26,7 @@ const geistSans = Geist({
  *
  * Monospace font for code snippets, technical information, or fixed-width needs
  */
-const geistMono = Geist_Mono({
+const _geistMono = Geist_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
 });
@@ -150,7 +150,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className="h-full antialiased bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+        className={`h-full antialiased bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 ${_geistSans.variable} ${_geistMono.variable}`}
         style={{ isolation: 'isolate' }}
       >
         <BackgroundProvider>

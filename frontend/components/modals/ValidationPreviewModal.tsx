@@ -11,7 +11,7 @@
  */
 
 import React from 'react';
-import { AlertTriangle, CheckCircle, XCircle, Info } from 'lucide-react';
+import { AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import Modal from '@/components/Modal';
 import { WeekValidationResponse, ValidationSlotDetail } from '@/types/availability';
 import { logger } from '@/lib/logger';

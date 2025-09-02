@@ -39,7 +39,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect') || searchParams.get('returnTo') || '/';
-  const { login: authLogin, checkAuth } = useAuth();
+  const { checkAuth } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',

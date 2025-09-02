@@ -103,7 +103,7 @@ export function isRouteAccessible(pathname: string, config: BetaConfig): boolean
   return true;
 }
 
-export function getBetaRedirect(pathname: string, config: BetaConfig, userRole?: 'instructor' | 'student' | 'admin' | null): string | null {
+export function getBetaRedirect(pathname: string, config: BetaConfig, _userRole?: 'instructor' | 'student' | 'admin' | null): string | null {
   if (config.site !== 'beta') return null;
 
   if (config.phase === 'instructor_only') {
@@ -111,7 +111,6 @@ export function getBetaRedirect(pathname: string, config: BetaConfig, userRole?:
     if (pathname === '/') return '/instructor/join';
 
     // Student/public routes redirect to instructor join page
-    const isStudent = userRole === 'student';
     const blockedPrefixes = ['/student', '/search', '/services', '/book', '/instructors'];
     if (blockedPrefixes.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
       return '/instructor/join';

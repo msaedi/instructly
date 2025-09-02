@@ -15,7 +15,7 @@ export default function OnboardingStatusPage() {
   const { isAuthenticated } = useAuth();
   const [connectStatus, setConnectStatus] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [connectLoading, setConnectLoading] = useState(false);
   const [bgUploading, setBgUploading] = useState(false);
@@ -108,7 +108,7 @@ export default function OnboardingStatusPage() {
         const stripe = await loadStripe(pubkey);
         if (stripe && session.client_secret) {
           // @ts-ignore - verifyIdentity typings
-          const result = await stripe.verifyIdentity(session.client_secret);
+          await stripe.verifyIdentity(session.client_secret);
           // After return, force backend refresh of identity status and then refresh profile/connect status
           try {
             await fetchWithAuth(API_ENDPOINTS.STRIPE_IDENTITY_REFRESH, { method: 'POST' });
@@ -179,7 +179,7 @@ export default function OnboardingStatusPage() {
         window.location.href = resp.onboarding_url;
         return;
       }
-    } catch (e) {
+    } catch {
       // silent fail; could add toast
     } finally {
       if (!redirectingRef.current) setConnectLoading(false);
@@ -191,9 +191,9 @@ export default function OnboardingStatusPage() {
       {/* Header - matching other pages */}
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full relative">
-          <a href="/" className="inline-block">
+          <Link href="/" className="inline-block">
             <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
-          </a>
+          </Link>
 
           {/* Progress Bar - 4 Steps - Absolutely centered (no walking figure on status page) */}
           <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-0">

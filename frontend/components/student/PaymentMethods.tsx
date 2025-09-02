@@ -12,7 +12,6 @@ import {
   CreditCard,
   Plus,
   Trash2,
-  Check,
   AlertCircle,
   Loader2
 } from 'lucide-react';

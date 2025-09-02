@@ -2,7 +2,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { publicApi } from '@/features/shared/api/client';
 import { logger } from '@/lib/logger';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
@@ -29,7 +28,7 @@ export default function AvailabilityCalendar({
   instructorId,
   instructor,
 }: AvailabilityCalendarProps) {
-  const [currentDate, setCurrentDate] = useState(new Date());
+
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [availability, setAvailability] = useState<AvailabilityDay[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,14 +57,7 @@ export default function AvailabilityCalendar({
     });
   };
 
-  // Handle time selection from TimeSelectionModal
-  const handleTimeSelected = (selection: { date: string; time: string; duration: number }) => {
-    setSelectedDate(selection.date);
-    setSelectedTime(selection.time);
-    setIsTimeSelectionModalOpen(false);
-    // No longer opening BookingModal - TimeSelectionModal handles payment navigation
-    logger.info('Time selected from TimeSelectionModal', selection);
-  };
+  // (Time selection is handled internally by TimeSelectionModal)
 
   // Handle modal closures
   const handleCloseTimeSelectionModal = () => {

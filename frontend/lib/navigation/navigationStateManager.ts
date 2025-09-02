@@ -122,7 +122,7 @@ export class NavigationStateManager {
 
       return null;
 
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -162,7 +162,7 @@ export class NavigationStateManager {
       const state: NavigationState = JSON.parse(stored);
       state.timestamp = Date.now();
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch (e) {
+    } catch {
       // Silent failure
     }
   }

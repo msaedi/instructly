@@ -15,8 +15,8 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { format, isToday, isYesterday, isSameDay } from 'date-fns';
-import { Send, Loader2, AlertCircle, WifiOff, Check, CheckCheck, ChevronDown, SmilePlus, Pencil } from 'lucide-react';
+import { format, isToday, isYesterday } from 'date-fns';
+import { Send, Loader2, AlertCircle, WifiOff, Check, CheckCheck, ChevronDown, Pencil } from 'lucide-react';
 import { useSSEMessages, ConnectionStatus } from '@/hooks/useSSEMessages';
 import { useMessageHistory, useSendMessage, useMarkAsRead } from '@/hooks/useMessageQueries';
 import { Message } from '@/services/messageService';
@@ -39,7 +39,7 @@ export function Chat({
   currentUserName,
   otherUserName,
   className,
-  onClose,
+  onClose: _onClose,
   isReadOnly = false,
 }: ChatProps) {
   // Config: fetched from backend to avoid drift
@@ -452,7 +452,7 @@ export function Chat({
   // Apply reaction deltas from SSE to track real-time updates
   useEffect(() => {
     // Process reaction deltas to determine current user reactions
-    Object.entries(reactionDeltas).forEach(([messageId, reactions]) => {
+    Object.entries(reactionDeltas).forEach(([_messageId, _reactions]) => {
       // Find which reactions belong to current user based on delta changes
       // This is a workaround since SSE doesn't tell us WHO added/removed reactions
       // We'll rely on our local state as source of truth
@@ -510,7 +510,8 @@ export function Chat({
     }
   }, [allMessages.length]); // Only re-run when number of messages changes
 
-  const toggleReactionLocal = (message: Message, emoji: string) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _toggleReactionLocal = (message: Message, emoji: string) => {
     setUserReactions(prev => {
       const currentReaction = prev[message.id];
 

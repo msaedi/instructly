@@ -23,8 +23,11 @@ describe('usePermissions', () => {
         user: null,
         isAuthenticated: false,
         isLoading: false,
+        error: null,
         login: jest.fn(),
         logout: jest.fn(),
+        checkAuth: jest.fn().mockResolvedValue(undefined),
+        redirectToLogin: jest.fn(),
       });
 
       const { result } = renderHook(() => usePermissions());
@@ -34,11 +37,14 @@ describe('usePermissions', () => {
 
     it('should return false when user has no permissions', () => {
       mockUseAuth.mockReturnValue({
-        user: { id: 1, email: 'test@test.com', permissions: [] },
+        user: { id: '1', email: 'test@test.com', first_name: 'A', last_name: 'B', roles: [], permissions: [], is_active: true, created_at: '', updated_at: '' },
         isAuthenticated: true,
         isLoading: false,
+        error: null,
         login: jest.fn(),
         logout: jest.fn(),
+        checkAuth: jest.fn().mockResolvedValue(undefined),
+        redirectToLogin: jest.fn(),
       });
 
       const { result } = renderHook(() => usePermissions());
@@ -49,14 +55,23 @@ describe('usePermissions', () => {
     it('should return true when user has the required permission', () => {
       mockUseAuth.mockReturnValue({
         user: {
-          id: 1,
+          id: '1',
           email: 'student@test.com',
+          first_name: 'A',
+          last_name: 'B',
+          roles: [],
           permissions: [PermissionName.CREATE_BOOKINGS, PermissionName.VIEW_OWN_BOOKINGS],
+          is_active: true,
+          created_at: '',
+          updated_at: '',
         },
         isAuthenticated: true,
         isLoading: false,
+        error: null,
         login: jest.fn(),
         logout: jest.fn(),
+        checkAuth: jest.fn().mockResolvedValue(undefined),
+        redirectToLogin: jest.fn(),
       });
 
       const { result } = renderHook(() => usePermissions());
@@ -69,14 +84,23 @@ describe('usePermissions', () => {
     it('should work with string permissions', () => {
       mockUseAuth.mockReturnValue({
         user: {
-          id: 1,
+          id: '1',
           email: 'test@test.com',
+          first_name: 'A',
+          last_name: 'B',
+          roles: [],
           permissions: ['create_bookings', 'view_own_bookings'],
+          is_active: true,
+          created_at: '',
+          updated_at: '',
         },
         isAuthenticated: true,
         isLoading: false,
+        error: null,
         login: jest.fn(),
         logout: jest.fn(),
+        checkAuth: jest.fn().mockResolvedValue(undefined),
+        redirectToLogin: jest.fn(),
       });
 
       const { result } = renderHook(() => usePermissions());
@@ -90,14 +114,23 @@ describe('usePermissions', () => {
     it('should return false when user has none of the required permissions', () => {
       mockUseAuth.mockReturnValue({
         user: {
-          id: 1,
+          id: '1',
           email: 'test@test.com',
+          first_name: 'A',
+          last_name: 'B',
+          roles: [],
           permissions: [PermissionName.VIEW_OWN_BOOKINGS],
+          is_active: true,
+          created_at: '',
+          updated_at: '',
         },
         isAuthenticated: true,
         isLoading: false,
+        error: null,
         login: jest.fn(),
         logout: jest.fn(),
+        checkAuth: jest.fn().mockResolvedValue(undefined),
+        redirectToLogin: jest.fn(),
       });
 
       const { result } = renderHook(() => usePermissions());
@@ -113,14 +146,23 @@ describe('usePermissions', () => {
     it('should return true when user has at least one of the required permissions', () => {
       mockUseAuth.mockReturnValue({
         user: {
-          id: 1,
+          id: '1',
           email: 'admin@test.com',
+          first_name: 'A',
+          last_name: 'B',
+          roles: [],
           permissions: [PermissionName.VIEW_SYSTEM_ANALYTICS, PermissionName.VIEW_OWN_BOOKINGS],
+          is_active: true,
+          created_at: '',
+          updated_at: '',
         },
         isAuthenticated: true,
         isLoading: false,
+        error: null,
         login: jest.fn(),
         logout: jest.fn(),
+        checkAuth: jest.fn().mockResolvedValue(undefined),
+        redirectToLogin: jest.fn(),
       });
 
       const { result } = renderHook(() => usePermissions());
@@ -138,14 +180,23 @@ describe('usePermissions', () => {
     it('should return false when user is missing some required permissions', () => {
       mockUseAuth.mockReturnValue({
         user: {
-          id: 1,
+          id: '1',
           email: 'test@test.com',
+          first_name: 'A',
+          last_name: 'B',
+          roles: [],
           permissions: [PermissionName.VIEW_SYSTEM_ANALYTICS],
+          is_active: true,
+          created_at: '',
+          updated_at: '',
         },
         isAuthenticated: true,
         isLoading: false,
+        error: null,
         login: jest.fn(),
         logout: jest.fn(),
+        checkAuth: jest.fn().mockResolvedValue(undefined),
+        redirectToLogin: jest.fn(),
       });
 
       const { result } = renderHook(() => usePermissions());
@@ -161,18 +212,27 @@ describe('usePermissions', () => {
     it('should return true when user has all required permissions', () => {
       mockUseAuth.mockReturnValue({
         user: {
-          id: 1,
+          id: '1',
           email: 'admin@test.com',
+          first_name: 'A',
+          last_name: 'B',
+          roles: [],
           permissions: [
             PermissionName.VIEW_SYSTEM_ANALYTICS,
             PermissionName.MANAGE_USERS,
             PermissionName.EXPORT_ANALYTICS,
           ],
+          is_active: true,
+          created_at: '',
+          updated_at: '',
         },
         isAuthenticated: true,
         isLoading: false,
+        error: null,
         login: jest.fn(),
         logout: jest.fn(),
+        checkAuth: jest.fn().mockResolvedValue(undefined),
+        redirectToLogin: jest.fn(),
       });
 
       const { result } = renderHook(() => usePermissions());
@@ -190,14 +250,23 @@ describe('usePermissions', () => {
     it('canBookLessons should check CREATE_BOOKINGS permission', () => {
       mockUseAuth.mockReturnValue({
         user: {
-          id: 1,
+          id: '1',
           email: 'student@test.com',
+          first_name: 'A',
+          last_name: 'B',
+          roles: [],
           permissions: [PermissionName.CREATE_BOOKINGS],
+          is_active: true,
+          created_at: '',
+          updated_at: '',
         },
         isAuthenticated: true,
         isLoading: false,
+        error: null,
         login: jest.fn(),
         logout: jest.fn(),
+        checkAuth: jest.fn().mockResolvedValue(undefined),
+        redirectToLogin: jest.fn(),
       });
 
       const { result } = renderHook(() => usePermissions());
@@ -208,14 +277,23 @@ describe('usePermissions', () => {
     it('canManageInstructorProfile should check MANAGE_INSTRUCTOR_PROFILE permission', () => {
       mockUseAuth.mockReturnValue({
         user: {
-          id: 1,
+          id: '1',
           email: 'instructor@test.com',
+          first_name: 'A',
+          last_name: 'B',
+          roles: [],
           permissions: [PermissionName.MANAGE_INSTRUCTOR_PROFILE],
+          is_active: true,
+          created_at: '',
+          updated_at: '',
         },
         isAuthenticated: true,
         isLoading: false,
+        error: null,
         login: jest.fn(),
         logout: jest.fn(),
+        checkAuth: jest.fn().mockResolvedValue(undefined),
+        redirectToLogin: jest.fn(),
       });
 
       const { result } = renderHook(() => usePermissions());
@@ -227,14 +305,23 @@ describe('usePermissions', () => {
       // Test with system analytics permission
       mockUseAuth.mockReturnValue({
         user: {
-          id: 1,
+          id: '1',
           email: 'admin@test.com',
+          first_name: 'A',
+          last_name: 'B',
+          roles: [],
           permissions: [PermissionName.VIEW_SYSTEM_ANALYTICS],
+          is_active: true,
+          created_at: '',
+          updated_at: '',
         },
         isAuthenticated: true,
         isLoading: false,
+        error: null,
         login: jest.fn(),
         logout: jest.fn(),
+        checkAuth: jest.fn().mockResolvedValue(undefined),
+        redirectToLogin: jest.fn(),
       });
 
       const { result: adminResult } = renderHook(() => usePermissions());
@@ -243,14 +330,23 @@ describe('usePermissions', () => {
       // Test with instructor analytics permission
       mockUseAuth.mockReturnValue({
         user: {
-          id: 2,
+          id: '2',
           email: 'instructor@test.com',
+          first_name: 'A',
+          last_name: 'B',
+          roles: [],
           permissions: [PermissionName.VIEW_OWN_INSTRUCTOR_ANALYTICS],
+          is_active: true,
+          created_at: '',
+          updated_at: '',
         },
         isAuthenticated: true,
         isLoading: false,
+        error: null,
         login: jest.fn(),
         logout: jest.fn(),
+        checkAuth: jest.fn().mockResolvedValue(undefined),
+        redirectToLogin: jest.fn(),
       });
 
       const { result: instructorResult } = renderHook(() => usePermissions());
@@ -260,14 +356,23 @@ describe('usePermissions', () => {
     it('isAdmin should check for admin-specific permissions', () => {
       mockUseAuth.mockReturnValue({
         user: {
-          id: 1,
+          id: '1',
           email: 'admin@test.com',
+          first_name: 'A',
+          last_name: 'B',
+          roles: [],
           permissions: [PermissionName.MANAGE_USERS, PermissionName.VIEW_SYSTEM_ANALYTICS],
+          is_active: true,
+          created_at: '',
+          updated_at: '',
         },
         isAuthenticated: true,
         isLoading: false,
+        error: null,
         login: jest.fn(),
         logout: jest.fn(),
+        checkAuth: jest.fn().mockResolvedValue(undefined),
+        redirectToLogin: jest.fn(),
       });
 
       const { result } = renderHook(() => usePermissions());
@@ -280,14 +385,23 @@ describe('usePermissions', () => {
 
       mockUseAuth.mockReturnValue({
         user: {
-          id: 1,
+          id: '1',
           email: 'student@test.com',
+          first_name: 'A',
+          last_name: 'B',
+          roles: [],
           permissions,
+          is_active: true,
+          created_at: '',
+          updated_at: '',
         },
         isAuthenticated: true,
         isLoading: false,
+        error: null,
         login: jest.fn(),
         logout: jest.fn(),
+        checkAuth: jest.fn().mockResolvedValue(undefined),
+        redirectToLogin: jest.fn(),
       });
 
       const { result } = renderHook(() => usePermissions());
@@ -305,14 +419,23 @@ describe('PermissionGate', () => {
   it('should render children when user has required permission', () => {
     mockUseAuth.mockReturnValue({
       user: {
-        id: 1,
+        id: '1',
         email: 'student@test.com',
+        first_name: 'A',
+        last_name: 'B',
+        roles: [],
         permissions: [PermissionName.CREATE_BOOKINGS],
+        is_active: true,
+        created_at: '',
+        updated_at: '',
       },
       isAuthenticated: true,
       isLoading: false,
+      error: null,
       login: jest.fn(),
       logout: jest.fn(),
+      checkAuth: jest.fn().mockResolvedValue(undefined),
+      redirectToLogin: jest.fn(),
     });
 
     render(
@@ -327,14 +450,23 @@ describe('PermissionGate', () => {
   it('should not render children when user lacks required permission', () => {
     mockUseAuth.mockReturnValue({
       user: {
-        id: 1,
+        id: '1',
         email: 'student@test.com',
+        first_name: 'A',
+        last_name: 'B',
+        roles: [],
         permissions: [PermissionName.VIEW_OWN_BOOKINGS],
+        is_active: true,
+        created_at: '',
+        updated_at: '',
       },
       isAuthenticated: true,
       isLoading: false,
+      error: null,
       login: jest.fn(),
       logout: jest.fn(),
+      checkAuth: jest.fn().mockResolvedValue(undefined),
+      redirectToLogin: jest.fn(),
     });
 
     render(
@@ -349,14 +481,23 @@ describe('PermissionGate', () => {
   it('should render fallback when user lacks permission and fallback is provided', () => {
     mockUseAuth.mockReturnValue({
       user: {
-        id: 1,
+        id: '1',
         email: 'student@test.com',
+        first_name: 'A',
+        last_name: 'B',
+        roles: [],
         permissions: [PermissionName.VIEW_OWN_BOOKINGS],
+        is_active: true,
+        created_at: '',
+        updated_at: '',
       },
       isAuthenticated: true,
       isLoading: false,
+      error: null,
       login: jest.fn(),
       logout: jest.fn(),
+      checkAuth: jest.fn().mockResolvedValue(undefined),
+      redirectToLogin: jest.fn(),
     });
 
     render(
@@ -375,14 +516,23 @@ describe('PermissionGate', () => {
   it('should work with array of permissions (ANY logic)', () => {
     mockUseAuth.mockReturnValue({
       user: {
-        id: 1,
+        id: '1',
         email: 'user@test.com',
+        first_name: 'A',
+        last_name: 'B',
+        roles: [],
         permissions: [PermissionName.VIEW_SYSTEM_ANALYTICS],
+        is_active: true,
+        created_at: '',
+        updated_at: '',
       },
       isAuthenticated: true,
       isLoading: false,
+      error: null,
       login: jest.fn(),
       logout: jest.fn(),
+      checkAuth: jest.fn().mockResolvedValue(undefined),
+      redirectToLogin: jest.fn(),
     });
 
     render(
@@ -402,14 +552,23 @@ describe('PermissionGate', () => {
   it('should work with array of permissions (ALL logic)', () => {
     mockUseAuth.mockReturnValue({
       user: {
-        id: 1,
+        id: '1',
         email: 'admin@test.com',
+        first_name: 'A',
+        last_name: 'B',
+        roles: [],
         permissions: [PermissionName.MANAGE_USERS, PermissionName.VIEW_SYSTEM_ANALYTICS],
+        is_active: true,
+        created_at: '',
+        updated_at: '',
       },
       isAuthenticated: true,
       isLoading: false,
+      error: null,
       login: jest.fn(),
       logout: jest.fn(),
+      checkAuth: jest.fn().mockResolvedValue(undefined),
+      redirectToLogin: jest.fn(),
     });
 
     render(
@@ -427,14 +586,23 @@ describe('PermissionGate', () => {
   it('should not render when requireAll=true and user lacks some permissions', () => {
     mockUseAuth.mockReturnValue({
       user: {
-        id: 1,
+        id: '1',
         email: 'user@test.com',
+        first_name: 'A',
+        last_name: 'B',
+        roles: [],
         permissions: [PermissionName.VIEW_SYSTEM_ANALYTICS], // Missing MANAGE_USERS
+        is_active: true,
+        created_at: '',
+        updated_at: '',
       },
       isAuthenticated: true,
       isLoading: false,
+      error: null,
       login: jest.fn(),
       logout: jest.fn(),
+      checkAuth: jest.fn().mockResolvedValue(undefined),
+      redirectToLogin: jest.fn(),
     });
 
     render(
@@ -460,14 +628,23 @@ describe('withPermission HOC', () => {
   it('should render component when user has required permission', () => {
     mockUseAuth.mockReturnValue({
       user: {
-        id: 1,
+        id: '1',
         email: 'admin@test.com',
+        first_name: 'A',
+        last_name: 'B',
+        roles: [],
         permissions: [PermissionName.MANAGE_USERS],
+        is_active: true,
+        created_at: '',
+        updated_at: '',
       },
       isAuthenticated: true,
       isLoading: false,
+      error: null,
       login: jest.fn(),
       logout: jest.fn(),
+      checkAuth: jest.fn().mockResolvedValue(undefined),
+      redirectToLogin: jest.fn(),
     });
 
     const ProtectedComponent = withPermission(TestComponent, PermissionName.MANAGE_USERS);
@@ -480,14 +657,23 @@ describe('withPermission HOC', () => {
   it('should not render component when user lacks required permission', () => {
     mockUseAuth.mockReturnValue({
       user: {
-        id: 1,
+        id: '1',
         email: 'student@test.com',
+        first_name: 'A',
+        last_name: 'B',
+        roles: [],
         permissions: [PermissionName.CREATE_BOOKINGS],
+        is_active: true,
+        created_at: '',
+        updated_at: '',
       },
       isAuthenticated: true,
       isLoading: false,
+      error: null,
       login: jest.fn(),
       logout: jest.fn(),
+      checkAuth: jest.fn().mockResolvedValue(undefined),
+      redirectToLogin: jest.fn(),
     });
 
     const ProtectedComponent = withPermission(TestComponent, PermissionName.MANAGE_USERS);
@@ -500,14 +686,23 @@ describe('withPermission HOC', () => {
   it('should render fallback when user lacks permission and fallback is provided', () => {
     mockUseAuth.mockReturnValue({
       user: {
-        id: 1,
+        id: '1',
         email: 'student@test.com',
+        first_name: 'A',
+        last_name: 'B',
+        roles: [],
         permissions: [PermissionName.CREATE_BOOKINGS],
+        is_active: true,
+        created_at: '',
+        updated_at: '',
       },
       isAuthenticated: true,
       isLoading: false,
+      error: null,
       login: jest.fn(),
       logout: jest.fn(),
+      checkAuth: jest.fn().mockResolvedValue(undefined),
+      redirectToLogin: jest.fn(),
     });
 
     const fallback = <div data-testid="fallback">Access denied</div>;

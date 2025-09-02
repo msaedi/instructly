@@ -101,7 +101,7 @@ export const fetchWithAuth = async (endpoint: string, options: RequestInit = {})
           });
           logger.debug('API error body', { endpoint, error: errorBody });
         }
-      } catch (e) {
+      } catch {
         // Response body might not be JSON
         logger.debug('Could not parse error response as JSON');
       }

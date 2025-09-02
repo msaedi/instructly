@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
 import { BookingPreview, getLocationTypeIcon } from '@/types/booking';
 import { fetchBookingPreview } from '@/lib/api';
 import Modal from '@/components/Modal';

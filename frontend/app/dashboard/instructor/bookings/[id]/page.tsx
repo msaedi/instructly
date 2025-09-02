@@ -1,8 +1,8 @@
 // frontend/app/(legacy)/dashboard/instructor/bookings/[id]/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState, useCallback } from 'react';
+import { useParams } from 'next/navigation';
 import { ArrowLeft, Calendar, Clock, MapPin, User, DollarSign } from 'lucide-react';
 import Link from 'next/link';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
@@ -23,23 +23,16 @@ import { logger } from '@/lib/logger';
  */
 export default function BookingDetailsPage() {
   const params = useParams();
-  const router = useRouter();
   const bookingId = params.id as string;
 
   const [booking, setBooking] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (bookingId) {
-      fetchBookingDetails();
-    }
-  }, [bookingId]);
-
   /**
    * Fetch booking details from API
    */
-  const fetchBookingDetails = async () => {
+  const fetchBookingDetails = useCallback(async () => {
     try {
       logger.debug('Fetching booking details', { bookingId });
 
@@ -64,7 +57,13 @@ export default function BookingDetailsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [bookingId]);
+
+  useEffect(() => {
+    if (bookingId) {
+      fetchBookingDetails();
+    }
+  }, [bookingId, fetchBookingDetails]);
 
   /**
    * Format time string to 12-hour format
@@ -259,7 +258,7 @@ export default function BookingDetailsPage() {
                 <div>
                   <h3 className="font-medium text-gray-900 mb-2">Note from student</h3>
                   <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-gray-700 italic">"{booking.student_note}"</p>
+                    <p className="text-gray-700 italic">&ldquo;{booking.student_note}&rdquo;</p>
                   </div>
                 </div>
               )}

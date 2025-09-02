@@ -6,12 +6,33 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { useAuth } from '@/features/shared/hooks/useAuth';
+import type { User } from '@/features/shared/hooks/useAuth';
 import { PermissionGate } from '@/features/shared/hooks/usePermissions';
 import { PermissionName } from '@/types/enums';
 
 // Mock useAuth hook
 jest.mock('@/features/shared/hooks/useAuth');
 const mockUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
+
+// Helper to build a fully-typed User for tests
+function buildUser(overrides: Partial<User> & { permissions?: Array<string | PermissionName> } = {}): User {
+  const base: User = {
+    id: 'user_test',
+    email: 'test@example.com',
+    first_name: 'Test',
+    last_name: 'User',
+    roles: [],
+    permissions: [],
+    is_active: true,
+    created_at: new Date(0).toISOString(),
+    updated_at: new Date(0).toISOString(),
+  };
+  return {
+    ...base,
+    ...overrides,
+    permissions: (overrides.permissions ?? base.permissions).map((p) => String(p)),
+  } as User;
+}
 
 // Sample components that would use permission gates
 const AdminDashboard = () => (
@@ -115,9 +136,10 @@ describe('Permission-Based UI Rendering', () => {
   });
 
   describe('Student User Experience', () => {
-    const studentUser = {
-      id: 1,
+    const studentUser: User = buildUser({
+      id: '1',
       email: 'student@test.com',
+      roles: ['student'],
       permissions: [
         PermissionName.MANAGE_OWN_PROFILE,
         PermissionName.VIEW_OWN_BOOKINGS,
@@ -130,15 +152,18 @@ describe('Permission-Based UI Rendering', () => {
         PermissionName.CANCEL_OWN_BOOKINGS,
         PermissionName.VIEW_BOOKING_DETAILS,
       ],
-    };
+    });
 
     beforeEach(() => {
       mockUseAuth.mockReturnValue({
         user: studentUser,
         isAuthenticated: true,
         isLoading: false,
+        error: null,
         login: jest.fn(),
         logout: jest.fn(),
+        checkAuth: jest.fn().mockResolvedValue(undefined),
+        redirectToLogin: jest.fn(),
       });
     });
 
@@ -176,9 +201,10 @@ describe('Permission-Based UI Rendering', () => {
   });
 
   describe('Instructor User Experience', () => {
-    const instructorUser = {
-      id: 2,
+    const instructorUser: User = buildUser({
+      id: '2',
       email: 'instructor@test.com',
+      roles: ['instructor'],
       permissions: [
         // Shared permissions
         PermissionName.MANAGE_OWN_PROFILE,
@@ -196,15 +222,18 @@ describe('Permission-Based UI Rendering', () => {
         PermissionName.VIEW_OWN_INSTRUCTOR_ANALYTICS,
         PermissionName.SUSPEND_OWN_INSTRUCTOR_ACCOUNT,
       ],
-    };
+    });
 
     beforeEach(() => {
       mockUseAuth.mockReturnValue({
         user: instructorUser,
         isAuthenticated: true,
         isLoading: false,
+        error: null,
         login: jest.fn(),
         logout: jest.fn(),
+        checkAuth: jest.fn().mockResolvedValue(undefined),
+        redirectToLogin: jest.fn(),
       });
     });
 
@@ -249,9 +278,10 @@ describe('Permission-Based UI Rendering', () => {
   });
 
   describe('Admin User Experience', () => {
-    const adminUser = {
-      id: 3,
+    const adminUser: User = buildUser({
+      id: '3',
       email: 'admin@test.com',
+      roles: ['admin'],
       permissions: [
         // All permissions for admin
         PermissionName.MANAGE_OWN_PROFILE,
@@ -285,15 +315,18 @@ describe('Permission-Based UI Rendering', () => {
         PermissionName.MANAGE_ROLES,
         PermissionName.MANAGE_PERMISSIONS,
       ],
-    };
+    });
 
     beforeEach(() => {
       mockUseAuth.mockReturnValue({
         user: adminUser,
         isAuthenticated: true,
         isLoading: false,
+        error: null,
         login: jest.fn(),
         logout: jest.fn(),
+        checkAuth: jest.fn().mockResolvedValue(undefined),
+        redirectToLogin: jest.fn(),
       });
     });
 
@@ -329,8 +362,11 @@ describe('Permission-Based UI Rendering', () => {
         user: null,
         isAuthenticated: false,
         isLoading: false,
+        error: null,
         login: jest.fn(),
         logout: jest.fn(),
+        checkAuth: jest.fn().mockResolvedValue(undefined),
+        redirectToLogin: jest.fn(),
       });
     });
 
@@ -362,8 +398,11 @@ describe('Permission-Based UI Rendering', () => {
         user: null,
         isAuthenticated: false,
         isLoading: true,
+        error: null,
         login: jest.fn(),
         logout: jest.fn(),
+        checkAuth: jest.fn().mockResolvedValue(undefined),
+        redirectToLogin: jest.fn(),
       });
     });
 
@@ -380,22 +419,26 @@ describe('Permission-Based UI Rendering', () => {
   describe('Permission Edge Cases', () => {
     it('should handle user with mixed permissions correctly', () => {
       // User with some student and some instructor permissions (edge case)
-      const mixedUser = {
-        id: 4,
+      const mixedUser: User = buildUser({
+        id: '4',
         email: 'mixed@test.com',
+        roles: ['student', 'instructor'],
         permissions: [
           PermissionName.CREATE_BOOKINGS, // Student permission
           PermissionName.MANAGE_INSTRUCTOR_PROFILE, // Instructor permission
           PermissionName.VIEW_SYSTEM_ANALYTICS, // Admin permission
         ],
-      };
+      });
 
       mockUseAuth.mockReturnValue({
         user: mixedUser,
         isAuthenticated: true,
         isLoading: false,
+        error: null,
         login: jest.fn(),
         logout: jest.fn(),
+        checkAuth: jest.fn().mockResolvedValue(undefined),
+        redirectToLogin: jest.fn(),
       });
 
       render(<CompleteAppLayout />);

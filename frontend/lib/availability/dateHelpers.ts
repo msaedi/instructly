@@ -10,7 +10,7 @@
  * @module availability/dateHelpers
  */
 
-import { WeekDateInfo, DayOfWeek, AVAILABILITY_CONSTANTS } from '@/types/availability';
+import { WeekDateInfo, AVAILABILITY_CONSTANTS } from '@/types/availability';
 import { logger } from '@/lib/logger';
 
 /**

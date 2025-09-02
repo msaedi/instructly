@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { loadStripe } from '@stripe/stripe-js';
 import { createStripeIdentitySession, createSignedUpload, fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
@@ -46,7 +47,7 @@ export default function Step4Verification() {
         } catch {
           // Ignore errors - assume not skipped
         }
-      } catch (e) {
+      } catch {
         logger.warn('Failed to load connect status');
       }
     };
@@ -73,7 +74,7 @@ export default function Step4Verification() {
           window.location.href = '/instructor/onboarding/status?identity_return=true';
           return;
         }
-      } catch (e) {
+      } catch {
         // Fallback to hosted link
       }
       window.location.href = `https://verify.stripe.com/start/${session.client_secret}`;
@@ -117,9 +118,9 @@ export default function Step4Verification() {
       {/* Header - matching other pages */}
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full relative">
-          <a href="/" className="inline-block">
+          <Link href="/" className="inline-block">
             <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
-          </a>
+          </Link>
 
           {/* Progress Bar - 4 Steps - Absolutely centered */}
           <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-0">

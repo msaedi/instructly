@@ -96,8 +96,8 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
         month: 'long',
         day: 'numeric',
       });
-    } catch (error) {
-      logger.error('Failed to format date in cancel modal', error, { dateStr });
+    } catch {
+      logger.error('Failed to format date in cancel modal', { dateStr });
       return dateStr;
     }
   };
@@ -115,7 +115,7 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
         minute: '2-digit',
         hour12: true,
       });
-    } catch (error) {
+    } catch {
       return timeStr;
     }
   };

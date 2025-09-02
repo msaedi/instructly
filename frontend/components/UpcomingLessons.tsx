@@ -8,8 +8,7 @@ import { useEffect, useState } from 'react';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { queryFn } from '@/lib/react-query/api';
 import { UpcomingBooking } from '@/types/booking';
-import { logger } from '@/lib/logger';
-import { useAuth, hasRole, getPrimaryRole } from '@/features/shared/hooks/useAuth';
+import { useAuth, hasRole } from '@/features/shared/hooks/useAuth';
 import { RoleName } from '@/types/enums';
 
 interface UpcomingBookingsResponse {
@@ -24,7 +23,6 @@ interface UpcomingBookingsResponse {
 export function UpcomingLessons() {
   const { isAuthenticated, user, isLoading: isAuthLoading } = useAuth();
   const [isClient, setIsClient] = useState(false);
-  const hasToken = true;
 
   useEffect(() => {
     setIsClient(true);

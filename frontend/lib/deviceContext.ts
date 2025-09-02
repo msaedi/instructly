@@ -224,7 +224,7 @@ export function getConnectionQuality(
  * Check if device is likely low-end based on various indicators
  */
 export function isLowEndDevice(context: DeviceContext): boolean {
-  const { deviceMemory, hardwareConcurrency, connectionType } = context;
+  const { deviceMemory, hardwareConcurrency } = context;
 
   // Low memory (< 4GB)
   if (deviceMemory && deviceMemory < 4) return true;
