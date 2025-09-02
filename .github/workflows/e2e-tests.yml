@@ -237,7 +237,10 @@ jobs:
           if curl -fS --retry 3 --retry-delay 2 --max-time 10 http://localhost:8000/health; then
             echo "✅ Backend is healthy (attempt $i/20)"
             # Verify expected headers
-            curl -fsSI http://localhost:8000/health | tee /tmp/health-headers.txt
+            if ! curl -fsSI http://localhost:8000/health -o /tmp/health-headers.txt; then
+              curl -fsS -D - -o /dev/null http://localhost:8000/health > /tmp/health-headers.txt
+            fi
+            cat /tmp/health-headers.txt
             if ! grep -qi '^x-site-mode: local' /tmp/health-headers.txt; then
               echo "❌ Missing or incorrect X-Site-Mode header (expected: local)"
               cat /tmp/health-headers.txt
