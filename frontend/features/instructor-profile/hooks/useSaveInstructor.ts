@@ -31,11 +31,13 @@ export function useSaveInstructor(instructorId: string) {
 
   // Mutation for saving instructor (authenticated users)
   const saveMutation = useMutation<SavedInstructor, Error, void>({
-    mutationFn: () =>
-      mutationFn('/users/saved-instructors', {
+    mutationFn: async () => {
+      const result = await mutationFn('/users/saved-instructors', {
         method: 'POST',
         requireAuth: true,
-      })({ instructor_id: instructorId }),
+      })({ instructor_id: instructorId });
+      return result as unknown as SavedInstructor;
+    },
 
     onMutate: async () => {
       // Optimistically update UI
@@ -60,7 +62,8 @@ export function useSaveInstructor(instructorId: string) {
         method: 'DELETE',
         requireAuth: true,
       });
-      return fn({});
+      await fn({});
+      return;
     },
 
     onMutate: async () => {

@@ -1159,7 +1159,7 @@ test.describe('Error Handling', () => {
       // Check if it's form data or JSON
       if (contentType.includes('application/x-www-form-urlencoded')) {
         const postData = await request.postData();
-        const params = new URLSearchParams(postData);
+        const params = new URLSearchParams(postData || '');
         email = params.get('username') || '';
         password = params.get('password') || '';
       } else {

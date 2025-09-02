@@ -182,7 +182,6 @@ describe.skip('useCreateBooking', () => {
         created_at: '2025-01-01T00:00:00Z',
         updated_at: '2025-01-01T00:00:00Z',
         instructor: { id: '01K2GY3VEVJWKZDVH5HMNXEVR2', first_name: 'A', last_initial: 'B' },
-        service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
         service: {
           id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
           instructor_profile_id: '01K2GY3VEVJWKZDVH5HMNXEVR2',
@@ -195,7 +194,7 @@ describe.skip('useCreateBooking', () => {
       };
 
       mockCreateBooking.mockResolvedValueOnce({
-        data: booking,
+        data: { ...booking, service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4' } as any,
         error: undefined,
         status: 200,
       });

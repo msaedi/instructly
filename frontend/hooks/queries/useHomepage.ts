@@ -245,7 +245,7 @@ export function useHomepageData(): HomepageData {
       error: upcomingQuery.error,
     },
     recentSearches: {
-      data: searchesQuery.data,
+      data: searchesQuery.data as unknown as SearchHistoryItem[],
       isLoading: searchesQuery.isLoading,
       error: searchesQuery.error,
     },

@@ -79,7 +79,15 @@ export function RecentSearches() {
     try {
       // Use unified function to get recent searches
       const recentSearches = await getRecentSearches(false, 3);
-      setSearches(recentSearches);
+      // Map SearchHistoryItem to DisplaySearchItem
+      const mapped: DisplaySearchItem[] = recentSearches.map(item => ({
+        id: String(item.id || ''),
+        search_query: item.query,
+        search_type: item.search_type,
+        results_count: item.results_count || null,
+        created_at: item.created_at || item.timestamp,
+      }));
+      setSearches(mapped);
     } catch (err) {
       logger.error('Error loading guest searches', err as Error);
     } finally {
@@ -91,7 +99,15 @@ export function RecentSearches() {
     try {
       // Use unified function to get recent searches
       const recentSearches = await getRecentSearches(true, 3);
-      setSearches(recentSearches);
+      // Map SearchHistoryItem to DisplaySearchItem
+      const mapped: DisplaySearchItem[] = recentSearches.map(item => ({
+        id: String(item.id || ''),
+        search_query: item.query,
+        search_type: item.search_type,
+        results_count: item.results_count || null,
+        created_at: item.created_at || item.timestamp,
+      }));
+      setSearches(mapped);
     } catch (err) {
       logger.error('Error fetching recent searches', err as Error);
       setError('Failed to load recent searches');

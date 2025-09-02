@@ -258,7 +258,10 @@ export async function getRecentSearches(
 
       // Fallback to sessionStorage for guests
       if (!isAuthenticated) {
-        return getGuestSearches().slice(0, limit);
+        return getGuestSearches().map(record => ({
+          ...record,
+          timestamp: record.timestamp || new Date().toISOString()
+        })).slice(0, limit);
       }
       return [];
     }
@@ -270,7 +273,10 @@ export async function getRecentSearches(
 
     // Fallback to sessionStorage for guests
     if (!isAuthenticated) {
-      return getGuestSearches().slice(0, limit);
+      return getGuestSearches().map(record => ({
+        ...record,
+        timestamp: record.timestamp || new Date().toISOString()
+      })).slice(0, limit);
     }
     return [];
   }

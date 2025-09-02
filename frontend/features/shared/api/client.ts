@@ -173,13 +173,12 @@ export async function cleanFetch<T>(
           // Friendly user-facing copy
           error: secs ? `Our hamsters are sprinting. Give them ${secs}s.` : 'Our hamsters are sprinting. Please try again shortly.',
           status: 429,
-          code: 'RATE_LIMIT' as const,
           retryAfterSeconds: secs,
-        };
+        } as ApiResponse<T> & { retryAfterSeconds?: number };
       }
 
       return {
-        error: data?.detail || `Error: ${response.status}`,
+        error: (data as Record<string, unknown>)?.detail as string || `Error: ${response.status}`,
         status: response.status,
       };
     }

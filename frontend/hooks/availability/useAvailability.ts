@@ -5,7 +5,7 @@ import { useWeekSchedule } from '@/hooks/availability/useWeekSchedule';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { formatDateForAPI } from '@/lib/availability/dateHelpers';
 import { logger } from '@/lib/logger';
-import { WeekSchedule } from '@/types/availability';
+import { WeekSchedule, TimeSlot } from '@/types/availability';
 
 export interface UseAvailabilityReturn {
   // state from useWeekSchedule
@@ -43,7 +43,7 @@ function extractErrorMessage(err: unknown, fallback: string): string {
       .filter(Boolean);
     if (msgs.length) return msgs.join('; ');
   }
-  if (typeof err.message === 'string') return err.message;
+  if (typeof (err as Record<string, unknown>)?.message === 'string') return (err as Record<string, unknown>).message as string;
   try {
     return JSON.stringify(err);
   } catch {
@@ -90,7 +90,7 @@ export function useAvailability(): UseAvailabilityReturn {
     // Flatten into list of { date, start_time, end_time } per backend schema
     const schedule: Array<{ date: string; start_time: string; end_time: string }> = [];
     Object.entries(merged).forEach(([date, slots]) => {
-      (slots || []).forEach((s: { date: string; start_time: string; end_time: string }) => {
+      (slots || []).forEach((s: TimeSlot) => {
         schedule.push({ date, start_time: s.start_time, end_time: s.end_time });
       });
     });
@@ -201,7 +201,7 @@ export function useAvailability(): UseAvailabilityReturn {
     savedWeekSchedule,
     hasUnsavedChanges,
     isLoading,
-    weekDates,
+    weekDates: weekDates.map(info => info.date),
     message,
     navigateWeek,
     setWeekSchedule,

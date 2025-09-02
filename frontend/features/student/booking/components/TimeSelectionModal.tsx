@@ -525,14 +525,14 @@ export default function TimeSelectionModal({
 
     // Get time slots from availability data
     if (availabilityData && availabilityData[date]) {
-      const slots = availabilityData[date].available_slots || [];
+      const slots = (availabilityData[date] as Record<string, unknown>)?.available_slots || [];
 
       // Filter out past times if selecting today
       const now = new Date();
       const nowLocalStr = formatDateInTz(now, studentTimezone);
       const isToday = date === nowLocalStr;
 
-      const validSlots = slots.filter((slot: AvailabilitySlot) => {
+      const validSlots = (slots as unknown as AvailabilitySlot[]).filter((slot: AvailabilitySlot) => {
         // Check if slot is in the past (for today)
         if (isToday) {
           const currentHHMM = nowHHMMInTz(studentTimezone);
@@ -724,10 +724,10 @@ export default function TimeSelectionModal({
       const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
       Object.keys(availabilityData).forEach((date) => {
-        const slots = availabilityData[date].available_slots || [];
+        const slots = (availabilityData[date] as Record<string, unknown>)?.available_slots || [];
 
         // Check if any slot on this date can accommodate the selected duration
-        const hasValidSlot = slots.some((slot: AvailabilitySlot) => {
+        const hasValidSlot = (slots as unknown as AvailabilitySlot[]).some((slot: AvailabilitySlot) => {
           // Check if it's in the past
           if (date === todayStr) {
             const currentHHMM = nowHHMMInTz(studentTimezone);
@@ -764,10 +764,10 @@ export default function TimeSelectionModal({
         // First check if current date still has availability for new duration
         const currentDateData = availabilityData[selectedDate];
         if (currentDateData) {
-          const slots = currentDateData.available_slots || [];
+          const slots = (currentDateData as Record<string, unknown>)?.available_slots || [];
 
           // Check if any slot can accommodate the new duration
-          const canAccommodate = slots.some((slot: AvailabilitySlot) => {
+          const canAccommodate = (slots as unknown as AvailabilitySlot[]).some((slot: AvailabilitySlot) => {
             const [sh, sm] = slot.start_time.split(':').map((v: string) => parseInt(v, 10));
             const [eh, em] = slot.end_time.split(':').map((v: string) => parseInt(v, 10));
             const slotDuration = (eh * 60 + em) - (sh * 60 + sm);
@@ -781,10 +781,10 @@ export default function TimeSelectionModal({
 
             for (const date of sortedDates) {
               const dayData = availabilityData[date];
-              const daySlots = dayData.available_slots || [];
+              const daySlots = (dayData as Record<string, unknown>)?.available_slots || [];
 
               // Check if this date can accommodate the duration
-              const dateCanAccommodate = daySlots.some((slot: AvailabilitySlot) => {
+              const dateCanAccommodate = (daySlots as unknown as AvailabilitySlot[]).some((slot: AvailabilitySlot) => {
                 const [sh, sm] = slot.start_time.split(':').map((v: string) => parseInt(v, 10));
                 const [eh, em] = slot.end_time.split(':').map((v: string) => parseInt(v, 10));
                 const slotDuration = (eh * 60 + em) - (sh * 60 + sm);
@@ -823,13 +823,13 @@ export default function TimeSelectionModal({
         lastChangeWasDurationRef.current = true;
 
         const dayData = availabilityData[selectedDate];
-        const slots = dayData.available_slots || [];
+        const slots = (dayData as Record<string, unknown>)?.available_slots || [];
 
         const now = new Date();
         const isToday = selectedDate === formatDateInTz(now, studentTimezone);
 
         // Filter out past slots for today
-        const validSlots = slots.filter((slot: AvailabilitySlot) => {
+        const validSlots = (slots as unknown as AvailabilitySlot[]).filter((slot: AvailabilitySlot) => {
           if (isToday) {
             const currentHHMM = nowHHMMInTz(studentTimezone);
             if (slot.start_time.slice(0, 5) <= currentHHMM) return false;
@@ -930,12 +930,12 @@ export default function TimeSelectionModal({
 
     try {
       const dayData = availabilityData[selectedDate];
-      const slots = dayData.available_slots || [];
+      const slots = (dayData as Record<string, unknown>)?.available_slots || [];
 
       const now = new Date();
       const isToday = selectedDate === formatDateInTz(now, studentTimezone);
 
-      const validSlots = slots.filter((slot: AvailabilitySlot) => {
+      const validSlots = (slots as unknown as AvailabilitySlot[]).filter((slot: AvailabilitySlot) => {
         if (isToday) {
           const currentHHMM = nowHHMMInTz(studentTimezone);
           if (slot.start_time.slice(0, 5) <= currentHHMM) return false;

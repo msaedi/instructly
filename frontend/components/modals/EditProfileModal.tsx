@@ -224,25 +224,28 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
           const meRes = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
           if (meRes.ok) {
             const me = await meRes.json();
-            const mapped: SelectedService[] = (me.services || []).map((svc: { service_catalog_id: string; name?: string; hourly_rate?: number; age_groups?: string[] }) => ({
-              catalog_service_id: svc.service_catalog_id,
-              name: svc.name || '',
-              hourly_rate: String(svc.hourly_rate ?? ''),
-              ageGroup:
-                Array.isArray(svc.age_groups) && svc.age_groups.length === 2
-                  ? 'both'
-                  : (svc.age_groups || []).includes('kids')
-                  ? 'kids'
-                  : 'adults',
-              description: svc.description || '',
-              equipment: Array.isArray(svc.equipment_required) ? svc.equipment_required.join(', ') : '',
-              levels_taught:
-                Array.isArray(svc.levels_taught) && svc.levels_taught.length
-                  ? svc.levels_taught
-                  : ['beginner', 'intermediate', 'advanced'],
-              duration_options: Array.isArray(svc.duration_options) && svc.duration_options.length ? svc.duration_options : [60],
-              location_types: Array.isArray(svc.location_types) && svc.location_types.length ? svc.location_types : ['in-person'],
-            }));
+            const mapped: SelectedService[] = (me.services || []).map((svc: unknown) => {
+              const s = svc as Record<string, unknown>;
+              return {
+                catalog_service_id: s.service_catalog_id as string,
+                name: (s.name as string) || '',
+                hourly_rate: String(s.hourly_rate ?? ''),
+                ageGroup:
+                  Array.isArray(s.age_groups) && s.age_groups.length === 2
+                    ? 'both'
+                    : ((s.age_groups as string[]) || []).includes('kids')
+                    ? 'kids'
+                    : 'adults',
+                description: (s.description as string) || '',
+                equipment: Array.isArray(s.equipment_required) ? (s.equipment_required as string[]).join(', ') : '',
+                levels_taught:
+                  Array.isArray(s.levels_taught) && s.levels_taught.length
+                    ? s.levels_taught as string[]
+                    : ['beginner', 'intermediate', 'advanced'],
+                duration_options: Array.isArray(s.duration_options) && s.duration_options.length ? s.duration_options as number[] : [60],
+                location_types: Array.isArray(s.location_types) && s.location_types.length ? s.location_types as string[] : ['in-person'],
+              };
+            });
             if (mapped.length) setSelectedServices(mapped);
           }
         } catch {}

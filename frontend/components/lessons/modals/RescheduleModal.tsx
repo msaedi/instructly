@@ -78,7 +78,8 @@ export function RescheduleModal({ isOpen, onClose, lesson }: RescheduleModalProp
           instructor_service_id: lesson.instructor_service_id,
         });
         if (resp.status === 200 && resp.data) {
-          const newId = (resp as Record<string, unknown>)?.data?.id || (resp as Record<string, unknown>)?.id;
+          const respData = resp as unknown as Record<string, unknown>;
+          const newId = (respData?.data as Record<string, unknown>)?.id || respData?.id;
           toast.success('Rescheduled successfully');
           onClose();
           // Immediately refresh bookings caches so Upcoming reflects changes without manual refresh
@@ -93,7 +94,7 @@ export function RescheduleModal({ isOpen, onClose, lesson }: RescheduleModalProp
         }
 
         // Handle known conflict messages for clearer UX
-        const msg = ((resp as Record<string, unknown>)?.error as string)?.toLowerCase?.() || '';
+        const msg = ((resp as unknown as Record<string, unknown>)?.error as string)?.toLowerCase?.() || '';
         if (resp.status === 409) {
           if (msg.includes('student') || msg.includes('already have a booking')) {
             toast.error('You have another booking at that time. Please pick another time.');

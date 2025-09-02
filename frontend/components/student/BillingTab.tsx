@@ -53,7 +53,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ userId }) => {
       try {
         setIsLoadingTransactions(true);
         const data = await paymentService.getTransactionHistory();
-        setTransactions(data);
+        setTransactions(data as unknown as Transaction[]);
         logger.info('Transactions loaded', { count: data.length });
       } catch (err) {
         logger.error('Error loading transactions:', err);

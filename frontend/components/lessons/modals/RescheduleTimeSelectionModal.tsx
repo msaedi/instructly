@@ -6,7 +6,7 @@ import { format } from 'date-fns';
 import { logger } from '@/lib/logger';
 import { publicApi } from '@/features/shared/api/client';
 import { useAuth } from '@/features/shared/hooks/useAuth';
-import type { PublicInstructorAvailability } from '@/types/api';
+import type { PublicInstructorAvailability } from '@/src/types/api';
 import Calendar from '@/features/student/booking/components/TimeSelectionModal/Calendar';
 import TimeDropdown from '@/features/student/booking/components/TimeSelectionModal/TimeDropdown';
 import DurationButtons from '@/features/student/booking/components/TimeSelectionModal/DurationButtons';
@@ -62,7 +62,7 @@ export default function RescheduleTimeSelectionModal({
   };
 
   const canReschedule = checkCanReschedule();
-  const studentTimezone = user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const studentTimezone = (user as unknown as Record<string, unknown>)?.timezone as string || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   const formatDateInTz = (d: Date, tz: string) => {
     return new Intl.DateTimeFormat('en-CA', {
@@ -101,7 +101,7 @@ export default function RescheduleTimeSelectionModal({
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   const [disabledDurations] = useState<number[]>([]);
-  const [availabilityData, setAvailabilityData] = useState<PublicInstructorAvailability | null>(null);
+  const [availabilityData, setAvailabilityData] = useState<Record<string, { date: string; available_slots: { start_time: string; end_time: string; }[]; is_blackout: boolean; }> | null>(null);
   const [loadingAvailability, setLoadingAvailability] = useState(false);
   const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
 

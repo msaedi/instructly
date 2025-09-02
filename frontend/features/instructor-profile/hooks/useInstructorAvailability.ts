@@ -64,7 +64,7 @@ export function useInstructorAvailability(instructorId: string, startDate?: stri
       // Handle rate limit: wait Retry-After and retry once
       const rateLimitResponse = response as ApiResponse<unknown> & { retryAfterSeconds?: number };
       if (response.status === 429 && rateLimitResponse.retryAfterSeconds) {
-        await new Promise((r) => setTimeout(r, rateLimitResponse.retryAfterSeconds * 1000));
+        await new Promise((r) => setTimeout(r, (rateLimitResponse.retryAfterSeconds || 1) * 1000));
         const retry = await publicApi.getInstructorAvailability(instructorId, {
           start_date: actualStartDate,
           end_date: endDate,

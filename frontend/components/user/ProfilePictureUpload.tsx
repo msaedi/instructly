@@ -96,7 +96,7 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
       if (onCompleted) onCompleted();
     } catch (err: unknown) {
       logger.error('Profile picture upload error', err);
-      const msg = err?.message || 'Upload failed';
+      const msg = (err as Record<string, unknown>)?.message as string || 'Upload failed';
       setError(msg);
       toast.error(msg);
     } finally {

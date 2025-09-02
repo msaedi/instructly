@@ -10,6 +10,7 @@ import dynamic from 'next/dynamic';
 const InstructorCoverageMap = dynamic(() => import('@/components/maps/InstructorCoverageMap'), { ssr: false });
 import { Instructor } from '@/types/api';
 import { useBackgroundConfig } from '@/lib/config/backgroundProvider';
+import type { FeatureCollection } from 'geojson';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { recordSearch } from '@/lib/searchTracking';
@@ -20,6 +21,10 @@ import { useAuth } from '@/features/shared/hooks/useAuth';
 interface GeoJSONFeature {
   properties?: {
     instructors?: string[];
+  };
+  geometry?: {
+    type: string;
+    coordinates: number[][][] | number[][][][];
   };
 }
 
@@ -116,46 +121,50 @@ function SearchPageContent() {
           return;
         } else if (nlResponse.data) {
           instructorsData = nlResponse.data.results.map(
-            (result: Record<string, unknown>) =>
-              ({
-                id: result.instructor?.id || '',
-                user_id: result.instructor?.id || '',
-                bio: result.instructor?.bio || '',
-                areas_of_service: result.instructor?.areas_of_service
-                  ? result.instructor.areas_of_service.split(', ')
+            (result: Record<string, unknown>) => {
+              const instructor = result.instructor as Record<string, unknown> | undefined;
+              const service = result.service as Record<string, unknown> | undefined;
+              const offering = result.offering as Record<string, unknown> | undefined;
+
+              return {
+                id: instructor?.id || '',
+                user_id: instructor?.id || '',
+                bio: instructor?.bio || '',
+                areas_of_service: instructor?.areas_of_service
+                  ? String(instructor.areas_of_service).split(', ')
                   : [],
-                years_experience: result.instructor?.years_experience || 0,
+                years_experience: instructor?.years_experience || 0,
                 user: {
-                  first_name: result.instructor?.first_name || 'Unknown',
-                  last_initial: result.instructor?.last_initial || '',
+                  first_name: instructor?.first_name || 'Unknown',
+                  last_initial: instructor?.last_initial || '',
                 },
                 services: [
                   {
-                    id: result.service?.id || 1,
-                    service_catalog_id: result.service?.id || 1,
+                    id: service?.id || 1,
+                    service_catalog_id: service?.id || 1,
                     hourly_rate:
-                      result.offering?.hourly_rate || result.service?.actual_min_price || 0,
+                      offering?.hourly_rate || service?.actual_min_price || 0,
                     description:
-                      result.offering?.description || result.service?.description || '',
-                    duration_options: result.offering?.duration_options || [60],
+                      offering?.description || service?.description || '',
+                    duration_options: offering?.duration_options || [60],
                     is_active: true,
                   },
                 ],
                 relevance_score: result.match_score || 0,
-              }) as Instructor & { relevance_score: number }
+              } as Instructor & { relevance_score: number };
+            }
           );
           instructorsData.sort(
-            (a: Record<string, unknown>, b: Record<string, unknown>) => ((b.relevance_score as number) || 0) - ((a.relevance_score as number) || 0)
+            (a, b) => ((b.relevance_score as number) || 0) - ((a.relevance_score as number) || 0)
           );
           totalResults = nlResponse.data.total_found;
           setHasMore(false);
         }
       } else if (serviceCatalogId) {
-        const apiParams: Record<string, unknown> = {
+        const apiParams = {
           service_catalog_id: serviceCatalogId,
           page: pageNum,
           per_page: 20,
-          ...(ageGroup ? { age_group: ageGroup } : {}),
         };
         response = await publicApi.searchInstructors(apiParams);
         if (response.error) {
@@ -284,10 +293,12 @@ function SearchPageContent() {
           for (const polygon of feature.geometry.coordinates) {
             for (const ring of polygon) {
               for (const coord of ring) {
-                const lat = coord[1];
-                const lng = coord[0];
-                if (bounds.contains([lat, lng])) {
-                  return true; // Instructor has coverage in view
+                if (Array.isArray(coord) && coord.length >= 2) {
+                  const lat = coord[1];
+                  const lng = coord[0];
+                  if (bounds && typeof bounds === 'object' && 'contains' in bounds && typeof bounds.contains === 'function' && bounds.contains([lat, lng])) {
+                    return true; // Instructor has coverage in view
+                  }
                 }
               }
             }
@@ -324,10 +335,12 @@ function SearchPageContent() {
           for (const polygon of feature.geometry.coordinates) {
             for (const ring of polygon) {
               for (const coord of ring) {
-                const lat = coord[1];
-                const lng = coord[0];
-                if (mapBounds.contains([lat, lng])) {
-                  return true;
+                if (Array.isArray(coord) && coord.length >= 2) {
+                  const lat = coord[1];
+                  const lng = coord[0];
+                  if (mapBounds && typeof mapBounds === 'object' && 'contains' in mapBounds && typeof mapBounds.contains === 'function' && mapBounds.contains([lat, lng])) {
+                    return true;
+                  }
                 }
               }
             }
@@ -669,7 +682,7 @@ function SearchPageContent() {
             <div className="bg-white/95 backdrop-blur-sm rounded-xl border border-gray-200 p-2 md:p-4 h-full">
               <InstructorCoverageMap
                 height="100%"
-                featureCollection={coverageGeoJSON}
+                featureCollection={coverageGeoJSON as any}
                 showCoverage={true}
                 highlightInstructorId={hoveredInstructorId}
                 focusInstructorId={focusedInstructorId}
@@ -686,10 +699,22 @@ function SearchPageContent() {
         <TimeSelectionModal
           isOpen={showTimeSelection}
           onClose={() => setShowTimeSelection(false)}
-          instructor={{ user_id: timeSelectionContext.instructor.user_id, user: timeSelectionContext.instructor.user, services: timeSelectionContext.instructor.services || [] }}
-          preSelectedDate={timeSelectionContext.preSelectedDate}
-          preSelectedTime={timeSelectionContext.preSelectedTime}
-          serviceId={timeSelectionContext.serviceId}
+          instructor={{
+            user_id: (timeSelectionContext.instructor as Record<string, unknown>)?.user_id as string,
+            user: {
+              first_name: ((timeSelectionContext.instructor as Record<string, unknown>)?.user as Record<string, unknown>)?.first_name as string,
+              last_initial: ((timeSelectionContext.instructor as Record<string, unknown>)?.user as Record<string, unknown>)?.last_initial as string
+            },
+            services: ((timeSelectionContext.instructor as Record<string, unknown>)?.services as Array<{
+              id?: string;
+              duration_options: number[];
+              hourly_rate: number;
+              skill: string;
+            }>) || []
+          }}
+          preSelectedDate={typeof timeSelectionContext.preSelectedDate === 'string' ? timeSelectionContext.preSelectedDate : undefined}
+          preSelectedTime={typeof timeSelectionContext.preSelectedTime === 'string' ? timeSelectionContext.preSelectedTime : undefined}
+          serviceId={typeof timeSelectionContext.serviceId === 'string' ? timeSelectionContext.serviceId : undefined}
         />
       )}
     </div>

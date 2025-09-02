@@ -5,6 +5,7 @@ import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown, ChevronUp, Che
 import { BookingPayment, PaymentMethod, BookingType } from '../types';
 import { format } from 'date-fns';
 import { protectedApi, publicApi } from '@/features/shared/api/client';
+import type { InstructorService } from '@/types/instructor';
 import TimeSelectionModal from '@/features/student/booking/components/TimeSelectionModal';
 import { useRouter } from 'next/navigation';
 import { calculateEndTime } from '@/features/student/booking/hooks/useCreateBooking';
@@ -89,7 +90,8 @@ export default function PaymentConfirmation({
           // Check if any existing booking conflicts with the new one
           const conflict = existingBookings.find((existing: { booking_date: string; start_time: string; end_time: string; status: string }) => {
             // Same date
-            if (existing.booking_date !== booking.date) return false;
+            const bookingDateStr = typeof booking.date === 'string' ? booking.date : format(booking.date, 'yyyy-MM-dd');
+            if (existing.booking_date !== bookingDateStr) return false;
 
             // Check time overlap
             const existingStart = existing.start_time;
@@ -135,7 +137,10 @@ export default function PaymentConfirmation({
       try {
         const response = await publicApi.getInstructorProfile(booking.instructorId);
         if (response.data?.services) {
-          setInstructorServices(response.data.services);
+          setInstructorServices(response.data.services.map((service: any) => ({
+            ...service,
+            description: service.description ?? null
+          })));
           logger.debug('Fetched instructor services', {
             services: response.data.services,
             instructorId: booking.instructorId
@@ -726,7 +731,12 @@ export default function PaymentConfirmation({
               last_initial: booking.instructorName.split(' ')[1]?.charAt(0) || ''
             },
             services: instructorServices.length > 0
-              ? instructorServices
+              ? instructorServices.map(service => ({
+                  id: service.id,
+                  skill: service.skill || '',
+                  hourly_rate: service.hourly_rate,
+                  duration_options: service.duration_options || [30, 60, 90]
+                }))
               : [{
                   id: sessionStorage.getItem('serviceId') || '',
                   skill: booking.lessonType,

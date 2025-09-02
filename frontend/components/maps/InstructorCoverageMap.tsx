@@ -136,14 +136,14 @@ export default function InstructorCoverageMap({
           <GeoJSON
             key={fc.features.length}
             data={fc}
-            style={(feature: GeoJSONFeature) => {
+            style={(feature) => {
               const serving = feature?.properties?.instructors || [];
               const highlighted = highlightInstructorId && serving.includes?.(highlightInstructorId);
               return highlighted
                 ? { color: '#7c3aed', weight: 2, fillOpacity: 0.35 }
                 : { color: '#7c3aed', weight: 1, fillOpacity: 0.12 };
             }}
-            onEachFeature={(feature: GeoJSONFeature, layer) => {
+            onEachFeature={(feature, layer) => {
               const props = feature.properties;
               const name = props.name || props.region_id || 'Coverage Area';
               layer.bindPopup(`<div>${name}</div>`);

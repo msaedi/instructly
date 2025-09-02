@@ -1,7 +1,7 @@
 // frontend/app/(public)/services/page.tsx
 'use client';
 
-import { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { Search, Music, BookOpen, Dumbbell, Globe, Palette, Baby, Sparkles } from 'lucide-react';
 import { publicApi, type CatalogService } from '@/features/shared/api/client';
@@ -65,7 +65,7 @@ interface CategoryWithServices {
   id: string;
   slug: string;
   name: string;
-  icon: React.ComponentType; // Lucide icon component
+  icon: React.ComponentType<{ className?: string }>; // Lucide icon component
   subtitle: string;
   services: CatalogService[];
 }
@@ -157,21 +157,24 @@ export default function AllServicesPage() {
             name: category.name.toUpperCase(), // Ensure uppercase for consistency
             icon: config?.icon || Search, // Default icon if not found
             subtitle: category.subtitle,
-            services: category.services.map((service: { id: string; category_id: string; name: string; slug: string }) => ({
-              id: service.id,
-              category_id: service.category_id,
-              name: service.name,
-              slug: service.slug,
-              description: service.description,
-              search_terms: service.search_terms,
-              display_order: service.display_order,
-              online_capable: service.online_capable,
-              requires_certification: service.requires_certification,
-              is_active: service.is_active,
-              instructor_count: service.instructor_count,
-              actual_min_price: service.actual_min_price,
-              actual_max_price: service.actual_max_price,
-            })),
+            services: category.services.map((service: unknown) => {
+              const s = service as Record<string, unknown>;
+              return {
+                id: s.id as string,
+                category_id: s.category_id as string,
+                name: s.name as string,
+                slug: s.slug as string,
+                description: s.description as string,
+                search_terms: s.search_terms as string[],
+                display_order: s.display_order as number,
+                online_capable: s.online_capable as boolean,
+                requires_certification: s.requires_certification as boolean,
+                is_active: s.is_active as boolean,
+                instructor_count: s.instructor_count as number,
+                actual_min_price: s.actual_min_price as number | undefined,
+                actual_max_price: s.actual_max_price as number | undefined,
+              };
+            }),
           };
         }
       );
@@ -226,21 +229,24 @@ export default function AllServicesPage() {
             name: category.name.toUpperCase(), // Ensure uppercase for consistency
             icon: config?.icon || Search, // Default icon if not found
             subtitle: category.subtitle,
-            services: category.services.map((service: { id: string; category_id: string; name: string; slug: string }) => ({
-              id: service.id,
-              category_id: service.category_id,
-              name: service.name,
-              slug: service.slug,
-              description: service.description,
-              search_terms: service.search_terms,
-              display_order: service.display_order,
-              online_capable: service.online_capable,
-              requires_certification: service.requires_certification,
-              is_active: service.is_active,
-              instructor_count: service.instructor_count,
-              actual_min_price: service.actual_min_price,
-              actual_max_price: service.actual_max_price,
-            })),
+            services: category.services.map((service: unknown) => {
+              const s = service as Record<string, unknown>;
+              return {
+                id: s.id as string,
+                category_id: s.category_id as string,
+                name: s.name as string,
+                slug: s.slug as string,
+                description: s.description as string,
+                search_terms: s.search_terms as string[],
+                display_order: s.display_order as number,
+                online_capable: s.online_capable as boolean,
+                requires_certification: s.requires_certification as boolean,
+                is_active: s.is_active as boolean,
+                instructor_count: s.instructor_count as number,
+                actual_min_price: s.actual_min_price as number | undefined,
+                actual_max_price: s.actual_max_price as number | undefined,
+              };
+            }),
           };
         });
 
@@ -482,7 +488,7 @@ export default function AllServicesPage() {
                 <div className="mb-4">
                   <div className="pb-2 border-b border-gray-200 dark:border-gray-700">
                     <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2 h-6">
-                      <category.icon className="h-5 w-5 flex-shrink-0" />
+                      {React.createElement(category.icon, { className: "h-5 w-5 flex-shrink-0" })}
                       <span className="whitespace-nowrap">{category.name}</span>
                     </h3>
                     <div className="mt-1" style={{ minHeight: '32px' }}>

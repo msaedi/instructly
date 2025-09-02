@@ -15,14 +15,14 @@ jest.mock('@/lib/api', () => {
           headers: new Map([
             ['ETag', 'abc123'],
             ['Last-Modified', new Date('2025-08-24T12:00:00Z').toUTCString()],
-          ]) as Headers,
+          ]) as unknown as Headers,
         } as Partial<Response> as Response;
       }
       if (url.includes('/instructors/availability/?')) {
         return {
           ok: true,
           json: async () => [],
-          headers: new Map() as Headers,
+          headers: new Map() as unknown as Headers,
         } as Partial<Response> as Response;
       }
       return { ok: true, json: async () => ({}) } as Partial<Response> as Response;

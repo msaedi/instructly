@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 import { useRef, useEffect, useState, useMemo } from 'react';
+import type { PublicInstructorAvailability } from '@/src/types/api';
 
 // Type for availability slots
 interface AvailabilitySlot {

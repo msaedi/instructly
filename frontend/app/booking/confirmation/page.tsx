@@ -29,7 +29,7 @@ function BookingConfirmationContent() {
           throw new Error(response.error);
         }
         if (response.data) {
-          setBooking(response.data);
+          setBooking(response.data as unknown as Booking);
         }
       } catch {
         setError('Failed to load booking details');

@@ -199,7 +199,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       // Get instructor ID and service ID from booking data (now strings/ULIDs)
       const instructorId = bookingData.instructorId;
       // Prefer explicit serviceId (ULID) from metadata; as a fallback, try bookingData.serviceId
-      const serviceId = bookingData.metadata?.serviceId || bookingData.serviceId;
+      const serviceId = (bookingData.metadata?.serviceId || bookingData.serviceId) as string;
 
       // Format time to remove seconds if present
       const formattedStartTime = bookingData.startTime.split(':').slice(0, 2).join(':');
@@ -234,7 +234,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
       if (!booking) {
         // Use the specific error message from the booking hook
-        const errorMsg = bookingError || 'Failed to create booking';
+        const errorMsg = (bookingError as string) || 'Failed to create booking';
         logger.error('Booking creation prevented', new Error(errorMsg), {
           bookingError,
           bookingData
@@ -298,15 +298,15 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
         }
 
         // Provide better error messages for specific failures
-        let errorMessage = paymentError?.message || 'Payment failed';
+        let errorMessage = (paymentError as Record<string, unknown>)?.message || 'Payment failed';
         // If requires_action, instruct UI to perform 3DS confirmation
-        if (errorMessage === 'requires_action' && paymentError?.client_secret) {
+        if (errorMessage === 'requires_action' && (paymentError as Record<string, unknown>)?.client_secret) {
           setLocalErrorMessage('Additional authentication required to complete your payment.');
           goToStep(PaymentStep.ERROR);
           // The page embedding PaymentSection can detect this message and call stripe.confirmCardPayment
           throw new Error('3ds_required');
         }
-        if (errorMessage.includes('Instructor payment account not set up')) {
+        if (typeof errorMessage === 'string' && errorMessage.includes('Instructor payment account not set up')) {
           throw new Error('This instructor is not yet set up to receive payments. Please try booking with another instructor or contact support.');
         }
 

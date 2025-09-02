@@ -43,9 +43,12 @@ export function useInstructorProfile(instructorId: string) {
         const svc = service as { service_catalog_id: string; name?: string; duration_options?: number[]; [key: string]: unknown };
         const catalogService = catalogList.find((s: { id: string; name: string }) => s.id === svc.service_catalog_id);
         return {
-          ...svc,
+          id: svc.service_catalog_id,
+          service_catalog_id: svc.service_catalog_id,
           skill: catalogService?.name || svc.name || `Service ${svc.service_catalog_id}`,
           duration_options: svc.duration_options || [60], // Preserve all duration options
+          hourly_rate: 0, // Default value for required field
+          description: null // Default value for required field
         };
       }) || [];
 
