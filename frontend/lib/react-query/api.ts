@@ -108,10 +108,12 @@ export function queryFn<T = any>(endpoint: string, options: QueryOptions = {}) {
       ...((fetchOptions.headers as Record<string, string>) || {}),
     };
 
-    // Cookies-only auth: do not attach bearer tokens from localStorage
+    // Add auth token from localStorage when required
     if (requireAuth) {
-      // Rely on server session cookie; client cannot prove auth here
-      // If the endpoint requires auth, backend will 401; callers should handle redirect
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
     }
     // Optional guest/session analytics
     const guestSessionId = getGuestSessionId();
@@ -203,10 +205,12 @@ export function mutationFn<TData = any, TVariables = any>(
       ...getAnalyticsHeaders(),
       ...((fetchOptions.headers as Record<string, string>) || {}),
     };
-    // Cookies-only auth: do not attach bearer tokens from localStorage
+    // Add auth token from localStorage when required
     if (requireAuth) {
-      // Rely on server session cookie; client cannot prove auth here
-      // If the endpoint requires auth, backend will 401; callers should handle redirect
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
     }
 
     // Cookies-only auth: rely on session cookie; backend will 401 if not authenticated
