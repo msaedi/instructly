@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest, make_asgi_app
 from sqlalchemy.orm import Session
 
 from .core.config import settings
@@ -370,10 +370,9 @@ def get_performance_metrics() -> PerformanceMetricsResponse:
     return PerformanceMetricsResponse(metrics=monitor.get_stats())
 
 
-@app.get("/metrics")
-def metrics_endpoint():
-    """Prometheus metrics endpoint."""
-    return Response(generate_latest(PROM_REGISTRY), media_type=CONTENT_TYPE_LATEST)
+# Mount a dedicated Prometheus app for /metrics to minimize overhead and bypass wrappers
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
 
 
 # Keep the original FastAPI app for tools/tests that need access to routes

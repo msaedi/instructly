@@ -51,9 +51,13 @@ class RateLimitMiddlewareASGI:
         path = scope.get("path", "")
         method = scope.get("method", "GET")
 
-        # Skip rate limiting for health checks, metrics, and SSE endpoints
+        # Skip rate limiting for health checks, metrics (all), and SSE endpoints
         # SSE connections are long-lived and should never be rate-limited
-        if path in ["/health", "/metrics/health", "/metrics/performance"] or path.startswith(SSE_PATH_PREFIX):
+        if (
+            path in ["/health", "/metrics/health", "/metrics/performance"]
+            or path.startswith("/metrics")
+            or path.startswith(SSE_PATH_PREFIX)
+        ):
             await self.app(scope, receive, send)
             return
 
