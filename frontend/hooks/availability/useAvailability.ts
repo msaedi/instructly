@@ -81,7 +81,7 @@ export function useAvailability(): UseAvailabilityReturn {
         const etag = res.headers.get('ETag') || undefined;
         if (typeof window !== 'undefined') (window as Window & { __week_version?: string }).__week_version = etag || undefined;
       }
-    } catch (e) {
+    } catch (_e) {
       logger.warn('Could not load server week before save; proceeding with local snapshot');
     }
 
@@ -124,8 +124,8 @@ export function useAvailability(): UseAvailabilityReturn {
       }
       await refreshSchedule();
       return { success: true, message: 'Availability saved' };
-    } catch (e) {
-      logger.error('saveWeek error', e);
+    } catch (_e) {
+      logger.error('saveWeek error', _e);
       return { success: false, message: 'Network error while saving' };
     }
   }, [currentWeekStart, weekSchedule, savedWeekSchedule, version, refreshSchedule]);
@@ -143,8 +143,8 @@ export function useAvailability(): UseAvailabilityReturn {
       });
       if (!res.ok) return null;
       return await res.json();
-    } catch (e) {
-      logger.error('validateWeek error', e);
+    } catch (_e) {
+      logger.error('validateWeek error', _e);
       return null;
     }
   }, [weekSchedule, savedWeekSchedule, currentWeekStart]);
@@ -167,8 +167,8 @@ export function useAvailability(): UseAvailabilityReturn {
       }
       await refreshSchedule();
       return { success: true, message: 'Copied previous week' };
-    } catch (e) {
-      logger.error('copyFromPreviousWeek error', e);
+    } catch (_e) {
+      logger.error('copyFromPreviousWeek error', _e);
       return { success: false, message: 'Network error while copying' };
     }
   }, [currentWeekStart, refreshSchedule]);
@@ -189,8 +189,8 @@ export function useAvailability(): UseAvailabilityReturn {
         return { success: false, message: extractErrorMessage(err, 'Failed to apply to future weeks') };
       }
       return { success: true, message: 'Applied schedule to future range' };
-    } catch (e) {
-      logger.error('applyToFutureWeeks error', e);
+    } catch (_e) {
+      logger.error('applyToFutureWeeks error', _e);
       return { success: false, message: 'Network error while applying' };
     }
   }, [currentWeekStart]);

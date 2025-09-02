@@ -1,7 +1,7 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+// import { CardContent, CardHeader, CardTitle } from '@/components/ui/card'; // Unused
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
-import { format, addDays, startOfWeek, addWeeks } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { useInstructorAvailability } from '../hooks/useInstructorAvailability';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';

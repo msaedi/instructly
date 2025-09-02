@@ -207,7 +207,7 @@ test.describe('Student Booking Journey (Mocked)', () => {
       }
 
       await page.waitForLoadState('networkidle');
-    } catch (e) {
+    } catch (_e) {
       // Not on login page, continue
       console.log('Not on login page, continuing...');
     }
@@ -414,7 +414,7 @@ test.describe('Student Booking Journey (Mocked)', () => {
       }
 
       await page.waitForTimeout(500);
-    } catch (e) {
+    } catch (_e) {
       // Not on login page, continue
       console.log('Not on login page, continuing...');
     }

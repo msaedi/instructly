@@ -156,7 +156,7 @@ export default function PaymentMethodSelection({
   const maxCreditsApplicable = Math.min(credits.totalAmount, booking.totalAmount);
   const remainingAfterCredits = booking.totalAmount - creditsToApply;
 
-  const handleCreditToggle = () => {
+  const _handleCreditToggle = () => {
     if (!useCredits && credits.totalAmount > 0) {
       setUseCredits(true);
       setCreditsToApply(maxCreditsApplicable);

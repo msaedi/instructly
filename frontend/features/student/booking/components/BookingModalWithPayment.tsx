@@ -4,10 +4,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, MapPin, Clock, DollarSign, User, Mail, Phone, MessageSquare, ChevronLeft } from 'lucide-react';
+import { X, MapPin, Clock, DollarSign, ChevronLeft } from 'lucide-react';
 import { BookingModalProps, Service } from '../types';
 import { logger } from '@/lib/logger';
-import { formatInstructorFromUser, formatFullName, getUserInitials } from '@/utils/nameDisplay';
+import { formatFullName } from '@/utils/nameDisplay';
 import { useAuth, storeBookingIntent } from '../hooks/useAuth';
 import { calculateEndTime } from '../hooks/useCreateBooking';
 import CheckoutFlow from '@/components/booking/CheckoutFlow';
@@ -199,7 +199,7 @@ export default function BookingModalWithPayment({
     }
 
     // Create booking object for payment
-    const bookingDate = new Date(selectedDate + 'T' + selectedTime);
+    const _bookingDate = new Date(selectedDate + 'T' + selectedTime);
     const basePrice = totalPrice;
 
     const booking = {

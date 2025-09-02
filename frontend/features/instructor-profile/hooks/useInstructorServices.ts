@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
+import { CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { queryFn } from '@/lib/react-query/api';
 import type { InstructorService } from '@/types/instructor';
 

@@ -113,7 +113,6 @@ export default function OnboardingStatusPage() {
       if (pubkey) {
         const stripe = await loadStripe(pubkey);
         if (stripe && session.client_secret) {
-          // @ts-ignore - verifyIdentity typings
           await stripe.verifyIdentity(session.client_secret);
           // After return, force backend refresh of identity status and then refresh profile/connect status
           try {

@@ -27,7 +27,7 @@ export async function mockInstructorProfile(page: Page) {
       const isInstructor8 = instructorIdStr === TEST_ULIDS.instructor8;
 
       // Always use ULID in response - this is what the real API would return
-      const responseId = isInstructor8 ? TEST_ULIDS.instructor8 : TEST_ULIDS.instructor1;
+      const _responseId = isInstructor8 ? TEST_ULIDS.instructor8 : TEST_ULIDS.instructor1;
       const userId = isInstructor8 ? TEST_ULIDS.user8 : TEST_ULIDS.user1;
 
       // Create the response without spreading testData.mockInstructor
@@ -549,7 +549,7 @@ export async function setupAllMocks(page: Page, context: { route: (pattern: stri
     console.log('Extracted instructor ID for availability:', instructorId);
 
     // Check if this is our test instructor - be flexible with the ID format
-    const isTestInstructor = instructorId === TEST_ULIDS.instructor8 ||
+    const _isTestInstructor = instructorId === TEST_ULIDS.instructor8 ||
                             instructorId === '01J5TESTINSTR0000000000008' ||
                             instructorId === '8';
     // keep silent

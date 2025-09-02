@@ -53,7 +53,7 @@ async function ensureDir(dirPath: string) {
   }
 }
 
-async function globalSetup(config: FullConfig) {
+async function globalSetup(_config: FullConfig) {
   const projectRoot = process.cwd();
   const storageDir = path.join(projectRoot, 'e2e', '.auth');
   const storageFile = path.join(storageDir, 'state.json');

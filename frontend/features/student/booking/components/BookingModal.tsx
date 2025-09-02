@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { X, MapPin, Clock, DollarSign, User, Mail, Phone, MessageSquare } from 'lucide-react';
 import { BookingModalProps, Service } from '../types';
 import { logger } from '@/lib/logger';
-import { formatInstructorFromUser, formatFullName, getUserInitials } from '@/utils/nameDisplay';
+import { formatFullName } from '@/utils/nameDisplay';
 import { useAuth, storeBookingIntent } from '../hooks/useAuth';
 import { calculateEndTime } from '../hooks/useCreateBooking';
 import {

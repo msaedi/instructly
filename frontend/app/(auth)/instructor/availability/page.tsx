@@ -19,7 +19,7 @@ export default function InstructorAvailabilityPage() {
     weekSchedule,
     hasUnsavedChanges,
     isLoading,
-    weekDates,
+    weekDates: _weekDates,
     navigateWeek,
     setWeekSchedule,
     setMessage,

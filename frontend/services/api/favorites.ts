@@ -6,7 +6,7 @@
  */
 
 import { fetchWithAuth } from '@/lib/api';
-import { FavoritesListResponse, FavoritedInstructor } from '@/types/instructor';
+import { FavoritesListResponse } from '@/types/instructor';
 
 /**
  * Response from add/remove favorite operations

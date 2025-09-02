@@ -2,7 +2,7 @@
 import { renderHook, act } from '@testing-library/react';
 import { useCreateBooking } from '../useCreateBooking';
 import * as apiClient from '@/features/shared/api/client';
-import { Booking } from '@/types/booking';
+import type { Booking } from '@/features/shared/api/client';
 
 // Mock the API module
 jest.mock('@/features/shared/api/client');
@@ -170,31 +170,26 @@ describe.skip('useCreateBooking', () => {
         id: '01K2GY3VEVJWKZDVH5HMNXEVRD',
         instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR2',
         student_id: '01K2GY3VEVJWKZDVH5HMNXEVR3',
-        instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
+        service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
         booking_date: '2025-01-01',
         start_time: '10:00:00',
         end_time: '11:00:00',
-        status: 'CONFIRMED',
-        service_name: 'Service',
-        hourly_rate: 100,
+        status: 'confirmed',
+        // service_name: 'Service',
+        // hourly_rate: 100,
         total_price: 100,
-        duration_minutes: 60,
+        // duration_minutes: 60,
         created_at: '2025-01-01T00:00:00Z',
         updated_at: '2025-01-01T00:00:00Z',
-        instructor: { id: '01K2GY3VEVJWKZDVH5HMNXEVR2', first_name: 'A', last_initial: 'B' },
+        instructor: { user_id: '01K2GY3VEVJWKZDVH5HMNXEVR2', user: { first_name: 'A', last_initial: 'B' } },
         service: {
-          id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
-          instructor_profile_id: '01K2GY3VEVJWKZDVH5HMNXEVR2',
-          name: 'Service',
-          description: 'Test service',
-          hourly_rate: 100,
-          created_at: '2025-01-01T00:00:00Z',
-          updated_at: '2025-01-01T00:00:00Z'
+          skill: 'Service',
+          hourly_rate: 100
         },
       };
 
       mockCreateBooking.mockResolvedValueOnce({
-        data: { ...booking, service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4' } as any,
+        data: { ...booking } as Booking,
         error: undefined,
         status: 200,
       });

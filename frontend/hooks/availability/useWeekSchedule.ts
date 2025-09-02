@@ -97,7 +97,7 @@ export function useWeekSchedule(
   } = {}
 ): UseWeekScheduleReturn {
   const { messageTimeout = 5000 } = options;
-  const router = useRouter();
+  const _router = useRouter();
 
   // Core state
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {

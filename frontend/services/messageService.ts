@@ -181,7 +181,7 @@ class MessageService {
 
       const data = await response.json();
       return data.messages_marked;
-    } catch (error) {
+    } catch {
       // Swallow mark-read errors to avoid user-facing noise
       return 0;
     }
@@ -222,7 +222,7 @@ class MessageService {
         // Silently ignore to avoid user-facing noise
         logger.debug('Typing indicator not accepted', { status: response.status });
       }
-    } catch (error) {
+    } catch {
       // Silent catch; typing is best-effort
     }
   }

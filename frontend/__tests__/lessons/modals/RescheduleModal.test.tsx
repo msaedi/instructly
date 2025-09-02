@@ -98,7 +98,7 @@ describe('RescheduleModal', () => {
 
   const mockOnClose = jest.fn();
 
-  const mockUser = {
+  const _mockUser = {
     id: '01K2MAY484FQGFEQVN3VKGYZ58',
     first_name: 'Test',
     last_name: 'User',

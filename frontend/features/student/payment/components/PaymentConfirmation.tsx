@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown, ChevronUp, Check, Plus } from 'lucide-react';
+import { Calendar, Clock, MapPin, AlertCircle, Star, ChevronDown } from 'lucide-react';
 import { BookingPayment, PaymentMethod, BookingType } from '../types';
 import { format } from 'date-fns';
 import { protectedApi, publicApi } from '@/features/shared/api/client';
@@ -43,7 +43,7 @@ export default function PaymentConfirmation({
   cardBrand = 'Card',
   isDefaultCard = false,
 }: PaymentConfirmationProps) {
-  const router = useRouter();
+  const _router = useRouter();
   const [isOnlineLesson, setIsOnlineLesson] = useState(false);
   const [hasConflict, setHasConflict] = useState(false);
   const [conflictMessage, setConflictMessage] = useState<string>('');
@@ -137,10 +137,10 @@ export default function PaymentConfirmation({
       try {
         const response = await publicApi.getInstructorProfile(booking.instructorId);
         if (response.data?.services) {
-          setInstructorServices(response.data.services.map((service: any) => ({
-            ...service,
-            description: service.description ?? null
-          })));
+          setInstructorServices(response.data.services.map((service: unknown) => ({
+            ...(typeof service === 'object' && service !== null ? service : {}),
+            description: (service as Record<string, unknown>)?.description ?? null
+          } as InstructorService)));
           logger.debug('Fetched instructor services', {
             services: response.data.services,
             instructorId: booking.instructorId

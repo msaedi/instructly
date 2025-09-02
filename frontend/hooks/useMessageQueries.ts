@@ -111,7 +111,7 @@ export function useMarkAsRead() {
   return useMutation({
     mutationFn: (request: MarkMessagesReadRequest) =>
       messageService.markMessagesAsRead(request),
-    onMutate: async (request) => {
+    onMutate: async (_request) => {
       // Optimistically update unread count
       await queryClient.cancelQueries({
         queryKey: messageQueryKeys.unreadCount(),

@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 
 interface CalendarProps {
   currentMonth: Date;
@@ -33,7 +33,7 @@ export default function Calendar({
 
   // Get the first day of the month
   const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-  const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+  const _lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
   const startDate = new Date(firstDay);
   startDate.setDate(startDate.getDate() - firstDay.getDay()); // Start from Sunday
 

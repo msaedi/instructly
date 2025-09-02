@@ -218,12 +218,12 @@ export default function LessonDetailsPage() {
           <InstructorInfo
             instructor={{
               id: lesson.instructor?.id || lesson.instructor_id,
-              first_name: (lesson.instructor as any)?.first_name,
-              last_name: (lesson.instructor as any)?.last_name,
-              last_initial: (lesson.instructor as any)?.last_initial,
-              email: (lesson.instructor as any)?.email,
-              has_profile_picture: (lesson.instructor as any)?.has_profile_picture,
-              profile_picture_version: (lesson.instructor as any)?.profile_picture_version,
+              first_name: (lesson.instructor as unknown as { first_name?: string })?.first_name,
+              last_name: (lesson.instructor as unknown as { last_name?: string })?.last_name,
+              last_initial: (lesson.instructor as unknown as { last_initial?: string })?.last_initial,
+              email: (lesson.instructor as unknown as { email?: string })?.email,
+              has_profile_picture: (lesson.instructor as unknown as { has_profile_picture?: boolean })?.has_profile_picture,
+              profile_picture_version: (lesson.instructor as unknown as { profile_picture_version?: number })?.profile_picture_version,
             }}
           />
         </div>
@@ -445,9 +445,9 @@ function LessonDetailsLoading() {
     <div className="min-h-screen">
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
-          <a className="inline-block" href="/">
+          <Link className="inline-block" href="/">
             <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
-          </a>
+          </Link>
           <div className="pr-4">
             <div className="animate-pulse">
               <div className="w-10 h-10 bg-gray-200 rounded-full"></div>

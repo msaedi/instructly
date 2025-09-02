@@ -48,7 +48,7 @@ export default function TimeSelectionModal({
   onTimeSelected,
   serviceId,
 }: TimeSelectionModalProps) {
-  const router = useRouter();
+  const _router = useRouter();
   const { isAuthenticated, redirectToLogin, user } = useAuth();
 
   const studentTimezone = (user as { timezone?: string })?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -130,7 +130,7 @@ export default function TimeSelectionModal({
     availability_by_date?: Record<string, { available_slots: AvailabilitySlot[] }>;
     [key: string]: unknown;
   } | null>(null);
-  const [loadingAvailability, setLoadingAvailability] = useState(false);
+  const [_loadingAvailability, setLoadingAvailability] = useState(false);
   const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
   const lastChangeWasDurationRef = useRef<boolean>(false);
 

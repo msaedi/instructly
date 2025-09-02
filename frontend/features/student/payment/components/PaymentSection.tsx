@@ -9,7 +9,7 @@ import PaymentConfirmation from './PaymentConfirmation';
 import PaymentProcessing from './PaymentProcessing';
 import PaymentSuccess from './PaymentSuccess';
 import { logger } from '@/lib/logger';
-import { useCreateBooking, calculateEndTime } from '@/features/student/booking';
+import { useCreateBooking } from '@/features/student/booking';
 import { paymentService } from '@/services/api/payments';
 import { protectedApi } from '@/features/shared/api/client';
 
@@ -39,7 +39,7 @@ interface PaymentSectionProps {
 export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPaymentMethodInline = false }: PaymentSectionProps) {
   const {
     createBooking,
-    isLoading: isCreatingBooking,
+    isLoading: _isCreatingBooking,
     error: bookingError,
     reset: resetBookingError,
   } = useCreateBooking();
@@ -64,13 +64,13 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
   const {
     currentStep,
     paymentMethod,
-    selectedCard: selectedCardFromHook,
+    selectedCard: _selectedCardFromHook,
     creditsToUse,
-    isProcessing,
+    isProcessing: _isProcessing,
     error: paymentError,
     goToStep,
     selectPaymentMethod: selectPaymentMethodOriginal,
-    processPayment: processPaymentOriginal,
+    processPayment: _processPaymentOriginal,
     reset: resetPayment,
   } = usePaymentFlow({
     booking: updatedBookingData,

@@ -170,7 +170,7 @@ describe('useMyLessons hooks', () => {
     it('fetches lesson details by ID', async () => {
       // Mock the queryFn for lesson details
       const mockQueryFn = require('@/lib/react-query/api').queryFn;
-      mockQueryFn.mockImplementation((endpoint: string) => async () => ({
+      mockQueryFn.mockImplementation((_endpoint: string) => async () => ({
         id: 1,
         booking_date: '2024-12-25',
         status: 'CONFIRMED',

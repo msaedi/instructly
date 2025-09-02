@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
-import { queryFn, convertApiResponse } from '@/lib/react-query/api';
+import { convertApiResponse } from '@/lib/react-query/api';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { publicApi } from '@/features/shared/api/client';
 import type { ServiceCategory, CatalogService } from '@/features/shared/api/client';
@@ -163,7 +163,7 @@ export function useServicesInfiniteSearch(filters: ServiceSearchFilters) {
 
       return response.json();
     },
-    getNextPageParam: (lastPage, pages) => {
+    getNextPageParam: (lastPage, _pages) => {
       // Assume the API returns { services: [], hasMore: boolean, nextPage: number }
       return lastPage.hasMore ? lastPage.nextPage : undefined;
     },

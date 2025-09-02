@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Star, CheckCircle, Dumbbell, Music, Guitar, Heart } from 'lucide-react';
 import { useInstructorRatingsQuery } from '@/hooks/queries/useRatings';
-import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { favoritesApi } from '@/services/api/favorites';
@@ -54,7 +53,7 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
   // Get primary service for icon display
   const primaryService = instructor.services?.[0]?.skill?.toLowerCase() || '';
 
-  const getServiceIcon = () => {
+  const _getServiceIcon = () => {
     if (primaryService.includes('personal training') || primaryService.includes('fitness')) {
       return <Dumbbell className="h-5 w-5" />;
     }
@@ -109,7 +108,7 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
     }
   };
 
-  const formatServices = () => {
+  const _formatServices = () => {
     const uniqueServices = new Set<string>();
     instructor.services?.forEach(s => {
       const baseName = s.skill?.split(' - ')[0] || s.skill;
@@ -128,7 +127,7 @@ export function InstructorHeader({ instructor }: InstructorHeaderProps) {
             <div className="flex-shrink-0">
               {/* Replace placeholder with UserAvatar */}
               <div className="w-56 h-56">
-                {/* @ts-ignore: local file likely has access to profile data */}
+                {/* @ts-expect-error: local file likely has access to profile data */}
                 {typeof UserAvatar !== 'undefined' ? null : null}
               </div>
             </div>

@@ -59,8 +59,8 @@ export function useSSEMessages({
   onConnectionChange,
   playSound = true,
   showNotifications = true,
-  maxReconnectAttempts = 5,
-  reconnectDelay = 1000,
+  maxReconnectAttempts: _maxReconnectAttempts = 5,
+  reconnectDelay: _reconnectDelay = 1000,
 }: UseSSEMessagesOptions): UseSSEMessagesReturn {
   const [messages, setMessages] = useState<Message[]>([]);
   const [readReceipts, setReadReceipts] = useState<Record<string, Array<{ user_id: string; read_at: string }>>>({});
@@ -104,7 +104,7 @@ export function useSSEMessages({
 
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + 0.2);
-    } catch (error) {
+    } catch (_error) {
     }
   }, [playSound]);
 
@@ -136,7 +136,7 @@ export function useSSEMessages({
         window.focus();
         notification.close();
       };
-    } catch (error) {
+    } catch (_error) {
     }
   }, [showNotifications]);
 
@@ -204,7 +204,7 @@ export function useSSEMessages({
       playNotificationSound();
       showBrowserNotification(message);
 
-    } catch (error) {
+    } catch (_error) {
       logger.error('Error processing message');
     }
   }, [onMessage, playNotificationSound, showBrowserNotification]);
@@ -254,9 +254,9 @@ export function useSSEMessages({
       // Handle messages
       eventSource.addEventListener('message', (event) => {
         try {
-          const data = JSON.parse(event.data);
+          const data = JSON.parse((event as MessageEvent).data);
           processMessage(data);
-        } catch (error) {
+        } catch (_error) {
           logger.error('Error parsing SSE message');
         }
       });
@@ -264,9 +264,9 @@ export function useSSEMessages({
       // Read receipt events
       eventSource.addEventListener('read_receipt', (event) => {
         try {
-          const data = JSON.parse(event.data);
+          const data = JSON.parse((event as MessageEvent).data);
           processMessage(data);
-        } catch (error) {
+        } catch (_error) {
           logger.error('Error parsing read_receipt');
         }
       });
@@ -274,9 +274,9 @@ export function useSSEMessages({
       // Typing indicator events
       eventSource.addEventListener('typing_status', (event) => {
         try {
-          const data = JSON.parse(event.data);
+          const data = JSON.parse((event as MessageEvent).data);
           processMessage(data);
-        } catch (error) {
+        } catch (_error) {
           logger.error('Error parsing typing_status');
         }
       });
@@ -284,15 +284,15 @@ export function useSSEMessages({
       // Reaction updates
       eventSource.addEventListener('reaction_update', (event) => {
         try {
-          const data = JSON.parse(event.data);
+          const data = JSON.parse((event as MessageEvent).data);
           processMessage(data);
-        } catch (error) {
+        } catch (_error) {
           logger.error('Error parsing reaction_update');
         }
       });
 
       // Handle connection event
-      eventSource.addEventListener('connected', (event) => {
+      eventSource.addEventListener('connected', () => {
       });
 
       // Handle heartbeat
@@ -349,7 +349,7 @@ export function useSSEMessages({
         }
       };
 
-    } catch (error) {
+    } catch (_error) {
       logger.error('Failed to create SSE connection');
       updateConnectionStatus(ConnectionStatus.ERROR);
     }
@@ -428,41 +428,41 @@ export function useSSEMessages({
         reconnectDelayRef.current = 1000;
       };
 
-      localEventSource.addEventListener('connected', (event) => {
+      localEventSource.addEventListener('connected', (_event) => {
       });
 
       localEventSource.addEventListener('message', (event) => {
         try {
-          const data = JSON.parse(event.data);
+          const data = JSON.parse((event as MessageEvent).data);
           processMessage(data);
-        } catch (error) {
+        } catch (_error) {
           logger.error('Error parsing SSE message');
         }
       });
 
       localEventSource.addEventListener('read_receipt', (event) => {
         try {
-          const data = JSON.parse(event.data);
+          const data = JSON.parse((event as MessageEvent).data);
           processMessage(data);
-        } catch (error) {
+        } catch (_error) {
           logger.error('Error parsing read_receipt');
         }
       });
 
       localEventSource.addEventListener('typing_status', (event) => {
         try {
-          const data = JSON.parse(event.data);
+          const data = JSON.parse((event as MessageEvent).data);
           processMessage(data);
-        } catch (error) {
+        } catch (_error) {
           logger.error('Error parsing typing_status');
         }
       });
 
       localEventSource.addEventListener('reaction_update', (event) => {
         try {
-          const data = JSON.parse(event.data);
+          const data = JSON.parse((event as MessageEvent).data);
           processMessage(data);
-        } catch (error) {
+        } catch (_error) {
           logger.error('Error parsing reaction_update');
         }
       });

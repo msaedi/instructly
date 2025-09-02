@@ -5,7 +5,6 @@ import { bookingsApi } from '@/lib/api/bookings';
 import type {
   BookingListResponse,
   Booking,
-  CancelBookingRequest,
   BookingStatus,
 } from '@/types/booking';
 

@@ -25,7 +25,7 @@ function isPublicAssetPath(pathname: string): boolean {
 }
 
 export async function middleware(request: NextRequest) {
-  const { nextUrl, cookies, url } = request;
+  const { nextUrl, cookies, url: _url } = request;
   const pathname = nextUrl.pathname;
   const isPreviewProject = (process.env.NEXT_PUBLIC_APP_ENV || '').toLowerCase() === 'preview';
 

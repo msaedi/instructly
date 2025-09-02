@@ -7,7 +7,7 @@ import { ConfirmationPage } from '../pages/ConfirmationPage';
 import { testData } from '../fixtures/test-data';
 
 test.describe('Student Booking Journey', () => {
-  test.beforeEach(async ({ page, context }) => {
+  test.beforeEach(async ({ page: _page, context }) => {
     // Mock ALL API calls needed for the booking journey
 
     // 0. Mock auth endpoint for homepage to show proper UI

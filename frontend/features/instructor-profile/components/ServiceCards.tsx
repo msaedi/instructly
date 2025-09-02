@@ -1,6 +1,5 @@
 import { Dumbbell, Music, Guitar, Heart, Trophy, Mic, BookOpen } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { InstructorService } from '@/types/instructor';
@@ -13,7 +12,7 @@ interface ServiceCardsProps {
 }
 
 // Service icon mapping using Lucide React icons
-function getServiceIcon(skill: string | undefined | null) {
+function _getServiceIcon(skill: string | undefined | null) {
   if (!skill) return <BookOpen className="h-6 w-6" />;
 
   const lowerSkill = skill.toLowerCase();
@@ -109,7 +108,7 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
             <div>
               <div className="flex gap-2 justify-center">
                 {durationOptions.map((dur) => {
-                  const durationPrice = Math.round((hourlyRate * dur) / 60);
+                  const _durationPrice = Math.round((hourlyRate * dur) / 60);
                   return (
                     <label
                       key={dur}

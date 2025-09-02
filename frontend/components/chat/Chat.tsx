@@ -269,7 +269,6 @@ export function Chat({
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const handleTyping = async () => {
     try {
-      // @ts-ignore lazy import to avoid circular
       const { messageService } = await import('@/services/messageService');
       await messageService.sendTyping(bookingId);
     } catch {}

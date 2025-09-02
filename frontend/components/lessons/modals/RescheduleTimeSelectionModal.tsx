@@ -6,7 +6,6 @@ import { format } from 'date-fns';
 import { logger } from '@/lib/logger';
 import { publicApi } from '@/features/shared/api/client';
 import { useAuth } from '@/features/shared/hooks/useAuth';
-import type { PublicInstructorAvailability } from '@/src/types/api';
 import Calendar from '@/features/student/booking/components/TimeSelectionModal/Calendar';
 import TimeDropdown from '@/features/student/booking/components/TimeSelectionModal/TimeDropdown';
 import DurationButtons from '@/features/student/booking/components/TimeSelectionModal/DurationButtons';

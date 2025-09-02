@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { BookingPayment, PaymentMethod, PaymentStatus, PaymentCard, CreditBalance } from '../types';
+import { BookingPayment, PaymentMethod, PaymentStatus, PaymentCard } from '../types';
 
 interface UsePaymentFlowProps {
   booking: BookingPayment;

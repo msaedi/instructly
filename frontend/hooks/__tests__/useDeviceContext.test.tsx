@@ -70,7 +70,7 @@ jest.mock('@/lib/deviceContext', () => ({
     callback('landscape');
     return () => {}; // Cleanup function
   }),
-  monitorConnectionChanges: jest.fn((callback) => {
+  monitorConnectionChanges: jest.fn((_callback) => {
     return () => {}; // Cleanup function
   }),
 }));
@@ -84,26 +84,26 @@ describe('useDeviceContext', () => {
   });
 
   it('should capture device context on mount', () => {
-    const { result } = renderHook(() => useDeviceContext());
+    const { result: _result } = renderHook(() => useDeviceContext());
 
     expect(mockDeviceContext.captureDeviceContext).toHaveBeenCalled();
-    expect(result.current.context).toBeDefined();
-    expect(result.current.deviceType).toBe('desktop');
-    expect(result.current.connectionQuality).toBe('fast');
-    expect(result.current.isLowEnd).toBe(false);
-    expect(result.current.viewportCategory).toBe('xl');
-    expect(result.current.orientation).toBe('landscape');
-    expect(result.current.isOnline).toBe(true);
-    expect(result.current.analyticsData).toBeDefined();
+    expect(_result.current.context).toBeDefined();
+    expect(_result.current.deviceType).toBe('desktop');
+    expect(_result.current.connectionQuality).toBe('fast');
+    expect(_result.current.isLowEnd).toBe(false);
+    expect(_result.current.viewportCategory).toBe('xl');
+    expect(_result.current.orientation).toBe('landscape');
+    expect(_result.current.isOnline).toBe(true);
+    expect(_result.current.analyticsData).toBeDefined();
   });
 
   it('should provide refresh method', () => {
-    const { result } = renderHook(() => useDeviceContext());
+    const { result: _result } = renderHook(() => useDeviceContext());
 
     jest.clearAllMocks();
 
     act(() => {
-      result.current.refresh();
+      _result.current.refresh();
     });
 
     expect(mockDeviceContext.captureDeviceContext).toHaveBeenCalled();
@@ -111,7 +111,7 @@ describe('useDeviceContext', () => {
 
   it('should call onChange callback when context changes', () => {
     const onChange = jest.fn();
-    const { result } = renderHook(() => useDeviceContext({ onChange }));
+    const { result: _result } = renderHook(() => useDeviceContext({ onChange }));
 
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -139,7 +139,7 @@ describe('useDeviceContext', () => {
 
   it('should handle viewport resize with debouncing', async () => {
     jest.useFakeTimers();
-    const { result } = renderHook(() =>
+    const { result: _result } = renderHook(() =>
       useDeviceContext({
         monitorChanges: true,
         debounceDelay: 300,
@@ -168,7 +168,7 @@ describe('useDeviceContext', () => {
   });
 
   it('should handle visibility change', () => {
-    const { result } = renderHook(() => useDeviceContext({ monitorChanges: true }));
+    const { result: _result } = renderHook(() => useDeviceContext({ monitorChanges: true }));
 
     jest.clearAllMocks();
 
@@ -199,37 +199,37 @@ describe('useViewportCategory', () => {
   it('should provide viewport category helpers', () => {
     mockDeviceContext.getViewportCategory.mockReturnValue('md');
 
-    const { result } = renderHook(() => useViewportCategory());
+    const { result: _result } = renderHook(() => useViewportCategory());
 
-    expect(result.current.category).toBe('md');
-    expect(result.current.isMobile).toBe(false);
-    expect(result.current.isTablet).toBe(true);
-    expect(result.current.isDesktop).toBe(false);
-    expect(result.current.isXs).toBe(false);
-    expect(result.current.isSm).toBe(false);
-    expect(result.current.isMd).toBe(true);
-    expect(result.current.isLg).toBe(false);
-    expect(result.current.isXl).toBe(false);
+    expect(_result.current.category).toBe('md');
+    expect(_result.current.isMobile).toBe(false);
+    expect(_result.current.isTablet).toBe(true);
+    expect(_result.current.isDesktop).toBe(false);
+    expect(_result.current.isXs).toBe(false);
+    expect(_result.current.isSm).toBe(false);
+    expect(_result.current.isMd).toBe(true);
+    expect(_result.current.isLg).toBe(false);
+    expect(_result.current.isXl).toBe(false);
   });
 
   it('should identify mobile viewports correctly', () => {
     mockDeviceContext.getViewportCategory.mockReturnValue('xs');
 
-    const { result } = renderHook(() => useViewportCategory());
+    const { result: _result } = renderHook(() => useViewportCategory());
 
-    expect(result.current.isMobile).toBe(true);
-    expect(result.current.isTablet).toBe(false);
-    expect(result.current.isDesktop).toBe(false);
+    expect(_result.current.isMobile).toBe(true);
+    expect(_result.current.isTablet).toBe(false);
+    expect(_result.current.isDesktop).toBe(false);
   });
 
   it('should identify desktop viewports correctly', () => {
     mockDeviceContext.getViewportCategory.mockReturnValue('lg');
 
-    const { result } = renderHook(() => useViewportCategory());
+    const { result: _result } = renderHook(() => useViewportCategory());
 
-    expect(result.current.isMobile).toBe(false);
-    expect(result.current.isTablet).toBe(false);
-    expect(result.current.isDesktop).toBe(true);
+    expect(_result.current.isMobile).toBe(false);
+    expect(_result.current.isTablet).toBe(false);
+    expect(_result.current.isDesktop).toBe(true);
   });
 });
 
@@ -238,37 +238,37 @@ describe('usePerformanceMode', () => {
     mockDeviceContext.isLowEndDevice.mockReturnValue(false);
     mockDeviceContext.getConnectionQuality.mockReturnValue('fast');
 
-    const { result } = renderHook(() => usePerformanceMode());
+    const { result: _result } = renderHook(() => usePerformanceMode());
 
-    expect(result.current.isLowEnd).toBe(false);
-    expect(result.current.connectionQuality).toBe('fast');
-    expect(result.current.shouldReduceMotion).toBe(false);
-    expect(result.current.shouldLazyLoad).toBe(false);
-    expect(result.current.shouldPreload).toBe(true);
+    expect(_result.current.isLowEnd).toBe(false);
+    expect(_result.current.connectionQuality).toBe('fast');
+    expect(_result.current.shouldReduceMotion).toBe(false);
+    expect(_result.current.shouldLazyLoad).toBe(false);
+    expect(_result.current.shouldPreload).toBe(true);
   });
 
   it('should provide performance mode for low-end device', () => {
     mockDeviceContext.isLowEndDevice.mockReturnValue(true);
     mockDeviceContext.getConnectionQuality.mockReturnValue('slow');
 
-    const { result } = renderHook(() => usePerformanceMode());
+    const { result: _result } = renderHook(() => usePerformanceMode());
 
-    expect(result.current.isLowEnd).toBe(true);
-    expect(result.current.connectionQuality).toBe('slow');
-    expect(result.current.shouldReduceMotion).toBe(true);
-    expect(result.current.shouldLazyLoad).toBe(true);
-    expect(result.current.shouldPreload).toBe(false);
+    expect(_result.current.isLowEnd).toBe(true);
+    expect(_result.current.connectionQuality).toBe('slow');
+    expect(_result.current.shouldReduceMotion).toBe(true);
+    expect(_result.current.shouldLazyLoad).toBe(true);
+    expect(_result.current.shouldPreload).toBe(false);
   });
 
   it('should handle medium connection quality', () => {
     mockDeviceContext.isLowEndDevice.mockReturnValue(false);
     mockDeviceContext.getConnectionQuality.mockReturnValue('medium');
 
-    const { result } = renderHook(() => usePerformanceMode());
+    const { result: _result } = renderHook(() => usePerformanceMode());
 
-    expect(result.current.shouldReduceMotion).toBe(false);
-    expect(result.current.shouldLazyLoad).toBe(true);
-    expect(result.current.shouldPreload).toBe(false);
+    expect(_result.current.shouldReduceMotion).toBe(false);
+    expect(_result.current.shouldLazyLoad).toBe(true);
+    expect(_result.current.shouldPreload).toBe(false);
   });
 });
 
@@ -288,16 +288,16 @@ describe('useDeviceFeatures', () => {
   });
 
   it('should detect device features', () => {
-    const { result } = renderHook(() => useDeviceFeatures());
+    const { result: _result } = renderHook(() => useDeviceFeatures());
 
-    expect(result.current.hasTouchSupport).toBe(false);
-    expect(result.current.deviceType).toBe('desktop');
-    expect(result.current.isStandalone).toBe(false);
-    expect(result.current.supportsVibration).toBe(true);
-    expect(result.current.supportsClipboard).toBe(true);
-    expect(result.current.supportsShare).toBe(true);
-    expect(result.current.supportsNotifications).toBe(true);
-    expect(result.current.supportsGeolocation).toBe(true);
+    expect(_result.current.hasTouchSupport).toBe(false);
+    expect(_result.current.deviceType).toBe('desktop');
+    expect(_result.current.isStandalone).toBe(false);
+    expect(_result.current.supportsVibration).toBe(true);
+    expect(_result.current.supportsClipboard).toBe(true);
+    expect(_result.current.supportsShare).toBe(true);
+    expect(_result.current.supportsNotifications).toBe(true);
+    expect(_result.current.supportsGeolocation).toBe(true);
   });
 
   it('should detect standalone mode', () => {
@@ -312,21 +312,21 @@ describe('useDeviceFeatures', () => {
       dispatchEvent: jest.fn()
     })) as jest.Mock;
 
-    const { result } = renderHook(() => useDeviceFeatures());
+    const { result: _result } = renderHook(() => useDeviceFeatures());
 
-    expect(result.current.isStandalone).toBe(true);
+    expect(_result.current.isStandalone).toBe(true);
   });
 
   it('should handle missing features gracefully', () => {
     // Since we can't truly remove properties from navigator in jsdom,
     // we'll just verify that the hook checks for their existence
-    const { result } = renderHook(() => useDeviceFeatures());
+    const { result: _result } = renderHook(() => useDeviceFeatures());
 
     // These checks test the logic, not whether features are actually missing
-    expect(typeof result.current.supportsVibration).toBe('boolean');
-    expect(typeof result.current.supportsShare).toBe('boolean');
-    expect(typeof result.current.supportsNotifications).toBe('boolean');
-    expect(typeof result.current.supportsClipboard).toBe('boolean');
-    expect(typeof result.current.supportsGeolocation).toBe('boolean');
+    expect(typeof _result.current.supportsVibration).toBe('boolean');
+    expect(typeof _result.current.supportsShare).toBe('boolean');
+    expect(typeof _result.current.supportsNotifications).toBe('boolean');
+    expect(typeof _result.current.supportsClipboard).toBe('boolean');
+    expect(typeof _result.current.supportsGeolocation).toBe('boolean');
   });
 });

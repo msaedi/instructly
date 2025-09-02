@@ -2,7 +2,7 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { User } from '@/features/shared/hooks/useAuth';
-import { queryFn, mutationFn } from '@/lib/react-query/api';
+import { queryFn } from '@/lib/react-query/api';
 import { ApiError } from '@/lib/http';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { logger } from '@/lib/logger';

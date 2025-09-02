@@ -36,12 +36,12 @@ jest.mock('@/lib/react-query/api', () => ({
 
 // Mock the modal components
 jest.mock('@/components/lessons/modals/RescheduleModal', () => ({
-  RescheduleModal: ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) =>
+  RescheduleModal: ({ isOpen, _onClose }: { isOpen: boolean; _onClose: () => void }) =>
     isOpen ? <div data-testid="reschedule-modal">Reschedule Modal</div> : null,
 }));
 
 jest.mock('@/components/lessons/modals/CancelWarningModal', () => ({
-  CancelWarningModal: ({ isOpen, onClose, onReschedule }: { isOpen: boolean; onClose: () => void; onReschedule: () => void }) =>
+  CancelWarningModal: ({ isOpen, _onClose, onReschedule }: { isOpen: boolean; _onClose: () => void; onReschedule: () => void }) =>
     isOpen ? (
       <div data-testid="cancel-modal">
         Cancel Warning Modal

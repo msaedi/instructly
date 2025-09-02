@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { mutationFn } from '@/lib/react-query/api';
-import { queryKeys } from '@/lib/react-query/queryClient';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { useState, useEffect } from 'react';
 

@@ -3,7 +3,7 @@ import { queryFn, convertApiResponse } from '@/lib/react-query/api';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
 import { publicApi, TopServicesResponse } from '@/features/shared/api/client';
 import { useUser } from './useUser';
-import type { UpcomingBooking, BookingListResponse } from '@/types/booking';
+import type { BookingListResponse } from '@/types/booking';
 import { SearchHistoryItem } from '@/lib/searchTracking';
 
 /**

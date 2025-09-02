@@ -22,7 +22,7 @@ import {
 } from '@/types/availability';
 import { BookedSlotPreview } from '@/types/booking';
 import { isSlotBooked, findSlotId, findOverlappingSlots } from '@/legacy-patterns/slotHelpers';
-import { isDateInPast, formatDateForAPI } from '@/lib/availability/dateHelpers';
+import { formatDateForAPI } from '@/lib/availability/dateHelpers';
 import { logger } from '@/lib/logger';
 
 /**

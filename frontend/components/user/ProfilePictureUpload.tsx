@@ -130,6 +130,7 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
           <span className="block">{trigger}</span>
           {/* optimistic preview overlay */}
           {previewUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={previewUrl}
               alt="Preview"
