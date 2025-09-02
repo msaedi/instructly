@@ -4,10 +4,10 @@ set -euo pipefail
 # verify_beta_production.sh
 # Usage: backend/scripts/verify_beta_production.sh [WEB_DOMAIN] [API_BASE]
 #  - WEB_DOMAIN defaults to beta.instainstru.com
-#  - API_BASE   defaults to $NEXT_PUBLIC_API_URL or http://localhost:8000
+#  - API_BASE   defaults to $NEXT_PUBLIC_API_BASE or http://localhost:8000
 
 WEB_DOMAIN=${1:-beta.instainstru.com}
-API_BASE=${2:-${NEXT_PUBLIC_API_URL:-http://localhost:8000}}
+API_BASE=${2:-${NEXT_PUBLIC_API_BASE:-http://localhost:8000}}
 
 echo "=== Beta Production Verification ==="
 echo "Web Domain: ${WEB_DOMAIN}"

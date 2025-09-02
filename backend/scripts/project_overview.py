@@ -589,7 +589,7 @@ def print_env_vars() -> None:
 
     print("\nFrontend (.env.local):")
     frontend_vars = [
-        "NEXT_PUBLIC_API_URL - Backend API URL",
+        "NEXT_PUBLIC_API_BASE - Backend API URL",
         "NEXT_PUBLIC_APP_URL - Frontend app URL",
         "NEXT_PUBLIC_ENABLE_LOGGING - Enable logging (true/false)",
     ]

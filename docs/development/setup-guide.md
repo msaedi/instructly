@@ -133,7 +133,7 @@ cp .env.local.example .env.local
 
 # Edit .env.local file
 # Key variables:
-# - NEXT_PUBLIC_API_URL=http://localhost:8000
+# - NEXT_PUBLIC_API_BASE=http://localhost:8000
 ```
 
 ### 6. SSL/HTTPS Setup (Optional but Recommended)

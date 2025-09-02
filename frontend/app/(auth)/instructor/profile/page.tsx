@@ -154,7 +154,7 @@ export default function InstructorProfileSettingsPage() {
             const def = (list.items || []).find((a: any) => a.is_default) || (list.items || [])[0];
             const zip = def?.postal_code;
             if (zip) {
-              const nycRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${API_ENDPOINTS.NYC_ZIP_CHECK}?zip=${encodeURIComponent(zip)}`);
+              const nycRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}${API_ENDPOINTS.NYC_ZIP_CHECK}?zip=${encodeURIComponent(zip)}`);
               logger.debug('Prefill: NYC zip check status', { status: nycRes.status, zip });
               if (nycRes.ok) {
                 const nyc: NYCZipCheck = await nycRes.json();
@@ -317,7 +317,7 @@ export default function InstructorProfileSettingsPage() {
   const loadBoroughNeighborhoods = async (borough: string): Promise<ServiceAreaItem[]> => {
     if (boroughNeighborhoods[borough]) return boroughNeighborhoods[borough] || [];
     try {
-      const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`;
+      const url = `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/api/addresses/regions/neighborhoods?region_type=nyc&borough=${encodeURIComponent(borough)}&per_page=500`;
       const r = await fetch(url);
       if (r.ok) {
         const data = await r.json();

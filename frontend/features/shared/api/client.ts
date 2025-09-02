@@ -13,7 +13,7 @@ import { withApiBase } from '@/lib/apiBase';
 // Ensure an absolute base URL for URL construction in the browser
 const API_BASE_URL = typeof window !== 'undefined'
   ? window.location.origin
-  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
+  : (process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000');
 
 /**
  * API response type for consistent error handling

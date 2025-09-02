@@ -222,7 +222,7 @@ export function useSSEMessages({
       }
 
       // Create EventSource with auth token in URL as query parameter
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
       const url = `${apiUrl}/api/messages/stream/${bookingId}?token=${encodeURIComponent(token)}`;
 
       // Don't use withCredentials when token is in URL - can cause browser issues
@@ -403,7 +403,7 @@ export function useSSEMessages({
 
       updateConnectionStatus(ConnectionStatus.CONNECTING);
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
       const url = `${apiUrl}/api/messages/stream/${bookingId}?token=${encodeURIComponent(token)}`;
 
       // Create new EventSource

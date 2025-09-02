@@ -2,6 +2,7 @@
 import { WeekSchedule, WeekValidationResponse } from '@/types/availability';
 import { BookingPreview, UpcomingBooking } from '@/types/booking';
 import { logger } from '@/lib/logger';
+import { API_BASE, withApiBase } from '@/lib/apiBase';
 
 /**
  * API Client for InstaInstru Platform
@@ -19,8 +20,8 @@ import { logger } from '@/lib/logger';
  * @module api
  */
 
-/** Base API URL from environment or default to localhost */
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+/** @deprecated Use API_BASE from @/lib/apiBase instead */
+export const API_URL = API_BASE;
 
 /**
  * Helper function for authenticated requests
@@ -57,7 +58,7 @@ export const fetchWithAuth = async (endpoint: string, options: RequestInit = {})
 
   try {
     const needsCookies = endpoint.startsWith('/auth/') || endpoint.startsWith('/api/auth/2fa');
-    const response = await fetch(`${API_URL}${endpoint}`, {
+    const response = await fetch(withApiBase(endpoint), {
       ...options,
       // Ensure trust/delete cookies flow for auth endpoints
       credentials: options.credentials ?? (needsCookies ? 'include' : 'same-origin'),

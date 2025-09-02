@@ -14,7 +14,7 @@ const IS_LOCAL = process.env.NEXT_PUBLIC_APP_ENV === 'local' ||
 
 // Only active in local development when proxy mode is explicitly enabled
 const PROXY_ENABLED = IS_LOCAL && process.env.NEXT_PUBLIC_USE_PROXY === 'true';
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
 
 async function handler(
   request: NextRequest,

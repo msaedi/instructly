@@ -154,7 +154,7 @@ export function useServicesInfiniteSearch(filters: ServiceSearchFilters) {
       params.append('limit', '20');
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/services/search?${params}`
+        `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}/services/search?${params}`
       );
 
       if (!response.ok) {

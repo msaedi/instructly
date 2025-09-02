@@ -41,8 +41,8 @@ A complete SSL/HTTPS implementation has been added to InstaInstru, enabling secu
 
 #### NPM Scripts
 ```json
-"dev:http": "rm -rf .next && NEXT_PUBLIC_API_URL=http://localhost:8000 next dev",
-"dev:https": "rm -rf .next && cross-env NEXT_PUBLIC_API_URL=https://localhost:8001 NEXT_PUBLIC_APP_URL=https://localhost:3001 node server.js"
+"dev:http": "rm -rf .next && NEXT_PUBLIC_API_BASE=http://localhost:8000 next dev",
+"dev:https": "rm -rf .next && cross-env NEXT_PUBLIC_API_BASE=https://localhost:8001 NEXT_PUBLIC_APP_URL=https://localhost:3001 node server.js"
 ```
 - Automatically clears Next.js cache when switching modes
 - Prevents "file not found" errors

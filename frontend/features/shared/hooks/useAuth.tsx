@@ -151,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Create full URL for fetch
       const endpoint = typeof window !== 'undefined'
         ? `${window.location.origin}${apiPath}`
-        : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}${path}`;
+        : `${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}${path}`;
 
       logger.info('Login endpoint:', { endpoint, path, apiPath });
 

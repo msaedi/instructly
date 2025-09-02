@@ -2,7 +2,7 @@ import '@testing-library/jest-dom';
 
 // Ensure proxy mode is disabled in tests for consistent URL expectations
 process.env.NEXT_PUBLIC_USE_PROXY = 'false';
-process.env.NEXT_PUBLIC_API_URL = 'http://localhost:8000';
+process.env.NEXT_PUBLIC_API_BASE = 'http://localhost:8000';
 
 // Mock Next.js router
 jest.mock('next/navigation', () => ({

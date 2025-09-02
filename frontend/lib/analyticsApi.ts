@@ -2,7 +2,7 @@
 
 // Analytics API client for admin dashboard (search analytics + codebase metrics)
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
 
 // Codebase metrics types
 export interface CodebaseCategoryStats {

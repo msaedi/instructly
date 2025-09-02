@@ -239,7 +239,7 @@ function SearchPageContent() {
           return;
         }
         const params = new URLSearchParams({ ids: ids.join(',') });
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+        const apiUrl = process.env.NEXT_PUBLIC_API_BASE || '';
         const res = await fetch(`${apiUrl}/api/addresses/coverage/bulk?${params.toString()}`);
         if (!res.ok) {
           setCoverageGeoJSON({ type: 'FeatureCollection', features: [] });
