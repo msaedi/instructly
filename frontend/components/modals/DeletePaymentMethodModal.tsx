@@ -95,7 +95,7 @@ export const DeletePaymentMethodModal: React.FC<DeletePaymentMethodModalProps> =
           {paymentMethod.is_default && (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
               <p className="text-sm text-amber-800">
-                This is your default payment method. You'll need to set another card as default after removing this one.
+                This is your default payment method. You&apos;ll need to set another card as default after removing this one.
               </p>
             </div>
           )}

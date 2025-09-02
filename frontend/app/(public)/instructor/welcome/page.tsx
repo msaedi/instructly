@@ -58,7 +58,7 @@ function WelcomeInner() {
             <ul className="list-none space-y-2">
               <li>✅ 0% platform fees for 60 days OR 10% for first year (you choose)</li>
               <li>✅ $25 per completed lesson (up to 8 lessons = $200 bonus)</li>
-              <li>✅ Permanent "Founding Instructor - NYC" badge</li>
+              <li>✅ Permanent &quot;Founding Instructor - NYC&quot; badge</li>
               <li>✅ $50 for maintaining 10+ hrs/week availability for 4 weeks</li>
               <li>✅ Priority placement in search results</li>
             </ul>

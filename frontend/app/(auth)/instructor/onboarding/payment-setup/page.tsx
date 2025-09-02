@@ -254,7 +254,7 @@ export default function Step3PaymentSetup() {
                   </div>
                   <div className="flex-1">
                     <h2 className="text-2xl font-bold text-gray-900 mb-2">Connect Your Bank Account</h2>
-                    <p className="text-gray-600 leading-relaxed">You'll be redirected to Stripe to link your bank account securely. Once connected, payments from students will be deposited directly to you.</p>
+                    <p className="text-gray-600 leading-relaxed">You&apos;ll be redirected to Stripe to link your bank account securely. Once connected, payments from students will be deposited directly to you.</p>
                   </div>
                 </div>
               </div>
@@ -300,7 +300,7 @@ export default function Step3PaymentSetup() {
                       </div>
                       <div>
                         <p className="font-medium text-gray-900 text-sm">Bank Security</p>
-                        <p className="text-xs text-gray-600 mt-1">Protected by Stripe's encryption</p>
+                        <p className="text-xs text-gray-600 mt-1">Protected by Stripe&apos;s encryption</p>
                       </div>
                     </div>
                   </div>
@@ -317,7 +317,7 @@ export default function Step3PaymentSetup() {
                       </div>
                       <div>
                         <p className="font-semibold text-green-900">Payment setup complete!</p>
-                        <p className="text-sm text-green-700">You're ready to receive payments from students</p>
+                        <p className="text-sm text-green-700">You&apos;re ready to receive payments from students</p>
                       </div>
                     </div>
                   </div>
@@ -345,7 +345,7 @@ export default function Step3PaymentSetup() {
                       )}
                     </button>
                     <p className="text-center text-xs text-gray-500 mt-3">
-                      You'll be redirected to Stripe's secure portal
+                      You&apos;ll be redirected to Stripe&apos;s secure portal
                     </p>
                   </div>
                 )}

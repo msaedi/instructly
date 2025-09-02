@@ -384,7 +384,7 @@ export default function LessonDetailsPage() {
                 )}
                 {isCompleted && (
                   <p className="text-xs text-gray-500 pt-2">
-                    For cancellations between 12–24 hours before a lesson, you'll be charged and receive a platform credit for the amount.
+                    For cancellations between 12–24 hours before a lesson, you&apos;ll be charged and receive a platform credit for the amount.
                   </p>
                 )}
               </div>

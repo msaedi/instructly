@@ -122,7 +122,7 @@ export default function SearchAnalyticsDashboard() {
             <ul className="space-y-2 text-blue-800 dark:text-blue-200">
               {data.popularSearches && data.popularSearches.length > 0 && (
                 <li>
-                  • "{data.popularSearches[0].query}" is your most searched service (
+                  • &quot;{data.popularSearches[0].query}&quot; is your most searched service (
                   {data.popularSearches[0].search_count} searches)
                 </li>
               )}

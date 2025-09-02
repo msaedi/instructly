@@ -617,7 +617,7 @@ function SignUpForm() {
             <p className="text-center text-[11px] leading-4 text-gray-600 dark:text-gray-400 mb-3">
               By clicking below and creating an account,
               <br />
-              I agree to iNSTAiNSTRU's{' '}
+              I agree to iNSTAiNSTRU&apos;s{' '}
               <Link href="/terms" className="text-purple-700 hover:text-purple-800 underline">Terms of Service</Link>{' '}
               and{' '}
               <Link href="/privacy" className="text-purple-700 hover:text-purple-800 underline">Privacy Policy</Link>

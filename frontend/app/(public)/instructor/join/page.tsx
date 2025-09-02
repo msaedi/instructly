@@ -67,7 +67,7 @@ function JoinInner() {
               Founding Instructor Program
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-300 mt-3">
-              You've been selected to join the premium instruction platform.
+              You&apos;ve been selected to join the premium instruction platform.
             </p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -92,7 +92,7 @@ function JoinInner() {
             </button>
           </form>
           <p className="mt-6 text-xs text-gray-500">
-            Don't have a code? We're currently selecting founding instructors. Join our Profile Clinic or apply at
+            Don&apos;t have a code? We&apos;re currently selecting founding instructors. Join our Profile Clinic or apply at
             {' '}<a className="underline" href="https://instainstru.com/teach" target="_blank" rel="noopener noreferrer">instainstru.com/teach</a>{' '}
             (or email{' '}
             <a

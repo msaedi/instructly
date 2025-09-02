@@ -388,7 +388,7 @@ export default function RescheduleTimeSelectionModal({
                 <div className="w-8 h-8 bg-gray-200" />
               </div>
               <p className="text-base font-bold text-black">
-                {getInstructorDisplayName()}'s availability
+                {getInstructorDisplayName()}&apos;s availability
               </p>
             </div>
             {currentLesson && (
@@ -526,7 +526,7 @@ export default function RescheduleTimeSelectionModal({
                 <div className="w-8 h-8 bg-gray-200" />
               </div>
               <p className="text-base font-bold text-black">
-                {getInstructorDisplayName()}'s availability
+                {getInstructorDisplayName()}&apos;s availability
               </p>
             </div>
 

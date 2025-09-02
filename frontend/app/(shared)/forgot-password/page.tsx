@@ -88,7 +88,7 @@ export default function ForgotPasswordPage() {
               </div>
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Check your email</h2>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                We've sent a password reset link to <strong className="text-gray-900 dark:text-white">{email}</strong>
+                We&apos;ve sent a password reset link to <strong className="text-gray-900 dark:text-white">{email}</strong>
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-500 mb-6">The link will expire in 1 hour.</p>
               <Link href="/login" className="text-purple-700 hover:text-purple-600 dark:text-purple-400 dark:hover:text-purple-300 font-medium">
@@ -108,7 +108,7 @@ export default function ForgotPasswordPage() {
           <h1 className="text-4xl font-bold text-purple-700 dark:text-purple-400">iNSTAiNSTRU</h1>
         </Link>
         <h2 className="text-center text-3xl font-extrabold text-gray-900 dark:text-white">Forgot your password?</h2>
-        <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">Enter your email and we'll send you a reset link</p>
+        <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">Enter your email and we&apos;ll send you a reset link</p>
       </div>
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white dark:bg-gray-800 p-8 shadow sm:rounded-lg">

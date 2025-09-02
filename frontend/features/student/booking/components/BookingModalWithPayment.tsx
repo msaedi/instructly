@@ -410,7 +410,7 @@ export default function BookingModalWithPayment({
               </div>
               <h3 className="text-2xl font-semibold mb-2">Booking Confirmed!</h3>
               <p className="text-gray-600 mb-4">
-                Your session has been booked successfully. You'll receive a confirmation email shortly.
+                Your session has been booked successfully. You&apos;ll receive a confirmation email shortly.
               </p>
               <p className="text-sm text-gray-500">
                 Redirecting to your dashboard...

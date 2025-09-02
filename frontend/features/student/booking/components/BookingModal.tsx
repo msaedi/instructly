@@ -533,7 +533,7 @@ export default function BookingModal({
                 <MapPin className="h-5 w-5 text-gray-500 dark:text-gray-400 mt-0.5" />
                 <div>
                   <div className="font-medium text-gray-900 dark:text-white">
-                    {instructor.user.first_name}'s Studio
+                    {instructor.user.first_name}&apos;s Studio
                   </div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">
                     {instructor.areas_of_service[0]} • Location details will be provided after

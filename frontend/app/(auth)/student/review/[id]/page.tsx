@@ -206,7 +206,7 @@ export default function ReviewPage() {
                   You already submitted a review for {instructorName}
                 </h1>
                 <p className="text-gray-600">
-                  This feedback will show up on {instructorFirstName}'s public reviews.
+                  This feedback will show up on {instructorFirstName}&apos;s public reviews.
                 </p>
               </div>
               <Button
@@ -222,7 +222,7 @@ export default function ReviewPage() {
               <div className="text-center mb-8">
                 <h1 className="text-2xl font-bold text-gray-900 mb-3">We value your feedback</h1>
                 <p className="text-gray-600">
-                  Your review helps {instructorFirstName} and future clients. It will appear on {instructorFirstName}'s public profile.
+                  Your review helps {instructorFirstName} and future clients. It will appear on {instructorFirstName}&apos;s public profile.
                 </p>
               </div>
 

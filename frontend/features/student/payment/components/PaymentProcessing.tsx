@@ -121,7 +121,7 @@ export default function PaymentProcessing({
 
         {/* Don't close notice */}
         <p className="text-xs text-gray-400 dark:text-gray-500 mt-4">
-          Please don't close this window
+          Please don&apos;t close this window
         </p>
       </div>
     </div>

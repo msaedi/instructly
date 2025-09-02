@@ -120,7 +120,7 @@ export function CancellationReasonModal({
     >
         <div className="space-y-4">
           {/* Title */}
-          <p className="text-lg font-medium text-gray-900">Please tell us why you're canceling</p>
+          <p className="text-lg font-medium text-gray-900">Please tell us why you&apos;re canceling</p>
 
           {/* Confirmation warning */}
           <div className="bg-purple-100 rounded-lg p-4">

@@ -82,7 +82,7 @@ const ManhattanMap: React.FC<ManhattanMapProps> = ({ highlightedAreas }) => {
             isHighlighted("Hell's Kitchen") ? 'bg-purple-100 border-purple-300' : 'bg-gray-100'
           }`}
                style={{ fontSize: '9px', borderLeft: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb', borderBottomLeftRadius: '20%' }}>
-            Hell's<br/>Kitchen
+            Hell&apos;s<br/>Kitchen
           </div>
           <div className={`p-2 text-xs text-center font-medium ${
             isHighlighted('Midtown') ? 'bg-purple-200 border-purple-400' : 'bg-purple-100'

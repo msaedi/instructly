@@ -474,7 +474,7 @@ export default function AvailabilityPage(): React.ReactElement {
       {hasUnsavedChanges && (
         <div className="mb-6 p-4 rounded-lg bg-yellow-50 text-yellow-800 flex items-start gap-2">
           <AlertCircle className="w-5 h-5 mt-0.5" />
-          You have unsaved changes for this week. Don't forget to save!
+          You have unsaved changes for this week. Don&apos;t forget to save!
         </div>
       )}
 

@@ -31,11 +31,11 @@ export default function InstructionsCard(): React.ReactElement {
         <div className="flex-1">
           <h3 className="font-semibold text-blue-900 mb-2">How it works:</h3>
           <ul className="text-sm text-blue-800 space-y-1" role="list">
-            <li>• Each week's schedule is independent - changes only affect the displayed week</li>
-            <li>• Use "Save This Week" to save changes for the current week only</li>
-            <li>• Use "Copy from Previous Week" to duplicate last week's schedule</li>
+            <li>• Each week&apos;s schedule is independent - changes only affect the displayed week</li>
+            <li>• Use &quot;Save This Week&quot; to save changes for the current week only</li>
+            <li>• Use &quot;Copy from Previous Week&quot; to duplicate last week&apos;s schedule</li>
             <li>
-              • Use "Apply to Future Weeks" to copy this pattern forward with automatic saving
+              • Use &quot;Apply to Future Weeks&quot; to copy this pattern forward with automatic saving
             </li>
             <li>• Presets apply a standard schedule pattern to the current week</li>
             <li>• Navigate between weeks using the arrow buttons</li>

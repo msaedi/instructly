@@ -74,7 +74,7 @@ export function CancelWarningModal({
             <div className="mb-4">
               {hoursUntil < 12 ? (
                 <p className="text-sm text-gray-700">
-                  To respect our instructors' time, unfortunately cancellations made less than 12 hours before a lesson can't be rescheduled and will be charged in full.
+                  To respect our instructors&apos; time, unfortunately cancellations made less than 12 hours before a lesson can&apos;t be rescheduled and will be charged in full.
                 </p>
               ) : hoursUntil > 24 ? (
                 <p className="text-sm text-gray-700">
@@ -121,10 +121,10 @@ export function CancelWarningModal({
                       <span className="font-medium text-gray-600">More than 24 hours before:</span> No worries — cancel or reschedule free of charge.
                     </li>
                     <li>
-                      <span className="font-medium text-gray-600">12–24 hours before:</span> We'll charge your lesson, but don't worry — the full amount will be added as credit to your account for an easy rebook.
+                      <span className="font-medium text-gray-600">12–24 hours before:</span> We&apos;ll charge your lesson, but don&apos;t worry — the full amount will be added as credit to your account for an easy rebook.
                     </li>
                     <li>
-                      <span className="font-medium text-gray-600">Less than 12 hours before:</span> At this point rescheduling isn't possible, and the full lesson amount will be charged.
+                      <span className="font-medium text-gray-600">Less than 12 hours before:</span> At this point rescheduling isn&apos;t possible, and the full lesson amount will be charged.
                     </li>
                   </ul>
                 </div>

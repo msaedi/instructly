@@ -283,7 +283,7 @@ function MyLessonsContent() {
             {activeTab === 'upcoming' ? (
               <>
                 <p className="text-lg text-muted-foreground mb-4">
-                  You don't have any upcoming lessons
+                  You don&apos;t have any upcoming lessons
                 </p>
                 <p className="text-muted-foreground">Ready to learn something new?</p>
               </>

@@ -113,7 +113,7 @@ const BookingQuickPreview: React.FC<BookingQuickPreviewProps> = ({
               {booking.student_note && (
                 <div>
                   <span className="text-sm text-gray-500">Note from student</span>
-                  <p className="text-sm mt-1 italic text-gray-700">"{booking.student_note}"</p>
+                  <p className="text-sm mt-1 italic text-gray-700">&quot;{booking.student_note}&quot;</p>
                 </div>
               )}
 

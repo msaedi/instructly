@@ -439,7 +439,7 @@ function Step3SkillsPricingInner() {
                   </div>
                   {s.hourly_rate && Number(s.hourly_rate) > 0 && (
                     <div className="mt-2 text-xs text-gray-600">
-                      You'll earn <span className="font-semibold text-purple-700">${(Number(s.hourly_rate) * 0.85).toFixed(2)}</span> after the 15% platform fee
+                      You&apos;ll earn <span className="font-semibold text-purple-700">${(Number(s.hourly_rate) * 0.85).toFixed(2)}</span> after the 15% platform fee
                     </div>
                   )}
                 </div>
@@ -655,7 +655,7 @@ function Step3SkillsPricingInner() {
 
       {/* Request a new service */}
       <div className="mt-8 bg-white rounded-lg p-6 border border-gray-200">
-        <h2 className="text-lg font-medium text-gray-900">Don't see your skill? We'd love to add it!</h2>
+        <h2 className="text-lg font-medium text-gray-900">Don&apos;t see your skill? We&apos;d love to add it!</h2>
         <div className="mt-3 flex flex-col sm:flex-row gap-3">
           <input
             type="text"

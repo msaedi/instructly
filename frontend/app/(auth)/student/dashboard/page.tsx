@@ -286,7 +286,7 @@ function StudentDashboardContent() {
             <div className="flex items-center justify-between py-2 px-8">
               <div className="flex items-center pl-4">
                 <p className="text-sm font-bold text-gray-600 dark:text-gray-400">
-                  You've completed 12 lessons this year. 3 more to reach Bronze status!
+                  You&apos;ve completed 12 lessons this year. 3 more to reach Bronze status!
                 </p>
               </div>
               <button
@@ -973,7 +973,7 @@ function StudentDashboardContent() {
                 </button>
               </div>
               <p className="mt-1 text-sm text-gray-600">
-                Here are all the badges you can earn. You've unlocked 3 so far — keep going!
+                Here are all the badges you can earn. You&apos;ve unlocked 3 so far — keep going!
               </p>
             </div>
 
@@ -1463,7 +1463,7 @@ function NotificationsTab() {
                 backgroundColor: 'white',
               }}
             >
-              <option value="0" style={{ backgroundColor: 'white' }}>None - Don't send reminders</option>
+              <option value="0" style={{ backgroundColor: 'white' }}>None - Don&apos;t send reminders</option>
               <option value="60" style={{ backgroundColor: 'white' }}>1 hour before lesson</option>
               <option value="360" style={{ backgroundColor: 'white' }}>6 hours before lesson</option>
               <option value="1440" style={{ backgroundColor: 'white' }}>24 hours before lesson</option>
@@ -1472,7 +1472,7 @@ function NotificationsTab() {
           </div>
           <span className="text-sm text-gray-700">lesson starts</span>
         </div>
-        <p className="text-xs text-gray-500 mt-2">You'll receive a reminder at your selected time before each scheduled lesson.</p>
+        <p className="text-xs text-gray-500 mt-2">You&apos;ll receive a reminder at your selected time before each scheduled lesson.</p>
       </div>
 
       <div className="border-t border-gray-200 pt-6">

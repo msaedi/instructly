@@ -388,7 +388,7 @@ function InstructorProfileContent() {
         <div className="text-center py-12">
           <h2 className="text-2xl font-semibold mb-4">Unable to load instructor profile</h2>
           <p className="text-muted-foreground mb-6">
-            There was an error loading this instructor's profile. Please try again.
+            There was an error loading this instructor&apos;s profile. Please try again.
           </p>
           <div className="flex gap-4 justify-center">
             <Button onClick={() => window.location.reload()} variant="outline">

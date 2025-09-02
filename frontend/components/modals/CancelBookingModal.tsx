@@ -198,7 +198,7 @@ export const CancelBookingModal: React.FC<CancelBookingModalProps> = ({
           <div className="flex-1">
             <p className="text-sm text-amber-900 font-medium">Cancellation Policy</p>
             <p className="text-sm text-amber-700 mt-1">
-              Cancellations may be subject to the instructor's cancellation policy. Late
+              Cancellations may be subject to the instructor&apos;s cancellation policy. Late
               cancellations might incur fees.
             </p>
           </div>

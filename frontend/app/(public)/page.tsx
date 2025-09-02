@@ -738,7 +738,7 @@ export default function HomePage() {
             {testimonials.map((testimonial, idx) => (
               <div key={idx} className="bg-white dark:bg-gray-700 rounded-xl p-6">
                 <p className="text-gray-900 dark:text-gray-100 italic mb-4">
-                  "{testimonial.quote}"
+                  &quot;{testimonial.quote}&quot;
                 </p>
                 <p className="text-gray-600 dark:text-gray-400">- {testimonial.author}</p>
                 <div className="flex mt-2">

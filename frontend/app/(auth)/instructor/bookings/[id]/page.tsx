@@ -169,7 +169,7 @@ export default function BookingDetailsPage() {
               {booking.student_note && (
                 <div>
                   <h3 className="font-medium text-gray-900 mb-2">Note from student</h3>
-                  <div className="bg-gray-50 rounded-lg p-4"><p className="text-gray-700 italic">"{booking.student_note}"</p></div>
+                  <div className="bg-gray-50 rounded-lg p-4"><p className="text-gray-700 italic">&quot;{booking.student_note}&quot;</p></div>
                 </div>
               )}
               {booking.instructor_note && (

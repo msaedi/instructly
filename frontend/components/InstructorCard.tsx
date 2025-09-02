@@ -297,7 +297,7 @@ export default function InstructorCard({
           {!compact && (
           <div className="mb-3 bg-yellow-50 p-4 rounded-lg">
             <p className={`text-gray-700 italic ${!isExpanded ? 'line-clamp-5' : ''}`}>
-              "{getBio()}"
+              &quot;{getBio()}&quot;
             </p>
             {getBio().length > 400 && (
               <button

@@ -356,7 +356,7 @@ function LoginForm() {
         {!requires2FA && (
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <Link href={`/signup${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`} className="font-medium text-purple-700 hover:text-purple-800 transition-colors" onClick={() => logger.debug('Navigating to sign up', { preservedRedirect: redirect })}>
                 Sign up
               </Link>

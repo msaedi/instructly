@@ -157,7 +157,7 @@ const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => 
           <RefreshCw className="h-12 w-12 mx-auto mb-4 text-blue-500 animate-spin" />
           <h3 className="text-lg font-semibold mb-2">Verifying Your Account</h3>
           <p className="text-gray-600 mb-4">
-            We're checking your Stripe account status. This should only take a moment...
+            We&apos;re checking your Stripe account status. This should only take a moment...
           </p>
           <p className="text-sm text-gray-500">
             Checking status... (Attempt {pollAttempts}/15)
@@ -201,7 +201,7 @@ const StripeOnboarding: React.FC<StripeOnboardingProps> = ({ instructorId }) => 
             </p>
 
             <div className="bg-gray-50 rounded-lg p-4 mb-6">
-              <h4 className="font-medium mb-2">What you'll need:</h4>
+              <h4 className="font-medium mb-2">What you&apos;ll need:</h4>
               <ul className="space-y-1 text-sm text-gray-600">
                 <li>• Business or personal bank account details</li>
                 <li>• Tax identification number (SSN or EIN)</li>
