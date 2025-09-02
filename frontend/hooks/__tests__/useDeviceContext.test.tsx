@@ -75,7 +75,8 @@ jest.mock('@/lib/deviceContext', () => ({
   }),
 }));
 
-const mockDeviceContext = require('@/lib/deviceContext');
+import * as deviceContext from '@/lib/deviceContext';
+const mockDeviceContext = jest.mocked(deviceContext, { shallow: true });
 
 describe('useDeviceContext', () => {
   beforeEach(() => {
