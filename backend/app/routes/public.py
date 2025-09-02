@@ -77,8 +77,11 @@ def create_guest_session(response_obj: Response, request: Request) -> JSONRespon
     Sets cookie attributes appropriate for cross-site subdomains in preview/prod.
     """
     guest_id = request.cookies.get("guest_id") if hasattr(request, "cookies") else None
-    if not guest_id:
-        guest_id = str(ulid.ULID())
+    if guest_id:
+        # Idempotent: if already set, return 204 No Content with empty body
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    # Create new guest id
+    guest_id = str(ulid.ULID())
 
     # Cookie defaults
     import os as _os
@@ -95,6 +98,32 @@ def create_guest_session(response_obj: Response, request: Request) -> JSONRespon
 
     resp = JSONResponse({"guest_id": guest_id})
     resp.set_cookie("guest_id", guest_id, **cookie_kwargs)
+    return resp
+
+
+@router.post("/logout")
+def public_logout(response_obj: Response, request: Request) -> Response:
+    """Clear known session cookies. Public to support cross-origin preview logout.
+
+    This does not revoke server sessions; it only instructs the browser to drop cookies.
+    """
+    import os as _os
+    site_mode = (_os.getenv("SITE_MODE", "").lower().strip()) or "local"
+    cookie_kwargs = {"path": "/"}
+    if site_mode in {"preview", "prod", "production", "live"}:
+        cookie_kwargs["secure"] = True
+        cookie_kwargs["domain"] = ".instainstru.com"
+
+    resp = Response(status_code=status.HTTP_204_NO_CONTENT)
+    # Clear guest cookie
+    resp.delete_cookie("guest_id", **cookie_kwargs)
+    # Clear session cookies by env
+    if site_mode == "preview":
+        resp.delete_cookie("sid_preview", **cookie_kwargs)
+    elif site_mode in {"prod", "production", "live"}:
+        resp.delete_cookie("sid_prod", **cookie_kwargs)
+    else:
+        resp.delete_cookie("access_token", **cookie_kwargs)
     return resp
 
 

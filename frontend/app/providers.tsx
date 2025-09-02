@@ -6,6 +6,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { AuthProvider } from '@/features/shared/hooks/useAuth';
 import { useGuestSessionCleanup } from '@/hooks/useGuestSessionCleanup';
+import { ensureGuestOnce } from '@/lib/searchTracking';
 import { initializeSessionTracking, cleanupSessionTracking } from '@/lib/sessionTracking';
 import { queryClient } from '@/lib/react-query/queryClient';
 import { Toaster } from 'sonner';
@@ -18,6 +19,9 @@ function AppInitializer({ children }: { children: ReactNode }) {
   // Initialize session tracking for analytics
   useEffect(() => {
     initializeSessionTracking();
+
+    // Bootstrap guest session once for anonymous users
+    ensureGuestOnce().catch(() => {});
 
     // Cleanup on unmount
     return () => {

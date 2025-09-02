@@ -1,4 +1,3 @@
-import { QueryFunctionContext } from '@tanstack/react-query';
 import { ApiResponse } from '@/features/shared/api/client';
 
 /**
@@ -18,34 +17,6 @@ import { httpGet, httpPost, ApiError } from '@/lib/http';
  * Custom error class for API errors with proper typing
  */
 // Use ApiError from unified http client
-
-/**
- * Get guest session ID from localStorage
- */
-function getGuestSessionId(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('guest_session_id');
-}
-
-/**
- * Get analytics headers for tracking
- */
-function getAnalyticsHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {};
-
-  if (typeof window !== 'undefined') {
-    // Session tracking headers
-    const sessionId = localStorage.getItem('session_id');
-    if (sessionId) {
-      headers['X-Session-ID'] = sessionId;
-    }
-
-    // Current page for referrer analytics
-    headers['X-Search-Origin'] = window.location.pathname;
-  }
-
-  return headers;
-}
 
 /**
  * Query function options type

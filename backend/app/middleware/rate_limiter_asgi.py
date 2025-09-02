@@ -70,6 +70,13 @@ class RateLimitMiddlewareASGI:
         client = scope.get("client")
         client_ip = client[0] if client else "unknown"
 
+        # Light exemptions for local/preview on low-risk routes
+        site_mode = getattr(settings, "site_mode", "local") or "local"
+        if site_mode in {"local", "preview"}:
+            if path in {"/auth/me", "/api/public/session/guest"} or path.startswith("/metrics"):
+                await self.app(scope, receive, send)
+                return
+
         # Apply general rate limit
         allowed, requests_made, retry_after = self.rate_limiter.check_rate_limit(
             identifier=client_ip, limit=self.general_limit, window_seconds=60, window_name="general"
@@ -119,6 +126,22 @@ class RateLimitMiddlewareASGI:
                     **cors_headers,
                 },
             )
+            try:
+                # TEMP TRACE: log bucket info for analysis
+                logger.warning(
+                    "[RATE_LIMIT] 429",
+                    extra={
+                        "path": path,
+                        "method": method,
+                        "bucket": "general",
+                        "key": client_ip,
+                        "count_before": requests_made,
+                        "limit": self.general_limit,
+                        "retry_after": retry_after,
+                    },
+                )
+            except Exception:
+                pass
 
             # Send the response
             await response(scope, receive, send)

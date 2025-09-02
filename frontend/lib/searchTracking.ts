@@ -29,26 +29,48 @@ export interface SearchRecord {
 }
 
 export interface SearchHistoryItem {
-  id?: number;
-  query: string;
+  id: string;
+  search_query: string;
   search_type: SearchType;
   results_count?: number | null;
-  timestamp: string;
-  created_at?: string;
+  first_searched_at?: string;
+  last_searched_at?: string;
+  search_count?: number;
+  guest_session_id?: string | null;
 }
 
 /**
  * Ensure guest_id cookie exists by calling the session bootstrap endpoint once
+ * Concurrency-safe and skipped if a user session is active.
  */
-async function ensureGuestCookie(): Promise<void> {
+let guestBootstrapInFlight = false;
+let guestBootstrapDone = false;
+export async function ensureGuestOnce(): Promise<void> {
   if (typeof document === 'undefined') return;
+  // Always trust the cookie first; if absent, we must bootstrap regardless of any local sentinel
   const hasGuest = document.cookie.split('; ').some((c) => c.startsWith('guest_id='));
-  if (hasGuest) return;
+  if (hasGuest) {
+    guestBootstrapDone = true;
+    try { localStorage.setItem('guest_bootstrap_done', 'true'); } catch {}
+    return;
+  }
   try {
+    if (localStorage.getItem('guest_bootstrap_done') === 'true') {
+      // Sentinel is stale (cookie missing); continue to bootstrap
+      // fallthrough
+    }
+  } catch {}
+  if (guestBootstrapDone || guestBootstrapInFlight) return;
+  try {
+    guestBootstrapInFlight = true;
     await httpPost(withApiBase('/api/public/session/guest'));
+    guestBootstrapDone = true;
+    try { localStorage.setItem('guest_bootstrap_done', 'true'); } catch {}
     logger.info('Bootstrapped guest_id cookie');
-  } catch (e) {
+  } catch {
     logger.warn('Failed to bootstrap guest session');
+  } finally {
+    guestBootstrapInFlight = false;
   }
 }
 
@@ -171,7 +193,9 @@ export async function recordSearch(
   isAuthenticated: boolean
 ): Promise<number | null> {
   try {
-    await ensureGuestCookie();
+    if (!isAuthenticated) {
+      await ensureGuestOnce();
+    }
     logger.debug('Recording search', { searchRecord, isAuthenticated });
 
     // Refresh session on search activity
@@ -206,7 +230,7 @@ export async function recordSearch(
       body.observability_candidates = searchRecord.observability_candidates;
     }
 
-    const data = (await httpPost(buildUrl('/api/search-history/'), body)) as any;
+    const data = (await httpPost(buildUrl('/api/search-history/'), body)) as unknown;
     logger.info('Search recorded successfully', { searchRecord, responseData: data });
 
     // Trigger update event for UI components
@@ -217,7 +241,7 @@ export async function recordSearch(
     }
 
     // Return the search event ID for interaction tracking
-    return data.search_event_id || null;
+    return (data as Record<string, unknown>)?.search_event_id as number || null;
   } catch (error) {
     logger.error('Error recording search', error as Error);
 
@@ -237,18 +261,29 @@ export async function getRecentSearches(
   limit: number = 3
 ): Promise<SearchHistoryItem[]> {
   try {
-    await ensureGuestCookie();
-    const data = (await httpGet(buildUrl('/api/search-history/'), { query: { limit } })) as any[];
-    return data as SearchHistoryItem[];
+    // Ensure guest identity exists if unauthenticated (backup in case bootstrap races)
+    if (!isAuthenticated) {
+      const hasGuest = typeof document !== 'undefined' && document.cookie.split('; ').some((c) => c.startsWith('guest_id='));
+      if (!hasGuest) {
+        await ensureGuestOnce();
+      }
+    }
+    const data = (await httpGet(buildUrl('/api/search-history/'), { query: { limit } })) as SearchHistoryItem[];
+    return data;
   } catch (error) {
     logger.error('Error fetching recent searches', error as Error);
 
     // Fallback to sessionStorage for guests
     if (!isAuthenticated) {
-      return getGuestSearches().map(record => ({
-        ...record,
-        timestamp: record.timestamp || new Date().toISOString()
-      })).slice(0, limit);
+      return getGuestSearches()
+        .map((record, idx) => ({
+          id: String(idx),
+          search_query: record.query,
+          search_type: record.search_type,
+          results_count: record.results_count ?? null,
+          last_searched_at: record.timestamp || new Date().toISOString(),
+        }))
+        .slice(0, limit);
     }
     return [];
   }
@@ -267,7 +302,7 @@ export async function trackSearchInteraction(
 ): Promise<void> {
   try {
     // Ensure headers are properly set for both authenticated and guest users
-    const headers = getHeaders(isAuthenticated);
+    const _headers = getHeaders(isAuthenticated);
 
     logger.debug('Tracking search interaction', {
       searchEventId,

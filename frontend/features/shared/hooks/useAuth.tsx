@@ -1,7 +1,9 @@
 // frontend/features/shared/hooks/useAuth.tsx
 'use client';
 
-import React, { useState, useEffect, useCallback, createContext, useContext, ReactNode } from 'react';
+import React, { useState, useEffect, useCallback, createContext, useContext, ReactNode, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/react-query/queryClient';
 import { useRouter } from 'next/navigation';
 import { API_ENDPOINTS } from '@/lib/api';
 import { httpGet, ApiError } from '@/lib/http';
@@ -53,32 +55,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const userRef = useRef<User | null>(null);
 
-  const checkAuth = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
-    try {
+  const queryClient = useQueryClient();
+  const userQuery = useQuery<User>({
+    queryKey: queryKeys.user,
+    queryFn: async () => {
       logger.info('Checking authentication status');
       const data = (await httpGet(withApiBase(API_ENDPOINTS.ME))) as User;
-      logger.info('User authenticated', {
-        userId: data?.id,
-        roles: data?.roles,
-        email: data?.email,
-      });
-      setUser(data);
-    } catch (err) {
+      return data;
+    },
+    staleTime: 1000 * 60 * 5,
+    retry: 0,
+    refetchOnWindowFocus: false,
+  });
+
+  useEffect(() => {
+    if (userQuery.data) {
+      setUser(userQuery.data);
+      setError(null);
+      setIsLoading(false);
+      if (process.env.NODE_ENV !== 'production') {
+        logger.debug('[TRACE] checkAuth() success', { nowHasUser: true });
+      }
+    } else if (userQuery.isError) {
+      const err: unknown = userQuery.error as unknown;
       if (err instanceof ApiError && err.status === 401) {
         logger.warn('Not authenticated');
         setUser(null);
-      } else {
-        logger.error('Authentication check error', err as Error);
-        if (!user) setError('Network error while checking authentication');
+        setError(null);
+      } else if (err instanceof Error) {
+        logger.error('Authentication check error', err);
+        if (!userRef.current) setError('Network error while checking authentication');
       }
-    } finally {
       setIsLoading(false);
+    } else if (userQuery.isLoading) {
+      setIsLoading(true);
     }
-  }, [user, setIsLoading, setError, setUser]);
+  }, [userQuery.data, userQuery.isError, userQuery.error, userQuery.isLoading]);
+
+  const checkAuth = useCallback(async () => {
+    (window as unknown as { __checkAuthCount?: number }).__checkAuthCount = ((window as unknown as { __checkAuthCount?: number }).__checkAuthCount || 0) + 1;
+    if (process.env.NODE_ENV !== 'production') {
+      logger.debug('[TRACE] checkAuth()', {
+        count: (window as unknown as { __checkAuthCount?: number }).__checkAuthCount,
+        hadUser: !!userRef.current,
+      });
+    }
+    await queryClient.invalidateQueries({ queryKey: queryKeys.user });
+    await userQuery.refetch();
+  }, [queryClient, userQuery]);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
@@ -129,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const _data = await response.json();
         // Transfer guest searches to user account (backend handles this automatically)
         if (guestSessionId) {
           logger.info('Initiating guest search transfer for session:', { guestSessionId });
@@ -158,18 +188,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    // Clear auth state
+    // Clear auth state locally
     setUser(null);
+    clearGuestSession();
 
-    // Handle guest session based on user preference
-    clearGuestSession(); // This respects the user's clearDataOnLogout preference
-
-    // Force hard navigation to avoid auth guards on current page racing to /login
-    if (typeof window !== 'undefined') {
-      window.location.assign('/');
-    } else {
-      router.replace('/');
-    }
+    // Request backend to clear cookies
+    fetch(withApiBase('/api/public/logout'), { method: 'POST', credentials: 'include' })
+      .catch(() => {})
+      .finally(() => {
+        // Navigate home after clearing
+        if (typeof window !== 'undefined') {
+          window.location.assign('/');
+        } else {
+          router.replace('/');
+        }
+      });
     logger.info('User logged out');
   };
 
@@ -195,10 +228,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push(`/login?redirect=${encodedUrl}`);
   };
 
-  // Check authentication on mount
-  useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
+  // useQuery will fetch on mount; no need to call checkAuth here
 
   return (
     <AuthContext.Provider

@@ -55,9 +55,9 @@ export async function http(method: HttpMethod, url: string, options: HttpOptions
     ...rest,
   };
   if (body !== undefined) {
-    (init as any).body = isJsonLike(body)
-      ? (typeof body === 'string' ? (body as any) : JSON.stringify(body))
-      : (body as any);
+    init.body = isJsonLike(body)
+      ? (typeof body === 'string' ? body : JSON.stringify(body))
+      : body as BodyInit;
   }
   const resp = await fetch(u.toString(), init);
 
@@ -68,7 +68,8 @@ export async function http(method: HttpMethod, url: string, options: HttpOptions
 
   if (!resp.ok) {
     const status = resp.status;
-    const message = (data as any)?.detail || (data as any)?.message || `HTTP ${status}`;
+    const errorData = data as Record<string, unknown>;
+    const message = errorData?.detail as string || errorData?.message as string || `HTTP ${status}`;
     if (status === 401 || status === 403 || status === 419) throw new AuthError(message, status, data);
     if (status >= 400 && status < 500) throw new ClientError(message, status, data);
     throw new ApiError(message, status, data);
@@ -79,11 +80,11 @@ export async function http(method: HttpMethod, url: string, options: HttpOptions
 
 export const httpGet = (url: string, options?: HttpOptions) => http('GET', url, options);
 export const httpPost = (url: string, body?: unknown, options?: HttpOptions) =>
-  http('POST', url, { ...(options || {}), body: body as any });
+  http('POST', url, { ...(options || {}), body: body as BodyInit });
 export const httpPut = (url: string, body?: unknown, options?: HttpOptions) =>
-  http('PUT', url, { ...(options || {}), body: body as any });
+  http('PUT', url, { ...(options || {}), body: body as BodyInit });
 export const httpPatch = (url: string, body?: unknown, options?: HttpOptions) =>
-  http('PATCH', url, { ...(options || {}), body: body as any });
+  http('PATCH', url, { ...(options || {}), body: body as BodyInit });
 export const httpDelete = (url: string, options?: HttpOptions) => http('DELETE', url, options);
 
 

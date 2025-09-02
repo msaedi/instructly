@@ -79,13 +79,13 @@ export function RecentSearches() {
     try {
       // Use unified function to get recent searches
       const recentSearches = await getRecentSearches(false, 3);
-      // Map SearchHistoryItem to DisplaySearchItem
+      // Map API response to display shape
       const mapped: DisplaySearchItem[] = recentSearches.map(item => ({
         id: String(item.id || ''),
-        search_query: item.query,
+        search_query: item.search_query,
         search_type: item.search_type,
-        results_count: item.results_count || null,
-        created_at: item.created_at || item.timestamp,
+        results_count: item.results_count ?? null,
+        created_at: item.last_searched_at || item.first_searched_at || new Date().toISOString(),
       }));
       setSearches(mapped);
     } catch (err) {
@@ -99,13 +99,13 @@ export function RecentSearches() {
     try {
       // Use unified function to get recent searches
       const recentSearches = await getRecentSearches(true, 3);
-      // Map SearchHistoryItem to DisplaySearchItem
+      // Map API response to display shape
       const mapped: DisplaySearchItem[] = recentSearches.map(item => ({
         id: String(item.id || ''),
-        search_query: item.query,
+        search_query: item.search_query,
         search_type: item.search_type,
-        results_count: item.results_count || null,
-        created_at: item.created_at || item.timestamp,
+        results_count: item.results_count ?? null,
+        created_at: item.last_searched_at || item.first_searched_at || new Date().toISOString(),
       }));
       setSearches(mapped);
     } catch (err) {
