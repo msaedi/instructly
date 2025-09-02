@@ -74,8 +74,6 @@ const eslintConfig = [
     files: ['e2e/**/*', '__tests__/**/*', 'e2e/**/*.ts'],
     rules: {
       'no-console': 'off',
-      // Allow CommonJS require() in tests while we progressively migrate to ESM imports
-      '@typescript-eslint/no-require-imports': 'off',
     },
   },
   // Allow console in server.js and logger implementation

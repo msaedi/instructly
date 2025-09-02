@@ -5,6 +5,8 @@ import { RescheduleModal } from '@/components/lessons/modals/RescheduleModal';
 import { Booking, Service } from '@/types/booking';
 import { format } from 'date-fns';
 import { AuthProvider } from '@/features/shared/hooks/useAuth';
+import * as dateFns from 'date-fns';
+import * as myLessonsHooks from '@/hooks/useMyLessons';
 
 // Mock the hooks
 jest.mock('@/hooks/useMyLessons', () => ({
@@ -27,7 +29,7 @@ jest.mock('next/navigation', () => ({
 
 // Mock API client used by the modal
 jest.mock('@/features/shared/api/client', () => {
-  const { format } = require('date-fns');
+  const { format } = dateFns;
   const today = new Date();
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
@@ -257,7 +259,7 @@ describe('RescheduleModal', () => {
 
   it('handles reschedule mutation', async () => {
     const mockMutateAsync = jest.fn().mockResolvedValue({});
-    const useRescheduleLesson = require('@/hooks/useMyLessons').useRescheduleLesson;
+    const useRescheduleLesson = myLessonsHooks.useRescheduleLesson as jest.Mock;
     useRescheduleLesson.mockReturnValue({
       mutateAsync: mockMutateAsync,
       isPending: false,
@@ -297,7 +299,7 @@ describe('RescheduleModal', () => {
   });
 
   it('shows loading state during reschedule', async () => {
-    const { useRescheduleLesson } = require('@/hooks/useMyLessons');
+    const useRescheduleLesson = myLessonsHooks.useRescheduleLesson as jest.Mock;
     useRescheduleLesson.mockReturnValue({
       mutateAsync: jest.fn(),
       isPending: true,

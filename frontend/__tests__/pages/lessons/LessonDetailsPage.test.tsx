@@ -3,6 +3,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useRouter, useParams } from 'next/navigation';
 import LessonDetailsPage from '@/app/(auth)/student/lessons/[id]/page';
+import * as myLessonsModule from '@/hooks/useMyLessons';
+import * as authModule from '@/features/shared/hooks/useAuth';
 
 // Mock next/navigation
 jest.mock('next/navigation', () => ({
@@ -106,7 +108,7 @@ describe('LessonDetailsPage', () => {
   });
 
   it('renders lesson details correctly', () => {
-    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    const useLessonDetails = myLessonsModule.useLessonDetails as jest.Mock;
     useLessonDetails.mockReturnValue({
       data: mockLesson,
       isLoading: false,
@@ -135,7 +137,7 @@ describe('LessonDetailsPage', () => {
   });
 
   it('shows back button that navigates to My Lessons', () => {
-    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    const useLessonDetails = myLessonsModule.useLessonDetails as jest.Mock;
     useLessonDetails.mockReturnValue({
       data: mockLesson,
       isLoading: false,
@@ -159,7 +161,7 @@ describe('LessonDetailsPage', () => {
       start_time: '14:00:00',
     };
 
-    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    const useLessonDetails = myLessonsModule.useLessonDetails as jest.Mock;
     useLessonDetails.mockReturnValue({
       data: futureLesson,
       isLoading: false,
@@ -180,7 +182,7 @@ describe('LessonDetailsPage', () => {
       start_time: '14:00:00',
     };
 
-    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    const useLessonDetails = myLessonsModule.useLessonDetails as jest.Mock;
     useLessonDetails.mockReturnValue({
       data: futureLesson,
       isLoading: false,
@@ -205,7 +207,7 @@ describe('LessonDetailsPage', () => {
       start_time: '14:00:00',
     };
 
-    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    const useLessonDetails = myLessonsModule.useLessonDetails as jest.Mock;
     useLessonDetails.mockReturnValue({
       data: futureLesson,
       isLoading: false,
@@ -230,7 +232,7 @@ describe('LessonDetailsPage', () => {
       start_time: '14:00:00',
     };
 
-    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    const useLessonDetails = myLessonsModule.useLessonDetails as jest.Mock;
     useLessonDetails.mockReturnValue({
       data: futureLesson,
       isLoading: false,
@@ -263,7 +265,7 @@ describe('LessonDetailsPage', () => {
       status: 'COMPLETED',
     };
 
-    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    const useLessonDetails = myLessonsModule.useLessonDetails as jest.Mock;
     useLessonDetails.mockReturnValue({
       data: completedLesson,
       isLoading: false,
@@ -294,7 +296,7 @@ describe('LessonDetailsPage', () => {
       status: 'COMPLETED',
     };
 
-    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    const useLessonDetails = myLessonsModule.useLessonDetails as jest.Mock;
     useLessonDetails.mockReturnValue({
       data: completedLesson,
       isLoading: false,
@@ -310,7 +312,7 @@ describe('LessonDetailsPage', () => {
   });
 
   it('shows loading state', () => {
-    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    const useLessonDetails = myLessonsModule.useLessonDetails as jest.Mock;
     useLessonDetails.mockReturnValue({
       data: null,
       isLoading: true,
@@ -325,7 +327,7 @@ describe('LessonDetailsPage', () => {
   });
 
   it('shows error state when lesson not found', () => {
-    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    const useLessonDetails = myLessonsModule.useLessonDetails as jest.Mock;
     useLessonDetails.mockReturnValue({
       data: null,
       isLoading: false,
@@ -339,7 +341,7 @@ describe('LessonDetailsPage', () => {
   });
 
   it('redirects to login when not authenticated', () => {
-    const { useAuth } = require('@/features/shared/hooks/useAuth');
+    const useAuth = authModule.useAuth as jest.Mock;
     const mockRedirectToLogin = jest.fn();
     useAuth.mockReturnValue({
       isAuthenticated: false,
@@ -353,7 +355,7 @@ describe('LessonDetailsPage', () => {
   });
 
   it('handles 401 error by redirecting to login', () => {
-    const { useAuth } = require('@/features/shared/hooks/useAuth');
+    const useAuth = authModule.useAuth as jest.Mock;
     const mockRedirectToLogin = jest.fn();
     useAuth.mockReturnValue({
       isAuthenticated: true,
@@ -361,7 +363,7 @@ describe('LessonDetailsPage', () => {
       redirectToLogin: mockRedirectToLogin,
     });
 
-    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    const useLessonDetails = myLessonsModule.useLessonDetails as jest.Mock;
     useLessonDetails.mockReturnValue({
       data: null,
       isLoading: false,
@@ -374,7 +376,7 @@ describe('LessonDetailsPage', () => {
   });
 
   it('shows lesson notes when available', () => {
-    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    const useLessonDetails = myLessonsModule.useLessonDetails as jest.Mock;
     useLessonDetails.mockReturnValue({
       data: mockLesson,
       isLoading: false,
@@ -393,7 +395,7 @@ describe('LessonDetailsPage', () => {
       status: 'COMPLETED',
     };
 
-    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    const useLessonDetails = myLessonsModule.useLessonDetails as jest.Mock;
     useLessonDetails.mockReturnValue({
       data: completedLesson,
       isLoading: false,
@@ -420,7 +422,7 @@ describe('LessonDetailsPage', () => {
       status: 'COMPLETED',
     };
 
-    const { useLessonDetails } = require('@/hooks/useMyLessons');
+    const useLessonDetails = myLessonsModule.useLessonDetails as jest.Mock;
     useLessonDetails.mockReturnValue({
       data: completedLesson,
       isLoading: false,

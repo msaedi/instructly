@@ -10,6 +10,7 @@ import {
   calculateCancellationFee,
 } from '@/hooks/useMyLessons';
 import { Booking } from '@/types/booking';
+import * as reactQueryApi from '@/lib/react-query/api';
 
 // Mock the booking service
 jest.mock('@/lib/api/bookings', () => ({
@@ -120,7 +121,7 @@ describe('useMyLessons hooks', () => {
 
     it('filters lessons correctly', async () => {
       // Update mock to return mixed statuses
-      const mockQueryFn = require('@/lib/react-query/api').queryFn;
+      const mockQueryFn = reactQueryApi.queryFn as jest.Mock;
       mockQueryFn.mockImplementation(() => async () => ({
         items: [
           {
@@ -169,7 +170,7 @@ describe('useMyLessons hooks', () => {
   describe('useLessonDetails', () => {
     it('fetches lesson details by ID', async () => {
       // Mock the queryFn for lesson details
-      const mockQueryFn = require('@/lib/react-query/api').queryFn;
+      const mockQueryFn = reactQueryApi.queryFn as jest.Mock;
       mockQueryFn.mockImplementation((_endpoint: string) => async () => ({
         id: 1,
         booking_date: '2024-12-25',
@@ -192,7 +193,7 @@ describe('useMyLessons hooks', () => {
 
     it('handles invalid lesson ID', async () => {
       // Mock the queryFn to throw error
-      const mockQueryFn = require('@/lib/react-query/api').queryFn;
+      const mockQueryFn = reactQueryApi.queryFn as jest.Mock;
       mockQueryFn.mockImplementation(() => async () => {
         throw new Error('Booking not found');
       });
@@ -223,7 +224,7 @@ describe('useMyLessons hooks', () => {
 
     it('handles cancellation errors', async () => {
       // Mock mutationFn to throw error
-      const mockMutationFn = require('@/lib/react-query/api').mutationFn;
+      const mockMutationFn = reactQueryApi.mutationFn as jest.Mock;
       mockMutationFn.mockImplementation(() => async () => {
         throw new Error('Cannot cancel within 1 hour');
       });

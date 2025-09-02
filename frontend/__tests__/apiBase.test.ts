@@ -27,7 +27,8 @@ describe('API Base Configuration', () => {
       process.env.NEXT_PUBLIC_API_BASE = 'http://api.example.com';
 
       expect(() => {
-        require('@/lib/apiBase');
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('@/lib/apiBase');
       }).toThrow('NEXT_PUBLIC_API_URL is deprecated. Use NEXT_PUBLIC_API_BASE.');
     });
 
@@ -38,6 +39,7 @@ describe('API Base Configuration', () => {
 
       const mockError = jest.spyOn(console, 'error').mockImplementation();
 
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       require('@/lib/apiBase');
 
       expect(mockError).toHaveBeenCalledWith(
@@ -51,13 +53,15 @@ describe('API Base Configuration', () => {
   describe('Phase A.1: Single source of truth', () => {
     it('should throw error when NEXT_PUBLIC_API_BASE is not set', () => {
       expect(() => {
-        require('@/lib/apiBase');
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('@/lib/apiBase');
       }).toThrow('NEXT_PUBLIC_API_BASE is not set. Refusing to default to localhost.');
     });
 
     it('should use NEXT_PUBLIC_API_BASE when set', () => {
       process.env.NEXT_PUBLIC_API_BASE = 'https://api.example.com';
 
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { API_BASE } = require('@/lib/apiBase');
 
       expect(API_BASE).toBe('https://api.example.com');
@@ -66,6 +70,7 @@ describe('API Base Configuration', () => {
     it('should remove trailing slashes from API_BASE', () => {
       process.env.NEXT_PUBLIC_API_BASE = 'https://api.example.com///';
 
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { API_BASE } = require('@/lib/apiBase');
 
       expect(API_BASE).toBe('https://api.example.com');
@@ -76,6 +81,7 @@ describe('API Base Configuration', () => {
       process.env.NEXT_PUBLIC_USE_PROXY = 'true';
       process.env.NEXT_PUBLIC_API_BASE = 'http://localhost:8000';
 
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { API_BASE } = require('@/lib/apiBase');
 
       expect(API_BASE).toBe('/api/proxy');
@@ -86,6 +92,7 @@ describe('API Base Configuration', () => {
       process.env.NEXT_PUBLIC_USE_PROXY = 'false';
       process.env.NEXT_PUBLIC_API_BASE = 'http://localhost:8000';
 
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { API_BASE } = require('@/lib/apiBase');
 
       expect(API_BASE).toBe('http://localhost:8000');
@@ -98,18 +105,21 @@ describe('API Base Configuration', () => {
     });
 
     it('should build correct URL with leading slash', () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { withApiBase } = require('@/lib/apiBase');
 
       expect(withApiBase('/users/123')).toBe('https://api.example.com/users/123');
     });
 
     it('should build correct URL without leading slash', () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { withApiBase } = require('@/lib/apiBase');
 
       expect(withApiBase('users/123')).toBe('https://api.example.com/users/123');
     });
 
     it('should handle multiple leading slashes', () => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { withApiBase } = require('@/lib/apiBase');
 
       expect(withApiBase('///users/123')).toBe('https://api.example.com/users/123');

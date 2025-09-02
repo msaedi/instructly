@@ -2,6 +2,8 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import MyLessonsPage from '@/app/(auth)/student/lessons/page';
+import * as myLessonsModule from '@/hooks/useMyLessons';
+import * as authModule from '@/features/shared/hooks/useAuth';
 
 // Mock next/navigation
 const mockPush = jest.fn();
@@ -184,7 +186,7 @@ describe('MyLessonsPage', () => {
     jest.clearAllMocks();
 
     // Reset the auth mock to authenticated state
-    const { useAuth } = require('@/features/shared/hooks/useAuth');
+    const useAuth = authModule.useAuth as jest.Mock;
     useAuth.mockReturnValue({
       isAuthenticated: true,
       isLoading: false,
@@ -193,7 +195,8 @@ describe('MyLessonsPage', () => {
   });
 
   it('renders the page with title and tabs', () => {
-    const { useCurrentLessons, useCompletedLessons } = require('@/hooks/useMyLessons');
+    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
+    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
     useCurrentLessons.mockReturnValue({
       data: mockUpcomingLessons,
       isLoading: false,
@@ -215,7 +218,8 @@ describe('MyLessonsPage', () => {
   });
 
   it('shows upcoming lessons by default', () => {
-    const { useCurrentLessons, useCompletedLessons } = require('@/hooks/useMyLessons');
+    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
+    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
     useCurrentLessons.mockReturnValue({
       data: mockUpcomingLessons,
       isLoading: false,
@@ -236,7 +240,8 @@ describe('MyLessonsPage', () => {
   });
 
   it('switches to history tab when clicked', async () => {
-    const { useCurrentLessons, useCompletedLessons } = require('@/hooks/useMyLessons');
+    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
+    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
     useCurrentLessons.mockReturnValue({
       data: mockUpcomingLessons,
       isLoading: false,
@@ -259,7 +264,8 @@ describe('MyLessonsPage', () => {
   });
 
   it('navigates to lesson details when card is clicked', () => {
-    const { useCurrentLessons, useCompletedLessons } = require('@/hooks/useMyLessons');
+    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
+    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
     useCurrentLessons.mockReturnValue({
       data: mockUpcomingLessons,
       isLoading: false,
@@ -281,7 +287,8 @@ describe('MyLessonsPage', () => {
   });
 
   it('shows loading state', () => {
-    const { useCurrentLessons, useCompletedLessons } = require('@/hooks/useMyLessons');
+    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
+    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
     useCurrentLessons.mockReturnValue({
       data: null,
       isLoading: true,
@@ -301,7 +308,8 @@ describe('MyLessonsPage', () => {
   });
 
   it('shows error state with retry button', () => {
-    const { useCurrentLessons, useCompletedLessons } = require('@/hooks/useMyLessons');
+    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
+    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
     useCurrentLessons.mockReturnValue({
       data: null,
       isLoading: false,
@@ -323,7 +331,8 @@ describe('MyLessonsPage', () => {
   });
 
   it('shows empty state for upcoming lessons', () => {
-    const { useCurrentLessons, useCompletedLessons } = require('@/hooks/useMyLessons');
+    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
+    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
     useCurrentLessons.mockReturnValue({
       data: { items: [], total: 0, page: 1, per_page: 50, has_next: false, has_prev: false },
       isLoading: false,
@@ -342,7 +351,8 @@ describe('MyLessonsPage', () => {
   });
 
   it('shows empty state for history', async () => {
-    const { useCurrentLessons, useCompletedLessons } = require('@/hooks/useMyLessons');
+    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
+    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
     useCurrentLessons.mockReturnValue({
       data: { items: [], total: 0, page: 1, per_page: 50, has_next: false, has_prev: false },
       isLoading: false,
@@ -368,7 +378,7 @@ describe('MyLessonsPage', () => {
   });
 
   it('redirects to login when not authenticated', () => {
-    const { useAuth } = require('@/features/shared/hooks/useAuth');
+    const useAuth = authModule.useAuth as jest.Mock;
     const mockRedirectToLogin = jest.fn();
     useAuth.mockReturnValue({
       isAuthenticated: false,
@@ -382,7 +392,7 @@ describe('MyLessonsPage', () => {
   });
 
   it('handles 401 error by redirecting to login', () => {
-    const { useAuth } = require('@/features/shared/hooks/useAuth');
+    const useAuth = authModule.useAuth as jest.Mock;
     const mockRedirectToLogin = jest.fn();
     useAuth.mockReturnValue({
       isAuthenticated: true,
@@ -390,7 +400,8 @@ describe('MyLessonsPage', () => {
       redirectToLogin: mockRedirectToLogin,
     });
 
-    const { useCurrentLessons, useCompletedLessons } = require('@/hooks/useMyLessons');
+    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
+    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
     useCurrentLessons.mockReturnValue({
       data: null,
       isLoading: false,
@@ -408,7 +419,7 @@ describe('MyLessonsPage', () => {
   });
 
   it('shows loading while checking authentication', () => {
-    const { useAuth } = require('@/features/shared/hooks/useAuth');
+    const useAuth = authModule.useAuth as jest.Mock;
     useAuth.mockReturnValue({
       isAuthenticated: false,
       isLoading: true,
@@ -423,7 +434,8 @@ describe('MyLessonsPage', () => {
   });
 
   it('shows correct empty state message for upcoming lessons', () => {
-    const { useCurrentLessons, useCompletedLessons } = require('@/hooks/useMyLessons');
+    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
+    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
     useCurrentLessons.mockReturnValue({
       data: { items: [], total: 0, page: 1, per_page: 50, has_next: false, has_prev: false },
       isLoading: false,
@@ -443,7 +455,8 @@ describe('MyLessonsPage', () => {
   });
 
   it('maintains tab state when switching between tabs', async () => {
-    const { useCurrentLessons, useCompletedLessons } = require('@/hooks/useMyLessons');
+    const useCurrentLessons = myLessonsModule.useCurrentLessons as jest.Mock;
+    const useCompletedLessons = myLessonsModule.useCompletedLessons as jest.Mock;
     useCurrentLessons.mockReturnValue({
       data: mockUpcomingLessons,
       isLoading: false,

@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { CancelWarningModal } from '@/components/lessons/modals/CancelWarningModal';
 import { Booking } from '@/types/booking';
+import * as myLessonsModule from '@/hooks/useMyLessons';
 
 // Mock the useMyLessons hook
 jest.mock('@/hooks/useMyLessons', () => ({
@@ -97,7 +98,7 @@ describe('CancelWarningModal', () => {
 
   it('shows warning for late cancellation', () => {
     // Mock a late cancellation scenario
-    const calculateCancellationFee = require('@/hooks/useMyLessons').calculateCancellationFee;
+    const calculateCancellationFee = myLessonsModule.calculateCancellationFee as jest.Mock;
     calculateCancellationFee.mockReturnValue({ fee: 30, percentage: 50, hoursUntil: 18 }); // 50% fee
 
     render(
@@ -132,7 +133,7 @@ describe('CancelWarningModal', () => {
 
   it('calls onReschedule when Continue then Reschedule is clicked', () => {
     // Mock >12 hours until lesson to show reschedule option
-    const calculateCancellationFee = require('@/hooks/useMyLessons').calculateCancellationFee;
+    const calculateCancellationFee = myLessonsModule.calculateCancellationFee as jest.Mock;
     calculateCancellationFee.mockReturnValue({ fee: 0, percentage: 0, hoursUntil: 24 });
 
     render(
@@ -188,7 +189,7 @@ describe('CancelWarningModal', () => {
 
   it('shows no fee message for free cancellation', () => {
     // Mock the calculateCancellationFee to return 0 fee
-    const calculateCancellationFee = require('@/hooks/useMyLessons').calculateCancellationFee;
+    const calculateCancellationFee = myLessonsModule.calculateCancellationFee as jest.Mock;
     calculateCancellationFee.mockReturnValue({ fee: 0, percentage: 0, hoursUntil: 120 }); // 5 days = 120 hours
 
     render(
@@ -205,7 +206,7 @@ describe('CancelWarningModal', () => {
   });
 
   it('shows 50% fee for late cancellation', () => {
-    const calculateCancellationFee = require('@/hooks/useMyLessons').calculateCancellationFee;
+    const calculateCancellationFee = myLessonsModule.calculateCancellationFee as jest.Mock;
     calculateCancellationFee.mockReturnValue({ fee: 30, percentage: 50, hoursUntil: 18 }); // 50% fee
 
     render(
@@ -222,7 +223,7 @@ describe('CancelWarningModal', () => {
   });
 
   it('shows 100% fee for very late cancellation', () => {
-    const calculateCancellationFee = require('@/hooks/useMyLessons').calculateCancellationFee;
+    const calculateCancellationFee = myLessonsModule.calculateCancellationFee as jest.Mock;
     calculateCancellationFee.mockReturnValue({ fee: 60, percentage: 100, hoursUntil: 8 }); // 100% fee
 
     render(
