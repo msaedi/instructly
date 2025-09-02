@@ -101,7 +101,7 @@ export function useCancelLesson() {
       mutationFn(`/bookings/${lessonId}/cancel`, {
         method: 'POST',
         requireAuth: true,
-      })({ reason }),
+      })({ reason }) as Promise<Booking>,
 
     onMutate: async ({ lessonId }) => {
       // Cancel any in-flight queries
@@ -160,7 +160,7 @@ export function useRescheduleLesson() {
         booking_date: newDate,
         start_time: newStartTime,
         end_time: newEndTime,
-      }),
+      }) as Promise<Booking>,
 
     onMutate: async ({ lessonId, newDate, newStartTime, newEndTime }) => {
       // Cancel any in-flight queries

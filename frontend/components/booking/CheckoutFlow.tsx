@@ -148,9 +148,10 @@ const PaymentForm: React.FC<{
       // Payment successful
       logger.info('Payment processed successfully');
       onSuccess(result.payment_intent_id);
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Payment processing error:', error);
-      onError(error.message || 'Payment failed. Please try again.');
+      const message = error instanceof Error ? error.message : 'Payment failed. Please try again.';
+      onError(message);
     } finally {
       setProcessing(false);
     }

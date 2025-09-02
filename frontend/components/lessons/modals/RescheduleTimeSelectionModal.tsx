@@ -6,10 +6,17 @@ import { format } from 'date-fns';
 import { logger } from '@/lib/logger';
 import { publicApi } from '@/features/shared/api/client';
 import { useAuth } from '@/features/shared/hooks/useAuth';
+import type { PublicInstructorAvailability } from '@/types/api';
 import Calendar from '@/features/student/booking/components/TimeSelectionModal/Calendar';
 import TimeDropdown from '@/features/student/booking/components/TimeSelectionModal/TimeDropdown';
 import DurationButtons from '@/features/student/booking/components/TimeSelectionModal/DurationButtons';
 import SummarySection from '@/features/student/booking/components/TimeSelectionModal/SummarySection';
+
+// Type for availability slots
+interface AvailabilitySlot {
+  start_time: string;
+  end_time: string;
+}
 
 interface RescheduleTimeSelectionModalProps {
   isOpen: boolean;
@@ -55,7 +62,7 @@ export default function RescheduleTimeSelectionModal({
   };
 
   const canReschedule = checkCanReschedule();
-  const studentTimezone = (user as any)?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const studentTimezone = user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   const formatDateInTz = (d: Date, tz: string) => {
     return new Intl.DateTimeFormat('en-CA', {
@@ -63,7 +70,7 @@ export default function RescheduleTimeSelectionModal({
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
-    } as any).format(d);
+    } as const).format(d);
   };
 
 
@@ -94,7 +101,7 @@ export default function RescheduleTimeSelectionModal({
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [timeSlots, setTimeSlots] = useState<string[]>([]);
   const [disabledDurations] = useState<number[]>([]);
-  const [availabilityData, setAvailabilityData] = useState<any>(null);
+  const [availabilityData, setAvailabilityData] = useState<PublicInstructorAvailability | null>(null);
   const [loadingAvailability, setLoadingAvailability] = useState(false);
   const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
 
@@ -132,7 +139,7 @@ export default function RescheduleTimeSelectionModal({
           const nowLocalStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
           const isToday = date === nowLocalStr;
 
-          const validSlots = slots.filter((slot: any) => {
+          const validSlots = slots.filter((slot: AvailabilitySlot) => {
             if (!isToday) return true;
             const [hours, minutes] = slot.start_time.split(':');
             const slotTime = new Date();
@@ -174,7 +181,7 @@ export default function RescheduleTimeSelectionModal({
             return times;
           };
 
-          const formattedSlots = slots.flatMap((slot: any) =>
+          const formattedSlots = slots.flatMap((slot: AvailabilitySlot) =>
             expandDiscreteStarts(slot.start_time, slot.end_time, 60, selectedDuration)
           );
 
@@ -233,7 +240,7 @@ export default function RescheduleTimeSelectionModal({
           return times;
         };
 
-        const formattedSlots = slots.flatMap((slot: any) =>
+        const formattedSlots = slots.flatMap((slot: AvailabilitySlot) =>
           expandDiscreteStarts(slot.start_time, slot.end_time, 60, selectedDuration)
         );
 

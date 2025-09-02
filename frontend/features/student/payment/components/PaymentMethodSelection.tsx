@@ -70,9 +70,9 @@ const AddCardFormInner: React.FC<{
       };
 
       onSuccess(newCard);
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Failed to save payment method', err);
-      setError(err.message || 'Failed to save payment method');
+      setError(err instanceof Error ? err.message : 'Failed to save payment method');
     } finally {
       setLoading(false);
     }

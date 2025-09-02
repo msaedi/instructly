@@ -141,7 +141,7 @@ export default function CodebaseMetricsPage() {
                 <div className="h-64">
                   {history && history.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={history.map((h: any) => ({ date: new Date(h.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), total_files: h.total_files }))}>
+                      <LineChart data={history.map((h: { timestamp: string; total_files: number }) => ({ date: new Date(h.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), total_files: h.total_files }))}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                         <XAxis dataKey="date" stroke="#6b7280" style={{ fontSize: '12px' }} />
                         <YAxis stroke="#6b7280" style={{ fontSize: '12px' }} />
@@ -159,7 +159,7 @@ export default function CodebaseMetricsPage() {
                 <div className="h-64">
                   {history && history.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={history.map((h: any) => ({ date: new Date(h.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), total_lines: h.total_lines, backend_lines: h.backend_lines, frontend_lines: h.frontend_lines }))}>
+                      <LineChart data={history.map((h: { timestamp: string; total_lines: number; backend_lines: number; frontend_lines: number }) => ({ date: new Date(h.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), total_lines: h.total_lines, backend_lines: h.backend_lines, frontend_lines: h.frontend_lines }))}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                         <XAxis dataKey="date" stroke="#6b7280" style={{ fontSize: '12px' }} />
                         <YAxis stroke="#6b7280" style={{ fontSize: '12px' }} />
@@ -179,7 +179,7 @@ export default function CodebaseMetricsPage() {
                 <div className="h-64">
                   {history && history.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={history.map((h: any) => ({ date: new Date(h.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), commits: h.git_commits }))}>
+                      <LineChart data={history.map((h: { timestamp: string; git_commits: number }) => ({ date: new Date(h.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), commits: h.git_commits }))}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                         <XAxis dataKey="date" stroke="#6b7280" style={{ fontSize: '12px' }} />
                         <YAxis stroke="#6b7280" style={{ fontSize: '12px' }} />

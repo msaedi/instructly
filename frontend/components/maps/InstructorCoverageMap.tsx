@@ -6,9 +6,28 @@ import { MapContainer, TileLayer, GeoJSON, AttributionControl, useMap } from 're
 import 'leaflet/dist/leaflet.css';
 import L, { type LatLngExpression, type LeafletEventHandlerFnMap } from 'leaflet';
 
+interface GeoJSONProperties {
+  [key: string]: unknown;
+  region?: string;
+  instructor_id?: string;
+  instructors_count?: number;
+  instructors?: string[];
+  name?: string;
+  region_id?: string;
+}
+
+interface GeoJSONFeature {
+  type: 'Feature';
+  geometry: {
+    type: string;
+    coordinates: unknown;
+  };
+  properties: GeoJSONProperties;
+}
+
 type FeatureCollection = {
   type: 'FeatureCollection';
-  features: any[];
+  features: GeoJSONFeature[];
 };
 
 interface InstructorCoverageMapProps {
@@ -117,15 +136,15 @@ export default function InstructorCoverageMap({
           <GeoJSON
             key={fc.features.length}
             data={fc}
-            style={(feature: any) => {
+            style={(feature: GeoJSONFeature) => {
               const serving = feature?.properties?.instructors || [];
               const highlighted = highlightInstructorId && serving.includes?.(highlightInstructorId);
               return highlighted
                 ? { color: '#7c3aed', weight: 2, fillOpacity: 0.35 }
                 : { color: '#7c3aed', weight: 1, fillOpacity: 0.12 };
             }}
-            onEachFeature={(feature, layer) => {
-              const props = (feature as any).properties || {};
+            onEachFeature={(feature: GeoJSONFeature, layer) => {
+              const props = feature.properties;
               const name = props.name || props.region_id || 'Coverage Area';
               layer.bindPopup(`<div>${name}</div>`);
             }}
@@ -160,7 +179,7 @@ function FitToCoverage({ featureCollection, focusInstructorId }: { featureCollec
   useEffect(() => {
     if (!hasInitiallyFit && !focusInstructorId) {
       try {
-        const layer = L.geoJSON(featureCollection as any);
+        const layer = L.geoJSON(featureCollection);
         const bounds = layer.getBounds();
         if (bounds.isValid()) {
           map.fitBounds(bounds, {
@@ -179,17 +198,17 @@ function FitToCoverage({ featureCollection, focusInstructorId }: { featureCollec
     if (focusInstructorId && featureCollection) {
       try {
         // Filter features for the specific instructor
-        const instructorFeatures = featureCollection.features.filter((feature: any) => {
+        const instructorFeatures = featureCollection.features.filter((feature) => {
           const instructors = feature.properties?.instructors || [];
           return instructors.includes(focusInstructorId);
         });
 
         if (instructorFeatures.length > 0) {
-          const instructorFC = {
+          const instructorFC: FeatureCollection = {
             type: 'FeatureCollection',
             features: instructorFeatures
           };
-          const layer = L.geoJSON(instructorFC as any);
+          const layer = L.geoJSON(instructorFC);
           const bounds = layer.getBounds();
           if (bounds.isValid()) {
             map.flyToBounds(bounds, {
@@ -336,7 +355,7 @@ function CustomControls() {
 
       // Locate button
       const locate = document.createElement('button');
-      Object.assign(locate.style, btnBase as any);
+      Object.assign(locate.style, btnBase);
       locate.title = 'Show your location';
       locate.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></svg>`;
       let locationMarker: L.CircleMarker | null = null;
@@ -348,7 +367,9 @@ function CustomControls() {
           (pos) => {
             const latlng = [pos.coords.latitude, pos.coords.longitude] as [number, number];
             // Stop ongoing animations to avoid jitter
-            (map as any).stop?.();
+            if ('stop' in map && typeof map.stop === 'function') {
+              map.stop();
+            }
             if (isMoving) return;
             isMoving = true;
             const targetZoom = Math.max(map.getZoom(), 14);
@@ -381,7 +402,7 @@ function CustomControls() {
       };
 
       const plus = document.createElement('button');
-      Object.assign(plus.style, btnBase as any);
+      Object.assign(plus.style, btnBase);
       plus.title = 'Zoom in';
       plus.innerHTML = '<span style="font-size:14px;font-weight:600;color:#555">+</span>';
       plus.onclick = (e) => {
@@ -390,7 +411,7 @@ function CustomControls() {
       };
 
       const minus = document.createElement('button');
-      Object.assign(minus.style, btnBase as any);
+      Object.assign(minus.style, btnBase);
       minus.title = 'Zoom out';
       minus.innerHTML = '<span style="font-size:14px;font-weight:600;color:#555">−</span>';
       minus.onclick = (e) => {

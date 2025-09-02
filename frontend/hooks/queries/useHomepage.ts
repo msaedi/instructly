@@ -1,9 +1,10 @@
 import { useQuery, useQueries } from '@tanstack/react-query';
 import { queryFn, convertApiResponse } from '@/lib/react-query/api';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
-import { publicApi } from '@/features/shared/api/client';
+import { publicApi, TopServicesResponse } from '@/features/shared/api/client';
 import { useUser } from './useUser';
 import type { UpcomingBooking, BookingListResponse } from '@/types/booking';
+import { SearchHistoryItem } from '@/lib/searchTracking';
 
 /**
  * Homepage-specific React Query hooks
@@ -137,12 +138,12 @@ interface HomepageData {
     error: Error | null;
   };
   recentSearches: {
-    data?: any[];
+    data?: SearchHistoryItem[];
     isLoading: boolean;
     error: Error | null;
   };
   featuredServices: {
-    data?: any;
+    data?: TopServicesResponse;
     isLoading: boolean;
     error: Error | null;
   };

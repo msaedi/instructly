@@ -29,7 +29,7 @@ function BookingConfirmationContent() {
           throw new Error(response.error);
         }
         if (response.data) {
-          setBooking(response.data as any);
+          setBooking(response.data);
         }
       } catch {
         setError('Failed to load booking details');
@@ -56,7 +56,7 @@ function BookingConfirmationContent() {
 
     const instructorName = formatInstructorFromUser(booking.instructor);
     const serviceName =
-      (booking.service as any)?.skill || `Service #${booking.instructor_service_id}`;
+      booking.service?.skill || booking.service_name || `Service #${booking.instructor_service_id}`;
 
     const icsContent = `BEGIN:VCALENDAR
 VERSION:2.0
@@ -149,7 +149,7 @@ END:VCALENDAR`;
 
   const instructorName = formatInstructorFromUser(booking.instructor);
   const serviceName =
-    (booking.service as any)?.skill || `Service #${booking.instructor_service_id}`;
+    booking.service?.skill || booking.service_name || `Service #${booking.instructor_service_id}`;
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">

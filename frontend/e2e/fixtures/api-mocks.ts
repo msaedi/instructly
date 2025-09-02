@@ -128,7 +128,7 @@ export async function mockBookingCreation(page: Page) {
   });
 }
 
-export async function mockAuthentication(routeContext: Page | any) {
+export async function mockAuthentication(routeContext: Page | { route: (pattern: string, handler: (route: Route) => Promise<void>) => Promise<void> }) {
   // Mock login endpoint
   await routeContext.route('**/auth/login', async (route: Route) => {
     // For POST requests, check credentials if needed
@@ -301,7 +301,7 @@ export async function mockAuthentication(routeContext: Page | any) {
   });
 }
 
-export async function setupAllMocks(page: Page, context: any = null) {
+export async function setupAllMocks(page: Page, context: { route: (pattern: string, handler: (route: Route) => Promise<void>) => Promise<void> } | null = null) {
   // Use broader API pattern matching like in debug test
   const routeContext = context || page;
 

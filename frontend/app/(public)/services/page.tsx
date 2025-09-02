@@ -65,7 +65,7 @@ interface CategoryWithServices {
   id: string;
   slug: string;
   name: string;
-  icon: any; // Lucide icon component
+  icon: React.ComponentType; // Lucide icon component
   subtitle: string;
   services: CatalogService[];
 }
@@ -147,7 +147,7 @@ export default function AllServicesPage() {
 
       // Transform the response to match our component's expected structure
       const categories: CategoryWithServices[] = servicesResponse.data.categories.map(
-        (category: any) => {
+        (category: { id: string; slug: string; name: string; subtitle: string; services: unknown[] }) => {
           // Find matching emoji from CATEGORY_CONFIG
           const config = CATEGORY_CONFIG.find((c) => c.slug === category.slug);
 
@@ -157,7 +157,7 @@ export default function AllServicesPage() {
             name: category.name.toUpperCase(), // Ensure uppercase for consistency
             icon: config?.icon || Search, // Default icon if not found
             subtitle: category.subtitle,
-            services: category.services.map((service: any) => ({
+            services: category.services.map((service: { id: string; category_id: string; name: string; slug: string }) => ({
               id: service.id,
               category_id: service.category_id,
               name: service.name,
@@ -226,7 +226,7 @@ export default function AllServicesPage() {
             name: category.name.toUpperCase(), // Ensure uppercase for consistency
             icon: config?.icon || Search, // Default icon if not found
             subtitle: category.subtitle,
-            services: category.services.map((service: any) => ({
+            services: category.services.map((service: { id: string; category_id: string; name: string; slug: string }) => ({
               id: service.id,
               category_id: service.category_id,
               name: service.name,
@@ -277,7 +277,7 @@ export default function AllServicesPage() {
       const existingIds = new Set(kidsCat.services.map((s) => s.id));
       const injected = kidsServices
         .filter((ks) => !existingIds.has(ks.id))
-        .map((ks) => ({
+        .map((ks): CatalogService => ({
           id: ks.id,
           category_id: kidsCat.id,
           name: ks.name,
@@ -291,7 +291,7 @@ export default function AllServicesPage() {
           instructor_count: 1,
           actual_min_price: undefined,
           actual_max_price: undefined,
-        } as any));
+        }));
       kidsCat.services = [...injected, ...kidsCat.services];
     }
     return clone;

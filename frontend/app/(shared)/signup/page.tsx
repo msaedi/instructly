@@ -301,14 +301,14 @@ function SignUpForm() {
       const guestSessionId = getGuestSessionId();
 
       // Prepare registration data with new fields
-      const registrationData: RegisterRequest & { guest_session_id?: string; metadata?: Record<string, any> } = {
+      const registrationData: RegisterRequest & { guest_session_id?: string; metadata?: Record<string, unknown> } = {
         first_name: formData.firstName.trim(),
         last_name: formData.lastName.trim(),
         email: formData.email.trim().toLowerCase(),
         phone: formatPhoneForAPI(formData.phone),
         zip_code: formData.zipCode.trim(),
         password: formData.password,
-        role: (searchParams.get('role') as any) === 'instructor' ? RoleName.INSTRUCTOR : RoleName.STUDENT,
+        role: searchParams.get('role') === 'instructor' ? RoleName.INSTRUCTOR : RoleName.STUDENT,
         ...(guestSessionId && { guest_session_id: guestSessionId }),
         metadata: {
           founding: searchParams.get('founding') === 'true' || undefined,
@@ -356,7 +356,7 @@ function SignUpForm() {
         }
         // Handle validation errors
         else if (Array.isArray(errorData.detail)) {
-          errorMessage = errorData.detail.map((e: any) => e.msg).join(', ');
+          errorMessage = errorData.detail.map((e: { msg: string }) => e.msg).join(', ');
         }
         // Handle email already exists
         else if (
@@ -458,7 +458,7 @@ function SignUpForm() {
             });
           }
         } catch (e) {
-          logger.warn('Failed to consume beta invite after signup', e as any);
+          logger.warn('Failed to consume beta invite after signup', e instanceof Error ? e : new Error(String(e)));
         }
         logger.info('User data fetched, redirecting based on role', {
           userId: userData.id,

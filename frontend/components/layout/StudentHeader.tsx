@@ -96,7 +96,7 @@ export function StudentHeader() {
               className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100 transition-colors"
             >
               {isMounted && user ? (
-                <UserAvatar user={user as any} size={32} />
+                <UserAvatar user={user} size={32} />
               ) : (
                 <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
                   <User className="h-4 w-4 text-primary" />

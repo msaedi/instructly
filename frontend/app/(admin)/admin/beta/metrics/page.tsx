@@ -82,7 +82,7 @@ export default function BetaMetricsPage() {
   );
 }
 
-function MetricsCard({ title, data }: { title: string; data: any }) {
+function MetricsCard({ title, data }: { title: string; data: Record<string, unknown> | undefined }) {
   return (
     <div className="rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur p-4">
       <h2 className="text-sm font-semibold mb-2">{title}</h2>

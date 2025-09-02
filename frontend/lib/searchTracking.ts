@@ -24,7 +24,16 @@ export interface SearchRecord {
   results_count?: number | null;
   timestamp?: string;
   // Optional: top-N candidates from search response for observability persistence
-  observability_candidates?: Array<Record<string, any>>;
+  observability_candidates?: Array<Record<string, unknown>>;
+}
+
+export interface SearchHistoryItem {
+  id?: number;
+  query: string;
+  search_type: SearchType;
+  results_count?: number | null;
+  timestamp: string;
+  created_at?: string;
 }
 
 /**
@@ -162,7 +171,14 @@ export async function recordSearch(
     logger.debug('Search tracking - device info', { deviceInfo });
 
     // Build payload with optional observability candidates if provided
-    const body: any = {
+    const body: {
+      search_query: string;
+      search_type: SearchType;
+      results_count?: number | null;
+      search_context: { page: string; viewport: string; timestamp: string; page_view_count: number; session_duration: number };
+      device_context: Record<string, unknown>;
+      observability_candidates?: Array<Record<string, unknown>>;
+    } = {
       search_query: searchRecord.query,
       search_type: searchRecord.search_type,
       results_count: searchRecord.results_count,
@@ -222,7 +238,7 @@ export async function recordSearch(
 export async function getRecentSearches(
   isAuthenticated: boolean,
   limit: number = 3
-): Promise<any[]> {
+): Promise<SearchHistoryItem[]> {
   try {
     const response = await fetch(buildUrl(`/api/search-history/?limit=${limit}`), {
       method: 'GET',

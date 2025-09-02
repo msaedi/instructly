@@ -69,6 +69,12 @@ export interface User {
 
   /** Whether user account is active */
   is_active?: boolean;
+
+  /** Whether user has profile picture (optional API field) */
+  has_profile_picture?: boolean;
+
+  /** Profile picture version (optional API field) */
+  profile_picture_version?: number;
 }
 
 /**

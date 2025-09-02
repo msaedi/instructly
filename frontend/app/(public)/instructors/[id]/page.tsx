@@ -89,7 +89,7 @@ function InstructorProfileContent() {
   // Detect rate limit errors and auto-retry once with a friendly inline banner
   useEffect(() => {
     if (!error) return;
-    const message = (error as any)?.message || '';
+    const message = (error as Record<string, unknown>)?.message as string || '';
     const isRateLimited = /hamsters|Too Many Requests|rate limit/i.test(message);
     if (!isRateLimited) return;
     const m = message.match(/(\d+)s/);
@@ -141,7 +141,7 @@ function InstructorProfileContent() {
   const bookingModal = useBookingModal();
 
   // Helper function to handle booking - checks auth and redirects if needed
-  const handleBookingClick = (service?: any, serviceDuration?: number) => {
+  const handleBookingClick = (service?: Record<string, unknown>, serviceDuration?: number) => {
     const token = localStorage.getItem('access_token');
     const selectedService = service || instructor?.services[0]; // Use provided service or default to first
     const duration = serviceDuration || 60; // Use provided duration or default
@@ -186,7 +186,7 @@ function InstructorProfileContent() {
         serviceFee,
         totalAmount,
         bookingType,
-        paymentStatus: 'pending' as any,
+        paymentStatus: 'pending' as const,
         freeCancellationUntil:
           bookingType === BookingType.STANDARD
             ? new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
@@ -317,7 +317,7 @@ function InstructorProfileContent() {
         const startHour = parseInt(selectedSlot.time.split(':')[0]);
 
         // Find the slot that contains this start time
-        const containingSlot = dayData.available_slots.find((slot: any) => {
+        const containingSlot = dayData.available_slots.find((slot: Record<string, unknown>) => {
           const slotStart = parseInt(slot.start_time.split(':')[0]);
           const slotEnd = parseInt(slot.end_time.split(':')[0]);
           return startHour >= slotStart && startHour < slotEnd;
@@ -614,7 +614,7 @@ function InstructorProfileContent() {
                 serviceFee,
                 totalAmount,
                 bookingType,
-                paymentStatus: 'pending' as any,
+                paymentStatus: 'pending' as const,
                 freeCancellationUntil:
                   bookingType === BookingType.STANDARD
                     ? new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)

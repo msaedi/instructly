@@ -17,6 +17,7 @@ import {
   ExistingSlot,
   WeekDateInfo,
   AvailabilityMessage,
+  TimeSlot,
 } from '@/types/availability';
 import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import {
@@ -223,7 +224,7 @@ export function useWeekSchedule(
         const detailedData = await detailedResponse.json();
         logger.debug('Fetched detailed slots', { count: detailedData.length });
 
-        const slots: ExistingSlot[] = detailedData.map((slot: any) => ({
+        const slots: ExistingSlot[] = detailedData.map((slot: { id: string; specific_date: string; start_time: string; end_time: string }) => ({
           id: slot.id,
           date: slot.specific_date,
           start_time: slot.start_time,
@@ -254,8 +255,8 @@ export function useWeekSchedule(
       // Set data directly - API is standardized
       const cleanedData: WeekSchedule = {};
       Object.entries(data).forEach(([date, slots]) => {
-        if (slots && (slots as any[]).length > 0) {
-          cleanedData[date] = slots as any[];
+        if (slots && Array.isArray(slots) && slots.length > 0) {
+          cleanedData[date] = slots as TimeSlot[];
         }
       });
 

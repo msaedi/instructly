@@ -60,7 +60,7 @@ export interface DateRangeParams {
  */
 export interface SearchParams {
   query: string;
-  filters?: Record<string, any>;
+  filters?: Record<string, unknown>;
   sort?: string;
   order?: 'asc' | 'desc';
 }
@@ -107,12 +107,12 @@ export function createQueryKey<TParams = void>(
  * type UserData = ExtractQueryData<typeof useUser>;
  * ```
  */
-export type ExtractQueryData<T> = T extends (...args: any[]) => { data?: infer D } ? D : never;
+export type ExtractQueryData<T> = T extends (...args: unknown[]) => { data?: infer D } ? D : never;
 
 /**
  * Extract error type from a query hook
  */
-export type ExtractQueryError<T> = T extends (...args: any[]) => { error?: infer E } ? E : never;
+export type ExtractQueryError<T> = T extends (...args: unknown[]) => { error?: infer E } ? E : never;
 
 /**
  * Common query states

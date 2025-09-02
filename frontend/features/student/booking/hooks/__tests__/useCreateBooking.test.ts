@@ -2,6 +2,7 @@
 import { renderHook, act } from '@testing-library/react';
 import { useCreateBooking } from '../useCreateBooking';
 import * as apiClient from '@/features/shared/api/client';
+import { Booking } from '@/types/booking';
 
 // Mock the API module
 jest.mock('@/features/shared/api/client');
@@ -28,16 +29,16 @@ describe.skip('useCreateBooking', () => {
       const { result } = renderHook(() => useCreateBooking());
 
       await act(async () => {
-        await (result as any).current.createBooking({
-          instructor_id: 1,
-          service_id: 1,
+        await result.current.createBooking({
+          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
+          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
           booking_date: '2024-01-15',
           start_time: '14:00:00',
           end_time: '15:00:00',
           selected_duration: 60,
           meeting_location: 'Online',
           location_type: 'neutral',
-        } as any);
+        });
       });
 
       expect(result.current.error).toBe(
@@ -57,16 +58,16 @@ describe.skip('useCreateBooking', () => {
       const { result } = renderHook(() => useCreateBooking());
 
       await act(async () => {
-        await (result as any).current.createBooking({
-          instructor_id: 1,
-          service_id: 1,
+        await result.current.createBooking({
+          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
+          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
           booking_date: '2024-01-15',
           start_time: '14:00:00',
           end_time: '15:00:00',
           selected_duration: 60,
           meeting_location: 'Online',
           location_type: 'neutral',
-        } as any);
+        });
       });
 
       expect(result.current.error).toBe(
@@ -85,16 +86,16 @@ describe.skip('useCreateBooking', () => {
       const { result } = renderHook(() => useCreateBooking());
 
       await act(async () => {
-        await (result as any).current.createBooking({
-          instructor_id: 1,
-          service_id: 1,
+        await result.current.createBooking({
+          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
+          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
           booking_date: '2024-01-15',
           start_time: '14:00:00',
           end_time: '15:00:00',
           selected_duration: 60,
           meeting_location: 'Online',
           location_type: 'neutral',
-        } as any);
+        });
       });
 
       expect(result.current.error).toBe('You must be logged in to book lessons');
@@ -110,16 +111,16 @@ describe.skip('useCreateBooking', () => {
       const { result } = renderHook(() => useCreateBooking());
 
       await act(async () => {
-        await (result as any).current.createBooking({
-          instructor_id: 1,
-          service_id: 1,
+        await result.current.createBooking({
+          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
+          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
           booking_date: '2024-01-15',
           start_time: '14:00:00',
           end_time: '15:00:00',
           selected_duration: 60,
           meeting_location: 'Online',
           location_type: 'neutral',
-        } as any);
+        });
       });
 
       expect(result.current.error).toBe(
@@ -139,16 +140,16 @@ describe.skip('useCreateBooking', () => {
 
       // Create an error by making a failing call
       await act(async () => {
-        await (result as any).current.createBooking({
-          instructor_id: 1,
-          service_id: 1,
+        await result.current.createBooking({
+          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
+          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
           booking_date: '2024-01-15',
           start_time: '14:00:00',
           end_time: '15:00:00',
           selected_duration: 60,
           meeting_location: 'Online',
           location_type: 'neutral',
-        } as any);
+        });
       });
 
       expect(result.current.error).toBeTruthy();
@@ -165,20 +166,32 @@ describe.skip('useCreateBooking', () => {
 
   describe('Successful Booking', () => {
     it('should create booking successfully', async () => {
-      const booking: any = {
-        id: '1',
-        instructor_id: '2',
-        student_id: '3',
-        service_id: '4',
+      const booking: Partial<Booking> = {
+        id: '01K2GY3VEVJWKZDVH5HMNXEVRD',
+        instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR2',
+        student_id: '01K2GY3VEVJWKZDVH5HMNXEVR3',
+        instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
         booking_date: '2025-01-01',
-        start_time: '10:00',
-        end_time: '11:00',
-        status: 'confirmed',
+        start_time: '10:00:00',
+        end_time: '11:00:00',
+        status: 'CONFIRMED',
+        service_name: 'Service',
+        hourly_rate: 100,
         total_price: 100,
+        duration_minutes: 60,
         created_at: '2025-01-01T00:00:00Z',
         updated_at: '2025-01-01T00:00:00Z',
-        instructor: { id: '2', first_name: 'A', last_name: 'B' },
-        service: { id: '4', name: 'Service' },
+        instructor: { id: '01K2GY3VEVJWKZDVH5HMNXEVR2', first_name: 'A', last_initial: 'B' },
+        service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
+        service: {
+          id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
+          instructor_profile_id: '01K2GY3VEVJWKZDVH5HMNXEVR2',
+          name: 'Service',
+          description: 'Test service',
+          hourly_rate: 100,
+          created_at: '2025-01-01T00:00:00Z',
+          updated_at: '2025-01-01T00:00:00Z'
+        },
       };
 
       mockCreateBooking.mockResolvedValueOnce({
@@ -190,16 +203,16 @@ describe.skip('useCreateBooking', () => {
       const { result } = renderHook(() => useCreateBooking());
 
       await act(async () => {
-        await (result as any).current.createBooking({
-          instructor_id: 1,
-          service_id: 1,
+        await result.current.createBooking({
+          instructor_id: '01K2GY3VEVJWKZDVH5HMNXEVR1',
+          instructor_service_id: '01K2GY3VEVJWKZDVH5HMNXEVR4',
           booking_date: '2024-01-15',
           start_time: '14:00:00',
           end_time: '15:00:00',
           selected_duration: 60,
           meeting_location: 'Online',
           location_type: 'neutral',
-        } as any);
+        });
       });
 
       expect(result.current.booking).toEqual(booking);

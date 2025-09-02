@@ -97,7 +97,7 @@ export default function InstructorProfileSettingsPage() {
           logger.debug('Prefill: /api/addresses/me status', { status: addrRes.status });
           if (addrRes.ok) {
             const list = await addrRes.json();
-            const def = (list.items || []).find((a: any) => a.is_default) || (list.items || [])[0];
+            const def = (list.items || []).find((a: unknown) => (a as Record<string, unknown>).is_default) || (list.items || [])[0];
             postalCode = def?.postal_code || '';
             logger.debug('Prefill: selected default address', { id: def?.id, postal_code: postalCode });
           }
@@ -129,14 +129,14 @@ export default function InstructorProfileSettingsPage() {
             const areas: ServiceAreasResponse = await areasRes.json();
             const items = (areas.items || []) as ServiceAreaItem[];
             const ids = items
-              .map((a) => a.neighborhood_id || (a as any).id)
+              .map((a) => a.neighborhood_id || (a as Record<string, unknown>).id as string)
               .filter((v: string | undefined): v is string => typeof v === 'string');
             setSelectedNeighborhoods(new Set(ids));
             // Prime name map so selections show even before a borough loads
             setIdToItem((prev) => {
               const next = { ...prev } as Record<string, ServiceAreaItem>;
               for (const a of items) {
-                const nid = a.neighborhood_id || (a as any).id;
+                const nid = a.neighborhood_id || (a as Record<string, unknown>).id as string;
                 if (nid) next[nid] = a;
               }
               return next;
@@ -149,7 +149,7 @@ export default function InstructorProfileSettingsPage() {
           const addrRes = await fetchWithAuth('/api/addresses/me');
           if (addrRes.ok) {
             const list = await addrRes.json();
-            const def = (list.items || []).find((a: any) => a.is_default) || (list.items || [])[0];
+            const def = (list.items || []).find((a: unknown) => (a as Record<string, unknown>).is_default) || (list.items || [])[0];
             const zip = def?.postal_code;
             if (zip) {
               const nycRes = await fetch(`${process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'}${API_ENDPOINTS.NYC_ZIP_CHECK}?zip=${encodeURIComponent(zip)}`);
@@ -204,7 +204,7 @@ export default function InstructorProfileSettingsPage() {
         setIdToItem((prev) => {
           const next = { ...prev } as Record<string, ServiceAreaItem>;
           for (const it of list) {
-            const nid = it.neighborhood_id || (it as any).id;
+            const nid = it.neighborhood_id || (it as Record<string, unknown>).id as string;
             if (nid) next[nid] = it;
           }
           return next;
@@ -287,7 +287,7 @@ export default function InstructorProfileSettingsPage() {
         const addrRes = await fetchWithAuth('/api/addresses/me');
         if (addrRes.ok) {
           const list = await addrRes.json();
-          const items = (list.items || []) as any[];
+          const items = (list.items || []) as Record<string, unknown>[];
           const def = items.find((a) => a.is_default) || items[0];
           if (def) {
             const currentZip = def.postal_code || '';
@@ -329,7 +329,7 @@ export default function InstructorProfileSettingsPage() {
 
   const toggleBoroughAll = (borough: string, value: boolean, itemsOverride?: ServiceAreaItem[]) => {
     const items = itemsOverride || boroughNeighborhoods[borough] || [];
-    const ids = items.map((i) => i.neighborhood_id || (i as any).id);
+    const ids = items.map((i) => i.neighborhood_id || (i as Record<string, unknown>).id as string);
     setSelectedNeighborhoods((prev) => {
       const next = new Set(prev);
       if (value) {
@@ -354,7 +354,7 @@ export default function InstructorProfileSettingsPage() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _getBoroughCounts = (_borough: string) => {
     const list = boroughNeighborhoods[_borough] || [];
-    const ids = list.map((n) => n.neighborhood_id || (n as any).id).filter(Boolean) as string[];
+    const ids = list.map((n) => n.neighborhood_id || (n as Record<string, unknown>).id as string).filter(Boolean) as string[];
     let selected = 0;
     if (ids.length) {
       for (const id of ids) if (selectedNeighborhoods.has(id)) selected++;
@@ -573,7 +573,7 @@ export default function InstructorProfileSettingsPage() {
                   {NYC_BOROUGHS.flatMap((b) => boroughNeighborhoods[b] || [])
                     .filter((n) => (n.name || '').toLowerCase().includes(globalNeighborhoodFilter.toLowerCase()))
                     .map((n) => {
-                      const nid = n.neighborhood_id || (n as any).id;
+                      const nid = n.neighborhood_id || (n as Record<string, unknown>).id as string;
                       if (!nid) return null;
                       const checked = selectedNeighborhoods.has(nid);
                       return (
@@ -650,7 +650,7 @@ export default function InstructorProfileSettingsPage() {
                       {isOpen && (
                         <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-80 overflow-y-auto overflow-x-hidden scrollbar-hide">
                           {(list || []).map((n) => {
-                            const nid = n.neighborhood_id || (n as any).id;
+                            const nid = n.neighborhood_id || (n as Record<string, unknown>).id as string;
                             if (!nid) return null;
                             const checked = selectedNeighborhoods.has(nid);
                             const label = toTitle(n.name || String(nid));

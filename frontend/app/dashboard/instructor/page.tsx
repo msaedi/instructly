@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- Legacy file being replaced by Phoenix routes under (auth)/instructor/ */
 // frontend/app/dashboard/instructor/page.tsx
 'use client';
 // LEGACY-ONLY: This is the legacy instructor dashboard. Phoenix routes live under (auth)/instructor/*.
@@ -410,7 +411,7 @@ export default function InstructorDashboard() {
               try {
                 const res = await fetchWithAuth('/api/payments/connect/instant-payout', { method: 'POST' });
                 if (!res.ok) {
-                  const err = await res.json().catch(() => ({} as any));
+                  const err = await res.json().catch(() => ({} as Record<string, unknown>));
                   alert(`Instant payout failed: ${err.detail || res.statusText}`);
                   return;
                 }

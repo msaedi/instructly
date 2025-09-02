@@ -128,7 +128,7 @@ describe('InstructorInfo', () => {
     render(<InstructorInfo instructor={mockInstructor} onChat={mockOnChatWithEvent} />);
 
     const chatButton = screen.getByRole('button', { name: /chat/i });
-    fireEvent.click(chatButton, mockEvent as any);
+    fireEvent.click(chatButton, mockEvent as unknown as React.MouseEvent<HTMLButtonElement>);
 
     expect(mockOnChatWithEvent).toHaveBeenCalled();
   });

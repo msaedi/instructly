@@ -77,7 +77,12 @@ export interface TimeRange {
 }
 
 export interface WeekSpecificScheduleCreate {
-  schedule: Record<string, any>[];
+  schedule: Array<{
+    date: string;
+    start_time: string;
+    end_time: string;
+    [key: string]: unknown;
+  }>;
   clear_existing?: boolean;
   week_start?: string | null;
 }
@@ -129,7 +134,7 @@ export interface ValidationSlotDetail {
   end_time?: string | null;
   slot_id?: string | null;
   reason?: string | null;
-  conflicts_with?: Record<string, any>[] | null;
+  conflicts_with?: Array<Record<string, unknown>> | null;
 }
 
 export interface ValidationSummary {
@@ -240,7 +245,7 @@ export interface AvailabilityCheckResponse {
   available: boolean;
   reason?: string | null;
   min_advance_hours?: number | null;
-  conflicts_with?: Record<string, any>[] | null;
+  conflicts_with?: Array<Record<string, unknown>> | null;
 }
 
 export interface BookingStatsResponse {
@@ -272,7 +277,7 @@ export interface BookingOpportunity {
 export interface FindBookingOpportunitiesResponse {
   opportunities: BookingOpportunity[];
   total_found: number;
-  search_parameters: Record<string, any>;
+  search_parameters: Record<string, unknown>;
 }
 
 // From instructor.py
@@ -366,7 +371,7 @@ export interface PublicAvailabilitySummary {
   instructor_id: string;
   instructor_first_name?: string | null;
   instructor_last_initial?: string | null;
-  availability_summary: Record<string, Record<string, any>>;
+  availability_summary: Record<string, Record<string, unknown>>;
   timezone?: string;
   total_available_days: number;
   detail_level?: 'summary';

@@ -48,7 +48,7 @@ export default function PaymentConfirmation({
   const [conflictMessage, setConflictMessage] = useState<string>('');
   const [isCheckingConflict, setIsCheckingConflict] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [instructorServices, setInstructorServices] = useState<any[]>([]);
+  const [instructorServices, setInstructorServices] = useState<InstructorService[]>([]);
   const [loadingInstructor, setLoadingInstructor] = useState(false);
 
   // Track if credits are enabled (slider is shown) separately from amount
@@ -87,7 +87,7 @@ export default function PaymentConfirmation({
           const existingBookings = response.data.items || [];
 
           // Check if any existing booking conflicts with the new one
-          const conflict = existingBookings.find((existing: any) => {
+          const conflict = existingBookings.find((existing: { booking_date: string; start_time: string; end_time: string; status: string }) => {
             // Same date
             if (existing.booking_date !== booking.date) return false;
 

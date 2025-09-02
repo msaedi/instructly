@@ -1,7 +1,7 @@
 'use client';
 
 import { MotionProps, m, useReducedMotion } from 'motion/react';
-import React, { PropsWithChildren } from 'react';
+import React, { PropsWithChildren, ElementType } from 'react';
 
 type RevealProps = PropsWithChildren<{
   as?: keyof React.JSX.IntrinsicElements;
@@ -14,12 +14,12 @@ export default function Reveal({ as: Tag = 'div', delay = 0.05, y = 8, className
   const prefersReduced = useReducedMotion();
   if (prefersReduced) {
     // Render without motion when user prefers reduced motion
-    const StaticTag: any = Tag;
+    const StaticTag = Tag as ElementType;
     return <StaticTag className={className}>{children}</StaticTag>;
   }
   // Map limited set of safe intrinsic tags to motion components; default to div
-  const motionMap: Record<string, any> = { div: m.div, section: m.section, article: m.article, span: m.span };
-  const MotionTag: any = motionMap[String(Tag)] || m.div;
+  const motionMap = { div: m.div, section: m.section, article: m.article, span: m.span } as const;
+  const MotionTag = motionMap[Tag as keyof typeof motionMap] || m.div;
   return (
     <MotionTag
       initial={{ opacity: 0, y }}

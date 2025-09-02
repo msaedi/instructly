@@ -55,7 +55,7 @@ export function AdminSidebar() {
     <nav className="bg-white/60 dark:bg-gray-900/40 backdrop-blur rounded-xl ring-1 ring-gray-200/70 dark:ring-gray-700/60 p-4 w-full">
       <ul className="space-y-1">
         {categories.map((cat) => {
-          const Icon = cat.icon as any;
+          const Icon = cat.icon;
           const active = pathname.startsWith(`/admin/${cat.key}`);
           return (
             <li key={cat.key}>

@@ -9,6 +9,7 @@ import {
   useRescheduleLesson,
   calculateCancellationFee,
 } from '@/hooks/useMyLessons';
+import { Booking } from '@/types/booking';
 
 // Mock the booking service
 jest.mock('@/lib/api/bookings', () => ({
@@ -22,7 +23,7 @@ jest.mock('@/lib/api/bookings', () => ({
 
 // Mock the queryFn
 jest.mock('@/lib/react-query/api', () => ({
-  queryFn: jest.fn((endpoint: string, options?: any) => {
+  queryFn: jest.fn((endpoint: string, options?: { params?: Record<string, unknown> }) => {
     return async () => {
       // Updated: upcoming lessons now use /bookings/upcoming with limit param
       const isUpcoming = typeof endpoint === 'string' && endpoint.includes('/bookings/upcoming');
@@ -264,7 +265,7 @@ describe('useMyLessons hooks', () => {
         booking_date: '2024-12-30',
         start_time: '14:00:00',
         total_price: 60,
-      } as any;
+      } as Booking;
 
       // Mock current date to be well before the lesson
       jest.useFakeTimers();
@@ -282,7 +283,7 @@ describe('useMyLessons hooks', () => {
         booking_date: '2024-12-26',
         start_time: '14:00:00',
         total_price: 60,
-      } as any;
+      } as Booking;
 
       // Mock current date to be 18 hours before the lesson (between 12-24 hours)
       jest.useFakeTimers();
@@ -300,7 +301,7 @@ describe('useMyLessons hooks', () => {
         booking_date: '2024-12-26',
         start_time: '14:00:00',
         total_price: 60,
-      } as any;
+      } as Booking;
 
       // Mock current date to be 30 minutes before the lesson
       jest.useFakeTimers();
@@ -318,7 +319,7 @@ describe('useMyLessons hooks', () => {
         booking_date: '2024-12-26',
         start_time: '14:00:00',
         total_price: 60,
-      } as any;
+      } as Booking;
 
       // Exactly 24 hours before (edge case - should be 50% since it's not > 24)
       jest.useFakeTimers();

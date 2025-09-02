@@ -61,7 +61,7 @@ export default function DeleteProfileModal({
       logger.info('Instructor profile deleted successfully');
       onSuccess();
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       const errorMessage = err.message || 'Failed to delete profile. Please try again.';
       logger.error('Failed to delete instructor profile', err);
       setError(errorMessage);

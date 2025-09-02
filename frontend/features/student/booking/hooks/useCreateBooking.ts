@@ -48,7 +48,7 @@ export function useCreateBooking(): UseCreateBookingReturn {
         // Extract message from error object if it's an object
         const errorText =
           typeof response.error === 'object' && response.error && 'message' in response.error
-            ? (response.error as any).message
+            ? (response.error as { message: string }).message
             : response.error;
 
         if (response.status === 401) {

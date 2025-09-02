@@ -20,6 +20,15 @@ export interface CreateCheckoutRequest {
   save_payment_method?: boolean;
 }
 
+export interface Transaction {
+  id: string;
+  amount: number;
+  status: string;
+  created_at: string;
+  description?: string;
+  booking_id?: string;
+}
+
 export interface CheckoutResponse {
   success: boolean;
   payment_intent_id: string;
@@ -193,9 +202,9 @@ class PaymentService {
   }
 
   // Transaction History
-  async getTransactionHistory(limit = 20, offset = 0): Promise<any[]> {
+  async getTransactionHistory(limit = 20, offset = 0): Promise<Transaction[]> {
     try {
-      return await this.request<any[]>(`/transactions?limit=${limit}&offset=${offset}`);
+      return await this.request<Transaction[]>(`/transactions?limit=${limit}&offset=${offset}`);
     } catch (error) {
       logger.error('Failed to get transaction history:', error);
       throw error;

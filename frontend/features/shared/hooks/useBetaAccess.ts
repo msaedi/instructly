@@ -17,10 +17,10 @@ export function useBetaAccess(): BetaAccessInfo {
   const { config } = useBeta();
 
   const info = useMemo(() => {
-    const hasUserBetaAccess = Boolean((user as any)?.beta_access);
-    const userBetaRole = (user as any)?.beta_role as string | undefined;
-    const userBetaPhase = (user as any)?.beta_phase as string | undefined;
-    const invitedByCode = (user as any)?.beta_invited_by as string | undefined;
+    const hasUserBetaAccess = Boolean(user && 'beta_access' in user && user.beta_access);
+    const userBetaRole = user && 'beta_role' in user && typeof user.beta_role === 'string' ? user.beta_role : undefined;
+    const userBetaPhase = user && 'beta_phase' in user && typeof user.beta_phase === 'string' ? user.beta_phase : undefined;
+    const invitedByCode = user && 'beta_invited_by' in user && typeof user.beta_invited_by === 'string' ? user.beta_invited_by : undefined;
     return {
       sitePhase: config.phase,
       hasUserBetaAccess,

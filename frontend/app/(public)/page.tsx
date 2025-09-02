@@ -134,7 +134,7 @@ export default function HomePage() {
   // Note: Do not early-return before all hooks have run; gate rendering in JSX instead
 
   // Map backend icon_name/slug to Lucide icon components
-  const ICON_MAP: Record<string, any> = {
+  const ICON_MAP: Record<string, React.ComponentType> = {
     'palette': Palette,
     'arts': Palette,
     'dumbbell': Dumbbell,

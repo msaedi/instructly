@@ -8,6 +8,12 @@ import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 import { useRef, useEffect, useState, useMemo } from 'react';
 
+// Type for availability slots
+interface AvailabilitySlot {
+  start_time: string;
+  end_time: string;
+}
+
 // Constants moved outside component to avoid recreation on each render
 const ALL_TIME_SLOTS = [
   '6am', '7am', '8am', '9am', '10am', '11am',
@@ -96,7 +102,7 @@ export function AvailabilityGrid({
     const startHour = parseInt(startTime.split(':')[0]);
 
     // Find the slot that contains this start time
-    const containingSlot = dayData.available_slots.find((slot: any) => {
+    const containingSlot = dayData.available_slots.find((slot: AvailabilitySlot) => {
       const slotStart = parseInt(slot.start_time.split(':')[0]);
       const slotEnd = parseInt(slot.end_time.split(':')[0]);
       return startHour >= slotStart && startHour < slotEnd;
@@ -127,9 +133,9 @@ export function AvailabilityGrid({
         times.forEach(time => slotsWithData.add(time));
       });
     } else if (data?.availability_by_date) {
-      Object.values(data.availability_by_date).forEach((dayData: any) => {
+      Object.values(data.availability_by_date).forEach((dayData: { available_slots: AvailabilitySlot[] }) => {
         if (dayData.available_slots) {
-          dayData.available_slots.forEach((slot: any) => {
+          dayData.available_slots.forEach((slot: AvailabilitySlot) => {
             const startHour = parseInt(slot.start_time.split(':')[0]);
             const endHour = parseInt(slot.end_time.split(':')[0]);
 
@@ -188,7 +194,7 @@ export function AvailabilityGrid({
 
     const hasAnyInRange = weekDays.some((d) => {
       const key = format(d, 'yyyy-MM-dd');
-      return Boolean((data as any).availability_by_date?.[key]);
+      return Boolean((data as PublicInstructorAvailability).availability_by_date?.[key]);
     });
 
     if (!hasAnyInRange) {

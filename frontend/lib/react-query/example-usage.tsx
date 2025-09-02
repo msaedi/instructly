@@ -1,4 +1,4 @@
-/**
+/* eslint-disable @typescript-eslint/no-explicit-any -- Example file with intentionally loose types *//**
  * React Query Usage Examples for InstaInstru
  *
  * This file demonstrates how to use the React Query foundation

@@ -121,7 +121,7 @@ export default function UserProfileDropdown() {
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 hover:bg-gray-100 rounded-full pr-2 pl-1 py-1 transition-colors"
       >
-        <UserAvatar user={user as any} size={44} />
+        <UserAvatar user={user} size={44} />
         <ChevronDown className={`h-4 w-4 text-purple-600 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 

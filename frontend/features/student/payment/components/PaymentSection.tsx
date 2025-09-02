@@ -13,8 +13,23 @@ import { useCreateBooking, calculateEndTime } from '@/features/student/booking';
 import { paymentService } from '@/services/api/payments';
 import { protectedApi } from '@/features/shared/api/client';
 
+// Custom error for payment actions that require user interaction
+class PaymentActionError extends Error {
+  constructor(
+    message: string,
+    public client_secret: string,
+    public payment_intent_id: string
+  ) {
+    super(message);
+    this.name = 'PaymentActionError';
+  }
+}
+
 interface PaymentSectionProps {
-  bookingData: BookingPayment & { metadata?: any };
+  bookingData: BookingPayment & {
+    metadata?: Record<string, unknown>;
+    serviceId?: string; // Optional fallback property
+  };
   onSuccess: (confirmationNumber: string) => void;
   onError: (error: Error) => void;
   onBack?: () => void;
@@ -184,7 +199,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
       // Get instructor ID and service ID from booking data (now strings/ULIDs)
       const instructorId = bookingData.instructorId;
       // Prefer explicit serviceId (ULID) from metadata; as a fallback, try bookingData.serviceId
-      const serviceId = bookingData.metadata?.serviceId || (bookingData as any).serviceId;
+      const serviceId = bookingData.metadata?.serviceId || bookingData.serviceId;
 
       // Format time to remove seconds if present
       const formattedStartTime = bookingData.startTime.split(':').slice(0, 2).join(':');
@@ -254,10 +269,11 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
           if (checkoutResult.requires_action && checkoutResult.client_secret) {
             // Surface requires_action to the caller/UI; a Stripe Elements flow should confirm this PI.
             // Here we return a specific error to trigger the 3DS UI upstream.
-            const err = new Error('requires_action');
-            (err as any).client_secret = checkoutResult.client_secret;
-            (err as any).payment_intent_id = checkoutResult.payment_intent_id;
-            throw err;
+            throw new PaymentActionError(
+              'requires_action',
+              checkoutResult.client_secret,
+              checkoutResult.payment_intent_id
+            );
           }
 
           if (checkoutResult.status !== 'succeeded' && checkoutResult.status !== 'processing') {
@@ -267,7 +283,7 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
           // No payment method selected but payment is required
           throw new Error('Payment method required');
         }
-      } catch (paymentError: any) {
+      } catch (paymentError: unknown) {
         // Payment failed - cancel the booking to free up the slot
         logger.warn('Payment failed, cancelling booking', {
           bookingId: booking.id,

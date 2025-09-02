@@ -324,7 +324,7 @@ describe('Search Tracking', () => {
       // Verify no guest session header for authenticated users
       const callArgs = mockFetch.mock.calls[0];
       const requestInit = callArgs[1] as RequestInit;
-      const headers = requestInit.headers as any;
+      const headers = requestInit.headers as Record<string, string>;
       expect(headers['X-Guest-Session-ID']).toBeUndefined();
 
       // Verify the result

@@ -10,6 +10,7 @@ import {
   isLowEndDevice,
   getViewportCategory,
   formatDeviceContextForAnalytics,
+  type DeviceContext,
 } from '@/lib/deviceContext';
 
 // Mock window and navigator objects
@@ -66,6 +67,7 @@ const mockPerformance = {
 // Setup global mocks
 beforeAll(() => {
   // Remove ontouchstart from window if it exists
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test environment window manipulation
   delete (window as any).ontouchstart;
 
   Object.defineProperty(window, 'innerWidth', { value: mockWindow.innerWidth, writable: true });
@@ -113,6 +115,7 @@ beforeAll(() => {
     DateTimeFormat: jest.fn(() => ({
       resolvedOptions: () => ({ timeZone: 'America/New_York' }),
     })),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Global Intl mock in test
   } as any;
 });
 
@@ -191,7 +194,7 @@ describe('getDeviceType', () => {
       touchSupport: true,
     };
 
-    expect(getDeviceType(mobileContext as any)).toBe('mobile');
+    expect(getDeviceType(mobileContext as Partial<DeviceContext> as DeviceContext)).toBe('mobile');
   });
 
   it('should identify tablet device', () => {
@@ -201,7 +204,7 @@ describe('getDeviceType', () => {
     };
 
     // Based on implementation, touch devices < 1024px are considered mobile
-    expect(getDeviceType(tabletContext as any)).toBe('mobile');
+    expect(getDeviceType(tabletContext as Partial<DeviceContext> as DeviceContext)).toBe('mobile');
   });
 
   it('should identify desktop device', () => {
@@ -210,7 +213,7 @@ describe('getDeviceType', () => {
       touchSupport: false,
     };
 
-    expect(getDeviceType(desktopContext as any)).toBe('desktop');
+    expect(getDeviceType(desktopContext as Partial<DeviceContext> as DeviceContext)).toBe('desktop');
   });
 
   it('should identify large touch devices as mobile', () => {
@@ -219,40 +222,40 @@ describe('getDeviceType', () => {
       touchSupport: true,
     };
 
-    expect(getDeviceType(largePhoneContext as any)).toBe('mobile');
+    expect(getDeviceType(largePhoneContext as Partial<DeviceContext> as DeviceContext)).toBe('mobile');
   });
 });
 
 describe('getConnectionQuality', () => {
   it('should return fast for 4g effective type', () => {
     const context = { effectiveType: '4g' };
-    expect(getConnectionQuality(context as any)).toBe('fast');
+    expect(getConnectionQuality(context as Partial<DeviceContext> as DeviceContext)).toBe('fast');
   });
 
   it('should return medium for 3g effective type', () => {
     const context = { effectiveType: '3g' };
-    expect(getConnectionQuality(context as any)).toBe('medium');
+    expect(getConnectionQuality(context as Partial<DeviceContext> as DeviceContext)).toBe('medium');
   });
 
   it('should return slow for 2g effective type', () => {
     const context = { effectiveType: '2g' };
-    expect(getConnectionQuality(context as any)).toBe('slow');
+    expect(getConnectionQuality(context as Partial<DeviceContext> as DeviceContext)).toBe('slow');
   });
 
   it('should use downlink speed when effective type not available', () => {
-    expect(getConnectionQuality({ downlink: 0.5 } as any)).toBe('slow');
-    expect(getConnectionQuality({ downlink: 2 } as any)).toBe('medium');
-    expect(getConnectionQuality({ downlink: 10 } as any)).toBe('fast');
+    expect(getConnectionQuality({ downlink: 0.5 } as Partial<DeviceContext> as DeviceContext)).toBe('slow');
+    expect(getConnectionQuality({ downlink: 2 } as Partial<DeviceContext> as DeviceContext)).toBe('medium');
+    expect(getConnectionQuality({ downlink: 10 } as Partial<DeviceContext> as DeviceContext)).toBe('fast');
   });
 
   it('should use RTT when other metrics not available', () => {
-    expect(getConnectionQuality({ rtt: 600 } as any)).toBe('slow');
-    expect(getConnectionQuality({ rtt: 300 } as any)).toBe('medium');
-    expect(getConnectionQuality({ rtt: 100 } as any)).toBe('fast');
+    expect(getConnectionQuality({ rtt: 600 } as Partial<DeviceContext> as DeviceContext)).toBe('slow');
+    expect(getConnectionQuality({ rtt: 300 } as Partial<DeviceContext> as DeviceContext)).toBe('medium');
+    expect(getConnectionQuality({ rtt: 100 } as Partial<DeviceContext> as DeviceContext)).toBe('fast');
   });
 
   it('should return unknown when no metrics available', () => {
-    expect(getConnectionQuality({} as any)).toBe('unknown');
+    expect(getConnectionQuality({} as Partial<DeviceContext> as DeviceContext)).toBe('unknown');
   });
 });
 
@@ -263,7 +266,7 @@ describe('isLowEndDevice', () => {
       hardwareConcurrency: 8,
     };
 
-    expect(isLowEndDevice(context as any)).toBe(true);
+    expect(isLowEndDevice(context as Partial<DeviceContext> as DeviceContext)).toBe(true);
   });
 
   it('should identify low CPU device', () => {
@@ -272,7 +275,7 @@ describe('isLowEndDevice', () => {
       hardwareConcurrency: 2,
     };
 
-    expect(isLowEndDevice(context as any)).toBe(true);
+    expect(isLowEndDevice(context as Partial<DeviceContext> as DeviceContext)).toBe(true);
   });
 
   it('should identify slow connection as low-end', () => {
@@ -282,7 +285,7 @@ describe('isLowEndDevice', () => {
       effectiveType: '2g',
     };
 
-    expect(isLowEndDevice(context as any)).toBe(true);
+    expect(isLowEndDevice(context as Partial<DeviceContext> as DeviceContext)).toBe(true);
   });
 
   it('should not identify high-end device as low-end', () => {
@@ -292,7 +295,7 @@ describe('isLowEndDevice', () => {
       effectiveType: '4g',
     };
 
-    expect(isLowEndDevice(context as any)).toBe(false);
+    expect(isLowEndDevice(context as Partial<DeviceContext> as DeviceContext)).toBe(false);
   });
 });
 

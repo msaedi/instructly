@@ -6,7 +6,7 @@
  * to enhance analytics and improve user experience.
  */
 
-interface DeviceContext {
+export interface DeviceContext {
   // Screen information
   screenWidth: number;
   screenHeight: number;
@@ -134,7 +134,7 @@ export function captureDeviceContext(): DeviceContext {
 
     // Browser features
     cookieEnabled: nav.cookieEnabled,
-    doNotTrack: (nav as any).doNotTrack === '1' || (win as any).doNotTrack === '1',
+    doNotTrack: (nav as Navigator & { doNotTrack?: string }).doNotTrack === '1' || (win as Window & { doNotTrack?: string }).doNotTrack === '1',
     language: nav.language,
     languages: nav.languages ? [...nav.languages] : [nav.language],
     // Include deprecated properties for compatibility

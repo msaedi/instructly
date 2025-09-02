@@ -148,9 +148,9 @@ export default function AvailabilityCalendar({
 
           if (response.data.availability_by_date) {
             Object.entries(response.data.availability_by_date).forEach(
-              ([date, dayData]: [string, any]) => {
+              ([date, dayData]: [string, { available_slots?: { start_time: string; end_time: string }[] }]) => {
                 const slots = dayData.available_slots
-                  ? dayData.available_slots.map((slot: any) => ({
+                  ? dayData.available_slots.map((slot: { start_time: string; end_time: string }) => ({
                       start_time: slot.start_time,
                       end_time: slot.end_time,
                       is_available: true, // All slots from available_slots are available

@@ -47,7 +47,7 @@ export interface PaginatedResponse<T> {
  */
 export interface PaginatedList<T> {
   /** Named array of items (e.g., bookings, instructors) */
-  [key: string]: T[] | any;
+  [key: string]: T[] | number;
 
   /** Total count */
   total: number;
@@ -75,7 +75,7 @@ export interface APIError {
   error_code?: string;
 
   /** Additional error context */
-  context?: Record<string, any>;
+  context?: Record<string, unknown>;
 }
 
 /**
@@ -94,7 +94,7 @@ export interface ValidationError {
   type: string;
 
   /** Additional context */
-  ctx?: Record<string, any>;
+  ctx?: Record<string, unknown>;
 }
 
 /**
@@ -165,7 +165,7 @@ export interface FilterParams {
   date_range?: DateRange;
 
   /** Additional filters */
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
@@ -264,8 +264,8 @@ export interface FileUpload {
  * @param error - Error to check
  * @returns boolean indicating if error is APIError
  */
-export function isAPIError(error: any): error is APIError {
-  return error && typeof error === 'object' && 'detail' in error;
+export function isAPIError(error: unknown): error is APIError {
+  return Boolean(error && typeof error === 'object' && 'detail' in error);
 }
 
 /**
@@ -274,7 +274,7 @@ export function isAPIError(error: any): error is APIError {
  * @param error - Error object
  * @returns Human-readable error message
  */
-export function getErrorMessage(error: any): string {
+export function getErrorMessage(error: unknown): string {
   // Handle string errors
   if (typeof error === 'string') return error;
 
@@ -290,15 +290,18 @@ export function getErrorMessage(error: any): string {
 
     // Handle rate limit error object
     if (error.detail && typeof error.detail === 'object' && 'message' in error.detail) {
-      const detail = error.detail as any;
+      const detail = error.detail as Record<string, unknown>;
 
       // For rate limiting, show retry time
       if (detail.code === 'RATE_LIMIT_EXCEEDED' && detail.retry_after) {
-        const minutes = Math.ceil(detail.retry_after / 60);
-        return `${detail.message} (Try again in ${minutes} minute${minutes > 1 ? 's' : ''})`;
+        const retryAfter = Number(detail.retry_after);
+        if (!isNaN(retryAfter)) {
+          const minutes = Math.ceil(retryAfter / 60);
+          return `${detail.message} (Try again in ${minutes} minute${minutes > 1 ? 's' : ''})`;
+        }
       }
 
-      return detail.message;
+      return String(detail.message);
     }
   }
 
@@ -307,7 +310,8 @@ export function getErrorMessage(error: any): string {
 
   // Handle objects with message property
   if (error && typeof error === 'object' && 'message' in error) {
-    return error.message;
+    const errorObj = error as { message: unknown };
+    return String(errorObj.message);
   }
 
   // Default fallback
@@ -384,7 +388,7 @@ export interface RateLimitErrorDetail {
  * @param error - Error to check
  * @returns boolean indicating if it's a rate limit error
  */
-export function isRateLimitError(error: any): boolean {
+export function isRateLimitError(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   if (!('detail' in error)) return false;
 
@@ -392,7 +396,7 @@ export function isRateLimitError(error: any): boolean {
   if (!detail || typeof detail !== 'object') return false;
   if (!('code' in detail)) return false;
 
-  return (detail as any).code === 'RATE_LIMIT_EXCEEDED';
+  return (detail as Record<string, unknown>).code === 'RATE_LIMIT_EXCEEDED';
 }
 
 /**
@@ -400,9 +404,10 @@ export function isRateLimitError(error: any): boolean {
  * @param error - Error to check
  * @returns Number of seconds to wait, or null if not a rate limit error
  */
-export function getRateLimitRetryTime(error: any): number | null {
+export function getRateLimitRetryTime(error: unknown): number | null {
   if (!isRateLimitError(error)) return null;
 
-  const detail = error.detail as any;
+  const apiError = error as { detail: Record<string, unknown> };
+  const detail = apiError.detail;
   return typeof detail.retry_after === 'number' ? detail.retry_after : null;
 }

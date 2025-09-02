@@ -188,8 +188,8 @@ export default function InstructorCard({
               first_name: instructor.user.first_name,
               last_name: undefined,
               email: undefined,
-              has_profile_picture: (instructor.user as any).has_profile_picture,
-              profile_picture_version: (instructor.user as any).profile_picture_version,
+              has_profile_picture: (instructor.user as { has_profile_picture?: boolean }).has_profile_picture,
+              profile_picture_version: (instructor.user as { profile_picture_version?: number }).profile_picture_version,
             }}
             size={compact ? 128 : 224}
             className={`${compact ? 'w-32 h-32' : 'w-56 h-56'}`}

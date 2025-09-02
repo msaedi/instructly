@@ -62,21 +62,30 @@ export const formatAmountFromStripe = (amount: number): number => {
 };
 
 // Error handling
-export const getStripeErrorMessage = (error: any): string => {
-  if (error.type === 'card_error' || error.type === 'validation_error') {
-    return error.message;
+export const getStripeErrorMessage = (error: unknown): string => {
+  if (error && typeof error === 'object' && 'type' in error && 'message' in error) {
+    const stripeError = error as { type: string; message: string };
+    if (stripeError.type === 'card_error' || stripeError.type === 'validation_error') {
+      return stripeError.message;
+    }
   }
 
-  switch (error.code) {
-    case 'payment_intent_authentication_failure':
-      return 'Authentication failed. Please try a different payment method.';
-    case 'payment_intent_payment_attempt_failed':
-      return 'Payment failed. Please check your card details and try again.';
-    case 'amount_too_large':
-      return 'Amount exceeds the maximum transaction limit of $1,000.';
-    case 'insufficient_funds':
-      return 'Insufficient funds. Please try a different payment method.';
-    default:
-      return 'An unexpected error occurred. Please try again.';
+  // Handle other error types with code property
+  if (error && typeof error === 'object' && 'code' in error) {
+    const errorWithCode = error as { code: string };
+    switch (errorWithCode.code) {
+      case 'payment_intent_authentication_failure':
+        return 'Authentication failed. Please try a different payment method.';
+      case 'payment_intent_payment_attempt_failed':
+        return 'Payment failed. Please check your card details and try again.';
+      case 'amount_too_large':
+        return 'Amount exceeds the maximum transaction limit of $1,000.';
+      case 'insufficient_funds':
+        return 'Insufficient funds. Please try a different payment method.';
+      default:
+        return 'An unexpected error occurred. Please try again.';
+    }
   }
+
+  return 'An unexpected error occurred. Please try again.';
 };

@@ -17,6 +17,17 @@ import { fetchAPI, fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { toast } from 'sonner';
 import { favoritesApi } from '@/services/api/favorites';
 import type { FavoritedInstructor } from '@/types/instructor';
+// Use dashboard-specific saved address shape (differs from common Address)
+type SavedAddress = {
+  id: string;
+  label?: string;
+  street_1?: string;
+  street_2?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  is_default?: boolean;
+};
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 import BillingTab from '@/components/student/BillingTab';
 import { getActivityBackground } from '@/lib/services/assetService';
@@ -55,9 +66,9 @@ function StudentDashboardContent() {
   const [showTfaModal, setShowTfaModal] = useState(false);
   const [referralEmails, setReferralEmails] = useState('');
   const [referralStatus, setReferralStatus] = useState('');
-  const [addresses, setAddresses] = useState<any[] | null>(null);
+  const [addresses, setAddresses] = useState<SavedAddress[] | null>(null);
   const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
-  const [showAddressModal, setShowAddressModal] = useState<null | { mode: 'create' } | { mode: 'edit'; address: any }>(null);
+  const [showAddressModal, setShowAddressModal] = useState<null | { mode: 'create' } | { mode: 'edit'; address: SavedAddress }>(null);
   const [tfaStatus, setTfaStatus] = useState<{ enabled: boolean; verified_at?: string | null; last_used_at?: string | null } | null>(null);
   const [, setProfilePhoto] = useState<string | null>(null);
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -353,7 +364,10 @@ function StudentDashboardContent() {
                     </div>
                     <div className="flex items-start gap-5">
                       <div className="relative group">
-                        {((userData as any).has_profile_picture) ? (
+                        {(() => {
+                          const u = userData as unknown as { has_profile_picture?: boolean };
+                          return Boolean(u?.has_profile_picture);
+                        })() ? (
                           <ProfilePictureUpload
                             size={144}
                             ariaLabel="Change profile picture"
@@ -365,8 +379,8 @@ function StudentDashboardContent() {
                                   first_name: userData.first_name,
                                   last_name: userData.last_name,
                                   email: userData.email,
-                                  has_profile_picture: (userData as any).has_profile_picture,
-                                  profile_picture_version: (userData as any).profile_picture_version,
+                                  has_profile_picture: Boolean((userData as unknown as { has_profile_picture?: boolean })?.has_profile_picture),
+                                  profile_picture_version: (userData as unknown as { profile_picture_version?: number })?.profile_picture_version,
                                 }}
                                 size={144}
                                 className="cursor-pointer"
@@ -380,10 +394,10 @@ function StudentDashboardContent() {
                       <div className="space-y-1.5 text-sm text-gray-700">
                         <p className="text-2xl font-bold text-purple-700">{userData?.first_name} {userData?.last_name}</p>
                         <p>{userData?.email}</p>
-                        <p>{formatPhoneReadable((userData as any).phone)}</p>
+                        <p>{formatPhoneReadable(userData?.phone)}</p>
                         <p>
                           {(() => {
-                            const z = (userData as any).zip_code;
+                            const z = userData?.zip_code;
                             const info = inferCityStateFromZip(z);
                             return info ? `${info.city}, ${info.state}, ${z}` : z || '—';
                           })()}
@@ -496,7 +510,7 @@ function StudentDashboardContent() {
                             {(a.label ? a.label.charAt(0).toUpperCase() + a.label.slice(1) : 'Address')} {a.is_default ? '(Default)' : ''}
                           </p>
                           <p className="text-sm text-gray-600">
-                            {[a.street_line1, a.street_line2].filter(Boolean).join(', ')}{[a.locality, a.administrative_area].some(Boolean) ? `, ${[a.locality, a.administrative_area].filter(Boolean).join(', ')}` : ''}{a.postal_code ? `, ${a.postal_code}` : ''}
+                            {[a.street_1, a.street_2].filter(Boolean).join(', ')}{[a.city, a.state].some(Boolean) ? `, ${[a.city, a.state].filter(Boolean).join(', ')}` : ''}{a.zip_code ? `, ${a.zip_code}` : ''}
                           </p>
                           <div className="mt-2 flex gap-3 text-sm">
                             <button
@@ -824,8 +838,7 @@ function StudentDashboardContent() {
                                   first_name: fav.first_name || fav.profile?.user?.first_name,
                                   last_name: fav.last_name || undefined,
                                   email: fav.email || undefined,
-                                  has_profile_picture: (fav as any).has_profile_picture || (fav.profile?.user as any)?.has_profile_picture,
-                                  profile_picture_version: (fav as any).profile_picture_version || (fav.profile?.user as any)?.profile_picture_version,
+                                  // Keep avatar glyph fallback; do not pass non-existent fields from minimal API
                                 }}
                                 size={48}
                                 className="h-12 w-12"
@@ -898,7 +911,7 @@ function StudentDashboardContent() {
       {/* Modals */}
       {showDelete && (
         <DeleteAccountModal
-          email={(userData as any).email}
+          email={userData?.email}
           onClose={() => setShowDelete(false)}
           onDeleted={() => {
             setShowDelete(false);
@@ -917,7 +930,7 @@ function StudentDashboardContent() {
       {showAddressModal && (
         <AddressModal
           mode={showAddressModal.mode}
-          address={(showAddressModal as any).address}
+          address={showAddressModal.mode === 'edit' ? showAddressModal.address : undefined}
           onClose={() => setShowAddressModal(null)}
           onSaved={() => {
             setShowAddressModal(null);
@@ -944,7 +957,7 @@ function StudentDashboardContent() {
       {/* Edit Profile Modal */}
       {showEditProfile && userData && (
         <EditProfileModal
-          user={userData}
+          user={userData as unknown as Record<string, unknown>}
           onClose={() => setShowEditProfile(false)}
           onSaved={() => {
             setShowEditProfile(false);
@@ -1732,22 +1745,23 @@ export default function StudentDashboard() {
   );
 }
 
-function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'edit'; address?: any; onClose: () => void; onSaved: () => void }) {
+function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'edit'; address?: SavedAddress; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState({
     label: address?.label || 'home',
-    street_line1: address?.street_line1 || '',
-    street_line2: address?.street_line2 || '',
-    locality: address?.locality || '',
-    administrative_area: address?.administrative_area || '',
-    postal_code: address?.postal_code || '',
-    country_code: address?.country_code || 'US',
+    street_line1: (address as Record<string, unknown>)?.street_line1 as string || '',
+    street_line2: (address as Record<string, unknown>)?.street_line2 as string || '',
+    locality: (address as Record<string, unknown>)?.locality as string || '',
+    administrative_area: (address as Record<string, unknown>)?.administrative_area as string || '',
+    postal_code: (address as Record<string, unknown>)?.postal_code as string || '',
+    country_code: (address as Record<string, unknown>)?.country_code as string || 'US',
     is_default: !!address?.is_default,
     place_id: '',
   });
   const [query, setQuery] = useState('');
-  const [suggestions, setSuggestions] = useState<any[]>([]);
+  type PlaceSuggestion = { place_id: string; description?: string; text?: string };
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
-  const debounceRef = useRef<any>(null);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const suppressAutocompleteRef = useRef(false);
 
   useEffect(() => {
@@ -1774,10 +1788,10 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
   const save = async () => {
     setLoading(true);
     try {
-      const payload = { ...form } as any;
+      const payload = { ...form } as Record<string, unknown>;
       // Trim empty strings
       Object.keys(payload).forEach((k) => { if (payload[k] === '') delete payload[k]; });
-      const endpoint = mode === 'create' ? '/api/addresses/me' : `/api/addresses/me/${address.id}`;
+      const endpoint = mode === 'create' ? '/api/addresses/me' : `/api/addresses/me/${address?.id}`;
       const method = mode === 'create' ? 'POST' : 'PATCH';
       const res = await fetchWithAuth(endpoint, {
         method,
@@ -1856,27 +1870,27 @@ function AddressModal({ mode, address, onClose, onSaved }: { mode: 'create' | 'e
                         // Fetch normalized place details and auto-fill fields
                         const res = await fetchWithAuth(`/api/addresses/places/details?place_id=${encodeURIComponent(s.place_id)}`);
                         if (res.ok) {
-                          const d = await res.json();
+                          const d = (await res.json()) as Record<string, unknown>;
                           const street = [d.street_number, d.street_name].filter(Boolean).join(' ');
                           setForm((prev) => ({
                             ...prev,
                             place_id: s.place_id,
                             street_line1: street || prev.street_line1,
-                            locality: d.city || prev.locality,
-                            administrative_area: d.state || prev.administrative_area,
-                            postal_code: d.postal_code || prev.postal_code,
+                            locality: (d.city as string) || prev.locality,
+                            administrative_area: (d.state as string) || prev.administrative_area,
+                            postal_code: (d.postal_code as string) || prev.postal_code,
                           }));
                           suppressAutocompleteRef.current = true;
-                          setQuery(d.formatted_address || s.description || s.text);
+                          setQuery((d.formatted_address as string) || s.description || s.text || '');
                         } else {
                           setForm((prev) => ({ ...prev, place_id: s.place_id }));
                           suppressAutocompleteRef.current = true;
-                          setQuery(s.description || s.text);
+                          setQuery(s.description || s.text || '');
                         }
                       } catch {
                         setForm((prev) => ({ ...prev, place_id: s.place_id }));
                         suppressAutocompleteRef.current = true;
-                        setQuery(s.description || s.text);
+                        setQuery(s.description || s.text || '');
                       }
                       setSuggestions([]);
                     }}
@@ -2024,7 +2038,7 @@ function DeleteAccountModal({ email, onClose, onDeleted }: { email: string; onCl
   );
 }
 
-function EditProfileModal({ user, onClose, onSaved }: { user: any; onClose: () => void; onSaved: () => void }) {
+function EditProfileModal({ user, onClose, onSaved }: { user: Record<string, unknown>; onClose: () => void; onSaved: () => void }) {
   // Debug log to see what user data we're getting
   logger.debug('EditProfileModal received user data', {
     fullUser: user,
@@ -2034,10 +2048,26 @@ function EditProfileModal({ user, onClose, onSaved }: { user: any; onClose: () =
     zip_code: user?.zip_code
   });
 
-  const [firstName, setFirstName] = useState(user?.first_name || '');
-  const [lastName, setLastName] = useState(user?.last_name || '');
-  const [phone, setPhone] = useState(user?.phone || '');
-  const [zipCode, setZipCode] = useState(user?.zip_code || '');
+  const [firstName, setFirstName] = useState<string>(
+    typeof (user as unknown as { first_name?: unknown })?.first_name === 'string'
+      ? ((user as unknown as { first_name?: string }).first_name as string)
+      : ''
+  );
+  const [lastName, setLastName] = useState<string>(
+    typeof (user as unknown as { last_name?: unknown })?.last_name === 'string'
+      ? ((user as unknown as { last_name?: string }).last_name as string)
+      : ''
+  );
+  const [phone, setPhone] = useState<string>(
+    typeof (user as unknown as { phone?: unknown })?.phone === 'string'
+      ? ((user as unknown as { phone?: string }).phone as string)
+      : ''
+  );
+  const [zipCode, setZipCode] = useState<string>(
+    typeof (user as unknown as { zip_code?: unknown })?.zip_code === 'string'
+      ? ((user as unknown as { zip_code?: string }).zip_code as string)
+      : ''
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 

@@ -24,7 +24,11 @@ export default function InstructorDashboardNew() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editVariant, setEditVariant] = useState<'full' | 'about' | 'areas' | 'services'>('full');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [connectStatus, setConnectStatus] = useState<any>(null);
+  const [connectStatus, setConnectStatus] = useState<{
+    charges_enabled?: boolean;
+    payouts_enabled?: boolean;
+    details_submitted?: boolean;
+  } | null>(null);
 
   const [isStartingStripeOnboarding, setIsStartingStripeOnboarding] = useState(false);
   const [serviceAreaNames, setServiceAreaNames] = useState<string[] | null>(null);
@@ -389,7 +393,7 @@ export default function InstructorDashboardNew() {
                           const data = await dl.json();
                           window.open(data.dashboard_url, '_blank');
                         } else {
-                          const err = await dl.json().catch(() => ({} as any));
+                          const err = await dl.json().catch(() => ({ detail: 'Unknown error' }));
                           alert(`Unable to open Stripe dashboard: ${err.detail || dl.statusText}`);
                         }
                       } catch {
@@ -405,7 +409,7 @@ export default function InstructorDashboardNew() {
                       try {
                         const res = await fetchWithAuth('/api/payments/connect/instant-payout', { method: 'POST' });
                         if (!res.ok) {
-                          const err = await res.json().catch(() => ({} as any));
+                          const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
                           alert(`Instant payout failed: ${err.detail || res.statusText}`);
                           return;
                         }

@@ -14,13 +14,13 @@ export interface UseAvailabilityReturn {
   savedWeekSchedule: WeekSchedule;
   hasUnsavedChanges: boolean;
   isLoading: boolean;
-  weekDates: any[];
-  message: any;
+  weekDates: Date[];
+  message: { type: 'success' | 'error' | 'info'; text: string } | null;
 
   // actions
   navigateWeek: (dir: 'prev' | 'next') => void;
   setWeekSchedule: (s: WeekSchedule | ((prev: WeekSchedule) => WeekSchedule)) => void;
-  setMessage: (m: any) => void;
+  setMessage: (m: { type: 'success' | 'error' | 'info'; text: string } | null) => void;
   refreshSchedule: () => Promise<void>;
   currentWeekDisplay: string;
   version?: string;
@@ -28,18 +28,18 @@ export interface UseAvailabilityReturn {
 
   // API orchestrations (thin)
   saveWeek: (opts?: { clearExisting?: boolean }) => Promise<{ success: boolean; message: string; code?: number }>;
-  validateWeek: () => Promise<any>;
+  validateWeek: () => Promise<{ success: boolean; message: string; issues?: unknown[] }>;
   copyFromPreviousWeek: () => Promise<{ success: boolean; message: string }>;
   applyToFutureWeeks: (endISO: string) => Promise<{ success: boolean; message: string }>;
 }
 
-function extractErrorMessage(err: any, fallback: string): string {
+function extractErrorMessage(err: unknown, fallback: string): string {
   if (!err) return fallback;
-  const detail = (err as any).detail;
+  const detail = (err as { detail?: unknown }).detail;
   if (typeof detail === 'string') return detail;
   if (Array.isArray(detail)) {
     const msgs = detail
-      .map((d: any) => (typeof d === 'string' ? d : d?.msg))
+      .map((d: unknown) => (typeof d === 'string' ? d : (d as { msg?: string })?.msg))
       .filter(Boolean);
     if (msgs.length) return msgs.join('; ');
   }
@@ -79,18 +79,18 @@ export function useAvailability(): UseAvailabilityReturn {
       if (res.ok) {
         serverWeek = await res.json();
         const etag = res.headers.get('ETag') || undefined;
-        if (typeof window !== 'undefined') (window as any).__week_version = etag || undefined;
+        if (typeof window !== 'undefined') (window as Window & { __week_version?: string }).__week_version = etag || undefined;
       }
     } catch (e) {
       logger.warn('Could not load server week before save; proceeding with local snapshot');
     }
 
     // 2) Build a robust snapshot by overlaying local edits over server snapshot (and saved snapshot)
-    const merged: WeekSchedule = { ...(serverWeek as any), ...(savedWeekSchedule as any), ...(weekSchedule as any) } as WeekSchedule;
+    const merged: WeekSchedule = { ...serverWeek, ...savedWeekSchedule, ...weekSchedule };
     // Flatten into list of { date, start_time, end_time } per backend schema
     const schedule: Array<{ date: string; start_time: string; end_time: string }> = [];
     Object.entries(merged).forEach(([date, slots]) => {
-      (slots || []).forEach((s: any) => {
+      (slots || []).forEach((s: { date: string; start_time: string; end_time: string }) => {
         schedule.push({ date, start_time: s.start_time, end_time: s.end_time });
       });
     });
@@ -118,8 +118,8 @@ export function useAvailability(): UseAvailabilityReturn {
         logger.debug('Updated week version from POST', { newVersion });
       }
       if (!res.ok) {
-        const status = (res as any).status;
-        const err = await res.json().catch(() => ({} as any));
+        const status = res.status;
+        const err = await res.json().catch(() => ({} as Record<string, unknown>));
         return { success: false, message: extractErrorMessage(err, 'Failed to save availability'), code: status };
       }
       await refreshSchedule();
@@ -162,7 +162,7 @@ export function useAvailability(): UseAvailabilityReturn {
         }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({} as any));
+        const err = await res.json().catch(() => ({} as Record<string, unknown>));
         return { success: false, message: extractErrorMessage(err, 'Failed to copy week') };
       }
       await refreshSchedule();
@@ -185,7 +185,7 @@ export function useAvailability(): UseAvailabilityReturn {
         }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({} as any));
+        const err = await res.json().catch(() => ({} as Record<string, unknown>));
         return { success: false, message: extractErrorMessage(err, 'Failed to apply to future weeks') };
       }
       return { success: true, message: 'Applied schedule to future range' };

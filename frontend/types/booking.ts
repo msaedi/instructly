@@ -9,6 +9,7 @@ export interface InstructorInfo {
   id: string;
   first_name: string;
   last_initial: string;  // Only last initial, no full last name for privacy
+  full_name?: string; // Computed full name with last initial (optional API field)
   // Note: email excluded for privacy
 }
 
@@ -86,6 +87,7 @@ export interface Service {
   description: string;
   hourly_rate: number;
   typical_duration?: number; // in minutes
+  skill?: string; // Service skill name (optional field from API)
   created_at: string;
   updated_at: string;
 }

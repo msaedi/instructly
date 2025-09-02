@@ -15,6 +15,7 @@ import {
   determineBookingType,
   calculateServiceFee,
   calculateTotalAmount,
+  PaymentStatus,
 } from '@/features/student/payment';
 
 export default function BookingModal({
@@ -166,7 +167,7 @@ export default function BookingModal({
         serviceFee,
         totalAmount,
         bookingType,
-        paymentStatus: 'pending' as any,
+        paymentStatus: PaymentStatus.PENDING,
         freeCancellationUntil:
           bookingType === BookingType.STANDARD
             ? new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
@@ -254,7 +255,7 @@ export default function BookingModal({
       serviceFee,
       totalAmount,
       bookingType,
-      paymentStatus: 'pending' as any,
+      paymentStatus: PaymentStatus.PENDING,
       freeCancellationUntil:
         bookingType === BookingType.STANDARD
           ? new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)

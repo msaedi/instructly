@@ -5,7 +5,8 @@
 import { renderHook } from '@testing-library/react';
 import { useRouter } from 'next/navigation';
 import { useAdminAuth } from '../useAdminAuth';
-import { useAuth } from '@/features/shared/hooks/useAuth';
+import { useAuth, type User } from '@/features/shared/hooks/useAuth';
+import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { usePermissions } from '@/features/shared/hooks/usePermissions';
 import { PermissionName } from '@/types/enums';
 
@@ -26,7 +27,7 @@ describe('useAdminAuth', () => {
       push: mockPush,
       replace: jest.fn(),
       prefetch: jest.fn(),
-    } as any);
+    } as Partial<AppRouterInstance> as AppRouterInstance);
 
     // Clear localStorage mock
     (window.localStorage.getItem as jest.Mock).mockReturnValue(null);
@@ -138,7 +139,7 @@ describe('useAdminAuth', () => {
     };
 
     mockUseAuth.mockReturnValue({
-      user: mockUser as any,
+      user: mockUser as User,
       isAuthenticated: true,
       isLoading: false,
       error: null,
@@ -180,7 +181,7 @@ describe('useAdminAuth', () => {
     };
 
     mockUseAuth.mockReturnValue({
-      user: mockUser as any,
+      user: mockUser as User,
       isAuthenticated: true,
       isLoading: false,
       error: null,
@@ -224,7 +225,7 @@ describe('useAdminAuth', () => {
     };
 
     mockUseAuth.mockReturnValue({
-      user: adminUser as any,
+      user: adminUser as User,
       isAuthenticated: true,
       isLoading: false,
       error: null,
@@ -284,7 +285,7 @@ describe('useAdminAuth', () => {
     const adminUser = { id: '1', email: 'admin@test.com', first_name: 'Admin', last_name: 'User', roles: ['admin'], permissions: [], is_active: true, created_at: '', updated_at: '' };
 
     mockUseAuth.mockReturnValue({
-      user: adminUser as any,
+      user: adminUser as User,
       isAuthenticated: true,
       isLoading: false,
       error: null,

@@ -20,10 +20,13 @@ export const queryClient = new QueryClient({
       gcTime: 1000 * 60 * 30,
 
       // Smart retry logic: no retries for client errors
-      retry: (failureCount, error: any) => {
+      retry: (failureCount, error: unknown) => {
         // Don't retry on 4xx errors (client errors)
-        if (error?.status >= 400 && error?.status < 500) {
-          return false;
+        if (error && typeof error === 'object' && 'status' in error) {
+          const status = error.status;
+          if (typeof status === 'number' && status >= 400 && status < 500) {
+            return false;
+          }
         }
         // Retry up to 3 times for server/network errors
         return failureCount < 3;
@@ -89,7 +92,7 @@ export const queryKeys = {
   // Instructor queries
   instructors: {
     all: ['instructors'] as const,
-    search: (filters: any) => ['instructors', 'search', filters] as const,
+    search: (filters: Record<string, unknown>) => ['instructors', 'search', filters] as const,
     detail: (id: string) => ['instructors', id] as const,
     availability: (id: string, date?: string) => ['instructors', id, 'availability', date] as const,
   },

@@ -232,7 +232,7 @@ export function useAvailabilityOperations(deps: {
 
       if (response.ok) {
         const data = await response.json();
-        currentExistingSlots = data.map((slot: any) => ({
+        currentExistingSlots = data.map((slot: { id: string; specific_date: string; start_time: string; end_time: string }) => ({
           id: slot.id,
           date: slot.specific_date,
           start_time: slot.start_time,

@@ -6,11 +6,15 @@ import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Star, MapPin, Clock, DollarSign, Check } from 'lucide-react';
 import { publicApi } from '@/features/shared/api/client';
+// Align with available public types; fall back to minimal shapes if not exported
+type PublicTimeSlot = { start_time: string; end_time: string };
+type PublicDayAvailability = { available_slots?: PublicTimeSlot[] };
 import { logger } from '@/lib/logger';
 import { useAuth, storeBookingIntent, calculateEndTime } from '@/features/student/booking';
 import {
   BookingPayment,
   BookingType,
+  PaymentStatus,
   determineBookingType,
   calculateServiceFee,
   calculateTotalAmount,
@@ -57,7 +61,7 @@ export default function QuickBookingPage() {
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [duration, setDuration] = useState(60);
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [availability, setAvailability] = useState<any[]>([]);
+  const [availability, setAvailability] = useState<Array<{ date: string; slots: PublicTimeSlot[] }>>([]);
   const [confirmingBooking] = useState(false);
 
   // Fetch instructor data
@@ -124,7 +128,7 @@ export default function QuickBookingPage() {
 
           if (response.data?.availability_by_date) {
             const slots = Object.entries(response.data.availability_by_date)
-              .map(([date, data]: [string, any]) => ({
+              .map(([date, data]: [string, PublicDayAvailability]) => ({
                 date,
                 slots: data.available_slots || [],
               }))
@@ -182,7 +186,7 @@ export default function QuickBookingPage() {
       serviceFee,
       totalAmount,
       bookingType,
-      paymentStatus: 'pending' as any,
+      paymentStatus: PaymentStatus.PENDING,
       freeCancellationUntil:
         bookingType === BookingType.STANDARD
           ? new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)
@@ -399,7 +403,7 @@ export default function QuickBookingPage() {
                         {formatDate(day.date)}
                       </h3>
                       <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
-                        {day.slots.map((slot: any, idx: number) => (
+                        {day.slots.map((slot: { start_time: string; end_time: string }, idx: number) => (
                           <button
                             key={`${day.date}-${idx}`}
                             onClick={() => {

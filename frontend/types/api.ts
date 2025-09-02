@@ -240,7 +240,7 @@ export interface BatchResult<T> {
   error?: string;
 
   /** Additional details */
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
 /**
@@ -259,7 +259,7 @@ export interface WebhookEvent {
   timestamp: string;
 
   /** Event data */
-  data: Record<string, any>;
+  data: Record<string, unknown>;
 
   /** Webhook signature for verification */
   signature?: string;
@@ -388,14 +388,24 @@ export function createInitialRequestState<T>(): RequestState<T> {
  * @param error - Error from API call
  * @returns Standardized error message
  */
-export function handleAPIError(error: any): string {
-  if (error.response?.data?.detail) {
-    return typeof error.response.data.detail === 'string'
-      ? error.response.data.detail
-      : 'Validation error occurred';
+export function handleAPIError(error: unknown): string {
+  const err = error as Record<string, unknown>;
+
+  if (err?.response && typeof err.response === 'object') {
+    const response = err.response as Record<string, unknown>;
+    if (response?.data && typeof response.data === 'object') {
+      const data = response.data as Record<string, unknown>;
+      if (data?.detail) {
+        return typeof data.detail === 'string'
+          ? data.detail
+          : 'Validation error occurred';
+      }
+    }
   }
 
-  if (error.message) return error.message;
+  if (err?.message && typeof err.message === 'string') {
+    return err.message;
+  }
 
   return 'An unexpected error occurred. Please try again.';
 }

@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RescheduleModal } from '@/components/lessons/modals/RescheduleModal';
-import { Booking } from '@/types/booking';
+import { Booking, Service } from '@/types/booking';
 import { format } from 'date-fns';
 import { AuthProvider } from '@/features/shared/hooks/useAuth';
 
@@ -85,7 +85,7 @@ describe('RescheduleModal', () => {
     instructor_id: '01K2MAY484FQGFEQVN3VKGYZ59',
     student_id: '01K2MAY484FQGFEQVN3VKGYZ60',
     instructor_service_id: '01K2MAY484FQGFEQVN3VKGYZAA',
-    service: { id: '01K2MAY484FQGFEQVN3VKGYZ61' } as any,
+    service: { id: '01K2MAY484FQGFEQVN3VKGYZ61' } as Service,
     service_name: 'Mathematics',
     created_at: '2025-12-01T10:00:00Z',
     updated_at: '2025-12-01T10:00:00Z',
@@ -206,8 +206,8 @@ describe('RescheduleModal', () => {
     const tomorrowDay = format(tomorrow, 'd');
 
     const dayEls = await screen.findAllByText(tomorrowDay);
-    const clickable = (dayEls as any[]).find((el: any) => !(el as HTMLButtonElement).disabled);
-    fireEvent.click((clickable as any) || dayEls[0]);
+    const clickable = (dayEls as HTMLElement[]).find((el: HTMLElement) => !(el as HTMLButtonElement).disabled);
+    fireEvent.click(clickable || dayEls[0]);
 
     // Confirm should be enabled after auto-selecting first time
     await waitFor(() => {
@@ -232,8 +232,8 @@ describe('RescheduleModal', () => {
       expect(screen.queryByText(/Loading availability/i)).not.toBeInTheDocument();
     });
     const dayButtons = await screen.findAllByText(tomorrowDay);
-    const clickable = (dayButtons as any[]).find((el: any) => !el.disabled);
-    fireEvent.click((clickable as any) || dayButtons[0]);
+    const clickable = (dayButtons as HTMLElement[]).find((el: HTMLElement) => !(el as HTMLButtonElement).disabled);
+    fireEvent.click(clickable || dayButtons[0]);
 
     // Auto-selected time should enable confirm
     await waitFor(() => {
@@ -283,8 +283,8 @@ describe('RescheduleModal', () => {
     const tomorrowDay = format(tomorrow, 'd');
 
     await waitFor(() => {
-      const dateButtons = screen.getAllByText(tomorrowDay) as any[];
-      const clickableBtn = dateButtons.find((el) => !el.disabled);
+      const dateButtons = screen.getAllByText(tomorrowDay) as HTMLElement[];
+      const clickableBtn = dateButtons.find((el) => !(el as HTMLButtonElement).disabled);
       fireEvent.click(clickableBtn || dateButtons[0]);
     });
 

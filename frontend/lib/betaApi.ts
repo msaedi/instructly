@@ -58,7 +58,7 @@ export interface MetricsSummaryResponse {
   students_total?: number;
   earnings_last_7d?: number;
   // Allow other backend-provided fields without strict typing
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export async function getMetricsSummary(): Promise<MetricsSummaryResponse> {

@@ -14,7 +14,7 @@ jest.mock('@/hooks/useMyLessons', () => ({
 
 // Mock the CancellationReasonModal component
 jest.mock('@/components/lessons/modals/CancellationReasonModal', () => ({
-  CancellationReasonModal: ({ isOpen, onClose, onReschedule }: any) => {
+  CancellationReasonModal: ({ isOpen, onClose, onReschedule }: { isOpen: boolean; onClose: () => void; onReschedule: () => void }) => {
     if (!isOpen) return null;
     return (
       <div data-testid="cancellation-reason-modal">
@@ -38,7 +38,7 @@ describe('CancelWarningModal', () => {
     duration_minutes: 60,
     instructor_id: '01K2MAY484FQGFEQVN3VKGYZ59',
     student_id: '01K2MAY484FQGFEQVN3VKGYZ60',
-    service: { id: '01K2MAY484FQGFEQVN3VKGYZ61' } as any,
+    service: { id: '01K2MAY484FQGFEQVN3VKGYZ61' } as { id: string },
     instructor: {
       id: '01K2MAY484FQGFEQVN3VKGYZ59',
       first_name: 'John',

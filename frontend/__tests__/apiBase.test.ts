@@ -22,7 +22,7 @@ describe('API Base Configuration', () => {
 
   describe('Phase A.2: Guard against deprecated NEXT_PUBLIC_API_URL', () => {
     it('should throw error in development when NEXT_PUBLIC_API_URL is set', () => {
-      process.env = { ...process.env, NODE_ENV: 'development' } as any;
+      process.env = { ...process.env, NODE_ENV: 'development' } as NodeJS.ProcessEnv;
       process.env.NEXT_PUBLIC_API_URL = 'http://old-api.example.com';
       process.env.NEXT_PUBLIC_API_BASE = 'http://api.example.com';
 
@@ -32,7 +32,7 @@ describe('API Base Configuration', () => {
     });
 
     it('should log error in production when NEXT_PUBLIC_API_URL is set', () => {
-      process.env = { ...process.env, NODE_ENV: 'production' } as any;
+      process.env = { ...process.env, NODE_ENV: 'production' } as NodeJS.ProcessEnv;
       process.env.NEXT_PUBLIC_API_URL = 'http://old-api.example.com';
       process.env.NEXT_PUBLIC_API_BASE = 'http://api.example.com';
 

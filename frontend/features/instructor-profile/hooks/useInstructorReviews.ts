@@ -44,7 +44,7 @@ export function useInstructorReviews(
           review_text: r.review_text,
           created_at: r.created_at,
           instructor_service_id: r.instructor_service_id,
-          reviewer_display_name: (r as any).reviewer_display_name ?? null,
+          reviewer_display_name: r.reviewer_display_name ?? null,
         })),
         total: res.total,
         page: res.page,

@@ -22,7 +22,7 @@ export const formatInstructorNameForStudent = (
  * Format instructor name for student display using User object
  * Extracts first name and last initial for privacy
  */
-export const formatInstructorFromUser = (instructor: any | null | undefined): string => {
+export const formatInstructorFromUser = (instructor: { first_name: string; last_initial?: string } | null | undefined): string => {
   if (!instructor) return 'Instructor';
 
   const firstName = instructor.first_name;
@@ -35,7 +35,7 @@ export const formatInstructorFromUser = (instructor: any | null | undefined): st
  * Format user's full name (for contexts where full name is appropriate)
  * Used for the user's own profile, admin views, etc.
  */
-export const formatFullName = (user: any | null | undefined): string => {
+export const formatFullName = (user: { first_name?: string; last_initial?: string; last_name?: string; email?: string } | null | undefined): string => {
   if (!user) return 'User';
 
   const firstName = user.first_name || '';
@@ -49,7 +49,7 @@ export const formatFullName = (user: any | null | undefined): string => {
 /**
  * Get user initials for avatar display
  */
-export const getUserInitials = (user: any | null | undefined): string => {
+export const getUserInitials = (user: { first_name?: string; last_initial?: string; last_name?: string } | null | undefined): string => {
   if (!user) return '??';
 
   const firstName = user.first_name || '';

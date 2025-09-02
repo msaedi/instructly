@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, Page, type Route } from '@playwright/test';
 import { addDays, format } from 'date-fns';
 
 // Test data
@@ -1149,7 +1149,7 @@ test.describe('Error Handling', () => {
 
   test('should return to My Lessons after login', async ({ page }) => {
     // Set up login mock with proper response structure - handle both regular and session login
-    const loginHandler = async (route: any) => {
+    const loginHandler = async (route: Route) => {
       const request = route.request();
       const contentType = request.headers()['content-type'] || '';
 

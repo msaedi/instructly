@@ -329,7 +329,7 @@ export const bookingsApi = {
             errorDetail = error.detail;
           } else if (Array.isArray(error.detail)) {
             errorDetail = error.detail
-              .map((e: any) => `${e.loc.join(' > ')}: ${e.msg}`)
+              .map((e: { loc: string[]; msg: string }) => `${e.loc.join(' > ')}: ${e.msg}`)
               .join(', ');
           }
         }

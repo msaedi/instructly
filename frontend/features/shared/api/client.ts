@@ -152,16 +152,16 @@ export async function cleanFetch<T>(
         ...((fetchOptions.headers as Record<string, string>) || {}),
       },
       // Always include credentials so cookies (sid_preview/sid_prod) are sent
-      credentials: (fetchOptions as any)?.credentials ?? 'include',
+      credentials: fetchOptions?.credentials ?? 'include',
     });
 
     const retryAfterHeader = response.headers.get('Retry-After');
     const retryAfterSeconds = retryAfterHeader ? parseInt(retryAfterHeader, 10) : undefined;
 
-    let data: any = null;
+    let data: unknown = null;
     try {
       data = await response.json();
-    } catch (_) {
+    } catch {
       data = null;
     }
 
@@ -173,11 +173,9 @@ export async function cleanFetch<T>(
           // Friendly user-facing copy
           error: secs ? `Our hamsters are sprinting. Give them ${secs}s.` : 'Our hamsters are sprinting. Please try again shortly.',
           status: 429,
-          // @ts-ignore — allow extra fields on ApiResponse
-          code: 'RATE_LIMIT',
-          // @ts-ignore
+          code: 'RATE_LIMIT' as const,
           retryAfterSeconds: secs,
-        } as any;
+        };
       }
 
       return {
@@ -271,7 +269,7 @@ export interface NaturalLanguageSearchResponse {
       actual_min_price: number;
       actual_max_price: number;
       display_order: number;
-      related_services: any[];
+      related_services: unknown[];
       online_capable: boolean;
       requires_certification: boolean;
       is_active: boolean;
@@ -418,7 +416,7 @@ export const publicApi = {
     search_query: string;
     search_type: string;
     results_count?: number | null;
-    search_context?: any;
+    search_context?: Record<string, unknown>;
   }) {
     // Refresh session on search activity
     refreshSession();

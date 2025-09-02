@@ -16,7 +16,7 @@ export function useInstructorProfile(instructorId: string) {
       const runWithRateLimitRetry = async <T>(fn: () => Promise<{ data?: T; error?: string; status: number; retryAfterSeconds?: number }>): Promise<T> => {
         const res = await fn();
         if (res.status === 429) {
-          const waitMs = (res as any).retryAfterSeconds ? (res as any).retryAfterSeconds * 1000 : 0;
+          const waitMs = res.retryAfterSeconds ? res.retryAfterSeconds * 1000 : 0;
           if (waitMs > 0) {
             await new Promise((r) => setTimeout(r, waitMs));
             const res2 = await fn();
@@ -39,12 +39,13 @@ export function useInstructorProfile(instructorId: string) {
       const catalogList = serviceCatalog || [];
 
       // Map service names from catalog and fix data structure
-      const mappedServices = instructor?.services?.map((service: any) => {
-        const catalogService = catalogList.find((s: any) => s.id === service.service_catalog_id);
+      const mappedServices = instructor?.services?.map((service: unknown) => {
+        const svc = service as { service_catalog_id: string; name?: string; duration_options?: number[]; [key: string]: unknown };
+        const catalogService = catalogList.find((s: { id: string; name: string }) => s.id === svc.service_catalog_id);
         return {
-          ...service,
-          skill: catalogService?.name || service.name || `Service ${service.service_catalog_id}`,
-          duration_options: service.duration_options || [60], // Preserve all duration options
+          ...svc,
+          skill: catalogService?.name || svc.name || `Service ${svc.service_catalog_id}`,
+          duration_options: svc.duration_options || [60], // Preserve all duration options
         };
       }) || [];
 

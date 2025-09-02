@@ -58,7 +58,7 @@ function Step3SkillsPricingInner() {
         }
         if (all.status === 200 && all.data) {
           const map: Record<string, CatalogService[]> = {};
-          for (const c of all.data.categories.filter((c: any) => c.slug !== 'kids')) {
+          for (const c of all.data.categories.filter((c) => c.slug !== 'kids')) {
             map[c.slug] = c.services;
           }
           setServicesByCategory(map);
@@ -77,7 +77,7 @@ function Step3SkillsPricingInner() {
   // Guarded prefill: only attempt when authenticated and user has instructor role
   useEffect(() => {
     const shouldPrefill =
-      !!isAuthenticated && !!user && Array.isArray(user.roles) && user.roles.some((r: any) => String(r).toLowerCase() === 'instructor');
+      !!isAuthenticated && !!user && Array.isArray(user.roles) && user.roles.some((r: unknown) => String(r).toLowerCase() === 'instructor');
     if (!shouldPrefill) return;
 
     let cancelled = false;
@@ -86,28 +86,32 @@ function Step3SkillsPricingInner() {
         const meRes = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
         if (!meRes.ok) return; // silently ignore 401/403/404
         const me = await meRes.json();
-        const mapped: SelectedService[] = (me.services || []).map((svc: any) => ({
-          catalog_service_id: svc.service_catalog_id,
-          name: svc.name || '',
-          hourly_rate: String(svc.hourly_rate ?? ''),
-          ageGroup:
-            Array.isArray(svc.age_groups) && svc.age_groups.length === 2
-              ? 'both'
-              : (svc.age_groups || []).includes('kids')
-              ? 'kids'
-              : 'adults',
-          description: svc.description || '',
-          equipment: Array.isArray(svc.equipment_required) ? svc.equipment_required.join(', ') : '',
-          levels_taught:
-            Array.isArray(svc.levels_taught) && svc.levels_taught.length
-              ? svc.levels_taught
-              : ['beginner', 'intermediate', 'advanced'],
-          duration_options: Array.isArray(svc.duration_options) && svc.duration_options.length ? svc.duration_options : [60],
-          location_types:
-            Array.isArray(svc.location_types) && svc.location_types.length
-              ? svc.location_types
-              : ['in-person'],
-        }));
+        const mapped: SelectedService[] = (me.services || []).map((svc: unknown) => {
+          if (typeof svc !== 'object' || svc === null) return null;
+          const service = svc as Record<string, unknown>;
+          return {
+            catalog_service_id: String(service.service_catalog_id || ''),
+            name: String(service.name || ''),
+            hourly_rate: String(service.hourly_rate ?? ''),
+            ageGroup:
+              Array.isArray(service.age_groups) && service.age_groups.length === 2
+                ? 'both' as AgeGroup
+                : Array.isArray(service.age_groups) && service.age_groups.includes('kids')
+                ? 'kids' as AgeGroup
+                : 'adults' as AgeGroup,
+            description: String(service.description || ''),
+            equipment: Array.isArray(service.equipment_required) ? service.equipment_required.join(', ') : '',
+            levels_taught:
+              Array.isArray(service.levels_taught) && service.levels_taught.length
+                ? service.levels_taught as string[]
+                : ['beginner', 'intermediate', 'advanced'],
+            duration_options: Array.isArray(service.duration_options) && service.duration_options.length ? service.duration_options as number[] : [60],
+            location_types:
+              Array.isArray(service.location_types) && service.location_types.length
+                ? service.location_types as string[]
+                : ['in-person'],
+          };
+        }).filter(Boolean) as SelectedService[];
         if (!cancelled && mapped.length) setSelected(mapped);
       } catch {
         // Swallow network errors to keep onboarding clean

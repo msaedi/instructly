@@ -49,8 +49,9 @@ import ClearWeekConfirmModal from '@/components/modals/ClearWeekConfirmModal';
 import ApplyToFutureWeeksModal from '@/components/modals/ApplyToFutureWeeksModal';
 import ValidationPreviewModal from '@/components/modals/ValidationPreviewModal';
 
-// Utilities and constants
+// Utilities, constants, and types
 import { PRESET_SCHEDULES, SUCCESS_MESSAGES, ERROR_MESSAGES } from '@/lib/availability/constants';
+import type { TimeSlot, WeekSchedule } from '@/types/availability';
 import { isTimeSlotInPast } from '@/lib/availability/dateHelpers';
 import { mergeAdjacentSlots, createHourSlot } from '@/legacy-patterns/slotHelpers';
 import { logger } from '@/lib/logger';
@@ -190,8 +191,8 @@ export default function AvailabilityPage(): React.ReactElement {
   /**
    * Remove an hour from availability slots
    */
-  const removeHourFromSlots = (slots: any[], hour: number) => {
-    const newSlots: any[] = [];
+  const removeHourFromSlots = (slots: TimeSlot[], hour: number): TimeSlot[] => {
+    const newSlots: TimeSlot[] = [];
 
     slots.forEach((slot) => {
       const startHour = parseInt(slot.start_time.split(':')[0]);
@@ -243,7 +244,7 @@ export default function AvailabilityPage(): React.ReactElement {
 
       logger.info('Applying preset schedule', { preset });
 
-      const newSchedule: any = {};
+      const newSchedule: WeekSchedule = {};
       weekDates.forEach((dateInfo) => {
         const daySlots = presetData[dateInfo.dayOfWeek];
         newSchedule[dateInfo.fullDate] = daySlots || [];
@@ -267,7 +268,7 @@ export default function AvailabilityPage(): React.ReactElement {
     logger.info('Clearing week schedule');
 
     // Create empty schedule preserving only booked slots
-    const newSchedule: any = {};
+    const newSchedule: WeekSchedule = {};
     weekDates.forEach((dateInfo) => {
       newSchedule[dateInfo.fullDate] = [];
     });

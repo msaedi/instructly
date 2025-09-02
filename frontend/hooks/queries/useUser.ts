@@ -31,9 +31,9 @@ export function useUser() {
     queryFn: queryFn<UserData>('/auth/me', { requireAuth: true }),
     staleTime: CACHE_TIMES.SESSION, // User data is fresh for the entire session
     gcTime: CACHE_TIMES.SESSION, // Keep in cache for the entire session
-    retry: (failureCount, error: any) => {
+    retry: (failureCount, error: unknown) => {
       // Don't retry on 401 (unauthorized) - user needs to log in
-      if (error?.status === 401) return false;
+      if (error && typeof error === 'object' && 'status' in error && error.status === 401) return false;
       // Retry other errors up to 3 times
       return failureCount < 3;
     },

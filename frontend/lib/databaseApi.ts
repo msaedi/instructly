@@ -75,7 +75,7 @@ export const databaseApi = {
   /**
    * Get database health status (no auth required)
    */
-  async getHealth(): Promise<{ status: string; message: string; pool_status?: any }> {
+  async getHealth(): Promise<{ status: string; message: string; pool_status?: unknown }> {
     return fetchPublic('/api/database/health');
   },
 

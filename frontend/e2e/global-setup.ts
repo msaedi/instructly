@@ -2,6 +2,20 @@ import type { FullConfig } from '@playwright/test';
 import { promises as fs } from 'fs';
 import path from 'path';
 
+interface StorageState {
+  cookies: Array<{
+    name: string;
+    value: string;
+    domain: string;
+    path: string;
+    expires: number;
+    httpOnly: boolean;
+    secure: boolean;
+    sameSite: 'Strict' | 'Lax' | 'None';
+  }>;
+  origins: unknown[];
+}
+
 async function readEnvToken(projectRoot: string): Promise<string | null> {
   const candidates = ['.env.local', '.env'];
   for (const filename of candidates) {
@@ -49,7 +63,7 @@ async function globalSetup(config: FullConfig) {
 
   const thirtyDaysFromNow = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30;
 
-  const storageState: any = {
+  const storageState: StorageState = {
     cookies: [],
     origins: [],
   };

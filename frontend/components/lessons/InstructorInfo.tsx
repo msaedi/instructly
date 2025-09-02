@@ -2,8 +2,18 @@ import { Button } from '@/components/ui/button';
 import { Star, MessageCircle } from 'lucide-react';
 import { UserAvatar } from '@/components/user/UserAvatar';
 
+type InstructorSummary = {
+  id: string | number;
+  first_name?: string;
+  last_name?: string;
+  last_initial?: string;
+  email?: string;
+  has_profile_picture?: boolean;
+  profile_picture_version?: number;
+};
+
 interface InstructorInfoProps {
-  instructor?: any; // Can be User or instructor with last_initial
+  instructor?: InstructorSummary; // Can be User or summary with last_initial
   rating?: number;
   reviewCount?: number;
   lessonsCompleted?: number;
@@ -16,7 +26,7 @@ interface InstructorInfoProps {
 }
 
 // Helper to get instructor display name with privacy (FirstName L.)
-function getInstructorPrivacyName(instructor: any): string {
+function getInstructorPrivacyName(instructor: InstructorSummary): string {
   const firstName = instructor.first_name || '';
   const lastInitial = instructor.last_initial || '';
   return lastInitial ? `${firstName} ${lastInitial}.` : firstName;

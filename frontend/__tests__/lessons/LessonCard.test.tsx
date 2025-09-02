@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { LessonCard } from '@/components/lessons/LessonCard';
-import { Booking } from '@/types/booking';
+import { Booking, Service } from '@/types/booking';
 
 // Mock next/navigation
 jest.mock('next/navigation', () => ({
@@ -35,7 +35,7 @@ describe('LessonCard', () => {
     instructor_id: '1',
     student_id: '1',
     instructor_service_id: '1',
-    service: { id: '1' } as any,
+    service: { id: '1' } as Service,
     service_name: 'Mathematics',
     created_at: '2024-12-01T10:00:00Z',
     updated_at: '2024-12-01T10:00:00Z',
@@ -176,7 +176,7 @@ describe('LessonCard', () => {
 
     render(
       <LessonCard
-        lesson={bookingWithoutInstructor as any}
+        lesson={bookingWithoutInstructor as Booking}
         isCompleted={false}
         onViewDetails={mockOnViewDetails}
         suppressFetchRating

@@ -94,7 +94,7 @@ export function ProfilePictureUpload({ onCompleted, className, size = 64, trigge
         queryClient.invalidateQueries({ queryKey: queryKeys.user });
       } catch {}
       if (onCompleted) onCompleted();
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Profile picture upload error', err);
       const msg = err?.message || 'Upload failed';
       setError(msg);

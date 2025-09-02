@@ -45,8 +45,8 @@ export default function CandidatesAnalyticsDashboard() {
       setTrends(t);
       setTopServices(ts);
       setScoreDist(sd);
-    } catch (e: any) {
-      setError(e?.message || 'Failed to load analytics');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to load analytics');
     } finally {
       setLoading(false);
     }

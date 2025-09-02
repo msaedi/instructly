@@ -10,6 +10,33 @@ import { fetchWithAuth, API_ENDPOINTS } from '@/lib/api';
 import { logger } from '@/lib/logger';
 import { InstructorService } from '@/types/instructor';
 
+// Simple address type for profile editing
+interface AddressItem {
+  id: string;
+  postal_code?: string;
+  is_default?: boolean;
+}
+
+interface ServiceUpdateItem {
+  service_catalog_id: string;
+  hourly_rate: number;
+  age_groups: string[];
+  description?: string;
+  duration_options: number[];
+  levels_taught: string[];
+  equipment_required?: string[];
+  location_types: string[];
+}
+
+interface ProfileServiceUpdatePayload {
+  services: ServiceUpdateItem[];
+}
+
+interface ApiErrorResponse {
+  detail?: string;
+  message?: string;
+}
+
 /**
  * EditProfileModal Component
  *
@@ -187,7 +214,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
         }
         if (all.status === 200 && all.data) {
           const map: Record<string, CatalogService[]> = {};
-          for (const c of all.data.categories.filter((c: any) => c.slug !== 'kids')) {
+          for (const c of all.data.categories.filter((c: { slug: string; services: unknown[] }) => c.slug !== 'kids')) {
             map[c.slug] = c.services;
           }
           setServicesByCategory(map);
@@ -197,7 +224,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
           const meRes = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE);
           if (meRes.ok) {
             const me = await meRes.json();
-            const mapped: SelectedService[] = (me.services || []).map((svc: any) => ({
+            const mapped: SelectedService[] = (me.services || []).map((svc: { service_catalog_id: string; name?: string; hourly_rate?: number; age_groups?: string[] }) => ({
               catalog_service_id: svc.service_catalog_id,
               name: svc.name || '',
               hourly_rate: String(svc.hourly_rate ?? ''),
@@ -328,7 +355,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
         const addrRes = await fetchWithAuth('/api/addresses/me');
         if (addrRes.ok) {
           const list = await addrRes.json();
-          const def = (list.items || []).find((a: any) => a.is_default) || (list.items || [])[0];
+          const def = (list.items || []).find((a: AddressItem) => a.is_default) || (list.items || [])[0];
           postalCode = def?.postal_code || '';
         }
       } catch {}
@@ -384,7 +411,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
         const addrRes = await fetchWithAuth('/api/addresses/me');
         if (addrRes.ok) {
           const list = await addrRes.json();
-          const items = (list.items || []) as any[];
+          const items = (list.items || []) as AddressItem[];
           const def = items.find((a) => a.is_default) || items[0];
           const newZip = (profileData.postal_code || '').trim();
           if (def) {
@@ -429,9 +456,9 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
       logger.info('Profile updated successfully');
       onSuccess();
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       logger.error('Failed to update profile', err);
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Failed to update profile');
     } finally {
       setLoading(false);
     }
@@ -534,7 +561,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
         const addrRes = await fetchWithAuth('/api/addresses/me');
         if (addrRes.ok) {
           const list = await addrRes.json();
-          const items = (list.items || []) as any[];
+          const items = (list.items || []) as AddressItem[];
           const def = items.find((a) => a.is_default) || items[0];
           const newZip = (profileData.postal_code || '').trim();
           if (def) {
@@ -567,13 +594,13 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
         }),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({} as any));
-        throw new Error(errorData.detail || 'Failed to update profile');
+        const errorData = await response.json().catch(() => ({} as Record<string, unknown>));
+        throw new Error(typeof errorData.detail === 'string' ? errorData.detail : 'Failed to update profile');
       }
       onSuccess();
       onClose();
-    } catch (e: any) {
-      setError(e?.message || 'Failed to save changes');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to save changes');
     } finally {
       setSavingAbout(false);
     }
@@ -600,13 +627,13 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
         }),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({} as any));
+        const errorData = await response.json().catch(() => ({} as { detail?: string }));
         throw new Error(errorData.detail || 'Failed to update service areas');
       }
       onSuccess();
       onClose();
-    } catch (e: any) {
-      setError(e?.message || 'Failed to save service areas');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to save service areas');
     } finally {
       setSavingAreas(false);
     }
@@ -1339,7 +1366,7 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                   <button type="button" onClick={async () => {
                     try {
                       setSvcSaving(true);
-                      const payload = {
+                      const payload: ProfileServiceUpdatePayload = {
                         services: selectedServices
                           .filter((s) => s.hourly_rate.trim() !== '')
                           .map((s) => ({
@@ -1352,16 +1379,16 @@ export default function EditProfileModal({ isOpen, onClose, onSuccess, variant =
                             equipment_required: s.equipment?.split(',').map((x)=>x.trim()).filter(Boolean) || undefined,
                             location_types: s.location_types?.length ? s.location_types : ['in-person'],
                           })),
-                      } as any;
+                      };
                       const res = await fetchWithAuth(API_ENDPOINTS.INSTRUCTOR_PROFILE, { method: 'PUT', headers: { 'Content-Type':'application/json' }, body: JSON.stringify(payload) });
                       if (!res.ok) {
-                        const msg = await res.json().catch(() => ({} as any));
+                        const msg = await res.json().catch((): ApiErrorResponse => ({}));
                         throw new Error(msg.detail || 'Failed to save');
                       }
                       onSuccess();
                       onClose();
-                    } catch (e: any) {
-                      setError(e?.message || 'Failed to save');
+                    } catch (e: unknown) {
+                      setError(e instanceof Error ? e.message : 'Failed to save');
                     } finally {
                       setSvcSaving(false);
                     }

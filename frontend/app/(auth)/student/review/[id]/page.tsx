@@ -157,8 +157,8 @@ export default function ReviewPage() {
 
       // Redirect back to lessons (history tab)
       router.push('/student/lessons?tab=history');
-    } catch (error: any) {
-      const message = typeof error?.message === 'string' ? error.message : 'Failed to submit review. Please try again.';
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to submit review. Please try again.';
       toast.error(message);
       setIsSubmitting(false);
     }

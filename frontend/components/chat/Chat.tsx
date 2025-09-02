@@ -23,6 +23,12 @@ import { Message } from '@/services/messageService';
 import { cn } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 
+// Extended message type with reactions
+interface MessageWithReactions extends Message {
+  my_reactions?: string[];
+  reactions?: Record<string, number>;
+}
+
 interface ChatProps {
   bookingId: string;
   currentUserId: string;
@@ -147,10 +153,10 @@ export function Chat({
   const mergedReadReceipts = React.useMemo(() => {
     const map: Record<string, Array<{ user_id: string; read_at: string }>> = { ...readReceipts };
     for (const m of allMessages) {
-      if ((m as any).read_by && Array.isArray((m as any).read_by)) {
+      if (m.read_by && Array.isArray(m.read_by)) {
         const existing = map[m.id] || [];
         const combined = [...existing];
-        for (const r of (m as any).read_by as any[]) {
+        for (const r of m.read_by) {
           if (!combined.find(x => x.user_id === r.user_id && x.read_at === r.read_at)) {
             if (r.user_id && r.read_at) combined.push({ user_id: r.user_id, read_at: r.read_at });
           }
@@ -308,7 +314,7 @@ export function Chat({
       }
 
       // Get current state
-      const myReactions = (message as any)?.my_reactions || [];
+      const myReactions = (message as MessageWithReactions)?.my_reactions || [];
       const localReaction = userReactions[messageId];
       const currentReaction = localReaction !== undefined ? localReaction : myReactions[0];
 
@@ -369,7 +375,7 @@ export function Chat({
 
       // Extra safety: if server still has multiple reactions, clean them up
       const updatedMessage = allMessages.find(m => m.id === messageId);
-      const updatedReactions = (updatedMessage as any)?.my_reactions || [];
+      const updatedReactions = (updatedMessage as MessageWithReactions)?.my_reactions || [];
       if (updatedReactions.length > 1) {
         logger.warn(`Message still has ${updatedReactions.length} reactions after update, cleaning up extras`);
         const keepEmoji = userReactions[messageId] || updatedReactions[0];
@@ -385,7 +391,7 @@ export function Chat({
       // Revert optimistic update on error
       const message = allMessages.find(m => m.id === messageId);
       if (message) {
-        const myReactions = (message as any)?.my_reactions || [];
+        const myReactions = (message as MessageWithReactions)?.my_reactions || [];
         const serverReaction = myReactions[0];
         setUserReactions(prev => ({
           ...prev,
@@ -468,7 +474,7 @@ export function Chat({
     allMessages.forEach(message => {
       // Only set if we don't already have a local state for this message
       if (userReactions[message.id] === undefined) {
-        const myReactions = (message as any).my_reactions || [];
+        const myReactions = (message as MessageWithReactions).my_reactions || [];
         // Only track the FIRST reaction (enforce single emoji)
         newReactions[message.id] = myReactions[0] || null;
 
@@ -534,7 +540,7 @@ export function Chat({
     }
 
     // Fall back to server state - only consider FIRST reaction
-    const myReactions = (message as any).my_reactions || [];
+    const myReactions = (message as MessageWithReactions).my_reactions || [];
     return myReactions.length > 0 && myReactions[0] === emoji;
   };
 
@@ -793,14 +799,14 @@ export function Chat({
 
                         {/* Reaction bar (counts) */}
                         {(() => {
-                          const reactions = ((message as any).reactions as Record<string, number>) || {};
+                          const reactions = (message as MessageWithReactions).reactions || {};
 
                           // Build the display considering user's single reaction
                           const displayReactions: Record<string, number> = { ...reactions };
 
                           // Get user's current reaction (only one allowed)
                           const localReaction = userReactions[message.id];
-                          const serverReaction = ((message as any).my_reactions || [])[0];
+                          const serverReaction = (message as MessageWithReactions).my_reactions?.[0];
 
                           // Adjust counts based on local state changes
                           if (localReaction !== undefined && localReaction !== serverReaction) {
@@ -872,7 +878,7 @@ export function Chat({
                                 {quickEmojis.map((e) => {
                                   const currentReaction = userReactions[message.id] !== undefined
                                     ? userReactions[message.id]
-                                    : ((message as any).my_reactions || [])[0];
+                                    : (message as MessageWithReactions).my_reactions?.[0];
                                   const isCurrentReaction = currentReaction === e;
                                   return (
                                     <button

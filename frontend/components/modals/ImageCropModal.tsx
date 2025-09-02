@@ -132,7 +132,7 @@ export default function ImageCropModal({
         onCropped(blob);
       }
     } catch (err) {
-      logger.error('Failed to create cropped image', err as any);
+      logger.error('Failed to create cropped image', err instanceof Error ? err : new Error(String(err)));
     }
   };
 

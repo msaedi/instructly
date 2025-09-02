@@ -97,7 +97,7 @@ export function withPermission(
   permission: PermissionName | string,
   fallback?: React.ReactNode
 ) {
-  return function PermissionProtectedComponent(props: any) {
+  return function PermissionProtectedComponent(props: Record<string, unknown>) {
     const { hasPermission } = usePermissions();
 
     if (!hasPermission(permission)) {

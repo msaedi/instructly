@@ -61,8 +61,8 @@ export default function InstructorAllReviewsPage() {
         setHasNext(res.has_next);
         setHasPrev(res.has_prev);
         setTotal(res.total);
-      } catch (e: any) {
-        if (mounted) setError(e?.message || 'Failed to load reviews');
+      } catch (e: unknown) {
+        if (mounted) setError((e as Error)?.message || 'Failed to load reviews');
       } finally {
         if (mounted) setLoading(false);
       }

@@ -300,7 +300,16 @@ describe('useDeviceFeatures', () => {
   });
 
   it('should detect standalone mode', () => {
-    window.matchMedia = jest.fn(() => ({ matches: true })) as any;
+    window.matchMedia = jest.fn(() => ({
+      matches: true,
+      media: '',
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn()
+    })) as jest.Mock;
 
     const { result } = renderHook(() => useDeviceFeatures());
 

@@ -70,7 +70,7 @@ export function PopularSearchesTable({ data, loading }: PopularSearchesTableProp
   };
 
   const handleExport = () => {
-    exportToCSV(sortedData, 'popular-searches');
+    exportToCSV(sortedData as unknown as Record<string, unknown>[], 'popular-searches');
   };
 
   return (

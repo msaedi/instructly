@@ -1,10 +1,10 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Route } from '@playwright/test';
 import { HomePage } from '../pages/HomePage';
 
 test.describe('Basic Search Flow', () => {
   test.beforeEach(async ({ page }) => {
     // Minimal mocks to render homepage service pills (handle CORS + preflight)
-    const allow = (route: any) => ({
+    const allow = (route: Route) => ({
       'Access-Control-Allow-Origin': route.request().headers()['origin'] || 'http://localhost:3100',
       'Access-Control-Allow-Credentials': 'true',
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
@@ -93,7 +93,7 @@ test.describe('Basic Search Flow', () => {
 
   test('can click on category links', async ({ page }) => {
     // Ultra-early interceptors so homepage requests are mocked before first paint
-    const allow = (route: any) => ({
+    const allow = (route: Route) => ({
       'Access-Control-Allow-Origin': route.request().headers()['origin'] || 'http://localhost:3100',
       'Access-Control-Allow-Credentials': 'true',
       'Access-Control-Allow-Methods': 'GET, OPTIONS',

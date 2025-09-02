@@ -20,7 +20,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
-    public data?: any
+    public data?: unknown
   ) {
     super(message);
     this.name = 'ApiError';
@@ -80,7 +80,7 @@ export interface QueryOptions extends RequestInit {
  * })
  * ```
  */
-export function queryFn<T = any>(endpoint: string, options: QueryOptions = {}) {
+export function queryFn<T = unknown>(endpoint: string, options: QueryOptions = {}) {
   return async ({ signal }: QueryFunctionContext): Promise<T> => {
     const { params, ...fetchOptions } = options;
 
@@ -121,7 +121,7 @@ export function queryFn<T = any>(endpoint: string, options: QueryOptions = {}) {
         ...fetchOptions,
         headers,
         // Always include cookies for cross-site API domain
-        credentials: (fetchOptions as any)?.credentials ?? 'include',
+        credentials: (fetchOptions as Record<string, unknown>)?.credentials as RequestCredentials ?? 'include',
         signal, // Pass AbortSignal for query cancellation
       });
 
@@ -170,7 +170,7 @@ export function queryFn<T = any>(endpoint: string, options: QueryOptions = {}) {
  * })
  * ```
  */
-export function mutationFn<TData = any, TVariables = any>(
+export function mutationFn<TData = unknown, TVariables = unknown>(
   endpoint: string,
   options: QueryOptions = {}
 ) {
@@ -215,7 +215,7 @@ export function mutationFn<TData = any, TVariables = any>(
         headers,
         body: variables ? JSON.stringify(variables) : undefined,
         // Always include cookies for cross-site API domain
-        credentials: (fetchOptions as any)?.credentials ?? 'include',
+        credentials: (fetchOptions as Record<string, unknown>)?.credentials as RequestCredentials ?? 'include',
       });
 
       // Parse response

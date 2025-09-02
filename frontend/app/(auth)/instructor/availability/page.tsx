@@ -8,9 +8,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/queries/useAuth';
 import { AVAILABILITY_CONSTANTS } from '@/types/availability';
+import { UserData } from '@/types/user';
+import { getWeekDates } from '@/lib/availability/dateHelpers';
 
 export default function InstructorAvailabilityPage() {
   const { user } = useAuth();
+  const userData = user as unknown as UserData;
   const {
     currentWeekStart,
     weekSchedule,
@@ -58,6 +61,9 @@ export default function InstructorAvailabilityPage() {
   }, [currentWeekStart, isLoading, fetchBookedSlots]);
 
   const isSaving = false;
+
+  // Convert Date[] from hook to WeekDateInfo[] for components
+  const weekDateInfo = useMemo(() => getWeekDates(currentWeekStart), [currentWeekStart]);
 
   // Update a user-friendly local timestamp from Last-Modified (server) or version fallback
   useEffect(() => {
@@ -255,7 +261,7 @@ export default function InstructorAvailabilityPage() {
       {/* Mobile day chips */}
       {isMobile && (
         <div className="mb-3 flex gap-2 overflow-x-auto">
-          {weekDates.map((d, i) => (
+          {weekDateInfo.map((d, i) => (
             <button
               key={d.fullDate}
               onClick={() => setActiveDay(i)}
@@ -270,14 +276,14 @@ export default function InstructorAvailabilityPage() {
       {/* Interactive Grid */}
       <div className="bg-white rounded-lg shadow p-4">
         <InteractiveGrid
-          weekDates={weekDates}
+          weekDates={weekDateInfo}
           weekSchedule={weekSchedule}
           bookedSlots={bookedSlots}
           onScheduleChange={(s) => setWeekSchedule(s)}
           isMobile={isMobile}
           activeDayIndex={activeDay}
           onActiveDayChange={setActiveDay}
-          timezone={(user as any)?.timezone}
+          timezone={userData?.timezone}
           startHour={startHour}
           endHour={endHour}
         />

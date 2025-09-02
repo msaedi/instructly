@@ -97,8 +97,9 @@ export default function BetaInvitesAdminPage() {
       if (!res.ok) throw new Error((await res.text()) || `Failed to send invite (${res.status})`);
       const data = await res.json();
       setResult({ code: data.code, join_url: data.join_url, welcome_url: data.welcome_url });
-    } catch (err: any) {
-      setError(err?.message || 'Failed');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed';
+      setError(errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -298,8 +299,9 @@ export default function BetaInvitesAdminPage() {
                         const data = await res.json();
                         // Show a simple success summary
                         setResult({ code: data.invites?.[0]?.code || 'bulk', join_url: '#', welcome_url: '#' });
-                      } catch (err: any) {
-                        setError(err?.message || 'Failed to generate invites');
+                      } catch (err: unknown) {
+                        const errorMessage = err instanceof Error ? err.message : 'Failed to generate invites';
+                        setError(errorMessage);
                       }
                     }}
                   >
@@ -325,8 +327,9 @@ export default function BetaInvitesAdminPage() {
                         const data = await r.json();
                         setAsyncTaskId(data.task_id);
                         setProgress({ state: 'PENDING', current: 0, total: emails.length, sent: 0, failed: 0 });
-                      } catch (err: any) {
-                        setError(err?.message || 'Failed to send batch invites');
+                      } catch (err: unknown) {
+                        const errorMessage = err instanceof Error ? err.message : 'Failed to send batch invites';
+                        setError(errorMessage);
                       }
                     }}
                   >

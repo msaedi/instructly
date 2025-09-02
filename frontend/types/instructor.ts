@@ -297,6 +297,12 @@ export interface FavoritedInstructor {
 
   /** When this instructor was favorited */
   favorited_at?: string;
+
+  /** Whether instructor has profile picture (optional API field) */
+  has_profile_picture?: boolean;
+
+  /** Profile picture version (optional API field) */
+  profile_picture_version?: number;
 }
 
 /**
@@ -318,8 +324,8 @@ export interface FavoritesListResponse {
  * @param user - User object to check
  * @returns boolean indicating if user is an instructor
  */
-export function isInstructor(user: any): user is { instructor_profile: InstructorProfile } {
-  return user && typeof user === 'object' && 'instructor_profile' in user;
+export function isInstructor(user: unknown): user is { instructor_profile: InstructorProfile } {
+  return Boolean(user && typeof user === 'object' && 'instructor_profile' in user);
 }
 
 /**
@@ -328,22 +334,26 @@ export function isInstructor(user: any): user is { instructor_profile: Instructo
  * @param instructor - Instructor data
  * @returns Formatted display name
  */
-export function getInstructorDisplayName(instructor: any): string {
+export function getInstructorDisplayName(instructor: unknown): string {
+  const inst = instructor as Record<string, unknown>;
   // For InstructorProfile with nested user object
-  if (instructor?.user?.first_name && instructor?.user?.last_initial) {
-    const firstName = instructor.user.first_name || '';
-    const lastInitial = instructor.user.last_initial || '';
-    return lastInitial ? `${firstName} ${lastInitial}.` : firstName;
+  if (inst?.user && typeof inst.user === 'object') {
+    const user = inst.user as Record<string, unknown>;
+    if (user?.first_name && user?.last_initial) {
+      const firstName = String(user.first_name) || '';
+      const lastInitial = String(user.last_initial) || '';
+      return lastInitial ? `${firstName} ${lastInitial}.` : firstName;
+    }
   }
   // For InstructorBasic with direct fields
-  if (instructor?.first_name && instructor?.last_initial) {
-    const firstName = instructor.first_name || '';
-    const lastInitial = instructor.last_initial || '';
+  if (inst?.first_name && inst?.last_initial) {
+    const firstName = String(inst.first_name) || '';
+    const lastInitial = String(inst.last_initial) || '';
     return lastInitial ? `${firstName} ${lastInitial}.` : firstName;
   }
   // Fallback
-  if (instructor?.user_id) {
-    return 'Instructor #' + instructor.user_id;
+  if (inst?.user_id) {
+    return 'Instructor #' + String(inst.user_id);
   }
   return 'Instructor';
 }

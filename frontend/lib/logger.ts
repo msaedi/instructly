@@ -2,9 +2,7 @@
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
-interface LogContext {
-  [key: string]: any;
-}
+type LogContext = unknown;
 
 const getDefaultLogLevel = (): LogLevel => {
   if (typeof window !== 'undefined') {
@@ -53,7 +51,7 @@ class Logger {
     const timestamp = new Date().toISOString();
     const prefix = `[${timestamp}] [${level.toUpperCase()}]`;
 
-    if (context && Object.keys(context).length > 0) {
+    if (context && typeof context === 'object' && Object.keys(context as Record<string, unknown>).length > 0) {
       return `${prefix} ${message} ${JSON.stringify(context)}`;
     }
     return `${prefix} ${message}`;
@@ -79,15 +77,15 @@ class Logger {
 
   error(message: string, error?: Error | unknown, context?: LogContext): void {
     if (this.shouldLog('error')) {
-      const errorContext = {
-        ...context,
-        ...(error instanceof Error
-          ? {
-              errorMessage: error.message,
-              errorStack: error.stack,
-            }
-          : { error }),
-      };
+      const base: Record<string, unknown> = {};
+      if (context && typeof context === 'object') Object.assign(base, context as Record<string, unknown>);
+      if (error instanceof Error) {
+        base.errorMessage = error.message;
+        base.errorStack = error.stack;
+      } else if (typeof error !== 'undefined') {
+        base.error = error as unknown as Record<string, unknown>;
+      }
+      const errorContext = base;
       console.error(this.formatMessage('error', message, errorContext));
     }
 
@@ -180,10 +178,10 @@ export const logger = new Logger();
 
 // At the bottom, add this for debugging:
 if (typeof window !== 'undefined') {
-  (window as any).logger = logger;
-  (window as any).setLogLevel = (level: LogLevel) => logger.setLevel(level);
-  (window as any).setLoggingEnabled = (enabled: boolean) => logger.setEnabled(enabled);
-  (window as any).getLoggerStatus = () => logger.getStatus();
+  (window as unknown as Record<string, unknown>).logger = logger;
+  (window as unknown as Record<string, unknown>).setLogLevel = (level: LogLevel) => logger.setLevel(level);
+  (window as unknown as Record<string, unknown>).setLoggingEnabled = (enabled: boolean) => logger.setEnabled(enabled);
+  (window as unknown as Record<string, unknown>).getLoggerStatus = () => logger.getStatus();
 }
 
 // Usage examples:

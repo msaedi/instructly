@@ -11,7 +11,13 @@ export default function Step3PaymentSetup() {
   const [error, setError] = useState<string | null>(null);
   const [skillsSkipped, setSkillsSkipped] = useState(false);
   const [verificationComplete, setVerificationComplete] = useState(false);
-  const [connectStatus, setConnectStatus] = useState<any>(null);
+  const [connectStatus, setConnectStatus] = useState<{
+    has_account: boolean;
+    onboarding_completed: boolean;
+    charges_enabled: boolean;
+    payouts_enabled: boolean;
+    details_submitted: boolean;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

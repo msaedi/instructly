@@ -89,7 +89,7 @@ export function useSSEMessages({
 
     try {
       // Create a simple beep sound using Web Audio API
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
       const oscillator = audioContext.createOscillator();
       const gainNode = audioContext.createGain();
 
@@ -141,45 +141,58 @@ export function useSSEMessages({
   }, [showNotifications]);
 
   // Process incoming message
-  const processMessage = useCallback((messageData: any) => {
+  const processMessage = useCallback((messageData: unknown) => {
     try {
-      const eventType = messageData.type || 'message';
+      // Type guard for message data
+      if (!messageData || typeof messageData !== 'object') {
+        logger.warn('Invalid message data received');
+        return;
+      }
+
+      const data = messageData as Record<string, unknown>;
+      const eventType = data.type || 'message';
 
       if (eventType === 'read_receipt') {
-        const { message_id, user_id, read_at } = messageData;
-        setReadReceipts(prev => ({
-          ...prev,
-          [message_id]: [...(prev[message_id] || []), { user_id, read_at }],
-        }));
+        const { message_id, user_id, read_at } = data;
+        if (typeof message_id === 'string' && typeof user_id === 'string' && typeof read_at === 'string') {
+          setReadReceipts(prev => ({
+            ...prev,
+            [message_id]: [...(prev[message_id] || []), { user_id, read_at }],
+          }));
+        }
         return;
       }
 
       if (eventType === 'typing_status') {
-        const { user_id, user_name } = messageData;
-        // Clear after 3 seconds
-        setTypingStatus({ userId: user_id, userName: user_name, until: Date.now() + 3000 });
+        const { user_id, user_name } = data;
+        if (typeof user_id === 'string' && typeof user_name === 'string') {
+          // Clear after 3 seconds
+          setTypingStatus({ userId: user_id, userName: user_name, until: Date.now() + 3000 });
+        }
         return;
       }
 
       if (eventType === 'reaction_update') {
-        const { message_id, emoji, action } = messageData as { message_id: string; emoji: string; action: 'added' | 'removed' };
-        setReactionDeltas(prev => {
-          const current = prev[message_id] || {};
-          const delta = action === 'added' ? 1 : -1;
-          const nextCount = (current[emoji] || 0) + delta;
-          return {
-            ...prev,
-            [message_id]: { ...current, [emoji]: nextCount },
-          };
-        });
+        const { message_id, emoji, action } = data;
+        if (typeof message_id === 'string' && typeof emoji === 'string' && (action === 'added' || action === 'removed')) {
+          setReactionDeltas(prev => {
+            const current = prev[message_id] || {};
+            const delta = action === 'added' ? 1 : -1;
+            const nextCount = (current[emoji] || 0) + delta;
+            return {
+              ...prev,
+              [message_id]: { ...current, [emoji]: nextCount },
+            };
+          });
+        }
         return;
       }
 
       const message: Message = {
-        ...messageData,
-        created_at: messageData.created_at || new Date().toISOString(),
-        updated_at: messageData.updated_at || new Date().toISOString(),
-      };
+        ...data,
+        created_at: (data.created_at as string) || new Date().toISOString(),
+        updated_at: (data.updated_at as string) || new Date().toISOString(),
+      } as Message;
 
       // Add to state
       setMessages(prev => [...prev, message]);

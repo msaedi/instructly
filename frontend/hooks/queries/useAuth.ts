@@ -93,7 +93,7 @@ export function useAuth() {
               ? 'application/json'
               : 'application/x-www-form-urlencoded',
           },
-          body: guestSessionId ? JSON.stringify(body) : new URLSearchParams(body as any),
+          body: guestSessionId ? JSON.stringify(body) : new URLSearchParams(body as Record<string, string>),
         }
       );
 

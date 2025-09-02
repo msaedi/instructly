@@ -17,6 +17,8 @@ export interface User {
   email: string;
   first_name: string;
   last_name: string;
+  phone?: string;
+  zip_code?: string;
   roles: string[]; // Changed from single role to roles array
   permissions: string[]; // Added permissions array
   is_active: boolean;
@@ -293,7 +295,7 @@ export function useAuth() {
 }
 
 // Helper functions for avatar
-export function getUserInitials(user: any | null): string {
+export function getUserInitials(user: { first_name?: string; last_name?: string; last_initial?: string; email?: string } | null): string {
   if (!user) return '';
 
   // Handle both last_initial (instructor public view) and last_name (own profile)

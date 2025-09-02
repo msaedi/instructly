@@ -13,8 +13,14 @@ import UserProfileDropdown from '@/components/UserProfileDropdown';
 export default function OnboardingStatusPage() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
-  const [connectStatus, setConnectStatus] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
+  const [connectStatus, setConnectStatus] = useState<{
+    has_account: boolean;
+    onboarding_completed: boolean;
+    charges_enabled: boolean;
+    payouts_enabled: boolean;
+    details_submitted: boolean;
+  } | null>(null);
+  const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
   const [, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [connectLoading, setConnectLoading] = useState(false);

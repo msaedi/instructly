@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys, CACHE_TIMES } from '@/lib/react-query/queryClient';
-import { publicApi } from '@/features/shared/api/client';
+import { publicApi, type ApiResponse } from '@/features/shared/api/client';
 import { format, addDays } from 'date-fns';
 import { logger } from '@/lib/logger';
 
@@ -62,8 +62,9 @@ export function useInstructorAvailability(instructorId: string, startDate?: stri
       });
 
       // Handle rate limit: wait Retry-After and retry once
-      if (response.status === 429 && (response as any).retryAfterSeconds) {
-        await new Promise((r) => setTimeout(r, (response as any).retryAfterSeconds * 1000));
+      const rateLimitResponse = response as ApiResponse<unknown> & { retryAfterSeconds?: number };
+      if (response.status === 429 && rateLimitResponse.retryAfterSeconds) {
+        await new Promise((r) => setTimeout(r, rateLimitResponse.retryAfterSeconds * 1000));
         const retry = await publicApi.getInstructorAvailability(instructorId, {
           start_date: actualStartDate,
           end_date: endDate,

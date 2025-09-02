@@ -106,7 +106,7 @@ export const reviewsApi = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ instructor_ids: instructorIds }),
-    } as any);
+    });
     if (!res.ok) throw new Error(await getErrorMessage(res));
     return res.json();
   },

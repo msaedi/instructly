@@ -28,7 +28,7 @@ export interface PaymentIntent {
   currency: string;
   status: PaymentStatus;
   captureMethod: 'manual' | 'automatic';
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface BookingPayment {

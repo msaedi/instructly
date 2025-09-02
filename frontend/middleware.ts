@@ -42,7 +42,7 @@ export async function middleware(request: NextRequest) {
       serverAllowSignup = healthRes.headers.get('x-beta-allow-signup');
     } catch {}
   }
-  const cookiePhase = (cookies.get('beta_phase')?.value as any) || null;
+  const cookiePhase = cookies.get('beta_phase')?.value || null;
   const effectivePhase = (serverPhase === 'open_beta' || serverPhase === 'instructor_only')
     ? serverPhase
     : (cookiePhase === 'open_beta' || cookiePhase === 'instructor_only')

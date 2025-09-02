@@ -17,7 +17,22 @@ import {
   determineBookingType,
   calculateServiceFee,
   calculateTotalAmount,
+  PaymentStatus,
 } from '@/features/student/payment';
+
+// Define the Booking interface for pending booking
+interface PendingBooking {
+  id: string;
+  service_name: string;
+  instructor_name: string;
+  instructor_id: string;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  duration_minutes: number;
+  hourly_rate: number;
+  total_price: number;
+}
 
 type ModalStep = 'select-time' | 'booking-details' | 'payment' | 'success';
 
@@ -35,7 +50,7 @@ export default function BookingModalWithPayment({
   const [duration, setDuration] = useState(60); // Default to 60 minutes
   const [totalPrice, setTotalPrice] = useState(0);
   const [showBookingForm, setShowBookingForm] = useState(false);
-  const [pendingBooking, setPendingBooking] = useState<any>(null);
+  const [pendingBooking, setPendingBooking] = useState<PendingBooking | null>(null);
   const [bookingFormData, setBookingFormData] = useState({
     name: '',
     email: '',
@@ -127,7 +142,7 @@ export default function BookingModalWithPayment({
         serviceFee,
         totalAmount,
         bookingType,
-        paymentStatus: 'pending' as any,
+        paymentStatus: PaymentStatus.PENDING,
         freeCancellationUntil:
           bookingType === BookingType.STANDARD
             ? new Date(bookingDate.getTime() - 24 * 60 * 60 * 1000)

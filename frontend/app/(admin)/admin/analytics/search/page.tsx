@@ -13,6 +13,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import Link from 'next/link';
 import AdminSidebar from '@/app/(admin)/admin/AdminSidebar';
 import { useAuth } from '@/features/shared/hooks/useAuth';
+import type { ZeroResultSearch, SearchReferrer, ServicePillPerformance } from '@/lib/analyticsApi';
 
 export default function SearchAnalyticsDashboard() {
   const { isAdmin, isLoading: authLoading } = useAdminAuth();
@@ -183,7 +184,8 @@ export default function SearchAnalyticsDashboard() {
 }
 
 // Zero Results Table Component
-function ZeroResultsTable({ data, loading }: { data: any[] | null; loading: boolean }) {
+
+function ZeroResultsTable({ data, loading }: { data: ZeroResultSearch[] | null; loading: boolean }) {
   if (loading) {
     return (
       <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
@@ -233,7 +235,7 @@ function ZeroResultsTable({ data, loading }: { data: any[] | null; loading: bool
 }
 
 // Referrer Analysis Component
-function ReferrerAnalysis({ data, loading }: { data: any[] | null; loading: boolean }) {
+function ReferrerAnalysis({ data, loading }: { data: SearchReferrer[] | null; loading: boolean }) {
   if (loading) {
     return (
       <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">
@@ -276,7 +278,7 @@ function ReferrerAnalysis({ data, loading }: { data: any[] | null; loading: bool
 }
 
 // Service Pill Performance Component
-function ServicePillPerformance({ data, loading }: { data: any[] | null; loading: boolean }) {
+function ServicePillPerformance({ data, loading }: { data: ServicePillPerformance[] | null; loading: boolean }) {
   if (loading) {
     return (
       <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40 backdrop-blur">

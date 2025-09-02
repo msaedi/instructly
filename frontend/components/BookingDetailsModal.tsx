@@ -95,7 +95,7 @@ export default function BookingDetailsModal({
    * @param price - Price value (string or number)
    * @returns Formatted price string
    */
-  const formatPrice = (price: any): string => {
+  const formatPrice = (price: string | number): string => {
     try {
       if (typeof price === 'number') {
         return price.toFixed(2);

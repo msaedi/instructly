@@ -142,11 +142,11 @@ export default function LessonDetailsPage() {
   const formattedDate = format(lessonDateTime, 'EEE MMM d');
   const formattedTime = format(lessonDateTime, 'h:mm a');
   // Reschedule annotation (if this was created from another booking)
-  const rescheduledFrom = (lesson as any).rescheduled_from_booking_id as string | undefined;
+  const rescheduledFrom = (lesson as unknown as Record<string, unknown>).rescheduled_from_booking_id as string | undefined;
   let rescheduledFromText: string | null = null;
-  if (rescheduledFrom && (lesson as any).rescheduled_from) {
+  if (rescheduledFrom && (lesson as unknown as Record<string, unknown>).rescheduled_from) {
     try {
-      const prev = (lesson as any).rescheduled_from;
+      const prev = (lesson as unknown as Record<string, unknown>).rescheduled_from as Record<string, unknown>;
       const prevDt = new Date(`${prev.booking_date}T${prev.start_time}`);
       rescheduledFromText = `Rescheduled from ${format(prevDt, 'MMM d')}, ${format(prevDt, 'h:mm a')}`;
     } catch {
@@ -215,7 +215,17 @@ export default function LessonDetailsPage() {
 
         {/* Instructor Info */}
         <div className="mb-6">
-          <InstructorInfo instructor={lesson.instructor} />
+          <InstructorInfo
+            instructor={{
+              id: lesson.instructor?.id || lesson.instructor_id,
+              first_name: (lesson.instructor as any)?.first_name,
+              last_name: (lesson.instructor as any)?.last_name,
+              last_initial: (lesson.instructor as any)?.last_initial,
+              email: (lesson.instructor as any)?.email,
+              has_profile_picture: (lesson.instructor as any)?.has_profile_picture,
+              profile_picture_version: (lesson.instructor as any)?.profile_picture_version,
+            }}
+          />
         </div>
 
         {/* Action Buttons */}

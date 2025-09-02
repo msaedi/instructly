@@ -16,6 +16,13 @@ import { recordSearch } from '@/lib/searchTracking';
 import { SearchType } from '@/types/enums';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 
+// GeoJSON feature interface for coverage areas
+interface GeoJSONFeature {
+  properties?: {
+    instructors?: string[];
+  };
+}
+
 function SearchPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -37,7 +44,7 @@ function SearchPageContent() {
   const [serviceSlug] = useState<string>('');
   const [rateLimit] = useState<{ seconds: number } | null>(null);
   const [showTimeSelection, setShowTimeSelection] = useState(false);
-  const [timeSelectionContext, setTimeSelectionContext] = useState<any>(null);
+  const [timeSelectionContext, setTimeSelectionContext] = useState<Record<string, unknown> | null>(null);
 
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -45,9 +52,9 @@ function SearchPageContent() {
 
   const [hoveredInstructorId, setHoveredInstructorId] = useState<string | null>(null);
   const [focusedInstructorId, setFocusedInstructorId] = useState<string | null>(null);
-  const [coverageGeoJSON, setCoverageGeoJSON] = useState<any | null>(null);
+  const [coverageGeoJSON, setCoverageGeoJSON] = useState<unknown | null>(null);
   const [showScrollIndicator, setShowScrollIndicator] = useState(true);
-  const [mapBounds, setMapBounds] = useState<any>(null);
+  const [mapBounds, setMapBounds] = useState<unknown>(null);
   const [showSearchAreaButton, setShowSearchAreaButton] = useState(false);
   const [filteredInstructors, setFilteredInstructors] = useState<Instructor[]>([]);
 
@@ -109,7 +116,7 @@ function SearchPageContent() {
           return;
         } else if (nlResponse.data) {
           instructorsData = nlResponse.data.results.map(
-            (result: any) =>
+            (result: Record<string, unknown>) =>
               ({
                 id: result.instructor?.id || '',
                 user_id: result.instructor?.id || '',
@@ -138,13 +145,13 @@ function SearchPageContent() {
               }) as Instructor & { relevance_score: number }
           );
           instructorsData.sort(
-            (a: any, b: any) => (b.relevance_score || 0) - (a.relevance_score || 0)
+            (a: Record<string, unknown>, b: Record<string, unknown>) => ((b.relevance_score as number) || 0) - ((a.relevance_score as number) || 0)
           );
           totalResults = nlResponse.data.total_found;
           setHasMore(false);
         }
       } else if (serviceCatalogId) {
-        const apiParams: any = {
+        const apiParams: Record<string, unknown> = {
           service_catalog_id: serviceCatalogId,
           page: pageNum,
           per_page: 20,
@@ -259,13 +266,13 @@ function SearchPageContent() {
   }, [instructors]);
 
   // Handle map bounds change
-  const handleMapBoundsChange = useCallback((bounds: any) => {
+  const handleMapBoundsChange = useCallback((bounds: unknown) => {
     if (!bounds || !coverageGeoJSON) return;
 
     // Check if any instructors are outside the current bounds
     const instructorsInBounds = instructors.filter((instructor) => {
       // Check if this instructor has any coverage in the current bounds
-      const instructorFeatures = coverageGeoJSON.features.filter((feature: any) => {
+      const instructorFeatures = (coverageGeoJSON as { features: GeoJSONFeature[] })?.features?.filter((feature: GeoJSONFeature) => {
         const instructorsList = feature.properties?.instructors || [];
         return instructorsList.includes(instructor.user_id);
       });
@@ -307,7 +314,7 @@ function SearchPageContent() {
 
     // Filter instructors based on current map bounds
     const instructorsInBounds = instructors.filter((instructor) => {
-      const instructorFeatures = coverageGeoJSON.features.filter((feature: any) => {
+      const instructorFeatures = (coverageGeoJSON as { features: GeoJSONFeature[] })?.features?.filter((feature: GeoJSONFeature) => {
         const instructorsList = feature.properties?.instructors || [];
         return instructorsList.includes(instructor.user_id);
       });
