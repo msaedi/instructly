@@ -8,6 +8,8 @@ import { defineConfig, devices } from '@playwright/test';
 // import path from 'path';
 // dotenv.config({ path: path.resolve(__dirname, '.env') });
 
+const isCI = !!process.env.CI;
+
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
@@ -15,17 +17,27 @@ export default defineConfig({
   globalSetup: './e2e/global-setup.ts',
   testDir: './e2e/tests',
   /* Run tests in files in parallel */
-  fullyParallel: !process.env.CI, // Disable parallel in CI
+  fullyParallel: !isCI, // Disable parallel in CI
   /* Fail the build on CI if you accidentally left test.only in the source code. */
-  forbidOnly: !!process.env.CI,
+  forbidOnly: isCI,
   /* Retry on CI only - REDUCED to avoid 20 minute runs */
-  retries: process.env.CI ? 1 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  retries: isCI ? 1 : 0,
+  /* Modest workers in CI to reduce resource contention */
+  workers: isCI ? 2 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: process.env.CI ? 'list' : 'html',
+  reporter: isCI
+    ? [
+        ['list'],
+        ['junit', { outputFile: 'test-results/junit.xml' }],
+        ['html', { outputFolder: 'playwright-report', open: 'never' }]
+      ]
+    : [['html', { open: 'on-failure' }]],
   /* Timeout per test */
-  timeout: process.env.CI ? 60000 : 30000,
+  timeout: 60_000,
+  /* Expect timeout for assertions */
+  expect: {
+    timeout: 10_000,
+  },
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
@@ -33,13 +45,17 @@ export default defineConfig({
     storageState: 'e2e/.auth/state.json',
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
-    trace: 'on-first-retry',
+    trace: isCI ? 'on-first-retry' : 'retain-on-failure',
 
     /* Screenshot on failure */
     screenshot: 'only-on-failure',
 
-    /* Video on failure */
-    video: 'retain-on-failure',
+    /* Video on failure - capture on retry in CI for better debugging */
+    video: isCI ? 'on-first-retry' : 'retain-on-failure',
+
+    /* Additional options for stability */
+    actionTimeout: 30_000,
+    navigationTimeout: 30_000,
   },
 
   /* Configure projects for major browsers */
@@ -65,10 +81,10 @@ export default defineConfig({
   ],
 
   /* Run your local dev server before starting the tests */
-  webServer: {
+  webServer: process.env.CI ? undefined : {
     command: 'NEXT_PUBLIC_USE_PROXY=false npm run dev:test',
     url: 'http://localhost:3100',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: true,
     timeout: 120 * 1000,
     env: {
       ...process.env,

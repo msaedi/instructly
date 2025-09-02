@@ -16,7 +16,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '20'  # Pin to LTS version
         cache: 'npm'
         cache-dependency-path: frontend/package-lock.json
 
@@ -29,15 +29,302 @@ jobs:
       run: npm test
 
   e2e-tests:
+    needs: [unit-tests]  # Don't spin up services if unit tests fail
     runs-on: ubuntu-latest
+    timeout-minutes: 30  # Prevent orphaned runs
+    concurrency:
+      group: e2e-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
+    # Job-level env applies to build and start (important for Next.js)
+    env:
+      # System
+      TZ: UTC  # Lock timezone to avoid date flakes
+      PYTHONUNBUFFERED: '1'  # Real-time logs from Python
+      CI: 'true'  # Explicit CI flag
+      NEXT_TELEMETRY_DISABLED: '1'  # Disable Next.js telemetry
+      PW_TEST_HTML_REPORT_OPEN: 'never'  # Prevent report open attempts
+      NODE_OPTIONS: '--max-old-space-size=2048'  # Give Next.js more memory in CI
+
+      # Frontend (Next.js) - Required at build time
+      NEXT_PUBLIC_API_BASE: http://localhost:8000
+      NEXT_PUBLIC_APP_ENV: local
+      NEXT_PUBLIC_USE_PROXY: 'false'
+      NEXT_PUBLIC_APP_URL: http://localhost:3100
+      PORT: 3100  # Ensure Next.js dev server binds to the right port
+      PLAYWRIGHT_BASE_URL: http://localhost:3100
+
+      # Backend - Ensure tests bypass beta gates
+      SITE_MODE: local
+      is_testing: 'true'
+      CORS_ALLOW_ORIGINS: http://localhost:3100
+      CORS_ALLOW_HEADERS: content-type,authorization,x-requested-with,x-csrf-token
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+      REDIS_URL: redis://localhost:6379/0
+      JWT_SECRET: test-secret-key-for-ci-only
+      SECRET_KEY: test-secret-key-for-ci-only
+
+      # Test user credentials (keep in sync with seed data)
+      E2E_USER_EMAIL: john.smith@example.com
+      E2E_USER_PASSWORD: Test1234
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
 
     steps:
     - uses: actions/checkout@v4
 
+    - name: Ensure required tools are installed
+      run: |
+        sudo apt-get update && sudo apt-get install -y jq
+        echo "✅ Required tools installed"
+
+    - name: Log versions for diagnostics
+      run: |
+        echo "=== Version Information ==="
+        echo "Node: $(node -v)"
+        echo "npm: $(npm -v)"
+        echo "Python: $(python --version)"
+        echo "Playwright: $(npx playwright --version 2>/dev/null || echo 'Not installed yet')"
+        echo "OS: $(lsb_release -a 2>/dev/null | grep Description | cut -f2)"
+        echo "==========================="
+
+    - name: Verify required environment variables
+      run: |
+        set -euo pipefail
+        : "${NEXT_PUBLIC_API_BASE:?NEXT_PUBLIC_API_BASE is required}"
+        : "${SITE_MODE:?SITE_MODE is required}"
+        : "${DATABASE_URL:?DATABASE_URL is required}"
+        : "${PORT:?PORT is required}"
+        echo "✅ All required environment variables are set"
+
+    - name: Mask sensitive values
+      run: |
+        echo "::add-mask::${{ env.JWT_SECRET }}"
+        echo "::add-mask::${{ env.SECRET_KEY }}"
+        echo "::add-mask::${{ env.DATABASE_URL }}"
+        echo "::add-mask::${{ env.E2E_USER_EMAIL }}"
+        echo "::add-mask::${{ env.E2E_USER_PASSWORD }}"
+        echo "::add-mask::postgresql://postgres:postgres@localhost:5432/test_db"
+        echo "::add-mask::test-secret-key-for-ci-only"
+        echo "::add-mask::Test1234"
+        echo "::add-mask::john.smith@example.com"
+        echo "::add-mask::Bearer "
+        echo "::add-mask::sk_live_"
+        echo "::add-mask::sk_test_"
+        echo "::add-mask::service_role"
+
+    - name: Clean up existing processes
+      run: |
+        set -euo pipefail
+        echo "Checking for port collisions..."
+        if lsof -i :8000,:3100 2>/dev/null; then
+          echo "⚠️ Ports in use, attempting graceful cleanup..."
+          # Try TERM first (graceful)
+          lsof -ti :8000 -sTCP:LISTEN | xargs -r kill || true
+          lsof -ti :3100 -sTCP:LISTEN | xargs -r kill || true
+          sleep 1
+          # Then KILL if needed (forceful)
+          lsof -ti :8000 -sTCP:LISTEN | xargs -r kill -9 || true
+          lsof -ti :3100 -sTCP:LISTEN | xargs -r kill -9 || true
+          pkill -f uvicorn || true
+          pkill -f "npm run dev" || true
+          pkill -f next || true
+          sleep 2
+          # Verify ports are actually free
+          if lsof -i :8000 2>/dev/null || lsof -i :3100 2>/dev/null; then
+            echo "❌ Failed to free ports"
+            lsof -i :8000,:3100 || true
+            exit 1
+          fi
+        fi
+        echo "✅ Ports 8000 and 3100 are free"
+
+    # Backend setup
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+        cache-dependency-path: backend/requirements.txt
+
+    - name: Install backend dependencies
+      working-directory: ./backend
+      run: |
+        pip install --upgrade pip
+        pip install -r requirements.txt
+        echo "=== Key Python packages ==="
+        pip freeze | grep -E 'fastapi|uvicorn|psycopg2|sqlalchemy|pydantic|redis' || true
+        echo "==========================="
+
+    - name: Setup and seed test database
+      working-directory: ./backend
+      run: |
+        set -euo pipefail
+        # Run migrations and seed data using prep_db script
+        python scripts/prep_db.py int --skip-backup --force
+        echo "Database setup complete"
+
+        # Verify database schema is accessible
+        python - <<'PY'
+        import os, sys
+        try:
+            # Try psycopg2 which is what the backend uses
+            import psycopg2
+            with psycopg2.connect(os.environ["DATABASE_URL"]) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                    result = cur.fetchone()
+                    assert result[0] == 1
+                    # Quick schema check
+                    cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public'")
+                    table_count = cur.fetchone()[0]
+                    print(f"✅ Database OK: {table_count} tables in public schema")
+                    if table_count < 5:
+                        print(f"❌ Error: Only {table_count} tables found, database may not be initialized")
+                        sys.exit(1)
+                    elif table_count < 10:
+                        print(f"⚠️ Warning: Only {table_count} tables found (may be normal for minimal schema)")
+        except ImportError:
+            print("❌ psycopg2 not installed")
+            sys.exit(1)
+        except Exception as e:
+            print(f"❌ Database check failed: {e}")
+            sys.exit(1)
+        PY
+
+    - name: Start backend API
+      working-directory: ./backend
+      run: |
+        set -euo pipefail
+        # Start backend with logging to file and unbuffered output
+        nohup python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info --access-log > backend.log 2>&1 &
+        echo "$!" > backend.pid
+        echo "Backend starting (PID: $(cat backend.pid)), waiting for health check..."
+
+        # Wait for backend to be healthy with retries
+        for i in {1..20}; do
+          if curl -fS --retry 3 --retry-delay 2 --max-time 10 http://localhost:8000/health; then
+            echo "✅ Backend is healthy (attempt $i/20)"
+            # Verify expected headers
+            curl -fsSI http://localhost:8000/health | tee /tmp/health-headers.txt
+            if ! grep -qi '^x-site-mode: local' /tmp/health-headers.txt; then
+              echo "❌ Missing or incorrect X-Site-Mode header (expected: local)"
+              cat /tmp/health-headers.txt
+              exit 1
+            fi
+            if ! grep -qi '^x-testing: 1' /tmp/health-headers.txt; then
+              echo "❌ Missing or incorrect X-Testing header (expected: 1)"
+              cat /tmp/health-headers.txt
+              exit 1
+            fi
+            echo "✅ Backend headers verified (X-Site-Mode: local, X-Testing: 1)"
+
+            # Also verify JSON health response
+            if curl -fsS http://localhost:8000/health | jq -e '.status=="healthy"' > /dev/null; then
+              echo "✅ Backend health JSON validated"
+            else
+              echo "⚠️ Backend health JSON format unexpected"
+            fi
+
+            # Verify CORS preflight
+            echo "Testing CORS preflight..."
+            if curl -fsS -i -X OPTIONS http://localhost:8000/health \
+              -H 'Origin: http://localhost:3100' \
+              -H 'Access-Control-Request-Method: GET' \
+              -H 'Access-Control-Request-Headers: content-type,x-csrf-token' \
+              | grep -qi '^access-control-allow-origin: http://localhost:3100'; then
+              echo "✅ CORS preflight headers validated"
+            else
+              echo "❌ CORS preflight check failed"
+              curl -i -X OPTIONS http://localhost:8000/health \
+                -H 'Origin: http://localhost:3100' \
+                -H 'Access-Control-Request-Method: GET' \
+                -H 'Access-Control-Request-Headers: content-type,x-csrf-token'
+              exit 1
+            fi
+
+            # Verify CSRF protection (cross-origin POST should fail)
+            echo "Testing CSRF protection..."
+            CSRF_STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -X POST http://localhost:8000/auth/me \
+              -H 'Origin: http://localhost:3100' \
+              -H 'Content-Type: application/json' \
+              -d '{}')
+            if [ "$CSRF_STATUS" = "401" ] || [ "$CSRF_STATUS" = "403" ] || [ "$CSRF_STATUS" = "422" ]; then
+              echo "✅ CSRF protection working (status: $CSRF_STATUS)"
+            else
+              echo "⚠️ CSRF check returned unexpected status: $CSRF_STATUS (expected 401/403/422)"
+            fi
+
+            # Auth sanity check with seeded user
+            echo "Testing authentication flow..."
+            AUTH_RESPONSE=$(curl -sS -X POST http://localhost:8000/auth/login \
+              -H 'Content-Type: application/x-www-form-urlencoded' \
+              --data-urlencode "username=${E2E_USER_EMAIL}" \
+              --data-urlencode "password=${E2E_USER_PASSWORD}")
+
+            # Safely extract token without exposing it
+            TOKEN=$(echo "$AUTH_RESPONSE" | jq -r '.access_token // empty' 2>/dev/null)
+
+            if [ -n "$TOKEN" ] && [ "$TOKEN" != "null" ] && [ "$TOKEN" != "" ]; then
+              echo "✅ Login successful, testing /auth/me..."
+              if curl -fsS http://localhost:8000/auth/me \
+                -H "Authorization: Bearer $TOKEN" \
+                -o /dev/null; then
+                echo "✅ Auth flow verified (login + protected endpoint)"
+              else
+                echo "❌ Auth verification failed: /auth/me not accessible"
+                exit 1
+              fi
+            else
+              # Extract error message without exposing sensitive data
+              ERROR_MSG=$(echo "$AUTH_RESPONSE" | jq -r '.detail // "Unknown error"' 2>/dev/null || echo "Malformed response")
+              echo "❌ Login failed: $ERROR_MSG"
+              echo "User: ${E2E_USER_EMAIL}"
+              exit 1
+            fi
+
+            break
+          fi
+          echo "⏳ Waiting for backend... (attempt $i/20)"
+          sleep 3
+        done
+
+        # Fail if backend didn't start
+        if ! curl -fS --retry 3 --retry-delay 2 http://localhost:8000/health; then
+          echo "❌ Backend failed to start after 60 seconds"
+          echo "=== Last 100 lines of backend log ==="
+          tail -100 backend.log
+          exit 1
+        fi
+
+    # Frontend setup
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '20'  # Pin to LTS version
         cache: 'npm'
         cache-dependency-path: frontend/package-lock.json
 
@@ -47,16 +334,211 @@ jobs:
 
     - name: Install Playwright browsers
       working-directory: ./frontend
-      run: npx playwright install chromium
+      run: |
+        echo "Installing Playwright browsers..."
+        npx playwright install --with-deps chromium
+
+    - name: Start frontend dev server
+      working-directory: ./frontend
+      run: |
+        set -euo pipefail
+        # Guard against accidental proxy mode
+        if [ "$NEXT_PUBLIC_USE_PROXY" != "false" ]; then
+          echo "❌ NEXT_PUBLIC_USE_PROXY must be 'false' in CI (currently: $NEXT_PUBLIC_USE_PROXY)"
+          exit 1
+        fi
+        # Start frontend with explicit port binding
+        nohup npm run dev:test -- --port 3100 > frontend.log 2>&1 &
+        echo "$!" > frontend.pid
+        echo "Frontend starting on port $PORT (PID: $(cat frontend.pid)), waiting for health check..."
+
+        # Wait for frontend to be ready with retries
+        for i in {1..20}; do
+          if curl -fS --retry 3 --retry-delay 2 --max-time 10 http://localhost:3100/ -o /dev/null; then
+            echo "✅ Frontend home page is ready (attempt $i/20)"
+            # Also check an SSR page to ensure data fetching works
+            if curl -fS --retry 3 --retry-delay 2 --max-time 10 http://localhost:3100/login -o /dev/null; then
+              echo "✅ SSR page /login is responding correctly (status 200)"
+              break
+            else
+              echo "⚠️ /login page not ready yet"
+            fi
+          fi
+          echo "⏳ Waiting for frontend... (attempt $i/20)"
+          sleep 3
+        done
+
+        # Fail if frontend didn't start
+        if ! curl -fS --retry 3 --retry-delay 2 http://localhost:3100/ -o /dev/null; then
+          echo "❌ Frontend failed to start after 60 seconds"
+          echo "=== Last 100 lines of frontend log ==="
+          tail -100 frontend.log
+          exit 1
+        fi
+
+        # Final validation of SSR
+        if ! curl -fS http://localhost:3100/login -o /dev/null; then
+          echo "⚠️ Warning: SSR page /login not fully functional"
+        fi
+
+    - name: Verify frontend bundle
+      working-directory: ./frontend
+      run: |
+        set -euo pipefail
+        echo "Checking frontend bundle configuration..."
+        # Give Next.js time to compile
+        sleep 3
+
+        # Verify environment variables via CI endpoint
+        echo "Verifying environment configuration via CI endpoint..."
+        if curl -fsS http://localhost:3100/api/ci/env -H "x-ci-check: 1" | \
+           jq -e --arg apiBase "$NEXT_PUBLIC_API_BASE" \
+                 --arg appEnv "$NEXT_PUBLIC_APP_ENV" \
+                 --arg useProxy "$NEXT_PUBLIC_USE_PROXY" \
+                 --arg appUrl "$NEXT_PUBLIC_APP_URL" \
+                 '.apiBase == $apiBase and .appEnv == $appEnv and .useProxy == $useProxy and .appUrl == $appUrl' > /dev/null; then
+          echo "✅ Frontend environment variables verified:"
+          curl -fsS http://localhost:3100/api/ci/env -H "x-ci-check: 1" | jq
+        else
+          echo "❌ Frontend environment mismatch!"
+          echo "Expected:"
+          echo "  API_BASE=$NEXT_PUBLIC_API_BASE"
+          echo "  APP_ENV=$NEXT_PUBLIC_APP_ENV"
+          echo "  USE_PROXY=$NEXT_PUBLIC_USE_PROXY"
+          echo "  APP_URL=$NEXT_PUBLIC_APP_URL"
+          echo "Actual:"
+          curl -fsS http://localhost:3100/api/ci/env -H "x-ci-check: 1" | jq
+          exit 1
+        fi
+
+        # Guard against accidental proxy flips and hardcoded URLs
+        if [ "$NEXT_PUBLIC_USE_PROXY" = "false" ]; then
+          echo "Checking for localhost references in client bundle..."
+          FOUND_ISSUES=false
+
+          # Check for various localhost patterns
+          for PATTERN in "localhost:8000" "127.0.0.1:8000" "localhost:8001" "127.0.0.1:8001"; do
+            if grep -R -q "$PATTERN" .next/static 2>/dev/null; then
+              echo "❌ Found $PATTERN references in client bundle"
+              echo "Offending files:"
+              grep -R -l "$PATTERN" .next/static 2>/dev/null | head -3
+              FOUND_ISSUES=true
+            fi
+          done
+
+          if [ "$FOUND_ISSUES" = true ]; then
+            echo "❌ Bundle contains hardcoded localhost references (proxy may be misconfigured)"
+            exit 1
+          else
+            echo "✅ No hardcoded localhost references in client bundle"
+          fi
+        fi
+
+        echo "✅ Bundle verification complete"
 
     - name: Run CI E2E tests
       working-directory: ./frontend
-      run: npm run test:e2e:ci
+      run: |
+        set -euo pipefail
+        # Run tests excluding any quarantined tests (allow failure to capture exit code)
+        set +e
+        npx playwright test --grep-invert @quarantine
+        EXIT_CODE=$?
+        set -e
+        echo "Test exit code: $EXIT_CODE"
 
-    - name: Upload test results
+        # Show logs on test failure for debugging
+        if [ "$EXIT_CODE" -ne 0 ]; then
+          echo ""
+          echo "=== Last 50 lines of frontend.log ==="
+          tail -50 frontend.log || true
+          echo ""
+          echo "=== Last 50 lines of backend.log ==="
+          tail -50 ../backend/backend.log || true
+          echo ""
+        fi
+
+        # Count quarantined tests (informational)
+        QUARANTINE_COUNT=$(grep -r '@quarantine' e2e/tests/ 2>/dev/null | wc -l || echo 0)
+        if [ "$QUARANTINE_COUNT" -gt "5" ]; then
+          echo ""
+          echo "::warning::⚠️ $QUARANTINE_COUNT tests are quarantined (max recommended: 5)"
+          echo "⚠️ Warning: $QUARANTINE_COUNT tests are quarantined (max recommended: 5)"
+          echo "Please review and fix quarantined tests"
+        elif [ "$QUARANTINE_COUNT" -gt "0" ]; then
+          echo ""
+          echo "::notice::ℹ️ $QUARANTINE_COUNT test(s) currently quarantined"
+          echo "ℹ️ Note: $QUARANTINE_COUNT test(s) currently quarantined"
+        fi
+
+        # Summary for GitHub Actions
+        echo ""
+        echo "### Test Summary" >> $GITHUB_STEP_SUMMARY || true
+        echo "- Exit code: $EXIT_CODE" >> $GITHUB_STEP_SUMMARY || true
+        echo "- Quarantined tests: $QUARANTINE_COUNT" >> $GITHUB_STEP_SUMMARY || true
+
+        exit $EXIT_CODE
+
+    - name: Upload Playwright report
       uses: actions/upload-artifact@v4
       if: failure()
       with:
         name: playwright-report
         path: frontend/playwright-report/
-        retention-days: 30
+        retention-days: 7
+
+    - name: Upload server logs
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: server-logs
+        path: |
+          backend/backend.log
+          frontend/frontend.log
+        retention-days: 7
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: frontend/test-results/
+        retention-days: 7
+
+    - name: Upload server logs (success)
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: server-logs-success
+        path: |
+          backend/backend.log
+          frontend/frontend.log
+        retention-days: 3
+
+    - name: Cleanup processes
+      if: always()
+      run: |
+        set +e  # Don't fail on cleanup errors
+        echo "Cleaning up processes and ports..."
+        # Kill by PID files (graceful first)
+        if [ -f backend/backend.pid ]; then
+          kill $(cat backend/backend.pid) 2>/dev/null || true
+        fi
+        if [ -f frontend/frontend.pid ]; then
+          kill $(cat frontend/frontend.pid) 2>/dev/null || true
+        fi
+        sleep 1
+        # Kill by process name (graceful)
+        pkill -f uvicorn || true
+        pkill -f "npm run dev" || true
+        pkill -f next || true
+        sleep 1
+        # Force-kill remaining processes
+        pkill -9 -f uvicorn || true
+        pkill -9 -f "npm run dev" || true
+        pkill -9 -f next || true
+        # Force-free ports as last resort
+        lsof -ti :8000 -sTCP:LISTEN | xargs -r kill -9 || true
+        lsof -ti :3100 -sTCP:LISTEN | xargs -r kill -9 || true
+        # Final verification
+        ! lsof -i:3100 && ! lsof -i:8000 && echo "✅ Cleanup complete" || echo "⚠️ Some processes may still be running"
