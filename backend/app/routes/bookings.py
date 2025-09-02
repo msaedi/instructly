@@ -317,7 +317,6 @@ async def send_reminder_emails(
 @router.get(
     "/",
     response_model=PaginatedResponse[BookingResponse],
-    dependencies=[Depends(require_beta_phase_access("open_beta"))],
 )
 async def get_bookings(
     status: Optional[BookingStatus] = None,

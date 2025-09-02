@@ -37,7 +37,7 @@ export function useCurrentLessons(enabled: boolean = true) {
 export function useCompletedLessons(page: number = 1, enabled: boolean = true) {
   return useQuery<BookingListResponse>({
     queryKey: queryKeys.bookings.history(page),
-    queryFn: queryFn('/bookings', {
+    queryFn: queryFn('/bookings/', {
       params: {
         exclude_future_confirmed: true, // Use new backend parameter
         page,
@@ -57,7 +57,7 @@ export function useCompletedLessons(page: number = 1, enabled: boolean = true) {
 export function useCancelledLessons(page: number = 1) {
   return useQuery<BookingListResponse>({
     queryKey: ['bookings', 'cancelled', { page }],
-    queryFn: queryFn('/bookings', {
+    queryFn: queryFn('/bookings/', {
       params: {
         status: 'CANCELLED',
         upcoming_only: false,

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
+import Link from 'next/link';
 import { useCurrentLessons, useCompletedLessons } from '@/hooks/useMyLessons';
 import { LessonCard } from '@/components/lessons/LessonCard';
 import { reviewsApi } from '@/services/api/reviews';
@@ -13,7 +14,7 @@ import { format } from 'date-fns';
 import { useAuth } from '@/features/shared/hooks/useAuth';
 import { isApiError } from '@/lib/react-query/api';
 import { ChatModal } from '@/components/chat/ChatModal';
-import type { BookingListResponse, Booking } from '@/types/booking';
+import type { Booking } from '@/types/booking';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 
 function MyLessonsContent() {
@@ -28,14 +29,14 @@ function MyLessonsContent() {
 
   // Initialize tab from URL or default to 'upcoming'
   const tabFromUrl = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming');
-
-  useEffect(() => {
-    // Defer reading URL param to client to avoid hydration mismatch
-    const initial = tabFromUrl === 'history' ? 'history' : 'upcoming';
-    setActiveTab(initial as 'upcoming' | 'history');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Fix hydration by reading URL params directly in initial state
+  const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>(() => {
+    // This function only runs on the client, avoiding hydration mismatch
+    if (typeof window !== 'undefined') {
+      return tabFromUrl === 'history' ? 'history' : 'upcoming';
+    }
+    return 'upcoming';
+  });
 
   useEffect(() => {
     setHasMounted(true);
@@ -149,9 +150,9 @@ function MyLessonsContent() {
       <div className="min-h-screen">
         <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between max-w-full">
-            <a href="/" className="inline-block">
+            <Link href="/" className="inline-block">
               <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
-            </a>
+            </Link>
             <div className="pr-4">
               <UserProfileDropdown />
             </div>
@@ -185,9 +186,9 @@ function MyLessonsContent() {
       {/* Header - matching other pages */}
       <header className="bg-white/90 backdrop-blur-sm border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-full">
-          <a href="/" className="inline-block">
+          <Link href="/" className="inline-block">
             <h1 className="text-3xl font-bold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer pl-4">iNSTAiNSTRU</h1>
-          </a>
+          </Link>
           <div className="pr-4">
             <UserProfileDropdown />
           </div>
