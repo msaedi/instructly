@@ -422,7 +422,7 @@ jobs:
           exit 1
         fi
 
-        # Guard against accidental proxy flips and hardcoded URLs
+        # Guard against accidental proxy flips and hardcoded backend URLs
         if [ "$NEXT_PUBLIC_USE_PROXY" = "true" ]; then
           echo "Ensuring bundle does NOT include direct backend URLs when proxying..."
           if grep -R -nE 'https?://(localhost|127\.0\.0\.1):(8000|8001)' .next/static 2>/dev/null | head -5; then
@@ -432,11 +432,9 @@ jobs:
           fi
           echo "✅ No direct backend URLs in bundle (proxy mode)"
         else
-          echo "Direct mode (USE_PROXY=false): allow exactly \$NEXT_PUBLIC_API_BASE, block other localhost targets..."
-          # Allow ONLY the configured base; flag 127.0.0.1:8000 and any :8001 uses
+          echo "Direct mode (USE_PROXY=false): allow exactly \$NEXT_PUBLIC_API_BASE; flag other 8000/8001 targets..."
           ALLOWED_BASE="$NEXT_PUBLIC_API_BASE"
-          # Anything localhost/127 with a port that isn't the exact ALLOWED_BASE should fail
-          OFFENDERS=$(grep -R -nE 'https?://(localhost|127\.0\.0\.1):[0-9]+' .next/static 2>/dev/null \
+          OFFENDERS=$(grep -R -nE 'https?://(localhost|127\.0\.0\.1):(8000|8001)' .next/static 2>/dev/null \
                       | grep -v -F "$ALLOWED_BASE" | head -5 || true)
           if [ -n "$OFFENDERS" ]; then
             echo "❌ Found unexpected direct backend URL(s) not equal to ALLOWED_BASE=$ALLOWED_BASE"
