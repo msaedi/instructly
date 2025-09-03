@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Silence multi-lockfile workspace root warning in CI with explicit root
+  outputFileTracingRoot: require('path').resolve(__dirname, '..'),
   // Allow Next build to succeed while we remediate lint errors in phased PRs
   eslint: { ignoreDuringBuilds: true },
   async headers() {
