@@ -1,5 +1,11 @@
-fastapi>=0.112,<1
-starlette>=0.37,<1
-pydantic>=2.5,<3
-typing-extensions>=4.12,<5
+# Minimal deps to import the FastAPI app & build schema
+fastapi>=0.115
+starlette>=0.40
+pydantic>=2
+typing-extensions>=4.12
+
+# OpenAPI JSON minifier
 orjson>=3.10,<4
+
+# Safety net: if a route still imports SQLAlchemy at runtime
+SQLAlchemy>=2.0

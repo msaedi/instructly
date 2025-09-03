@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 import json
+import os
 import sys
 from pathlib import Path
+
+# Set env var to prevent DB connections during export
+os.environ.setdefault("OPENAPI_EXPORT", "1")
 
 # Try to use orjson for minimal/deterministic output; fallback to stdlib json
 try:
