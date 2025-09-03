@@ -85,3 +85,4 @@ backend/scripts/prep_local_db.py
 # Ignore local backup copies
 *.backup
 frontend/app/(auth)/instructor/profile/page.tsx.backup
+.cache

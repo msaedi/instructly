@@ -1,9 +1,7 @@
 #!/bin/sh
 
-. "$(dirname "$0")/_/husky.sh"
-
-# Frontend strict typecheck gate before push (fast, no emit)
+# Frontend strict typecheck gate before push (full, no emit)
 if [ -d "frontend" ]; then
-  echo "Running frontend strict typecheck..."
-  (cd frontend && npm run typecheck:strict) || exit 1
+  echo "🧠 Running frontend strict typecheck (full)..."
+  (cd frontend && npm run typecheck:strict-all) || exit 1
 fi

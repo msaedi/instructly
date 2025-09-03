@@ -3,8 +3,14 @@
 cd frontend || exit 1
 # Lint only staged files (fast)
 npx lint-staged
+# Full project lint to catch all issues
+echo "🔍 Running full project lint..."
+npm run lint
 # Full typecheck to catch cross-file issues
 npm run typecheck
+# Strict typecheck (fast incremental)
+echo "🧠 Running strict typecheck (fast)..."
+npm run typecheck:strict-all:fast
 
 # Run repository-wide Python pre-commit suite (Black, isort, API contracts, timezone, repo pattern, metrics, no-console)
 cd .. || exit 1
