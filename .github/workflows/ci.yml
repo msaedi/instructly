@@ -18,18 +18,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Python for OpenAPI export
+      # Python deps for OpenAPI export
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
-          cache-dependency-path: |
-            backend/requirements-openapi.txt
 
-      - name: Install backend deps for OpenAPI export
-        run: |
-          python -m pip install -U pip
-          pip install -r ../backend/requirements-openapi.txt
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-openapi-${{ hashFiles('backend/requirements-openapi.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-openapi-
+
+      - name: Install Python deps (OpenAPI export)
+        run: pip install -r ../backend/requirements-openapi.txt
 
       # Node for frontend (use composite action)
       - uses: ./.github/actions/use-node-frontend

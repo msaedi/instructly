@@ -13,8 +13,8 @@ except Exception:
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
-# Import the FastAPI app instance (use fastapi_app, not the wrapped ASGI app)
-from app.main import fastapi_app as app
+# IMPORTANT: import the minimal app, not the full main (avoids prod dependencies)
+from app.openapi_app import openapi_app as app
 
 
 def strip_docs(obj):

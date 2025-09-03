@@ -4,26 +4,6 @@
  */
 
 export type paths = {
-    "/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Read Root
-         * @description Root endpoint - API information
-         */
-        get: operations["read_root__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/account/deactivate": {
         parameters: {
             query?: never;
@@ -2696,30 +2676,6 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/api/webhooks/stripe": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Redirect Stripe Webhook
-         * @description Redirect old webhook URL to new location.
-         *
-         *     This endpoint exists for backward compatibility with webhooks configured
-         *     at /api/webhooks/stripe instead of /api/payments/webhooks/stripe.
-         *     It simply forwards the request to the correct handler.
-         */
-        post: operations["redirect_stripe_webhook_api_webhooks_stripe_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/auth/change-password": {
         parameters: {
             query?: never;
@@ -3188,46 +3144,6 @@ export type paths = {
          *     Note: This keeps UI simple and makes payment windows naturally align to the new schedule.
          */
         post: operations["reschedule_booking_bookings__booking_id__reschedule_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Health Check
-         * @description Health check endpoint with headers for mode/phase/commit.
-         */
-        get: operations["health_check_health_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/health/lite": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Health Check Lite
-         * @description Lightweight health check that doesn't hit database
-         */
-        get: operations["health_check_lite_health_lite_get"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3720,26 +3636,6 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/metrics": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Metrics Endpoint
-         * @description Prometheus metrics endpoint (lightweight).
-         */
-        get: operations["metrics_endpoint_metrics_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/metrics/cache": {
         parameters: {
             query?: never;
@@ -3827,7 +3723,10 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        /** Get Performance Metrics */
+        /**
+         * Get Performance Metrics
+         * @description Get performance metrics from all services.
+         */
         get: operations["get_performance_metrics_metrics_performance_get"];
         put?: never;
         post?: never;
@@ -6415,43 +6314,6 @@ export type components = {
              */
             version: string;
         };
-        /**
-         * HealthLiteResponse
-         * @description Response for lightweight health check endpoint.
-         */
-        HealthLiteResponse: {
-            /**
-             * Status
-             * @description Health status (ok/error)
-             */
-            status: string;
-        };
-        /**
-         * HealthResponse
-         * @description Response for health check endpoint.
-         */
-        HealthResponse: {
-            /**
-             * Environment
-             * @description Environment name
-             */
-            environment: string;
-            /**
-             * Service
-             * @description Service name
-             */
-            service: string;
-            /**
-             * Status
-             * @description Health status
-             */
-            status: string;
-            /**
-             * Version
-             * @description API version
-             */
-            version: string;
-        };
         /** IdentityRefreshResponse */
         IdentityRefreshResponse: {
             /** Status */
@@ -7716,6 +7578,82 @@ export type components = {
             zero_result_rate: number;
         };
         /**
+         * PerformanceMetricsResponse
+         * @description Comprehensive performance metrics response.
+         * @example {
+         *       "availability_service": {
+         *         "cache_operations": 800,
+         *         "db_operations": 200,
+         *         "operations": {
+         *           "get_availability": 1000
+         *         },
+         *         "total_operations": 1000
+         *       },
+         *       "booking_service": {
+         *         "cache_operations": 10,
+         *         "db_operations": 40,
+         *         "operations": {
+         *           "create_booking": 50
+         *         },
+         *         "total_operations": 50
+         *       },
+         *       "cache": {
+         *         "hit_rate": "85.0%",
+         *         "hits": 8500,
+         *         "misses": 1500
+         *       },
+         *       "conflict_checker": {
+         *         "cache_operations": 150,
+         *         "db_operations": 50,
+         *         "operations": {
+         *           "check_conflicts": 200
+         *         },
+         *         "total_operations": 200
+         *       },
+         *       "database": {
+         *         "active_connections": 5,
+         *         "pool_status": {
+         *           "pool_size": 20,
+         *           "usage_percent": 25
+         *         }
+         *       },
+         *       "system": {
+         *         "cpu_percent": 25.5,
+         *         "disk_usage": 60,
+         *         "memory_percent": 45.2
+         *       }
+         *     }
+         */
+        PerformanceMetricsResponse: {
+            /** @description Availability service metrics */
+            availability_service: components["schemas"]["ServiceMetrics"];
+            /** @description Booking service metrics */
+            booking_service: components["schemas"]["ServiceMetrics"];
+            /**
+             * Cache
+             * @description Cache statistics
+             */
+            cache: {
+                [key: string]: unknown;
+            };
+            /** @description Conflict checker metrics */
+            conflict_checker: components["schemas"]["ServiceMetrics"];
+            /**
+             * Database
+             * @description Database connection metrics
+             */
+            database: {
+                [key: string]: unknown;
+            };
+            /**
+             * System
+             * @description System resource metrics
+             */
+            system: {
+                [key: string]: number;
+            };
+        };
+        /**
          * PerformanceRecommendation
          * @description Performance optimization recommendation.
          * @example {
@@ -8519,37 +8457,6 @@ export type components = {
             tip_client_secret?: string | null;
             /** Tip Status */
             tip_status?: string | null;
-        };
-        /**
-         * RootResponse
-         * @description Response for root endpoint.
-         */
-        RootResponse: {
-            /**
-             * Docs
-             * @description Documentation URL
-             */
-            docs: string;
-            /**
-             * Environment
-             * @description Environment name
-             */
-            environment: string;
-            /**
-             * Message
-             * @description Welcome message
-             */
-            message: string;
-            /**
-             * Secure
-             * @description Whether running in secure mode
-             */
-            secure: boolean;
-            /**
-             * Version
-             * @description API version
-             */
-            version: string;
         };
         /**
          * SavePaymentMethodRequest
@@ -10243,95 +10150,6 @@ export type components = {
             last_initial: string;
         };
         /**
-         * PerformanceMetricsResponse
-         * @description Response for performance metrics endpoint.
-         */
-        app__schemas__main_responses__PerformanceMetricsResponse: {
-            /**
-             * Metrics
-             * @description Performance metrics data
-             */
-            metrics: {
-                [key: string]: unknown;
-            };
-        };
-        /**
-         * PerformanceMetricsResponse
-         * @description Comprehensive performance metrics response.
-         * @example {
-         *       "availability_service": {
-         *         "cache_operations": 800,
-         *         "db_operations": 200,
-         *         "operations": {
-         *           "get_availability": 1000
-         *         },
-         *         "total_operations": 1000
-         *       },
-         *       "booking_service": {
-         *         "cache_operations": 10,
-         *         "db_operations": 40,
-         *         "operations": {
-         *           "create_booking": 50
-         *         },
-         *         "total_operations": 50
-         *       },
-         *       "cache": {
-         *         "hit_rate": "85.0%",
-         *         "hits": 8500,
-         *         "misses": 1500
-         *       },
-         *       "conflict_checker": {
-         *         "cache_operations": 150,
-         *         "db_operations": 50,
-         *         "operations": {
-         *           "check_conflicts": 200
-         *         },
-         *         "total_operations": 200
-         *       },
-         *       "database": {
-         *         "active_connections": 5,
-         *         "pool_status": {
-         *           "pool_size": 20,
-         *           "usage_percent": 25
-         *         }
-         *       },
-         *       "system": {
-         *         "cpu_percent": 25.5,
-         *         "disk_usage": 60,
-         *         "memory_percent": 45.2
-         *       }
-         *     }
-         */
-        app__schemas__monitoring_responses__PerformanceMetricsResponse: {
-            /** @description Availability service metrics */
-            availability_service: components["schemas"]["ServiceMetrics"];
-            /** @description Booking service metrics */
-            booking_service: components["schemas"]["ServiceMetrics"];
-            /**
-             * Cache
-             * @description Cache statistics
-             */
-            cache: {
-                [key: string]: unknown;
-            };
-            /** @description Conflict checker metrics */
-            conflict_checker: components["schemas"]["ServiceMetrics"];
-            /**
-             * Database
-             * @description Database connection metrics
-             */
-            database: {
-                [key: string]: unknown;
-            };
-            /**
-             * System
-             * @description System resource metrics
-             */
-            system: {
-                [key: string]: number;
-            };
-        };
-        /**
          * DeleteResponse
          * @description Response for delete operations.
          */
@@ -10387,26 +10205,6 @@ export type components = {
 };
 export type $defs = Record<string, never>;
 export interface operations {
-    read_root__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RootResponse"];
-                };
-            };
-        };
-    };
     deactivate_account_api_account_deactivate_post: {
         parameters: {
             query?: never;
@@ -14166,26 +13964,6 @@ export interface operations {
             };
         };
     };
-    redirect_stripe_webhook_api_webhooks_stripe_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WebhookResponse"];
-                };
-            };
-        };
-    };
     change_password_auth_change_password_post: {
         parameters: {
             query?: never;
@@ -14809,46 +14587,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    health_check_health_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HealthResponse"];
-                };
-            };
-        };
-    };
-    health_check_lite_health_lite_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HealthLiteResponse"];
                 };
             };
         };
@@ -15661,26 +15399,6 @@ export interface operations {
             };
         };
     };
-    metrics_endpoint_metrics_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
     get_cache_metrics_metrics_cache_get: {
         parameters: {
             query?: never;
@@ -15776,7 +15494,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["app__schemas__main_responses__PerformanceMetricsResponse"];
+                    "application/json": components["schemas"]["PerformanceMetricsResponse"];
                 };
             };
         };

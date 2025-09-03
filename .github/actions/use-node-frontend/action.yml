@@ -1,5 +1,5 @@
 name: Use Node for frontend
-description: Setup Node and npm cache for frontend
+description: Set Node and npm cache for the frontend workspace
 runs:
   using: composite
   steps:
@@ -8,15 +8,18 @@ runs:
         node-version: '22.x'
         cache: npm
         cache-dependency-path: frontend/package-lock.json
-    - name: Print Node versions (sanity)
+
+    - name: Show Node/NPM versions
       shell: bash
       run: |
-        echo "Node version: $(node -v)"
-        echo "npm version: $(npm -v)"
-        # Fail fast if Node is less than 22
-        NODE_VERSION=$(node -v | sed 's/v//')
-        NODE_MAJOR=$(echo $NODE_VERSION | cut -d. -f1)
-        if [ "$NODE_MAJOR" -lt 22 ]; then
-          echo "::error::Node version must be >= 22, got v$NODE_VERSION"
+        node -v
+        npm -v
+
+    - name: Enforce Node >= 22
+      shell: bash
+      run: |
+        MAJOR=$(node -p "process.versions.node.split('.')[0]")
+        if [ "$MAJOR" -lt 22 ]; then
+          echo "Expected Node >= 22, got $(node -v)"
           exit 1
         fi
