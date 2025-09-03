@@ -6,54 +6,79 @@ on:
   pull_request:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  contract-check:
+  openapi-export:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Use Node 22.x for frontend
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Restore pip cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ hashFiles('backend/requirements-openapi.txt') }}
+
+      - name: Install OpenAPI deps
+        run: pip install -r backend/requirements-openapi.txt
+
+      - name: Export OpenAPI
+        working-directory: backend
+        run: python scripts/export_openapi.py
+
+      - name: Upload OpenAPI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-json
+          path: backend/openapi/openapi.json
+
+  contract-check:
+    needs: openapi-export
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node (frontend)
         uses: ./.github/actions/use-node-frontend
 
       - name: Install deps (frontend)
-        working-directory: frontend
-        env:
-          NPM_CONFIG_ENGINE_STRICT: "false"
         run: npm ci
-      - name: Assert generator pinned
-        run: node -e "const p=require('./package.json'); if(!/^[0-9]+\.[0-9]+\.[0-9]+$/.test(p.devDependencies['openapi-typescript']||'')) { throw new Error('openapi-typescript must be pinned, not ^/~'); }"
-      - name: Verify OpenAPI size (<= 500 KB)
+
+      - name: Download OpenAPI artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: openapi-json
+          path: ./openapi-artifact
+
+      - name: Verify repo openapi equals artifact
         run: |
-          FILE=../backend/openapi/openapi.json
-          if [ -f "$FILE" ]; then
-            BYTES=$(wc -c < "$FILE")
-            echo "OpenAPI size: $BYTES bytes"
-            if [ "$BYTES" -gt 500000 ]; then
-              echo "::error::$FILE is too large ($BYTES bytes). Run backend/scripts/export_openapi.py to minify/strip."
-              exit 1
-            fi
-          fi
-      - name: Contract check (OpenAPI → TS types) — CI mode
-        working-directory: frontend
-        run: npm run contract:check:ci
+          diff -u ../backend/openapi/openapi.json ./openapi-artifact/openapi.json || (echo "::error::OpenAPI drift: run 'npm run contract:pull' and commit." && exit 1)
+
+      - name: Generate TS from artifact to temp
+        run: npx openapi-typescript ./openapi-artifact/openapi.json -o ./types/generated/api.tmp.d.ts --export-type
+
+      - name: Compare generated types with committed
+        run: |
+          diff -u ./types/generated/api.d.ts ./types/generated/api.tmp.d.ts || (echo "::error::FE types drift: run 'npm run contract:pull' and commit." && exit 1)
 
   lint-build:
-    needs: contract-check
+    needs: openapi-export
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Use Node
-        uses: ./.github/actions/use-node-frontend
-
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/use-node-frontend
       - name: Install dependencies
         working-directory: frontend
-        env:
-          NPM_CONFIG_ENGINE_STRICT: "false"
         run: npm ci
 
       - name: Lint
@@ -69,18 +94,13 @@ jobs:
         run: npm run build:log
 
   frontend-tests:
+    needs: openapi-export
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Use Node
-        uses: ./.github/actions/use-node-frontend
-
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/use-node-frontend
       - name: Install dependencies
         working-directory: frontend
-        env:
-          NPM_CONFIG_ENGINE_STRICT: "false"
         run: npm ci
 
       - name: Unit tests

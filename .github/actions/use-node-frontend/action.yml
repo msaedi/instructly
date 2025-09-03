@@ -1,18 +1,21 @@
 name: Use Node for frontend
-description: Setup Node (default 22.x) with npm cache for frontend
-inputs:
-  node-version:
-    required: false
-    default: '22.x'
+description: Setup Node and npm cache for frontend
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - uses: actions/setup-node@v4
       with:
-        node-version: ${{ inputs.node-version }}
+        node-version-file: frontend/.nvmrc
         cache: npm
         cache-dependency-path: frontend/package-lock.json
-    - shell: bash
+
+    - name: Show versions and enforce >=22
+      shell: bash
       run: |
-        echo "Node: $(node -v)"
-        echo "npm:  $(npm -v)"
+        node -v
+        npm -v
+        major=$(node -p "process.versions.node.split('.')[0]")
+        if [ "$major" -lt 22 ]; then
+          echo "Expected Node >=22, got $(node -v)"
+          exit 1
+        fi
