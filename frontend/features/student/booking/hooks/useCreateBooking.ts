@@ -33,13 +33,37 @@ export function useCreateBooking(): UseCreateBookingReturn {
 
     logger.info('Creating booking', {
       instructorId: data.instructor_id,
-      serviceId: data.instructor_service_id,
+      serviceId: data.instructor_service_id || (data as unknown as { service_id?: string }).service_id,
       startDate: data.booking_date,
       startTime: data.start_time,
     });
 
     try {
-      const response = await protectedApi.createBooking(data);
+      const payload = {
+        ...data,
+        instructor_service_id:
+          (data as unknown as { instructor_service_id?: string }).instructor_service_id ||
+          (data as unknown as { service_id?: string }).service_id,
+        selected_duration:
+          (data as unknown as { selected_duration?: number }).selected_duration ||
+          (() => {
+            // If not provided, infer from start/end when possible
+            try {
+              const [shStr, smStr] = String(data.start_time).split(':');
+              const [ehStr, emStr] = String(data.end_time).split(':');
+              const sh = parseInt(shStr ?? '0', 10);
+              const sm = parseInt(smStr ?? '0', 10);
+              const eh = parseInt(ehStr ?? '0', 10);
+              const em = parseInt(emStr ?? '0', 10);
+              const mins = eh * 60 + em - (sh * 60 + sm);
+              return Number.isFinite(mins) && mins > 0 ? mins : undefined;
+            } catch {
+              return undefined;
+            }
+          })(),
+      } as CreateBookingRequest;
+
+      const response = await protectedApi.createBooking(payload);
 
       if (response.error) {
         // Handle specific error scenarios

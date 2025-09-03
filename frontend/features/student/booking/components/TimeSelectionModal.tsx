@@ -113,7 +113,10 @@ export default function TimeSelectionModal({
       selectedService,
     });
 
-    const hourlyRate = selectedService?.hourly_rate || 100; // fallback rate
+    // Coerce hourly rate to a number (API may send string)
+    const hourlyRateRaw = (selectedService as unknown as Record<string, unknown>)?.hourly_rate as unknown;
+    const hourlyRateParsed = typeof hourlyRateRaw === 'number' ? hourlyRateRaw : parseFloat(String(hourlyRateRaw ?? '100'));
+    const hourlyRate = Number.isNaN(hourlyRateParsed) ? 100 : hourlyRateParsed; // fallback to 100
 
     const result = durations.map((duration) => ({
       duration,
@@ -467,6 +470,11 @@ export default function TimeSelectionModal({
       }
 
       // Prepare booking data for payment page
+      // Ensure hourly rate is numeric
+      const selectedRateRaw = (selectedService as unknown as Record<string, unknown>)?.hourly_rate as unknown;
+      const selectedRateParsed = typeof selectedRateRaw === 'number' ? selectedRateRaw : parseFloat(String(selectedRateRaw ?? '0'));
+      const selectedHourlyRate = Number.isNaN(selectedRateParsed) ? 0 : selectedRateParsed;
+
       const bookingData = {
         instructorId: instructor.user_id,
         instructorName: `${instructor.user.first_name} ${instructor.user.last_initial}.`,
@@ -481,7 +489,7 @@ export default function TimeSelectionModal({
         basePrice: basePrice,
         serviceFee: serviceFee,
         totalAmount: totalAmount,
-        hourlyRate: selectedService.hourly_rate,
+        hourlyRate: selectedHourlyRate,
         location: 'Online', // Default to online, could be enhanced later
         freeCancellationUntil: freeCancellationUntil.toISOString(),
       };
@@ -489,6 +497,20 @@ export default function TimeSelectionModal({
       // Store booking data in session storage
       sessionStorage.setItem('bookingData', JSON.stringify(bookingData));
       sessionStorage.setItem('serviceId', String(bookingData.serviceId));
+      // Also store a lightweight selected slot for downstream recovery
+      try {
+        sessionStorage.setItem(
+          'selectedSlot',
+          JSON.stringify({
+            date: selectedDate,
+            time: selectedTime,
+            duration: selectedDuration,
+            instructorId: instructor.user_id,
+          })
+        );
+      } catch {
+        // no-op
+      }
 
       logger.info('Booking data stored in sessionStorage', {
         bookingData,

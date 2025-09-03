@@ -40,15 +40,31 @@ export function useInstructorProfile(instructorId: string) {
 
       // Map service names from catalog and fix data structure
       const mappedServices = instructor?.services?.map((service: unknown) => {
-        const svc = service as { service_catalog_id: string; name?: string; duration_options?: number[]; [key: string]: unknown };
-        const catalogService = catalogList.find((s: { id: string; name: string }) => s.id === svc.service_catalog_id);
+        const svc = service as {
+          id?: string;
+          service_catalog_id?: string;
+          name?: string;
+          skill?: string;
+          duration_options?: number[];
+          hourly_rate?: number | string;
+          description?: string | null;
+          [key: string]: unknown;
+        };
+        const catalogService = svc.service_catalog_id
+          ? catalogList.find((s: { id: string; name: string }) => s.id === svc.service_catalog_id)
+          : undefined;
+
+        // Coerce hourly rate (API may return string)
+        const hrRaw = svc.hourly_rate as unknown;
+        const hourly_rate = typeof hrRaw === 'number' ? hrRaw : parseFloat(String(hrRaw ?? '0'));
+
         return {
-          id: svc.service_catalog_id,
-          service_catalog_id: svc.service_catalog_id,
-          skill: catalogService?.name || svc.name || `Service ${svc.service_catalog_id}`,
-          duration_options: svc.duration_options || [60], // Preserve all duration options
-          hourly_rate: 0, // Default value for required field
-          description: null // Default value for required field
+          id: (svc.id as string) || (svc.service_catalog_id as string),
+          service_catalog_id: svc.service_catalog_id as string | undefined,
+          skill: (catalogService?.name as string) || (svc.name as string) || (svc.skill as string) || (svc.service_catalog_id ? `Service ${svc.service_catalog_id}` : 'Service'),
+          duration_options: Array.isArray(svc.duration_options) && svc.duration_options.length > 0 ? (svc.duration_options as number[]) : [60],
+          hourly_rate: isNaN(hourly_rate) ? 0 : hourly_rate,
+          description: (svc.description as string | null) ?? null,
         };
       }) || [];
 

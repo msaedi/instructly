@@ -32,6 +32,7 @@ import UserProfileDropdown from '@/components/UserProfileDropdown';
 import { getString, getNumber } from '@/lib/typesafe';
 import type { InstructorService } from '@/types/instructor';
 import { at } from '@/lib/ts/safe';
+import { useAuth } from '@/features/shared/hooks/useAuth';
 
 // Booking intent helpers
 function storeBookingIntent(bookingIntent: {
@@ -85,6 +86,7 @@ function InstructorProfileContent() {
   const [isSlotUserSelected, setIsSlotUserSelected] = useState(false); // Track if slot was manually selected by user
   const [weekStart, setWeekStart] = useState<Date | null>(null);
   const [hasRestoredIntent, setHasRestoredIntent] = useState(false);
+  const { isAuthenticated } = useAuth();
 
   const { data: instructor, isLoading, error, refetch, isFetching } = useInstructorProfile(instructorId);
   const [rateSecs, setRateSecs] = useState<number | null>(null);
@@ -195,6 +197,14 @@ function InstructorProfileContent() {
       // Store booking data for payment page
       sessionStorage.setItem('bookingData', JSON.stringify(paymentBookingData));
       sessionStorage.setItem('serviceId', String(selectedService.id));
+      try {
+        sessionStorage.setItem('selectedSlot', JSON.stringify({
+          date: selectedSlot.date,
+          time: selectedSlot.time,
+          duration,
+          instructorId: instructor.user_id,
+        }));
+      } catch {}
 
       // Use navigation state manager to track booking flow properly
       navigationStateManager.saveBookingFlow({
@@ -205,7 +215,7 @@ function InstructorProfileContent() {
         // availableDuration will be recalculated on restore
       }, 'profile');
 
-      if (typeof window !== 'undefined') {
+      if (!isAuthenticated) {
         // User not authenticated - store booking intent and redirect to login
         storeBookingIntent({
           instructorId: instructor.user_id,
@@ -215,13 +225,10 @@ function InstructorProfileContent() {
           duration,
           skipModal: true,
         });
-
-        // Redirect to login with payment page as return URL
-        // Use replace to avoid polluting browser history
         const returnUrl = `/student/booking/confirm`;
         nextRouter.replace(`/login?redirect=${encodeURIComponent(returnUrl)}`);
       } else {
-        // User is authenticated - go directly to payment page (NO MODAL)
+        // Authenticated - go directly to payment page
         nextRouter.push('/student/booking/confirm');
       }
     }
@@ -258,10 +265,12 @@ function InstructorProfileContent() {
 
   // Check for stored selected slot ONLY when returning from payment/auth pages
   useEffect(() => {
+    // Prevent repeated restoration causing state update loops
+    if (hasRestoredIntent) return;
     // Use navigation state manager to handle slot restoration intelligently
     const restoredSlot = navigationStateManager.getBookingFlow(instructorId);
 
-    if (restoredSlot) {
+    if (restoredSlot && !selectedSlot && !hasRestoredIntent) {
       // Initially restore without availableDuration - it will be recalculated
       // when availability data loads
       setSelectedSlot({
@@ -272,6 +281,8 @@ function InstructorProfileContent() {
       });
       setIsSlotUserSelected(true); // Restored slots are considered user-selected
       setHasRestoredIntent(true);
+      // Clear saved flow so we don't restore again
+      navigationStateManager.clearBookingFlow();
 
       // Don't change weekStart here - keep it consistent with initial load (today)
       // This prevents the calendar from jumping to a different week
@@ -280,7 +291,7 @@ function InstructorProfileContent() {
     // Check for booking intent (from login flow)
     const bookingIntent = getBookingIntent();
 
-    if (bookingIntent && bookingIntent.instructorId === instructorId) {
+    if (bookingIntent && bookingIntent.instructorId === instructorId && !selectedSlot && !hasRestoredIntent) {
       // If skipModal flag is set, user already went through login and should go to payment
       if (bookingIntent.skipModal) {
         // The login redirect should have gone directly to /student/booking/confirm
@@ -307,7 +318,7 @@ function InstructorProfileContent() {
         clearBookingIntent();
       }
     }
-  }, [instructorId, bookingModal]);
+  }, [instructorId, bookingModal, hasRestoredIntent, selectedSlot]);
 
   // Recalculate availableDuration when availability data loads and we have a selected slot
   useEffect(() => {
@@ -629,6 +640,12 @@ function InstructorProfileContent() {
               // Store booking data for payment page
               sessionStorage.setItem('bookingData', JSON.stringify(paymentBookingData));
               sessionStorage.setItem('serviceId', String(selectedService.id));
+              try {
+                sessionStorage.setItem(
+                  'selectedSlot',
+                  JSON.stringify({ date: newSlot.date, time: newSlot.time, duration: newSlot.duration, instructorId })
+                );
+              } catch {}
 
               // Use navigation state manager to track booking flow properly
               navigationStateManager.saveBookingFlow({
@@ -638,7 +655,7 @@ function InstructorProfileContent() {
                 instructorId
               }, 'profile');
 
-              if (typeof window !== 'undefined') {
+              if (!isAuthenticated) {
                 // User not authenticated - store booking intent and redirect to login
                 storeBookingIntent({
                   instructorId: instructor.user_id,
@@ -648,12 +665,10 @@ function InstructorProfileContent() {
                   duration: newSlot.duration,
                   skipModal: true,
                 });
-
-                // Redirect to login with payment page as return URL
                 const returnUrl = `/student/booking/confirm`;
                 nextRouter.replace(`/login?redirect=${encodeURIComponent(returnUrl)}`);
               } else {
-                // User is authenticated - go directly to payment page
+                // Authenticated - go directly to payment page
                 nextRouter.push('/student/booking/confirm');
               }
             }

@@ -32,9 +32,11 @@ function ServiceCardItem({ service, duration, canBook, selectedSlot, onBook }: S
     ? service.duration_options.filter(d => typeof d === 'number' && d > 0)
     : [60];
 
-  // Calculate price based on selected duration with safety check
-  const hourlyRate = typeof service.hourly_rate === 'number' ? service.hourly_rate : 0;
-  const price = Math.round((hourlyRate * selectedDuration) / 60);
+  // Calculate price based on selected duration with safety/coercion
+  // API may return hourly_rate as a string; coerce to number
+  const hourlyRateRaw = (service as unknown as Record<string, unknown>)?.hourly_rate as unknown;
+  const hourlyRate = typeof hourlyRateRaw === 'number' ? hourlyRateRaw : parseFloat(String(hourlyRateRaw ?? '0'));
+  const price = Math.round(((isNaN(hourlyRate) ? 0 : hourlyRate) * selectedDuration) / 60);
 
   // Generate helpful message for unavailable services
   const getUnavailableMessage = () => {

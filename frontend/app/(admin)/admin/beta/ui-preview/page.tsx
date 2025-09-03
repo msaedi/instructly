@@ -149,7 +149,9 @@ function MotionCard() {
   const prefersReducedMotion = useReducedMotion();
   const initial = prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 12 };
   const animate = prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 };
-  const transition = prefersReducedMotion ? { duration: 0.2 } : { duration: 0.35, ease: 'easeOut' };
+  const transition = prefersReducedMotion
+    ? ({ duration: 0.2 } as const)
+    : ({ duration: 0.35, ease: [0.16, 1, 0.3, 1] } as const);
 
   return (
     <div className="rounded-2xl p-6 shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 bg-white/60 dark:bg-gray-900/40">

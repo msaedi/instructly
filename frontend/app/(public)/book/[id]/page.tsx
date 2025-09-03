@@ -23,7 +23,7 @@ import {
 interface Service {
   id: string;
   service_catalog_id: string;
-  hourly_rate: number;
+  hourly_rate: number | string;
   description?: string;
   duration_options: number[];
   is_active?: boolean;
@@ -171,7 +171,10 @@ export default function QuickBookingPage() {
 
     // Prepare booking data for confirmation page
     const bookingDate = new Date(selectedDate + 'T' + selectedTime);
-    const basePrice = selectedService.hourly_rate * (duration / 60);
+    const rateRaw = selectedService.hourly_rate as unknown;
+    const rateNum = typeof rateRaw === 'number' ? rateRaw : parseFloat(String(rateRaw ?? '0'));
+    const safeRate = Number.isNaN(rateNum) ? 0 : rateNum;
+    const basePrice = safeRate * (duration / 60);
     const serviceFee = calculateServiceFee(basePrice);
     const totalAmount = calculateTotalAmount(basePrice);
     const bookingType = determineBookingType(bookingDate);
@@ -198,9 +201,15 @@ export default function QuickBookingPage() {
     };
 
     // Navigate to confirmation page with booking data
-    // Store booking data in session storage for the confirmation page
+    // Store booking data and a lightweight slot for recovery
     sessionStorage.setItem('bookingData', JSON.stringify(paymentBookingData));
     sessionStorage.setItem('serviceId', String(selectedService.id));
+    try {
+      sessionStorage.setItem(
+        'selectedSlot',
+        JSON.stringify({ date: selectedDate, time: selectedTime, duration, instructorId: instructor.user_id })
+      );
+    } catch {}
     router.push('/student/booking/confirm');
   };
 
@@ -225,7 +234,10 @@ export default function QuickBookingPage() {
 
   const calculatePrice = () => {
     if (!selectedService) return 0;
-    return selectedService.hourly_rate * (duration / 60);
+    const raw = selectedService.hourly_rate as unknown;
+    const num = typeof raw === 'number' ? raw : parseFloat(String(raw ?? '0'));
+    const safe = Number.isNaN(num) ? 0 : num;
+    return safe * (duration / 60);
   };
 
   if (loading) {

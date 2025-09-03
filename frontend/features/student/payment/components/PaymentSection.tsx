@@ -188,18 +188,75 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
     goToStep(PaymentStep.PROCESSING);
 
     try {
-      // Get instructor ID and service ID from booking data (now strings/ULIDs)
-      const instructorId = bookingData.instructorId;
-      // Prefer explicit serviceId (ULID) from metadata; as a fallback, try bookingData.serviceId
-      const serviceId = (bookingData.metadata?.serviceId || bookingData.serviceId) as string;
+      // Helper to normalize date input to ISO yyyy-MM-dd
+      const normalizeISODateOnly = (input: Date | string): string => {
+        const d = input instanceof Date ? input : new Date(input);
+        if (Number.isNaN(d.getTime())) throw new Error('Invalid bookingDate');
+        return d.toISOString().slice(0, 10);
+      };
 
-      // Format time to remove seconds if present
-      const formattedStartTime = bookingData.startTime.split(':').slice(0, 2).join(':');
-      const endTime = bookingData.endTime.split(':').slice(0, 2).join(':');
-      const bookingDate =
-        bookingData.date instanceof Date
-          ? bookingData.date.toISOString().split('T')[0]
-          : bookingData.date;
+      // Helper: convert display times like "6:00am" or "12:30pm" to 24h "HH:MM"
+      const toHHMM = (display: string): string => {
+        const lower = String(display ?? '').trim().toLowerCase();
+        if (!lower) throw new Error('Invalid time format: empty');
+        // If already in HH:MM or HH:MM:SS (24h), normalize to HH:MM
+        const basicMatch = lower.match(/^\s*(\d{1,2}):(\d{2})(?::\d{2})?\s*$/) as RegExpMatchArray | null;
+        const ampmMatch = lower.match(/^\s*(\d{1,2}):(\d{2})\s*(am|pm)\s*$/) as RegExpMatchArray | null;
+        if (ampmMatch) {
+          const [, hStr = '', mStr = '', ampm = ''] = ampmMatch as RegExpMatchArray;
+          let hour = parseInt(hStr, 10);
+          const minute = parseInt(mStr, 10);
+          if (ampm === 'pm' && hour !== 12) hour += 12;
+          if (ampm === 'am' && hour === 12) hour = 0;
+          return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+        }
+        if (basicMatch) {
+          const [, hStr = '', mStr = ''] = basicMatch as RegExpMatchArray;
+          const hour = parseInt(hStr, 10);
+          const minute = parseInt(mStr, 10);
+          return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+        }
+        // Fallback: attempt Date parse
+        const parsed = new Date(`1970-01-01T${display}`);
+        if (!Number.isNaN(parsed.getTime())) {
+          return `${String(parsed.getHours()).padStart(2, '0')}:${String(parsed.getMinutes()).padStart(2, '0')}`;
+        }
+        throw new Error(`Invalid time format: ${display}`);
+      };
+
+      // Get instructor ID and service ID from booking data (now strings/ULIDs)
+      const instructorId = String(bookingData.instructorId || '');
+      // Prefer explicit serviceId (ULID) from metadata; as a fallback, try bookingData.serviceId
+      const serviceId = String((bookingData.metadata?.serviceId || bookingData.serviceId) ?? '');
+
+      // Normalize times and date
+      const formattedStartTime = toHHMM(String(bookingData.startTime ?? ''));
+      const endTime = toHHMM(String(bookingData.endTime ?? ''));
+
+      // If date is missing (null/undefined), try to recover from selectedSlot in sessionStorage
+      let bookingDate: string;
+      if (!bookingData.date) {
+        try {
+          const slotRaw = sessionStorage.getItem('selectedSlot');
+          if (slotRaw) {
+            const slot = JSON.parse(slotRaw) as { date?: string };
+            if (slot?.date) {
+              bookingDate = normalizeISODateOnly(slot.date);
+              // One-time recovery: patch bookingData in memory to avoid repeated missing-date errors
+              setUpdatedBookingData((prev) => ({ ...prev, date: new Date(bookingDate) }));
+            } else {
+              throw new Error('missing');
+            }
+          } else {
+            throw new Error('missing');
+          }
+        } catch {
+          // As a last resort, error out clearly
+          throw new Error('Missing booking date. Please re-select date and time.');
+        }
+      } else {
+        bookingDate = normalizeISODateOnly(bookingData.date as Date | string);
+      }
 
       // Debug logging to identify missing data
       logger.info('Preparing booking request', {
@@ -216,14 +273,32 @@ export function PaymentSection({ bookingData, onSuccess, onError, onBack, showPa
 
       // Step 1: Create booking via API
       requireString(bookingDate, 'bookingDate');
+      requireString(instructorId, 'instructorId');
+      requireString(serviceId, 'serviceId');
+      // Build a payload compatible with CreateBookingRequest used by protectedApi
+      const selectedDuration = (() => {
+        try {
+          const startParts = formattedStartTime.split(':');
+          const endParts = endTime.split(':');
+          const sh = parseInt(startParts[0] ?? '0', 10);
+          const sm = parseInt(startParts[1] ?? '0', 10);
+          const eh = parseInt(endParts[0] ?? '0', 10);
+          const em = parseInt(endParts[1] ?? '0', 10);
+          const mins = (eh * 60 + em) - (sh * 60 + sm);
+          return Number.isFinite(mins) && mins > 0 ? mins : undefined;
+        } catch {
+          return undefined;
+        }
+      })();
+
       const booking = await createBooking({
         instructor_id: instructorId,
-        instructor_service_id: serviceId, // Changed to match backend schema
+        instructor_service_id: serviceId,
         booking_date: bookingDate,
         start_time: formattedStartTime,
         end_time: endTime,
-        selected_duration: bookingData.duration,
-      });
+        selected_duration: selectedDuration,
+      } as unknown as import('@/features/shared/api/client').CreateBookingRequest);
 
       if (!booking) {
         // Use the specific error message from the booking hook

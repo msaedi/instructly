@@ -170,9 +170,9 @@ export default function BookingDetailsModal({
                 <DollarSign className="w-4 h-4 mr-1" />
                 <span>Total: ${formatPrice(booking.total_price)}</span>
               </div>
-              {booking.service?.hourly_rate && (
+              {booking.service?.hourly_rate !== undefined && booking.service?.hourly_rate !== null && (
                 <div className="flex items-center text-blue-600 text-sm">
-                  <span className="ml-5">(${formatPrice(booking.service.hourly_rate)}/hour)</span>
+                  <span className="ml-5">(${formatPrice(booking.service.hourly_rate as unknown as number | string)}/hour)</span>
                 </div>
               )}
             </div>

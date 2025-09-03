@@ -119,9 +119,11 @@ export default function BookingModalWithPayment({
   // Update price when service or duration changes
   useEffect(() => {
     if (selectedService) {
-      const hourlyRate = selectedService.hourly_rate;
+      const rateRaw = (selectedService.hourly_rate as unknown);
+      const rateNum = typeof rateRaw === 'number' ? rateRaw : parseFloat(String(rateRaw ?? '0'));
+      const safeRate = Number.isNaN(rateNum) ? 0 : rateNum;
       const hours = duration / 60;
-      setTotalPrice(hourlyRate * hours);
+      setTotalPrice(safeRate * hours);
     }
   }, [selectedService, duration]);
 
@@ -298,7 +300,7 @@ export default function BookingModalWithPayment({
                   >
                     {instructor.services.map((service) => (
                       <option key={service.id} value={service.id}>
-                        {service.skill} - ${service.hourly_rate}/hr
+                        {service.skill} - ${(() => { const r = service.hourly_rate as unknown; const n = typeof r === 'number' ? r : parseFloat(String(r ?? '0')); return Number.isNaN(n) ? 0 : n; })()}/hr
                       </option>
                     ))}
                   </select>

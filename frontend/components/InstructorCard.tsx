@@ -275,9 +275,16 @@ export default function InstructorCard({
 
             {/* Price in upper right */}
             <div className="flex items-center gap-3">
-              <p className={`${compact ? 'text-xl' : 'text-3xl'} font-bold text-[#6A0DAD]`} data-testid="instructor-price">
-                ${instructor.services[0]?.hourly_rate || 0}/hr
-              </p>
+              {(() => {
+                const rateRaw = instructor.services[0]?.hourly_rate as unknown;
+                const rateNum = typeof rateRaw === 'number' ? rateRaw : parseFloat(String(rateRaw ?? '0'));
+                const safeRate = Number.isNaN(rateNum) ? 0 : rateNum;
+                return (
+                  <p className={`${compact ? 'text-xl' : 'text-3xl'} font-bold text-[#6A0DAD]`} data-testid="instructor-price">
+                    ${safeRate}/hr
+                  </p>
+                );
+              })()}
 
               {/* Favorite Button */}
               <button
@@ -320,7 +327,10 @@ export default function InstructorCard({
               <div className={`flex ${compact ? 'gap-2' : 'gap-4'}`}>
                 {at(instructor.services, 0)?.duration_options?.map((duration, index) => {
                   const service = at(instructor.services, 0);
-                  const price = service ? Math.round((service.hourly_rate * duration) / 60) : 0;
+                  const rateRaw = service ? (service.hourly_rate as unknown) : 0;
+                  const rateNum = typeof rateRaw === 'number' ? rateRaw : parseFloat(String(rateRaw ?? '0'));
+                  const safeRate = Number.isNaN(rateNum) ? 0 : rateNum;
+                  const price = service ? Math.round((safeRate * duration) / 60) : 0;
                   return (
                     <label key={duration} className="flex items-center cursor-pointer">
                       <input
@@ -354,9 +364,9 @@ export default function InstructorCard({
                     endTime: calculateEndTime(nextAvailableSlot.time, instructor.services[0]?.duration_options?.[0] || 60),
                     duration: instructor.services[0]?.duration_options?.[0] || 60,
                     location: '', // Leave empty to let user enter their address
-                    basePrice: instructor.services[0]?.hourly_rate || 0,
-                    serviceFee: Math.round((instructor.services[0]?.hourly_rate || 0) * 0.1), // 10% service fee
-                    totalAmount: Math.round((instructor.services[0]?.hourly_rate || 0) * 1.1),
+                    basePrice: (() => { const r = instructor.services[0]?.hourly_rate as unknown; const n = typeof r === 'number' ? r : parseFloat(String(r ?? '0')); return Number.isNaN(n) ? 0 : n; })(),
+                    serviceFee: (() => { const r = instructor.services[0]?.hourly_rate as unknown; const n = typeof r === 'number' ? r : parseFloat(String(r ?? '0')); const v = Number.isNaN(n) ? 0 : n; return Math.round(v * 0.1); })(), // 10% service fee
+                    totalAmount: (() => { const r = instructor.services[0]?.hourly_rate as unknown; const n = typeof r === 'number' ? r : parseFloat(String(r ?? '0')); const v = Number.isNaN(n) ? 0 : n; return Math.round(v * 1.1); })(),
                     freeCancellationUntil: new Date(nextAvailableSlot.date),
                   };
 

@@ -103,9 +103,11 @@ export default function BookingModal({
   // Update price when service or duration changes
   useEffect(() => {
     if (selectedService) {
-      const hourlyRate = selectedService.hourly_rate;
+      const rateRaw = (selectedService.hourly_rate as unknown);
+      const rateNum = typeof rateRaw === 'number' ? rateRaw : parseFloat(String(rateRaw ?? '0'));
+      const safeRate = Number.isNaN(rateNum) ? 0 : rateNum;
       const hours = duration / 60;
-      setTotalPrice(hourlyRate * hours);
+      setTotalPrice(safeRate * hours);
     }
   }, [selectedService, duration]);
 
@@ -511,9 +513,10 @@ export default function BookingModal({
                 </label>
                 <div className="space-y-2">
                   {[30, 60, 90].map((minutes) => {
-                    const price = selectedService
-                      ? (selectedService.hourly_rate * minutes) / 60
-                      : 0;
+                    const rateRaw = selectedService ? (selectedService.hourly_rate as unknown) : 0;
+                    const rateNum = typeof rateRaw === 'number' ? rateRaw : parseFloat(String(rateRaw ?? '0'));
+                    const safeRate = Number.isNaN(rateNum) ? 0 : rateNum;
+                    const price = selectedService ? (safeRate * minutes) / 60 : 0;
                     return (
                       <label
                         key={minutes}
