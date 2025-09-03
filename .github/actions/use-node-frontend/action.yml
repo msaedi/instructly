@@ -1,0 +1,10 @@
+name: Use Node for frontend
+description: Setup Node and npm cache for frontend jobs
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '22.x'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json

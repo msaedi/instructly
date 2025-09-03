@@ -1,0 +1,3 @@
+# Force LF line endings for contract files to prevent CRLF noise on Windows
+backend/openapi/*.json text eol=lf -diff linguist-generated
+frontend/types/generated/* text eol=lf -diff linguist-generated

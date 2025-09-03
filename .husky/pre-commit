@@ -1,5 +1,12 @@
 #!/bin/sh
 
+# Contract drift check only if backend API changed
+CHANGED=$(git diff --cached --name-only)
+if echo "$CHANGED" | grep -E '^(backend/app|backend/routers|backend/schemas|backend/openapi|backend/scripts)'; then
+  echo "→ Running contract drift check (backend touched)"
+  (cd frontend && npm run contract:check) || exit 1
+fi
+
 cd frontend || exit 1
 # Lint only staged files (fast)
 npx lint-staged

@@ -1,53 +1,48 @@
 #!/usr/bin/env python3
-"""
-Export OpenAPI specification from FastAPI application.
-This script starts the FastAPI app and exports its OpenAPI schema to a YAML file.
-"""
-
-import json
-import os
 import sys
 from pathlib import Path
 
-import yaml
+import orjson
 
 # Add the backend directory to Python path
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
-# Set test database to avoid touching production
-os.environ["USE_TEST_DATABASE"] = "true"
+# Import the FastAPI app instance (use fastapi_app, not the wrapped ASGI app)
+from app.main import fastapi_app as app
 
 
-def export_openapi():
-    """Export the OpenAPI specification from FastAPI."""
-    # Import the FastAPI app directly
-    # fastapi_app is the original FastAPI instance before middleware wrapping
-    from app.main import fastapi_app
+def strip_docs(obj):
+    """Strip non-contract fields to reduce size."""
+    STRIP = {"description", "summary", "examples", "example", "externalDocs"}
+    if isinstance(obj, dict):
+        return {k: strip_docs(v) for k, v in obj.items() if k not in STRIP}
+    if isinstance(obj, list):
+        return [strip_docs(v) for v in obj]
+    return obj
 
-    # Get the OpenAPI schema
-    openapi_schema = fastapi_app.openapi()
 
-    # Output path
-    output_path = Path(__file__).parent.parent.parent / "docs" / "api" / "instainstru-openapi.yaml"
+def main():
+    # Generate OpenAPI in-process (no running server)
+    spec = app.openapi()
 
-    # Ensure the directory exists
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    # First: minified deterministic dump
+    data = orjson.dumps(spec, option=orjson.OPT_SORT_KEYS)
 
-    # Convert to YAML and save
-    with open(output_path, "w") as f:
-        yaml.dump(openapi_schema, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+    if len(data) > 500_000:
+        # Fallback: strip doc-only fields and re-dump
+        spec = strip_docs(spec)
+        data = orjson.dumps(spec, option=orjson.OPT_SORT_KEYS)
+        print(f"Stripped docs to reduce size: {len(data)} bytes")
 
-    print(f"✅ OpenAPI specification exported to: {output_path}")
-    print(f"📊 Total endpoints: {len(openapi_schema.get('paths', {}))}")
+    # Use absolute path based on script location
+    script_dir = Path(__file__).parent
+    out_path = script_dir.parent / "openapi" / "openapi.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_bytes(data)
 
-    # Print summary of paths
-    paths = openapi_schema.get("paths", {})
-    print("\n📋 Endpoint Summary:")
-    for path in sorted(paths.keys()):
-        methods = list(paths[path].keys())
-        print(f"  {path}: {', '.join(methods).upper()}")
+    print(f"Wrote {out_path} ({len(data)} bytes)")
 
 
 if __name__ == "__main__":
-    export_openapi()
+    main()
