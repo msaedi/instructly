@@ -1,11 +1,14 @@
 /** @type {import('next').NextConfig} */
+const path = require('path');
 const nextConfig = {
-  // Silence multi-lockfile workspace root warning in CI with explicit root
-  outputFileTracingRoot: require('path').resolve(__dirname, '..'),
+  // Silence multi-lockfile workspace root warning in CI with explicit root.
+  // On Vercel, use the project dir (__dirname). In CI/monorepo, point to repo root.
+  outputFileTracingRoot: process.env.VERCEL ? __dirname : path.resolve(__dirname, '..'),
   // Allow Next build to succeed while we remediate lint errors in phased PRs
   eslint: { ignoreDuringBuilds: true },
   async headers() {
     // Apply noindex/nofollow + private cache on preview/beta (can be toggled via env if needed)
+    // Note: Using process.env directly in config file since it runs in Node.js context
     if (process.env.NEXT_PUBLIC_APP_ENV === 'preview' || process.env.NEXT_PUBLIC_APP_ENV === 'beta') {
       return [
         {
