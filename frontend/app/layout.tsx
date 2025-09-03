@@ -5,6 +5,8 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { logger } from '@/lib/logger';
 import { Providers } from './providers';
+import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import GlobalBackground from '../components/ui/GlobalBackground';
 import PreviewRibbon from '../components/PreviewRibbon';
 import { BetaProvider, BetaBanner } from '@/contexts/BetaContext';
@@ -165,7 +167,11 @@ export default function RootLayout({
               - Toast notifications provider
               - Theme provider
             */}
-            <Providers>{children}</Providers>
+            <Providers>
+              {children}
+              <Analytics />
+              <SpeedInsights />
+            </Providers>
           </BetaProvider>
         </BackgroundProvider>
       </body>

@@ -120,6 +120,10 @@ def create_celery_app() -> Celery:
             "app.tasks.analytics",
             "app.tasks.monitoring_tasks",
             "app.tasks.codebase_metrics",
+            # Ensure privacy tasks are registered (fixes 'unregistered task' errors)
+            "app.tasks.privacy_tasks",
+            # Include legacy cleanup module for completeness
+            "app.tasks.search_history_cleanup",
         }
     )
 
@@ -133,8 +137,8 @@ def create_celery_app() -> Celery:
         "app.tasks.payment_tasks.*": {"queue": "payments"},  # Critical payment tasks
     }
 
-    # Set up task autodiscovery (namespace package)
-    celery_app.autodiscover_tasks(["app.tasks"])  # base namespace
+    # Set up task autodiscovery (search for 'tasks' in the 'app' package)
+    celery_app.autodiscover_tasks(["app"])  # discover app.tasks and submodules
 
     # Import environment-aware beat schedule
     from app.tasks.beat_schedule import get_beat_schedule
