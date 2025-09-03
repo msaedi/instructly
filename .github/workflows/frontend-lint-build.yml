@@ -29,6 +29,10 @@ jobs:
         working-directory: frontend
         env:
           WARNING_BUDGET: "0"
+          NEXT_PUBLIC_API_BASE: http://localhost:8000
+          NEXT_PUBLIC_APP_ENV: ci
+          NEXT_PUBLIC_USE_PROXY: 'false'
+          NEXT_PUBLIC_APP_URL: http://localhost:3100
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
